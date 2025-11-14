@@ -12,7 +12,8 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../../../../pl
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 import { PromptsType } from '../promptTypes.js';
-import { IHandOff, ParsedPromptFile } from './newPromptsParser.js';
+import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
  * Provides prompt services.
@@ -108,6 +109,16 @@ export interface ICustomAgent {
 	readonly model?: string;
 
 	/**
+	 * Argument hint metadata in the prompt header that describes what inputs the agent expects or supports.
+	 */
+	readonly argumentHint?: string;
+
+	/**
+	 * Target metadata in the prompt header.
+	 */
+	readonly target?: string;
+
+	/**
 	 * Contents of the custom agent file body and other agent instructions.
 	 */
 	readonly agentInstructions: IChatModeInstructions;
@@ -127,6 +138,14 @@ export interface IAgentInstructions {
 	readonly content: string;
 	readonly toolReferences: readonly IVariableReference[];
 	readonly metadata?: Record<string, boolean | string | number>;
+}
+
+export interface IChatPromptSlashCommand {
+	readonly name: string;
+	readonly description: string | undefined;
+	readonly argumentHint: string | undefined;
+	readonly promptPath: IPromptPath;
+	readonly parsedPromptFile: ParsedPromptFile;
 }
 
 /**
@@ -157,25 +176,30 @@ export interface IPromptsService extends IDisposable {
 	getSourceFolders(type: PromptsType): readonly IPromptPath[];
 
 	/**
-	 * Returns a prompt command if the command name.
-	 * Undefined is returned if the name does not look like a file name of a prompt file.
+	 * Validates if the provided command name is a valid prompt slash command.
 	 */
-	asPromptSlashCommand(name: string): IChatPromptSlashCommand | undefined;
+	isValidSlashCommandName(name: string): boolean;
 
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<ParsedPromptFile | undefined>;
+	resolvePromptSlashCommand(command: string, token: CancellationToken): Promise<IChatPromptSlashCommand | undefined>;
+
+	/**
+	 * Event that is triggered when the slash command to ParsedPromptFile cache is updated.
+	 * Event handlers can use {@link resolvePromptSlashCommand} to retrieve the latest data.
+	 */
+	readonly onDidChangeSlashCommands: Event<void>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
 	 */
-	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
+	getPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
 
 	/**
 	 * Returns the prompt command name for the given URI.
 	 */
-	getPromptCommandName(uri: URI): Promise<string>;
+	getPromptSlashCommandName(uri: URI, token: CancellationToken): Promise<string>;
 
 	/**
 	 * Event that is triggered when the list of custom agents changes.
@@ -192,12 +216,6 @@ export interface IPromptsService extends IDisposable {
 	 * @param uris
 	 */
 	parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile>;
-
-	/**
-	 * Returns the prompt file type for the given URI.
-	 * @param resource the URI of the resource
-	 */
-	getPromptFileType(resource: URI): PromptsType | undefined;
 
 	/**
 	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
@@ -223,10 +241,20 @@ export interface IPromptsService extends IDisposable {
 	 * Gets list of .github/copilot-instructions.md files.
 	 */
 	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]>;
-}
 
-export interface IChatPromptSlashCommand {
-	readonly command: string;
-	readonly detail: string;
-	readonly promptPath?: IPromptPath;
+	/**
+	 * For a chat mode file URI, return the name of the agent file that it should use.
+	 * @param oldURI
+	 */
+	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined;
+
+	/**
+	 * Returns the list of disabled prompt file URIs for a given type. By default no prompt files are disabled.
+	 */
+	getDisabledPromptFiles(type: PromptsType): ResourceSet;
+
+	/**
+	 * Persists the set of disabled prompt file URIs for the given type.
+	 */
+	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
 }

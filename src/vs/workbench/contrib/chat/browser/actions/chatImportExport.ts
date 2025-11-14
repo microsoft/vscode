@@ -57,7 +57,7 @@ export function registerChatExportActions() {
 				outputPath = result;
 			}
 
-			const model = chatService.getSession(widget.viewModel.sessionId);
+			const model = chatService.getSession(widget.viewModel.sessionResource);
 			if (!model) {
 				return;
 			}

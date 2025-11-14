@@ -117,7 +117,7 @@ function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 			}
 
 			// must check if XCode is installed
-			cp.exec('xcode-select -p', (err: any) => {
+			cp.exec('xcode-select -p', (err) => {
 				if (err && err.code === 2) {
 					// git is not installed, and launching /usr/bin/git
 					// will prompt the user to install it
@@ -1620,7 +1620,7 @@ export class Repository {
 	diffWithHEAD(path?: string | undefined): Promise<string | Change[]>;
 	async diffWithHEAD(path?: string | undefined): Promise<string | Change[]> {
 		if (!path) {
-			return await this.diffFiles(false);
+			return await this.diffFiles(undefined, { cached: false });
 		}
 
 		const args = ['diff', '--', this.sanitizeRelativePath(path)];
@@ -1628,12 +1628,16 @@ export class Repository {
 		return result.stdout;
 	}
 
+	async diffWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.diffFilesShortStat(undefined, { cached: false, path });
+	}
+
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
 	async diffWith(ref: string, path?: string): Promise<string | Change[]> {
 		if (!path) {
-			return await this.diffFiles(false, ref);
+			return await this.diffFiles(ref, { cached: false });
 		}
 
 		const args = ['diff', ref, '--', this.sanitizeRelativePath(path)];
@@ -1646,7 +1650,7 @@ export class Repository {
 	diffIndexWithHEAD(path?: string | undefined): Promise<Change[]>;
 	async diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
 		if (!path) {
-			return await this.diffFiles(true);
+			return await this.diffFiles(undefined, { cached: true });
 		}
 
 		const args = ['diff', '--cached', '--', this.sanitizeRelativePath(path)];
@@ -1654,12 +1658,16 @@ export class Repository {
 		return result.stdout;
 	}
 
+	async diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.diffFilesShortStat(undefined, { cached: true, path });
+	}
+
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffIndexWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
 	async diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
 		if (!path) {
-			return await this.diffFiles(true, ref);
+			return await this.diffFiles(ref, { cached: true });
 		}
 
 		const args = ['diff', '--cached', ref, '--', this.sanitizeRelativePath(path)];
@@ -1679,7 +1687,7 @@ export class Repository {
 	async diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
 		const range = `${ref1}...${ref2}`;
 		if (!path) {
-			return await this.diffFiles(false, range);
+			return await this.diffFiles(range, { cached: false });
 		}
 
 		const args = ['diff', range, '--', this.sanitizeRelativePath(path)];
@@ -1688,8 +1696,51 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async diffBetweenShortStat(ref1: string, ref2: string): Promise<{ files: number; insertions: number; deletions: number }> {
-		const args = ['diff', '--shortstat', `${ref1}...${ref2}`];
+	async diffBetween2(ref1: string, ref2: string, options: { similarityThreshold?: number }): Promise<Change[]> {
+		return await this.diffFiles(`${ref1}...${ref2}`, { cached: false, similarityThreshold: options.similarityThreshold });
+	}
+
+	private async diffFiles(ref: string | undefined, options: { cached: boolean; similarityThreshold?: number }): Promise<Change[]> {
+		const args = ['diff', '--name-status', '-z', '--diff-filter=ADMR'];
+
+		if (options.cached) {
+			args.push('--cached');
+		}
+
+		if (options.similarityThreshold) {
+			args.push(`--find-renames=${options.similarityThreshold}%`);
+		}
+
+		if (ref) {
+			args.push(ref);
+		}
+
+		args.push('--');
+
+		const gitResult = await this.exec(args);
+		if (gitResult.exitCode) {
+			return [];
+		}
+
+		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
+	}
+
+	private async diffFilesShortStat(ref: string | undefined, options: { cached: boolean; path?: string }): Promise<CommitShortStat> {
+		const args = ['diff', '--shortstat'];
+
+		if (options.cached) {
+			args.push('--cached');
+		}
+
+		if (ref !== undefined) {
+			args.push(ref);
+		}
+
+		args.push('--');
+
+		if (options.path) {
+			args.push(this.sanitizeRelativePath(options.path));
+		}
 
 		const result = await this.exec(args);
 		if (result.exitCode) {
@@ -1699,23 +1750,6 @@ export class Repository {
 		return parseGitDiffShortStat(result.stdout.trim());
 	}
 
-	private async diffFiles(cached: boolean, ref?: string): Promise<Change[]> {
-		const args = ['diff', '--name-status', '-z', '--diff-filter=ADMR'];
-		if (cached) {
-			args.push('--cached');
-		}
-
-		if (ref) {
-			args.push(ref);
-		}
-
-		const gitResult = await this.exec(args);
-		if (gitResult.exitCode) {
-			return [];
-		}
-
-		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
-	}
 
 	async diffTrees(treeish1: string, treeish2?: string, options?: { similarityThreshold?: number }): Promise<Change[]> {
 		const args = ['diff-tree', '-r', '--name-status', '-z', '--diff-filter=ADMR'];
@@ -1729,6 +1763,8 @@ export class Repository {
 		if (treeish2) {
 			args.push(treeish2);
 		}
+
+		args.push('--');
 
 		const gitResult = await this.exec(args);
 		if (gitResult.exitCode) {
@@ -1939,11 +1975,12 @@ export class Repository {
 		}
 	}
 
-	private async handleCommitError(commitErr: any): Promise<void> {
-		if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
+
+	private async handleCommitError(commitErr: unknown): Promise<void> {
+		if (commitErr instanceof GitError && /not possible because you have unmerged files/.test(commitErr.stderr || '')) {
 			commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
 			throw commitErr;
-		} else if (/Aborting commit due to empty commit message/.test(commitErr.stderr || '')) {
+		} else if (commitErr instanceof GitError && /Aborting commit due to empty commit message/.test(commitErr.stderr || '')) {
 			commitErr.gitErrorCode = GitErrorCodes.EmptyCommitMessage;
 			throw commitErr;
 		}
@@ -2077,8 +2114,8 @@ export class Repository {
 		const pathsByGroup = groupBy(paths.map(sanitizePath), p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
 
-		const limiter = new Limiter(5);
-		const promises: Promise<any>[] = [];
+		const limiter = new Limiter<IExecutionResult<string>>(5);
+		const promises: Promise<IExecutionResult<string>>[] = [];
 		const args = ['clean', '-f', '-q'];
 
 		for (const paths of groups) {

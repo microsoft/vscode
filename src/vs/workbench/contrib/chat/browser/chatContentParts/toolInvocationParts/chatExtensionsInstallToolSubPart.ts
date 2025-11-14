@@ -5,7 +5,7 @@
 
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { autorunSelfDisposable } from '../../../../../../base/common/observable.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IExtensionManagementService } from '../../../../../../platform/extensionManagement/common/extensionManagement.js';
@@ -16,15 +16,23 @@ import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
 import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
-import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
-import { IChatConfirmationButton, ChatConfirmationWidget } from '../chatConfirmationWidget.js';
+import { IChatWidgetService } from '../../chat.js';
+import { ChatConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatExtensionsContentPart } from '../chatExtensionsContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
-	public readonly codeblocks: IChatCodeBlockInfo[] = [];
+	private readonly _confirmWidget?: ChatConfirmationWidget<ConfirmedReason>;
+
+	public get codeblocks() {
+		return this._confirmWidget?.codeblocks || [];
+	}
+
+	public override get codeblocksPartId() {
+		return this._confirmWidget?.codeblocksPartId || '<none>';
+	}
 
 	constructor(
 		toolInvocation: IChatToolInvocation,
@@ -75,26 +83,23 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 
 			const confirmWidget = this._register(instantiationService.createInstance(
 				ChatConfirmationWidget<ConfirmedReason>,
-				context.container,
+				context,
 				{
 					title: toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
 					message: toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Allow when finished."),
 					buttons,
 				}
 			));
+			this._confirmWidget = confirmWidget;
 			this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			dom.append(this.domNode, confirmWidget.domNode);
 			this._register(confirmWidget.onDidClick(button => {
 				IChatToolInvocation.confirmWith(toolInvocation, button.data);
-				chatWidgetService.getWidgetBySessionId(context.element.sessionId)?.focusInput();
+				chatWidgetService.getWidgetBySessionResource(context.element.sessionResource)?.focusInput();
 			}));
-			this._register(autorunSelfDisposable(reader => {
-				if (IChatToolInvocation.isConfirmed(toolInvocation, reader)) {
-					reader.dispose();
-					ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService).set(false);
-					this._onNeedsRerender.fire();
-				}
-			}));
+			const hasToolConfirmationKey = ChatContextKeys.Editing.hasToolConfirmation.bindTo(contextKeyService);
+			hasToolConfirmationKey.set(true);
+			this._register(toDisposable(() => hasToolConfirmationKey.reset()));
 			const disposable = this._register(extensionManagementService.onInstallExtension(e => {
 				if (extensionsContent.extensions.some(id => areSameExtensions({ id }, e.identifier))) {
 					disposable.dispose();

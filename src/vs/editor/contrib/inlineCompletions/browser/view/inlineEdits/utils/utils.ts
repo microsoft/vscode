@@ -8,13 +8,13 @@ import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../
 import { numberComparator } from '../../../../../../../base/common/arrays.js';
 import { findFirstMin } from '../../../../../../../base/common/arraysFind.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
-import { derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableValue, transaction } from '../../../../../../../base/common/observable.js';
+import { DebugLocation, derived, derivedObservableWithCache, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue, transaction } from '../../../../../../../base/common/observable.js';
 import { OS } from '../../../../../../../base/common/platform.js';
 import { splitLines } from '../../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { MenuEntryActionViewItem } from '../../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
-import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
+import { observableCodeEditor, ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../../common/core/2d/point.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
@@ -28,6 +28,7 @@ import { ITextModel } from '../../../../../../common/model.js';
 import { indentOfLine } from '../../../../../../common/model/textModel.js';
 import { CharCode } from '../../../../../../../base/common/charCode.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
+import { Size2D } from '../../../../../../common/core/2d/size.js';
 
 export function maxContentWidthInRange(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): number {
 	editor.layoutInfo.read(reader);
@@ -57,6 +58,34 @@ export function maxContentWidthInRange(editor: ObservableCodeEditor, range: Line
 	return maxContentWidth;
 }
 
+export function getContentSizeOfLines(editor: ObservableCodeEditor, range: LineRange, reader: IReader | undefined): Size2D[] {
+	editor.layoutInfo.read(reader);
+	editor.value.read(reader);
+	observableSignalFromEvent(editor, editor.editor.onDidChangeLineHeight).read(reader);
+
+	const model = editor.model.read(reader);
+	if (!model) { throw new BugIndicatingError('Model is required'); }
+
+	const sizes: Size2D[] = [];
+
+	editor.scrollTop.read(reader);
+	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
+		const column = model.getLineMaxColumn(i);
+		let lineContentWidth = editor.editor.getOffsetForColumn(i, column);
+		if (lineContentWidth === -1) {
+			// approximation
+			const typicalHalfwidthCharacterWidth = editor.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+			const approximation = column * typicalHalfwidthCharacterWidth;
+			lineContentWidth = approximation;
+		}
+
+		const height = editor.editor.getLineHeightForPosition(new Position(i, 1));
+		sizes.push(new Size2D(lineContentWidth, height));
+	}
+
+	return sizes;
+}
+
 export function getOffsetForPos(editor: ObservableCodeEditor, pos: Position, reader: IReader): number {
 	editor.layoutInfo.read(reader);
 	editor.value.read(reader);
@@ -70,7 +99,7 @@ export function getOffsetForPos(editor: ObservableCodeEditor, pos: Position, rea
 	return lineContentWidth;
 }
 
-export function getPrefixTrim(diffRanges: Range[], originalLinesRange: LineRange, modifiedLines: string[], editor: ICodeEditor): { prefixTrim: number; prefixLeftOffset: number } {
+export function getPrefixTrim(diffRanges: Range[], originalLinesRange: LineRange, modifiedLines: string[], editor: ICodeEditor, reader: IReader | undefined = undefined): { prefixTrim: number; prefixLeftOffset: number } {
 	const textModel = editor.getModel();
 	if (!textModel) {
 		return { prefixTrim: 0, prefixLeftOffset: 0 };
@@ -85,6 +114,8 @@ export function getPrefixTrim(diffRanges: Range[], originalLinesRange: LineRange
 	const startLineIndent = textModel.getLineIndentColumn(originalLinesRange.startLineNumber);
 	if (startLineIndent >= prefixTrim + 1) {
 		// We can use the editor to get the offset
+		// TODO go through other usages of getOffsetForColumn and come up with a robust reactive solution to read it
+		observableCodeEditor(editor).scrollTop.read(reader); // getOffsetForColumn requires the line number to be visible. This might change on scroll top.
 		prefixLeftOffset = editor.getOffsetForColumn(originalLinesRange.startLineNumber, prefixTrim + 1);
 	} else if (modifiedLines.length > 0) {
 		// Content is not in the editor, we can use the content width to calculate the offset
@@ -392,12 +423,26 @@ export function observeElementPosition(element: HTMLElement, store: DisposableSt
 	};
 }
 
-export function rectToProps(fn: (reader: IReader) => Rect) {
+export function rectToProps(fn: (reader: IReader) => Rect | undefined, debugLocation: DebugLocation = DebugLocation.ofCaller()) {
 	return {
-		left: derived({ name: 'editor.validOverlay.left' }, reader => /** @description left */ fn(reader).left),
-		top: derived({ name: 'editor.validOverlay.top' }, reader => /** @description top */ fn(reader).top),
-		width: derived({ name: 'editor.validOverlay.width' }, reader => /** @description width */ fn(reader).right - fn(reader).left),
-		height: derived({ name: 'editor.validOverlay.height' }, reader => /** @description height */ fn(reader).bottom - fn(reader).top),
+		left: derived({ name: 'editor.validOverlay.left' }, reader => /** @description left */ fn(reader)?.left, debugLocation),
+		top: derived({ name: 'editor.validOverlay.top' }, reader => /** @description top */ fn(reader)?.top, debugLocation),
+		width: derived({ name: 'editor.validOverlay.width' }, reader => {
+			/** @description width */
+			const val = fn(reader);
+			if (!val) {
+				return undefined;
+			}
+			return val.right - val.left;
+		}, debugLocation),
+		height: derived({ name: 'editor.validOverlay.height' }, reader => {
+			/** @description height */
+			const val = fn(reader);
+			if (!val) {
+				return undefined;
+			}
+			return val.bottom - val.top;
+		}, debugLocation),
 	};
 }
 

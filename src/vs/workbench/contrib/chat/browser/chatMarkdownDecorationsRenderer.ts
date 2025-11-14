@@ -112,7 +112,7 @@ export class ChatMarkdownDecorationsRenderer {
 		const title = uri ? this.labelService.getUriLabel(uri, { relative: true }) :
 			part instanceof ChatRequestSlashCommandPart ? part.slashCommand.detail :
 				part instanceof ChatRequestAgentSubcommandPart ? part.command.description :
-					part instanceof ChatRequestSlashPromptPart ? part.slashPromptCommand.command :
+					part instanceof ChatRequestSlashPromptPart ? part.name :
 						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
 							'';
 
@@ -123,6 +123,7 @@ export class ChatMarkdownDecorationsRenderer {
 
 	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement): IDisposable {
 		const store = new DisposableStore();
+		// eslint-disable-next-line no-restricted-syntax
 		element.querySelectorAll('a').forEach(a => {
 			const href = a.getAttribute('data-href');
 			if (href) {
@@ -184,7 +185,7 @@ export class ChatMarkdownDecorationsRenderer {
 					return;
 				}
 
-				this.chatService.sendRequest(widget.viewModel!.sessionId, agent.metadata.sampleRequest ?? '',
+				this.chatService.sendRequest(widget.viewModel!.sessionResource, agent.metadata.sampleRequest ?? '',
 					{
 						location: widget.location,
 						agentId: agent.id,
@@ -221,7 +222,7 @@ export class ChatMarkdownDecorationsRenderer {
 			}
 
 			const command = agent.slashCommands.find(c => c.name === args.command);
-			this.chatService.sendRequest(widget.viewModel!.sessionId, command?.sampleRequest ?? '', {
+			this.chatService.sendRequest(widget.viewModel!.sessionResource, command?.sampleRequest ?? '', {
 				location: widget.location,
 				agentId: agent.id,
 				slashCommand: args.command,

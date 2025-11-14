@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
 import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
+import * as eslint from 'eslint';
 
 export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
@@ -18,7 +18,7 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
 		return {
-			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature[key.name=/^(provide|resolve).+/]']: (node: any) => {
+			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature[key.name=/^(provide|resolve).+/]']: (node: TSESTree.Node) => {
 
 				let found = false;
 				for (const param of (<TSESTree.TSMethodSignature>node).params) {

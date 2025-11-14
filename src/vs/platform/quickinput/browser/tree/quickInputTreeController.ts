@@ -17,12 +17,14 @@ import { getParentNodeState, IQuickTreeFilterData } from './quickInputTree.js';
 import { QuickTreeAccessibilityProvider } from './quickInputTreeAccessibilityProvider.js';
 import { QuickInputTreeFilter } from './quickInputTreeFilter.js';
 import { QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
+import { QuickInputTreeSorter } from './quickInputTreeSorter.js';
 
 const $ = dom.$;
 
 export class QuickInputTreeController extends Disposable {
 	private readonly _renderer: QuickInputTreeRenderer<IQuickTreeItem>;
 	private readonly _filter: QuickInputTreeFilter;
+	private readonly _sorter: QuickInputTreeSorter;
 	private readonly _tree: WorkbenchObjectTree<IQuickTreeItem, IQuickTreeFilterData>;
 
 	private readonly _onDidTriggerButton = this._register(new Emitter<IQuickTreeItemButtonEvent<IQuickTreeItem>>());
@@ -57,6 +59,7 @@ export class QuickInputTreeController extends Disposable {
 		this._container = dom.append(container, $('.quick-input-tree'));
 		this._renderer = this._register(this.instantiationService.createInstance(QuickInputTreeRenderer, hoverDelegate, this._onDidTriggerButton, this.onDidChangeCheckboxState));
 		this._filter = this.instantiationService.createInstance(QuickInputTreeFilter);
+		this._sorter = this._register(new QuickInputTreeSorter());
 		this._tree = this._register(this.instantiationService.createInstance(
 			WorkbenchObjectTree<IQuickTreeItem, IQuickTreeFilterData>,
 			'QuickInputTree',
@@ -74,28 +77,7 @@ export class QuickInputTreeController extends Disposable {
 				expandOnDoubleClick: true,
 				expandOnlyOnTwistieClick: true,
 				disableExpandOnSpacebar: true,
-				sorter: {
-					compare: (a: IQuickTreeItem, b: IQuickTreeItem): number => {
-						if (a.label < b.label) {
-							return -1;
-						} else if (a.label > b.label) {
-							return 1;
-						}
-						// use description to break ties
-						if (a.description && b.description) {
-							if (a.description < b.description) {
-								return -1;
-							} else if (a.description > b.description) {
-								return 1;
-							}
-						} else if (a.description) {
-							return -1;
-						} else if (b.description) {
-							return 1;
-						}
-						return 0;
-					}
-				},
+				sorter: this._sorter,
 				filter: this._filter
 			}
 		));
@@ -116,6 +98,15 @@ export class QuickInputTreeController extends Disposable {
 
 	set displayed(value: boolean) {
 		this._container.style.display = value ? '' : 'none';
+	}
+
+	get sortByLabel() {
+		return this._sorter.sortByLabel;
+	}
+
+	set sortByLabel(value: boolean) {
+		this._sorter.sortByLabel = value;
+		this._tree.resort(null, true);
 	}
 
 	getActiveDescendant() {
@@ -322,7 +313,7 @@ export class QuickInputTreeController extends Disposable {
 		return this._tree.getFocus().filter((item): item is IQuickTreeItem => item !== null);
 	}
 
-	check(element: IQuickTreeItem, checked: boolean | 'partial') {
+	check(element: IQuickTreeItem, checked: boolean | 'mixed') {
 		if (element.checked === checked) {
 			return;
 		}
@@ -330,7 +321,7 @@ export class QuickInputTreeController extends Disposable {
 		this._onDidCheckedLeafItemsChange.fire(this.getCheckedLeafItems());
 	}
 
-	checkAll(checked: boolean | 'partial') {
+	checkAll(checked: boolean | 'mixed') {
 		const updated = new Set<IQuickTreeItem>();
 		const toUpdate = [...this._tree.getNode().children];
 		let fireCheckedChangeEvent = false;
@@ -345,6 +336,10 @@ export class QuickInputTreeController extends Disposable {
 				toUpdate.push(...update.children);
 				updated.add(update.element);
 				this._tree.rerender(update.element);
+				this._onDidChangeCheckboxState.fire({
+					item: update.element,
+					checked: update.element.checked
+				});
 			}
 		}
 		if (fireCheckedChangeEvent) {
