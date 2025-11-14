@@ -2729,10 +2729,6 @@ declare namespace monaco.editor {
 		 */
 		setPosition(position: IPosition, source?: string): void;
 		/**
-		 * Scroll vertically or horizontally as necessary and reveal the current cursors.
-		 */
-		revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void;
-		/**
 		 * Scroll vertically as necessary and reveal a line.
 		 */
 		revealLine(lineNumber: number, scrollType?: ScrollType): void;
@@ -6267,6 +6263,10 @@ declare namespace monaco.editor {
 		 * @param command The commands to execute
 		 */
 		executeCommands(source: string | null | undefined, commands: (ICommand | null)[]): void;
+		/**
+		 * Scroll vertically or horizontally as necessary and reveal the current cursors.
+		 */
+		revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void;
 		/**
 		 * Get all the decorations on a line (filtering out decorations from other editors).
 		 */
