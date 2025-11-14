@@ -1537,7 +1537,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private setAlignment(container: HTMLElement, treeItem: ITreeItem) {
-		container.parentElement!.classList.toggle('align-icon-with-twisty', !this._hasCheckbox && this.aligner.alignIconWithTwisty(treeItem));
+		// When checkboxes are present, align leaf nodes (no twisty) to avoid extra indentation
+		// When no checkboxes, use the aligner logic for icon/twisty alignment
+		const shouldAlign = this._hasCheckbox 
+			? treeItem.collapsibleState === TreeItemCollapsibleState.None 
+			: this.aligner.alignIconWithTwisty(treeItem);
+		container.parentElement!.classList.toggle('align-icon-with-twisty', shouldAlign);
 	}
 
 	private shouldHideResourceLabelIcon(iconUrl: URI | undefined, icon: ThemeIcon | undefined): boolean {
