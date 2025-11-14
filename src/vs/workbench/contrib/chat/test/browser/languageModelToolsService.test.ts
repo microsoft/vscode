@@ -768,8 +768,8 @@ suite('LanguageModelToolsService', () => {
 
 	test('toToolAndToolSetEnablementMap map Github to VSCode tools', () => {
 		const runCommandsToolData: IToolData = {
-			id: VSCodeToolReference.runCommands,
-			toolReferenceName: VSCodeToolReference.runCommands,
+			id: VSCodeToolReference.shell,
+			toolReferenceName: VSCodeToolReference.shell,
 			modelDescription: 'runCommands',
 			displayName: 'runCommands',
 			source: ToolDataSource.Internal,
@@ -831,7 +831,7 @@ suite('LanguageModelToolsService', () => {
 			assert.strictEqual(result.get(runSubagentToolData), true, 'runSubagentToolData should be enabled');
 			assert.strictEqual(result.get(runCommandsToolData), true, 'runCommandsToolData should be enabled');
 			const qualifiedNames = service.toQualifiedToolNames(result).sort();
-			assert.deepStrictEqual(qualifiedNames, [VSCodeToolReference.runCommands, VSCodeToolReference.runSubagent], 'toQualifiedToolNames should return the VS Code tool names');
+			assert.deepStrictEqual(qualifiedNames, [VSCodeToolReference.shell, VSCodeToolReference.runSubagent], 'toQualifiedToolNames should return the VS Code tool names');
 		}
 		{
 			const toolNames = ['github/*', 'playwright/*'];

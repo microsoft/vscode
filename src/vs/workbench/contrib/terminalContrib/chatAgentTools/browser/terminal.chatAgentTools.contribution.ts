@@ -69,16 +69,16 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const getTerminalOutputTool = instantiationService.createInstance(GetTerminalOutputTool);
 		this._register(toolsService.registerTool(GetTerminalOutputToolData, getTerminalOutputTool));
 
-		const runCommandsToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runCommands', VSCodeToolReference.runCommands, {
+		const shellToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'shell', VSCodeToolReference.shell, {
 			icon: ThemeIcon.fromId(Codicon.terminal.id),
-			description: localize('toolset.runCommands', 'Runs commands in the terminal')
+			description: localize('toolset.shell', 'Runs commands in the terminal')
 		}));
-		this._register(runCommandsToolSet.addTool(GetTerminalOutputToolData));
+		this._register(shellToolSet.addTool(GetTerminalOutputToolData));
 
 		instantiationService.invokeFunction(createRunInTerminalToolData).then(runInTerminalToolData => {
 			const runInTerminalTool = instantiationService.createInstance(RunInTerminalTool);
 			this._register(toolsService.registerTool(runInTerminalToolData, runInTerminalTool));
-			this._register(runCommandsToolSet.addTool(runInTerminalToolData));
+			this._register(shellToolSet.addTool(runInTerminalToolData));
 		});
 
 		const getTerminalSelectionTool = instantiationService.createInstance(GetTerminalSelectionTool);
@@ -87,8 +87,8 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const getTerminalLastCommandTool = instantiationService.createInstance(GetTerminalLastCommandTool);
 		this._register(toolsService.registerTool(GetTerminalLastCommandToolData, getTerminalLastCommandTool));
 
-		this._register(runCommandsToolSet.addTool(GetTerminalSelectionToolData));
-		this._register(runCommandsToolSet.addTool(GetTerminalLastCommandToolData));
+		this._register(shellToolSet.addTool(GetTerminalSelectionToolData));
+		this._register(shellToolSet.addTool(GetTerminalLastCommandToolData));
 
 		// #endregion
 
@@ -103,12 +103,16 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const createAndRunTaskTool = instantiationService.createInstance(CreateAndRunTaskTool);
 		this._register(toolsService.registerTool(CreateAndRunTaskToolData, createAndRunTaskTool));
 
-		const runTasksToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'runTasks', 'runTasks', {
-			description: localize('toolset.runTasks', 'Runs tasks and gets their output for your workspace'),
-		}));
-		runTasksToolSet.addTool(RunTaskToolData);
-		runTasksToolSet.addTool(GetTaskOutputToolData);
-		runTasksToolSet.addTool(CreateAndRunTaskToolData);
+		// Get or create the vscode toolset - it may be defined externally by the default chat extension
+		let vscodeToolSet = toolsService.getToolSetByName('vscode');
+		if (!vscodeToolSet) {
+			vscodeToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'vscode', 'vscode', {
+				description: localize('toolset.vscode', 'Tools for working with VS Code workspace features'),
+			}));
+		}
+		vscodeToolSet.addTool(RunTaskToolData);
+		vscodeToolSet.addTool(GetTaskOutputToolData);
+		vscodeToolSet.addTool(CreateAndRunTaskToolData);
 
 		// #endregion
 	}

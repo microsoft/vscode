@@ -29,6 +29,7 @@ export interface IRawToolContribution {
 	displayName: string;
 	modelDescription: string;
 	toolReferenceName?: string;
+	toolReferenceAliases?: string[];
 	icon?: string | { light: string; dark: string };
 	when?: string;
 	tags?: string[];
@@ -77,6 +78,14 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					markdownDescription: localize('toolName2', "If {0} is enabled for this tool, the user may use '#' with this name to invoke the tool in a query. Otherwise, the name is not required. Name must not contain whitespace.", '`canBeReferencedInPrompt`'),
 					type: 'string',
 					pattern: '^[\\w-]+$'
+				},
+				toolReferenceAliases: {
+					markdownDescription: localize('toolReferenceAliases', "An array of alternative names that can also be used to reference this tool in a query. Each alias must not contain whitespace. Aliases can be simple names (e.g., `readFile`) or qualified names with a custom namespace prefix (e.g., `search/readFile`) for backward compatibility."),
+					type: 'array',
+					items: {
+						type: 'string',
+						pattern: '^[\\w-]+(/[\\w-]+)?$'
+					}
 				},
 				displayName: {
 					description: localize('toolDisplayName', "A human-readable name for this tool that may be used to describe it in the UI."),
@@ -335,16 +344,49 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					}
 
 					const store = new DisposableStore();
+					const referenceName = toolSet.referenceName ?? toolSet.name;
 
-					const obj = languageModelToolsService.createToolSet(
-						source,
-						toToolSetKey(extension.description.identifier, toolSet.name),
-						toolSet.referenceName ?? toolSet.name,
-						{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description }
-					);
+					// Check if a toolset with the same reference name already exists
+					const existingToolSet = languageModelToolsService.getToolSetByName(referenceName);
 
-					transaction(tx => {
+					let obj: ToolSet & IDisposable;
+					if (existingToolSet) {
+						// Merge with existing toolset
+						// For built-in extensions (default chat extension), use their metadata (icon, description)
+						// as priority since they define the canonical version of the toolset
+						obj = existingToolSet as ToolSet & IDisposable;
+
+						// If this is a built-in extension, update the toolset's metadata
+						if (isBuiltinTool) {
+							// Update icon if provided
+							if (toolSet.icon) {
+								const icon = ThemeIcon.fromString(toolSet.icon);
+								if (icon) {
+									// Type assertion to allow modifying readonly property - this is intentional
+									// for updating existing toolset metadata from built-in extensions
+									(obj as { -readonly [K in keyof ToolSet]: ToolSet[K] }).icon = icon;
+								}
+							}
+							// Update description if provided
+							if (toolSet.description) {
+								// Type assertion to allow modifying readonly property - this is intentional
+								// for updating existing toolset metadata from built-in extensions
+								(obj as { -readonly [K in keyof ToolSet]: ToolSet[K] }).description = toolSet.description;
+							}
+						}
+					} else {
+						// Create new toolset if none exists
+						obj = languageModelToolsService.createToolSet(
+							source,
+							toToolSetKey(extension.description.identifier, toolSet.name),
+							referenceName,
+							{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description }
+						);
 						store.add(obj);
+					}
+
+					// Add tools and nested toolsets to the toolset (whether new or existing)
+					transaction(tx => {
 						tools.forEach(tool => store.add(obj.addTool(tool, tx)));
 						toolSets.forEach(toolSet => store.add(obj.addToolSet(toolSet, tx)));
 					});

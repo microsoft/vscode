@@ -631,7 +631,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private _githubToVSCodeToolMap: Record<string, string> = {
-		[GithubCopilotToolReference.shell]: VSCodeToolReference.runCommands,
+		[GithubCopilotToolReference.shell]: VSCodeToolReference.shell,
 		[GithubCopilotToolReference.customAgent]: VSCodeToolReference.runSubagent,
 		'github/*': 'github/github-mcp-server/*',
 		'playwright/*': 'microsoft/playwright-mcp/*',
@@ -772,19 +772,27 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private * getPromptReferencableTools(): Iterable<[IToolData | ToolSet, string]> {
-		const coveredByToolSets = new Set<IToolData>();
+		const coveredByToolSets = new Set<string>(); // Track by ID instead of object reference
 		for (const toolSet of this.toolSets.get()) {
 			if (toolSet.source.type !== 'user') {
 				yield [toolSet, getToolSetReferenceName(toolSet)];
+				this._logService.trace(`[LanguageModelToolsService] ToolSet: ${toolSet.referenceName}, qualified: ${getToolSetReferenceName(toolSet)}`);
 				for (const tool of toolSet.getTools()) {
-					yield [tool, getToolReferenceName(tool, toolSet)];
-					coveredByToolSets.add(tool);
+					const qualifiedName = getToolReferenceName(tool, toolSet);
+					this._logService.trace(`[LanguageModelToolsService]   Tool in set: ${tool.id}, toolReferenceName: ${tool.toolReferenceName}, qualified: ${qualifiedName}`);
+					yield [tool, qualifiedName];
+					coveredByToolSets.add(tool.id); // Store the tool ID
 				}
 			}
 		}
+		this._logService.trace(`[LanguageModelToolsService] Covered tools: ${Array.from(coveredByToolSets).join(', ')}`);
 		for (const tool of this.getTools()) {
-			if (tool.canBeReferencedInPrompt && !coveredByToolSets.has(tool)) {
-				yield [tool, getToolReferenceName(tool)];
+			const qualifiedName = getToolReferenceName(tool);
+			const isCovered = coveredByToolSets.has(tool.id);
+			this._logService.trace(`[LanguageModelToolsService] Standalone tool: ${tool.id}, toolReferenceName: ${tool.toolReferenceName}, canBeReferenced: ${tool.canBeReferencedInPrompt}, covered: ${isCovered}, qualified: ${qualifiedName}`);
+			if (tool.canBeReferencedInPrompt && !isCovered) {
+				this._logService.trace(`[LanguageModelToolsService]   -> Yielding standalone: ${qualifiedName}`);
+				yield [tool, qualifiedName];
 			}
 		}
 	}
@@ -820,6 +828,28 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			// legacy: check for the old name
 			if (qualifiedName === (tool instanceof ToolSet ? tool.referenceName : tool.toolReferenceName ?? tool.displayName)) {
 				return tool;
+			}
+			// check aliases - support both simple names and qualified names with slashes
+			if (!(tool instanceof ToolSet) && tool.toolReferenceAliases) {
+				for (const alias of tool.toolReferenceAliases) {
+					// Exact match on the alias
+					if (qualifiedName === alias) {
+						return tool;
+					}
+					// If alias contains a slash, also check if it matches as a qualified name pattern
+					if (alias.includes('/')) {
+						// Support aliasing with custom namespace (e.g., "search/readFile" as alias for "extension/readFile")
+						if (qualifiedName === alias) {
+							return tool;
+						}
+					} else if (tool.source.type === 'extension') {
+						// Support simple alias that should be qualified with extension ID
+						const qualifiedAlias = `${tool.source.extensionId.value.toLowerCase()}/${alias}`;
+						if (qualifiedName === qualifiedAlias) {
+							return tool;
+						}
+					}
+				}
 			}
 
 		}

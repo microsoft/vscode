@@ -39,7 +39,14 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
 
 		const runSubagentTool = this._register(instantiationService.createInstance(RunSubagentTool));
-		this._register(toolsService.registerTool(runSubagentTool.getToolData(), runSubagentTool));
+		const runSubagentToolData = runSubagentTool.getToolData();
+		this._register(toolsService.registerTool(runSubagentToolData, runSubagentTool));
+
+		// Add to vscode toolset
+		const vscodeToolSet = toolsService.getToolSetByName('vscode');
+		if (vscodeToolSet) {
+			vscodeToolSet.addTool(runSubagentToolData);
+		}
 	}
 }
 

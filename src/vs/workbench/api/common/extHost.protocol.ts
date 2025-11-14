@@ -1432,6 +1432,7 @@ export interface IChatParticipantDetectionResult {
 export interface IToolDataDto {
 	id: string;
 	toolReferenceName?: string;
+	toolReferenceAliases?: string[];
 	tags?: string[];
 	displayName: string;
 	userDescription?: string;

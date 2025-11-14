@@ -33,6 +33,7 @@ export interface IToolData {
 	id: string;
 	source: ToolDataSource;
 	toolReferenceName?: string;
+	toolReferenceAliases?: string[];
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
 	tags?: string[];
@@ -394,6 +395,6 @@ export namespace GithubCopilotToolReference {
 }
 
 export namespace VSCodeToolReference {
-	export const runCommands = 'runCommands';
+	export const shell = 'shell';
 	export const runSubagent = 'runSubagent';
 }
