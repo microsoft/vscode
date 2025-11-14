@@ -465,11 +465,13 @@ export class CustomMenubarControl extends MenubarControl {
 			return '';
 		}
 
+		const percentage = Math.floor((bytesDownloaded / totalBytes) * 100);
+
 		const elapsedMs = Date.now() - startTime;
 		
 		// Need at least 1 second of data to make a reasonable estimate
 		if (elapsedMs < 1000) {
-			return '';
+			return localize('downloadingWithPercentage', " ({0}%)", percentage);
 		}
 
 		const bytesPerMs = bytesDownloaded / elapsedMs;
@@ -479,14 +481,14 @@ export class CustomMenubarControl extends MenubarControl {
 
 		// Sanity check for unreasonable values
 		if (!isFinite(remainingSeconds) || remainingSeconds < 0 || remainingSeconds > 86400) {
-			return '';
+			return localize('downloadingWithPercentage', " ({0}%)", percentage);
 		}
 
 		if (remainingSeconds < 60) {
-			return localize('downloadingWithSecondsRemaining', " ({0}s remaining)", remainingSeconds);
+			return localize('downloadingWithPercentageAndSeconds', " ({0}% - {1}s remaining)", percentage, remainingSeconds);
 		} else {
 			const remainingMinutes = Math.ceil(remainingSeconds / 60);
-			return localize('downloadingWithMinutesRemaining', " ({0}m remaining)", remainingMinutes);
+			return localize('downloadingWithPercentageAndMinutes', " ({0}% - {1}m remaining)", percentage, remainingMinutes);
 		}
 	}
 

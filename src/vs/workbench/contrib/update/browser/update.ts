@@ -212,11 +212,13 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 			return '';
 		}
 
+		const percentage = Math.floor((bytesDownloaded / totalBytes) * 100);
+
 		const elapsedMs = Date.now() - startTime;
 		
 		// Need at least 1 second of data to make a reasonable estimate
 		if (elapsedMs < 1000) {
-			return '';
+			return nls.localize('downloadingWithPercentage', " ({0}%)", percentage);
 		}
 
 		const bytesPerMs = bytesDownloaded / elapsedMs;
@@ -226,14 +228,14 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 		// Sanity check for unreasonable values
 		if (!isFinite(remainingSeconds) || remainingSeconds < 0 || remainingSeconds > 86400) {
-			return '';
+			return nls.localize('downloadingWithPercentage', " ({0}%)", percentage);
 		}
 
 		if (remainingSeconds < 60) {
-			return nls.localize('downloadingWithSecondsRemaining', " ({0}s remaining)", remainingSeconds);
+			return nls.localize('downloadingWithPercentageAndSeconds', " ({0}% - {1}s remaining)", percentage, remainingSeconds);
 		} else {
 			const remainingMinutes = Math.ceil(remainingSeconds / 60);
-			return nls.localize('downloadingWithMinutesRemaining', " ({0}m remaining)", remainingMinutes);
+			return nls.localize('downloadingWithPercentageAndMinutes', " ({0}% - {1}m remaining)", percentage, remainingMinutes);
 		}
 	}
 
