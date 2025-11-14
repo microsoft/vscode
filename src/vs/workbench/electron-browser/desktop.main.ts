@@ -45,7 +45,7 @@ import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
 import { safeStringify } from '../../base/common/objects.js';
 import { IUtilityProcessWorkerWorkbenchService, UtilityProcessWorkerWorkbenchService } from '../services/utilityProcess/electron-browser/utilityProcessWorkerWorkbenchService.js';
-import { isBigSurOrNewer, isCI, isMacintosh } from '../../base/common/platform.js';
+import { isCI, isMacintosh, isTahoeOrNewer } from '../../base/common/platform.js';
 import { Schemas } from '../../base/common/network.js';
 import { DiskFileSystemProvider } from '../services/files/electron-browser/diskFileSystemProvider.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
@@ -153,8 +153,12 @@ export class DesktopMain extends Disposable {
 	}
 
 	private getExtraClasses(): string[] {
-		if (isMacintosh && isBigSurOrNewer(this.configuration.os.release)) {
-			return ['macos-bigsur-or-newer'];
+		if (isMacintosh) {
+			if (isTahoeOrNewer(this.configuration.os.release)) {
+				return ['macos-rounded-tahoe'];
+			} else {
+				return ['macos-rounded-default'];
+			}
 		}
 
 		return [];

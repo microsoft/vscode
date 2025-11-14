@@ -95,6 +95,7 @@ suite('EditorInput', () => {
 		assert.ok(!isEditorInput({}));
 
 		assert.ok(!isResourceEditorInput(input));
+		// eslint-disable-next-line local/code-no-any-casts
 		assert.ok(!isUntitledResourceEditorInput(input as any));
 		assert.ok(!isResourceDiffEditorInput(input));
 		assert.ok(!isResourceMergeEditorInput(input));

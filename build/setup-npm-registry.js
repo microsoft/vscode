@@ -34,7 +34,7 @@ async function* getPackageLockFiles(dir) {
  */
 async function setup(url, file) {
 	let contents = await fs.readFile(file, 'utf8');
-	contents = contents.replace(/https:\/\/registry\.[^.]+\.com\//g, url);
+	contents = contents.replace(/https:\/\/registry\.[^.]+\.org\//g, url);
 	await fs.writeFile(file, contents);
 }
 

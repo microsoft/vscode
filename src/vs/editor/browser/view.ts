@@ -664,7 +664,7 @@ export class View extends ViewEventHandler {
 		return new OverviewRuler(this._context, cssClassName);
 	}
 
-	public change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): void {
+	public change(callback: (changeAccessor: IViewZoneChangeAccessor) => unknown): void {
 		this._viewZones.changeViewZones(callback);
 		this._scheduleRender();
 	}

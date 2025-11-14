@@ -1,12 +1,12 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
 const event_stream_1 = __importDefault(require("event-stream"));
 const vinyl_1 = __importDefault(require("vinyl"));
 const vinyl_fs_1 = __importDefault(require("vinyl-fs"));
@@ -14,7 +14,8 @@ const gulp_filter_1 = __importDefault(require("gulp-filter"));
 const gulp_gzip_1 = __importDefault(require("gulp-gzip"));
 const mime_1 = __importDefault(require("mime"));
 const identity_1 = require("@azure/identity");
-const azure = require('gulp-azure-storage');
+const util_1 = require("../lib/util");
+const gulp_azure_storage_1 = __importDefault(require("gulp-azure-storage"));
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new identity_1.ClientAssertionCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], () => Promise.resolve(process.env['AZURE_ID_TOKEN']));
 mime_1.default.define({
@@ -90,10 +91,10 @@ async function main() {
     const compressed = all
         .pipe((0, gulp_filter_1.default)(f => MimeTypesToCompress.has(mime_1.default.lookup(f.path))))
         .pipe((0, gulp_gzip_1.default)({ append: false }))
-        .pipe(azure.upload(options(true)));
+        .pipe(gulp_azure_storage_1.default.upload(options(true)));
     const uncompressed = all
         .pipe((0, gulp_filter_1.default)(f => !MimeTypesToCompress.has(mime_1.default.lookup(f.path))))
-        .pipe(azure.upload(options(false)));
+        .pipe(gulp_azure_storage_1.default.upload(options(false)));
     const out = event_stream_1.default.merge(compressed, uncompressed)
         .pipe(event_stream_1.default.through(function (f) {
         console.log('Uploaded:', f.relative);
@@ -105,11 +106,11 @@ async function main() {
     const listing = new vinyl_1.default({
         path: 'files.txt',
         contents: Buffer.from(files.join('\n')),
-        stat: { mode: 0o666 }
+        stat: new util_1.VinylStat({ mode: 0o666 })
     });
     const filesOut = event_stream_1.default.readArray([listing])
         .pipe((0, gulp_gzip_1.default)({ append: false }))
-        .pipe(azure.upload(options(true)));
+        .pipe(gulp_azure_storage_1.default.upload(options(true)));
     console.log(`Uploading: files.txt (${files.length} files)`); // debug
     await wait(filesOut);
 }

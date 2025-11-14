@@ -1,0 +1,95 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-viewer {
+
+	.monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie {
+		display: none !important;
+	}
+
+	.monaco-list-row.selected .agent-session-details-row {
+		color: unset;
+
+		.rendered-markdown {
+			a {
+				color: unset;
+			}
+		}
+	}
+
+	.agent-session-item {
+		display: flex;
+		flex-direction: row;
+		padding: 0 8px;
+
+		.agent-session-main-col,
+		.agent-session-title-row,
+		.agent-session-details-row {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.agent-session-icon-col {
+			display: flex;
+			align-items: flex-start;
+			padding-top: 5px;
+
+			.agent-session-icon {
+				flex-shrink: 0;
+				width: 16px;
+				height: 16px;
+				font-size: 16px;
+
+				&.codicon-terminal {
+					font-size: 15px; /* TODO@bpasero remove once we settle on icon */
+				}
+			}
+		}
+
+		.agent-session-title-row,
+		.agent-session-details-row {
+			display: flex;
+			align-items: center;
+			line-height: 20px; /* ends up as 22px with the padding below */
+		}
+
+		.agent-session-title-row {
+			padding: 2px 6px 0 6px;
+		}
+
+		.agent-session-details-row {
+			padding: 0 6px 2px 6px;
+			font-size: 12px;
+			color: var(--vscode-descriptionForeground);
+
+			.rendered-markdown {
+				p {
+					display: flex;
+					align-items: center;
+					margin: 0;
+
+					> span.codicon {
+						margin-right: 2px;
+					}
+				}
+
+				a {
+					color: var(--vscode-descriptionForeground);
+				}
+			}
+		}
+
+		.agent-session-title,
+		.agent-session-description {
+			flex: 1; /* push other items to the end */
+			text-overflow: ellipsis;
+			overflow: hidden;
+		}
+
+		.agent-session-status {
+			padding: 0 4px 0 0; /* to align with diff area above */
+		}
+	}
+}

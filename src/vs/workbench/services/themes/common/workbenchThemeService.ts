@@ -380,7 +380,7 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getColorTheme(): IWorkbenchColorTheme;
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
 	getMarketplaceColorThemes(publisher: string, name: string, version: string): Promise<IWorkbenchColorTheme[]>;
-	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
+	readonly onDidColorThemeChange: Event<IWorkbenchColorTheme>;
 
 	getPreferredColorScheme(): ColorScheme | undefined;
 
@@ -388,13 +388,13 @@ export interface IWorkbenchThemeService extends IThemeService {
 	getFileIconTheme(): IWorkbenchFileIconTheme;
 	getFileIconThemes(): Promise<IWorkbenchFileIconTheme[]>;
 	getMarketplaceFileIconThemes(publisher: string, name: string, version: string): Promise<IWorkbenchFileIconTheme[]>;
-	onDidFileIconThemeChange: Event<IWorkbenchFileIconTheme>;
+	readonly onDidFileIconThemeChange: Event<IWorkbenchFileIconTheme>;
 
 	setProductIconTheme(iconThemeId: string | undefined | IWorkbenchProductIconTheme, settingsTarget: ThemeSettingTarget): Promise<IWorkbenchProductIconTheme>;
 	getProductIconTheme(): IWorkbenchProductIconTheme;
 	getProductIconThemes(): Promise<IWorkbenchProductIconTheme[]>;
 	getMarketplaceProductIconThemes(publisher: string, name: string, version: string): Promise<IWorkbenchProductIconTheme[]>;
-	onDidProductIconThemeChange: Event<IWorkbenchProductIconTheme>;
+	readonly onDidProductIconThemeChange: Event<IWorkbenchProductIconTheme>;
 }
 
 export interface IThemeScopedColorCustomizations {

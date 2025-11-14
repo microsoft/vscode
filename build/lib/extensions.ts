@@ -117,7 +117,7 @@ function fromLocalWebpack(extensionPath: string, webpackConfigFileName: string, 
 				path: filePath,
 				stat: fs.statSync(filePath),
 				base: extensionPath,
-				contents: fs.createReadStream(filePath) as any
+				contents: fs.createReadStream(filePath)
 			}));
 
 		// check for a webpack configuration files, then invoke webpack
@@ -215,7 +215,7 @@ function fromLocalNormal(extensionPath: string): Stream {
 					path: filePath,
 					stat: fs.statSync(filePath),
 					base: extensionPath,
-					contents: fs.createReadStream(filePath) as any
+					contents: fs.createReadStream(filePath)
 				}));
 
 			es.readArray(files).pipe(result);
@@ -559,11 +559,12 @@ const extensionsPath = path.join(root, 'extensions');
 
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
+	'ipynb/esbuild.mjs',
 	'markdown-language-features/esbuild-notebook.mjs',
 	'markdown-language-features/esbuild-preview.mjs',
 	'markdown-math/esbuild.mjs',
+	'mermaid-chat-features/esbuild-chat-webview.mjs',
 	'notebook-renderers/esbuild.mjs',
-	'ipynb/esbuild.mjs',
 	'simple-browser/esbuild-preview.mjs',
 ];
 

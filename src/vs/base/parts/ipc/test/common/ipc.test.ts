@@ -108,7 +108,7 @@ interface ITestService {
 	marshall(uri: URI): Promise<URI>;
 	context(): Promise<unknown>;
 
-	onPong: Event<string>;
+	readonly onPong: Event<string>;
 }
 
 class TestService implements ITestService {

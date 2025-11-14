@@ -1,14 +1,14 @@
 "use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getVSCodeSysroot = getVSCodeSysroot;
 exports.getChromiumSysroot = getChromiumSysroot;
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 const child_process_1 = require("child_process");
 const os_1 = require("os");
 const fs_1 = __importDefault(require("fs"));
@@ -73,7 +73,7 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
         try {
             const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
                 headers: ghApiHeaders,
-                signal: controller.signal /* Typings issue with lib.dom.d.ts */
+                signal: controller.signal
             });
             if (response.ok && (response.status >= 200 && response.status < 300)) {
                 console.log(`Fetch completed: Status ${response.status}.`);

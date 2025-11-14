@@ -279,9 +279,12 @@
 			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
 		},
 		{
-			"label": "Launch Http Server",
+			"label": "Launch Monaco Editor Vite",
 			"type": "shell",
-			"command": "node_modules/.bin/ts-node -T ./scripts/playground-server",
+			"command": "npm run dev",
+			"options": {
+				"cwd": "./build/monaco-editor-playground/"
+			},
 			"isBackground": true,
 			"problemMatcher": {
 				"pattern": {
@@ -292,10 +295,7 @@
 					"beginsPattern": "never match",
 					"endsPattern": ".*"
 				}
-			},
-			"dependsOn": [
-				"Core - Build"
-			]
+			}
 		},
 		{
 			"label": "Launch MCP Server",

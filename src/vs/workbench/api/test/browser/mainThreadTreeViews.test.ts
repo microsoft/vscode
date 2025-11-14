@@ -57,6 +57,7 @@ suite('MainThreadHostTreeView', function () {
 		const instantiationService: TestInstantiationService = workbenchInstantiationService(undefined, disposables);
 		const viewDescriptorService = disposables.add(instantiationService.createInstance(ViewDescriptorService));
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
+		// eslint-disable-next-line local/code-no-any-casts
 		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptor: ITreeViewDescriptor = {
 			id: testTreeViewId,

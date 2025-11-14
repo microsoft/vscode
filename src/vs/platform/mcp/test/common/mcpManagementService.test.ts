@@ -6,13 +6,39 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AbstractCommonMcpManagementService } from '../../common/mcpManagementService.js';
-import { IGalleryMcpServerConfiguration, RegistryType, TransportType } from '../../common/mcpManagement.js';
-import { McpServerType, McpServerVariableType } from '../../common/mcpPlatformTypes.js';
+import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
+import { McpServerType, McpServerVariableType, IMcpServerVariable } from '../../common/mcpPlatformTypes.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { Event } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
+import { NullLogService } from '../../../log/common/log.js';
 
 class TestMcpManagementService extends AbstractCommonMcpManagementService {
-	// Expose the protected method for testing
-	public testGetMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType) {
-		return this.getMcpServerConfigurationFromManifest(manifest, packageType);
+
+	override onInstallMcpServer = Event.None;
+	override onDidInstallMcpServers = Event.None;
+	override onDidUpdateMcpServers = Event.None;
+	override onUninstallMcpServer = Event.None;
+	override onDidUninstallMcpServer = Event.None;
+
+	override getInstalled(mcpResource?: URI): Promise<ILocalMcpServer[]> {
+		throw new Error('Method not implemented.');
+	}
+	override install(server: IInstallableMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+		throw new Error('Method not implemented.');
+	}
+	override installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
+		throw new Error('Method not implemented.');
+	}
+	override updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer> {
+		throw new Error('Method not implemented.');
+	}
+	override uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	override canInstall(server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
+		throw new Error('Not supported');
 	}
 }
 
@@ -20,7 +46,7 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 	let service: TestMcpManagementService;
 
 	setup(() => {
-		service = new TestMcpManagementService();
+		service = new TestMcpManagementService(new NullLogService());
 	});
 
 	teardown(() => {
@@ -33,119 +59,124 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('basic NPM package configuration', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
-					registry_base_url: 'https://registry.npmjs.org',
+					registryType: RegistryType.NODE,
+					registryBaseUrl: 'https://registry.npmjs.org',
 					identifier: '@modelcontextprotocol/server-brave-search',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.2',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'BRAVE_API_KEY',
 						value: 'test-key'
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
-			assert.strictEqual(result.config.type, McpServerType.LOCAL);
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.strictEqual(result.config.command, 'npx');
-				assert.deepStrictEqual(result.config.args, ['@modelcontextprotocol/server-brave-search@1.0.2']);
-				assert.deepStrictEqual(result.config.env, { 'BRAVE_API_KEY': 'test-key' });
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'npx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['@modelcontextprotocol/server-brave-search@1.0.2']);
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, { 'BRAVE_API_KEY': 'test-key' });
 			}
-			assert.strictEqual(result.inputs, undefined);
+			assert.strictEqual(result.mcpServerConfiguration.inputs, undefined);
 		});
 
 		test('NPM package without version', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
-					registry_base_url: 'https://registry.npmjs.org',
+					registryType: RegistryType.NODE,
+					registryBaseUrl: 'https://registry.npmjs.org',
 					identifier: '@modelcontextprotocol/everything',
-					version: ''
+					version: '',
+					transport: { type: TransportType.STDIO }
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
-			assert.strictEqual(result.config.type, McpServerType.LOCAL);
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.strictEqual(result.config.command, 'npx');
-				assert.deepStrictEqual(result.config.args, ['@modelcontextprotocol/everything']);
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'npx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['@modelcontextprotocol/everything']);
 			}
 		});
 
 		test('NPM package with environment variables containing variables', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'API_KEY',
 						value: 'key-{api_token}',
 						variables: {
 							api_token: {
 								description: 'Your API token',
-								is_secret: true,
-								is_required: true
+								isSecret: true,
+								isRequired: true
 							}
 						}
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
-			assert.strictEqual(result.config.type, McpServerType.LOCAL);
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.env, { 'API_KEY': 'key-${input:api_token}' });
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, { 'API_KEY': 'key-${input:api_token}' });
 			}
-			assert.strictEqual(result.inputs?.length, 1);
-			assert.strictEqual(result.inputs?.[0].id, 'api_token');
-			assert.strictEqual(result.inputs?.[0].type, McpServerVariableType.PROMPT);
-			assert.strictEqual(result.inputs?.[0].description, 'Your API token');
-			assert.strictEqual(result.inputs?.[0].password, true);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 1);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].id, 'api_token');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].type, McpServerVariableType.PROMPT);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].description, 'Your API token');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].password, true);
 		});
 
 		test('environment variable with empty value should create input variable (GitHub issue #266106)', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: '@modelcontextprotocol/server-brave-search',
 					version: '1.0.2',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'BRAVE_API_KEY',
 						value: '', // Empty value should create input variable
 						description: 'Brave Search API Key',
-						is_required: true,
-						is_secret: true
+						isRequired: true,
+						isSecret: true
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
 			// BUG: Currently this creates env with empty string instead of input variable
 			// Should create an input variable since no meaningful value is provided
-			assert.strictEqual(result.inputs?.length, 1);
-			assert.strictEqual(result.inputs?.[0].id, 'BRAVE_API_KEY');
-			assert.strictEqual(result.inputs?.[0].description, 'Brave Search API Key');
-			assert.strictEqual(result.inputs?.[0].password, true);
-			assert.strictEqual(result.inputs?.[0].type, McpServerVariableType.PROMPT);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 1);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].id, 'BRAVE_API_KEY');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].description, 'Brave Search API Key');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].password, true);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].type, McpServerVariableType.PROMPT);
 
 			// Environment should use input variable interpolation
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.env, { 'BRAVE_API_KEY': '${input:BRAVE_API_KEY}' });
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, { 'BRAVE_API_KEY': '${input:BRAVE_API_KEY}' });
 			}
 		});
 
 		test('environment variable with choices but empty value should create pick input (GitHub issue #266106)', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'SSL_MODE',
 						value: '', // Empty value should create input variable
 						description: 'SSL connection mode',
@@ -155,46 +186,47 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
 			// BUG: Currently this creates env with empty string instead of input variable
 			// Should create a pick input variable since choices are provided
-			assert.strictEqual(result.inputs?.length, 1);
-			assert.strictEqual(result.inputs?.[0].id, 'SSL_MODE');
-			assert.strictEqual(result.inputs?.[0].description, 'SSL connection mode');
-			assert.strictEqual(result.inputs?.[0].default, 'prefer');
-			assert.strictEqual(result.inputs?.[0].type, McpServerVariableType.PICK);
-			assert.deepStrictEqual(result.inputs?.[0].options, ['disable', 'prefer', 'require']);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 1);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].id, 'SSL_MODE');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].description, 'SSL connection mode');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].default, 'prefer');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].type, McpServerVariableType.PICK);
+			assert.deepStrictEqual(result.mcpServerConfiguration.inputs?.[0].options, ['disable', 'prefer', 'require']);
 
 			// Environment should use input variable interpolation
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.env, { 'SSL_MODE': '${input:SSL_MODE}' });
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, { 'SSL_MODE': '${input:SSL_MODE}' });
 			}
 		});
 
 		test('NPM package with package arguments', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'snyk',
 					version: '1.1298.0',
-					package_arguments: [
-						{ type: 'positional', value: 'mcp', value_hint: 'command', is_repeated: false },
+					packageArguments: [
+						{ type: 'positional', value: 'mcp', valueHint: 'command', isRepeated: false },
 						{
 							type: 'named',
 							name: '-t',
 							value: 'stdio',
-							is_repeated: false
+							isRepeated: false
 						}
 					]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
-			assert.strictEqual(result.config.type, McpServerType.LOCAL);
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.args, ['snyk@1.1298.0', 'mcp', '-t', 'stdio']);
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['snyk@1.1298.0', 'mcp', '-t', 'stdio']);
 			}
 		});
 	});
@@ -203,11 +235,12 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('basic Python package configuration', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.PYTHON,
-					registry_base_url: 'https://pypi.org',
+					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
+					registryBaseUrl: 'https://pypi.org',
 					identifier: 'weather-mcp-server',
 					version: '0.5.0',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'WEATHER_API_KEY',
 						value: 'test-key'
 					}, {
@@ -217,13 +250,13 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.PYTHON);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.PYTHON);
 
-			assert.strictEqual(result.config.type, McpServerType.LOCAL);
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.strictEqual(result.config.command, 'uvx');
-				assert.deepStrictEqual(result.config.args, ['weather-mcp-server==0.5.0']);
-				assert.deepStrictEqual(result.config.env, {
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['weather-mcp-server==0.5.0']);
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, {
 					'WEATHER_API_KEY': 'test-key',
 					'WEATHER_UNITS': 'celsius'
 				});
@@ -233,16 +266,17 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('Python package without version', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.PYTHON,
+					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					identifier: 'weather-mcp-server',
 					version: ''
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.PYTHON);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.PYTHON);
 
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.args, ['weather-mcp-server']);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['weather-mcp-server']);
 			}
 		});
 	});
@@ -251,126 +285,129 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('basic Docker package configuration', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.DOCKER,
-					registry_base_url: 'https://docker.io',
+					registryType: RegistryType.DOCKER,
+					transport: { type: TransportType.STDIO },
+					registryBaseUrl: 'https://docker.io',
 					identifier: 'mcp/filesystem',
 					version: '1.0.2',
-					runtime_arguments: [{
+					runtimeArguments: [{
 						type: 'named',
 						name: '--mount',
 						value: 'type=bind,src=/host/path,dst=/container/path',
-						is_repeated: false
+						isRepeated: false
 					}],
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'LOG_LEVEL',
 						value: 'info'
 					}],
-					package_arguments: [{
+					packageArguments: [{
 						type: 'positional',
 						value: '/project',
-						value_hint: 'directory',
-						is_repeated: false
+						valueHint: 'directory',
+						isRepeated: false
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
 
-			assert.strictEqual(result.config.type, McpServerType.LOCAL);
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.strictEqual(result.config.command, 'docker');
-				assert.deepStrictEqual(result.config.args, [
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'docker');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
 					'run', '-i', '--rm',
 					'--mount', 'type=bind,src=/host/path,dst=/container/path',
 					'-e', 'LOG_LEVEL',
 					'mcp/filesystem:1.0.2',
 					'/project'
 				]);
-				assert.deepStrictEqual(result.config.env, { 'LOG_LEVEL': 'info' });
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, { 'LOG_LEVEL': 'info' });
 			}
 		});
 
 		test('Docker package with variables in runtime arguments', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.DOCKER,
+					registryType: RegistryType.DOCKER,
+					transport: { type: TransportType.STDIO },
 					identifier: 'example/database-manager-mcp',
 					version: '3.1.0',
-					runtime_arguments: [{
+					runtimeArguments: [{
 						type: 'named',
 						name: '-e',
 						value: 'DB_TYPE={db_type}',
-						is_repeated: false,
+						isRepeated: false,
 						variables: {
 							db_type: {
 								description: 'Type of database',
 								choices: ['postgres', 'mysql', 'mongodb', 'redis'],
-								is_required: true
+								isRequired: true
 							}
 						}
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
 
-			assert.strictEqual(result.config.type, McpServerType.LOCAL);
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.args, [
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
 					'run', '-i', '--rm',
 					'-e', 'DB_TYPE=${input:db_type}',
 					'example/database-manager-mcp:3.1.0'
 				]);
 			}
-			assert.strictEqual(result.inputs?.length, 1);
-			assert.strictEqual(result.inputs?.[0].id, 'db_type');
-			assert.strictEqual(result.inputs?.[0].type, McpServerVariableType.PICK);
-			assert.deepStrictEqual(result.inputs?.[0].options, ['postgres', 'mysql', 'mongodb', 'redis']);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 1);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].id, 'db_type');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].type, McpServerVariableType.PICK);
+			assert.deepStrictEqual(result.mcpServerConfiguration.inputs?.[0].options, ['postgres', 'mysql', 'mongodb', 'redis']);
 		});
 
 		test('Docker package arguments without values should create input variables (GitHub issue #266106)', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.DOCKER,
+					registryType: RegistryType.DOCKER,
+					transport: { type: TransportType.STDIO },
 					identifier: 'example/database-manager-mcp',
 					version: '3.1.0',
-					package_arguments: [{
+					packageArguments: [{
 						type: 'named',
 						name: '--host',
 						description: 'Database host',
 						default: 'localhost',
-						is_required: true,
-						is_repeated: false
+						isRequired: true,
+						isRepeated: false
 						// Note: No 'value' field - should create input variable
 					}, {
 						type: 'positional',
-						value_hint: 'database_name',
+						valueHint: 'database_name',
 						description: 'Name of the database to connect to',
-						is_required: true,
-						is_repeated: false
+						isRequired: true,
+						isRepeated: false
 						// Note: No 'value' field - should create input variable
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
 
 			// BUG: Currently named args without value are ignored, positional uses value_hint as literal
 			// Should create input variables for both arguments
-			assert.strictEqual(result.inputs?.length, 2);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 2);
 
-			const hostInput = result.inputs?.find(i => i.id === 'host');
+			const hostInput = result.mcpServerConfiguration.inputs?.find((i: IMcpServerVariable) => i.id === 'host');
 			assert.strictEqual(hostInput?.description, 'Database host');
 			assert.strictEqual(hostInput?.default, 'localhost');
 			assert.strictEqual(hostInput?.type, McpServerVariableType.PROMPT);
 
-			const dbNameInput = result.inputs?.find(i => i.id === 'database_name');
+			const dbNameInput = result.mcpServerConfiguration.inputs?.find((i: IMcpServerVariable) => i.id === 'database_name');
 			assert.strictEqual(dbNameInput?.description, 'Name of the database to connect to');
 			assert.strictEqual(dbNameInput?.type, McpServerVariableType.PROMPT);
 
 			// Args should use input variable interpolation
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.args, [
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
 					'run', '-i', '--rm',
 					'example/database-manager-mcp:3.1.0',
 					'--host', '${input:host}',
@@ -382,18 +419,19 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('Docker Hub backward compatibility', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.DOCKER_HUB,
+					registryType: RegistryType.DOCKER,
 					identifier: 'example/test-image',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0'
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER_HUB);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
 
-			assert.strictEqual(result.config.type, McpServerType.LOCAL);
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.strictEqual(result.config.command, 'docker');
-				assert.deepStrictEqual(result.config.args, [
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'docker');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
 					'run', '-i', '--rm',
 					'example/test-image:1.0.0'
 				]);
@@ -405,51 +443,53 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('basic NuGet package configuration', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NUGET,
-					registry_base_url: 'https://api.nuget.org',
+					registryType: RegistryType.NUGET,
+					transport: { type: TransportType.STDIO },
+					registryBaseUrl: 'https://api.nuget.org',
 					identifier: 'Knapcode.SampleMcpServer',
 					version: '0.5.0',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'WEATHER_CHOICES',
 						value: 'sunny,cloudy,rainy'
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NUGET);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NUGET);
 
-			assert.strictEqual(result.config.type, McpServerType.LOCAL);
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.strictEqual(result.config.command, 'dnx');
-				assert.deepStrictEqual(result.config.args, ['Knapcode.SampleMcpServer@0.5.0', '--yes']);
-				assert.deepStrictEqual(result.config.env, { 'WEATHER_CHOICES': 'sunny,cloudy,rainy' });
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'dnx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['Knapcode.SampleMcpServer@0.5.0', '--yes']);
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, { 'WEATHER_CHOICES': 'sunny,cloudy,rainy' });
 			}
 		});
 
 		test('NuGet package with package arguments', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NUGET,
+					registryType: RegistryType.NUGET,
+					transport: { type: TransportType.STDIO },
 					identifier: 'Knapcode.SampleMcpServer',
 					version: '0.4.0-beta',
-					package_arguments: [{
+					packageArguments: [{
 						type: 'positional',
 						value: 'mcp',
-						value_hint: 'command',
-						is_repeated: false
+						valueHint: 'command',
+						isRepeated: false
 					}, {
 						type: 'positional',
 						value: 'start',
-						value_hint: 'action',
-						is_repeated: false
+						valueHint: 'action',
+						isRepeated: false
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NUGET);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NUGET);
 
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.args, [
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
 					'Knapcode.SampleMcpServer@0.4.0-beta',
 					'--yes',
 					'--',
@@ -469,12 +509,12 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE);
 
-			assert.strictEqual(result.config.type, McpServerType.REMOTE);
-			if (result.config.type === McpServerType.REMOTE) {
-				assert.strictEqual(result.config.url, 'http://mcp-fs.anonymous.modelcontextprotocol.io/sse');
-				assert.strictEqual(result.config.headers, undefined);
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.REMOTE);
+			if (result.mcpServerConfiguration.config.type === McpServerType.REMOTE) {
+				assert.strictEqual(result.mcpServerConfiguration.config.url, 'http://mcp-fs.anonymous.modelcontextprotocol.io/sse');
+				assert.strictEqual(result.mcpServerConfiguration.config.headers, undefined);
 			}
 		});
 
@@ -489,8 +529,8 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 						variables: {
 							api_key: {
 								description: 'API key for authentication',
-								is_required: true,
-								is_secret: true
+								isRequired: true,
+								isSecret: true
 							}
 						}
 					}, {
@@ -500,18 +540,18 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE);
 
-			assert.strictEqual(result.config.type, McpServerType.REMOTE);
-			if (result.config.type === McpServerType.REMOTE) {
-				assert.deepStrictEqual(result.config.headers, {
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.REMOTE);
+			if (result.mcpServerConfiguration.config.type === McpServerType.REMOTE) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.headers, {
 					'X-API-Key': '${input:api_key}',
 					'X-Region': 'us-east-1'
 				});
 			}
-			assert.strictEqual(result.inputs?.length, 1);
-			assert.strictEqual(result.inputs?.[0].id, 'api_key');
-			assert.strictEqual(result.inputs?.[0].password, true);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 1);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].id, 'api_key');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].password, true);
 		});
 
 		test('streamable HTTP remote server', () => {
@@ -522,11 +562,11 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE);
 
-			assert.strictEqual(result.config.type, McpServerType.REMOTE);
-			if (result.config.type === McpServerType.REMOTE) {
-				assert.strictEqual(result.config.url, 'https://mcp.anonymous.modelcontextprotocol.io/http');
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.REMOTE);
+			if (result.mcpServerConfiguration.config.type === McpServerType.REMOTE) {
+				assert.strictEqual(result.mcpServerConfiguration.config.url, 'https://mcp.anonymous.modelcontextprotocol.io/http');
 			}
 		});
 
@@ -538,8 +578,8 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 					headers: [{
 						name: 'Authorization',
 						description: 'API token for authentication',
-						is_secret: true,
-						is_required: true
+						isSecret: true,
+						isRequired: true
 						// Note: No 'value' field - should create input variable
 					}, {
 						name: 'X-Custom-Header',
@@ -551,26 +591,26 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.REMOTE);
 
-			assert.strictEqual(result.config.type, McpServerType.REMOTE);
-			if (result.config.type === McpServerType.REMOTE) {
-				assert.strictEqual(result.config.url, 'https://api.example.com/mcp');
-				assert.deepStrictEqual(result.config.headers, {
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.REMOTE);
+			if (result.mcpServerConfiguration.config.type === McpServerType.REMOTE) {
+				assert.strictEqual(result.mcpServerConfiguration.config.url, 'https://api.example.com/mcp');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.headers, {
 					'Authorization': '${input:Authorization}',
 					'X-Custom-Header': '${input:X-Custom-Header}'
 				});
 			}
 
 			// Should create input variables for headers without values
-			assert.strictEqual(result.inputs?.length, 2);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 2);
 
-			const authInput = result.inputs?.find(i => i.id === 'Authorization');
+			const authInput = result.mcpServerConfiguration.inputs?.find((i: IMcpServerVariable) => i.id === 'Authorization');
 			assert.strictEqual(authInput?.description, 'API token for authentication');
 			assert.strictEqual(authInput?.password, true);
 			assert.strictEqual(authInput?.type, McpServerVariableType.PROMPT);
 
-			const customInput = result.inputs?.find(i => i.id === 'X-Custom-Header');
+			const customInput = result.mcpServerConfiguration.inputs?.find((i: IMcpServerVariable) => i.id === 'X-Custom-Header');
 			assert.strictEqual(customInput?.description, 'Custom header value');
 			assert.strictEqual(customInput?.default, 'default-value');
 			assert.strictEqual(customInput?.type, McpServerVariableType.PICK);
@@ -582,10 +622,11 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('multiple variables in single value', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'CONNECTION_STRING',
 						value: 'server={host};port={port};database={db_name}',
 						variables: {
@@ -600,44 +641,45 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 							},
 							db_name: {
 								description: 'Database name',
-								is_required: true
+								isRequired: true
 							}
 						}
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.env, {
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.env, {
 					'CONNECTION_STRING': 'server=${input:host};port=${input:port};database=${input:db_name}'
 				});
 			}
-			assert.strictEqual(result.inputs?.length, 3);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 3);
 
-			const hostInput = result.inputs?.find(i => i.id === 'host');
+			const hostInput = result.mcpServerConfiguration.inputs?.find((i: IMcpServerVariable) => i.id === 'host');
 			assert.strictEqual(hostInput?.default, 'localhost');
 			assert.strictEqual(hostInput?.type, McpServerVariableType.PROMPT);
 
-			const portInput = result.inputs?.find(i => i.id === 'port');
+			const portInput = result.mcpServerConfiguration.inputs?.find((i: IMcpServerVariable) => i.id === 'port');
 			assert.strictEqual(portInput?.default, '5432');
 
-			const dbNameInput = result.inputs?.find(i => i.id === 'db_name');
+			const dbNameInput = result.mcpServerConfiguration.inputs?.find((i: IMcpServerVariable) => i.id === 'db_name');
 			assert.strictEqual(dbNameInput?.description, 'Database name');
 		});
 
 		test('variable with choices creates pick input', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
-					runtime_arguments: [{
+					runtimeArguments: [{
 						type: 'named',
 						name: '--log-level',
 						value: '{level}',
-						is_repeated: false,
+						isRepeated: false,
 						variables: {
 							level: {
 								description: 'Log level',
@@ -649,25 +691,26 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
-			assert.strictEqual(result.inputs?.length, 1);
-			assert.strictEqual(result.inputs?.[0].type, McpServerVariableType.PICK);
-			assert.deepStrictEqual(result.inputs?.[0].options, ['debug', 'info', 'warn', 'error']);
-			assert.strictEqual(result.inputs?.[0].default, 'info');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 1);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].type, McpServerVariableType.PICK);
+			assert.deepStrictEqual(result.mcpServerConfiguration.inputs?.[0].options, ['debug', 'info', 'warn', 'error']);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].default, 'info');
 		});
 
 		test('variables in package arguments', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.DOCKER,
+					registryType: RegistryType.DOCKER,
 					identifier: 'test-image',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
-					package_arguments: [{
+					packageArguments: [{
 						type: 'named',
 						name: '--host',
 						value: '{db_host}',
-						is_repeated: false,
+						isRepeated: false,
 						variables: {
 							db_host: {
 								description: 'Database host',
@@ -677,60 +720,61 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 					}, {
 						type: 'positional',
 						value: '{database_name}',
-						value_hint: 'database_name',
-						is_repeated: false,
+						valueHint: 'database_name',
+						isRepeated: false,
 						variables: {
 							database_name: {
 								description: 'Name of the database to connect to',
-								is_required: true
+								isRequired: true
 							}
 						}
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.DOCKER);
 
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.args, [
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
 					'run', '-i', '--rm',
 					'test-image:1.0.0',
 					'--host', '${input:db_host}',
 					'${input:database_name}'
 				]);
 			}
-			assert.strictEqual(result.inputs?.length, 2);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 2);
 		});
 
 		test('positional arguments with value_hint should create input variables (GitHub issue #266106)', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: '@example/math-tool',
+					transport: { type: TransportType.STDIO },
 					version: '2.0.1',
-					package_arguments: [{
+					packageArguments: [{
 						type: 'positional',
-						value_hint: 'calculation_type',
+						valueHint: 'calculation_type',
 						description: 'Type of calculation to enable',
-						is_required: true,
-						is_repeated: false
+						isRequired: true,
+						isRepeated: false
 						// Note: No 'value' field, only value_hint - should create input variable
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
 			// BUG: Currently value_hint is used as literal value instead of creating input variable
 			// Should create input variable instead
-			assert.strictEqual(result.inputs?.length, 1);
-			assert.strictEqual(result.inputs?.[0].id, 'calculation_type');
-			assert.strictEqual(result.inputs?.[0].description, 'Type of calculation to enable');
-			assert.strictEqual(result.inputs?.[0].type, McpServerVariableType.PROMPT);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 1);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].id, 'calculation_type');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].description, 'Type of calculation to enable');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].type, McpServerVariableType.PROMPT);
 
 			// Args should use input variable interpolation
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.args, [
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, [
 					'@example/math-tool@2.0.1',
 					'${input:calculation_type}'
 				]);
@@ -743,104 +787,165 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 			const manifest: IGalleryMcpServerConfiguration = {};
 
 			assert.throws(() => {
-				service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+				service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 			}, /No server package found/);
 		});
 
 		test('manifest with no matching package type should use first package', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.PYTHON,
+					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					identifier: 'python-server',
 					version: '1.0.0'
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
-			assert.strictEqual(result.config.type, McpServerType.LOCAL);
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.strictEqual(result.config.command, 'uvx'); // Python command since that's the package type
-				assert.deepStrictEqual(result.config.args, ['python-server==1.0.0']);
+			assert.strictEqual(result.mcpServerConfiguration.config.type, McpServerType.LOCAL);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'uvx'); // Python command since that's the package type
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['python-server==1.0.0']);
 			}
 		});
 
 		test('manifest with matching package type should use that package', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.PYTHON,
+					registryType: RegistryType.PYTHON,
+					transport: { type: TransportType.STDIO },
 					identifier: 'python-server',
 					version: '1.0.0'
 				}, {
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'node-server',
 					version: '2.0.0'
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.strictEqual(result.config.command, 'npx');
-				assert.deepStrictEqual(result.config.args, ['node-server@2.0.0']);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.command, 'npx');
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['node-server@2.0.0']);
 			}
 		});
 
 		test('undefined environment variables should be omitted', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0'
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.strictEqual(result.config.env, undefined);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.env, undefined);
 			}
 		});
 
 		test('named argument without value should only add name', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
+					transport: { type: TransportType.STDIO },
 					identifier: 'test-server',
 					version: '1.0.0',
-					runtime_arguments: [{
+					runtimeArguments: [{
 						type: 'named',
 						name: '--verbose',
-						is_repeated: false
+						isRepeated: false
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.args, ['--verbose', 'test-server@1.0.0']);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['--verbose', 'test-server@1.0.0']);
 			}
 		});
 
 		test('positional argument with undefined value should use value_hint', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
-					package_arguments: [{
+					packageArguments: [{
 						type: 'positional',
-						value_hint: 'target_directory',
-						is_repeated: false
+						valueHint: 'target_directory',
+						isRepeated: false
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.deepStrictEqual(result.config.args, ['test-server@1.0.0', 'target_directory']);
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['test-server@1.0.0', 'target_directory']);
+			}
+		});
+
+		test('named argument with no name should generate notice', () => {
+			const manifest = {
+				packages: [{
+					registryType: RegistryType.NODE,
+					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
+					version: '1.0.0',
+					runtimeArguments: [{
+						type: 'named',
+						value: 'some-value',
+						isRepeated: false
+					}]
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest as IGalleryMcpServerConfiguration, RegistryType.NODE);
+
+			// Should generate a notice about the missing name
+			assert.strictEqual(result.notices.length, 1);
+			assert.ok(result.notices[0].includes('Named argument is missing a name'));
+			assert.ok(result.notices[0].includes('some-value')); // Should include the argument details in JSON format
+
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['test-server@1.0.0']);
+			}
+		});
+
+		test('named argument with empty name should generate notice', () => {
+			const manifest: IGalleryMcpServerConfiguration = {
+				packages: [{
+					registryType: RegistryType.NODE,
+					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
+					version: '1.0.0',
+					runtimeArguments: [{
+						type: 'named',
+						name: '',
+						value: 'some-value',
+						isRepeated: false
+					}]
+				}]
+			};
+
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+
+			// Should generate a notice about the missing name
+			assert.strictEqual(result.notices.length, 1);
+			assert.ok(result.notices[0].includes('Named argument is missing a name'));
+			assert.ok(result.notices[0].includes('some-value')); // Should include the argument details in JSON format
+
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.deepStrictEqual(result.mcpServerConfiguration.config.args, ['test-server@1.0.0']);
 			}
 		});
 	});
@@ -849,32 +954,33 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 		test('should use explicit variables instead of auto-generating when both are possible', () => {
 			const manifest: IGalleryMcpServerConfiguration = {
 				packages: [{
-					registry_type: RegistryType.NODE,
+					registryType: RegistryType.NODE,
 					identifier: 'test-server',
+					transport: { type: TransportType.STDIO },
 					version: '1.0.0',
-					environment_variables: [{
+					environmentVariables: [{
 						name: 'API_KEY',
 						value: 'Bearer {api_key}',
 						description: 'Should not be used', // This should be ignored since we have explicit variables
 						variables: {
 							api_key: {
 								description: 'Your API key',
-								is_secret: true
+								isSecret: true
 							}
 						}
 					}]
 				}]
 			};
 
-			const result = service.testGetMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
+			const result = service.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 
-			assert.strictEqual(result.inputs?.length, 1);
-			assert.strictEqual(result.inputs?.[0].id, 'api_key');
-			assert.strictEqual(result.inputs?.[0].description, 'Your API key');
-			assert.strictEqual(result.inputs?.[0].password, true);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.length, 1);
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].id, 'api_key');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].description, 'Your API key');
+			assert.strictEqual(result.mcpServerConfiguration.inputs?.[0].password, true);
 
-			if (result.config.type === McpServerType.LOCAL) {
-				assert.strictEqual(result.config.env?.['API_KEY'], 'Bearer ${input:api_key}');
+			if (result.mcpServerConfiguration.config.type === McpServerType.LOCAL) {
+				assert.strictEqual(result.mcpServerConfiguration.config.env?.['API_KEY'], 'Bearer ${input:api_key}');
 			}
 		});
 	});

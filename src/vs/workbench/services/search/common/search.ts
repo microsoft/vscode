@@ -625,8 +625,10 @@ export interface ISerializedSearchError {
 export type ISerializedSearchComplete = ISerializedSearchSuccess | ISerializedSearchError;
 
 export function isSerializedSearchComplete(arg: ISerializedSearchProgressItem | ISerializedSearchComplete): arg is ISerializedSearchComplete {
+	// eslint-disable-next-line local/code-no-any-casts
 	if ((arg as any).type === 'error') {
 		return true;
+		// eslint-disable-next-line local/code-no-any-casts
 	} else if ((arg as any).type === 'success') {
 		return true;
 	} else {

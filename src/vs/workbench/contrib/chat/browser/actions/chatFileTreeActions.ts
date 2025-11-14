@@ -30,7 +30,7 @@ export function registerChatFileTreeActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			navigateTrees(accessor, false);
 		}
 	});
@@ -51,7 +51,7 @@ export function registerChatFileTreeActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: unknown[]) {
 			navigateTrees(accessor, true);
 		}
 	});

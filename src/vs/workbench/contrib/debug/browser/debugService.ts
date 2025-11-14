@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { Action, IAction } from '../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../base/common/actions.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { RunOnceScheduler, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
@@ -572,17 +572,14 @@ export class DebugService implements IDebugService {
 
 					const actionList: IAction[] = [];
 
-					actionList.push(new Action(
-						'installAdditionalDebuggers',
-						nls.localize({ key: 'installAdditionalDebuggers', comment: ['Placeholder is the debug type, so for example "node", "python"'] }, "Install {0} Extension", resolvedConfig.type),
-						undefined,
-						true,
-						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers', resolvedConfig?.type)
-					));
+					actionList.push(toAction({
+						id: 'installAdditionalDebuggers',
+						label: nls.localize({ key: 'installAdditionalDebuggers', comment: ['Placeholder is the debug type, so for example "node", "python"'] }, "Install {0} Extension", resolvedConfig.type),
+						enabled: true,
+						run: async () => this.commandService.executeCommand('debug.installAdditionalDebuggers', resolvedConfig?.type)
+					}));
 
-					await this.showError(message, actionList);
-
-					return false;
+					await this.showError(message, actionList); return false;
 				}
 
 				if (!dbg.enabled) {
@@ -1001,7 +998,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private async showError(message: string, errorActions: ReadonlyArray<IAction> = [], promptLaunchJson = true): Promise<void> {
-		const configureAction = new Action(DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL, undefined, true, () => this.commandService.executeCommand(DEBUG_CONFIGURE_COMMAND_ID));
+		const configureAction = toAction({ id: DEBUG_CONFIGURE_COMMAND_ID, label: DEBUG_CONFIGURE_LABEL, enabled: true, run: () => this.commandService.executeCommand(DEBUG_CONFIGURE_COMMAND_ID) });
 		// Don't append the standard command if id of any provided action indicates it is a command
 		const actions = errorActions.filter((action) => action.id.endsWith('.command')).length > 0 ?
 			errorActions :

@@ -18,6 +18,16 @@
 	.action-item > .action-label {
 		padding: 5px;
 		font-size: 12px;
+		border-radius: 2px;
+	}
+
+	.action-item > .action-label.codicon {
+		color: var(--vscode-button-foreground);
+	}
+
+	.action-item > .action-label.codicon:not(.separator) {
+		padding-top: 6px;
+		padding-bottom: 6px;
 	}
 
 	.action-item:first-child > .action-label {

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as picomatch from 'picomatch';
 import * as vscode from 'vscode';
 import { TextDocumentEdit } from 'vscode-languageclient';
+import { Utils } from 'vscode-uri';
 import { MdLanguageClient } from '../client/client';
 import { Delayer } from '../util/async';
 import { noopToken } from '../util/cancellation';
@@ -137,7 +137,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 
 		const choice = await vscode.window.showInformationMessage(
 			newResources.length === 1
-				? vscode.l10n.t("Update Markdown links for '{0}'?", path.basename(newResources[0].fsPath))
+				? vscode.l10n.t("Update Markdown links for '{0}'?", Utils.basename(newResources[0]))
 				: this._getConfirmMessage(vscode.l10n.t("Update Markdown links for the following {0} files?", newResources.length), newResources), {
 			modal: true,
 		}, rejectItem, acceptItem, alwaysItem, neverItem);
@@ -197,7 +197,7 @@ class UpdateLinksOnFileRenameHandler extends Disposable {
 
 		const paths = [start];
 		paths.push('');
-		paths.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => path.basename(r.fsPath)));
+		paths.push(...resourcesToConfirm.slice(0, MAX_CONFIRM_FILES).map(r => Utils.basename(r)));
 
 		if (resourcesToConfirm.length > MAX_CONFIRM_FILES) {
 			if (resourcesToConfirm.length - MAX_CONFIRM_FILES === 1) {

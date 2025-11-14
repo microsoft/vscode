@@ -166,7 +166,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
-		handler: (accessor, args) => moveCopySelectedEditors(true, args, accessor),
+		handler: (accessor, args) => moveCopySelectedEditors(true, args as SelectedEditorsMoveCopyArguments | undefined, accessor),
 		metadata: {
 			description: localize('editorCommand.activeEditorMove.description', "Move the active editor by tabs or groups"),
 			args: [
@@ -185,7 +185,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
-		handler: (accessor, args) => moveCopySelectedEditors(false, args, accessor),
+		handler: (accessor, args) => moveCopySelectedEditors(false, args as SelectedEditorsMoveCopyArguments | undefined, accessor),
 		metadata: {
 			description: localize('editorCommand.activeEditorCopy.description', "Copy the active editor by groups"),
 			args: [
@@ -298,6 +298,10 @@ function registerActiveEditorMoveCopyCommand(): void {
 				break;
 			case 'previous':
 				targetGroup = editorGroupsService.findGroup({ location: GroupLocation.PREVIOUS }, sourceGroup);
+				if (!targetGroup) {
+					const oppositeDirection = preferredSideBySideGroupDirection(configurationService) === GroupDirection.RIGHT ? GroupDirection.LEFT : GroupDirection.UP;
+					targetGroup = editorGroupsService.addGroup(sourceGroup, oppositeDirection);
+				}
 				break;
 			case 'next':
 				targetGroup = editorGroupsService.findGroup({ location: GroupLocation.NEXT }, sourceGroup);
@@ -407,7 +411,8 @@ function registerOpenEditorAPICommands(): void {
 		];
 	}
 
-	// partial, renderer-side API command to open editor
+	// partial, renderer-side API command to open editor only supporting
+	// arguments that do not need to be converted from the extension host
 	// complements https://github.com/microsoft/vscode/blob/2b164efb0e6a5de3826bff62683eaeafe032284f/src/vs/workbench/api/common/extHostApiCommands.ts#L373
 	CommandsRegistry.registerCommand({
 		id: 'vscode.open',
@@ -465,7 +470,8 @@ function registerOpenEditorAPICommands(): void {
 		}
 	});
 
-	// partial, renderer-side API command to open diff editor
+	// partial, renderer-side API command to open diff editor only supporting
+	// arguments that do not need to be converted from the extension host
 	// complements https://github.com/microsoft/vscode/blob/2b164efb0e6a5de3826bff62683eaeafe032284f/src/vs/workbench/api/common/extHostApiCommands.ts#L397
 	CommandsRegistry.registerCommand({
 		id: 'vscode.diff',
@@ -518,7 +524,8 @@ function registerOpenEditorAPICommands(): void {
 		await editorService.openEditor({ resource: URI.from(resource, true), options: { pinned: true, ...optionsArg, override: id } }, columnToEditorGroup(editorGroupsService, configurationService, columnArg));
 	});
 
-	// partial, renderer-side API command to open diff editor
+	// partial, renderer-side API command to open diff editor only supporting
+	// arguments that do not need to be converted from the extension host
 	// complements https://github.com/microsoft/vscode/blob/2b164efb0e6a5de3826bff62683eaeafe032284f/src/vs/workbench/api/common/extHostApiCommands.ts#L397
 	CommandsRegistry.registerCommand({
 		id: 'vscode.changes',
@@ -592,10 +599,10 @@ interface OpenMultiFileDiffEditorOptions {
 }
 
 function registerOpenEditorAtIndexCommands(): void {
-	const openEditorAtIndex: ICommandHandler = (accessor: ServicesAccessor, editorIndex: number): void => {
+	const openEditorAtIndex: ICommandHandler = (accessor: ServicesAccessor, editorIndex: unknown): void => {
 		const editorService = accessor.get(IEditorService);
 		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane) {
+		if (activeEditorPane && typeof editorIndex === 'number') {
 			const editor = activeEditorPane.group.getEditorByIndex(editorIndex);
 			if (editor) {
 				editorService.openEditor(editor);
@@ -1273,7 +1280,7 @@ function registerOtherEditorCommands(): void {
 			const configurationService = accessor.get(IConfigurationService);
 
 			const currentSetting = configurationService.getValue('workbench.editor.enablePreview');
-			const newSetting = currentSetting === true ? false : true;
+			const newSetting = currentSetting !== true;
 			configurationService.updateValue('workbench.editor.enablePreview', newSetting);
 		}
 	});

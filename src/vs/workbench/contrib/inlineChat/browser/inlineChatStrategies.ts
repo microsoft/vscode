@@ -182,6 +182,7 @@ export class LiveStrategy {
 			modelId: metadata.modelId,
 			extensionId: metadata.extensionId,
 			requestId: metadata.requestId,
+			sessionId: undefined,
 			languageId: this._session.textModelN.getLanguageId(),
 		});
 

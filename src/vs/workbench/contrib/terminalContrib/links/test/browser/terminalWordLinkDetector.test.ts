@@ -46,6 +46,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 	suite('should link words as defined by wordSeparators', () => {
 		test('" ()[]"', async () => {
 			await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ()[]' } });
+			// eslint-disable-next-line local/code-no-any-casts
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			await assertLink('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
 			await assertLink(' foo ', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
@@ -55,6 +56,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		});
 		test('" "', async () => {
 			await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+			// eslint-disable-next-line local/code-no-any-casts
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			await assertLink('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
 			await assertLink(' foo ', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
@@ -64,6 +66,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		});
 		test('" []"', async () => {
 			await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' []' } });
+			// eslint-disable-next-line local/code-no-any-casts
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			await assertLink('aabbccdd.txt ', [{ range: [[1, 1], [12, 1]], text: 'aabbccdd.txt' }]);
 			await assertLink(' aabbccdd.txt ', [{ range: [[2, 1], [13, 1]], text: 'aabbccdd.txt' }]);
@@ -83,6 +86,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 	// with a wide character, which the terminalLinkHelper currently doesn't account for
 	test.skip('should support wide characters', async () => {
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' []' } });
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 		await assertLink('我是学生.txt ', [{ range: [[1, 1], [12, 1]], text: '我是学生.txt' }]);
 		await assertLink(' 我是学生.txt ', [{ range: [[2, 1], [13, 1]], text: '我是学生.txt' }]);
@@ -91,6 +95,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 
 	test('should support multiple link results', async () => {
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 		await assertLink('foo bar', [
 			{ range: [[1, 1], [3, 1]], text: 'foo' },
@@ -100,6 +105,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 
 	test('should remove trailing colon in the link results', async () => {
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 		await assertLink('foo:5:6: bar:0:32:', [
 			{ range: [[1, 1], [7, 1]], text: 'foo:5:6' },
@@ -109,6 +115,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 
 	test('should support wrapping', async () => {
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 		await assertLink('fsdjfsdkfjslkdfjskdfjsldkfjsdlkfjslkdjfskldjflskdfjskldjflskdfjsdklfjsdklfjsldkfjsdlkfjsdlkfjsdlkfjsldkfjslkdfjsdlkfjsldkfjsdlkfjskdfjsldkfjsdlkfjslkdfjsdlkfjsldkfjsldkfjsldkfjslkdfjsdlkfjslkdfjsdklfsd', [
 			{ range: [[1, 1], [41, 3]], text: 'fsdjfsdkfjslkdfjskdfjsldkfjsdlkfjslkdjfskldjflskdfjskldjflskdfjsdklfjsdklfjsldkfjsdlkfjsdlkfjsdlkfjsldkfjslkdfjsdlkfjsldkfjsdlkfjskdfjsldkfjsdlkfjslkdfjsdlkfjsldkfjsldkfjsldkfjslkdfjsdlkfjslkdfjsdklfsd' },
@@ -116,6 +123,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 	});
 	test('should support wrapping with multiple links', async () => {
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 		await assertLink('fsdjfsdkfjslkdfjskdfjsldkfj sdlkfjslkdjfskldjflskdfjskldjflskdfj sdklfjsdklfjsldkfjsdlkfjsdlkfjsdlkfjsldkfjslkdfjsdlkfjsldkfjsdlkfjskdfjsldkfjsdlkfjslkdfjsdlkfjsldkfjsldkfjsldkfjslkdfjsdlkfjslkdfjsdklfsd', [
 			{ range: [[1, 1], [27, 1]], text: 'fsdjfsdkfjslkdfjskdfjsldkfj' },
@@ -125,11 +133,13 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 	});
 	test('does not return any links for empty text', async () => {
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 		await assertLink('', []);
 	});
 	test('should support file scheme links', async () => {
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 		await assertLink('file:///C:/users/test/file.txt ', [{ range: [[1, 1], [30, 1]], text: 'file:///C:/users/test/file.txt' }]);
 		await assertLink('file:///C:/users/test/file.txt:1:10 ', [{ range: [[1, 1], [35, 1]], text: 'file:///C:/users/test/file.txt:1:10' }]);
