@@ -339,7 +339,7 @@ function mockNotebookService(notebook: NotebookTextModel, notebookSerializer: Pr
 		override async createNotebookTextDocumentSnapshot(uri: URI, context: SnapshotContext, token: CancellationToken): Promise<VSBufferReadableStream> {
 			const info = await this.withNotebookDataProvider(notebook.viewType);
 			const serializer = info.serializer;
-			const outputSizeLimit = configurationService.getValue(NotebookSetting.outputBackupSizeLimit) ?? 1024;
+			const outputSizeLimit = configurationService.getValue<number>(NotebookSetting.outputBackupSizeLimit) ?? 1024;
 			const data: NotebookData = notebook.createSnapshot({ context: context, outputSizeLimit: outputSizeLimit, transientOptions: serializer.options });
 			const bytes = await serializer.notebookToData(data);
 

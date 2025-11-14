@@ -599,8 +599,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return -1;
 		}
-		const maxCol = this._modelData.model.getLineMaxColumn(lineNumber);
-		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
+		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, Number.MAX_SAFE_INTEGER, includeViewZones);
 	}
 
 	public getLineHeightForPosition(position: IPosition): number {

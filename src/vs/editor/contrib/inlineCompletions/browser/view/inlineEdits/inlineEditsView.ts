@@ -395,8 +395,9 @@ export class InlineEditsView extends Disposable {
 				firstCursorLineNumber: model.inlineEdit.cursorPosition.lineNumber,
 			};
 		}
-		return model.inViewPort.read(reader) ? undefined : {
+		return {
 			lineNumber: this._currentInlineEditCache.firstCursorLineNumber,
+			isVisible: !model.inViewPort.read(reader),
 		};
 	}
 

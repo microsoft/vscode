@@ -1269,7 +1269,6 @@ export class InlineChatController2 implements IEditorContribution {
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
-		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
 		@IChatService chatService: IChatService,
 	) {
 
@@ -1531,9 +1530,22 @@ export class InlineChatController2 implements IEditorContribution {
 		return !rejected;
 	}
 
-	acceptSession() {
-		const value = this._currentSession.get();
-		value?.editingSession.accept();
+	async acceptSession() {
+		const session = this._currentSession.get();
+		if (!session) {
+			return;
+		}
+		await session.editingSession.accept();
+		session.dispose();
+	}
+
+	async rejectSession() {
+		const session = this._currentSession.get();
+		if (!session) {
+			return;
+		}
+		await session.editingSession.reject();
+		session.dispose();
 	}
 
 	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {
