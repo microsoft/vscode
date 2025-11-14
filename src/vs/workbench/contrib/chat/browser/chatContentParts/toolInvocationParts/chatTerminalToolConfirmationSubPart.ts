@@ -43,7 +43,7 @@ import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatCo
 import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
-import { openTerminalSettingsLinkCommandId } from './chatTerminalToolProgressPart.js';
+import { disableSessionAutoApprovalCommandId, openTerminalSettingsLinkCommandId } from './chatTerminalToolProgressPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
@@ -308,7 +308,13 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 					case 'sessionApproval': {
 						const sessionId = this.context.element.sessionId;
 						this.terminalChatService.setChatSessionAutoApproval(sessionId, true);
-						terminalData.autoApproveInfo = new MarkdownString(localize('sessionApproval', 'All commands will be auto approved for this session'));
+						const disableUri = createCommandUri(disableSessionAutoApprovalCommandId, sessionId);
+						const mdTrustSettings = {
+							isTrusted: {
+								enabledCommands: [disableSessionAutoApprovalCommandId]
+							}
+						};
+						terminalData.autoApproveInfo = new MarkdownString(`${localize('sessionApproval', 'All commands will be auto approved for this session')} ([${localize('sessionApproval.disable', 'Disable')}](${disableUri.toString()}))`, mdTrustSettings);
 						toolConfirmKind = ToolConfirmKind.UserAction;
 						break;
 					}

@@ -53,11 +53,17 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
 		if (options.chatSessionId && this._terminalChatService.hasChatSessionAutoApproval(options.chatSessionId)) {
 			this._log('Session has auto approval enabled, auto approving command');
+			const disableUri = createCommandUri('_chat.disableSessionAutoApproval', options.chatSessionId);
+			const mdTrustSettings = {
+				isTrusted: {
+					enabledCommands: ['_chat.disableSessionAutoApproval']
+				}
+			};
 			return {
 				isAutoApproved: true,
 				isAutoApproveAllowed: true,
 				disclaimers: [],
-				autoApproveInfo: new MarkdownString(localize('autoApprove.session', 'Auto approved for this session')),
+				autoApproveInfo: new MarkdownString(`${localize('autoApprove.session', 'Auto approved for this session')} ([${localize('autoApprove.session.disable', 'Disable')}](${disableUri.toString()}))`, mdTrustSettings),
 			};
 		}
 
