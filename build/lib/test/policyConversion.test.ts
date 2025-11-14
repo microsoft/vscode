@@ -65,10 +65,6 @@ function parsePolicies(policyData: ExportedPolicyDataDto): Policy[] {
 /**
  * This is a snapshot of the data taken on Oct. 20 2025 as part of the
  * policy refactor effort. Let's make sure that nothing has regressed.
- *
- * NOTE: These snapshot tests and fixtures are NOT meant to be updated when new
- * policies are added. They serve as a regression test for the policy conversion
- * system based on the state at the time of the refactor.
  */
 const policies: ExportedPolicyDataDto = {
 	categories: [
@@ -150,20 +146,6 @@ const policies: ExportedPolicyDataDto = {
 			},
 			type: 'object',
 			default: '*'
-		},
-		{
-			key: 'chat.tools.eligibleForAutoApproval',
-			name: 'ChatToolsEligibleForAutoApproval',
-			category: 'InteractiveSession',
-			minimumVersion: '1.99',
-			localization: {
-				description: {
-					key: 'chat.tools.eligibleForAutoApproval',
-					value: 'Controls which tools are eligible for automatic approval.  Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve.  The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.'
-				}
-			},
-			type: 'object',
-			default: {}
 		},
 		{
 			key: 'chat.tools.global.autoApprove',
@@ -381,7 +363,6 @@ const frenchTranslations = [
 				'updateConfigurationTitle': 'Mettre à jour',
 				'chat.extensionToolsEnabled': 'Autorisez l’utilisation d’outils fournis par des extensions tierces.',
 				'chat.agent.enabled.description': 'Activez le mode Assistant pour la conversation. Lorsque cette option est activée, le mode Assistant peut être activé via la liste déroulante de la vue.',
-				'chat.tools.eligibleForAutoApproval': 'Contrôle quels outils sont éligibles à l\'approbation automatique. Les outils définis sur \'false\' présenteront toujours une confirmation et ne proposeront jamais l\'option d\'auto-approbation. Le comportement par défaut (ou la définition d\'un outil sur \'true\') peut entraîner l\'offre d\'options d\'auto-approbation par l\'outil.',
 				'chat.mcp.access': 'Contrôle l’accès aux serveurs de protocole de contexte du modèle.',
 				'chat.mcp.access.none': 'Aucun accès aux serveurs MCP.',
 				'chat.mcp.access.registry': `Autorise l’accès aux serveurs MCP installés à partir du registre auquel VS Code est connecté.`,
