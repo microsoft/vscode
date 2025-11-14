@@ -739,7 +739,7 @@ class AICodeActionsHelper {
 	static warningOrErrorMarkersAtRange(markerService: IMarkerService, resource: URI, range: Range | Selection): IMarker[] {
 		return markerService
 			.read({ resource, severities: MarkerSeverity.Error | MarkerSeverity.Warning })
-			.filter(marker => Range.areIntersecting(range, marker));
+			.filter(marker => range.startLineNumber <= marker.endLineNumber && range.endLineNumber >= marker.startLineNumber);
 	}
 
 	static modify(range: Range): Command {
