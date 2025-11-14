@@ -237,23 +237,19 @@ export class CurrentLineMarginHighlightOverlay extends AbstractLineHighlightOver
 registerThemingParticipant((theme, collector) => {
 	const lineHighlight = theme.getColor(editorLineHighlight);
 	const inactiveLineHighlight = theme.getColor(editorInactiveLineHighlight);
-	
+
 	// Apply active line highlight when editor is focused
 	if (lineHighlight) {
 		collector.addRule(`.monaco-editor.focused .view-overlays .current-line { background-color: ${lineHighlight}; }`);
 		collector.addRule(`.monaco-editor.focused .margin-view-overlays .current-line-margin { background-color: ${lineHighlight}; border: none; }`);
 	}
-	
+
 	// Apply inactive line highlight when editor is not focused
 	if (inactiveLineHighlight) {
 		collector.addRule(`.monaco-editor .view-overlays .current-line { background-color: ${inactiveLineHighlight}; }`);
 		collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { background-color: ${inactiveLineHighlight}; border: none; }`);
-	} else if (lineHighlight) {
-		// Fallback to active line highlight if no inactive color is specified
-		collector.addRule(`.monaco-editor .view-overlays .current-line { background-color: ${lineHighlight}; }`);
-		collector.addRule(`.monaco-editor .margin-view-overlays .current-line-margin { background-color: ${lineHighlight}; border: none; }`);
 	}
-	
+
 	if (!lineHighlight || lineHighlight.isTransparent() || theme.defines(editorLineHighlightBorder)) {
 		const lineHighlightBorder = theme.getColor(editorLineHighlightBorder);
 		if (lineHighlightBorder) {
