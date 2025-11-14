@@ -10,7 +10,7 @@ import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js'
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
-import { DelayedPagedModel, IPagedModel, PagedModel } from '../../../../base/common/paging.js';
+import { DelayedPagedModel, IPagedModel, PagedModel, IterativePagedModel } from '../../../../base/common/paging.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyDefinedExpr, ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -323,7 +323,8 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		const disposables = new DisposableStore();
 		if (query) {
 			const servers = await this.mcpWorkbenchService.queryGallery({ text: query.replace('@mcp', '') });
-			return { model: new PagedModel(servers), disposables };
+			const model = disposables.add(new IterativePagedModel(servers));
+			return { model, disposables };
 		}
 
 		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IWorkbenchMcpServer>>());
@@ -528,7 +529,7 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 				id: InstalledMcpServersViewId,
 				name: localize2('mcp-installed', "MCP Servers - Installed"),
 				ctorDescriptor: new SyncDescriptor(McpServersListView, [{}]),
-				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext),
+				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledMcpServersContext, ChatContextKeys.Setup.hidden.negate()),
 				weight: 40,
 				order: 4,
 				canToggleVisibility: true
@@ -546,7 +547,7 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 				id: 'workbench.views.mcp.marketplace',
 				name: localize2('mcp', "MCP Servers"),
 				ctorDescriptor: new SyncDescriptor(McpServersListView, [{}]),
-				when: ContextKeyExpr.and(SearchMcpServersContext, McpServersGalleryStatusContext.isEqualTo(McpGalleryManifestStatus.Available), ContextKeyExpr.or(ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`), ProductQualityContext.notEqualsTo('stable'), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceEnablementConfig}`))),
+				when: ContextKeyExpr.and(SearchMcpServersContext, ChatContextKeys.Setup.hidden.negate(), McpServersGalleryStatusContext.isEqualTo(McpGalleryManifestStatus.Available), ContextKeyExpr.or(ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`), ProductQualityContext.notEqualsTo('stable'), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceEnablementConfig}`))),
 			},
 			{
 				id: 'workbench.views.mcp.default.welcomeView',
@@ -561,7 +562,7 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 				id: 'workbench.views.mcp.welcomeView',
 				name: localize2('mcp', "MCP Servers"),
 				ctorDescriptor: new SyncDescriptor(McpServersListView, [{ showWelcome: true }]),
-				when: ContextKeyExpr.and(SearchMcpServersContext, McpServersGalleryStatusContext.isEqualTo(McpGalleryManifestStatus.Available), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`).negate(), ProductQualityContext.isEqualTo('stable'), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceEnablementConfig}`).negate()),
+				when: ContextKeyExpr.and(SearchMcpServersContext, ChatContextKeys.Setup.hidden.negate(), McpServersGalleryStatusContext.isEqualTo(McpGalleryManifestStatus.Available), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`).negate(), ProductQualityContext.isEqualTo('stable'), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceEnablementConfig}`).negate()),
 			}
 		], VIEW_CONTAINER);
 	}

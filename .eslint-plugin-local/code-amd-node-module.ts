@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import * as ESTree from 'estree';
 import { join } from 'path';
 
 
@@ -33,13 +34,13 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 		}
 
 
-		const checkImport = (node: any) => {
+		const checkImport = (node: ESTree.Literal & { parent?: ESTree.Node & { importKind?: string } }) => {
 
-			if (node.type !== 'Literal' || typeof node.value !== 'string') {
+			if (typeof node.value !== 'string') {
 				return;
 			}
 
-			if (node.parent.importKind === 'type') {
+			if (node.parent?.type === 'ImportDeclaration' && node.parent.importKind === 'type') {
 				return;
 			}
 

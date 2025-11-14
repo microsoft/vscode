@@ -20,6 +20,7 @@ import { IParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatChangesSummary, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
 import { countWords } from './chatWordCounter.js';
 import { CodeBlockModelCollection } from './codeBlockModelCollection.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
@@ -63,7 +64,7 @@ export interface IChatSetCheckpointEvent {
 
 export interface IChatViewModel {
 	readonly model: IChatModel;
-	readonly sessionId: string;
+	readonly sessionResource: URI;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
 	readonly requestInProgress: boolean;
@@ -77,7 +78,9 @@ export interface IChatViewModel {
 
 export interface IChatRequestViewModel {
 	readonly id: string;
+	/** @deprecated */
 	readonly sessionId: string;
+	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	readonly username: string;
@@ -193,7 +196,9 @@ export interface IChatResponseViewModel {
 	readonly model: IChatResponseModel;
 	readonly id: string;
 	readonly session: IChatViewModel;
+	/** @deprecated */
 	readonly sessionId: string;
+	readonly sessionResource: URI;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	/** The ID of the associated IChatRequestViewModel */
@@ -258,8 +263,8 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._onDidChange.fire({ kind: 'changePlaceholder' });
 	}
 
-	get sessionId() {
-		return this._model.sessionId;
+	get sessionResource(): URI {
+		return this._model.sessionResource;
 	}
 
 	get requestInProgress(): boolean {
@@ -368,7 +373,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			if (token.type === 'code') {
 				const lang = token.lang || '';
 				const text = token.text;
-				this.codeBlockModelCollection.update(this._model.sessionId, model, codeBlockIndex++, { text, languageId: lang, isComplete: true });
+				this.codeBlockModelCollection.update(this._model.sessionResource, model, codeBlockIndex++, { text, languageId: lang, isComplete: true });
 			}
 		});
 	}
@@ -383,16 +388,21 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 		return this.id + `_${hash(this.variables)}_${hash(this.isComplete)}`;
 	}
 
+	/** @deprecated */
 	get sessionId() {
 		return this._model.session.sessionId;
 	}
 
-	get username() {
-		return this._model.username;
+	get sessionResource() {
+		return this._model.session.sessionResource;
 	}
 
-	get avatarIcon() {
-		return this._model.avatarIconUri;
+	get username() {
+		return 'User';
+	}
+
+	get avatarIcon(): ThemeIcon {
+		return Codicon.account;
 	}
 
 	get message() {
@@ -474,8 +484,13 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			(this.isLast ? '_last' : '');
 	}
 
+	/** @deprecated */
 	get sessionId() {
 		return this._model.session.sessionId;
+	}
+
+	get sessionResource(): URI {
+		return this._model.session.sessionResource;
 	}
 
 	get username() {

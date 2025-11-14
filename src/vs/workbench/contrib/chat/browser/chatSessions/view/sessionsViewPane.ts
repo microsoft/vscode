@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../../base/browser/dom.js';
-import { append, $ } from '../../../../../../base/browser/dom.js';
+import { $, append } from '../../../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
-import { Action, IAction } from '../../../../../../base/common/actions.js';
+import { IAction, toAction } from '../../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { truncate } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
@@ -33,30 +35,31 @@ import { IProgressService } from '../../../../../../platform/progress/common/pro
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../../browser/dnd.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
-import { ViewPane, IViewPaneOptions } from '../../../../../browser/parts/views/viewPane.js';
+import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../../common/chatService.js';
-import { IChatSessionItemProvider } from '../../../common/chatSessionsService.js';
-import { ChatSessionUri } from '../../../common/chatUri.js';
+import { IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
-import { IChatWidgetService, ChatViewId } from '../../chat.js';
-import { IChatEditorOptions } from '../../chatEditor.js';
-import { ChatEditorInput } from '../../chatEditorInput.js';
-import { ChatViewPane } from '../../chatViewPane.js';
-import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
+import { ChatViewId, IChatWidgetService } from '../../chat.js';
+import { IChatEditorOptions } from '../../chatEditor.js';
+import { ChatSessionTracker } from '../chatSessionTracker.js';
+import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
-import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
+import { ArchivedSessionItems, GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
 // Identity provider for session items
 class SessionsIdentityProvider {
-	getId(element: ChatSessionItemWithProvider): string {
-		return element.id;
+	getId(element: ChatSessionItemWithProvider | ArchivedSessionItems): string {
+		if (element instanceof ArchivedSessionItems) {
+			return 'archived-session-items';
+		}
+		return element.resource.toString();
 	}
+
 }
 
 // Accessibility provider for session items
@@ -65,8 +68,8 @@ class SessionsAccessibilityProvider {
 		return nls.localize('chatSessions', 'Chat Sessions');
 	}
 
-	getAriaLabel(element: ChatSessionItemWithProvider): string | null {
-		return element.label || element.id;
+	getAriaLabel(element: ChatSessionItemWithProvider | ArchivedSessionItems): string | null {
+		return element.label;
 	}
 }
 
@@ -101,8 +104,10 @@ export class SessionsViewPane extends ViewPane {
 		@ICommandService private readonly commandService: ICommandService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		this.minimumBodySize = 44;
 
 		// Listen for changes in the provider if it's a LocalChatSessionsProvider
 		if (provider instanceof LocalChatSessionsProvider) {
@@ -121,6 +126,16 @@ export class SessionsViewPane extends ViewPane {
 				}
 			}
 		}));
+
+		this._register(this.chatSessionsService.onDidChangeSessionItems((chatSessionType) => {
+			if (provider.chatSessionType === chatSessionType && this.tree && this.isBodyVisible()) {
+				this.refreshTreeWithProgress();
+			}
+		}));
+
+		if (provider) { // TODO: Why can this be undefined?
+			this.scopedContextKeyService.createKey('chatSessionType', provider.chatSessionType);
+		}
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -141,9 +156,7 @@ export class SessionsViewPane extends ViewPane {
 			icon: Codicon.plus,
 		}, undefined, undefined, undefined, undefined);
 
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.scopedContextKeyService);
-
-		const actions = menu.getActions({ shouldForwardArgs: true });
+		const actions = this.menuService.getMenuActions(MenuId.ChatSessionsMenu, this.scopedContextKeyService, { shouldForwardArgs: true });
 		const primaryActions = getActionBarActions(
 			actions,
 			'submenu',
@@ -163,12 +176,12 @@ export class SessionsViewPane extends ViewPane {
 			return;
 		}
 
-		const dropdownAction = new Action(
-			'selectNewChatSessionOption',
-			nls.localize('chatSession.selectOption', 'More...'),
-			'codicon-chevron-down',
-			true
-		);
+		const dropdownAction = toAction({
+			id: 'selectNewChatSessionOption',
+			label: nls.localize('chatSession.selectOption', 'More...'),
+			class: 'codicon-chevron-down',
+			run: () => { }
+		});
 
 		const dropdownActions: IAction[] = [];
 
@@ -184,12 +197,6 @@ export class SessionsViewPane extends ViewPane {
 			'',
 			options
 		);
-	}
-
-	public refreshTree(): void {
-		if (this.tree && this.isBodyVisible()) {
-			this.refreshTreeWithProgress();
-		}
 	}
 
 	private isEmpty() {
@@ -291,7 +298,7 @@ export class SessionsViewPane extends ViewPane {
 		this.messageElement = append(container, $('.chat-sessions-message'));
 		this.messageElement.style.display = 'none';
 		// Create the tree components
-		const dataSource = new SessionsDataSource(this.provider, this.chatService, this.sessionTracker);
+		const dataSource = new SessionsDataSource(this.provider, this.sessionTracker);
 		const delegate = new SessionsDelegate(this.configurationService);
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();
@@ -301,7 +308,7 @@ export class SessionsViewPane extends ViewPane {
 		this._register(renderer);
 
 		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
-			if (element.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
+			if (isEqual(element.resource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
 				return null;
 			}
 
@@ -327,9 +334,6 @@ export class SessionsViewPane extends ViewPane {
 						}
 					},
 					getDragURI: (element: ChatSessionItemWithProvider) => {
-						if (element.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-							return null;
-						}
 						return getResourceForElement(element)?.toString() ?? null;
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {
@@ -344,6 +348,15 @@ export class SessionsViewPane extends ViewPane {
 				},
 				accessibilityProvider,
 				identityProvider,
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: (session: ChatSessionItemWithProvider) => {
+						const parts = [
+							session.label || '',
+							typeof session.description === 'string' ? session.description : (session.description ? renderAsPlaintext(session.description) : '')
+						];
+						return parts.filter(text => text.length > 0).join(' ');
+					}
+				},
 				multipleSelectionSupport: false,
 				overrideStyles: {
 					listBackground: undefined
@@ -366,7 +379,10 @@ export class SessionsViewPane extends ViewPane {
 
 		// Register context menu event for right-click actions
 		this._register(this.tree.onContextMenu((e) => {
-			if (e.element && e.element.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
+			if (e.element && !(e.element instanceof ArchivedSessionItems)) {
+				this.showContextMenu(e);
+			}
+			if (e.element) {
 				this.showContextMenu(e);
 			}
 		}));
@@ -374,7 +390,7 @@ export class SessionsViewPane extends ViewPane {
 		this._register(this.tree.onMouseDblClick(e => {
 			const scrollingByPage = this.configurationService.getValue<boolean>('workbench.list.scrollByPage');
 			if (e.element === null && !scrollingByPage) {
-				if (this.provider?.chatSessionType && this.provider.chatSessionType !== 'local') {
+				if (this.provider?.chatSessionType && this.provider.chatSessionType !== localChatSessionType) {
 					this.commandService.executeCommand(`workbench.action.chat.openNewSessionEditor.${this.provider?.chatSessionType}`);
 				} else {
 					this.commandService.executeCommand(ACTION_ID_OPEN_CHAT);
@@ -452,47 +468,22 @@ export class SessionsViewPane extends ViewPane {
 	}
 
 	private async openChatSession(session: ChatSessionItemWithProvider) {
-		if (!session || !session.id) {
-			return;
-		}
-
-		if (session.resource.scheme !== ChatSessionUri.scheme) {
-			await this.openerService.open(session.resource);
-			return;
-		}
-
 		try {
 			// Check first if we already have an open editor for this session
-			const uri = ChatSessionUri.forSession(session.provider.chatSessionType, session.id);
-			const existingEditor = findExistingChatEditorByUri(uri, session.id, this.editorGroupsService);
+			const existingEditor = findExistingChatEditorByUri(session.resource, this.editorGroupsService);
 			if (existingEditor) {
-				await this.editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				await this.editorService.openEditor(existingEditor.editor, existingEditor.group);
 				return;
 			}
-			if (this.chatWidgetService.getWidgetBySessionId(session.id)) {
+			if (this.chatWidgetService.getWidgetBySessionResource(session.resource)) {
 				return;
 			}
-
-			if (session.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-				// Don't try to open the "Show history..." node itself
+			if (session instanceof ArchivedSessionItems) {
 				return;
 			}
 
-			// Handle history items first
-			if (isLocalChatSessionItem(session)) {
-				const options: IChatEditorOptions = {
-					target: { sessionId: session.id },
-					pinned: true,
-					ignoreInView: true,
-					preserveFocus: true,
-				};
-				await this.editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options });
-				return;
-			} else if (session.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
-				const chatViewPane = await this.viewsService.openView(ChatViewId) as ChatViewPane;
-				if (chatViewPane) {
-					await chatViewPane.loadSession(session.id);
-				}
+			if (isEqual(session.resource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
+				await this.viewsService.openView(ChatViewId);
 				return;
 			}
 
@@ -505,7 +496,7 @@ export class SessionsViewPane extends ViewPane {
 				preserveFocus: true,
 			};
 			await this.editorService.openEditor({
-				resource: ChatSessionUri.forSession(session.provider.chatSessionType, session.id),
+				resource: session.resource,
 				options,
 			});
 
@@ -520,7 +511,7 @@ export class SessionsViewPane extends ViewPane {
 		}
 
 		const session = e.element;
-		const sessionWithProvider = session as ChatSessionItemWithProvider;
+		const sessionWithProvider = session;
 
 		// Create context overlay for this specific session item
 		const contextOverlay = getSessionItemContextOverlay(

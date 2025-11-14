@@ -5,12 +5,16 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatElicitationRequest } from '../../common/chatService.js';
 import { IChatAccessibilityService } from '../chat.js';
+import { AcceptElicitationRequestActionId } from '../actions/chatElicitationActions.js';
 import { ChatConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IAction } from '../../../../../base/common/actions.js';
@@ -21,17 +25,39 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
+	private readonly _confirmWidget: ChatConfirmationWidget<unknown>;
+
+	public get codeblocks() {
+		return this._confirmWidget.codeblocks;
+	}
+
+	public get codeblocksPartId() {
+		return this._confirmWidget.codeblocksPartId;
+	}
+
 	constructor(
 		elicitation: IChatElicitationRequest,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService
+		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
+
+		const hasElicitationKey = ChatContextKeys.Editing.hasElicitationRequest.bindTo(this.contextKeyService);
+		if (elicitation.state === 'pending') {
+			hasElicitationKey.set(true);
+		}
+		this._register(toDisposable(() => hasElicitationKey.reset()));
+
+		const acceptKeybinding = this.keybindingService.lookupKeybinding(AcceptElicitationRequestActionId);
+		const acceptTooltip = acceptKeybinding ? `${elicitation.acceptButtonLabel} (${acceptKeybinding.getLabel()})` : elicitation.acceptButtonLabel;
 
 		const buttons: IChatConfirmationButton<unknown>[] = [
 			{
 				label: elicitation.acceptButtonLabel,
+				tooltip: acceptTooltip,
 				data: true,
 				moreActions: elicitation.moreActions?.map((action: IAction) => ({
 					label: action.label,
@@ -43,13 +69,14 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		if (elicitation.rejectButtonLabel && elicitation.reject) {
 			buttons.push({ label: elicitation.rejectButtonLabel, data: false, isSecondary: true });
 		}
-		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, {
+		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context, {
 			title: elicitation.title,
 			subtitle: elicitation.subtitle,
 			buttons,
 			message: this.getMessageToRender(elicitation),
-			toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation }
+			toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation },
 		}));
+		this._confirmWidget = confirmationWidget;
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');
 
 		if (elicitation.isHidden) {

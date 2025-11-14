@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IJSONSchema } from '../../../base/common/jsonSchema.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../base/common/jsonSchema.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
@@ -170,18 +170,9 @@ registerSingleton(IExtensionStatusBarItemService, ExtensionStatusBarItemService,
 
 // --- extension point and reading of it
 
-interface IUserFriendlyStatusItemEntry {
-	id: string;
-	name: string;
-	text: string;
-	alignment: 'left' | 'right';
-	command?: string;
-	priority?: number;
-	tooltip?: string;
-	accessibilityInformation?: IAccessibilityInformation;
-}
+type IUserFriendlyStatusItemEntry = TypeFromJsonSchema<typeof statusBarItemSchema>;
 
-function isUserFriendlyStatusItemEntry(candidate: any): candidate is IUserFriendlyStatusItemEntry {
+function isUserFriendlyStatusItemEntry(candidate: unknown): candidate is IUserFriendlyStatusItemEntry {
 	const obj = candidate as IUserFriendlyStatusItemEntry;
 	return (typeof obj.id === 'string' && obj.id.length > 0)
 		&& typeof obj.name === 'string'
@@ -194,7 +185,7 @@ function isUserFriendlyStatusItemEntry(candidate: any): candidate is IUserFriend
 		;
 }
 
-const statusBarItemSchema: IJSONSchema = {
+const statusBarItemSchema = {
 	type: 'object',
 	required: ['id', 'text', 'alignment', 'name'],
 	properties: {
@@ -230,6 +221,7 @@ const statusBarItemSchema: IJSONSchema = {
 		accessibilityInformation: {
 			type: 'object',
 			description: localize('accessibilityInformation', 'Defines the role and aria label to be used when the status bar entry is focused.'),
+			required: ['label'],
 			properties: {
 				role: {
 					type: 'string',
@@ -242,7 +234,7 @@ const statusBarItemSchema: IJSONSchema = {
 			}
 		}
 	}
-};
+} as const satisfies IJSONSchema;
 
 const statusBarItemsSchema: IJSONSchema = {
 	description: localize('vscode.extension.contributes.statusBarItems', "Contributes items to the status bar."),

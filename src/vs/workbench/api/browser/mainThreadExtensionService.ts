@@ -54,7 +54,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		internalExtHostContext._setExtensionHostProxy(
 			new ExtensionHostProxy(extHostContext.getProxy(ExtHostContext.ExtHostExtensionService))
 		);
-		// eslint-disable-next-line local/code-no-any-casts
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		internalExtHostContext._setAllMainProxyIdentifiers(Object.keys(MainContext).map((key) => (<any>MainContext)[key]));
 	}
 

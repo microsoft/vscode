@@ -165,6 +165,7 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 			}
 		}
 		addon.setContainerWithOverflow(container);
+		// eslint-disable-next-line no-restricted-syntax
 		addon.setScreen(xterm.element!.querySelector('.xterm-screen')!);
 
 		this.add(dom.addDisposableListener(this._ctx.instance.domElement, dom.EventType.FOCUS_OUT, (e) => {
@@ -275,8 +276,9 @@ registerTerminalAction({
 });
 
 registerActiveInstanceAction({
-	id: TerminalSuggestCommandId.RequestCompletions,
-	title: localize2('workbench.action.terminal.requestCompletions', 'Request Completions'),
+	id: TerminalSuggestCommandId.TriggerSuggest,
+	title: localize2('workbench.action.terminal.triggerSuggest', 'Trigger Suggest'),
+	f1: false,
 	keybinding: {
 		primary: KeyMod.CtrlCmd | KeyCode.Space,
 		mac: { primary: KeyMod.WinCtrl | KeyCode.Space },
@@ -486,7 +488,7 @@ class TerminalSuggestProvidersConfigurationManager extends Disposable {
 	private _updateConfiguration(): void {
 		// Add statically declared providers from package.json contributions
 		const providers = new Map<string, ITerminalSuggestProviderInfo>();
-		this._terminalContributionService.terminalCompletionProviders.forEach(o => providers.set(o.id, o));
+		this._terminalContributionService.terminalCompletionProviders.forEach(o => providers.set(o.extensionIdentifier, { ...o, id: o.extensionIdentifier }));
 
 		// Add dynamically registered providers (that aren't already declared statically)
 		for (const { id } of this._terminalCompletionService.providers) {

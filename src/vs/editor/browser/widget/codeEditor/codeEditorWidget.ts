@@ -599,8 +599,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return -1;
 		}
-		const maxCol = this._modelData.model.getLineMaxColumn(lineNumber);
-		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, maxCol, includeViewZones);
+		return CodeEditorWidget._getVerticalOffsetAfterPosition(this._modelData, lineNumber, Number.MAX_SAFE_INTEGER, includeViewZones);
 	}
 
 	public getLineHeightForPosition(position: IPosition): number {
@@ -676,6 +675,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const viewRange = this._modelData.viewModel.coordinatesConverter.convertModelRangeToViewRange(validatedModelRange);
 
 		this._modelData.viewModel.revealRange('api', revealHorizontal, viewRange, verticalType, scrollType);
+	}
+
+	public revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void {
+		if (!this._modelData) {
+			return;
+		}
+		this._modelData.viewModel.revealAllCursors('api', revealHorizontal, minimalReveal);
 	}
 
 	public revealLine(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
@@ -784,7 +790,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		if (isSelection) {
-			this._setSelectionImpl(<ISelection>something, source);
+			this._setSelectionImpl(something, source);
 		} else if (isRange) {
 			// act as if it was an IRange
 			const selection: ISelection = {

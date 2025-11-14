@@ -8,13 +8,13 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { NewPromptsParser } from '../../../../common/promptSyntax/service/newPromptsParser.js';
+import { PromptFileParser } from '../../../../common/promptSyntax/promptFileParser.js';
 
 suite('NewPromptsParser', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('agent', async () => {
-		const uri = URI.parse('file:///test/test.vscode-agent.md');
+		const uri = URI.parse('file:///test/test.agent.md');
 		const content = [
 			/* 01 */'---',
 			/* 02 */`description: "Agent test"`,
@@ -22,9 +22,9 @@ suite('NewPromptsParser', () => {
 			/* 04 */`tools: ['tool1', 'tool2']`,
 			/* 05 */'---',
 			/* 06 */'This is an agent test.',
-			/* 07 */'Here is a #tool1 variable and a #file:./reference1.md as well as a [reference](./reference2.md).',
+			/* 07 */'Here is a #tool:tool1 variable (and one with closing parenthesis after: #tool:tool-2) and a #file:./reference1.md as well as a [reference](./reference2.md).',
 		].join('\n');
-		const result = new NewPromptsParser().parse(uri, content);
+		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
 		assert.ok(result.body);
@@ -42,14 +42,15 @@ suite('NewPromptsParser', () => {
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 6, startColumn: 1, endLineNumber: 8, endColumn: 1 });
 		assert.equal(result.body.offset, 75);
-		assert.equal(result.body.getContent(), 'This is an agent test.\nHere is a #tool1 variable and a #file:./reference1.md as well as a [reference](./reference2.md).');
+		assert.equal(result.body.getContent(), 'This is an agent test.\nHere is a #tool:tool1 variable (and one with closing parenthesis after: #tool:tool-2) and a #file:./reference1.md as well as a [reference](./reference2.md).');
 
 		assert.deepEqual(result.body.fileReferences, [
-			{ range: new Range(7, 39, 7, 54), content: './reference1.md', isMarkdownLink: false },
-			{ range: new Range(7, 80, 7, 95), content: './reference2.md', isMarkdownLink: true }
+			{ range: new Range(7, 99, 7, 114), content: './reference1.md', isMarkdownLink: false },
+			{ range: new Range(7, 140, 7, 155), content: './reference2.md', isMarkdownLink: true }
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 12, 7, 17), name: 'tool1', offset: 108 }
+			{ range: new Range(7, 17, 7, 22), name: 'tool1', offset: 108 },
+			{ range: new Range(7, 79, 7, 85), name: 'tool-2', offset: 170 }
 		]);
 		assert.deepEqual(result.header.description, 'Agent test');
 		assert.deepEqual(result.header.model, 'GPT 4.1');
@@ -58,7 +59,7 @@ suite('NewPromptsParser', () => {
 	});
 
 	test('mode with handoff', async () => {
-		const uri = URI.parse('file:///test/test.vscode-agent.md');
+		const uri = URI.parse('file:///test/test.agent.md');
 		const content = [
 			/* 01 */'---',
 			/* 02 */`description: "Agent test"`,
@@ -74,7 +75,7 @@ suite('NewPromptsParser', () => {
 			/* 12 */'    send: true',
 			/* 13 */'---',
 		].join('\n');
-		const result = new NewPromptsParser().parse(uri, content);
+		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
 		assert.deepEqual(result.header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 13, endColumn: 1 });
@@ -126,7 +127,7 @@ suite('NewPromptsParser', () => {
 			/* 04 */'---',
 			/* 05 */'Follow my companies coding guidlines at [mycomp-ts-guidelines](https://mycomp/guidelines#typescript.md)',
 		].join('\n');
-		const result = new NewPromptsParser().parse(uri, content);
+		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
 		assert.ok(result.body);
@@ -156,9 +157,9 @@ suite('NewPromptsParser', () => {
 			/* 04 */'model: GPT 4.1',
 			/* 05 */`tools: ['search', 'terminal']`,
 			/* 06 */'---',
-			/* 07 */'This is a prompt file body referencing #search and [docs](https://example.com/docs).',
+			/* 07 */'This is a prompt file body referencing #tool:search and [docs](https://example.com/docs).',
 		].join('\n');
-		const result = new NewPromptsParser().parse(uri, content);
+		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
 		assert.ok(result.body);
@@ -177,12 +178,12 @@ suite('NewPromptsParser', () => {
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 7, startColumn: 1, endLineNumber: 8, endColumn: 1 });
 		assert.equal(result.body.offset, 114);
-		assert.equal(result.body.getContent(), 'This is a prompt file body referencing #search and [docs](https://example.com/docs).');
+		assert.equal(result.body.getContent(), 'This is a prompt file body referencing #tool:search and [docs](https://example.com/docs).');
 		assert.deepEqual(result.body.fileReferences, [
-			{ range: new Range(7, 59, 7, 83), content: 'https://example.com/docs', isMarkdownLink: true },
+			{ range: new Range(7, 64, 7, 88), content: 'https://example.com/docs', isMarkdownLink: true },
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 41, 7, 47), name: 'search', offset: 153 }
+			{ range: new Range(7, 46, 7, 52), name: 'search', offset: 153 }
 		]);
 		assert.deepEqual(result.header.description, 'General purpose coding assistant');
 		assert.deepEqual(result.header.agent, 'agent');
@@ -206,7 +207,7 @@ suite('NewPromptsParser', () => {
 			/* 10 */'      copilotCodingAgent: false',
 			/* 11 */'---',
 		].join('\n');
-		const result = new NewPromptsParser().parse(uri, content);
+		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
 		assert.ok(!result.body);

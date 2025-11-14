@@ -103,7 +103,7 @@ declare namespace monaco {
 		 *
 		 * @event
 		 */
-		readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
+		readonly onCancellationRequested: (listener: (e: void) => unknown, thisArgs?: unknown, disposables?: IDisposable[]) => IDisposable;
 	}
 	/**
 	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
@@ -1224,7 +1224,7 @@ declare namespace monaco.editor {
 		/**
 		 * An object that can be used by the web worker to make calls back to the main thread.
 		 */
-		host?: any;
+		host?: Record<string, Function>;
 		/**
 		 * Keep idle models.
 		 * Defaults to false, which means that idle models will stop syncing after a while.
@@ -1274,7 +1274,7 @@ declare namespace monaco.editor {
 		 * Method that will be executed when the action is triggered.
 		 * @param editor The editor instance is passed in as a convenience
 		 */
-		run(editor: ICodeEditor, ...args: any[]): void | Promise<void>;
+		run(editor: ICodeEditor, ...args: unknown[]): void | Promise<void>;
 	}
 
 	/**
@@ -1448,7 +1448,7 @@ declare namespace monaco.editor {
 	export type ContextKeyValue = null | undefined | boolean | number | string | Array<null | undefined | boolean | number | string> | Record<string, null | undefined | boolean | number | string>;
 
 	export interface IEditorOverrideServices {
-		[index: string]: any;
+		[index: string]: unknown;
 	}
 
 	export interface IMarker {
@@ -4270,9 +4270,9 @@ declare namespace monaco.editor {
 	export interface IEditorHoverOptions {
 		/**
 		 * Enable the hover.
-		 * Defaults to true.
+		 * Defaults to 'on'.
 		 */
-		enabled?: boolean;
+		enabled?: 'on' | 'off' | 'onKeyboardModifier';
 		/**
 		 * Delay for showing the hover.
 		 * Defaults to 300.
@@ -5677,7 +5677,7 @@ declare namespace monaco.editor {
 		 * When set, stacks with other overlay widgets with the same preference,
 		 * in an order determined by the ordinal value.
 		 */
-		stackOridinal?: number;
+		stackOrdinal?: number;
 	}
 
 	/**
@@ -6129,6 +6129,7 @@ declare namespace monaco.editor {
 		 * Fires after the editor completes the operation it fired `onBeginUpdate` for.
 		*/
 		readonly onEndUpdate: IEvent<void>;
+		readonly onDidChangeViewZones: IEvent<void>;
 		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */
@@ -6262,6 +6263,10 @@ declare namespace monaco.editor {
 		 * @param command The commands to execute
 		 */
 		executeCommands(source: string | null | undefined, commands: (ICommand | null)[]): void;
+		/**
+		 * Scroll vertically or horizontally as necessary and reveal the current cursors.
+		 */
+		revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void;
 		/**
 		 * Get all the decorations on a line (filtering out decorations from other editors).
 		 */
@@ -7512,25 +7517,29 @@ declare namespace monaco.languages {
 		*/
 		readonly insertText: string | {
 			snippet: string;
-		};
+		} | undefined;
 		/**
-		 * A text that is used to decide if this inline completion should be shown.
-		 * An inline completion is shown if the text to replace is a subword of the filter text.
-		 */
-		readonly filterText?: string;
+		 * The range to replace.
+		 * Must begin and end on the same line.
+		 * Refers to the current document or `uri` if provided.
+		*/
+		readonly range?: IRange;
 		/**
 		 * An optional array of additional text edits that are applied when
 		 * selecting this completion. Edits must not overlap with the main edit
 		 * nor with themselves.
+		 * Refers to the current document or `uri` if provided.
 		 */
 		readonly additionalTextEdits?: editor.ISingleEditOperation[];
 		/**
-		 * The range to replace.
-		 * Must begin and end on the same line.
+		 * The file for which the edit applies to.
 		*/
-		readonly range?: IRange;
+		readonly uri?: UriComponents;
+		/**
+		 * A command that is run upon acceptance of this item.
+		*/
 		readonly command?: Command;
-		readonly action?: Command;
+		readonly gutterMenuLinkAction?: Command;
 		/**
 		 * Is called the first time an inline completion is shown.
 		 * @deprecated. Use `onDidShow` of the provider instead.
@@ -7543,9 +7552,10 @@ declare namespace monaco.languages {
 		readonly completeBracketPairs?: boolean;
 		readonly isInlineEdit?: boolean;
 		readonly showInlineEditMenu?: boolean;
+		/** Only show the inline suggestion when the cursor is in the showRange. */
 		readonly showRange?: IRange;
 		readonly warning?: InlineCompletionWarning;
-		readonly displayLocation?: InlineCompletionDisplayLocation;
+		readonly hint?: InlineCompletionHint;
 		/**
 		 * Used for telemetry.
 		 */
@@ -7557,20 +7567,18 @@ declare namespace monaco.languages {
 		icon?: IconPath;
 	}
 
-	export enum InlineCompletionDisplayLocationKind {
+	export enum InlineCompletionHintStyle {
 		Code = 1,
 		Label = 2
 	}
 
-	export interface InlineCompletionDisplayLocation {
+	export interface InlineCompletionHint {
+		/** Refers to the current document. */
 		range: IRange;
-		kind: InlineCompletionDisplayLocationKind;
-		label: string;
+		style: InlineCompletionHintStyle;
+		content: string;
 	}
 
-	/**
-	 * TODO: add `| Uri | { light: Uri; dark: Uri }`.
-	*/
 	export type IconPath = editor.ThemeIcon;
 
 	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -7671,7 +7679,6 @@ declare namespace monaco.languages {
 		notShownReason: string | undefined;
 		editorType: string;
 		viewKind: string | undefined;
-		error: string | undefined;
 		preceeded: boolean;
 		languageId: string;
 		requestReason: string;

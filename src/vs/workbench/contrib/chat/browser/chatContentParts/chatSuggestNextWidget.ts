@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IChatMode } from '../../common/chatModes.js';
-import { IHandOff } from '../../common/promptSyntax/service/newPromptsParser.js';
+import { IHandOff } from '../../common/promptSyntax/promptFileParser.js';
 
 export interface INextPromptSelection {
 	readonly handoff: IHandOff;
@@ -65,7 +65,7 @@ export class ChatSuggestNextWidget extends Disposable {
 		this._currentMode = mode;
 
 		// Update title with mode name: "Proceed from {Mode}"
-		const modeName = mode.name || mode.label || localize('chat.currentMode', 'current mode');
+		const modeName = mode.name.get() || mode.label.get() || localize('chat.currentMode', 'current mode');
 		this.titleElement.textContent = localize('chat.proceedFrom', 'Proceed from {0}', modeName);
 
 		// Clear existing prompt buttons (keep title which is first child)

@@ -421,11 +421,13 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 			this.busyDelay.setIfNotSet(() => {
 				if (this.visible) {
 					this.ui.progressBar.infinite();
+					this.ui.progressBar.getContainer().removeAttribute('aria-hidden');
 				}
 			}, 800);
 		}
 		if (!this.busy && this.busyDelay) {
 			this.ui.progressBar.stop();
+			this.ui.progressBar.getContainer().setAttribute('aria-hidden', 'true');
 			this.busyDelay.cancel();
 			this.busyDelay = undefined;
 		}
@@ -461,8 +463,12 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 			// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
 			// a layering issue as quick input's interface is in common but Toggle is in browser and
 			// it requires a HTMLElement on its interface
-			const concreteToggles = this.toggles?.filter(opts => opts instanceof Toggle) as Toggle[] ?? [];
+			const concreteToggles = this.toggles?.filter(opts => opts instanceof Toggle) ?? [];
 			this.ui.inputBox.toggles = concreteToggles;
+			// Adjust count badge position based on number of toggles (each toggle is ~22px wide)
+			const toggleOffset = concreteToggles.length * 22;
+			this.ui.countContainer.style.right = toggleOffset > 0 ? `${4 + toggleOffset}px` : '4px';
+			this.ui.visibleCountContainer.style.right = toggleOffset > 0 ? `${4 + toggleOffset}px` : '4px';
 		}
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
