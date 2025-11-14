@@ -160,7 +160,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return this._terminalService.instances.includes(instance) && !this._terminalService.foregroundInstances.includes(instance);
 	}
 
-	registerChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): IDisposable {
+	registerProgressPart(part: IChatTerminalToolProgressPart): IDisposable {
 		this._activeProgressParts.add(part);
 		if (this._isAfter(part, this._mostRecentProgressPart)) {
 			this._mostRecentProgressPart = part;
@@ -176,21 +176,21 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		});
 	}
 
-	setFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void {
+	setFocusedProgressPart(part: IChatTerminalToolProgressPart): void {
 		this._focusedProgressPart = part;
 	}
 
-	clearFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void {
+	clearFocusedProgressPart(part: IChatTerminalToolProgressPart): void {
 		if (this._focusedProgressPart === part) {
 			this._focusedProgressPart = undefined;
 		}
 	}
 
-	getFocusedChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined {
+	getFocusedProgressPart(): IChatTerminalToolProgressPart | undefined {
 		return this._focusedProgressPart;
 	}
 
-	getMostRecentChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined {
+	getMostRecentProgressPart(): IChatTerminalToolProgressPart | undefined {
 		return this._mostRecentProgressPart;
 	}
 

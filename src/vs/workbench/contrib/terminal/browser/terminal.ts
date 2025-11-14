@@ -165,13 +165,44 @@ export interface ITerminalChatService {
 	 */
 	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined;
 
+	/**
+	 * Check if a terminal is a background terminal (tool-driven terminal that may be hidden from
+	 * normal UI).
+	 * @param terminalToolSessionId The tool session ID to check, if provided
+	 * @returns True if the terminal is a background terminal, false otherwise
+	 */
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean;
 
-	registerChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): IDisposable;
-	setFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void;
-	clearFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void;
-	getFocusedChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined;
-	getMostRecentChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined;
+	/**
+	 * Register a chat terminal tool progress part for tracking and focus management.
+	 * @param part The progress part to register
+	 * @returns A disposable that unregisters the progress part when disposed
+	 */
+	registerProgressPart(part: IChatTerminalToolProgressPart): IDisposable;
+
+	/**
+	 * Set the currently focused progress part.
+	 * @param part The progress part to focus
+	 */
+	setFocusedProgressPart(part: IChatTerminalToolProgressPart): void;
+
+	/**
+	 * Clear the focused state from a progress part.
+	 * @param part The progress part to clear focus from
+	 */
+	clearFocusedProgressPart(part: IChatTerminalToolProgressPart): void;
+
+	/**
+	 * Get the currently focused progress part, if any.
+	 * @returns The focused progress part or undefined if none is focused
+	 */
+	getFocusedProgressPart(): IChatTerminalToolProgressPart | undefined;
+
+	/**
+	 * Get the most recently registered progress part, if any.
+	 * @returns The most recent progress part or undefined if none exist
+	 */
+	getMostRecentProgressPart(): IChatTerminalToolProgressPart | undefined;
 }
 
 /**
