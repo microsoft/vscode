@@ -684,13 +684,13 @@ class ChatCodeActionsProvider {
 		let generateOrModifyCommand: Command | undefined;
 		if (range.isEmpty()) {
 			const textAtLine = model.getLineContent(range.startLineNumber);
-			if (/^\s*$/g.test(textAtLine)) {
+			if (/^\s*$/.test(textAtLine)) {
 				generateOrModifyTitle = localize('generate', "Generate");
 				generateOrModifyCommand = AICodeActionsHelper.generate(range);
 			}
 		} else {
 			const textInSelection = model.getValueInRange(range);
-			if (!/^\s*$/g.test(textInSelection)) {
+			if (!/^\s*$/.test(textInSelection)) {
 				generateOrModifyTitle = localize('modify', "Modify");
 				generateOrModifyCommand = AICodeActionsHelper.modify(range);
 			}
