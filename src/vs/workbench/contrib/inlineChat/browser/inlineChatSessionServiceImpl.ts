@@ -369,6 +369,24 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				return;
 			}
 
+			const state = entries.find(entry => isEqual(entry.modifiedURI, uri))?.state.read(r);
+			if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
+				const response = chatModel.getRequests().at(-1)?.response;
+				if (response) {
+					this._chatService.notifyUserAction({
+						sessionResource: response.session.sessionResource,
+						requestId: response.requestId,
+						agentId: response.agent?.id,
+						command: response.slashCommand?.name,
+						result: response.result,
+						action: {
+							kind: 'inlineChat',
+							action: state === ModifiedFileEntryState.Accepted ? 'accepted' : 'discarded'
+						}
+					});
+				}
+			}
+
 			const allSettled = entries.every(entry => {
 				const state = entry.state.read(r);
 				return (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected)
