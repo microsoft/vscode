@@ -5,7 +5,7 @@ parameters:
 jobs:
   - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
     - job: ReadVersion
-      displayName: Read Major Version
+      displayName: Read Major.Minor Version
       pool:
         name: 1es-ubuntu-22.04-x64
         os: linux
@@ -22,9 +22,10 @@ jobs:
         - script: |
             set -e
             VSCODE_MAJOR_MINOR_VERSION=$(node -p "require('./package.json').version.replace(/\.\d+$/, '')")
+            echo "Major minor version: $VSCODE_MAJOR_MINOR_VERSION"
             echo "##vso[task.setvariable variable=VSCODE_MAJOR_MINOR_VERSION;isOutput=true]$VSCODE_MAJOR_MINOR_VERSION"
           name: SetVersion
-          displayName: Extract and validate major.minor version
+          displayName: Export Major.Minor Version
 
   - job: Compile
     timeoutInMinutes: 60
