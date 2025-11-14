@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../chat/common/chatService.js';
@@ -32,6 +32,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _chatSessionListenersByTerminalInstance = this._register(new DisposableMap<ITerminalInstance, IDisposable>());
 	private readonly _onDidRegisterTerminalInstanceForToolSession = new Emitter<ITerminalInstance>();
 	readonly onDidRegisterTerminalInstanceWithToolSession: Event<ITerminalInstance> = this._onDidRegisterTerminalInstanceForToolSession.event;
+	private readonly _activeProgressParts = new Set<IChatTerminalToolProgressPart>();
+	private _focusedProgressPart: IChatTerminalToolProgressPart | undefined;
+	private _mostRecentProgressPart: IChatTerminalToolProgressPart | undefined;
 
 	/**
 	 * Pending mappings restored from storage that have not yet been matched to a live terminal
@@ -154,6 +157,42 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			return false;
 		}
 		return this._terminalService.instances.includes(instance) && !this._terminalService.foregroundInstances.includes(instance);
+	}
+
+	registerChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): IDisposable {
+		this._activeProgressParts.add(part);
+		this._mostRecentProgressPart = part;
+		return toDisposable(() => {
+			this._activeProgressParts.delete(part);
+			if (this._focusedProgressPart === part) {
+				this._focusedProgressPart = undefined;
+			}
+			if (this._mostRecentProgressPart === part) {
+				this._mostRecentProgressPart = this._getLastActiveProgressPart();
+			}
+		});
+	}
+
+	setFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void {
+		this._focusedProgressPart = part;
+	}
+
+	clearFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void {
+		if (this._focusedProgressPart === part) {
+			this._focusedProgressPart = undefined;
+		}
+	}
+
+	getFocusedChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined {
+		return this._focusedProgressPart;
+	}
+
+	getMostRecentChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined {
+		return this._mostRecentProgressPart;
+	}
+
+	private _getLastActiveProgressPart(): IChatTerminalToolProgressPart | undefined {
+		return Array.from(this._activeProgressParts).at(-1);
 	}
 
 	private _restoreFromStorage(): void {

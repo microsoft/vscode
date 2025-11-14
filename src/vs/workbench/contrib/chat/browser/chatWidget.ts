@@ -80,7 +80,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/co
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { IHandOff, ParsedPromptFile, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
+import { IHandOff, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
@@ -1516,34 +1516,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._isLoadingPromptDescriptions = true;
 		try {
 			// Get all available prompt files with their metadata
-			const promptCommands = await this.promptsService.findPromptSlashCommands();
+			const promptCommands = await this.promptsService.getPromptSlashCommands(CancellationToken.None);
 
 			let cacheUpdated = false;
 			// Load descriptions only for the specified prompts
 			for (const promptCommand of promptCommands) {
-				if (promptNames.includes(promptCommand.command)) {
-					try {
-						if (promptCommand.promptPath) {
-							this.promptUriCache.set(promptCommand.command, promptCommand.promptPath.uri);
-							const parseResult = await this.promptsService.parseNew(
-								promptCommand.promptPath.uri,
-								CancellationToken.None
-							);
-							const description = parseResult.header?.description;
-							if (description) {
-								this.promptDescriptionsCache.set(promptCommand.command, description);
-								cacheUpdated = true;
-							} else {
-								// Set empty string to indicate we've checked this prompt
-								this.promptDescriptionsCache.set(promptCommand.command, '');
-								cacheUpdated = true;
-							}
-						}
-					} catch (error) {
-						// Log the error but continue with other prompts
-						this.logService.warn('Failed to parse prompt file for description:', promptCommand.command, error);
+				if (promptNames.includes(promptCommand.name)) {
+					const description = promptCommand.description;
+					if (description) {
+						this.promptDescriptionsCache.set(promptCommand.name, description);
+						cacheUpdated = true;
+					} else {
 						// Set empty string to indicate we've checked this prompt
-						this.promptDescriptionsCache.set(promptCommand.command, '');
+						this.promptDescriptionsCache.set(promptCommand.name, '');
 						cacheUpdated = true;
 					}
 				}
@@ -2452,26 +2437,25 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<void> {
-		let parseResult: ParsedPromptFile | undefined;
-
 		// first check if the input has a prompt slash command
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
-		if (agentSlashPromptPart) {
-			parseResult = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand, CancellationToken.None);
-			if (parseResult) {
-				// add the prompt file to the context
-				const refs = parseResult.body?.variableReferences.map(({ name, offset }) => ({ name, range: new OffsetRange(offset, offset + name.length + 1) })) ?? [];
-				const toolReferences = this.toolsService.toToolReferences(refs);
-				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
-
-				// remove the slash command from the input
-				requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
-			}
+		if (!agentSlashPromptPart) {
+			return;
 		}
 
-		if (!parseResult) {
-			return undefined;
+		// need to resolve the slash command to get the prompt file
+		const slashCommand = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.name, CancellationToken.None);
+		if (!slashCommand) {
+			return;
 		}
+		const parseResult = slashCommand.parsedPromptFile;
+		// add the prompt file to the context
+		const refs = parseResult.body?.variableReferences.map(({ name, offset }) => ({ name, range: new OffsetRange(offset, offset + name.length + 1) })) ?? [];
+		const toolReferences = this.toolsService.toToolReferences(refs);
+		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
+
+		// remove the slash command from the input
+		requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();
 
 		const input = requestInput.input.trim();
 		requestInput.input = `Follow instructions in [${basename(parseResult.uri)}](${parseResult.uri.toString()}).`;
@@ -2917,10 +2901,6 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 	getWidgetByInputUri(uri: URI): ChatWidget | undefined {
 		return this._widgets.find(w => isEqual(w.inputUri, uri));
-	}
-
-	getWidgetBySessionId(sessionId: string): ChatWidget | undefined {
-		return this._widgets.find(w => w.viewModel?.sessionId === sessionId);
 	}
 
 	getWidgetBySessionResource(sessionResource: URI): ChatWidget | undefined {

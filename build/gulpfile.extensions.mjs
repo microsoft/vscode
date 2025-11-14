@@ -175,22 +175,12 @@ const tasks = compilations.map(function (tsconfigFile) {
 			.pipe(gulp.dest(out));
 	}));
 
-	const compileBuildTask = task.define(`compile-build-extension-${name}`, task.series(cleanTask, () => {
-		const pipeline = createPipeline(true, true);
-		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
-		const input = es.merge(nonts, pipeline.tsProjectSrc());
-
-		return input
-			.pipe(pipeline())
-			.pipe(gulp.dest(out));
-	}));
-
 	// Tasks
 	gulp.task(transpileTask);
 	gulp.task(compileTask);
 	gulp.task(watchTask);
 
-	return { transpileTask, compileTask, watchTask, compileBuildTask };
+	return { transpileTask, compileTask, watchTask };
 });
 
 const transpileExtensionsTask = task.define('transpile-extensions', task.parallel(...tasks.map(t => t.transpileTask)));
@@ -201,9 +191,6 @@ gulp.task(compileExtensionsTask);
 
 export const watchExtensionsTask = task.define('watch-extensions', task.parallel(...tasks.map(t => t.watchTask)));
 gulp.task(watchExtensionsTask);
-
-const compileExtensionsBuildLegacyTask = task.define('compile-extensions-build-legacy', task.parallel(...tasks.map(t => t.compileBuildTask)));
-gulp.task(compileExtensionsBuildLegacyTask);
 
 //#region Extension media
 

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
 
 const VALID_USES = new Set<TSESTree.AST_NODE_TYPES | undefined>([
@@ -24,9 +25,9 @@ export = new class MustUseResults implements eslint.Rule.RuleModule {
 		for (const { message, functions } of config) {
 			for (const fn of functions) {
 				const query = `CallExpression[callee.property.name='${fn}'], CallExpression[callee.name='${fn}']`;
-				listener[query] = (node: any) => {
-					const cast: TSESTree.CallExpression = node;
-					if (!VALID_USES.has(cast.parent?.type)) {
+				listener[query] = (node: ESTree.Node) => {
+					const callExpression = node as TSESTree.CallExpression;
+					if (!VALID_USES.has(callExpression.parent?.type)) {
 						context.report({ node, message });
 					}
 				};
