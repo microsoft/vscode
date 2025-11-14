@@ -91,8 +91,12 @@ parameters:
     default: false
   - name: VSCODE_STEP_ON_IT
     displayName: "Skip tests"
-    type: boolean
+    type: string
     default: false
+  - name: VSCODE_MAJOR_MINOR_VERSION
+    displayName: "Version (major.minor)"
+    type: string
+    default: '1.107'
 
 variables:
   - name: VSCODE_PRIVATE_BUILD
@@ -149,6 +153,8 @@ variables:
     value: true
   - name: ARTIFACT_PREFIX
     value: ''
+  - name: VSCODE_PATCH_VERSION_COUNTER
+    value: ${{ counter(parameters.VSCODE_MAJOR_MINOR_VERSION, 0) }}
 
 name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 

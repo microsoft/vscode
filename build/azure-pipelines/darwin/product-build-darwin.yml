@@ -20,8 +20,6 @@ jobs:
     variables:
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
-      VSCODE_MAJOR_MINOR_VERSION: $[ stageDependencies.Compile.ReadVersion.outputs['SetVersion.VSCODE_MAJOR_MINOR_VERSION'] ]
-      VSCODE_PATCH_VERSION_COUNTER: ${{ counter(variables.VSCODE_MAJOR_MINOR_VERSION, 0) }}
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:

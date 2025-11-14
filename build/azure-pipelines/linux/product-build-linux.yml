@@ -28,8 +28,6 @@ jobs:
       DISPLAY: ":10"
       NPM_ARCH: ${{ parameters.NPM_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
-      VSCODE_MAJOR_MINOR_VERSION: $[ stageDependencies.Compile.ReadVersion.outputs['SetVersion.VSCODE_MAJOR_MINOR_VERSION'] ]
-      VSCODE_PATCH_VERSION_COUNTER: ${{ counter(variables.VSCODE_MAJOR_MINOR_VERSION, 0) }}
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:

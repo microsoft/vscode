@@ -19,10 +19,16 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           MAJOR_MINOR=$(echo $VERSION | cut -d. -f1,2)
           echo "Package.json version: $VERSION"
-          echo "Major.Minor version: $MAJOR_MINOR"
+          echo "Major.Minor version from package.json: $MAJOR_MINOR"
+          echo "VSCODE_MAJOR_MINOR_VERSION parameter: $(VSCODE_MAJOR_MINOR_VERSION)"
+          
+          if [ "$MAJOR_MINOR" != "$(VSCODE_MAJOR_MINOR_VERSION)" ]; then
+            echo "##vso[task.logissue type=warning]VSCODE_MAJOR_MINOR_VERSION parameter ('$(VSCODE_MAJOR_MINOR_VERSION)') does not match package.json version ('$MAJOR_MINOR'). Please update the pipeline parameter."
+          fi
+          
           echo "##vso[task.setvariable variable=VSCODE_MAJOR_MINOR_VERSION;isOutput=true]$MAJOR_MINOR"
         name: SetVersion
-        displayName: Extract and export major.minor version
+        displayName: Extract and validate major.minor version
 
   - job: Compile
     dependsOn: ReadVersion

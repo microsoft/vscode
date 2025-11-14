@@ -7,8 +7,6 @@ jobs:
       os: linux
     variables:
       VSCODE_ARCH: x64
-      VSCODE_MAJOR_MINOR_VERSION: $[ stageDependencies.Compile.ReadVersion.outputs['SetVersion.VSCODE_MAJOR_MINOR_VERSION'] ]
-      VSCODE_PATCH_VERSION_COUNTER: ${{ counter(variables.VSCODE_MAJOR_MINOR_VERSION, 0) }}
     templateContext:
       outputs:
         - output: pipelineArtifact
