@@ -466,6 +466,7 @@ export class CollapsedCodeBlock extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -582,8 +583,17 @@ export class CollapsedCodeBlock extends Disposable {
 				const entry = editSessionEntry.read(r);
 				const rwRatio = Math.floor((entry?.rewriteRatio.read(r) || 0) * 100);
 				statusLabelEl.textContent = localize('chat.codeblock.applyingEdits', 'Applying edits');
-				progressFill.style.width = `${rwRatio}%`;
-				this.pillElement.classList.add('progress-filling');
+
+				const showAnimation = this.configurationService.getValue<boolean>(ChatConfiguration.ShowCodeBlockProgressAnimation);
+				if (showAnimation) {
+					progressFill.style.width = `${rwRatio}%`;
+					this.pillElement.classList.add('progress-filling');
+					labelDetail.textContent = '';
+				} else {
+					progressFill.style.width = '0%';
+					this.pillElement.classList.remove('progress-filling');
+					labelDetail.textContent = rwRatio === 0 || !rwRatio ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "({0}%)...", rwRatio);
+				}
 			} else {
 				const statusCodeicon = Codicon.check;
 				statusIconClasses = ThemeIcon.asClassNameArray(statusCodeicon);
@@ -594,6 +604,7 @@ export class CollapsedCodeBlock extends Disposable {
 				iconEl.classList.add(...pillIconClasses);
 				this.pillElement.classList.remove('progress-filling');
 				progressFill.style.width = '0%';
+				labelDetail.textContent = '';
 			}
 		}));
 

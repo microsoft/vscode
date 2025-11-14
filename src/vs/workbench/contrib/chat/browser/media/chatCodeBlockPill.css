@@ -103,6 +103,7 @@
 		span.label-detail {
 			padding-left: 4px;
 			font-style: italic;
+			font-size: var(--vscode-chat-font-size-body-s);
 			color: var(--vscode-descriptionForeground);
 
 			&:empty {
