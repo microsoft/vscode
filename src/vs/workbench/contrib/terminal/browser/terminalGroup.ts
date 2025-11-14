@@ -16,6 +16,7 @@ import { TerminalStatus } from './terminalStatusList.js';
 import { getWindow } from '../../../../base/browser/dom.js';
 import { getPartByLocation } from '../../../services/views/browser/viewsService.js';
 import { asArray } from '../../../../base/common/arrays.js';
+import { hasKey, type SingleOrMany } from '../../../../base/common/types.js';
 
 const enum Constants {
 	/**
@@ -302,7 +303,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		// if a parent terminal is provided, find it
 		// otherwise, parent is the active terminal
 		const parentIndex = parentTerminalId ? this._terminalInstances.findIndex(t => t.instanceId === parentTerminalId) : this._activeInstanceIndex;
-		if ('instanceId' in shellLaunchConfigOrInstance) {
+		if (hasKey(shellLaunchConfigOrInstance, { instanceId: true })) {
 			instance = shellLaunchConfigOrInstance;
 		} else {
 			instance = this._terminalInstanceService.createInstance(shellLaunchConfigOrInstance, TerminalLocation.Panel);
@@ -412,7 +413,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		}
 	}
 
-	moveInstance(instances: ITerminalInstance | ITerminalInstance[], index: number, position: 'before' | 'after'): void {
+	moveInstance(instances: SingleOrMany<ITerminalInstance>, index: number, position: 'before' | 'after'): void {
 		instances = asArray(instances);
 		const hasInvalidInstance = instances.some(instance => !this.terminalInstances.includes(instance));
 		if (hasInvalidInstance) {

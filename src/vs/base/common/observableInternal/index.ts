@@ -14,7 +14,7 @@ export { type IDerivedReader } from './observables/derivedImpl.js';
 export { ObservableLazy, ObservableLazyPromise, ObservablePromise, PromiseResult, } from './utils/promise.js';
 export { derivedWithCancellationToken, waitForState } from './utils/utilsCancellation.js';
 export {
-	debouncedObservableDeprecated, debouncedObservable, derivedObservableWithCache,
+	debouncedObservable, debouncedObservable2, derivedObservableWithCache,
 	derivedObservableWithWritableCache, keepObserved, mapObservableArrayCached, observableFromPromise,
 	recomputeInitiallyAndOnChange,
 	signalFromObservable, wasEventTriggeredRecently,
@@ -40,10 +40,10 @@ import { addLogger, setLogObservableFn } from './logging/logging.js';
 import { ConsoleObservableLogger, logObservableToConsole } from './logging/consoleObservableLogger.js';
 import { DevToolsLogger } from './logging/debugger/devToolsLogger.js';
 import { env } from '../process.js';
-import { _setDebugGetDependencyGraph } from './observables/baseObservable.js';
-import { debugGetDependencyGraph } from './logging/debugGetDependencyGraph.js';
+import { _setDebugGetObservableGraph } from './observables/baseObservable.js';
+import { debugGetObservableGraph } from './logging/debugGetDependencyGraph.js';
 
-_setDebugGetDependencyGraph(debugGetDependencyGraph);
+_setDebugGetObservableGraph(debugGetObservableGraph);
 setLogObservableFn(logObservableToConsole);
 
 // Remove "//" in the next line to enable logging

@@ -13,7 +13,8 @@
 		"preserveConstEnums": true,
 		"target": "ES2022",
 		"sourceMap": false,
-		"declaration": true
+		"declaration": true,
+		"skipLibCheck": true
 	},
 	"include": [
 		"typings/css.d.ts",

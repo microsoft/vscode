@@ -11,7 +11,7 @@ import gzip from 'gulp-gzip';
 import mime from 'mime';
 import { ClientAssertionCredential } from '@azure/identity';
 import { VinylStat } from '../lib/util';
-const azure = require('gulp-azure-storage');
+import azure from 'gulp-azure-storage';
 
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new ClientAssertionCredential(process.env['AZURE_TENANT_ID']!, process.env['AZURE_CLIENT_ID']!, () => Promise.resolve(process.env['AZURE_ID_TOKEN']!));

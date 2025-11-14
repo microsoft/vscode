@@ -1,4 +1,8 @@
 "use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -36,17 +40,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 const path_1 = __importDefault(require("path"));
 const event_stream_1 = __importDefault(require("event-stream"));
 const vinyl_fs_1 = __importDefault(require("vinyl-fs"));
 const util = __importStar(require("../lib/util"));
 const dependencies_1 = require("../lib/dependencies");
 const identity_1 = require("@azure/identity");
-const azure = require('gulp-azure-storage');
+const gulp_azure_storage_1 = __importDefault(require("gulp-azure-storage"));
 const root = path_1.default.dirname(path_1.default.dirname(__dirname));
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new identity_1.ClientAssertionCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], () => Promise.resolve(process.env['AZURE_ID_TOKEN']));
@@ -84,7 +84,7 @@ function main() {
             console.log('Uploading Sourcemap', data.relative); // debug
             this.emit('data', data);
         }))
-            .pipe(azure.upload({
+            .pipe(gulp_azure_storage_1.default.upload({
             account: process.env.AZURE_STORAGE_ACCOUNT,
             credential,
             container: '$web',

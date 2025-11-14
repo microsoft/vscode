@@ -298,6 +298,10 @@ function registerActiveEditorMoveCopyCommand(): void {
 				break;
 			case 'previous':
 				targetGroup = editorGroupsService.findGroup({ location: GroupLocation.PREVIOUS }, sourceGroup);
+				if (!targetGroup) {
+					const oppositeDirection = preferredSideBySideGroupDirection(configurationService) === GroupDirection.RIGHT ? GroupDirection.LEFT : GroupDirection.UP;
+					targetGroup = editorGroupsService.addGroup(sourceGroup, oppositeDirection);
+				}
 				break;
 			case 'next':
 				targetGroup = editorGroupsService.findGroup({ location: GroupLocation.NEXT }, sourceGroup);

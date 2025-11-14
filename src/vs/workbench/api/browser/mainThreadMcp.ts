@@ -105,7 +105,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			const serverDefinitions = observableValue<readonly McpServerDefinition[]>('mcpServers', servers);
 			const extensionId = new ExtensionIdentifier(collection.extensionId);
 			const store = new DisposableStore();
-			const handle = new MutableDisposable();
+			const handle = store.add(new MutableDisposable());
 			const register = () => {
 				handle.value ??= this._mcpRegistry.registerCollection({
 					...collection,

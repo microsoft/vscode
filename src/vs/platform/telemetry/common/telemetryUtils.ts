@@ -60,7 +60,7 @@ export const telemetryLogId = 'telemetry';
 export const TelemetryLogGroup: LoggerGroup = { id: telemetryLogId, name: localize('telemetryLogName', "Telemetry") };
 
 export interface ITelemetryAppender {
-	log(eventName: string, data: any): void;
+	log(eventName: string, data: ITelemetryData): void;
 	flush(): Promise<void>;
 }
 
@@ -165,12 +165,12 @@ export interface Measurements {
 	[key: string]: number;
 }
 
-export function validateTelemetryData(data?: any): { properties: Properties; measurements: Measurements } {
+export function validateTelemetryData(data?: unknown): { properties: Properties; measurements: Measurements } {
 
 	const properties: Properties = {};
 	const measurements: Measurements = {};
 
-	const flat: Record<string, any> = {};
+	const flat: Record<string, unknown> = {};
 	flatten(data, flat);
 
 	for (let prop in flat) {
@@ -193,7 +193,7 @@ export function validateTelemetryData(data?: any): { properties: Properties; mea
 			properties[prop] = value.substring(0, 8191);
 
 		} else if (typeof value !== 'undefined' && value !== null) {
-			properties[prop] = value;
+			properties[prop] = String(value);
 		}
 	}
 
@@ -213,13 +213,14 @@ export function cleanRemoteAuthority(remoteAuthority?: string): string {
 	return telemetryAllowedAuthorities.has(remoteName) ? remoteName : 'other';
 }
 
-function flatten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
-	if (!obj) {
+function flatten(obj: unknown, result: Record<string, unknown>, order: number = 0, prefix?: string): void {
+	if (!obj || (typeof obj !== 'object' && typeof obj !== 'function')) {
 		return;
 	}
 
-	for (const item of Object.getOwnPropertyNames(obj)) {
-		const value = obj[item];
+	const source = obj as Record<string, unknown>;
+	for (const item of Object.getOwnPropertyNames(source)) {
+		const value = source[item];
 		const index = prefix ? prefix + item : item;
 
 		if (Array.isArray(value)) {
@@ -360,7 +361,10 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
  * @param paths Any additional patterns that should be removed from the data set
  * @returns A new object with the PII removed
  */
-export function cleanData(data: Record<string, any>, cleanUpPatterns: RegExp[]): Record<string, any> {
+export function cleanData(data: ITelemetryData | undefined, cleanUpPatterns: RegExp[]): Record<string, unknown> {
+	if (!data) {
+		return {};
+	}
 	return cloneAndChange(data, value => {
 
 		// If it's a trusted value it means it's okay to skip cleaning so we don't clean it

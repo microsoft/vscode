@@ -1312,7 +1312,7 @@ export class TestTextResourceConfigurationService implements ITextResourceConfig
 	getValue<T>(resource: URI, arg2?: any, arg3?: any): T {
 		const position: IPosition | null = EditorPosition.isIPosition(arg2) ? arg2 : null;
 		const section: string | undefined = position ? (typeof arg3 === 'string' ? arg3 : undefined) : (typeof arg2 === 'string' ? arg2 : undefined);
-		return this.configurationService.getValue(section, { resource });
+		return this.configurationService.getValue(section, { resource }) as T;
 	}
 
 	inspect<T>(resource: URI | undefined, position: IPosition | null, section: string): IConfigurationValue<Readonly<T>> {
@@ -1430,6 +1430,8 @@ export class TestHostService implements IHostService {
 	async focus(): Promise<void> { }
 	async moveTop(): Promise<void> { }
 	async getCursorScreenPoint(): Promise<undefined> { return undefined; }
+
+	async getWindows(options: unknown) { return []; }
 
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
 

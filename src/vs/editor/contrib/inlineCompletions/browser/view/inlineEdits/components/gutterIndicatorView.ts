@@ -18,13 +18,14 @@ import { IEditorMouseEvent } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Point } from '../../../../../../common/core/2d/point.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
-import { HoverService } from '../../../../../../browser/services/hoverService/hoverService.js';
-import { HoverWidget } from '../../../../../../browser/services/hoverService/hoverWidget.js';
+import { HoverService } from '../../../../../../../platform/hover/browser/hoverService.js';
+import { HoverWidget } from '../../../../../../../platform/hover/browser/hoverWidget.js';
 import { EditorOption, RenderLineNumbersType } from '../../../../../../common/config/editorOptions.js';
 import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
-import { IInlineEditModel, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { ModelPerInlineEdit } from '../inlineEditsModel.js';
 import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulBorder, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
@@ -45,7 +46,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		private readonly _editorObs: ObservableCodeEditor,
 		private readonly _originalRange: IObservable<LineRange | undefined>,
 		private readonly _verticalOffset: IObservable<number>,
-		private readonly _model: IObservable<IInlineEditModel | undefined>,
+		private readonly _model: IObservable<ModelPerInlineEdit | undefined>,
 		private readonly _isHoveringOverInlineEdit: IObservable<boolean>,
 		private readonly _focusIsInMenu: ISettableObservable<boolean>,
 		@IHoverService private readonly _hoverService: HoverService,
@@ -96,7 +97,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			if (!range) { return undefined; }
 			return {
 				range,
-				lineOffsetRange: this._editorObs.observeLineOffsetRange(range, this._store),
+				lineOffsetRange: this._editorObs.observeLineOffsetRange(range, reader.store),
 			};
 		});
 		this._stickyScrollController = StickyScrollController.get(this._editorObs.editor);
