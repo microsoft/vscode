@@ -929,7 +929,6 @@ export interface IChatService {
 	hasSessions(): boolean;
 	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean, options?: { canUseTools?: boolean }): ChatModel;
 	getSession(sessionResource: URI): IChatModel | undefined;
-	getSessionByLegacyId(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionResource: URI): Promise<IChatModel | undefined>;
 	getPersistedSessionTitle(sessionResource: URI): string | undefined;
 	isPersistedSessionEmpty(sessionResource: URI): boolean;

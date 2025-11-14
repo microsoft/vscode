@@ -4,6 +4,7 @@
 		"lib": [
 			"ES2024"
 		],
+		"rootDir": ".",
 		"module": "commonjs",
 		"esModuleInterop": true,
 		"alwaysStrict": true,
@@ -14,13 +15,17 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"newLine": "lf",
-		"noEmit": true
+		"noEmit": true,
+		"typeRoots": [
+			"."
+		]
 	},
 	"include": [
-		"**/*.ts",
-		"**/*.js"
+		"./**/*.ts",
+		"./**/*.js"
 	],
 	"exclude": [
-		"node_modules/**"
+		"node_modules/**",
+		"tests/**"
 	]
 }

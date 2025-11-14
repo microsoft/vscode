@@ -6,6 +6,7 @@
 import * as eslint from 'eslint';
 import { dirname, relative } from 'path';
 import minimatch from 'minimatch';
+import * as ESTree from 'estree';
 
 export = new class implements eslint.Rule.RuleModule {
 
@@ -43,8 +44,8 @@ export = new class implements eslint.Rule.RuleModule {
 		const restrictedFunctions = ruleArgs[matchingKey];
 
 		return {
-			FunctionDeclaration: (node: any) => {
-				const isTopLevel = node.parent.type === 'Program';
+			FunctionDeclaration: (node: ESTree.FunctionDeclaration & { parent?: ESTree.Node }) => {
+				const isTopLevel = node.parent?.type === 'Program';
 				const functionName = node.id.name;
 				if (isTopLevel && !restrictedFunctions.includes(node.id.name)) {
 					context.report({
@@ -53,10 +54,10 @@ export = new class implements eslint.Rule.RuleModule {
 					});
 				}
 			},
-			ExportNamedDeclaration(node: any) {
+			ExportNamedDeclaration(node: ESTree.ExportNamedDeclaration & { parent?: ESTree.Node }) {
 				if (node.declaration && node.declaration.type === 'FunctionDeclaration') {
 					const functionName = node.declaration.id.name;
-					const isTopLevel = node.parent.type === 'Program';
+					const isTopLevel = node.parent?.type === 'Program';
 					if (isTopLevel && !restrictedFunctions.includes(node.declaration.id.name)) {
 						context.report({
 							node,
