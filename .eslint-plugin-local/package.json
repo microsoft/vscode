@@ -1,5 +1,5 @@
 {
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "typecheck": "tsgo -p tsconfig.json --noEmit"
   }
