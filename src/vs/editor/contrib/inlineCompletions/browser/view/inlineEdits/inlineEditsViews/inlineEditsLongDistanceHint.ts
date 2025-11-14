@@ -6,7 +6,7 @@ import { getWindow, n, ObserverNode, ObserverNodeWithElement } from '../../../..
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable, observableSignalFromEvent } from '../../../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -33,7 +33,6 @@ import { IThemeService } from '../../../../../../../platform/theme/common/themeS
 import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../theme.js';
 import { asCssVariable, editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
-import { TimeoutTimer } from '../../../../../../../base/common/async.js';
 
 
 const BORDER_WIDTH = 1;
@@ -356,7 +355,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			border: derived(reader => `1px solid ${this._styles.read(reader).border}`),
 			display: 'flex',
 			flexDirection: 'column',
-			opacity: this._viewState.map(v => v?.hint.isVisible ? '1' : '0'),
+			opacity: derived(reader => this._viewState.read(reader)?.hint.isVisible ? '1' : '0'),
 			transition: 'opacity 200ms ease-in-out',
 			...rectToProps(reader => this._previewEditorLayoutInfo.read(reader)?.widgetRect)
 		},
@@ -489,22 +488,4 @@ function getSums<T>(array: T[], fn: (item: T) => number): number[] {
 		result.push(sum);
 	}
 	return result;
-}
-
-class ObservableTime {
-	public static hasPassed(time: number, reader: IReader): boolean {
-		const now = Date.now();
-		const result = time < now;
-		if (result) {
-			return true;
-		}
-
-		const x = observableSignalFromEvent(undefined, (listener) => {
-			const handle = new TimeoutTimer(() => listener(undefined), time - now);
-			return handle;
-		});
-
-		reader.readObservable(x);
-		return false;
-	}
 }
