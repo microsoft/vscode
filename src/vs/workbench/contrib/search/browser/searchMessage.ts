@@ -7,9 +7,8 @@ import * as nls from '../../../../nls.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { parseLinkedText } from '../../../../base/common/linkedText.js';
-import Severity from '../../../../base/common/severity.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { TextSearchCompleteMessage, TextSearchCompleteMessageType } from '../../../services/search/common/searchExtTypes.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -17,6 +16,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Link } from '../../../../platform/opener/browser/link.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 
 export const renderSearchMessage = (
 	message: TextSearchCompleteMessage,
@@ -66,5 +66,26 @@ export const renderSearchMessage = (
 			disposableStore.add(link);
 		}
 	}
+	return div;
+};
+
+export const renderLinkMessage = (
+	text: string,
+	icon: ThemeIcon,
+	instantiationService: IInstantiationService,
+	disposableStore: DisposableStore,
+	onClick: () => void,
+): HTMLElement => {
+	const div = dom.$('div.providerMessage');
+	dom.append(div,
+		dom.$('.' + ThemeIcon.asClassName(icon).split(' ').join('.')));
+
+	const link = instantiationService.createInstance(Link, div, { label: text, href: '#' }, {
+		opener: async href => {
+			onClick();
+		}
+	});
+	disposableStore.add(link);
+
 	return div;
 };
