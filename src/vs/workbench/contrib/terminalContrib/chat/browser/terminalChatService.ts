@@ -12,6 +12,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IChatService } from '../../../chat/common/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
 import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
+import { isNumber, isString } from '../../../../../base/common/types.js';
 
 const enum StorageKeys {
 	ToolSessionMappings = 'terminalChat.toolSessionMappings',
@@ -90,7 +91,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		// Update context keys when terminal instances change (including when terminals are created, disposed, revealed, or hidden)
 		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKeys()));
 
-		if (typeof instance.shellLaunchConfig?.attachPersistentProcess?.id === 'number' || typeof instance.persistentProcessId === 'number') {
+		if (isNumber(instance.shellLaunchConfig?.attachPersistentProcess?.id) || isNumber(instance.persistentProcessId)) {
 			this._persistToStorage();
 		}
 
@@ -221,7 +222,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			}
 			const parsed: [string, number][] = JSON.parse(raw);
 			for (const [toolSessionId, persistentProcessId] of parsed) {
-				if (typeof toolSessionId === 'string' && typeof persistentProcessId === 'number') {
+				if (isString(toolSessionId) && isNumber(persistentProcessId)) {
 					this._pendingRestoredMappings.set(toolSessionId, persistentProcessId);
 				}
 			}
@@ -258,7 +259,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		try {
 			const entries: [string, number][] = [];
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId.entries()) {
-				if (typeof instance.persistentProcessId === 'number' && instance.shouldPersist) {
+				if (isNumber(instance.persistentProcessId) && instance.shouldPersist) {
 					entries.push([toolSessionId, instance.persistentProcessId]);
 				}
 			}
