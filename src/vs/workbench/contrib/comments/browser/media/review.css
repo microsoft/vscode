@@ -506,6 +506,11 @@
 	z-index: 10;
 }
 
+/* Hide hover decoration bar on first line when word wrap is enabled */
+.monaco-editor .comment-hover-first-line-hidden {
+	display: none !important;
+}
+
 div.preview.inline .monaco-editor .comment-range-glyph {
 	display: none !important;
 }

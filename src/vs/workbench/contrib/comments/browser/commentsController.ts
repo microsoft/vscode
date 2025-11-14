@@ -123,12 +123,12 @@ class CommentingRangeDecorator {
 
 	constructor(editor: ICodeEditor) {
 		this._editor = editor;
-		this.decorationOptions = this.createDecorationOptions('comment-range-glyph comment-diff-added');
-		this.hoverDecorationOptions = this.createDecorationOptions('comment-range-glyph line-hover');
-		this.multilineDecorationOptions = this.createDecorationOptions('comment-range-glyph multiline-add');
+		this.decorationOptions = this.createDecorationOptions('comment-range-glyph comment-diff-added', false);
+		this.hoverDecorationOptions = this.createHoverDecorationOptions();
+		this.multilineDecorationOptions = this.createDecorationOptions('comment-range-glyph multiline-add', false);
 	}
 
-	private createDecorationOptions(className: string): ModelDecorationOptions {
+	private createDecorationOptions(className: string, isHoverDecoration: boolean): ModelDecorationOptions {
 		const wordWrap = this._editor?.getOption(EditorOption.wordWrap);
 		const isWordWrapEnabled = wordWrap !== 'off';
 
@@ -148,10 +148,28 @@ class CommentingRangeDecorator {
 		return ModelDecorationOptions.createDynamic(decorationOptions);
 	}
 
+	private createHoverDecorationOptions(): ModelDecorationOptions {
+		const wordWrap = this._editor?.getOption(EditorOption.wordWrap);
+		const isWordWrapEnabled = wordWrap !== 'off';
+
+		const decorationOptions: IModelDecorationOptions = {
+			description: CommentingRangeDecorator.description,
+			isWholeLine: true,
+			// When word wrap is enabled:
+			// - linesDecorationsClassName shows the comment bar on all wrapped lines
+			// - firstLineDecorationClassName uses empty class to hide bar on first line
+			// When word wrap is disabled, use linesDecorationsClassName for both bar and icon
+			linesDecorationsClassName: isWordWrapEnabled ? 'comment-range-glyph' : 'comment-range-glyph line-hover',
+			firstLineDecorationClassName: isWordWrapEnabled ? 'comment-hover-first-line-hidden' : undefined,
+		};
+
+		return ModelDecorationOptions.createDynamic(decorationOptions);
+	}
+
 	public updateDecorationOptions(): void {
-		this.decorationOptions = this.createDecorationOptions('comment-range-glyph comment-diff-added');
-		this.hoverDecorationOptions = this.createDecorationOptions('comment-range-glyph line-hover');
-		this.multilineDecorationOptions = this.createDecorationOptions('comment-range-glyph multiline-add');
+		this.decorationOptions = this.createDecorationOptions('comment-range-glyph comment-diff-added', false);
+		this.hoverDecorationOptions = this.createHoverDecorationOptions();
+		this.multilineDecorationOptions = this.createDecorationOptions('comment-range-glyph multiline-add', false);
 	}
 
 	public updateHover(hoverLine?: number) {
