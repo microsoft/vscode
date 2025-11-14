@@ -15,7 +15,7 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	const patchNodeVersion = parseInt(nodeVersion[3]);
 
 	// Get the required Node.js version from .nvmrc
-	const nvmrcPath = path.join(__dirname, '..', '..', '.nvmrc');
+	const nvmrcPath = path.join(import.meta.dirname, '..', '..', '.nvmrc');
 	const requiredVersion = fs.readFileSync(nvmrcPath, 'utf8').trim();
 	const requiredVersionMatch = /^(\d+)\.(\d+)\.(\d+)/.exec(requiredVersion);
 
