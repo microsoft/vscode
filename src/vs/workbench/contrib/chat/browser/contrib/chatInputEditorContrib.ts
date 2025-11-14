@@ -136,6 +136,9 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private triggerInputEditorDecorationsUpdate(): void {
+		// clear the placeholder decorations before we wait to update
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, []);
+
 		this.updateThrottle.trigger(token => this.updateInputEditorDecorations(token));
 	}
 
@@ -183,6 +186,13 @@ class InputEditorDecorations extends Disposable {
 		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
 		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
 		const slashPromptPart = parsedRequest.find((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
+
+		// fetch all async context before we start updating decorations
+		const promptSlashCommand = slashPromptPart ? await this.promptsService.resolvePromptSlashCommand(slashPromptPart.name, token) : undefined;
+		if (token.isCancellationRequested) {
+			// a new update came in while we were waiting
+			return;
+		}
 
 		const exactlyOneSpaceAfterPart = (part: IParsedChatRequestPart): boolean => {
 			const partIdx = parsedRequest.indexOf(part);
@@ -252,8 +262,6 @@ class InputEditorDecorations extends Disposable {
 				}];
 			}
 		}
-
-		const promptSlashCommand = slashPromptPart ? await this.promptsService.resolvePromptSlashCommand(slashPromptPart.name, token) : undefined;
 
 		const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
 		if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(slashPromptPart) && promptSlashCommand) {
