@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
-import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from '../../../base/common/glob.js';
+import { GlobCaseSensitivity, GLOBSTAR, IRelativePattern, parse, ParsedPattern } from '../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { isAbsolute } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
@@ -50,6 +50,11 @@ interface IWatchRequest {
 	 * `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
 	 */
 	readonly filter?: FileChangeFilter;
+
+	/**
+	 * Defines the case sensitivity of the provided `includes` and `excludes` glob patterns.
+	 */
+	readonly globCaseSensitivity?: GlobCaseSensitivity;
 }
 
 export interface IWatchRequestWithCorrelation extends IWatchRequest {
@@ -365,11 +370,11 @@ export function normalizeWatcherPattern(path: string, pattern: string | IRelativ
 	return pattern;
 }
 
-export function parseWatcherPatterns(path: string, patterns: Array<string | IRelativePattern>): ParsedPattern[] {
+export function parseWatcherPatterns(path: string, patterns: Array<string | IRelativePattern>, ignoreCase: boolean): ParsedPattern[] {
 	const parsedPatterns: ParsedPattern[] = [];
 
 	for (const pattern of patterns) {
-		parsedPatterns.push(parse(normalizeWatcherPattern(path, pattern)));
+		parsedPatterns.push(parse(normalizeWatcherPattern(path, pattern), { ignoreCase }));
 	}
 
 	return parsedPatterns;
@@ -385,7 +390,7 @@ class EventCoalescer {
 			return event.resource.fsPath;
 		}
 
-		return event.resource.fsPath.toLowerCase(); // normalise to file system case sensitivity
+		return event.resource.fsPath.toLowerCase(); // normalize to file system case sensitivity
 	}
 
 	processEvent(event: IFileChange): void {

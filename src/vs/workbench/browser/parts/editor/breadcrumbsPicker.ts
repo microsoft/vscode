@@ -14,7 +14,7 @@ import { basename, dirname, isEqual } from '../../../../base/common/resources.js
 import { URI } from '../../../../base/common/uri.js';
 import './media/breadcrumbscontrol.css';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { FileKind, IFileService, IFileStat } from '../../../../platform/files/common/files.js';
+import { FileKind, FileSystemProviderCapabilities, IFileService, IFileStat } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchDataTree, WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { breadcrumbsPickerBackground, widgetBorder, widgetShadow } from '../../../../platform/theme/common/colorRegistry.js';
@@ -60,7 +60,7 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 	protected readonly _onWillPickElement = new Emitter<void>();
 	readonly onWillPickElement: Event<void> = this._onWillPickElement.event;
 
-	private readonly _previewDispoables = new MutableDisposable();
+	private readonly _previewDisposables = new MutableDisposable();
 
 	constructor(
 		parent: HTMLElement,
@@ -76,7 +76,7 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 
 	dispose(): void {
 		this._disposables.dispose();
-		this._previewDispoables.dispose();
+		this._previewDisposables.dispose();
 		this._onWillPickElement.dispose();
 		this._domNode.remove();
 		setTimeout(() => this._tree.dispose(), 0); // tree cannot be disposed while being opened...
@@ -111,7 +111,7 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 			}
 		}));
 		this._disposables.add(this._tree.onDidChangeFocus(e => {
-			this._previewDispoables.value = this._previewElement(e.elements[0]);
+			this._previewDisposables.value = this._previewElement(e.elements[0]);
 		}));
 		this._disposables.add(this._tree.onDidChangeContentHeight(() => {
 			this._layout();
@@ -273,6 +273,7 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IConfigurationService configService: IConfigurationService,
+		@IFileService fileService: IFileService,
 	) {
 		const config = BreadcrumbsConfig.FileExcludes.bindTo(configService);
 		const update = () => {
@@ -294,7 +295,8 @@ class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 
 					adjustedConfig[patternAbs] = excludesConfig[pattern];
 				}
-				this._cachedExpressions.set(folder.uri.toString(), glob.parse(adjustedConfig));
+				const ignoreCase = !fileService.hasCapability(folder.uri, FileSystemProviderCapabilities.PathCaseSensitive);
+				this._cachedExpressions.set(folder.uri.toString(), glob.parse(adjustedConfig, { ignoreCase }));
 			});
 		};
 		update();

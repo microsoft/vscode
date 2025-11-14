@@ -9,6 +9,7 @@ import { sep } from '../../common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../common/platform.js';
 import { URI } from '../../common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { GlobCaseSensitivity } from '../../common/glob.js';
 
 suite('Glob', () => {
 
@@ -1194,6 +1195,83 @@ suite('Glob', () => {
 		// Other
 		assertNoGlobMatch('some/*/Random/*/Path.FILE', 'some/very/random/unusual/path.file');
 		assertGlobMatch('some/*/Random/*/Path.FILE', 'some/very/random/unusual/path.file', true);
+	});
+
+	test('toGlobIgnoreCase works as expected', () => {
+		assert.strictEqual(glob.toGlobIgnoreCase(GlobCaseSensitivity.caseInsensitive), true);
+		assert.strictEqual(glob.toGlobIgnoreCase(GlobCaseSensitivity.caseSensitive), false);
+		assert.strictEqual(glob.toGlobIgnoreCase(GlobCaseSensitivity.auto), !isLinux);
+	});
+
+	test('toGlobCaseSensitivity works as expected', () => {
+		assert.strictEqual(glob.toGlobCaseSensitivity(undefined), GlobCaseSensitivity.auto);
+
+		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.caseSensitive), GlobCaseSensitivity.caseSensitive);
+		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.caseInsensitive), GlobCaseSensitivity.caseInsensitive);
+		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.auto), GlobCaseSensitivity.auto);
+
+		assert.strictEqual(glob.toGlobCaseSensitivity('caseSensitive'), GlobCaseSensitivity.caseSensitive);
+		assert.strictEqual(glob.toGlobCaseSensitivity('caseInsensitive'), GlobCaseSensitivity.caseInsensitive);
+		assert.strictEqual(glob.toGlobCaseSensitivity('auto'), GlobCaseSensitivity.auto);
+
+		assert.strictEqual(glob.toGlobCaseSensitivity({
+			globCaseSensitivity: GlobCaseSensitivity.caseSensitive
+		}), GlobCaseSensitivity.caseSensitive);
+
+		assert.strictEqual(glob.toGlobCaseSensitivity({
+			globCaseSensitivity: GlobCaseSensitivity.caseInsensitive
+		}), GlobCaseSensitivity.caseInsensitive);
+
+		assert.strictEqual(glob.toGlobCaseSensitivity({
+			globCaseSensitivity: GlobCaseSensitivity.auto
+		}), GlobCaseSensitivity.auto);
+
+
+		assert.strictEqual(glob.toGlobCaseSensitivity({
+			search: { globCaseSensitivity: 'caseSensitive' }
+		}), GlobCaseSensitivity.caseSensitive);
+
+		assert.strictEqual(glob.toGlobCaseSensitivity({
+			search: { globCaseSensitivity: 'caseInsensitive' }
+		}), GlobCaseSensitivity.caseInsensitive);
+
+		assert.strictEqual(glob.toGlobCaseSensitivity({
+			search: { globCaseSensitivity: 'auto' }
+		}), GlobCaseSensitivity.auto);
+
+
+		assert.strictEqual(glob.toGlobCaseSensitivity({
+			files: { globCaseSensitivity: 'caseSensitive' }
+		}), GlobCaseSensitivity.caseSensitive);
+
+		assert.strictEqual(glob.toGlobCaseSensitivity({
+			files: { globCaseSensitivity: 'caseInsensitive' }
+		}), GlobCaseSensitivity.caseInsensitive);
+
+		assert.strictEqual(glob.toGlobCaseSensitivity({
+			files: { globCaseSensitivity: 'auto' }
+		}), GlobCaseSensitivity.auto);
+
+
+		assert.strictEqual(glob.toGlobCaseSensitivity({
+			search: { globCaseSensitivity: 'caseSensitive' },
+			files: { globCaseSensitivity: 'caseInsensitive' }
+		}), GlobCaseSensitivity.caseSensitive);
+
+		assert.strictEqual(glob.toGlobCaseSensitivity({
+			search: { globCaseSensitivity: 'auto' },
+			files: { globCaseSensitivity: 'caseInsensitive' }
+		}), GlobCaseSensitivity.caseInsensitive);
+
+		assert.strictEqual(glob.toGlobCaseSensitivity(
+			GlobCaseSensitivity.auto,
+			'auto',
+			{ search: { globCaseSensitivity: 'auto' } },
+			undefined,
+			GlobCaseSensitivity.caseSensitive,
+			GlobCaseSensitivity.auto,
+			GlobCaseSensitivity.caseInsensitive
+		), GlobCaseSensitivity.caseSensitive);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

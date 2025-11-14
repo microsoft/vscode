@@ -12,7 +12,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { randomPath, isEqual, isEqualOrParent } from '../../../../../base/common/extpath.js';
-import { GLOBSTAR, ParsedPattern, patternsEquals } from '../../../../../base/common/glob.js';
+import { GLOBSTAR, ParsedPattern, patternsEquals, toGlobIgnoreCase } from '../../../../../base/common/glob.js';
 import { BaseWatcher } from '../baseWatcher.js';
 import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
@@ -65,8 +65,9 @@ export class ParcelWatcherInstance extends Disposable {
 	) {
 		super();
 
-		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
-		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
+		const ignoreCase = toGlobIgnoreCase(request);
+		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes, ignoreCase) : undefined;
+		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes, ignoreCase) : undefined;
 
 		this._register(toDisposable(() => this.subscriptions.clear()));
 	}
@@ -169,13 +170,13 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	// to schedule sufficiently after Parcel.
 	//
 	// Note: since Parcel 2.0.7, the very first event is
-	// emitted without delay if no events occured over a
+	// emitted without delay if no events occurred over a
 	// duration of 500ms. But we always want to aggregate
-	// events to apply our coleasing logic.
+	// events to apply our coalescing logic.
 	//
 	private static readonly FILE_CHANGES_HANDLER_DELAY = 75;
 
-	// Reduce likelyhood of spam from file events via throttling.
+	// Reduce likelihood of spam from file events via throttling.
 	// (https://github.com/microsoft/vscode/issues/124723)
 	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IFileChange>(
 		{
@@ -617,7 +618,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 	protected restartWatching(watcher: ParcelWatcherInstance, delay = 800): void {
 
-		// Restart watcher delayed to accomodate for
+		// Restart watcher delayed to accommodate for
 		// changes on disk that have triggered the
 		// need for a restart in the first place.
 		const scheduler = new RunOnceScheduler(async () => {
@@ -667,17 +668,16 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		requests.sort((requestA, requestB) => requestA.path.length - requestB.path.length);
 
 		// Ignore requests for the same paths that have the same correlation
-		const mapCorrelationtoRequests = new Map<number | undefined /* correlation */, Map<string, IRecursiveWatchRequest>>();
+		const mapCorrelationToRequests = new Map<number | undefined /* correlation */, Map<string, IRecursiveWatchRequest>>();
 		for (const request of requests) {
 			if (request.excludes.includes(GLOBSTAR)) {
 				continue; // path is ignored entirely (via `**` glob exclude)
 			}
 
-
-			let requestsForCorrelation = mapCorrelationtoRequests.get(request.correlationId);
+			let requestsForCorrelation = mapCorrelationToRequests.get(request.correlationId);
 			if (!requestsForCorrelation) {
 				requestsForCorrelation = new Map<string, IRecursiveWatchRequest>();
-				mapCorrelationtoRequests.set(request.correlationId, requestsForCorrelation);
+				mapCorrelationToRequests.set(request.correlationId, requestsForCorrelation);
 			}
 
 			const path = this.pathToWatcherKey(request.path);
@@ -690,7 +690,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 		const normalizedRequests: IRecursiveWatchRequest[] = [];
 
-		for (const requestsForCorrelation of mapCorrelationtoRequests.values()) {
+		for (const requestsForCorrelation of mapCorrelationToRequests.values()) {
 
 			// Only consider requests for watching that are not
 			// a child of an existing request path to prevent

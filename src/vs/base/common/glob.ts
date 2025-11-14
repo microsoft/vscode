@@ -12,6 +12,15 @@ import { basename, extname, posix, sep } from './path.js';
 import { isLinux } from './platform.js';
 import { endsWithIgnoreCase, equalsIgnoreCase, escapeRegExpCharacters, ltrim } from './strings.js';
 
+/**
+ * The possible case sensitivity options for glob pattern matching.
+ */
+export enum GlobCaseSensitivity {
+	caseSensitive = 1,
+	caseInsensitive = 2,
+	auto = 3
+}
+
 export interface IRelativePattern {
 
 	/**
@@ -860,4 +869,77 @@ export function patternsEquals(patternsA: Array<string | IRelativePattern> | und
 
 		return false;
 	});
+}
+
+type GlobCaseSensitivitySource =
+	| undefined
+	| GlobCaseSensitivity // enum values
+	| boolean // to convert from IFileService.hasCapability
+	| 'caseSensitive' | 'caseInsensitive' | 'auto' // settings values
+	| {  // options and settings objects
+		globCaseSensitivity?: GlobCaseSensitivity | 'caseSensitive' | 'caseInsensitive' | 'auto';
+		search?: { globCaseSensitivity?: 'caseSensitive' | 'caseInsensitive' | 'auto' };
+		files?: { globCaseSensitivity?: 'caseSensitive' | 'caseInsensitive' | 'auto' };
+	};
+
+/**
+ * Given a list of {@link GlobCaseSensitivity} sources in priority order, returns whether glob matching should be case insensitive.
+ * Defaults to platform case sensitivity if no explicit option is provided.
+ */
+export function toGlobIgnoreCase(...args: GlobCaseSensitivitySource[]): boolean {
+	switch (toGlobCaseSensitivity(...args)) {
+		case GlobCaseSensitivity.caseSensitive:
+			return false;
+		case GlobCaseSensitivity.caseInsensitive:
+			return true;
+		default:
+			return !isLinux;
+	}
+}
+
+/**
+ * Combines multiple {@link GlobCaseSensitivity} sources in priority order into a single value,
+ * skipping over intermediate {@link GlobCaseSensitivity.auto} values.
+ */
+export function toGlobCaseSensitivity(...args: GlobCaseSensitivitySource[]): GlobCaseSensitivity {
+	for (const arg of args) {
+		let value: string | undefined;
+		if (typeof arg === 'number') {
+			if (arg !== GlobCaseSensitivity.auto) {
+				return arg;
+			} else {
+				continue;
+			}
+		} else if (typeof arg === 'object' && arg !== null) {
+			const argValue = arg.globCaseSensitivity;
+			if (argValue !== undefined) {
+				if (typeof argValue === 'string') {
+					value = argValue;
+				} else if (argValue !== GlobCaseSensitivity.auto) {
+					return argValue;
+				} else {
+					continue;
+				}
+			} else {
+				value = arg.search?.globCaseSensitivity;
+				if (value === undefined || equalsIgnoreCase(value, 'auto')) {
+					value = arg.files?.globCaseSensitivity;
+				}
+			}
+		} else if (typeof arg === 'string') {
+			value = arg;
+		} else if (typeof arg === 'boolean') {
+			return arg ? GlobCaseSensitivity.caseSensitive : GlobCaseSensitivity.caseInsensitive;
+		} else {
+			continue;
+		}
+		if (value !== undefined) {
+			if (equalsIgnoreCase(value, 'casesensitive')) {
+				return GlobCaseSensitivity.caseSensitive;
+			} else if (equalsIgnoreCase(value, 'caseinsensitive')) {
+				return GlobCaseSensitivity.caseInsensitive;
+			}
+		}
+	}
+	return GlobCaseSensitivity.auto;
 }

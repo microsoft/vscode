@@ -6528,6 +6528,7 @@ declare namespace monaco.languages {
 		static tryCreate(linesAdded: number | undefined, linesRemoved: number | undefined, charsAdded: number | undefined, charsRemoved: number | undefined): EditDeltaInfo | undefined;
 		constructor(linesAdded: number, linesRemoved: number, charsAdded: number, charsRemoved: number);
 	}
+
 	export interface IRelativePattern {
 		/**
 		 * A base file path to which this pattern will be matched against relatively.

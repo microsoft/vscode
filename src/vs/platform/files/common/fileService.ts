@@ -22,6 +22,7 @@ import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, I
 import { readFileIntoStream } from './io.js';
 import { ILogService } from '../../log/common/log.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
+import { toGlobCaseSensitivity } from '../../../base/common/glob.js';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -1188,7 +1189,7 @@ export class FileService extends Disposable implements IFileService {
 		})();
 
 		// When a correlation identifier is set, return a specific
-		// watcher that only emits events matching that correalation.
+		// watcher that only emits events matching that correlation.
 		const correlationId = options.correlationId;
 		if (typeof correlationId === 'number') {
 			const fileChangeEmitter = disposables.add(new Emitter<FileChangesEvent>());
@@ -1211,9 +1212,14 @@ export class FileService extends Disposable implements IFileService {
 
 	private async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
 		const provider = await this.withProvider(resource);
+		const extUri = this.getExtUri(provider);
+		options = {
+			...options,
+			globCaseSensitivity: toGlobCaseSensitivity(options, extUri.isPathCaseSensitive)
+		};
 
 		// Deduplicate identical watch requests
-		const watchHash = hash([this.getExtUri(provider).providerExtUri.getComparisonKey(resource), options]);
+		const watchHash = hash([extUri.providerExtUri.getComparisonKey(resource), options]);
 		let watcher = this.activeWatchers.get(watchHash);
 		if (!watcher) {
 			watcher = {

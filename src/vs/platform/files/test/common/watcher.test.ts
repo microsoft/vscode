@@ -56,25 +56,25 @@ suite('Watcher', () => {
 
 	(isWindows ? test.skip : test)('parseWatcherPatterns - posix', () => {
 		const path = '/users/data/src';
-		let parsedPattern = parseWatcherPatterns(path, ['*.js'])[0];
+		let parsedPattern = parseWatcherPatterns(path, ['*.js'], false)[0];
 
 		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), true);
 		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
 		assert.strictEqual(parsedPattern('/users/data/src/bar/foo.js'), false);
 
-		parsedPattern = parseWatcherPatterns(path, ['/users/data/src/*.js'])[0];
+		parsedPattern = parseWatcherPatterns(path, ['/users/data/src/*.js'], false)[0];
 
 		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), true);
 		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
 		assert.strictEqual(parsedPattern('/users/data/src/bar/foo.js'), false);
 
-		parsedPattern = parseWatcherPatterns(path, ['/users/data/src/bar/*.js'])[0];
+		parsedPattern = parseWatcherPatterns(path, ['/users/data/src/bar/*.js'], false)[0];
 
 		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), false);
 		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
 		assert.strictEqual(parsedPattern('/users/data/src/bar/foo.js'), true);
 
-		parsedPattern = parseWatcherPatterns(path, ['**/*.js'])[0];
+		parsedPattern = parseWatcherPatterns(path, ['**/*.js'], false)[0];
 
 		assert.strictEqual(parsedPattern('/users/data/src/foo.js'), true);
 		assert.strictEqual(parsedPattern('/users/data/src/foo.ts'), false);
@@ -83,25 +83,25 @@ suite('Watcher', () => {
 
 	(!isWindows ? test.skip : test)('parseWatcherPatterns - windows', () => {
 		const path = 'c:\\users\\data\\src';
-		let parsedPattern = parseWatcherPatterns(path, ['*.js'])[0];
+		let parsedPattern = parseWatcherPatterns(path, ['*.js'], true)[0];
 
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), true);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar/foo.js'), false);
 
-		parsedPattern = parseWatcherPatterns(path, ['c:\\users\\data\\src\\*.js'])[0];
+		parsedPattern = parseWatcherPatterns(path, ['c:\\users\\data\\src\\*.js'], true)[0];
 
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), true);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar\\foo.js'), false);
 
-		parsedPattern = parseWatcherPatterns(path, ['c:\\users\\data\\src\\bar/*.js'])[0];
+		parsedPattern = parseWatcherPatterns(path, ['c:\\users\\data\\src\\bar/*.js'], true)[0];
 
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), false);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\bar\\foo.js'), true);
 
-		parsedPattern = parseWatcherPatterns(path, ['**/*.js'])[0];
+		parsedPattern = parseWatcherPatterns(path, ['**/*.js'], true)[0];
 
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.js'), true);
 		assert.strictEqual(parsedPattern('c:\\users\\data\\src\\foo.ts'), false);

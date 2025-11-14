@@ -1061,7 +1061,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					ignoreDeleteEvents: Boolean(ignoreDelete),
 				};
 
-				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, configProvider, extension, pattern, options);
+				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, configProvider, extHostFileSystemInfo, extension, pattern, options);
 			},
 			get textDocuments() {
 				return extHostDocuments.getAllDocumentData().map(data => data.document);
