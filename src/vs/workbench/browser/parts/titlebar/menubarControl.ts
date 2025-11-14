@@ -466,10 +466,21 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		const elapsedMs = Date.now() - startTime;
+		
+		// Need at least 1 second of data to make a reasonable estimate
+		if (elapsedMs < 1000) {
+			return '';
+		}
+
 		const bytesPerMs = bytesDownloaded / elapsedMs;
 		const remainingBytes = totalBytes - bytesDownloaded;
 		const remainingMs = remainingBytes / bytesPerMs;
 		const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+		// Sanity check for unreasonable values
+		if (!isFinite(remainingSeconds) || remainingSeconds < 0 || remainingSeconds > 86400) {
+			return '';
+		}
 
 		if (remainingSeconds < 60) {
 			return localize('downloadingWithSecondsRemaining', " ({0}s remaining)", remainingSeconds);
