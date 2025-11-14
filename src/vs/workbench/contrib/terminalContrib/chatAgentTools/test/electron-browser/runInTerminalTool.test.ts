@@ -209,6 +209,7 @@ suite('RunInTerminalTool', () => {
 			'df -h',
 			'sleep 5',
 			'cd /home/user',
+			'nl -ba path/to/file.txt',
 
 			// Safe git sub-commands
 			'git status',
