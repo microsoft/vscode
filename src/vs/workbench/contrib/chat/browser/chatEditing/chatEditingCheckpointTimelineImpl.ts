@@ -186,7 +186,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		});
 
 	constructor(
-		private readonly chatSessionId: string,
+		private readonly chatSessionResource: URI,
 		private readonly _delegate: IChatEditingTimelineFsDelegate,
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService,
 		@INotebookService private readonly _notebookService: INotebookService,
@@ -262,7 +262,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	}
 
 	public getContentURIAtStop(requestId: string, fileURI: URI, stopId: string | undefined): URI {
-		return ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this.chatSessionId, requestId, stopId, fileURI.path);
+		return ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this.chatSessionResource, requestId, stopId, fileURI.path);
 	}
 
 	private async _navigateToEpoch(restoreToEpoch: number, navigateToEpoch = restoreToEpoch): Promise<void> {

@@ -16,7 +16,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { Dto } from '../../../../services/extensions/common/proxyIdentifier.js';
 import { ISnapshotEntry, ModifiedFileEntryState, WorkingSetDisplayMetadata } from '../../common/chatEditingService.js';
-import { IChatEditingTimelineState } from './chatEditingOperations.js';
+import { getKeyForChatSessionResource, IChatEditingTimelineState } from './chatEditingOperations.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
 const STORAGE_STATE_FILE = 'state.json';
@@ -28,17 +28,20 @@ export interface StoredSessionState {
 }
 
 export class ChatEditingSessionStorage {
+	private readonly storageKey: string;
 	constructor(
-		private readonly chatSessionId: string,
+		private readonly _chatSessionResource: URI,
 		@IFileService private readonly _fileService: IFileService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-	) { }
+	) {
+		this.storageKey = getKeyForChatSessionResource(_chatSessionResource);
+	}
 
 	protected _getStorageLocation(): URI {
 		const workspaceId = this._workspaceContextService.getWorkspace().id;
-		return joinPath(this._environmentService.workspaceStorageHome, workspaceId, 'chatEditingSessions', this.chatSessionId);
+		return joinPath(this._environmentService.workspaceStorageHome, workspaceId, 'chatEditingSessions', this.storageKey);
 	}
 
 	public async restoreState(): Promise<StoredSessionState | undefined> {
@@ -76,7 +79,7 @@ export class ChatEditingSessionStorage {
 					requestId: entry.telemetryInfo.requestId,
 					agentId: entry.telemetryInfo.agentId,
 					command: entry.telemetryInfo.command,
-					sessionId: this.chatSessionId,
+					sessionResource: this._chatSessionResource,
 					result: undefined,
 					modelId: entry.telemetryInfo.modelId,
 					modeId: entry.telemetryInfo.modeId,
@@ -182,7 +185,6 @@ export class ChatEditingSessionStorage {
 		try {
 			const data: IChatEditingSessionDTO = {
 				version: STORAGE_VERSION,
-				sessionId: this.chatSessionId,
 				initialFileContents: await serializeResourceMap(state.initialFileContents, value => addFileContent(value)),
 				timeline: state.timeline,
 				recentSnapshot: await serializeChatEditingSessionStop(state.recentSnapshot),
@@ -274,7 +276,6 @@ const STORAGE_VERSION = 2;
 /** Old history uses IChatEditingSessionSnapshotDTO, new history uses IChatEditingSessionSnapshotDTO. */
 interface IChatEditingSessionDTO {
 	readonly version: number;
-	readonly sessionId: string;
 	readonly recentSnapshot: (IChatEditingSessionStopDTO | IChatEditingSessionSnapshotDTO);
 	readonly timeline: Dto<IChatEditingTimelineState> | undefined;
 	readonly initialFileContents: ResourceMapDTO<string>;
