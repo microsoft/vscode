@@ -28,9 +28,6 @@ jobs:
       DISPLAY: ":10"
       NPM_ARCH: ${{ parameters.NPM_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
-      ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-        VSCODE_MAJOR_MINOR_VERSION: $[stageDependencies.ReadVersion.outputs['ReadVersion.SetVersion.VSCODE_MAJOR_MINOR_VERSION']]
-        VSCODE_INSIDERS_PATCH_VERSION: $[counter(stageDependencies.Compile.ReadVersion.outputs['SetVersion.VSCODE_MAJOR_MINOR_VERSION'], 0)]
     templateContext:
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
@@ -100,12 +97,6 @@ jobs:
             sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
             sbomPackageVersion: $(Build.SourceVersion)
     steps:
-      - script: |
-          set -e
-          echo "VSCODE_MAJOR_MINOR_VERSION: $(VSCODE_MAJOR_MINOR_VERSION)"
-          echo "VSCODE_INSIDERS_PATCH_VERSION: $(VSCODE_INSIDERS_PATCH_VERSION)"
-          VSCODE_INSIDERS_VERSION="$(VSCODE_MAJOR_MINOR_VERSION).$(VSCODE_INSIDERS_PATCH_VERSION)-insider"
-          echo "VSCODE_INSIDERS_VERSION: $VSCODE_INSIDERS_VERSION"
       - template: ./steps/product-build-linux-compile.yml@self
         parameters:
           VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
