@@ -25,8 +25,6 @@
 				<false/>
 				<key>ChatToolsAutoApprove</key>
 				<false/>
-				<key>ChatToolsEligibleForAutoApproval</key>
-				<string></string>
 				<key>McpGalleryServiceUrl</key>
 				<string></string>
 				<key>AllowedExtensions</key>

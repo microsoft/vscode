@@ -65,6 +65,10 @@ function parsePolicies(policyData: ExportedPolicyDataDto): Policy[] {
 /**
  * This is a snapshot of the data taken on Oct. 20 2025 as part of the
  * policy refactor effort. Let's make sure that nothing has regressed.
+ *
+ * NOTE: These snapshot tests and fixtures are NOT meant to be updated when new
+ * policies are added. They serve as a regression test for the policy conversion
+ * system based on the state at the time of the refactor.
  */
 const policies: ExportedPolicyDataDto = {
 	categories: [
