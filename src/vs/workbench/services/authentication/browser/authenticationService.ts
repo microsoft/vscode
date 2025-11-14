@@ -341,9 +341,9 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined> {
+	async getOrActivateProviderIdForServer(authorizationServer: URI, resourceServer?: URI): Promise<string | undefined> {
 		for (const provider of this._authenticationProviders.values()) {
-			if (this.matchesProvider(provider, authorizationServer)) {
+			if (this.matchesProvider(provider, authorizationServer, resourceServer)) {
 				return provider.id;
 			}
 		}
@@ -358,7 +358,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		for (const provider of providers) {
 			const activeProvider = await this.tryActivateProvider(provider.id, true);
 			// Check the resolved authorization servers
-			if (this.matchesProvider(activeProvider, authorizationServer)) {
+			if (this.matchesProvider(activeProvider, authorizationServer, resourceServer)) {
 				return activeProvider.id;
 			}
 		}
@@ -396,7 +396,16 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		};
 	}
 
-	private matchesProvider(provider: IAuthenticationProvider, authorizationServer: URI): boolean {
+	private matchesProvider(provider: IAuthenticationProvider, authorizationServer: URI, resourceServer?: URI): boolean {
+		// If a resourceServer is provided and the provider has a resourceServer defined, they must match
+		if (resourceServer && provider.resourceServer) {
+			const resourceServerStr = resourceServer.toString(true);
+			const providerResourceServerStr = provider.resourceServer.toString(true);
+			if (!equalsIgnoreCase(providerResourceServerStr, resourceServerStr)) {
+				return false;
+			}
+		}
+
 		if (provider.authorizationServers) {
 			const authServerStr = authorizationServer.toString(true);
 			for (const server of provider.authorizationServers) {

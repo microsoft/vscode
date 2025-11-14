@@ -257,8 +257,9 @@ export interface IAuthenticationService {
 	/**
 	 * Gets a provider id for a specified authorization server
 	 * @param authorizationServer The authorization server url that this provider is responsible for
+	 * @param resourceServer The resource server URI that should match the provider's resourceServer (if defined)
 	 */
-	getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined>;
+	getOrActivateProviderIdForServer(authorizationServer: URI, resourceServer?: URI): Promise<string | undefined>;
 
 	/**
 	 * Allows the ability register a delegate that will be used to start authentication providers

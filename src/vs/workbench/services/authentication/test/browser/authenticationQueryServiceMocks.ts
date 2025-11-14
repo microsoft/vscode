@@ -344,6 +344,6 @@ export class TestAuthenticationService extends BaseTestService implements IAuthe
 	createDynamicAuthenticationProvider(): Promise<any> { return Promise.resolve(undefined); }
 	async requestNewSession(): Promise<AuthenticationSession> { return createSession(); }
 	async getSession(): Promise<AuthenticationSession | undefined> { return createSession(); }
-	getOrActivateProviderIdForServer(): Promise<string | undefined> { return Promise.resolve(undefined); }
+	getOrActivateProviderIdForServer(authorizationServer?: any, resourceServer?: any): Promise<string | undefined> { return Promise.resolve(undefined); }
 	supportsHeimdallConnection(): boolean { return false; }
 }
