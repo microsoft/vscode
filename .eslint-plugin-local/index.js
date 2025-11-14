@@ -6,10 +6,17 @@
 const glob = require('glob');
 const path = require('path');
 
-require('ts-node').register({ experimentalResolver: true, transpileOnly: true });
+require('ts-node').register({
+	experimentalResolver: true,
+	transpileOnly: true,
+	compilerOptions: {
+		module: 'nodenext',
+		moduleResolution: 'nodenext',
+	}
+});
 
 // Re-export all .ts files as rules
-/** @type {Record<string, import('@typescript-eslint/utils/dist/ts-eslint').LooseRuleDefinition>} */
+/** @type {Record<string, import('@typescript-eslint/utils/ts-eslint').LooseRuleDefinition>} */
 const rules = {};
 glob.sync(`${__dirname}/*.ts`).forEach((file) => {
 	rules[path.basename(file, '.ts')] = require(file);

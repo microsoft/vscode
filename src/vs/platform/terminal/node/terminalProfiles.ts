@@ -9,7 +9,7 @@ import { Codicon } from '../../../base/common/codicons.js';
 import { basename, delimiter, normalize, dirname, resolve } from '../../../base/common/path.js';
 import { isLinux, isWindows } from '../../../base/common/platform.js';
 import { findExecutable } from '../../../base/node/processes.js';
-import { isString } from '../../../base/common/types.js';
+import { hasKey, isObject, isString } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import * as pfs from '../../../base/node/pfs.js';
 import { enumeratePowerShellInstallations } from '../../../base/node/powershell.js';
@@ -48,8 +48,8 @@ export function detectAvailableProfiles(
 			shellEnv,
 			logService,
 			configurationService.getValue(TerminalSettingId.UseWslProfiles) !== false,
-			profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(TerminalSettingId.ProfilesWindows),
-			typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
+			profiles && isObject(profiles) ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(TerminalSettingId.ProfilesWindows),
+			isString(defaultProfile) ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
 			testPwshSourcePaths,
 			variableResolver
 		);
@@ -58,8 +58,8 @@ export function detectAvailableProfiles(
 		fsProvider,
 		logService,
 		includeDetectedProfiles,
-		profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs),
-		typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(isLinux ? TerminalSettingId.DefaultProfileLinux : TerminalSettingId.DefaultProfileMacOs),
+		profiles && isObject(profiles) ? { ...profiles } : configurationService.getValue<{ [key: string]: IUnresolvedTerminalProfile }>(isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs),
+		isString(defaultProfile) ? defaultProfile : configurationService.getValue<string>(isLinux ? TerminalSettingId.DefaultProfileLinux : TerminalSettingId.DefaultProfileMacOs),
 		testPwshSourcePaths,
 		variableResolver,
 		shellEnv
@@ -84,7 +84,9 @@ async function detectAvailableWindowsProfiles(
 	const is32ProcessOn64Windows = process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
 	const system32Path = `${process.env['windir']}\\${is32ProcessOn64Windows ? 'Sysnative' : 'System32'}`;
 
-	const useWSLexe = getWindowsBuildNumber() >= 22000;
+	// WSL 2 released in the May 2020 Update, this is where the `-d` flag was added that we depend
+	// upon
+	const allowWslDiscovery = getWindowsBuildNumber() >= 19041;
 
 	await initializeWindowsProfiles(testPwshSourcePaths);
 
@@ -104,6 +106,7 @@ async function detectAvailableWindowsProfiles(
 		});
 		detectedProfiles.set('Git Bash', {
 			source: ProfileSource.GitBash,
+			icon: Codicon.terminalGitBash,
 			isAutoDetected: true
 		});
 		detectedProfiles.set('Command Prompt', {
@@ -143,11 +146,11 @@ async function detectAvailableWindowsProfiles(
 
 	const resultProfiles: ITerminalProfile[] = await transformToTerminalProfiles(detectedProfiles.entries(), defaultProfileName, fsProvider, shellEnv, logService, variableResolver);
 
-	if (includeDetectedProfiles && useWslProfiles) {
+	if (includeDetectedProfiles && useWslProfiles && allowWslDiscovery) {
 		try {
-			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl' : 'bash'}.exe`, defaultProfileName);
+			const result = await getWslProfiles(`${system32Path}\\wsl.exe`, defaultProfileName);
 			for (const wslProfile of result) {
-				if (!configProfiles || !(wslProfile.profileName in configProfiles)) {
+				if (!configProfiles || !Object.prototype.hasOwnProperty.call(configProfiles, wslProfile.profileName)) {
 					resultProfiles.push(wslProfile);
 				}
 			}
@@ -174,7 +177,7 @@ async function transformToTerminalProfiles(
 	for (const [profileName, profile] of entries) {
 		promises.push(getValidatedProfile(profileName, profile, defaultProfileName, fsProvider, shellEnv, logService, variableResolver));
 	}
-	return (await Promise.all(promises)).filter(e => !!e) as ITerminalProfile[];
+	return (await Promise.all(promises)).filter(e => !!e);
 }
 
 async function getValidatedProfile(
@@ -193,7 +196,7 @@ async function getValidatedProfile(
 	let args: string[] | string | undefined;
 	let icon: ThemeIcon | URI | { light: URI; dark: URI } | undefined = undefined;
 	// use calculated values if path is not specified
-	if ('source' in profile && !('path' in profile)) {
+	if (hasKey(profile, { source: true })) {
 		const source = profileSources?.get(profile.source);
 		if (!source) {
 			return undefined;
@@ -216,13 +219,13 @@ async function getValidatedProfile(
 	let paths: (string | ITerminalUnsafePath)[];
 	if (variableResolver) {
 		// Convert to string[] for resolve
-		const mapped = originalPaths.map(e => typeof e === 'string' ? e : e.path);
+		const mapped = originalPaths.map(e => isString(e) ? e : e.path);
 
 		const resolved = await variableResolver(mapped);
 		// Convert resolved back to (T | string)[]
 		paths = new Array(originalPaths.length);
 		for (let i = 0; i < originalPaths.length; i++) {
-			if (typeof originalPaths[i] === 'string') {
+			if (isString(originalPaths[i])) {
 				paths[i] = resolved[i];
 			} else {
 				paths[i] = {
@@ -266,7 +269,7 @@ async function getValidatedProfile(
 }
 
 function validateIcon(icon: string | TerminalIcon | undefined): TerminalIcon | undefined {
-	if (typeof icon === 'string') {
+	if (isString(icon)) {
 		return { id: icon };
 	}
 	return icon;
@@ -344,8 +347,9 @@ async function getPowershellPaths(): Promise<string[]> {
 async function getWslProfiles(wslPath: string, defaultProfileName: string | undefined): Promise<ITerminalProfile[]> {
 	const profiles: ITerminalProfile[] = [];
 	const distroOutput = await new Promise<string>((resolve, reject) => {
-		// wsl.exe output is encoded in utf16le (ie. A -> 0x4100)
-		cp.exec('wsl.exe -l -q', { encoding: 'utf16le', timeout: 1000 }, (err, stdout) => {
+		// wsl.exe output is encoded in utf16le (ie. A -> 0x4100) by default, force it in case the
+		// user changed https://github.com/microsoft/vscode/issues/276253
+		cp.exec('wsl.exe -l -q', { encoding: 'utf16le', env: { ...process.env, WSL_UTF8: '0' }, timeout: 1000 }, (err, stdout) => {
 			if (err) {
 				return reject('Problem occurred when getting wsl distros');
 			}
@@ -441,7 +445,7 @@ function applyConfigProfilesToMap(configProfiles: { [key: string]: IUnresolvedTe
 		return;
 	}
 	for (const [profileName, value] of Object.entries(configProfiles)) {
-		if (value === null || typeof value !== 'object' || (!('path' in value) && !('source' in value))) {
+		if (value === null || !isObject(value) || (!hasKey(value, { path: true }) && !hasKey(value, { source: true }))) {
 			profilesMap.delete(profileName);
 		} else {
 			value.icon = value.icon || profilesMap.get(profileName)?.icon;
@@ -458,8 +462,8 @@ async function validateProfilePaths(profileName: string, defaultProfileName: str
 	if (path === '') {
 		return validateProfilePaths(profileName, defaultProfileName, potentialPaths, fsProvider, shellEnv, args, env, overrideName, isAutoDetected);
 	}
-	const isUnsafePath = typeof path !== 'string' && path.isUnsafe;
-	const actualPath = typeof path === 'string' ? path : path.path;
+	const isUnsafePath = !isString(path) && path.isUnsafe;
+	const actualPath = isString(path) ? path : path.path;
 
 	const profile: ITerminalProfile = {
 		profileName,

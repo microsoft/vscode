@@ -17,7 +17,7 @@ The JSON language server supports requests on documents of language id `json` an
 
 The server implements the following capabilities of the language server protocol:
 
-- [Code completion](https://microsoft.github.io/language-server-protocol/specification#textDocument_completion) for JSON properties and values based on the document's [JSON schema](http://json-schema.org/) or based on existing properties and values used at other places in the document. JSON schemas are configured through the server configuration options.
+- [Inline Suggestion](https://microsoft.github.io/language-server-protocol/specification#textDocument_completion) for JSON properties and values based on the document's [JSON schema](http://json-schema.org/) or based on existing properties and values used at other places in the document. JSON schemas are configured through the server configuration options.
 - [Hover](https://microsoft.github.io/language-server-protocol/specification#textDocument_hover) for values based on descriptions in the document's [JSON schema](http://json-schema.org/).
 - [Document Symbols](https://microsoft.github.io/language-server-protocol/specification#textDocument_documentSymbol) for quick navigation to properties in the document.
 - [Document Colors](https://microsoft.github.io/language-server-protocol/specification#textDocument_documentColor) for showing color decorators on values representing colors and [Color Presentation](https://microsoft.github.io/language-server-protocol/specification#textDocument_colorPresentation) for color presentation information to support color pickers. The location of colors is defined by the document's [JSON schema](http://json-schema.org/). All values marked with `"format": "color-hex"` (VSCode specific, non-standard JSON Schema extension) are considered color values. The supported color formats are `#rgb[a]` and `#rrggbb[aa]`.
@@ -37,7 +37,7 @@ The JSON language server expects the client to only send requests and notificati
 
 The JSON language server has the following dependencies on the client's capabilities:
 
-- Code completion requires that the client capability has *snippetSupport*. If not supported by the client, the server will not offer the completion capability.
+- Inline suggestion requires that the client capability has *snippetSupport*. If not supported by the client, the server will not offer the completion capability.
 - Formatting support requires the client to support *dynamicRegistration* for *rangeFormatting*. If not supported by the client, the server will not offer the format capability.
 
 ## Configuration
@@ -90,7 +90,7 @@ The server supports the following settings:
                         "foo.json",
                         "*.superfoo.json"
                     ],
-                    "url": "http://json.schemastore.org/foo",
+                    "url": "http://www.schemastore.org/foo",
                     "schema": {
                         "type": "array"
                     }

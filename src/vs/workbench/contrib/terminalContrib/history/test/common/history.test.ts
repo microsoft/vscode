@@ -99,11 +99,13 @@ suite('Terminal history', () => {
 			history.add('6', 6);
 			strictEqual(Array.from(history.entries).length, 5);
 			configurationService.setUserConfiguration('terminal', getConfig(2).terminal);
+			// eslint-disable-next-line local/code-no-any-casts
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			strictEqual(Array.from(history.entries).length, 2);
 			history.add('7', 7);
 			strictEqual(Array.from(history.entries).length, 2);
 			configurationService.setUserConfiguration('terminal', getConfig(3).terminal);
+			// eslint-disable-next-line local/code-no-any-casts
 			configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 			strictEqual(Array.from(history.entries).length, 2);
 			history.add('8', 8);

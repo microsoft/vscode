@@ -160,7 +160,7 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 				this.retries(2);
 			}
 
-			const userDataDir = getRandomUserDataDir(this.defaultOptions);
+			const userDataDir = getRandomUserDataDir(this.defaultOptions.userDataDir);
 			const logsPath = suiteLogsPath(this.defaultOptions, 'test_verifies_opened_editors_are_restored_from_stable');
 			const crashesPath = suiteCrashPath(this.defaultOptions, 'test_verifies_opened_editors_are_restored_from_stable');
 
@@ -216,7 +216,7 @@ export function setup(ensureStableCode: () => { stableCodePath: string | undefin
 				this.skip();
 			}
 
-			const userDataDir = getRandomUserDataDir(this.defaultOptions);
+			const userDataDir = getRandomUserDataDir(this.defaultOptions.userDataDir);
 			const logsPath = suiteLogsPath(this.defaultOptions, title);
 			const crashesPath = suiteCrashPath(this.defaultOptions, title);
 

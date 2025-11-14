@@ -37,6 +37,14 @@ export interface IFeaturedExtension {
 	readonly imagePath: string;
 }
 
+export interface IChatSessionRecommendation {
+	readonly extensionId: string;
+	readonly extensionName: string;
+	readonly displayName: string;
+	readonly name: string;
+	readonly description: string;
+}
+
 export type ConfigurationSyncStore = {
 	url: string;
 	insidersUrl: string;
@@ -97,11 +105,20 @@ export interface IProductConfiguration {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly controlUrl: string;
-		readonly mcpUrl: string;
 		readonly extensionUrlTemplate: string;
 		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
 		readonly accessSKUs?: string[];
+	};
+
+	readonly mcpGallery?: {
+		readonly serviceUrl: string;
+		readonly itemWebUrl: string;
+		readonly publisherUrl: string;
+		readonly supportUrl: string;
+		readonly privacyPolicyUrl: string;
+		readonly termsOfServiceUrl: string;
+		readonly reportUrl: string;
 	};
 
 	readonly extensionPublisherOrgs?: readonly string[];
@@ -195,11 +212,14 @@ export interface IProductConfiguration {
 			readonly id: string;
 			readonly enterpriseProviderId: string;
 			readonly enterpriseProviderConfig: string;
+			readonly enterpriseProviderUriSetting: string;
 			readonly scopes: string[];
 		};
 		readonly tokenEntitlementUrl: string;
 		readonly chatEntitlementUrl: string;
+		readonly mcpRegistryDataUrl: string;
 	};
+	readonly authClientIdMetadataUrl?: string;
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
@@ -213,7 +233,7 @@ export interface IProductConfiguration {
 
 	readonly defaultChatAgent?: IDefaultChatAgent;
 	readonly chatParticipantRegistry?: string;
-
+	readonly chatSessionRecommendations?: IChatSessionRecommendation[];
 	readonly emergencyAlertUrl?: string;
 
 	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
@@ -336,13 +356,16 @@ export interface IDefaultChatAgent {
 	readonly manageOverageUrl: string;
 	readonly upgradePlanUrl: string;
 	readonly signUpUrl: string;
+	readonly termsStatementUrl: string;
+	readonly privacyStatementUrl: string;
 
-	readonly providerId: string;
-	readonly providerName: string;
-	readonly enterpriseProviderId: string;
-	readonly enterpriseProviderName: string;
-	readonly alternativeProviderId: string;
-	readonly alternativeProviderName: string;
+	readonly provider: {
+		default: { id: string; name: string };
+		enterprise: { id: string; name: string };
+		google: { id: string; name: string };
+		apple: { id: string; name: string };
+	};
+
 	readonly providerUriSetting: string;
 	readonly providerScopes: string[][];
 
@@ -357,6 +380,7 @@ export interface IDefaultChatAgent {
 	readonly completionsRefreshTokenCommand: string;
 	readonly chatRefreshTokenCommand: string;
 	readonly generateCommitMessageCommand: string;
+	readonly resolveMergeConflictsCommand: string;
 
 	readonly completionsAdvancedSetting: string;
 	readonly completionsEnablementSetting: string;

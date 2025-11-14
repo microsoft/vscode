@@ -206,6 +206,18 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(pathRes.descriptionMatch[0].start, 1);
 		assert.strictEqual(pathRes.descriptionMatch[0].end, 4);
 
+		// Ellipsis Match
+		const ellipsisRes = scoreItem(resource, '…me/path/someFile123.txt', true, ResourceAccessor);
+		assert.ok(ellipsisRes.score);
+		assert.ok(pathRes.descriptionMatch);
+		assert.ok(pathRes.labelMatch);
+		assert.strictEqual(pathRes.labelMatch.length, 1);
+		assert.strictEqual(pathRes.labelMatch[0].start, 8);
+		assert.strictEqual(pathRes.labelMatch[0].end, 11);
+		assert.strictEqual(pathRes.descriptionMatch.length, 1);
+		assert.strictEqual(pathRes.descriptionMatch[0].start, 1);
+		assert.strictEqual(pathRes.descriptionMatch[0].end, 4);
+
 		// No Match
 		const noRes = scoreItem(resource, '987', true, ResourceAccessor);
 		assert.ok(!noRes.score);
@@ -1128,6 +1140,7 @@ suite('Fuzzy Scorer', () => {
 
 	test('prepareQuery', () => {
 		assert.strictEqual(prepareQuery(' f*a ').normalized, 'fa');
+		assert.strictEqual(prepareQuery(' f…a ').normalized, 'fa');
 		assert.strictEqual(prepareQuery('model Tester.ts').original, 'model Tester.ts');
 		assert.strictEqual(prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
 		assert.strictEqual(prepareQuery('model Tester.ts').normalized, 'modelTester.ts');

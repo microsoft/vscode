@@ -1,0 +1,49 @@
+parameters:
+  - name: VSCODE_CIBUILD
+    type: boolean
+  - name: VSCODE_QUALITY
+    type: string
+  - name: VSCODE_TEST_SUITE
+    type: string
+
+jobs:
+  - job: Windows${{ parameters.VSCODE_TEST_SUITE }}
+    displayName: ${{ parameters.VSCODE_TEST_SUITE }} Tests
+    timeoutInMinutes: 50
+    variables:
+      VSCODE_ARCH: x64
+    templateContext:
+      outputs:
+        - output: pipelineArtifact
+          targetPath: $(Build.SourcesDirectory)/.build/crashes
+          artifactName: crash-dump-windows-$(VSCODE_ARCH)-${{ lower(parameters.VSCODE_TEST_SUITE) }}-$(System.JobAttempt)
+          displayName: Publish Crash Reports
+          sbomEnabled: false
+          isProduction: false
+          condition: failed()
+        - output: pipelineArtifact
+          targetPath: $(Build.SourcesDirectory)/node_modules
+          artifactName: node-modules-windows-$(VSCODE_ARCH)-${{ lower(parameters.VSCODE_TEST_SUITE) }}-$(System.JobAttempt)
+          displayName: Publish Node Modules
+          sbomEnabled: false
+          isProduction: false
+          condition: failed()
+        - output: pipelineArtifact
+          targetPath: $(Build.SourcesDirectory)/.build/logs
+          artifactName: logs-windows-$(VSCODE_ARCH)-${{ lower(parameters.VSCODE_TEST_SUITE) }}-$(System.JobAttempt)
+          displayName: Publish Log Files
+          sbomEnabled: false
+          isProduction: false
+          condition: succeededOrFailed()
+    steps:
+      - template: ./steps/product-build-win32-compile.yml@self
+        parameters:
+          VSCODE_ARCH: x64
+          VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+          ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Electron') }}:
+            VSCODE_RUN_ELECTRON_TESTS: true
+          ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Browser') }}:
+            VSCODE_RUN_BROWSER_TESTS: true
+          ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Remote') }}:
+            VSCODE_RUN_REMOTE_TESTS: true

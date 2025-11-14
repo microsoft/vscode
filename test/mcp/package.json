@@ -1,0 +1,31 @@
+{
+  "name": "code-oss-dev-mcp",
+  "version": "0.1.0",
+  "license": "MIT",
+  "main": "./out/main.js",
+  "private": true,
+  "scripts": {
+    "compile": "cd ../automation && npm run compile && cd ../mcp && node ../../node_modules/typescript/bin/tsc",
+    "watch-automation": "cd ../automation && npm run watch",
+    "watch-mcp": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput",
+    "watch": "npm-run-all -lp watch-automation watch-mcp",
+    "start-stdio": "echo 'Starting vscode-playwright-mcp... For customization and troubleshooting, see ./test/mcp/README.md' && npm ci && npm run -s compile && node ./out/stdio.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.18.1",
+    "@playwright/mcp": "^0.0.37",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "minimist": "^1.2.8",
+    "ncp": "^2.0.0",
+    "node-fetch": "^2.6.7"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/ncp": "2.0.1",
+    "@types/node": "22.x",
+    "@types/node-fetch": "^2.5.10",
+    "npm-run-all": "^4.1.5"
+  }
+}

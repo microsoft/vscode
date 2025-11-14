@@ -29,7 +29,6 @@ import { ILanguageConfigurationService } from '../../../../../../editor/common/l
 import { IModelDeltaDecoration, ITextModel, PositionAffinity } from '../../../../../../editor/common/model.js';
 import { indentOfLine } from '../../../../../../editor/common/model/textModel.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
-import { ICoordinatesConverter } from '../../../../../../editor/common/viewModel.js';
 import { ViewModelEventsCollector } from '../../../../../../editor/common/viewModelEventDispatcher.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -48,6 +47,7 @@ import { CellEditorOptions } from '../../view/cellParts/cellEditorOptions.js';
 import { NotebookFindContrib } from '../find/notebookFindWidget.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
+import { ICoordinatesConverter } from '../../../../../../editor/common/coordinatesConverter.js';
 
 const NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID = 'notebook.addFindMatchToSelection';
 const NOTEBOOK_SELECT_ALL_FIND_MATCHES_ID = 'notebook.selectAllFindMatches';

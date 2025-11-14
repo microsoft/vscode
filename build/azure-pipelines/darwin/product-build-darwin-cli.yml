@@ -1,0 +1,83 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+  - name: VSCODE_CHECK_ONLY
+    type: boolean
+    default: false
+  - name: VSCODE_QUALITY
+    type: string
+
+jobs:
+- job: macOSCLI_${{ parameters.VSCODE_ARCH }}
+  displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }})
+  timeoutInMinutes: 60
+  pool:
+    name: AcesShared
+    os: macOS
+  variables:
+    # todo@connor4312 to diagnose build flakes
+    MSRUSTUP_LOG: debug
+    VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+  templateContext:
+    outputs:
+      - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+        - output: pipelineArtifact
+          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
+          artifactName: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+          displayName: Publish unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli artifact
+          sbomEnabled: false
+          isProduction: false
+  steps:
+    - template: ../common/checkout.yml@self
+
+    - task: NodeTool@0
+      inputs:
+        versionSource: fromFile
+        versionFilePath: .nvmrc
+
+    - template: ../cli/cli-apply-patches.yml@self
+
+    - task: Npm@1
+      displayName: Download openssl prebuilt
+      inputs:
+        command: custom
+        customCommand: pack @vscode-internal/openssl-prebuilt@0.0.11
+        customRegistry: useFeed
+        customFeed: "Monaco/openssl-prebuilt"
+        workingDir: $(Build.ArtifactStagingDirectory)
+
+    - script: |
+        set -e
+        mkdir $(Build.ArtifactStagingDirectory)/openssl
+        tar -xvzf $(Build.ArtifactStagingDirectory)/vscode-internal-openssl-prebuilt-0.0.11.tgz --strip-components=1 --directory=$(Build.ArtifactStagingDirectory)/openssl
+      displayName: Extract openssl prebuilt
+
+    - template: ../cli/install-rust-posix.yml@self
+      parameters:
+        targets:
+          - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+            - x86_64-apple-darwin
+          - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+            - aarch64-apple-darwin
+
+    - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+      - template: ../cli/cli-compile.yml@self
+        parameters:
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+          VSCODE_CLI_TARGET: x86_64-apple-darwin
+          VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_darwin_x64_cli
+          VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+          VSCODE_CLI_ENV:
+            OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-osx/lib
+            OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/x64-osx/include
+
+    - ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
+      - template: ../cli/cli-compile.yml@self
+        parameters:
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+          VSCODE_CLI_TARGET: aarch64-apple-darwin
+          VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_darwin_arm64_cli
+          VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
+          VSCODE_CLI_ENV:
+            OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-osx/lib
+            OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-osx/include

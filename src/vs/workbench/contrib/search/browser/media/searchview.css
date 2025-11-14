@@ -172,8 +172,8 @@
 .search-view .message.ai-keywords {
 	display: -webkit-box;
 	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 2;
 	line-clamp: 2;
+	-webkit-line-clamp: 2;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: normal;
@@ -235,8 +235,7 @@
 
 .search-view .textsearchresult .monaco-icon-label .codicon {
 	position: relative;
-	font-size: 12px;
-	top: 1px;
+	top: 3px;
 	padding-right: 3px;
 }
 

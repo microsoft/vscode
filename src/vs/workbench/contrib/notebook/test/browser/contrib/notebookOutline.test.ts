@@ -69,7 +69,7 @@ suite('Notebook Outline', function () {
 			};
 
 
-			const testOutlineEntryFactory = instantiationService.createInstance(NotebookOutlineEntryFactory) as any;
+			const testOutlineEntryFactory = instantiationService.createInstance(NotebookOutlineEntryFactory) as NotebookOutlineEntryFactory;
 			testOutlineEntryFactory.cacheSymbols = async () => { symbolsCached = true; };
 			instantiationService.stub(INotebookOutlineEntryFactory, testOutlineEntryFactory);
 

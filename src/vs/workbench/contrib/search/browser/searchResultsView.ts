@@ -141,20 +141,19 @@ export class TextSearchResultRenderer extends Disposable implements ICompressibl
 			SearchContext.FileFocusKey.bindTo(templateData.contextKeyService).set(false);
 			SearchContext.FolderFocusKey.bindTo(templateData.contextKeyService).set(false);
 		} else {
-			let aiName = 'Copilot';
 			try {
-				aiName = (await node.element.parent().searchModel.getAITextResultProviderName()) || 'Copilot';
+				await node.element.parent().searchModel.getAITextResultProviderName();
 			} catch {
 				// ignore
 			}
 
 			const localizedLabel = nls.localize({
 				key: 'searchFolderMatch.aiText.label',
-				comment: ['This is displayed before the AI text search results, where {0} will be in the place of the AI name (ie: Copilot)']
-			}, '{0} Results', aiName);
+				comment: ['This is displayed before the AI text search results, now always "AI-assisted results".']
+			}, 'AI-assisted results');
 
 			// todo: make icon extension-contributed.
-			templateData.label.setLabel(`$(${Codicon.copilot.id}) ${localizedLabel}`);
+			templateData.label.setLabel(`$(${Codicon.searchSparkle.id}) ${localizedLabel}`);
 
 			SearchContext.AIResultsTitle.bindTo(templateData.contextKeyService).set(true);
 			SearchContext.MatchFocusKey.bindTo(templateData.contextKeyService).set(false);
@@ -367,6 +366,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 
 		// when hidesExplorerArrows: true, then the file nodes should still have a twistie because it would otherwise
 		// be hard to tell whether the node is collapsed or expanded.
+		// eslint-disable-next-line no-restricted-syntax
 		const twistieContainer = templateData.el.parentElement?.parentElement?.querySelector('.monaco-tl-twistie');
 		twistieContainer?.classList.add('force-twistie');
 	}

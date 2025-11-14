@@ -589,20 +589,20 @@ suite('TextAreaInput', () => {
 
 		const actualOutgoingEvents = await simulateInteraction(recorded);
 		assert.deepStrictEqual(actualOutgoingEvents, ([
-			{ type: "compositionStart", data: "" },
-			{ type: "type", text: "'", replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
-			{ type: "compositionUpdate", data: "'" },
-			{ type: "type", text: "'", replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
-			{ type: "compositionUpdate", data: "'" },
-			{ type: "type", text: "'", replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
-			{ type: "compositionEnd" },
-			{ type: "compositionStart", data: "" },
-			{ type: "type", text: "'", replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
-			{ type: "compositionUpdate", data: "'" },
-			{ type: "type", text: "';", replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
-			{ type: "compositionUpdate", data: "';" },
-			{ type: "type", text: "';", replacePrevCharCnt: 2, replaceNextCharCnt: 0, positionDelta: 0 },
-			{ type: "compositionEnd" }
+			{ type: 'compositionStart', data: '' },
+			{ type: 'type', text: `'`, replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: `'` },
+			{ type: 'type', text: `'`, replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: `'` },
+			{ type: 'type', text: `'`, replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionEnd' },
+			{ type: 'compositionStart', data: '' },
+			{ type: 'type', text: `'`, replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: `'` },
+			{ type: 'type', text: `';`, replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionUpdate', data: `';` },
+			{ type: 'type', text: `';`, replacePrevCharCnt: 2, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: 'compositionEnd' }
 		]));
 
 		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);

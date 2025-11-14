@@ -7,14 +7,14 @@
 			"trusted-types",
 			"wicg-file-system-access"
 		],
-		"paths": {},
-		"module": "amd",
-		"moduleResolution": "node",
+		"module": "nodenext",
+		"moduleResolution": "nodenext",
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "ES2022",
 		"sourceMap": false,
-		"declaration": true
+		"declaration": true,
+		"skipLibCheck": true
 	},
 	"include": [
 		"typings/css.d.ts",

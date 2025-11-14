@@ -5,14 +5,14 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { isFalsyOrWhitespace } from '../../../../base/common/strings.js';
+import { equalsIgnoreCase, isFalsyOrWhitespace } from '../../../../base/common/strings.js';
 import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService } from '../common/authentication.js';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationGetSessionsOptions, IAuthenticationProvider, IAuthenticationProviderHostDelegate, IAuthenticationService, IAuthenticationWwwAuthenticateRequest, isAuthenticationWwwAuthenticateRequest } from '../common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { ActivationKind, IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -20,7 +20,7 @@ import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
 import { match } from '../../../../base/common/glob.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../../base/common/oauth.js';
 import { raceCancellation, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 
@@ -81,10 +81,10 @@ const authenticationExtPoint = ExtensionsRegistry.registerExtensionPoint<Authent
 		type: 'array',
 		items: authenticationDefinitionSchema
 	},
-	activationEventsGenerator: (authenticationProviders, result) => {
+	activationEventsGenerator: function* (authenticationProviders) {
 		for (const authenticationProvider of authenticationProviders) {
 			if (authenticationProvider.id) {
-				result.push(`onAuthenticationRequest:${authenticationProvider.id}`);
+				yield `onAuthenticationRequest:${authenticationProvider.id}`;
 			}
 		}
 	}
@@ -136,7 +136,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}));
 
 		this._registerEnvContributedAuthenticationProviders();
-		this._registerAuthenticationExtentionPointHandler();
+		this._registerAuthenticationExtensionPointHandler();
 	}
 
 	private _declaredProviders: AuthenticationProviderInformation[] = [];
@@ -154,7 +154,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	private _registerAuthenticationExtentionPointHandler(): void {
+	private _registerAuthenticationExtensionPointHandler(): void {
 		this._register(authenticationExtPoint.setHandler((_extensions, { added, removed }) => {
 			this._logService.debug(`Found authentication providers. added: ${added.length}, removed: ${removed.length}`);
 			added.forEach(point => {
@@ -276,7 +276,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		return accounts;
 	}
 
-	async getSessions(id: string, scopes?: string[], options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+	async getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
 		if (this._disposedSource.token.isCancellationRequested) {
 			return [];
 		}
@@ -284,27 +284,45 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 		if (authProvider) {
 			// Check if the authorization server is in the list of supported authorization servers
-			if (options?.authorizationServer) {
-				const authServerStr = options.authorizationServer.toString(true);
+			const server = options?.authorizationServer;
+			if (server) {
 				// TODO: something is off here...
-				if (!authProvider.authorizationServers?.some(i => i.toString(true) === authServerStr || match(i.toString(true), authServerStr))) {
-					throw new Error(`The authorization server '${authServerStr}' is not supported by the authentication provider '${id}'.`);
+				if (!this.matchesProvider(authProvider, server)) {
+					throw new Error(`The authentication provider '${id}' does not support the authorization server '${server.toString(true)}'.`);
 				}
 			}
-			return await authProvider.getSessions(scopes, { ...options });
+			if (isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)) {
+				if (!authProvider.getSessionsFromChallenges) {
+					throw new Error(`The authentication provider '${id}' does not support getting sessions from challenges.`);
+				}
+				return await authProvider.getSessionsFromChallenges(
+					{ challenges: parseWWWAuthenticateHeader(scopeListOrRequest.wwwAuthenticate), fallbackScopes: scopeListOrRequest.fallbackScopes },
+					{ ...options }
+				);
+			}
+			return await authProvider.getSessions(scopeListOrRequest ? [...scopeListOrRequest] : undefined, { ...options });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 
-	async createSession(id: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
+	async createSession(id: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
 		if (this._disposedSource.token.isCancellationRequested) {
 			throw new Error('Authentication service is disposed.');
 		}
 
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);
 		if (authProvider) {
-			return await authProvider.createSession(scopes, { ...options });
+			if (isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)) {
+				if (!authProvider.createSessionFromChallenges) {
+					throw new Error(`The authentication provider '${id}' does not support creating sessions from challenges.`);
+				}
+				return await authProvider.createSessionFromChallenges(
+					{ challenges: parseWWWAuthenticateHeader(scopeListOrRequest.wwwAuthenticate), fallbackScopes: scopeListOrRequest.fallbackScopes },
+					{ ...options }
+				);
+			}
+			return await authProvider.createSession([...scopeListOrRequest], { ...options });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
@@ -325,7 +343,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 	async getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined> {
 		for (const provider of this._authenticationProviders.values()) {
-			if (provider.authorizationServers?.some(i => i.toString(true) === authorizationServer.toString(true) || match(i.toString(true), authorizationServer.toString(true)))) {
+			if (this.matchesProvider(provider, authorizationServer)) {
 				return provider.id;
 			}
 		}
@@ -334,12 +352,13 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const providers = this._declaredProviders
 			// Only consider providers that are not already registered since we already checked them
 			.filter(p => !this._authenticationProviders.has(p.id))
-			.filter(p => !!p.authorizationServerGlobs?.some(i => match(i, authServerStr)));
+			.filter(p => !!p.authorizationServerGlobs?.some(i => match(i, authServerStr, { ignoreCase: true })));
+
 		// TODO:@TylerLeonhardt fan out?
 		for (const provider of providers) {
 			const activeProvider = await this.tryActivateProvider(provider.id, true);
 			// Check the resolved authorization servers
-			if (activeProvider.authorizationServers?.some(i => match(i.toString(true), authServerStr))) {
+			if (this.matchesProvider(activeProvider, authorizationServer)) {
 				return activeProvider.id;
 			}
 		}
@@ -375,6 +394,19 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				}
 			}
 		};
+	}
+
+	private matchesProvider(provider: IAuthenticationProvider, authorizationServer: URI): boolean {
+		if (provider.authorizationServers) {
+			const authServerStr = authorizationServer.toString(true);
+			for (const server of provider.authorizationServers) {
+				const str = server.toString(true);
+				if (equalsIgnoreCase(str, authServerStr) || match(str, authServerStr, { ignoreCase: true })) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	private async tryActivateProvider(providerId: string, activateImmediate: boolean): Promise<IAuthenticationProvider> {

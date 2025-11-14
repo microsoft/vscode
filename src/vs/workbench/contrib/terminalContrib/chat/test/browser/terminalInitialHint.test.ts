@@ -28,6 +28,7 @@ suite('Terminal Initial Hint Addon', () => {
 		id: 'termminal',
 		name: 'terminal',
 		extensionId: new ExtensionIdentifier('test'),
+		extensionVersion: undefined,
 		extensionPublisherId: 'test',
 		extensionDisplayName: 'test',
 		metadata: {},
@@ -41,6 +42,7 @@ suite('Terminal Initial Hint Addon', () => {
 		id: 'editor',
 		name: 'editor',
 		extensionId: new ExtensionIdentifier('test-editor'),
+		extensionVersion: undefined,
 		extensionPublisherId: 'test-editor',
 		extensionDisplayName: 'test-editor',
 		metadata: {},
@@ -92,16 +94,6 @@ suite('Terminal Initial Hint Addon', () => {
 			strictEqual(eventCount, 1);
 			onDidChangeAgentsEmitter.fire(agent);
 			strictEqual(eventCount, 1);
-		});
-	});
-	suite('Input', () => {
-		test('hint is not shown when there has been input', () => {
-			onDidChangeAgentsEmitter.fire(agent);
-			xterm.writeln('data');
-			setTimeout(() => {
-				xterm.focus();
-				strictEqual(eventCount, 0);
-			}, 50);
 		});
 	});
 });

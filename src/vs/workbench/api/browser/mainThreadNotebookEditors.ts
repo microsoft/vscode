@@ -124,7 +124,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		if (!editor) {
 			return;
 		}
-		const notebookEditor = editor as INotebookEditor;
+		const notebookEditor = editor;
 		if (!notebookEditor.hasModel()) {
 			return;
 		}

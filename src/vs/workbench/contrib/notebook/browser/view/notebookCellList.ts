@@ -114,7 +114,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private readonly _onDidChangeVisibleRanges = this._localDisposableStore.add(new Emitter<void>());
 
-	onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
+	readonly onDidChangeVisibleRanges: Event<void> = this._onDidChangeVisibleRanges.event;
 	private _visibleRanges: ICellRange[] = [];
 
 	get visibleRanges() {

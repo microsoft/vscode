@@ -6,7 +6,8 @@
 import { DEFAULT_FONT_FAMILY } from '../../../../base/browser/fonts.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions, EditorFontLigatures } from '../../../../editor/common/config/editorOptions.js';
+import { IEditorOptions, EditorFontLigatures } from '../../../../editor/common/config/editorOptions.js';
+import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/fontInfo.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import * as colorRegistry from '../../../../platform/theme/common/colorRegistry.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
@@ -74,9 +75,9 @@ export class WebviewThemeDataProvider extends Disposable {
 				'vscode-editor-font-family': editorFontFamily,
 				'vscode-editor-font-weight': editorFontWeight,
 				'vscode-editor-font-size': editorFontSize + 'px',
-				'vscode-editor-font-feature-settings': editorFontLigatures,
 				'text-link-decoration': linkUnderlines ? 'underline' : 'none',
-				...exportedColors
+				...exportedColors,
+				'vscode-editor-font-feature-settings': editorFontLigatures,
 			};
 
 			const activeTheme = ApiThemeClassName.fromTheme(theme);

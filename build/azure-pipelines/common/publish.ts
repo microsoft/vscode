@@ -315,7 +315,7 @@ function getCertificatesFromPFX(pfx: string): string[] {
 class ESRPReleaseService {
 
 	static async create(
-		log: (...args: any[]) => void,
+		log: (...args: unknown[]) => void,
 		tenantId: string,
 		clientId: string,
 		authCertificatePfx: string,
@@ -350,7 +350,7 @@ class ESRPReleaseService {
 	private static API_URL = 'https://api.esrp.microsoft.com/api/v3/releaseservices/clients/';
 
 	private constructor(
-		private readonly log: (...args: any[]) => void,
+		private readonly log: (...args: unknown[]) => void,
 		private readonly clientId: string,
 		private readonly accessToken: string,
 		private readonly requestSigningCertificates: string[],
@@ -512,17 +512,21 @@ class ESRPReleaseService {
 	}
 
 	private async generateJwsToken(message: ReleaseRequestMessage): Promise<string> {
+		// Create header with properly typed properties, then override x5c with the non-standard string format
+		const header: jws.Header = {
+			alg: 'RS256',
+			crit: ['exp', 'x5t'],
+			// Release service uses ticks, not seconds :roll_eyes: (https://stackoverflow.com/a/7968483)
+			exp: ((Date.now() + (6 * 60 * 1000)) * 10000) + 621355968000000000,
+			// Release service uses hex format, not base64url :roll_eyes:
+			x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
+		};
+
+		// The Release service expects x5c as a '.' separated string, not the standard array format
+		(header as Record<string, unknown>)['x5c'] = this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.');
+
 		return jws.sign({
-			header: {
-				alg: 'RS256',
-				crit: ['exp', 'x5t'],
-				// Release service uses ticks, not seconds :roll_eyes: (https://stackoverflow.com/a/7968483)
-				exp: ((Date.now() + (6 * 60 * 1000)) * 10000) + 621355968000000000,
-				// Release service uses hex format, not base64url :roll_eyes:
-				x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
-				// Release service uses a '.' separated string, not an array of strings :roll_eyes:
-				x5c: this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.') as any,
-			},
+			header,
 			payload: message,
 			privateKey: this.requestSigningKey,
 		});
@@ -844,7 +848,7 @@ async function processArtifact(
 	artifact: Artifact,
 	filePath: string
 ) {
-	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
+	const log = (...args: unknown[]) => console.log(`[${artifact.name}]`, ...args);
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
 	if (!match) {

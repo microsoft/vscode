@@ -8,6 +8,7 @@ import { TerminalAccessibilityCommandId, defaultTerminalAccessibilityCommandsToS
 import { terminalAccessibilityConfiguration } from '../terminalContrib/accessibility/common/terminalAccessibilityConfiguration.js';
 import { terminalAutoRepliesConfiguration } from '../terminalContrib/autoReplies/common/terminalAutoRepliesConfiguration.js';
 import { terminalInitialHintConfiguration } from '../terminalContrib/chat/common/terminalInitialHintConfiguration.js';
+import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../terminalContrib/chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
 import { terminalCommandGuideConfiguration } from '../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js';
 import { TerminalDeveloperCommandId } from '../terminalContrib/developer/common/terminal.developer.js';
 import { defaultTerminalFindCommandToSkipShell } from '../terminalContrib/find/common/terminal.find.js';
@@ -32,6 +33,9 @@ export const enum TerminalContribCommandId {
 export const enum TerminalContribSettingId {
 	StickyScrollEnabled = TerminalStickyScrollSettingId.Enabled,
 	SuggestEnabled = TerminalSuggestSettingId.Enabled,
+	AutoApprove = TerminalChatAgentToolsSettingId.AutoApprove,
+	EnableAutoApprove = TerminalChatAgentToolsSettingId.EnableAutoApprove,
+	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
 }
 
 // Export configuration schemes from terminalContrib - this is an exception to the eslint rule since
@@ -39,6 +43,7 @@ export const enum TerminalContribSettingId {
 export const terminalContribConfiguration: IConfigurationNode['properties'] = {
 	...terminalAccessibilityConfiguration,
 	...terminalAutoRepliesConfiguration,
+	...terminalChatAgentToolsConfiguration,
 	...terminalInitialHintConfiguration,
 	...terminalCommandGuideConfiguration,
 	...terminalHistoryConfiguration,

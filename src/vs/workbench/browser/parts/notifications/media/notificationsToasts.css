@@ -40,8 +40,8 @@
 	border-radius: 4px;
 }
 
-.monaco-workbench.reduce-motion > .notifications-toasts .notification-toast-container > .notification-toast {
-	transition:	transform 0ms ease-out, opacity 0ms ease-out;
+.monaco-workbench.monaco-reduce-motion > .notifications-toasts .notification-toast-container > .notification-toast {
+	transition: transform 0ms ease-out, opacity 0ms ease-out;
 }
 
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in {
@@ -52,7 +52,7 @@
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in-done {
 	opacity: 1;
 	transform: none;
-	transition:	none;
+	transition: none;
 }
 
 /* Icons */

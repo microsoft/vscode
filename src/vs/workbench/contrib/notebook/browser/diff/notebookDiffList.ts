@@ -26,7 +26,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { CodiconActionViewItem } from '../view/cellParts/cellActionView.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
-import { BareFontInfo } from '../../../../../editor/common/config/fontInfo.js';
+import { createBareFontInfoFromRawSettings } from '../../../../../editor/common/config/fontInfoFromSettings.js';
 import { PixelRatio } from '../../../../../base/browser/pixelRatio.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { fixedDiffEditorOptions, fixedEditorOptions } from './diffCellEditorOptions.js';
@@ -44,7 +44,7 @@ export class NotebookCellTextDiffListDelegate implements IListVirtualDelegate<ID
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
-		this.lineHeight = BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value).lineHeight;
+		this.lineHeight = createBareFontInfoFromRawSettings(editorOptions, PixelRatio.getInstance(targetWindow).value).lineHeight;
 	}
 
 	getHeight(element: IDiffElementViewModelBase): number {

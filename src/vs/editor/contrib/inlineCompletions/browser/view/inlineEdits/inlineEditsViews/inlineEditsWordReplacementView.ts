@@ -24,6 +24,8 @@ import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterfa
 import { getModifiedBorderColor, getOriginalBorderColor, modifiedChangedTextOverlayColor, originalChangedTextOverlayColor } from '../theme.js';
 import { getEditorValidOverlayRect, mapOutFalsy, rectToProps } from '../utils/utils.js';
 
+const BORDER_WIDTH = 1;
+
 export class InlineEditsWordReplacementView extends Disposable implements IInlineEditsView {
 
 	public static MAX_LENGTH = 100;
@@ -40,6 +42,8 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 	readonly isHovered;
 
+	readonly minEditorScrollHeight;
+
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
 		/** Must be single-line in both sides */
@@ -55,7 +59,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		this._line = document.createElement('div');
 		this._hoverableElement = observableValue<ObserverNodeWithElement | null>(this, null);
 		this.isHovered = this._hoverableElement.map((e, reader) => e?.didMouseMoveDuringHover.read(reader) ?? false);
-		this._renderTextEffect = derived(_reader => {
+		this._renderTextEffect = derived(this, _reader => {
 			const tm = this._editor.model.get()!;
 			const origLine = tm.getLineContent(this._edit.range.startLineNumber);
 
@@ -104,16 +108,21 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 				lineHeight,
 			};
 		});
+		this.minEditorScrollHeight = derived(this, reader => {
+			const layout = mapOutFalsy(this._layout).read(reader);
+			if (!layout) {
+				return 0;
+			}
+			return layout.read(reader).modifiedLine.bottom + BORDER_WIDTH + this._editor.editor.getScrollTop();
+		});
 		this._root = n.div({
 			class: 'word-replacement',
 		}, [
-			derived(reader => {
+			derived(this, reader => {
 				const layout = mapOutFalsy(this._layout).read(reader);
 				if (!layout) {
 					return [];
 				}
-
-				const borderWidth = 1;
 
 				const originalBorderColor = getOriginalBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
 				const modifiedBorderColor = getModifiedBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
@@ -130,7 +139,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 						n.div({
 							style: {
 								position: 'absolute',
-								...rectToProps(reader => layout.read(reader).lowerBackground.withMargin(borderWidth, 2 * borderWidth, borderWidth, 0)),
+								...rectToProps(reader => layout.read(reader).lowerBackground.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH, BORDER_WIDTH, 0)),
 								background: asCssVariable(editorBackground),
 								//boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
 								cursor: 'pointer',
@@ -147,7 +156,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 						n.div({
 							style: {
 								position: 'absolute',
-								...rectToProps(reader => layout.read(reader).modifiedLine.withMargin(1, 2)),
+								...rectToProps(reader => layout.read(reader).modifiedLine.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH)),
 								fontFamily: this._editor.getOption(EditorOption.fontFamily),
 								fontSize: this._editor.getOption(EditorOption.fontSize),
 								fontWeight: this._editor.getOption(EditorOption.fontWeight),
@@ -155,7 +164,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								pointerEvents: 'none',
 								boxSizing: 'border-box',
 								borderRadius: '4px',
-								border: `${borderWidth}px solid ${modifiedBorderColor}`,
+								border: `${BORDER_WIDTH}px solid ${modifiedBorderColor}`,
 
 								background: asCssVariable(modifiedChangedTextOverlayColor),
 								display: 'flex',
@@ -168,10 +177,10 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 						n.div({
 							style: {
 								position: 'absolute',
-								...rectToProps(reader => layout.read(reader).originalLine.withMargin(1)),
+								...rectToProps(reader => layout.read(reader).originalLine.withMargin(BORDER_WIDTH)),
 								boxSizing: 'border-box',
 								borderRadius: '4px',
-								border: `${borderWidth}px solid ${originalBorderColor}`,
+								border: `${BORDER_WIDTH}px solid ${originalBorderColor}`,
 								background: asCssVariable(originalChangedTextOverlayColor),
 								pointerEvents: 'none',
 							}

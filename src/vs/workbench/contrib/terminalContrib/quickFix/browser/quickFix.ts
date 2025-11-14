@@ -14,9 +14,9 @@ import { ITerminalCommand } from '../../../../../platform/terminal/common/capabi
 
 export const ITerminalQuickFixService = createDecorator<ITerminalQuickFixService>('terminalQuickFixService');
 export interface ITerminalQuickFixService {
-	onDidRegisterProvider: Event<ITerminalQuickFixProviderSelector>;
-	onDidRegisterCommandSelector: Event<ITerminalCommandSelector>;
-	onDidUnregisterProvider: Event<string>;
+	readonly onDidRegisterProvider: Event<ITerminalQuickFixProviderSelector>;
+	readonly onDidRegisterCommandSelector: Event<ITerminalCommandSelector>;
+	readonly onDidUnregisterProvider: Event<string>;
 	readonly _serviceBrand: undefined;
 	readonly extensionQuickFixes: Promise<Array<ITerminalCommandSelector>>;
 	providers: Map<string, ITerminalQuickFixProvider>;

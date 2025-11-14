@@ -1,6 +1,4 @@
 {
-  requesterUsername: "test",
-  requesterAvatarIconUri: undefined,
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
@@ -27,12 +25,13 @@
                 value: "nullExtensionDescription",
                 _lower: "nullextensiondescription"
               },
+              extensionVersion: undefined,
               extensionPublisherId: "",
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
               modes: [ "ask" ],
-              metadata: { requester: { name: "test" } },
+              metadata: {  },
               slashCommands: [  ],
               disambiguation: [  ]
             },
@@ -60,6 +59,7 @@
       responseId: undefined,
       shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
+      responseMarkdownInfo: undefined,
       followups: [
         {
           kind: "reply",
@@ -78,12 +78,13 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         extensionPublisherId: "",
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
         modes: [ "ask" ],
-        metadata: { requester: { name: "test" } },
+        metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ]
       },
@@ -138,6 +139,7 @@
       responseId: undefined,
       shouldBeRemovedOnSend: undefined,
       result: {  },
+      responseMarkdownInfo: undefined,
       followups: [  ],
       isCanceled: false,
       vote: undefined,
@@ -149,12 +151,13 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         extensionPublisherId: "",
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
         modes: [ "ask" ],
-        metadata: { requester: { name: "test" } },
+        metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ],
         isDefault: true

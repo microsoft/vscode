@@ -25,5 +25,5 @@ export interface DecorationProvider {
 	 */
 	getAllDecorations(ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[];
 
-	onDidChange: Event<void>;
+	readonly onDidChange: Event<void>;
 }

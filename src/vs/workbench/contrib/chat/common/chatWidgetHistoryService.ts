@@ -43,7 +43,7 @@ export interface IChatWidgetHistoryService {
 }
 
 interface IChatHistory {
-	history: { [providerId: string]: IChatHistoryEntry[] };
+	history?: { [providerId: string]: IChatHistoryEntry[] };
 }
 
 export const ChatInputHistoryMaxEntries = 40;
@@ -51,7 +51,7 @@ export const ChatInputHistoryMaxEntries = 40;
 export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 	_serviceBrand: undefined;
 
-	private memento: Memento;
+	private memento: Memento<IChatHistory>;
 	private viewState: IChatHistory;
 
 	private readonly _onDidClearHistory = new Emitter<void>();
@@ -60,8 +60,8 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 	constructor(
 		@IStorageService storageService: IStorageService
 	) {
-		this.memento = new Memento('interactive-session', storageService);
-		const loadedState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IChatHistory;
+		this.memento = new Memento<IChatHistory>('interactive-session', storageService);
+		const loadedState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		for (const provider in loadedState.history) {
 			// Migration from old format
 			loadedState.history[provider] = loadedState.history[provider].map(entry => typeof entry === 'string' ? { text: entry } : entry);
@@ -77,7 +77,7 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 
 	private getKey(location: ChatAgentLocation): string {
 		// Preserve history for panel by continuing to use the same old provider id. Use the location as a key for other chat locations.
-		return location === ChatAgentLocation.Panel ? CHAT_PROVIDER_ID : location;
+		return location === ChatAgentLocation.Chat ? CHAT_PROVIDER_ID : location;
 	}
 
 	saveHistory(location: ChatAgentLocation, history: IChatHistoryEntry[]): void {

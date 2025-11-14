@@ -17,7 +17,7 @@ import { ThrottledDelayer } from '../../../base/common/async.js';
 import { IAccessibilityService } from '../../../platform/accessibility/common/accessibility.js';
 import { localize } from '../../../nls.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
-import { TextModelEditReason } from '../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource } from '../../../editor/common/textModelEditSource.js';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -215,7 +215,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	updateTextEditorModel(newValue?: ITextBufferFactory, preferredLanguageId?: string, reason?: TextModelEditReason): void {
+	updateTextEditorModel(newValue?: ITextBufferFactory, preferredLanguageId?: string, reason?: TextModelEditSource): void {
 		if (!this.isResolved()) {
 			return;
 		}

@@ -5,120 +5,75 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { timeout } from '../../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
-import { assertDefined } from '../../../../../../../base/common/types.js';
 import { URI } from '../../../../../../../base/common/uri.js';
-import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { ILanguageService } from '../../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
-import { createTextModel } from '../../../../../../../editor/test/common/testTextModel.js';
+import { ModelService } from '../../../../../../../editor/common/services/modelService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { IWorkspacesService } from '../../../../../../../platform/workspaces/common/workspaces.js';
-import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
-import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
-import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
-import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
-import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
-import { MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
-import { ComputeAutomaticInstructions } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
-import { ResourceSet } from '../../../../../../../base/common/map.js';
+import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { testWorkspace } from '../../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
-
-/**
- * Helper class to assert the properties of a link.
- */
-class ExpectedLink {
-	constructor(
-		public readonly uri: URI,
-		public readonly fullRange: Range,
-		public readonly linkRange: Range,
-	) { }
-
-	/**
-	 * Assert a provided link has the same properties as this object.
-	 */
-	public assertEqual(link: IPromptFileReference) {
-		assert.strictEqual(
-			link.type,
-			'file',
-			'Link must have correct type.',
-		);
-
-		assert.strictEqual(
-			link.uri.toString(),
-			this.uri.toString(),
-			'Link must have correct URI.',
-		);
-
-		assert(
-			this.fullRange.equalsRange(link.range),
-			`Full range must be '${this.fullRange}', got '${link.range}'.`,
-		);
-
-		assertDefined(
-			link.linkRange,
-			'Link must have a link range.',
-		);
-
-		assert(
-			this.linkRange.equalsRange(link.linkRange),
-			`Link range must be '${this.linkRange}', got '${link.linkRange}'.`,
-		);
-	}
-}
-
-/**
- * Asserts that provided links are equal to the expected links.
- * @param links Links to assert.
- * @param expectedLinks Expected links to compare against.
- */
-function assertLinks(
-	links: readonly IPromptFileReference[],
-	expectedLinks: readonly ExpectedLink[],
-) {
-	for (let i = 0; i < links.length; i++) {
-		try {
-			expectedLinks[i].assertEqual(links[i]);
-		} catch (error) {
-			throw new Error(`link#${i}: ${error}`);
-		}
-	}
-
-	assert.strictEqual(
-		links.length,
-		expectedLinks.length,
-		`Links count must be correct.`,
-	);
-}
+import { IFilesConfigurationService } from '../../../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
+import { TestContextService, TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
+import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/chatVariableEntries.js';
+import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
+import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
+import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
+import { MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let service: IPromptsService;
 	let instaService: TestInstantiationService;
+	let workspaceContextService: TestContextService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
 		instaService.stub(ILogService, new NullLogService());
-		instaService.stub(IWorkspacesService, {});
-		instaService.stub(IConfigurationService, new TestConfigurationService());
+
+		workspaceContextService = new TestContextService();
+		instaService.stub(IWorkspaceContextService, workspaceContextService);
+
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_MD, true);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_NESTED_AGENT_MD, false);
+		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true });
+		testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, { [PROMPT_DEFAULT_SOURCE_FOLDER]: true });
+		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true });
+
+		instaService.stub(IConfigurationService, testConfigService);
 		instaService.stub(IWorkbenchEnvironmentService, {});
+		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instaService.stub(ITelemetryService, NullTelemetryService);
+		instaService.stub(IStorageService, InMemoryStorageService);
 
 		const fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
-		instaService.stub(IModelService, { getModel() { return null; } });
+
+		const modelService = disposables.add(instaService.createInstance(ModelService));
+		instaService.stub(IModelService, modelService);
 		instaService.stub(ILanguageService, {
 			guessLanguageIdByFilepathOrFirstLine(uri: URI) {
 				if (uri.path.endsWith(PROMPT_FILE_EXTENSION)) {
@@ -137,419 +92,10 @@ suite('PromptsService', () => {
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
+		instaService.stub(IFilesConfigurationService, { updateReadonly: () => Promise.resolve() });
+
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
-	});
-
-	suite('getParserFor', () => {
-		test('provides cached parser instance', async () => {
-			// both languages must yield the same result
-			const languageId = (randomBoolean())
-				? PROMPT_LANGUAGE_ID
-				: INSTRUCTIONS_LANGUAGE_ID;
-
-			/**
-			 * Create a text model, get a parser for it, and perform basic assertions.
-			 */
-
-			const model1 = disposables.add(createTextModel(
-				'test1\n\t#file:./file.md\n\n\n   [bin file](/root/tmp.bin)\t\n',
-				languageId,
-				undefined,
-				URI.file('/Users/vscode/repos/test/file1.txt'),
-			));
-
-			const parser1 = service.getSyntaxParserFor(model1);
-			assert.strictEqual(
-				parser1.uri.toString(),
-				model1.uri.toString(),
-				'Must create parser1 with the correct URI.',
-			);
-
-			assert(
-				!parser1.isDisposed,
-				'Parser1 must not be disposed.',
-			);
-
-			assert(
-				parser1 instanceof TextModelPromptParser,
-				'Parser1 must be an instance of TextModelPromptParser.',
-			);
-
-			/**
-			 * Validate that all links of the model are correctly parsed.
-			 */
-
-			await parser1.settled();
-			assertLinks(
-				parser1.references,
-				[
-					new ExpectedLink(
-						URI.file('/Users/vscode/repos/test/file.md'),
-						new Range(2, 2, 2, 2 + 15),
-						new Range(2, 8, 2, 8 + 9),
-					),
-					new ExpectedLink(
-						URI.file('/root/tmp.bin'),
-						new Range(5, 4, 5, 4 + 25),
-						new Range(5, 15, 5, 15 + 13),
-					),
-				],
-			);
-
-			// wait for some random amount of time
-			await timeout(5);
-
-			/**
-			 * Next, get parser for the same exact model and
-			 * validate that the same cached object is returned.
-			 */
-
-			// get the same parser again, the call must return the same object
-			const parser1_1 = service.getSyntaxParserFor(model1);
-			assert.strictEqual(
-				parser1,
-				parser1_1,
-				'Must return the same parser object.',
-			);
-
-			assert.strictEqual(
-				parser1_1.uri.toString(),
-				model1.uri.toString(),
-				'Must create parser1_1 with the correct URI.',
-			);
-
-			/**
-			 * Get parser for a different model and perform basic assertions.
-			 */
-
-			const model2 = disposables.add(createTextModel(
-				'some text #file:/absolute/path.txt  \t\ntest-text2',
-				languageId,
-				undefined,
-				URI.file('/Users/vscode/repos/test/some-folder/file.md'),
-			));
-
-			// wait for some random amount of time
-			await timeout(5);
-
-			const parser2 = service.getSyntaxParserFor(model2);
-
-			assert.strictEqual(
-				parser2.uri.toString(),
-				model2.uri.toString(),
-				'Must create parser2 with the correct URI.',
-			);
-
-			assert(
-				!parser2.isDisposed,
-				'Parser2 must not be disposed.',
-			);
-
-			assert(
-				parser2 instanceof TextModelPromptParser,
-				'Parser2 must be an instance of TextModelPromptParser.',
-			);
-
-			assert(
-				!parser2.isDisposed,
-				'Parser2 must not be disposed.',
-			);
-
-			assert(
-				!parser1.isDisposed,
-				'Parser1 must not be disposed.',
-			);
-
-			assert(
-				!parser1_1.isDisposed,
-				'Parser1_1 must not be disposed.',
-			);
-
-			/**
-			 * Validate that all links of the model 2 are correctly parsed.
-			 */
-
-			await parser2.settled();
-
-			assert.notStrictEqual(
-				parser1.uri.toString(),
-				parser2.uri.toString(),
-				'Parser2 must have its own URI.',
-			);
-
-			assertLinks(
-				parser2.references,
-				[
-					new ExpectedLink(
-						URI.file('/absolute/path.txt'),
-						new Range(1, 11, 1, 11 + 24),
-						new Range(1, 17, 1, 17 + 18),
-					),
-				],
-			);
-
-			/**
-			 * Validate the first parser was not affected by the presence
-			 * of the second parser.
-			 */
-
-			await parser1_1.settled();
-
-			// parser1_1 has the same exact links as before
-			assertLinks(
-				parser1_1.references,
-				[
-					new ExpectedLink(
-						URI.file('/Users/vscode/repos/test/file.md'),
-						new Range(2, 2, 2, 2 + 15),
-						new Range(2, 8, 2, 8 + 9),
-					),
-					new ExpectedLink(
-						URI.file('/root/tmp.bin'),
-						new Range(5, 4, 5, 4 + 25),
-						new Range(5, 15, 5, 15 + 13),
-					),
-				],
-			);
-
-			// wait for some random amount of time
-			await timeout(5);
-
-			/**
-			 * Dispose the first parser, perform basic validations, and confirm
-			 * that the second parser is not affected by the disposal of the first one.
-			 */
-			parser1.dispose();
-
-			assert(
-				parser1.isDisposed,
-				'Parser1 must be disposed.',
-			);
-
-			assert(
-				parser1_1.isDisposed,
-				'Parser1_1 must be disposed.',
-			);
-
-			assert(
-				!parser2.isDisposed,
-				'Parser2 must not be disposed.',
-			);
-
-
-			/**
-			 * Get parser for the first model again. Confirm that we get
-			 * a new non-disposed parser object back with correct properties.
-			 */
-
-			const parser1_2 = service.getSyntaxParserFor(model1);
-
-			assert(
-				!parser1_2.isDisposed,
-				'Parser1_2 must not be disposed.',
-			);
-
-			assert.notStrictEqual(
-				parser1_2,
-				parser1,
-				'Must create a new parser object for the model1.',
-			);
-
-			assert.strictEqual(
-				parser1_2.uri.toString(),
-				model1.uri.toString(),
-				'Must create parser1_2 with the correct URI.',
-			);
-
-			/**
-			 * Validate that the contents of the second parser did not change.
-			 */
-
-			await parser1_2.settled();
-
-			// parser1_2 must have the same exact links as before
-			assertLinks(
-				parser1_2.references,
-				[
-					new ExpectedLink(
-						URI.file('/Users/vscode/repos/test/file.md'),
-						new Range(2, 2, 2, 2 + 15),
-						new Range(2, 8, 2, 8 + 9),
-					),
-					new ExpectedLink(
-						URI.file('/root/tmp.bin'),
-						new Range(5, 4, 5, 4 + 25),
-						new Range(5, 15, 5, 15 + 13),
-					),
-				],
-			);
-
-			// wait for some random amount of time
-			await timeout(5);
-
-			/**
-			 * This time dispose model of the second parser instead of
-			 * the parser itself. Validate that the parser is disposed too, but
-			 * the newly created first parser is not affected.
-			 */
-
-			// dispose the `model` of the second parser now
-			model2.dispose();
-
-			// assert that the parser is also disposed
-			assert(
-				parser2.isDisposed,
-				'Parser2 must be disposed.',
-			);
-
-			// sanity check that the other parser is not affected
-			assert(
-				!parser1_2.isDisposed,
-				'Parser1_2 must not be disposed.',
-			);
-
-			/**
-			 * Create a new second parser with new model - we cannot use
-			 * the old one because it was disposed. This new model also has
-			 * a different second link.
-			 */
-
-			// we cannot use the same model since it was already disposed
-			const model2_1 = disposables.add(createTextModel(
-				'some text #file:/absolute/path.txt  \n [caption](.copilot/prompts/test.prompt.md)\t\n\t\n more text',
-				languageId,
-				undefined,
-				URI.file('/Users/vscode/repos/test/some-folder/file.md'),
-			));
-			const parser2_1 = service.getSyntaxParserFor(model2_1);
-
-			assert(
-				!parser2_1.isDisposed,
-				'Parser2_1 must not be disposed.',
-			);
-
-			assert.notStrictEqual(
-				parser2_1,
-				parser2,
-				'Parser2_1 must be a new object.',
-			);
-
-			assert.strictEqual(
-				parser2_1.uri.toString(),
-				model2.uri.toString(),
-				'Must create parser2_1 with the correct URI.',
-			);
-
-			/**
-			 * Validate that new model2 contents are parsed correctly.
-			 */
-
-			await parser2_1.settled();
-
-			// parser2_1 must have 2 links now
-			assertLinks(
-				parser2_1.references,
-				[
-					// the first link didn't change
-					new ExpectedLink(
-						URI.file('/absolute/path.txt'),
-						new Range(1, 11, 1, 11 + 24),
-						new Range(1, 17, 1, 17 + 18),
-					),
-					// the second link is new
-					new ExpectedLink(
-						URI.file('/Users/vscode/repos/test/some-folder/.copilot/prompts/test.prompt.md'),
-						new Range(2, 2, 2, 2 + 42),
-						new Range(2, 12, 2, 12 + 31),
-					),
-				],
-			);
-		});
-
-		test('auto-updated on model changes', async () => {
-			const langId = 'bazLang';
-
-			const model = disposables.add(createTextModel(
-				' \t #file:../file.md\ntest1\n\t\n  [another file](/Users/root/tmp/file2.txt)\t\n',
-				langId,
-				undefined,
-				URI.file('/repos/test/file1.txt'),
-			));
-
-			const parser = service.getSyntaxParserFor(model);
-
-			// sanity checks
-			assert(
-				parser.isDisposed === false,
-				'Parser must not be disposed.',
-			);
-			assert(
-				parser instanceof TextModelPromptParser,
-				'Parser must be an instance of TextModelPromptParser.',
-			);
-
-			await parser.settled();
-
-			assertLinks(
-				parser.references,
-				[
-					new ExpectedLink(
-						URI.file('/repos/file.md'),
-						new Range(1, 4, 1, 4 + 16),
-						new Range(1, 10, 1, 10 + 10),
-					),
-					new ExpectedLink(
-						URI.file('/Users/root/tmp/file2.txt'),
-						new Range(4, 3, 4, 3 + 41),
-						new Range(4, 18, 4, 18 + 25),
-					),
-				],
-			);
-
-			model.applyEdits([
-				{
-					range: new Range(4, 18, 4, 18 + 25),
-					text: '/Users/root/tmp/file3.txt',
-				},
-			]);
-
-			await parser.settled();
-
-			assertLinks(
-				parser.references,
-				[
-					// link1 didn't change
-					new ExpectedLink(
-						URI.file('/repos/file.md'),
-						new Range(1, 4, 1, 4 + 16),
-						new Range(1, 10, 1, 10 + 10),
-					),
-					// link2 changed in the file name only
-					new ExpectedLink(
-						URI.file('/Users/root/tmp/file3.txt'),
-						new Range(4, 3, 4, 3 + 41),
-						new Range(4, 18, 4, 18 + 25),
-					),
-				],
-			);
-		});
-
-		test('throws if a disposed model provided', async function () {
-			const model = disposables.add(createTextModel(
-				'test1\ntest2\n\ntest3\t\n',
-				'barLang',
-				undefined,
-				URI.parse('./github/prompts/file.prompt.md'),
-			));
-
-			// dispose the model before using it
-			model.dispose();
-
-			assert.throws(() => {
-				service.getSyntaxParserFor(model);
-			}, 'Cannot create a prompt parser for a disposed model.');
-		});
 	});
 
 	suite('parse', () => {
@@ -560,6 +106,9 @@ suite('PromptsService', () => {
 			const rootFileName = 'file2.prompt.md';
 
 			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
 			const rootFileUri = URI.joinPath(rootFolderUri, rootFileName);
 
 			await (instaService.createInstance(MockFilesystem,
@@ -581,11 +130,14 @@ suite('PromptsService', () => {
 								'---',
 								'description: \'Root prompt description.\'',
 								'tools: [\'my-tool1\', , true]',
-								'mode: "agent" ',
+								'agent: "agent" ',
 								'---',
 								'## Files',
 								'\t- this file #file:folder1/file3.prompt.md ',
 								'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
+								'## Vars',
+								'\t- #tool:my-tool',
+								'\t- #tool:my-other-tool',
 								' ',
 							],
 						},
@@ -597,7 +149,7 @@ suite('PromptsService', () => {
 									contents: [
 										'---',
 										'tools: [ false, \'my-tool1\' , ]',
-										'mode: \'edit\'',
+										'agent: \'edit\'',
 										'---',
 										'',
 										'[](./some-other-folder/non-existing-folder)',
@@ -614,7 +166,7 @@ suite('PromptsService', () => {
 												'---',
 												'tools: [\'my-tool1\', "my-tool2", true, , ]',
 												'something: true',
-												'mode: \'ask\'\t',
+												'agent: \'ask\'\t',
 												'description: "File 4 splendid description."',
 												'---',
 												'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
@@ -669,56 +221,57 @@ suite('PromptsService', () => {
 			const yetAnotherFile = URI.joinPath(rootFolderUri, 'folder1/some-other-folder/yetAnotherFolder🤭/another-file.instructions.md');
 
 
-			const result1 = await service.parse(rootFileUri, PromptsType.prompt, CancellationToken.None);
-			assert.deepStrictEqual(result1, {
-				uri: rootFileUri,
-				metadata: {
-					promptType: PromptsType.prompt,
-					description: 'Root prompt description.',
-					tools: ['my-tool1'],
-					mode: 'agent',
-				},
-				topError: undefined,
-				references: [file3, file4]
-			});
+			const result1 = await service.parseNew(rootFileUri, CancellationToken.None);
+			assert.deepEqual(result1.uri, rootFileUri);
+			assert.deepEqual(result1.header?.description, 'Root prompt description.');
+			assert.deepEqual(result1.header?.tools, ['my-tool1']);
+			assert.deepEqual(result1.header?.agent, 'agent');
+			assert.ok(result1.body);
+			assert.deepEqual(
+				result1.body.fileReferences.map(r => result1.body?.resolveFilePath(r.content)),
+				[file3, file4],
+			);
+			assert.deepEqual(
+				result1.body.variableReferences,
+				[
+					{ name: 'my-tool', range: new Range(10, 10, 10, 17), offset: 240 },
+					{ name: 'my-other-tool', range: new Range(11, 10, 11, 23), offset: 257 },
+				]
+			);
 
-			const result2 = await service.parse(file3, PromptsType.prompt, CancellationToken.None);
-			assert.deepStrictEqual(result2, {
-				uri: file3,
-				metadata: {
-					promptType: PromptsType.prompt,
-					mode: 'edit',
-				},
-				topError: undefined,
-				references: [nonExistingFolder, yetAnotherFile]
-			});
+			const result2 = await service.parseNew(file3, CancellationToken.None);
+			assert.deepEqual(result2.uri, file3);
+			assert.deepEqual(result2.header?.agent, 'edit');
+			assert.ok(result2.body);
+			assert.deepEqual(
+				result2.body.fileReferences.map(r => result2.body?.resolveFilePath(r.content)),
+				[nonExistingFolder, yetAnotherFile],
+			);
 
-			const result3 = await service.parse(yetAnotherFile, PromptsType.instructions, CancellationToken.None);
-			assert.deepStrictEqual(result3, {
-				uri: yetAnotherFile,
-				metadata: {
-					promptType: PromptsType.instructions,
-					description: 'Another file description.',
-					applyTo: '**/*.tsx',
-				},
-				topError: undefined,
-				references: [someOtherFolder, someOtherFolderFile]
-			});
+			const result3 = await service.parseNew(yetAnotherFile, CancellationToken.None);
+			assert.deepEqual(result3.uri, yetAnotherFile);
+			assert.deepEqual(result3.header?.description, 'Another file description.');
+			assert.deepEqual(result3.header?.applyTo, '**/*.tsx');
+			assert.ok(result3.body);
+			assert.deepEqual(
+				result3.body.fileReferences.map(r => result3.body?.resolveFilePath(r.content)),
+				[someOtherFolder, someOtherFolderFile],
+			);
+			assert.deepEqual(result3.body.variableReferences, []);
 
-			const result4 = await service.parse(file4, PromptsType.instructions, CancellationToken.None);
-			assert.deepStrictEqual(result4, {
-				uri: file4,
-				metadata: {
-					promptType: PromptsType.instructions,
-					description: 'File 4 splendid description.',
-				},
-				topError: undefined,
-				references: [
+			const result4 = await service.parseNew(file4, CancellationToken.None);
+			assert.deepEqual(result4.uri, file4);
+			assert.deepEqual(result4.header?.description, 'File 4 splendid description.');
+			assert.ok(result4.body);
+			assert.deepEqual(
+				result4.body.fileReferences.map(r => result4.body?.resolveFilePath(r.content)),
+				[
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-existing/file.prompt.md'),
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-prompt-file.md'),
 					URI.joinPath(rootFolderUri, '/folder1/'),
-				]
-			});
+				],
+			);
+			assert.deepEqual(result4.body.variableReferences, []);
 		});
 	});
 
@@ -732,6 +285,8 @@ suite('PromptsService', () => {
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
 			const userPromptsFolderName = '/tmp/user-data/prompts';
 			const userPromptsFolderUri = URI.file(userPromptsFolderName);
 
@@ -740,33 +295,33 @@ suite('PromptsService', () => {
 					// local instructions
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
-						storage: 'local',
+						storage: PromptsStorage.local,
 						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
-						storage: 'local',
+						storage: PromptsStorage.local,
 						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file3.instructions.md'),
-						storage: 'local',
+						storage: PromptsStorage.local,
 						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file4.instructions.md'),
-						storage: 'local',
+						storage: PromptsStorage.local,
 						type: PromptsType.instructions,
 					},
 					// user instructions
 					{
 						uri: URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
-						storage: 'user',
+						storage: PromptsStorage.user,
 						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(userPromptsFolderUri, 'file11.instructions.md'),
-						storage: 'user',
+						storage: PromptsStorage.user,
 						type: PromptsType.instructions,
 					},
 				]));
@@ -896,11 +451,12 @@ suite('PromptsService', () => {
 				]),
 				instructions: new ResourceSet(),
 			};
+			const result = new ChatRequestVariableSet();
 
-			const instructions = await contextComputer.findInstructionFilesFor(instructionFiles, context, CancellationToken.None);
+			await contextComputer.addApplyingInstructions(instructionFiles, context, result, newInstructionsCollectionEvent(), CancellationToken.None);
 
 			assert.deepStrictEqual(
-				instructions.map(i => i.value.path),
+				result.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,
@@ -917,6 +473,8 @@ suite('PromptsService', () => {
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
 			const userPromptsFolderName = '/tmp/user-data/prompts';
 			const userPromptsFolderUri = URI.file(userPromptsFolderName);
 
@@ -925,33 +483,33 @@ suite('PromptsService', () => {
 					// local instructions
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md'),
-						storage: 'local',
+						storage: PromptsStorage.local,
 						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file2.instructions.md'),
-						storage: 'local',
+						storage: PromptsStorage.local,
 						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file3.instructions.md'),
-						storage: 'local',
+						storage: PromptsStorage.local,
 						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(rootFolderUri, '.github/prompts/file4.instructions.md'),
-						storage: 'local',
+						storage: PromptsStorage.local,
 						type: PromptsType.instructions,
 					},
 					// user instructions
 					{
 						uri: URI.joinPath(userPromptsFolderUri, 'file10.instructions.md'),
-						storage: 'user',
+						storage: PromptsStorage.user,
 						type: PromptsType.instructions,
 					},
 					{
 						uri: URI.joinPath(userPromptsFolderUri, 'file11.instructions.md'),
-						storage: 'user',
+						storage: PromptsStorage.user,
 						type: PromptsType.instructions,
 					},
 				]));
@@ -1084,10 +642,11 @@ suite('PromptsService', () => {
 				instructions: new ResourceSet(),
 			};
 
-			const instructions = await contextComputer.findInstructionFilesFor(instructionFiles, context, CancellationToken.None);
+			const result = new ChatRequestVariableSet();
+			await contextComputer.addApplyingInstructions(instructionFiles, context, result, newInstructionsCollectionEvent(), CancellationToken.None);
 
 			assert.deepStrictEqual(
-				instructions.map(i => i.value.path),
+				result.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,
@@ -1097,6 +656,516 @@ suite('PromptsService', () => {
 				],
 				'Must find correct instruction files.',
 			);
+		});
+
+		test('copilot-instructions and AGENTS.md', async () => {
+			const rootFolderName = 'copilot-instructions-and-agents';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// mock current workspace file structure
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: 'codestyle.md',
+							contents: [
+								'Can you see this?',
+							],
+						},
+						{
+							name: 'AGENTS.md',
+							contents: [
+								'What about this?',
+							],
+						},
+						{
+							name: 'README.md',
+							contents: [
+								'Thats my project?',
+							],
+						},
+						{
+							name: '.github',
+							children: [
+								{
+									name: 'copilot-instructions.md',
+									contents: [
+										'Be nice and friendly. Also look at instructions at #file:../codestyle.md and [more-codestyle.md](./more-codestyle.md).',
+									],
+								},
+								{
+									name: 'more-codestyle.md',
+									contents: [
+										'I like it clean.',
+									],
+								},
+							],
+						},
+						{
+							name: 'folder1',
+							children: [
+								// This will not be returned because we have PromptsConfig.USE_NESTED_AGENT_MD set to false.
+								{
+									name: 'AGENTS.md',
+									contents: [
+										'An AGENTS.md file in another repo'
+									]
+								}
+							]
+						}
+					],
+				}])).mock();
+
+
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined);
+			const context = new ChatRequestVariableSet();
+			context.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'README.md')));
+
+			await contextComputer.collect(context, CancellationToken.None);
+
+			assert.deepStrictEqual(
+				context.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined).filter(e => !!e).sort(),
+				[
+					URI.joinPath(rootFolderUri, '.github/copilot-instructions.md').path,
+					URI.joinPath(rootFolderUri, '.github/more-codestyle.md').path,
+					URI.joinPath(rootFolderUri, 'AGENTS.md').path,
+					URI.joinPath(rootFolderUri, 'codestyle.md').path,
+				].sort(),
+				'Must find correct instruction files.',
+			);
+		});
+	});
+
+	suite('getCustomAgents', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+
+		test('header with handOffs', async () => {
+			const rootFolderName = 'custom-agents-with-handoffs';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/agents',
+							children: [
+								{
+									name: 'agent1.agent.md',
+									contents: [
+										'---',
+										'description: \'Agent file 1.\'',
+										'handoffs: [ { agent: "Edit", label: "Do it", prompt: "Do it now" } ]',
+										'---',
+									],
+								}
+							],
+
+						},
+					],
+				}])).mock();
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'agent1',
+					description: 'Agent file 1.',
+					handOffs: [{ agent: 'Edit', label: 'Do it', prompt: 'Do it now', send: undefined }],
+					agentInstructions: {
+						content: '',
+						toolReferences: [],
+						metadata: undefined
+					},
+					model: undefined,
+					argumentHint: undefined,
+					tools: undefined,
+					target: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Must get custom agents.',
+			);
+		});
+
+		test('body with tool references', async () => {
+			const rootFolderName = 'custom-agents';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// mock current workspace file structure
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/agents',
+							children: [
+								{
+									name: 'agent1.agent.md',
+									contents: [
+										'---',
+										'description: \'Agent file 1.\'',
+										'tools: [ tool1, tool2 ]',
+										'---',
+										'Do it with #tool:tool1',
+									],
+								},
+								{
+									name: 'agent2.agent.md',
+									contents: [
+										'First use #tool:tool2\nThen use #tool:tool1',
+									],
+								}
+							],
+
+						},
+					],
+				}])).mock();
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'agent1',
+					description: 'Agent file 1.',
+					tools: ['tool1', 'tool2'],
+					agentInstructions: {
+						content: 'Do it with #tool:tool1',
+						toolReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 17 } }],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					target: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
+					source: { storage: PromptsStorage.local },
+				},
+				{
+					name: 'agent2',
+					agentInstructions: {
+						content: 'First use #tool:tool2\nThen use #tool:tool1',
+						toolReferences: [
+							{ name: 'tool1', range: { start: 31, endExclusive: 37 } },
+							{ name: 'tool2', range: { start: 10, endExclusive: 16 } }
+						],
+						metadata: undefined
+					},
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
+					source: { storage: PromptsStorage.local },
+				}
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Must get custom agents.',
+			);
+		});
+
+		test('header with argumentHint', async () => {
+			const rootFolderName = 'custom-agents-with-argument-hint';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/agents',
+							children: [
+								{
+									name: 'agent1.agent.md',
+									contents: [
+										'---',
+										'description: \'Code review agent.\'',
+										'argument-hint: \'Provide file path or code snippet to review\'',
+										'tools: [ code-analyzer, linter ]',
+										'---',
+										'I will help review your code for best practices.',
+									],
+								},
+								{
+									name: 'agent2.agent.md',
+									contents: [
+										'---',
+										'description: \'Documentation generator.\'',
+										'argument-hint: \'Specify function or class name to document\'',
+										'---',
+										'I generate comprehensive documentation.',
+									],
+								}
+							],
+
+						},
+					],
+				}])).mock();
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'agent1',
+					description: 'Code review agent.',
+					argumentHint: 'Provide file path or code snippet to review',
+					tools: ['code-analyzer', 'linter'],
+					agentInstructions: {
+						content: 'I will help review your code for best practices.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					target: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+				{
+					name: 'agent2',
+					description: 'Documentation generator.',
+					argumentHint: 'Specify function or class name to document',
+					agentInstructions: {
+						content: 'I generate comprehensive documentation.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					tools: undefined,
+					target: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Must get custom agents with argumentHint.',
+			);
+		});
+
+		test('header with target', async () => {
+			const rootFolderName = 'custom-agents-with-target';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/agents',
+							children: [
+								{
+									name: 'github-agent.agent.md',
+									contents: [
+										'---',
+										'description: \'GitHub Copilot specialized agent.\'',
+										'target: \'github-copilot\'',
+										'tools: [ github-api, code-search ]',
+										'---',
+										'I am optimized for GitHub Copilot workflows.',
+									],
+								},
+								{
+									name: 'vscode-agent.agent.md',
+									contents: [
+										'---',
+										'description: \'VS Code specialized agent.\'',
+										'target: \'vscode\'',
+										'model: \'gpt-4\'',
+										'---',
+										'I am specialized for VS Code editor tasks.',
+									],
+								},
+								{
+									name: 'generic-agent.agent.md',
+									contents: [
+										'---',
+										'description: \'Generic agent without target.\'',
+										'---',
+										'I work everywhere.',
+									],
+								}
+							],
+
+						},
+					],
+				}])).mock();
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'github-agent',
+					description: 'GitHub Copilot specialized agent.',
+					target: 'github-copilot',
+					tools: ['github-api', 'code-search'],
+					agentInstructions: {
+						content: 'I am optimized for GitHub Copilot workflows.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+				{
+					name: 'vscode-agent',
+					description: 'VS Code specialized agent.',
+					target: 'vscode',
+					model: 'gpt-4',
+					agentInstructions: {
+						content: 'I am specialized for VS Code editor tasks.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					argumentHint: undefined,
+					tools: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+				{
+					name: 'generic-agent',
+					description: 'Generic agent without target.',
+					agentInstructions: {
+						content: 'I work everywhere.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					tools: undefined,
+					target: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
+					source: { storage: PromptsStorage.local }
+				},
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Must get custom agents with target attribute.',
+			);
+		});
+
+		test('agents with .md extension (no .agent.md)', async () => {
+			const rootFolderName = 'custom-agents-md-extension';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/agents',
+							children: [
+								{
+									name: 'demonstrate.md',
+									contents: [
+										'---',
+										'description: \'Demonstrate agent.\'',
+										'tools: [ demo-tool ]',
+										'---',
+										'This is a demonstration agent using .md extension.',
+									],
+								},
+								{
+									name: 'test.md',
+									contents: [
+										'Test agent without header.',
+									],
+								}
+							],
+
+						},
+					],
+				}])).mock();
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'demonstrate',
+					description: 'Demonstrate agent.',
+					tools: ['demo-tool'],
+					agentInstructions: {
+						content: 'This is a demonstration agent using .md extension.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					target: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
+					source: { storage: PromptsStorage.local },
+				},
+				{
+					name: 'test',
+					agentInstructions: {
+						content: 'Test agent without header.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					uri: URI.joinPath(rootFolderUri, '.github/agents/test.md'),
+					source: { storage: PromptsStorage.local },
+				}
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Must get custom agents with .md extension from .github/agents/ folder.',
+			);
+		});
+	});
+
+	suite('listPromptFiles - extensions', () => {
+
+		test('Contributed prompt file', async () => {
+			const uri = URI.parse('file://extensions/my-extension/textMate.instructions.md');
+			const extension = {} as IExtensionDescription;
+			const registered = service.registerContributedFile(PromptsType.instructions,
+				'TextMate Instructions',
+				'Instructions to follow when authoring TextMate grammars',
+				uri,
+				extension
+			);
+
+			const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.strictEqual(actual.length, 1);
+			assert.strictEqual(actual[0].uri.toString(), uri.toString());
+			assert.strictEqual(actual[0].name, 'TextMate Instructions');
+			assert.strictEqual(actual[0].storage, PromptsStorage.extension);
+			assert.strictEqual(actual[0].type, PromptsType.instructions);
+			registered.dispose();
 		});
 	});
 });

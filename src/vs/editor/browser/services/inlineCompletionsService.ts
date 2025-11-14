@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WindowIntervalTimer } from '../../../base/browser/dom.js';
+import { TimeoutTimer } from '../../../base/common/async.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -14,13 +14,14 @@ import { InstantiationType, registerSingleton } from '../../../platform/instanti
 import { createDecorator, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem } from '../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 
 export const IInlineCompletionsService = createDecorator<IInlineCompletionsService>('IInlineCompletionsService');
 
 export interface IInlineCompletionsService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeIsSnoozing: Event<boolean>;
+	readonly onDidChangeIsSnoozing: Event<boolean>;
 
 	/**
 	 * Get the remaining time (in ms) for which inline completions should be snoozed,
@@ -40,13 +41,18 @@ export interface IInlineCompletionsService {
 
 	/**
 	 * Check if inline completions are currently snoozed.
-	 */
+	*/
 	isSnoozing(): boolean;
 
 	/**
 	 * Cancel the current snooze.
-	 */
+	*/
 	cancelSnooze(): void;
+
+	/**
+	 * Report an inline completion.
+	 */
+	reportNewCompletion(requestUuid: string): void;
 }
 
 const InlineCompletionsSnoozing = new RawContextKey<boolean>('inlineCompletions.snoozed', false, localize('inlineCompletions.snoozed', "Whether inline completions are currently snoozed"));
@@ -67,12 +73,15 @@ export class InlineCompletionsService extends Disposable implements IInlineCompl
 		return Math.max(0, this._snoozeTimeEnd - Date.now());
 	}
 
-	private _timer: WindowIntervalTimer;
+	private _timer: TimeoutTimer;
 
-	constructor(@IContextKeyService private _contextKeyService: IContextKeyService) {
+	constructor(
+		@IContextKeyService private _contextKeyService: IContextKeyService,
+		@ITelemetryService private _telemetryService: ITelemetryService,
+	) {
 		super();
 
-		this._timer = this._register(new WindowIntervalTimer());
+		this._timer = this._register(new TimeoutTimer());
 
 		const inlineCompletionsSnoozing = InlineCompletionsSnoozing.bindTo(this._contextKeyService);
 		this._register(this.onDidChangeIsSnoozing(() => inlineCompletionsSnoozing.set(this.isSnoozing())));
@@ -92,6 +101,8 @@ export class InlineCompletionsService extends Disposable implements IInlineCompl
 		}
 
 		const wasSnoozing = this.isSnoozing();
+		const timeLeft = this.snoozeTimeLeft;
+
 		this._snoozeTimeEnd = Date.now() + durationMs;
 
 		if (!wasSnoozing) {
@@ -108,6 +119,8 @@ export class InlineCompletionsService extends Disposable implements IInlineCompl
 			},
 			this.snoozeTimeLeft + 1,
 		);
+
+		this._reportSnooze(durationMs - timeLeft, durationMs);
 	}
 
 	isSnoozing(): boolean {
@@ -116,10 +129,47 @@ export class InlineCompletionsService extends Disposable implements IInlineCompl
 
 	cancelSnooze(): void {
 		if (this.isSnoozing()) {
+			this._reportSnooze(-this.snoozeTimeLeft, 0);
 			this._snoozeTimeEnd = undefined;
 			this._timer.cancel();
 			this._onDidChangeIsSnoozing.fire(false);
 		}
+	}
+
+	private _lastCompletionId: string | undefined;
+	private _recentCompletionIds: string[] = [];
+	reportNewCompletion(requestUuid: string): void {
+		this._lastCompletionId = requestUuid;
+
+		this._recentCompletionIds.unshift(requestUuid);
+		if (this._recentCompletionIds.length > 5) {
+			this._recentCompletionIds.pop();
+		}
+	}
+
+	private _reportSnooze(deltaMs: number, totalMs: number): void {
+		const deltaSeconds = Math.round(deltaMs / 1000);
+		const totalSeconds = Math.round(totalMs / 1000);
+		type WorkspaceStatsClassification = {
+			owner: 'benibenj';
+			comment: 'Snooze duration for inline completions';
+			deltaSeconds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration by which the snooze has changed, in seconds.' };
+			totalSeconds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total duration for which inline completions are snoozed, in seconds.' };
+			lastCompletionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the last completion.' };
+			recentCompletionIds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The IDs of the recent completions.' };
+		};
+		type WorkspaceStatsEvent = {
+			deltaSeconds: number;
+			totalSeconds: number;
+			lastCompletionId: string | undefined;
+			recentCompletionIds: string[];
+		};
+		this._telemetryService.publicLog2<WorkspaceStatsEvent, WorkspaceStatsClassification>('inlineCompletions.snooze', {
+			deltaSeconds,
+			totalSeconds,
+			lastCompletionId: this._lastCompletionId,
+			recentCompletionIds: this._recentCompletionIds,
+		});
 	}
 }
 
@@ -145,17 +195,17 @@ export class SnoozeInlineCompletion extends Action2 {
 		const inlineCompletionsService = accessor.get(IInlineCompletionsService);
 		const storageService = accessor.get(IStorageService);
 
-		let durationMinutes: number | undefined;
+		let durationMs: number | undefined;
 		if (args.length > 0 && typeof args[0] === 'number') {
-			durationMinutes = args[0];
+			durationMs = args[0] * 60_000;
 		}
 
-		if (!durationMinutes) {
-			durationMinutes = await this.getDurationFromUser(quickInputService, storageService);
+		if (!durationMs) {
+			durationMs = await this.getDurationFromUser(quickInputService, storageService);
 		}
 
-		if (durationMinutes) {
-			inlineCompletionsService.setSnoozeDuration(durationMinutes);
+		if (durationMs) {
+			inlineCompletionsService.setSnoozeDuration(durationMs);
 		}
 	}
 
@@ -172,7 +222,7 @@ export class SnoozeInlineCompletion extends Action2 {
 		];
 
 		const picked = await quickInputService.pick(items, {
-			placeHolder: localize('snooze.placeholder', "Select snooze duration for Code completions and NES"),
+			placeHolder: localize('snooze.placeholder', "Select snooze duration for Inline Suggestions"),
 			activeItem: items.find(item => item.value === lastSelectedDuration),
 		});
 

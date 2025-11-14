@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelContentProvider } from '../../../../../editor/common/services/resolverService.js';
-import { chatEditingSnapshotScheme, IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatEditingService } from '../../common/chatEditingService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 
 type ChatEditingTextModelContentQueryData = { kind: 'doc'; documentId: string; chatSessionId: string };
 
 export class ChatEditingTextModelContentProvider implements ITextModelContentProvider {
-	public static readonly scheme = 'chat-editing-text-model';
+	public static readonly scheme = Schemas.chatEditingModel;
 
 	public static getFileURI(chatSessionId: string, documentId: string, path: string): URI {
 		return URI.from({
@@ -35,7 +37,7 @@ export class ChatEditingTextModelContentProvider implements ITextModelContentPro
 
 		const data: ChatEditingTextModelContentQueryData = JSON.parse(resource.query);
 
-		const session = this._chatEditingService.getEditingSession(data.chatSessionId);
+		const session = this._chatEditingService.getEditingSession(LocalChatSessionUri.forSession(data.chatSessionId));
 
 		const entry = session?.entries.get().find(candidate => candidate.entryId === data.documentId);
 		if (!entry) {
@@ -46,14 +48,14 @@ export class ChatEditingTextModelContentProvider implements ITextModelContentPro
 	}
 }
 
-type ChatEditingSnapshotTextModelContentQueryData = { sessionId: string; requestId: string | undefined; undoStop: string | undefined };
+type ChatEditingSnapshotTextModelContentQueryData = { sessionId: string; requestId: string | undefined; undoStop: string | undefined; scheme: string | undefined };
 
 export class ChatEditingSnapshotTextModelContentProvider implements ITextModelContentProvider {
-	public static getSnapshotFileURI(chatSessionId: string, requestId: string | undefined, undoStop: string | undefined, path: string): URI {
+	public static getSnapshotFileURI(chatSessionId: string, requestId: string | undefined, undoStop: string | undefined, path: string, scheme?: string): URI {
 		return URI.from({
-			scheme: chatEditingSnapshotScheme,
+			scheme: Schemas.chatEditingSnapshotScheme,
 			path,
-			query: JSON.stringify({ sessionId: chatSessionId, requestId: requestId ?? '', undoStop: undoStop ?? '' } satisfies ChatEditingSnapshotTextModelContentQueryData),
+			query: JSON.stringify({ sessionId: chatSessionId, requestId: requestId ?? '', undoStop: undoStop ?? '', scheme } satisfies ChatEditingSnapshotTextModelContentQueryData),
 		});
 	}
 
@@ -69,8 +71,7 @@ export class ChatEditingSnapshotTextModelContentProvider implements ITextModelCo
 		}
 
 		const data: ChatEditingSnapshotTextModelContentQueryData = JSON.parse(resource.query);
-
-		const session = this._chatEditingService.getEditingSession(data.sessionId);
+		const session = this._chatEditingService.getEditingSession(LocalChatSessionUri.forSession(data.sessionId));
 		if (!session || !data.requestId) {
 			return null;
 		}

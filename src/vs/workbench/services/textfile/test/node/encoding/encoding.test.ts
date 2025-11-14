@@ -41,6 +41,7 @@ function readExactlyByFile(file: string, totalBytes: number): Promise<ReadResult
 						return reject(closeError);
 					}
 
+					// eslint-disable-next-line local/code-no-any-casts
 					if (err && (<any>err).code === 'EISDIR') {
 						return reject(err); // we want to bubble this error up (file is actually a folder)
 					}
