@@ -109,7 +109,6 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	}
 	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
 	if (combinedString !== undefined) {
-		// Wrap with triple backticks so that single backticks can show up (command substitution in bash uses backticks, for example)
 		detailedAdditions.push(`Prompt input: \`\`\`${combinedString}\`\`\``);
 	}
 	const detailedAdditionsString = detailedAdditions.length > 0
