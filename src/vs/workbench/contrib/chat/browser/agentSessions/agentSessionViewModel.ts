@@ -180,11 +180,11 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 				switch ((provider.chatSessionType)) {
 					case localChatSessionType:
 						providerLabel = localize('chat.session.providerLabel.local', "Local");
-						icon = Codicon.window;
+						icon = Codicon.vm;
 						break;
 					case AgentSessionProviders.Background:
 						providerLabel = localize('chat.session.providerLabel.background', "Background");
-						icon = Codicon.serverProcess;
+						icon = Codicon.collection;
 						break;
 					case AgentSessionProviders.Cloud:
 						providerLabel = localize('chat.session.providerLabel.cloud', "Cloud");
