@@ -29,6 +29,7 @@ import {
 	IToolResult,
 	ToolDataSource,
 	ToolProgress,
+	VSCodeToolReference,
 } from '../../chat/common/languageModelToolsService.js';
 import { TestId } from './testId.js';
 import { FileCoverage, getTotalCoveragePercent } from './testCoverage.js';
@@ -54,6 +55,14 @@ export class TestingChatAgentToolContribution extends Disposable implements IWor
 		const runTestsTool = instantiationService.createInstance(RunTestTool);
 		this._register(toolsService.registerTool(RunTestTool.DEFINITION, runTestsTool));
 
+		// Add to vscode toolset
+		const vscodeToolSet = this._register(toolsService.getOrCreateToolSet(
+			ToolDataSource.Internal, 'vscode',
+			VSCodeToolReference.vscode,
+			VSCodeToolReference.vscodeToolSetOptions
+		));
+		vscodeToolSet.addTool(RunTestTool.DEFINITION);
+
 		// todo@connor4312: temporary for 1.103 release during changeover
 		contextKeyService.createKey('chat.coreTestFailureToolEnabled', true).set(true);
 	}
@@ -74,6 +83,7 @@ class RunTestTool implements IToolImpl {
 	public static readonly DEFINITION: IToolData = {
 		id: this.ID,
 		toolReferenceName: 'runTests',
+		legacyToolReferenceFullNames: ['runTests'],
 		canBeReferencedInPrompt: true,
 		when: TestingContextKeys.hasRunnableTests,
 		displayName: 'Run tests',
