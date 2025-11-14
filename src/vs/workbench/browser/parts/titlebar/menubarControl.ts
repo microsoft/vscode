@@ -458,6 +458,27 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 	}
 
+	private getTimeRemainingText(progress: { bytesDownloaded: number; totalBytes: number; startTime: number }): string {
+		const { bytesDownloaded, totalBytes, startTime } = progress;
+
+		if (bytesDownloaded === 0 || totalBytes === 0) {
+			return '';
+		}
+
+		const elapsedMs = Date.now() - startTime;
+		const bytesPerMs = bytesDownloaded / elapsedMs;
+		const remainingBytes = totalBytes - bytesDownloaded;
+		const remainingMs = remainingBytes / bytesPerMs;
+		const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+		if (remainingSeconds < 60) {
+			return localize('downloadingWithSecondsRemaining', " ({0}s remaining)", remainingSeconds);
+		} else {
+			const remainingMinutes = Math.ceil(remainingSeconds / 60);
+			return localize('downloadingWithMinutesRemaining', " ({0}m remaining)", remainingMinutes);
+		}
+	}
+
 	private getUpdateAction(): IAction | null {
 		const state = this.updateService.state;
 
@@ -477,8 +498,10 @@ export class CustomMenubarControl extends MenubarControl {
 						this.updateService.downloadUpdate()
 				});
 
-			case StateType.Downloading:
-				return toAction({ id: 'update.downloading', label: localize('DownloadingUpdate', "Downloading Update..."), enabled: false, run: () => { } });
+			case StateType.Downloading: {
+				const timeRemainingText = state.progress ? this.getTimeRemainingText(state.progress) : '';
+				return toAction({ id: 'update.downloading', label: localize('DownloadingUpdate', "Downloading Update...") + timeRemainingText, enabled: false, run: () => { } });
+			}
 
 			case StateType.Downloaded:
 				return isMacintosh ? null : toAction({

@@ -18,14 +18,23 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
 
+interface IDownloadProgressEvent {
+	bytesPerSecond: number;
+	percent: number;
+	transferred: number;
+	total: number;
+}
+
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
 	private readonly disposables = new DisposableStore();
+	private downloadStartTime = 0;
 
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
 	@memoize private get onRawUpdateNotAvailable(): Event<void> { return Event.fromNodeEventEmitter<void>(electron.autoUpdater, 'update-not-available'); }
 	@memoize private get onRawUpdateAvailable(): Event<void> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-available'); }
 	@memoize private get onRawUpdateDownloaded(): Event<IUpdate> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'update-downloaded', (_, releaseNotes, version, timestamp) => ({ version, productVersion: version, timestamp })); }
+	@memoize private get onRawDownloadProgress(): Event<IDownloadProgressEvent> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'download-progress', (event: IDownloadProgressEvent) => event); }
 
 	constructor(
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
@@ -62,6 +71,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
 		this.onRawUpdateDownloaded(this.onUpdateDownloaded, this, this.disposables);
 		this.onRawUpdateNotAvailable(this.onUpdateNotAvailable, this, this.disposables);
+		this.onRawDownloadProgress(this.onDownloadProgress, this, this.disposables);
 	}
 
 	private onError(err: string): void {
@@ -108,7 +118,20 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 			return;
 		}
 
-		this.setState(State.Downloading);
+		this.downloadStartTime = Date.now();
+		this.setState(State.Downloading());
+	}
+
+	private onDownloadProgress(progress: IDownloadProgressEvent): void {
+		if (this.state.type !== StateType.Downloading) {
+			return;
+		}
+
+		this.setState(State.Downloading({
+			bytesDownloaded: progress.transferred,
+			totalBytes: progress.total,
+			startTime: this.downloadStartTime
+		}));
 	}
 
 	private onUpdateDownloaded(update: IUpdate): void {
