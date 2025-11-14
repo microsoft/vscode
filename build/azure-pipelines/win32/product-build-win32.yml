@@ -82,6 +82,8 @@ jobs:
           sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
           sbomPackageVersion: $(Build.SourceVersion)
       sdl:
+        binskim:
+          preReleaseVersion: '4.3.1'
         suppression:
           suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
     steps:
