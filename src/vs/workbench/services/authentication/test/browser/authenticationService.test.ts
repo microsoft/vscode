@@ -222,6 +222,88 @@ suite('AuthenticationService', () => {
 			// Verify the result
 			assert.strictEqual(result, 'microsoft');
 		});
+
+		test('getOrActivateProviderIdForServer - should match when resourceServer matches provider resourceServer', async () => {
+			const authorizationServer = URI.parse('https://login.microsoftonline.com/common');
+			const resourceServer = URI.parse('https://graph.microsoft.com');
+			
+			// Register an authentication provider with a resourceServer
+			const authProvider = createProvider({
+				id: 'microsoft',
+				label: 'Microsoft',
+				authorizationServers: [authorizationServer],
+				resourceServer: resourceServer
+			});
+			authenticationService.registerAuthenticationProvider('microsoft', authProvider);
+
+			// Test with matching authorization server and resource server
+			const result = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer);
+
+			// Verify the result
+			assert.strictEqual(result, 'microsoft');
+		});
+
+		test('getOrActivateProviderIdForServer - should not match when resourceServer does not match provider resourceServer', async () => {
+			const authorizationServer = URI.parse('https://login.microsoftonline.com/common');
+			const resourceServer = URI.parse('https://graph.microsoft.com');
+			const differentResourceServer = URI.parse('https://vault.azure.net');
+			
+			// Register an authentication provider with a resourceServer
+			const authProvider = createProvider({
+				id: 'microsoft',
+				label: 'Microsoft',
+				authorizationServers: [authorizationServer],
+				resourceServer: resourceServer
+			});
+			authenticationService.registerAuthenticationProvider('microsoft', authProvider);
+
+			// Test with matching authorization server but different resource server
+			const result = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, differentResourceServer);
+
+			// Verify the result - should not match because resource servers don't match
+			assert.strictEqual(result, undefined);
+		});
+
+		test('getOrActivateProviderIdForServer - should match when provider has no resourceServer and resourceServer is provided', async () => {
+			const authorizationServer = URI.parse('https://login.microsoftonline.com/common');
+			const resourceServer = URI.parse('https://graph.microsoft.com');
+			
+			// Register an authentication provider without a resourceServer
+			const authProvider = createProvider({
+				id: 'microsoft',
+				label: 'Microsoft',
+				authorizationServers: [authorizationServer]
+			});
+			authenticationService.registerAuthenticationProvider('microsoft', authProvider);
+
+			// Test with matching authorization server and a resource server
+			// Should match because provider has no resourceServer defined
+			const result = await authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer);
+
+			// Verify the result
+			assert.strictEqual(result, 'microsoft');
+		});
+
+		test('getOrActivateProviderIdForServer - should match when provider has resourceServer but no resourceServer is provided', async () => {
+			const authorizationServer = URI.parse('https://login.microsoftonline.com/common');
+			const resourceServer = URI.parse('https://graph.microsoft.com');
+			
+			// Register an authentication provider with a resourceServer
+			const authProvider = createProvider({
+				id: 'microsoft',
+				label: 'Microsoft',
+				authorizationServers: [authorizationServer],
+				resourceServer: resourceServer
+			});
+			authenticationService.registerAuthenticationProvider('microsoft', authProvider);
+
+			// Test with matching authorization server but no resource server provided
+			// Should match because no resourceServer is provided to check against
+			const result = await authenticationService.getOrActivateProviderIdForServer(authorizationServer);
+
+			// Verify the result
+			assert.strictEqual(result, 'microsoft');
+		});
 	});
 
 	suite('authenticationSessions', () => {
