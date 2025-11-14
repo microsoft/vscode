@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { observableValueOpts, IObservable, ITransaction } from '../observable.js';
-
+import { IObservable, ITransaction } from '../observable.js';
+import { observableValueOpts } from './observables/observableValueOpts.js';
 
 export class ObservableSet<T> implements Set<T> {
 
@@ -48,6 +48,7 @@ export class ObservableSet<T> implements Set<T> {
 
 	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void {
 		this._data.forEach((value, value2, _set) => {
+			// eslint-disable-next-line local/code-no-any-casts
 			callbackfn.call(thisArg, value, value2, this as any);
 		});
 	}

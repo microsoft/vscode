@@ -6,13 +6,20 @@
 import { Lazy } from './lazy.js';
 import * as streams from './stream.js';
 
-declare const Buffer: any;
+interface NodeBuffer {
+	allocUnsafe(size: number): Uint8Array;
+	isBuffer(obj: unknown): obj is NodeBuffer;
+	from(arrayBuffer: ArrayBufferLike, byteOffset?: number, length?: number): Uint8Array;
+	from(data: string): Uint8Array;
+}
+
+declare const Buffer: NodeBuffer;
 
 const hasBuffer = (typeof Buffer !== 'undefined');
 const indexOfTable = new Lazy(() => new Uint8Array(256));
 
-let textEncoder: TextEncoder | null;
-let textDecoder: TextDecoder | null;
+let textEncoder: { encode: (input: string) => Uint8Array } | null;
+let textDecoder: { decode: (input: Uint8Array) => string } | null;
 
 export class VSBuffer {
 
@@ -93,6 +100,10 @@ export class VSBuffer {
 		return ret;
 	}
 
+	static isNativeBuffer(buffer: unknown): boolean {
+		return hasBuffer && Buffer.isBuffer(buffer);
+	}
+
 	readonly buffer: Uint8Array;
 	readonly byteLength: number;
 
@@ -116,7 +127,7 @@ export class VSBuffer {
 			return this.buffer.toString();
 		} else {
 			if (!textDecoder) {
-				textDecoder = new TextDecoder();
+				textDecoder = new TextDecoder(undefined, { ignoreBOM: true });
 			}
 			return textDecoder.decode(this.buffer);
 		}

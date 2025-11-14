@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancelablePromise, raceCancellablePromises, timeout } from '../../../../base/common/async.js';
+import { CancelablePromise, notCancellablePromise, raceCancellablePromises, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { CommandsRegistry, ICommandEvent, ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -35,18 +35,21 @@ export class CommandService extends Disposable implements ICommandService {
 		this._starActivation = null;
 	}
 
-	private _activateStar(): CancelablePromise<void> {
+	private _activateStar(): Promise<void> {
 		if (!this._starActivation) {
-			// wait for * activation, limited to at most 30s
+			// wait for * activation, limited to at most 30s.
 			this._starActivation = raceCancellablePromises([
 				this._extensionService.activateByEvent(`*`),
 				timeout(30000)
 			]);
 		}
-		return this._starActivation;
+
+		// This is wrapped with notCancellablePromise so it doesn't get cancelled
+		// early because it is shared between consumers.
+		return notCancellablePromise(this._starActivation);
 	}
 
-	async executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+	async executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
 		this._logService.trace('CommandService#executeCommand', id);
 
 		const activationEvent = `onCommand:${id}`;
@@ -86,7 +89,7 @@ export class CommandService extends Disposable implements ICommandService {
 		return this._tryExecuteCommand(id, args);
 	}
 
-	private _tryExecuteCommand(id: string, args: any[]): Promise<any> {
+	private _tryExecuteCommand(id: string, args: unknown[]): Promise<any> {
 		const command = CommandsRegistry.getCommand(id);
 		if (!command) {
 			return Promise.reject(new Error(`command '${id}' not found`));
@@ -99,6 +102,11 @@ export class CommandService extends Disposable implements ICommandService {
 		} catch (err) {
 			return Promise.reject(err);
 		}
+	}
+
+	public override dispose(): void {
+		super.dispose();
+		this._starActivation?.cancel();
 	}
 }
 

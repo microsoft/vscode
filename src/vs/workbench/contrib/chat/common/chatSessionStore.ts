@@ -21,7 +21,7 @@ import { IUserDataProfilesService } from '../../../../platform/userDataProfile/c
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
-import { ChatAgentLocation, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 const maxPersistedSessions = 25;
 
@@ -441,12 +441,11 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 }
 
 function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSessionEntryMetadata {
-	const title = session instanceof ChatModel ?
-		(session.title || localize('newChat', "New Chat")) :
-		session.customTitle ?? ChatModel.getDefaultTitle(session.requests);
+	const title = session.customTitle || (session instanceof ChatModel ? session.title : undefined);
+
 	return {
 		sessionId: session.sessionId,
-		title,
+		title: title || localize('newChat', "New Chat"),
 		lastMessageDate: session.lastMessageDate,
 		isImported: session.isImported,
 		initialLocation: session.initialLocation,
@@ -459,7 +458,7 @@ export interface IChatTransfer {
 	timestampInMilliseconds: number;
 	inputValue: string;
 	location: ChatAgentLocation;
-	mode: ChatMode;
+	mode: ChatModeKind;
 }
 
 export interface IChatTransfer2 extends IChatTransfer {

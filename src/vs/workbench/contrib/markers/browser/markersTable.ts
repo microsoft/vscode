@@ -335,11 +335,13 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 			options
 		) as WorkbenchTable<MarkerTableItem>;
 
+		// eslint-disable-next-line no-restricted-syntax
 		const list = this.table.domNode.querySelector('.monaco-list-rows')! as HTMLElement;
 
 		// mouseover/mouseleave event handlers
 		const onRowHover = Event.chain(this._register(new DomEmitter(list, 'mouseover')).event, $ =>
 			$.map(e => DOM.findParentWithClass(e.target as HTMLElement, 'monaco-list-row', 'monaco-list-rows'))
+				// eslint-disable-next-line local/code-no-any-casts
 				.filter<HTMLElement>(((e: HTMLElement | null) => !!e) as any)
 				.map(e => parseInt(e.getAttribute('data-index')!))
 		);

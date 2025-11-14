@@ -12,8 +12,8 @@ import { IExtensionManagementService, InstallOperation } from '../../../../../pl
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IDefaultChatAgent } from '../../../../../base/common/product.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { showCopilotView } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { showChatView } from '../chat.js';
 
 export class ChatGettingStartedContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatGettingStarted';
@@ -66,8 +66,8 @@ export class ChatGettingStartedContribution extends Disposable implements IWorkb
 
 	private async onDidInstallChat() {
 
-		// Open Copilot view
-		showCopilotView(this.viewsService, this.layoutService);
+		// Open Chat view
+		showChatView(this.viewsService, this.layoutService);
 
 		// Only do this once
 		this.storageService.store(ChatGettingStartedContribution.hideWelcomeView, true, StorageScope.APPLICATION, StorageTarget.MACHINE);

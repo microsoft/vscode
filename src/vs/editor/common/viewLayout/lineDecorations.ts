@@ -5,8 +5,8 @@
 
 import * as strings from '../../../base/common/strings.js';
 import { Constants } from '../../../base/common/uint.js';
+import { InlineDecoration, InlineDecorationType } from '../viewModel/inlineDecorations.js';
 import { LinePartMetadata } from './linePart.js';
-import { InlineDecoration, InlineDecorationType } from '../viewModel.js';
 
 export class LineDecoration {
 	_lineDecorationBrand: void = undefined;

@@ -8,10 +8,10 @@ import { DeferredPromise, RunOnceScheduler, timeout, Delayer } from '../../../ba
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { getMarks, mark } from '../../../base/common/performance.js';
-import { isBigSurOrNewer, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { isBigSurOrNewer, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { release } from 'os';
@@ -84,6 +84,29 @@ const enum ReadyState {
 	READY
 }
 
+class DockBadgeManager {
+
+	static readonly INSTANCE = new DockBadgeManager();
+
+	private readonly windows = new Set<number>();
+
+	acquireBadge(window: IBaseWindow): IDisposable {
+		this.windows.add(window.id);
+
+		electron.app.setBadgeCount(isLinux ? 1 /* only numbers supported */ : undefined /* generic dot */);
+
+		return {
+			dispose: () => {
+				this.windows.delete(window.id);
+
+				if (this.windows.size === 0) {
+					electron.app.setBadgeCount(0);
+				}
+			}
+		};
+	}
+}
+
 export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	//#region Events
@@ -150,6 +173,8 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			this.dispose();
 		}));
 		this._register(Event.fromNodeEventEmitter(win, 'focus')(() => {
+			this.clearNotifyFocus();
+
 			this._lastFocusTime = Date.now();
 		}));
 		this._register(Event.fromNodeEventEmitter(this._win, 'enter-full-screen')(() => this._onDidEnterFullScreen.fire()));
@@ -172,33 +197,22 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 			}
 		}
 
-		// Setup windows system context menu so it only is allowed in certain cases
-		if (isWindows && useCustomTitleStyle) {
-			this._register(Event.fromNodeEventEmitter(win, 'system-context-menu', (event: Electron.Event, point: Electron.Point) => ({ event, point }))((e) => {
+		// Setup windows/linux system context menu so it only is allowed over the app icon
+		if ((isWindows || isLinux) && useCustomTitleStyle) {
+			this._register(Event.fromNodeEventEmitter(win, 'system-context-menu', (event: Electron.Event, point: Electron.Point) => ({ event, point }))(e => {
 				const [x, y] = win.getPosition();
 				const cursorPos = electron.screen.screenToDipPoint(e.point);
 				const cx = Math.floor(cursorPos.x) - x;
 				const cy = Math.floor(cursorPos.y) - y;
 
-				// In some cases, show the default system context menu
-				// 1) The mouse position is not within the title bar
-				// 2) The mouse position is within the title bar, but over the app icon
-				// We do not know the exact title bar height but we make an estimate based on window height
-				const shouldTriggerDefaultSystemContextMenu = () => {
-					// Use the custom context menu when over the title bar, but not over the app icon
-					// The app icon is estimated to be 30px wide
-					// The title bar is estimated to be the max of 35px and 15% of the window height
-					if (cx > 30 && cy >= 0 && cy <= Math.max(win.getBounds().height * 0.15, 35)) {
-						return false;
+				// TODO@deepak1556 workaround for https://github.com/microsoft/vscode/issues/250626
+				// where showing the custom menu seems broken on Windows
+				if (isLinux) {
+					if (cx > 35 /* Cursor is beyond app icon in title bar */) {
+						e.event.preventDefault();
+
+						this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
 					}
-
-					return true;
-				};
-
-				if (!shouldTriggerDefaultSystemContextMenu()) {
-					e.event.preventDefault();
-
-					this._onDidTriggerSystemContextMenu.fire({ x: cx, y: cy });
 				}
 			}));
 		}
@@ -333,13 +347,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				break;
 
 			case FocusMode.Notify:
-				if (isMacintosh) {
-					electron.app.dock?.bounce('informational');
-				} else if (isWindows) {
-					// On Windows, this just flashes the taskbar icon, which is desired
-					// https://github.com/electron/electron/issues/2867
-					this.win?.focus();
-				}
+				this.showNotifyFocus();
 				break;
 
 			case FocusMode.Force:
@@ -349,6 +357,28 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				this.doFocusWindow();
 				break;
 		}
+	}
+
+	private readonly notifyFocusDisposable = this._register(new MutableDisposable());
+
+	private showNotifyFocus(): void {
+		const disposables = new DisposableStore();
+		this.notifyFocusDisposable.value = disposables;
+
+		// Badge
+		disposables.add(DockBadgeManager.INSTANCE.acquireBadge(this));
+
+		// Flash/Bounce
+		if (isWindows || isLinux) {
+			this.win?.flashFrame(true);
+			disposables.add(toDisposable(() => this.win?.flashFrame(false)));
+		} else if (isMacintosh) {
+			electron.app.dock?.bounce('informational');
+		}
+	}
+
+	private clearNotifyFocus(): void {
+		this.notifyFocusDisposable.clear();
 	}
 
 	private doFocusWindow() {
@@ -630,7 +660,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.logService.trace('window#ctor: using window state', state);
 
 			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, undefined, {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-browser/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 			});
@@ -872,7 +902,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 				// Unresponsive
 				if (type === WindowError.UNRESPONSIVE) {
-					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || (this._win && this._win.webContents && this._win.webContents.isDevToolsOpened())) {
+					if (this.isExtensionDevelopmentHost || this.isExtensionTestHost || this._win?.webContents?.isDevToolsOpened()) {
 						// TODO@electron Workaround for https://github.com/microsoft/vscode/issues/56994
 						// In certain cases the window can report unresponsiveness because a breakpoint was hit
 						// and the process is stopped executing. The most typical cases are:
@@ -1012,6 +1042,16 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
+		// Swipe command support (macOS)
+		if (isMacintosh && (!e || e.affectsConfiguration('workbench.editor.swipeToNavigate'))) {
+			const swipeToNavigate = this.configurationService.getValue<boolean>('workbench.editor.swipeToNavigate');
+			if (swipeToNavigate) {
+				this.registerSwipeListener();
+			} else {
+				this.swipeListenerDisposable.clear();
+			}
+		}
+
 		// Menubar
 		if (!e || e.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
 			const newMenuBarVisibility = this.getMenuBarVisibility();
@@ -1053,6 +1093,22 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 			}
 		}
+	}
+
+	private readonly swipeListenerDisposable = this._register(new MutableDisposable());
+
+	private registerSwipeListener(): void {
+		this.swipeListenerDisposable.value = Event.fromNodeEventEmitter<string>(this._win, 'swipe', (event: Electron.Event, cmd: string) => cmd)(cmd => {
+			if (!this.isReady) {
+				return; // window must be ready
+			}
+
+			if (cmd === 'left') {
+				this.send('vscode:runAction', { id: 'workbench.action.openPreviousRecentlyUsedEditor', from: 'mouse' });
+			} else if (cmd === 'right') {
+				this.send('vscode:runAction', { id: 'workbench.action.openNextRecentlyUsedEditor', from: 'mouse' });
+			}
+		});
 	}
 
 	addTabbedWindow(window: ICodeWindow): void {
@@ -1102,7 +1158,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
+		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;
@@ -1375,7 +1431,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		return menuBarVisibility;
 	}
 
-	private setMenuBarVisibility(visibility: MenuBarVisibility, notify: boolean = true): void {
+	private setMenuBarVisibility(visibility: MenuBarVisibility, notify = true): void {
 		if (isMacintosh) {
 			return; // ignore for macOS platform
 		}
@@ -1443,7 +1499,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this._win?.close();
 	}
 
-	sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void {
+	sendWhenReady(channel: string, token: CancellationToken, ...args: unknown[]): void {
 		if (this.isReady) {
 			this.send(channel, ...args);
 		} else {
@@ -1455,7 +1511,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 	}
 
-	send(channel: string, ...args: any[]): void {
+	send(channel: string, ...args: unknown[]): void {
 		if (this._win) {
 			if (this._win.isDestroyed() || this._win.webContents.isDestroyed()) {
 				this.logService.warn(`Sending IPC message to channel '${channel}' for window that is destroyed`);
@@ -1546,7 +1602,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private async startCollectingJScallStacks(): Promise<void> {
 		if (!this.jsCallStackCollector.isTriggered()) {
-			const stack = await this._win.webContents.mainFrame.collectJavaScriptCallStack();
+			const stack = await this._win?.webContents.mainFrame.collectJavaScriptCallStack();
 
 			// Increment the count for this stack trace
 			if (stack) {
@@ -1574,7 +1630,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				// If the stack appears more than 20 percent of the time, log it
 				// to the error telemetry as UnresponsiveSampleError.
 				if (Math.round((count * 100) / this.jsCallStackEffectiveSampleCount) > 20) {
-					const fakeError = new UnresponsiveError(stack, this.id, this.win?.webContents.getOSProcessId());
+					const fakeError = new UnresponsiveError(stack, this.id, this._win?.webContents.getOSProcessId());
 					errorHandler.onUnexpectedError(fakeError);
 				}
 				logMessage += `<${count}> ${stack}\n`;
@@ -1602,7 +1658,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 class UnresponsiveError extends Error {
 
-	constructor(sample: string, windowId: number, pid: number = 0) {
+	constructor(sample: string, windowId: number, pid = 0) {
 		// Since the stacks are available via the sample
 		// we can avoid collecting them when constructing the error.
 		const stackTraceLimit = Error.stackTraceLimit;

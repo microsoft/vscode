@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IMarker, Terminal } from '@xterm/xterm';
-import { deepStrictEqual } from 'assert';
+import { deepEqual, deepStrictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
 import { writeP } from '../../../browser/terminalTestHelpers.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 
 suite('PartialCommandDetectionCapability', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -16,6 +17,7 @@ suite('PartialCommandDetectionCapability', () => {
 	let xterm: Terminal;
 	let capability: PartialCommandDetectionCapability;
 	let addEvents: IMarker[];
+	let onDidExecuteTextEmitter: Emitter<void>;
 
 	function assertCommands(expectedLines: number[]) {
 		deepStrictEqual(capability.commands.map(e => e.line), expectedLines);
@@ -26,7 +28,8 @@ suite('PartialCommandDetectionCapability', () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80 }) as Terminal);
-		capability = store.add(new PartialCommandDetectionCapability(xterm));
+		onDidExecuteTextEmitter = store.add(new Emitter<void>());
+		capability = store.add(new PartialCommandDetectionCapability(xterm, onDidExecuteTextEmitter.event));
 		addEvents = [];
 		store.add(capability.onCommandFinished(e => addEvents.push(e)));
 	});
@@ -52,5 +55,13 @@ suite('PartialCommandDetectionCapability', () => {
 		xterm.input('\x0d');
 		await writeP(xterm, '\r\n');
 		assertCommands([0, 2]);
+	});
+
+	test('onDidExecuteText should cause onDidCommandFinished to fire', async () => {
+		await writeP(xterm, 'cd');
+		onDidExecuteTextEmitter.fire();
+		await writeP(xterm, 'pwd');
+		onDidExecuteTextEmitter.fire();
+		deepEqual(addEvents.length, 2);
 	});
 });

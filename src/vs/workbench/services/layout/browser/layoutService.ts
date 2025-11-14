@@ -78,7 +78,7 @@ export function isHorizontal(position: Position): boolean {
 	return position === Position.BOTTOM || position === Position.TOP;
 }
 
-export const enum PanelOpensMaximizedOptions {
+export const enum PartOpensMaximizedOptions {
 	ALWAYS,
 	NEVER,
 	REMEMBER_LAST
@@ -107,23 +107,23 @@ export function positionFromString(str: string): Position {
 	return positionsByString[str];
 }
 
-function panelOpensMaximizedSettingToString(setting: PanelOpensMaximizedOptions): string {
+function partOpensMaximizedSettingToString(setting: PartOpensMaximizedOptions): string {
 	switch (setting) {
-		case PanelOpensMaximizedOptions.ALWAYS: return 'always';
-		case PanelOpensMaximizedOptions.NEVER: return 'never';
-		case PanelOpensMaximizedOptions.REMEMBER_LAST: return 'preserve';
+		case PartOpensMaximizedOptions.ALWAYS: return 'always';
+		case PartOpensMaximizedOptions.NEVER: return 'never';
+		case PartOpensMaximizedOptions.REMEMBER_LAST: return 'preserve';
 		default: return 'preserve';
 	}
 }
 
-const panelOpensMaximizedByString: { [key: string]: PanelOpensMaximizedOptions } = {
-	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.ALWAYS)]: PanelOpensMaximizedOptions.ALWAYS,
-	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.NEVER)]: PanelOpensMaximizedOptions.NEVER,
-	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.REMEMBER_LAST)]: PanelOpensMaximizedOptions.REMEMBER_LAST
+const partOpensMaximizedByString: { [key: string]: PartOpensMaximizedOptions } = {
+	[partOpensMaximizedSettingToString(PartOpensMaximizedOptions.ALWAYS)]: PartOpensMaximizedOptions.ALWAYS,
+	[partOpensMaximizedSettingToString(PartOpensMaximizedOptions.NEVER)]: PartOpensMaximizedOptions.NEVER,
+	[partOpensMaximizedSettingToString(PartOpensMaximizedOptions.REMEMBER_LAST)]: PartOpensMaximizedOptions.REMEMBER_LAST
 };
 
-export function panelOpensMaximizedFromString(str: string): PanelOpensMaximizedOptions {
-	return panelOpensMaximizedByString[str];
+export function partOpensMaximizedFromString(str: string): PartOpensMaximizedOptions {
+	return partOpensMaximizedByString[str];
 }
 
 export type MULTI_WINDOW_PARTS = Parts.EDITOR_PART | Parts.STATUSBAR_PART | Parts.TITLEBAR_PART;
@@ -173,6 +173,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Emit when notifications (toasts or center) visibility changes.
 	 */
 	readonly onDidChangeNotificationsVisibility: Event<boolean>;
+
+	/*
+	 * Emit when auxiliary bar maximized state changes.
+	 */
+	readonly onDidChangeAuxiliaryBarMaximized: Event<void>;
 
 	/**
 	 * True if a default layout with default editors was applied at startup
@@ -232,6 +237,29 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleMaximizedPanel(): void;
 
 	/**
+	 * Returns true if the panel is maximized.
+	 */
+	isPanelMaximized(): boolean;
+
+	/**
+	 * Maximizes the auxiliary sidebar by hiding the editor and panel areas.
+	 * Restores the previous layout if the auxiliary sidebar is already maximized.
+	 */
+	toggleMaximizedAuxiliaryBar(): void;
+
+	/**
+	 * Maximizes or restores the auxiliary sidebar.
+	 *
+	 * @returns `true` if there was a change in the maximization state.
+	 */
+	setAuxiliaryBarMaximized(maximized: boolean): boolean;
+
+	/**
+	 * Returns true if the auxiliary sidebar is maximized.
+	 */
+	isAuxiliaryBarMaximized(): boolean;
+
+	/**
 	 * Returns true if the main window has a border.
 	 */
 	hasMainWindowBorder(): boolean;
@@ -240,11 +268,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns the main window border radius if any.
 	 */
 	getMainWindowBorderRadius(): string | undefined;
-
-	/**
-	 * Returns true if the panel is maximized.
-	 */
-	isPanelMaximized(): boolean;
 
 	/**
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.

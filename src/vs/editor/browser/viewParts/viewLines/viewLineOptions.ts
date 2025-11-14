@@ -10,6 +10,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 export class ViewLineOptions {
 	public readonly themeType: ColorScheme;
 	public readonly renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
+	public readonly experimentalWhitespaceRendering: 'svg' | 'font' | 'off';
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
 	public readonly middotWidth: number;
@@ -19,19 +20,15 @@ export class ViewLineOptions {
 	public readonly lineHeight: number;
 	public readonly stopRenderingLineAfter: number;
 	public readonly fontLigatures: string;
+	public readonly verticalScrollbarSize: number;
 	public readonly useGpu: boolean;
 
 	constructor(config: IEditorConfiguration, themeType: ColorScheme) {
 		this.themeType = themeType;
 		const options = config.options;
 		const fontInfo = options.get(EditorOption.fontInfo);
-		const experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
-		if (experimentalWhitespaceRendering === 'off') {
-			this.renderWhitespace = options.get(EditorOption.renderWhitespace);
-		} else {
-			// whitespace is rendered in a different layer
-			this.renderWhitespace = 'none';
-		}
+		this.renderWhitespace = options.get(EditorOption.renderWhitespace);
+		this.experimentalWhitespaceRendering = options.get(EditorOption.experimentalWhitespaceRendering);
 		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		this.spaceWidth = fontInfo.spaceWidth;
 		this.middotWidth = fontInfo.middotWidth;
@@ -44,6 +41,7 @@ export class ViewLineOptions {
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.stopRenderingLineAfter = options.get(EditorOption.stopRenderingLineAfter);
 		this.fontLigatures = options.get(EditorOption.fontLigatures);
+		this.verticalScrollbarSize = options.get(EditorOption.scrollbar).verticalScrollbarSize;
 		this.useGpu = options.get(EditorOption.experimentalGpuAcceleration) === 'on';
 	}
 
@@ -51,6 +49,7 @@ export class ViewLineOptions {
 		return (
 			this.themeType === other.themeType
 			&& this.renderWhitespace === other.renderWhitespace
+			&& this.experimentalWhitespaceRendering === other.experimentalWhitespaceRendering
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.spaceWidth === other.spaceWidth
 			&& this.middotWidth === other.middotWidth
@@ -60,6 +59,7 @@ export class ViewLineOptions {
 			&& this.lineHeight === other.lineHeight
 			&& this.stopRenderingLineAfter === other.stopRenderingLineAfter
 			&& this.fontLigatures === other.fontLigatures
+			&& this.verticalScrollbarSize === other.verticalScrollbarSize
 			&& this.useGpu === other.useGpu
 		);
 	}

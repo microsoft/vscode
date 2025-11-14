@@ -34,10 +34,8 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	static readonly DEFAULT_OVERRIDES_CACHE_EXISTS_KEY = 'DefaultOverridesCacheExists';
 
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	private cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
+	private cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
 	private readonly cacheKey: ConfigurationKey = { type: 'defaults', key: 'configurationDefaultsOverrides' };
-
-	private updateCache: boolean = false;
 
 	constructor(
 		private readonly configurationCache: IConfigurationCache,
@@ -46,11 +44,11 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	) {
 		super(logService);
 		if (environmentService.options?.configurationDefaults) {
-			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults }]);
+			this.configurationRegistry.registerDefaultConfigurations([{ overrides: environmentService.options.configurationDefaults as IStringDictionary<IStringDictionary<unknown>> }]);
 		}
 	}
 
-	protected override getConfigurationDefaultOverrides(): IStringDictionary<any> {
+	protected override getConfigurationDefaultOverrides(): IStringDictionary<unknown> {
 		return this.cachedConfigurationDefaultsOverrides;
 	}
 
@@ -60,7 +58,6 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	}
 
 	override reload(): ConfigurationModel {
-		this.updateCache = true;
 		this.cachedConfigurationDefaultsOverrides = {};
 		this.updateCachedConfigurationDefaultsOverrides();
 		return super.reload();
@@ -97,10 +94,7 @@ export class DefaultConfiguration extends BaseDefaultConfiguration {
 	}
 
 	private async updateCachedConfigurationDefaultsOverrides(): Promise<void> {
-		if (!this.updateCache) {
-			return;
-		}
-		const cachedConfigurationDefaultsOverrides: IStringDictionary<any> = {};
+		const cachedConfigurationDefaultsOverrides: IStringDictionary<unknown> = {};
 		const configurationDefaultsOverrides = this.configurationRegistry.getConfigurationDefaultsOverrides();
 		for (const [key, value] of configurationDefaultsOverrides) {
 			if (!OVERRIDE_PROPERTY_REGEX.test(key) && value.value !== undefined) {
@@ -166,6 +160,7 @@ export class UserConfiguration extends Disposable {
 	constructor(
 		private settingsResource: URI,
 		private tasksResource: URI | undefined,
+		private mcpResource: URI | undefined,
 		private configurationParseOptions: ConfigurationParseOptions,
 		private readonly fileService: IFileService,
 		private readonly uriIdentityService: IUriIdentityService,
@@ -177,16 +172,23 @@ export class UserConfiguration extends Disposable {
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.userConfiguration.value!.loadConfiguration().then(configurationModel => this._onDidChangeConfiguration.fire(configurationModel)), 50));
 	}
 
-	async reset(settingsResource: URI, tasksResource: URI | undefined, configurationParseOptions: ConfigurationParseOptions): Promise<ConfigurationModel> {
+	async reset(settingsResource: URI, tasksResource: URI | undefined, mcpResource: URI | undefined, configurationParseOptions: ConfigurationParseOptions): Promise<ConfigurationModel> {
 		this.settingsResource = settingsResource;
 		this.tasksResource = tasksResource;
+		this.mcpResource = mcpResource;
 		this.configurationParseOptions = configurationParseOptions;
 		return this.doReset();
 	}
 
 	private async doReset(settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
 		const folder = this.uriIdentityService.extUri.dirname(this.settingsResource);
-		const standAloneConfigurationResources: [string, URI][] = this.tasksResource ? [[TASKS_CONFIGURATION_KEY, this.tasksResource]] : [];
+		const standAloneConfigurationResources: [string, URI][] = [];
+		if (this.tasksResource) {
+			standAloneConfigurationResources.push([TASKS_CONFIGURATION_KEY, this.tasksResource]);
+		}
+		if (this.mcpResource) {
+			standAloneConfigurationResources.push([MCP_CONFIGURATION_KEY, this.mcpResource]);
+		}
 		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), this.settingsResource, standAloneConfigurationResources, this.configurationParseOptions, this.fileService, this.uriIdentityService, this.logService);
 		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration(settingsConfiguration);
 		this.userConfiguration.value = fileServiceBasedConfiguration;
@@ -962,7 +964,7 @@ class CachedFolderConfiguration {
 	}
 
 	async updateConfiguration(settingsContent: string | undefined, standAloneConfigurationContents: [string, string | undefined][]): Promise<void> {
-		const content: any = {};
+		const content: IStringDictionary<unknown> = {};
 		if (settingsContent) {
 			content[FOLDER_SETTINGS_NAME] = settingsContent;
 		}

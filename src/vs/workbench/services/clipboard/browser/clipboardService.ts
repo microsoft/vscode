@@ -29,24 +29,29 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 	}
 
 	override async writeText(text: string, type?: string): Promise<void> {
+		this.logService.trace('BrowserClipboardService#writeText called with type:', type, ' with text.length:', text.length);
 		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
 			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
 		}
-
+		this.logService.trace('BrowserClipboardService#super.writeText');
 		return super.writeText(text, type);
 	}
 
 	override async readText(type?: string): Promise<string> {
+		this.logService.trace('BrowserClipboardService#readText called with type:', type);
 		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
 			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
 		}
 
 		if (type) {
+			this.logService.trace('BrowserClipboardService#super.readText');
 			return super.readText(type);
 		}
 
 		try {
-			return await getActiveWindow().navigator.clipboard.readText();
+			const readText = await getActiveWindow().navigator.clipboard.readText();
+			this.logService.trace('BrowserClipboardService#readText with readText.length:', readText.length);
+			return readText;
 		} catch (error) {
 			return new Promise<string>(resolve => {
 

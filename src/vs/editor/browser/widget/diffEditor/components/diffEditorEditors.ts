@@ -72,6 +72,7 @@ export class DiffEditorEditors extends Disposable {
 		this.isModifiedFocused = observableCodeEditor(this.modified).isFocused;
 		this.isFocused = derived(this, reader => this.isOriginalFocused.read(reader) || this.isModifiedFocused.read(reader));
 
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		this._argCodeEditorWidgetOptions = null as any;
 
 		this._register(autorunHandleChanges({
@@ -184,6 +185,8 @@ export class DiffEditorEditors extends Disposable {
 		clonedOptions.inDiffEditor = true;
 		clonedOptions.automaticLayout = false;
 		clonedOptions.allowVariableLineHeights = false;
+		clonedOptions.allowVariableFonts = false;
+		clonedOptions.allowVariableFontsInAccessibilityMode = false;
 
 		// Clone scrollbar options before changing them
 		clonedOptions.scrollbar = { ...(clonedOptions.scrollbar || {}) };

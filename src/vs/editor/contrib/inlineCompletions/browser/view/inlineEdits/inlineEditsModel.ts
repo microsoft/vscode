@@ -11,20 +11,27 @@ import { observableCodeEditor } from '../../../../../browser/observableCodeEdito
 import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { TextEdit } from '../../../../../common/core/edits/textEdit.js';
 import { StringText } from '../../../../../common/core/text/abstractText.js';
-import { Command, InlineCompletionDisplayLocation } from '../../../../../common/languages.js';
-import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
-import { InlineCompletionItem } from '../../model/inlineSuggestionItem.js';
-import { IInlineEditHost, IInlineEditModel, InlineEditTabAction } from './inlineEditsViewInterface.js';
+import { Command, InlineCompletionCommand } from '../../../../../common/languages.js';
+import { InlineCompletionsModel, isSuggestionInViewport } from '../../model/inlineCompletionsModel.js';
+import { InlineCompletionItem, InlineSuggestHint } from '../../model/inlineSuggestionItem.js';
+import { IInlineEditHost, InlineCompletionViewData, InlineCompletionViewKind, InlineEditTabAction } from './inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 
-export class InlineEditModel implements IInlineEditModel {
+/**
+ * Warning: This is not per inline edit id and gets created often.
+*/
+export class ModelPerInlineEdit implements ModelPerInlineEdit {
 
 	readonly action: Command | undefined;
 	readonly displayName: string;
-	readonly extensionCommands: Command[];
+	readonly extensionCommands: InlineCompletionCommand[];
+	readonly isInDiffEditor: boolean;
 
-	readonly displayLocation: InlineCompletionDisplayLocation | undefined;
+	readonly displayLocation: InlineSuggestHint | undefined;
 	readonly showCollapsed: IObservable<boolean>;
+
+	/** Determines if the inline suggestion is fully in the view port */
+	readonly inViewPort: IObservable<boolean>;
 
 	constructor(
 		private readonly _model: InlineCompletionsModel,
@@ -34,9 +41,12 @@ export class InlineEditModel implements IInlineEditModel {
 		this.action = this.inlineEdit.inlineCompletion.action;
 		this.displayName = this.inlineEdit.inlineCompletion.source.provider.displayName ?? localize('inlineEdit', "Inline Edit");
 		this.extensionCommands = this.inlineEdit.inlineCompletion.source.inlineSuggestions.commands ?? [];
+		this.isInDiffEditor = this._model.isInDiffEditor;
 
-		this.displayLocation = this.inlineEdit.inlineCompletion.displayLocation;
+		this.displayLocation = this.inlineEdit.inlineCompletion.hint;
 		this.showCollapsed = this._model.showCollapsed;
+
+		this.inViewPort = derived(this, reader => isSuggestionInViewport(this._model.editor, this.inlineEdit.inlineCompletion, reader));
 	}
 
 	accept() {
@@ -47,13 +57,8 @@ export class InlineEditModel implements IInlineEditModel {
 		this._model.jump();
 	}
 
-	abort(reason: string) {
-		console.error(reason); // TODO: add logs/telemetry
-		this._model.stop();
-	}
-
-	handleInlineEditShown() {
-		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion);
+	handleInlineEditShown(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
+		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion, viewKind, viewData);
 	}
 }
 
@@ -71,7 +76,7 @@ export class InlineEditHost implements IInlineEditHost {
 
 export class GhostTextIndicator {
 
-	readonly model: InlineEditModel;
+	readonly model: ModelPerInlineEdit;
 
 	constructor(
 		editor: ICodeEditor,
@@ -89,12 +94,13 @@ export class GhostTextIndicator {
 			return InlineEditTabAction.Inactive;
 		});
 
-		this.model = new InlineEditModel(
+		this.model = new ModelPerInlineEdit(
 			model,
 			new InlineEditWithChanges(
 				new StringText(''),
 				new TextEdit([inlineCompletion.getSingleTextEdit()]),
 				model.primaryPosition.get(),
+				model.allPositions.get(),
 				inlineCompletion.source.inlineSuggestions.commands ?? [],
 				inlineCompletion
 			),

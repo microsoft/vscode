@@ -20,6 +20,7 @@ export interface IListVirtualDelegate<T> {
 
 export interface IListElementRenderDetails {
 	readonly height?: number;
+	readonly onScroll?: boolean;
 }
 
 export interface IListRenderer<T, TTemplateData> {

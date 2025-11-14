@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 9
+// version: 11
 
 declare module 'vscode' {
 
@@ -56,6 +56,11 @@ declare module 'vscode' {
 		readonly attempt: number;
 
 		/**
+		 * The session identifier for this chat request
+		 */
+		readonly sessionId: string;
+
+		/**
 		 * If automatic command detection is enabled.
 		 */
 		readonly enableCommandDetection: boolean;
@@ -82,6 +87,8 @@ declare module 'vscode' {
 		 * Events for edited files in this session collected since the last request.
 		 */
 		readonly editedFileEvents?: ChatRequestEditedFileEvent[];
+
+		readonly isSubagent?: boolean;
 	}
 
 	export enum ChatRequestEditedFileEventKind {
@@ -137,7 +144,31 @@ declare module 'vscode' {
 		/**
 		 * @hidden
 		 */
-		private constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined);
+	}
+
+	export class ChatResponseTurn2 {
+		/**
+		 * The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
+		 */
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart | ChatToolInvocationPart>;
+
+		/**
+		 * The result that was received from the chat participant.
+		 */
+		readonly result: ChatResult;
+
+		/**
+		 * The id of the chat participant that this response came from.
+		 */
+		readonly participant: string;
+
+		/**
+		 * The name of the command that this response came from.
+		 */
+		readonly command?: string;
+
+		constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart>, result: ChatResult, participant: string);
 	}
 
 	export interface ChatParticipant {
@@ -158,7 +189,11 @@ declare module 'vscode' {
 
 		isQuotaExceeded?: boolean;
 
+		isRateLimited?: boolean;
+
 		level?: ChatErrorLevel;
+
+		code?: string;
 	}
 
 	export namespace chat {
@@ -188,34 +223,33 @@ declare module 'vscode' {
 		chatSessionId?: string;
 		chatInteractionId?: string;
 		terminalCommand?: string;
+		/**
+		 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
+		 */
+		fromSubAgent?: boolean;
+	}
+
+	export interface LanguageModelToolInvocationPrepareOptions<T> {
+		/**
+		 * The input that the tool is being invoked with.
+		 */
+		input: T;
+		chatRequestId?: string;
+		chatSessionId?: string;
+		chatInteractionId?: string;
 	}
 
 	export interface PreparedToolInvocation {
 		pastTenseMessage?: string | MarkdownString;
-		presentation?: 'hidden' | undefined;
-	}
-
-	export interface LanguageModelTool<T> {
-		prepareInvocation2?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedTerminalToolInvocation>;
-	}
-
-	export class PreparedTerminalToolInvocation {
-		readonly command: string;
-		readonly language: string;
-		readonly confirmationMessages?: LanguageModelToolConfirmationMessages;
-		readonly presentation?: 'hidden' | undefined;
-
-		constructor(
-			command: string,
-			language: string,
-			confirmationMessages?: LanguageModelToolConfirmationMessages,
-			presentation?: 'hidden'
-		);
+		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 	}
 
 	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 		toolResultMessage?: string | MarkdownString;
 		toolResultDetails?: Array<Uri | Location>;
+		toolMetadata?: unknown;
+		/** Whether there was an error calling the tool. The tool may still have partially succeeded. */
+		hasError?: boolean;
 	}
 
 	// #region Chat participant detection
@@ -252,6 +286,26 @@ declare module 'vscode' {
 	export interface ChatErrorDetailsConfirmationButton {
 		data: any;
 		label: string;
+	}
+
+	// #endregion
+
+	// #region LanguageModelProxyProvider
+
+	/**
+	 * Duplicated so that this proposal and languageModelProxy can be independent.
+	 */
+	export interface LanguageModelProxy extends Disposable {
+		readonly uri: Uri;
+		readonly key: string;
+	}
+
+	export interface LanguageModelProxyProvider {
+		provideModelProxy(forExtensionId: string, token: CancellationToken): ProviderResult<LanguageModelProxy>;
+	}
+
+	export namespace lm {
+		export function registerLanguageModelProxyProvider(provider: LanguageModelProxyProvider): Disposable;
 	}
 
 	// #endregion

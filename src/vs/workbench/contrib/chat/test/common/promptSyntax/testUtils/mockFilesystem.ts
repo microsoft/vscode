@@ -6,7 +6,7 @@
 import { URI } from '../../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
-import { wait } from '../../../../../../../base/test/common/testUtils.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 
 /**
@@ -39,6 +39,9 @@ type TWithURI<T extends IMockFilesystemNode> = T & { uri: URI };
  * Utility to recursively creates provided filesystem structure.
  */
 export class MockFilesystem {
+
+	private createdRootFolders: URI[] = [];
+
 	constructor(
 		private readonly folders: IMockFolder[],
 		@IFileService private readonly fileService: IFileService,
@@ -47,20 +50,28 @@ export class MockFilesystem {
 	/**
 	 * Starts the mock process.
 	 */
-	public async mock(): Promise<TWithURI<IMockFolder>[]> {
+	public async mock(parentFolder?: URI): Promise<TWithURI<IMockFolder>[]> {
 		const result = await Promise.all(
 			this.folders
 				.map((folder) => {
-					return this.mockFolder(folder);
+					return this.mockFolder(folder, parentFolder);
 				}),
 		);
 
 		// wait for the filesystem event to settle before proceeding
 		// this is temporary workaround and should be fixed once we
 		// improve behavior of the `settled()` / `allSettled()` methods
-		await wait(25);
+		await timeout(25);
+
+		this.createdRootFolders.push(...result.map(r => r.uri));
 
 		return result;
+	}
+
+	public async delete(): Promise<void> {
+		for (const folder of this.createdRootFolders) {
+			await this.fileService.del(folder, { recursive: true, useTrash: false });
+		}
 	}
 
 	/**

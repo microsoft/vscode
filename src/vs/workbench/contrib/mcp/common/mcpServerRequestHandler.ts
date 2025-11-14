@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../base/common/arrays.js';
+import { assertNever, softAssertNever } from '../../../../base/common/assert.js';
 import { DeferredPromise, IntervalTimer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -71,12 +72,19 @@ export class McpServerRequestHandler extends Disposable {
 		return this._serverInit.serverInfo;
 	}
 
+	public get serverInstructions(): string | undefined {
+		return this._serverInit.instructions;
+	}
+
 	// Event emitters for server notifications
 	private readonly _onDidReceiveCancelledNotification = this._register(new Emitter<MCP.CancelledNotification>());
 	readonly onDidReceiveCancelledNotification = this._onDidReceiveCancelledNotification.event;
 
 	private readonly _onDidReceiveProgressNotification = this._register(new Emitter<MCP.ProgressNotification>());
 	readonly onDidReceiveProgressNotification = this._onDidReceiveProgressNotification.event;
+
+	private readonly _onDidReceiveElicitationCompleteNotification = this._register(new Emitter<MCP.ElicitationCompleteNotification>());
+	readonly onDidReceiveElicitationCompleteNotification = this._onDidReceiveElicitationCompleteNotification.event;
 
 	private readonly _onDidChangeResourceList = this._register(new Emitter<void>());
 	readonly onDidChangeResourceList = this._onDidChangeResourceList.event;
@@ -112,6 +120,7 @@ export class McpServerRequestHandler extends Disposable {
 						capabilities: {
 							roots: { listChanged: true },
 							sampling: opts.createMessageRequestHandler ? {} : undefined,
+							elicitation: opts.elicitationRequestHandler ? { form: {}, url: {} } : undefined,
 						},
 						clientInfo: {
 							name: productService.nameLong,
@@ -121,6 +130,7 @@ export class McpServerRequestHandler extends Disposable {
 				}, token);
 
 				mcp._serverInit = initialized;
+				mcp._sendLogLevelToServer(opts.logger.getLevel());
 
 				mcp.sendNotification<MCP.InitializedNotification>({
 					method: 'notifications/initialized'
@@ -140,11 +150,13 @@ export class McpServerRequestHandler extends Disposable {
 	private readonly _launch: IMcpMessageTransport;
 	private readonly _requestLogLevel: LogLevel;
 	private readonly _createMessageRequestHandler: IMcpServerRequestHandlerOptions['createMessageRequestHandler'];
+	private readonly _elicitationRequestHandler: IMcpServerRequestHandlerOptions['elicitationRequestHandler'];
 
 	protected constructor({
 		launch,
 		logger,
 		createMessageRequestHandler,
+		elicitationRequestHandler,
 		requestLogLevel = LogLevel.Debug,
 	}: IMcpServerRequestHandlerOptions) {
 		super();
@@ -152,6 +164,7 @@ export class McpServerRequestHandler extends Disposable {
 		this.logger = logger;
 		this._requestLogLevel = requestLogLevel;
 		this._createMessageRequestHandler = createMessageRequestHandler;
+		this._elicitationRequestHandler = elicitationRequestHandler;
 
 		this._register(launch.onDidReceiveMessage(message => this.handleMessage(message)));
 		this._register(autorun(reader => {
@@ -161,6 +174,11 @@ export class McpServerRequestHandler extends Disposable {
 			if (state === McpConnectionState.Kind.Error || state === McpConnectionState.Kind.Stopped) {
 				this.cancelAllRequests();
 			}
+		}));
+
+		// Listen for log level changes and forward them to the MCP server
+		this._register(logger.onDidChangeLogLevel((logLevel) => {
+			this._sendLogLevelToServer(logLevel);
 		}));
 	}
 
@@ -244,7 +262,7 @@ export class McpServerRequestHandler extends Disposable {
 		} while (nextCursor !== undefined && !token.isCancellationRequested);
 	}
 
-	private sendNotification<N extends MCP.ClientNotification>(notification: N): void {
+	private sendNotification<N extends MCP.ClientNotification>(notification: Omit<N, 'jsonrpc'>): void {
 		this.send({ ...notification, jsonrpc: MCP.JSONRPC_VERSION });
 	}
 
@@ -309,6 +327,8 @@ export class McpServerRequestHandler extends Disposable {
 				response = this.handleRootsList(request);
 			} else if (request.method === 'sampling/createMessage' && this._createMessageRequestHandler) {
 				response = await this._createMessageRequestHandler(request.params as MCP.CreateMessageRequest['params']);
+			} else if (request.method === 'elicitation/create' && this._elicitationRequestHandler) {
+				response = await this._elicitationRequestHandler(request.params as MCP.ElicitRequest['params']);
 			} else {
 				throw McpError.methodNotFound(request.method);
 			}
@@ -357,6 +377,11 @@ export class McpServerRequestHandler extends Disposable {
 			case 'notifications/prompts/list_changed':
 				this._onDidChangePromptList.fire();
 				return;
+			case 'notifications/elicitation/complete':
+				this._onDidReceiveElicitationCompleteNotification.fire(request);
+				return;
+			default:
+				softAssertNever(request);
 		}
 	}
 
@@ -432,6 +457,22 @@ export class McpServerRequestHandler extends Disposable {
 	public override dispose(): void {
 		this.cancelAllRequests();
 		super.dispose();
+	}
+
+	/**
+	 * Forwards log level changes to the MCP server if it supports logging
+	 */
+	private async _sendLogLevelToServer(logLevel: LogLevel): Promise<void> {
+		try {
+			// Only send if the server supports logging capabilities
+			if (!this.capabilities.logging) {
+				return;
+			}
+
+			await this.setLevel({ level: mapLogLevelToMcp(logLevel) });
+		} catch (error) {
+			this.logger.error(`Failed to set MCP server log level: ${error}`);
+		}
 	}
 
 	/**
@@ -521,7 +562,30 @@ export class McpServerRequestHandler extends Disposable {
 	/**
 	 * Find completions for an argument
 	 */
-	complete(params: MCP.CompleteRequest2['params'], token?: CancellationToken): Promise<MCP.CompleteResult> {
-		return this.sendRequest<MCP.CompleteRequest2, MCP.CompleteResult>({ method: 'completion/complete', params }, token);
+	complete(params: MCP.CompleteRequest['params'], token?: CancellationToken): Promise<MCP.CompleteResult> {
+		return this.sendRequest<MCP.CompleteRequest, MCP.CompleteResult>({ method: 'completion/complete', params }, token);
+	}
+}
+
+
+/**
+ * Maps VSCode LogLevel to MCP LoggingLevel
+ */
+function mapLogLevelToMcp(logLevel: LogLevel): MCP.LoggingLevel {
+	switch (logLevel) {
+		case LogLevel.Trace:
+			return 'debug'; // MCP doesn't have trace, use debug
+		case LogLevel.Debug:
+			return 'debug';
+		case LogLevel.Info:
+			return 'info';
+		case LogLevel.Warning:
+			return 'warning';
+		case LogLevel.Error:
+			return 'error';
+		case LogLevel.Off:
+			return 'emergency'; // MCP doesn't have off, use emergency
+		default:
+			return assertNever(logLevel); // Off and other levels are not supported
 	}
 }

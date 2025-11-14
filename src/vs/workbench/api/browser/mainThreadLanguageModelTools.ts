@@ -41,6 +41,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 				userDescription: tool.userDescription,
 				modelDescription: tool.modelDescription,
 				inputSchema: tool.inputSchema,
+				source: tool.source,
 			} satisfies IToolDataDto));
 	}
 
@@ -48,15 +49,18 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return this.getToolDtos();
 	}
 
-	async $invokeTool(dto: IToolInvocation, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
+	async $invokeTool(dto: Dto<IToolInvocation>, token?: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
 		const result = await this._languageModelToolsService.invokeTool(
-			dto,
+			revive<IToolInvocation>(dto),
 			(input, token) => this._proxy.$countTokensForInvocation(dto.callId, input, token),
 			token ?? CancellationToken.None,
 		);
 
-		// Don't return extra metadata to EH
-		const out: Dto<IToolResult> = { content: result.content };
+		// Only return content and metadata to EH
+		const out: Dto<IToolResult> = {
+			content: result.content,
+			toolMetadata: result.toolMetadata
+		};
 		return toolResultHasBuffers(result) ? new SerializableObjectWithBuffers(out) : out;
 	}
 
@@ -87,7 +91,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 						this._runningToolCalls.delete(dto.callId);
 					}
 				},
-				prepareToolInvocation: (parameters, token) => this._proxy.$prepareToolInvocation(id, parameters, token),
+				prepareToolInvocation: (context, token) => this._proxy.$prepareToolInvocation(id, context, token),
 			});
 		this._tools.set(id, disposable);
 	}

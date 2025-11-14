@@ -54,7 +54,7 @@ export class ExtensionKey {
 		return `${this.id}-${this.version}${this.targetPlatform !== TargetPlatform.UNDEFINED ? `-${this.targetPlatform}` : ''}`;
 	}
 
-	equals(o: any): boolean {
+	equals(o: unknown): boolean {
 		if (!(o instanceof ExtensionKey)) {
 			return false;
 		}
@@ -194,7 +194,7 @@ async function isAlpineLinux(fileService: IFileService, logService: ILogService)
 export async function computeTargetPlatform(fileService: IFileService, logService: ILogService): Promise<TargetPlatform> {
 	const alpineLinux = await isAlpineLinux(fileService, logService);
 	const targetPlatform = getTargetPlatform(alpineLinux ? 'alpine' : platform, arch);
-	logService.info('ComputeTargetPlatform:', targetPlatform);
+	logService.debug('ComputeTargetPlatform:', targetPlatform);
 	return targetPlatform;
 }
 

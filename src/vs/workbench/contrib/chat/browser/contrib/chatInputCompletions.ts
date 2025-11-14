@@ -14,6 +14,7 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ICodeEditor, getCodeEditor, isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -43,19 +44,20 @@ import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { McpPromptArgumentPick } from '../../../mcp/browser/mcpPromptArgumentPick.js';
 import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../mcp/common/mcpTypes.js';
-import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
+import { searchFilesAndFolders } from '../../../search/browser/searchChatContext.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { getAttachableImageExtension, IChatRequestVariableEntry } from '../../common/chatModel.js';
+import { getAttachableImageExtension } from '../../common/chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../common/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
+import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
-import { ChatAgentLocation, ChatMode } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../common/constants.js';
 import { ToolSet } from '../../common/languageModelToolsService.js';
-import { IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { ChatInputPart } from '../chatInputPart.js';
+import { resizeImage } from '../imageUtils.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
@@ -68,12 +70,16 @@ class SlashCommandCompletions extends Disposable {
 	) {
 		super();
 
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'globalSlashCommands',
-			triggerCharacters: ['/'],
+			triggerCharacters: [chatSubcommandLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
+					return null;
+				}
+
+				if (widget.lockedAgentId) {
 					return null;
 				}
 
@@ -94,7 +100,7 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				const slashCommands = this.chatSlashCommandService.getCommands(widget.location, widget.input.currentMode);
+				const slashCommands = this.chatSlashCommandService.getCommands(widget.location, widget.input.currentModeKind);
 				if (!slashCommands) {
 					return null;
 				}
@@ -115,7 +121,7 @@ class SlashCommandCompletions extends Disposable {
 				};
 			}
 		}));
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'globalSlashCommandsAt',
 			triggerCharacters: [chatAgentLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
@@ -134,8 +140,12 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				const slashCommands = this.chatSlashCommandService.getCommands(widget.location, widget.input.currentMode);
+				const slashCommands = this.chatSlashCommandService.getCommands(widget.location, widget.input.currentModeKind);
 				if (!slashCommands) {
+					return null;
+				}
+
+				if (widget.lockedAgentId) {
 					return null;
 				}
 
@@ -156,10 +166,10 @@ class SlashCommandCompletions extends Disposable {
 				};
 			}
 		}));
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'promptSlashCommands',
-			triggerCharacters: ['/'],
-			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+			triggerCharacters: [chatSubcommandLeader],
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
 					return null;
@@ -182,19 +192,23 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				const promptCommands = await this.promptsService.findPromptSlashCommands();
+				const promptCommands = await this.promptsService.getPromptSlashCommands(token);
 				if (promptCommands.length === 0) {
+					return null;
+				}
+
+				if (widget.lockedAgentId) {
 					return null;
 				}
 
 				return {
 					suggestions: promptCommands.map((c, i): CompletionItem => {
-						const label = `/${c.command}`;
-						const description = c.promptPath?.storage === 'user' ? localize('promptFileDescription', 'User Prompt File') : localize('promptFileDescriptionWorkspace', 'Workspace Prompt File');
+						const label = `/${c.name}`;
+						const description = c.description;
 						return {
 							label: { label, description },
 							insertText: `${label} `,
-							documentation: c.detail,
+							documentation: c.description,
 							range,
 							sortText: 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
@@ -204,16 +218,17 @@ class SlashCommandCompletions extends Disposable {
 			}
 		}));
 
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'mcpPromptSlashCommands',
-			triggerCharacters: ['/'],
+			triggerCharacters: [chatSubcommandLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
 					return null;
 				}
 
-				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				// regex is the opposite of `mcpPromptReplaceSpecialChars` found in `mcpTypes.ts`
+				const range = computeCompletionRanges(model, position, /\/[a-z0-9_.-]*/g);
 				if (!range) {
 					return null;
 				}
@@ -221,6 +236,10 @@ class SlashCommandCompletions extends Disposable {
 				if (!isEmptyUpToCompletionWord(model, range)) {
 					// No text allowed before the completion
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				return {
@@ -258,7 +277,7 @@ class AgentCompletions extends Disposable {
 
 		const subCommandProvider: CompletionItemProvider = {
 			_debugDisplayName: 'chatAgentSubcommand',
-			triggerCharacters: ['/'],
+			triggerCharacters: [chatSubcommandLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
@@ -267,30 +286,15 @@ class AgentCompletions extends Disposable {
 
 				const range = computeCompletionRanges(model, position, /\/\w*/g);
 				if (!range) {
-					return null;
-				}
-
-				const parsedRequest = widget.parsedInput.parts;
-				const usedAgentIdx = parsedRequest.findIndex((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
-				if (usedAgentIdx < 0) {
 					return;
 				}
 
-				const usedOtherCommand = parsedRequest.find(p => p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashPromptPart);
-				if (usedOtherCommand) {
+				const usedAgent = this.getCurrentAgentForWidget(widget);
+				if (!usedAgent || usedAgent.command) {
 					// Only one allowed
 					return;
 				}
 
-				for (const partAfterAgent of parsedRequest.slice(usedAgentIdx + 1)) {
-					// Could allow text after 'position'
-					if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.trim().match(/^(\/\w*)?$/)) {
-						// No text allowed between agent and subcommand
-						return;
-					}
-				}
-
-				const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
 				return {
 					suggestions: usedAgent.agent.slashCommands.map((c, i): CompletionItem => {
 						const withSlash = `/${c.name}`;
@@ -305,9 +309,9 @@ class AgentCompletions extends Disposable {
 				};
 			}
 		};
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, subCommandProvider));
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, subCommandProvider));
 
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatAgentAndSubcommand',
 			triggerCharacters: [chatAgentLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
@@ -315,6 +319,10 @@ class AgentCompletions extends Disposable {
 				const viewModel = widget?.viewModel;
 				if (!widget || !viewModel) {
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
@@ -328,7 +336,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => a.locations.includes(widget.location) && a.modes.includes(widget.input.currentMode));
+					.filter(a => a.locations.includes(widget.location));
 
 				// When the input is only `/`, items are sorted by sortText.
 				// When typing, filterText is used to score and sort.
@@ -363,7 +371,7 @@ class AgentCompletions extends Disposable {
 				return {
 					suggestions: justAgents.concat(
 						coalesce(agents.flatMap(agent => agent.slashCommands.map((c, i) => {
-							if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location, widget.input.currentMode)?.id !== agent.id) {
+							if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location, widget.input.currentModeKind)?.id !== agent.id) {
 								return;
 							}
 
@@ -397,7 +405,7 @@ class AgentCompletions extends Disposable {
 			}
 		}));
 
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatAgentAndSubcommand',
 			triggerCharacters: [chatSubcommandLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
@@ -405,6 +413,10 @@ class AgentCompletions extends Disposable {
 				const viewModel = widget?.viewModel;
 				if (!widget || !viewModel) {
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
@@ -418,11 +430,11 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents()
-					.filter(a => a.locations.includes(widget.location) && a.modes.includes(widget.input.currentMode));
+					.filter(a => a.locations.includes(widget.location) && a.modes.includes(widget.input.currentModeKind));
 
 				return {
 					suggestions: coalesce(agents.flatMap(agent => agent.slashCommands.map((c, i) => {
-						if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location, widget.input.currentMode)?.id !== agent.id) {
+						if (agent.isDefault && this.chatAgentService.getDefaultAgent(widget.location, widget.input.currentModeKind)?.id !== agent.id) {
 							return;
 						}
 
@@ -455,7 +467,7 @@ class AgentCompletions extends Disposable {
 			}
 		}));
 
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'installChatExtensions',
 			triggerCharacters: [chatAgentLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
@@ -464,8 +476,12 @@ class AgentCompletions extends Disposable {
 				}
 
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (widget?.location !== ChatAgentLocation.Panel || widget.input.currentMode !== ChatMode.Ask) {
+				if (widget?.location !== ChatAgentLocation.Chat || widget.input.currentModeKind !== ChatModeKind.Ask) {
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
@@ -496,6 +512,40 @@ class AgentCompletions extends Disposable {
 		}));
 	}
 
+	private getCurrentAgentForWidget(widget: IChatWidget): { agent: IChatAgentData; command?: string } | undefined {
+		if (widget.lockedAgentId) {
+			const usedAgent = this.chatAgentService.getAgent(widget.lockedAgentId);
+			return usedAgent && { agent: usedAgent };
+		}
+
+		const parsedRequest = widget.parsedInput.parts;
+		const usedAgentIdx = parsedRequest.findIndex((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		if (usedAgentIdx < 0) {
+			return;
+		}
+
+		const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
+
+		const usedOtherCommand = parsedRequest.find(p => p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashPromptPart);
+		if (usedOtherCommand) {
+			// Only one allowed
+			return {
+				agent: usedAgent.agent,
+				command: usedOtherCommand instanceof ChatRequestAgentSubcommandPart ? usedOtherCommand.command.name : undefined
+			};
+		}
+
+		for (const partAfterAgent of parsedRequest.slice(usedAgentIdx + 1)) {
+			// Could allow text after 'position'
+			if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.trim().match(/^(\/\w*)?$/)) {
+				// No text allowed between agent and subcommand
+				return;
+			}
+		}
+
+		return { agent: usedAgent.agent };
+	}
+
 	private getAgentCompletionDetails(agent: IChatAgentData): { label: string; isDupe: boolean } {
 		const isAllowed = this.chatAgentNameService.getAgentNameRestriction(agent);
 		const agentLabel = `${chatAgentLeader}${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
@@ -520,10 +570,14 @@ class AssignSelectedAgentAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
-		const arg: AssignSelectedAgentActionArgs = args[0];
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
+		const arg = args[0] as AssignSelectedAgentActionArgs | undefined;
 		if (!arg || !arg.widget || !arg.agent) {
 			return;
+		}
+
+		if (!arg.agent.modes.includes(arg.widget.input.currentModeKind)) {
+			arg.widget.input.setChatMode(arg.agent.modes[0]);
 		}
 
 		arg.widget.lastSelectedAgent = arg.agent;
@@ -593,7 +647,7 @@ class StartParameterizedPromptAction extends Action2 {
 		try {
 			// start the server if not already running so that it's ready to resolve
 			// the prompt instantly when the user finishes picking arguments.
-			server.start();
+			await server.start();
 
 			const args = await pick.createArgs();
 			if (!args) {
@@ -642,11 +696,13 @@ class StartParameterizedPromptAction extends Action2 {
 						});
 					}
 				} else if (mimeType && getAttachableImageExtension(mimeType)) {
+					const resized = await resizeImage(contents)
+						.catch(() => decodeBase64(contents).buffer);
 					chatWidget.attachmentModel.addContext({
 						id: generateUuid(),
 						name: localize('mcp.prompt.image', 'Prompt Image'),
 						fullName: localize('mcp.prompt.image', 'Prompt Image'),
-						value: decodeBase64(contents).buffer,
+						value: resized,
 						kind: 'image',
 						references: validURI && [{ reference: validURI, kind: 'reference' }],
 					});
@@ -734,6 +790,8 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -743,7 +801,16 @@ class BuiltinDynamicCompletions extends Disposable {
 			if (!widget.supportsFileReferences) {
 				return;
 			}
+
 			const result: CompletionList = { suggestions: [] };
+
+			// If locked to an agent that doesn't support file attachments, skip
+			if (widget.lockedAgentId) {
+				const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
+				if (agent && !agent.capabilities?.supportsFileAttachments) {
+					return result;
+				}
+			}
 			await this.addFileAndFolderEntries(widget, result, range, token);
 			return result;
 
@@ -755,7 +822,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				return;
 			}
 
-			if (widget.location === ChatAgentLocation.Editor) {
+			if (widget.location === ChatAgentLocation.EditorInline) {
 				return;
 			}
 
@@ -810,7 +877,10 @@ class BuiltinDynamicCompletions extends Disposable {
 			return result;
 		});
 
-		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => this.cmdAddReference(arg)));
+		this._register(CommandsRegistry.registerCommand(BuiltinDynamicCompletions.addReferenceCommand, (_services, arg) => {
+			assertType(arg instanceof ReferenceArgument);
+			return this.cmdAddReference(arg);
+		}));
 	}
 
 	private findActiveCodeEditor(): ICodeEditor | undefined {
@@ -840,7 +910,7 @@ class BuiltinDynamicCompletions extends Disposable {
 	}
 
 	private registerVariableCompletions(debugName: string, provider: (details: IVariableCompletionsDetails, token: CancellationToken) => ProviderResult<CompletionList>, wordPattern: RegExp = BuiltinDynamicCompletions.VariableNameDef) {
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: `chatVarCompletions-${debugName}`,
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, context: CompletionContext, token: CancellationToken) => {
@@ -863,15 +933,15 @@ class BuiltinDynamicCompletions extends Disposable {
 
 	private async addFileAndFolderEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
 
-		const makeCompletionItem = (resource: URI, kind: FileKind, description?: string): CompletionItem => {
-
+		const makeCompletionItem = (resource: URI, kind: FileKind, description?: string, boostPriority?: boolean): CompletionItem => {
 			const basename = this.labelService.getUriBasenameLabel(resource);
 			const text = `${chatVariableLeader}file:${basename}`;
 			const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
 			const labelDescription = description
 				? localize('fileEntryDescription', '{0} ({1})', uriLabel, description)
 				: uriLabel;
-			const sortText = description ? 'z' : '{'; // after `z`
+			// keep files above other completions
+			const sortText = boostPriority ? ' ' : '!';
 
 			return {
 				label: { label: basename, description: labelDescription },
@@ -900,23 +970,10 @@ class BuiltinDynamicCompletions extends Disposable {
 		const seen = new ResourceSet();
 		const len = result.suggestions.length;
 
-		// RELATED FILES
-		if (widget.input.currentMode !== ChatMode.Ask && widget.viewModel && widget.viewModel.model.editingSession) {
-			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
-			for (const relatedFileGroup of relatedFiles) {
-				for (const relatedFile of relatedFileGroup.files) {
-					if (!seen.has(relatedFile.uri)) {
-						seen.add(relatedFile.uri);
-						result.suggestions.push(makeCompletionItem(relatedFile.uri, FileKind.FILE, relatedFile.description));
-					}
-				}
-			}
-		}
-
 		// HISTORY
 		// always take the last N items
-		for (const item of this.historyService.getHistory()) {
-			if (!item.resource || seen.has(item.resource)) {
+		for (const [i, item] of this.historyService.getHistory().entries()) {
+			if (!item.resource || seen.has(item.resource) || !this.instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, item.resource!.scheme))) {
 				// ignore editors without a resource
 				continue;
 			}
@@ -930,9 +987,22 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			seen.add(item.resource);
-			const newLen = result.suggestions.push(makeCompletionItem(item.resource, FileKind.FILE));
+			const newLen = result.suggestions.push(makeCompletionItem(item.resource, FileKind.FILE, i === 0 ? localize('activeFile', 'Active file') : undefined, i === 0));
 			if (newLen - len >= 5) {
 				break;
+			}
+		}
+
+		// RELATED FILES
+		if (widget.input.currentModeKind !== ChatModeKind.Ask && widget.viewModel && widget.viewModel.model.editingSession) {
+			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionResource, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
+			for (const relatedFileGroup of relatedFiles) {
+				for (const relatedFile of relatedFileGroup.files) {
+					if (!seen.has(relatedFile.uri)) {
+						seen.add(relatedFile.uri);
+						result.suggestions.push(makeCompletionItem(relatedFile.uri, FileKind.FILE, relatedFile.description));
+					}
+				}
 			}
 		}
 
@@ -1090,16 +1160,25 @@ class ToolCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
-		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._register(this.languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatVariables',
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
 					return null;
+				}
+
+				// If locked to an agent that doesn't support tool attachments, skip
+				if (widget.lockedAgentId) {
+					const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
+					if (agent && !agent.capabilities?.supportsToolAttachments) {
+						return null;
+					}
 				}
 
 				const range = computeCompletionRanges(model, position, ToolCompletions.VariableNameDef, true);
@@ -1120,25 +1199,31 @@ class ToolCompletions extends Disposable {
 				const suggestions: CompletionItem[] = [];
 
 
-				const iter = widget.input.selectedToolsModel.entries.get();
+				const iter = widget.input.selectedToolsModel.entriesMap.get();
 
-				for (const item of iter) {
-
-					if (usedNames.has(item.toolReferenceName ?? '')) {
+				for (const [item, enabled] of iter) {
+					if (!enabled) {
 						continue;
 					}
 
 					let detail: string | undefined;
 
+					let name: string;
 					if (item instanceof ToolSet) {
 						detail = item.description;
+						name = item.referenceName;
 
 					} else {
 						const source = item.source;
 						detail = localize('tool_source_completion', "{0}: {1}", source.label, item.displayName);
+						name = item.toolReferenceName ?? item.displayName;
 					}
 
-					const withLeader = `${chatVariableLeader}${item.toolReferenceName ?? item.displayName}`;
+					if (usedNames.has(name)) {
+						continue;
+					}
+
+					const withLeader = `${chatVariableLeader}${name}`;
 					suggestions.push({
 						label: withLeader,
 						range,

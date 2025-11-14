@@ -325,7 +325,7 @@ export namespace Event {
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function accumulate<T>(event: Event<T>, delay: number = 0, disposable?: DisposableStore): Event<T[]> {
+	export function accumulate<T>(event: Event<T>, delay: number | typeof MicrotaskDelay = 0, disposable?: DisposableStore): Event<T[]> {
 		return Event.debounce<T, T[]>(event, (last, e) => {
 			if (!last) {
 				return [e];
@@ -612,24 +612,6 @@ export namespace Event {
 	}
 
 	/**
-	 * Creates an event out of a promise that fires once when the promise is
-	 * resolved with the result of the promise or `undefined`.
-	 */
-	export function fromPromise<T>(promise: Promise<T>): Event<T | undefined> {
-		const result = new Emitter<T | undefined>();
-
-		promise.then(res => {
-			result.fire(res);
-		}, () => {
-			result.fire(undefined);
-		}).finally(() => {
-			result.dispose();
-		});
-
-		return result.event;
-	}
-
-	/**
 	 * A convenience function for forwarding an event to another emitter which
 	 * improves readability.
 	 *
@@ -904,7 +886,7 @@ class LeakageMonitor {
 			const [topStack, topCount] = this.getMostFrequentStack()!;
 			const message = `[${this.name}] potential listener LEAK detected, having ${listenerCount} listeners already. MOST frequent listener (${topCount}):`;
 			console.warn(message);
-			console.warn(topStack!);
+			console.warn(topStack);
 
 			const error = new ListenerLeakError(message, topStack);
 			this._errorHandler(error);

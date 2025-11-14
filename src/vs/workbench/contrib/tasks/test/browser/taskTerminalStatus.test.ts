@@ -17,6 +17,7 @@ import { ITaskService, Task } from '../../common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { ITerminalStatusList, TerminalStatusList } from '../../../terminal/browser/terminalStatusList.js';
 import { ITerminalStatus } from '../../../terminal/common/terminal.js';
+import { IMarker } from '../../../../../platform/markers/common/markers.js';
 
 class TestTaskService implements Partial<ITaskService> {
 	private readonly _onDidStateChange: Emitter<ITaskEvent> = new Emitter();
@@ -61,7 +62,7 @@ class TestTask extends CommonTask {
 class TestProblemCollector extends Disposable implements Partial<AbstractProblemCollector> {
 	protected readonly _onDidFindFirstMatch = new Emitter<void>();
 	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
-	protected readonly _onDidFindErrors = new Emitter<void>();
+	protected readonly _onDidFindErrors = new Emitter<IMarker[]>();
 	readonly onDidFindErrors = this._onDidFindErrors.event;
 	protected readonly _onDidRequestInvalidateLastMarker = new Emitter<void>();
 	readonly onDidRequestInvalidateLastMarker = this._onDidRequestInvalidateLastMarker.event;
@@ -80,9 +81,12 @@ suite('Task Terminal Status', () => {
 		instantiationService = store.add(new TestInstantiationService());
 		taskService = new TestTaskService();
 		accessibilitySignalService = new TestaccessibilitySignalService();
+		// eslint-disable-next-line local/code-no-any-casts
 		taskTerminalStatus = store.add(new TaskTerminalStatus(taskService as any, accessibilitySignalService as any));
+		// eslint-disable-next-line local/code-no-any-casts
 		testTerminal = store.add(instantiationService.createInstance(TestTerminal) as any);
 		testTask = instantiationService.createInstance(TestTask) as unknown as Task;
+		// eslint-disable-next-line local/code-no-any-casts
 		problemCollector = store.add(instantiationService.createInstance(TestProblemCollector) as any);
 	});
 	test('Should add failed status when there is an exit code on task end', async () => {

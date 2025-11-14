@@ -31,7 +31,7 @@ interface IKernelData {
 	extensionId: ExtensionIdentifier;
 	controller: vscode.NotebookController;
 	onDidChangeSelection: Emitter<{ selected: boolean; notebook: vscode.NotebookDocument }>;
-	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor; message: any }>;
+	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor; message: unknown }>;
 	associatedNotebooks: ResourceMap<boolean>;
 }
 
@@ -135,7 +135,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		let isDisposed = false;
 
 		const onDidChangeSelection = new Emitter<{ selected: boolean; notebook: vscode.NotebookDocument }>();
-		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor; message: any }>();
+		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor; message: unknown }>();
 
 		const data: INotebookKernelDto2 = {
 			id: createKernelId(extension.identifier, id),
@@ -497,7 +497,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 	}
 
-	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void {
+	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: unknown): void {
 		const obj = this._kernelData.get(handle);
 		if (!obj) {
 			// extension can dispose kernels in the meantime

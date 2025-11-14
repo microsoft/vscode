@@ -212,7 +212,7 @@ export class BreakpointsView extends ViewPane {
 			}
 		}));
 
-		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
 			this.updateSize();
 		}));
@@ -225,7 +225,7 @@ export class BreakpointsView extends ViewPane {
 		this.hintContainer = this._register(new IconLabel(iconLabelContainer, {
 			supportIcons: true, hoverDelegate: {
 				showHover: (options, focus?) => this.hoverService.showInstantHover({ content: options.content, target: this.hintContainer!.element }, focus),
-				delay: <number>this.configurationService.getValue('workbench.hover.delay')
+				delay: this.configurationService.getValue<number>('workbench.hover.delay')
 			}
 		}));
 		dom.hide(this.hintContainer.element);
@@ -283,7 +283,7 @@ export class BreakpointsView extends ViewPane {
 	}
 
 	private updateSize(): void {
-		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
+		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!);
 
 		// Adjust expanded body size
 		const sessionId = this.debugService.getViewModel().focusedSession?.getId();
@@ -580,9 +580,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 		breakpointIdToActionBarDomeNode.set(breakpoint.getId(), data.actionBar.domNode);
 	}
 
-
-
-	disposeElement(a: any, index: number, template: IBreakpointTemplateData): void {
+	disposeElement(a: IBreakpoint, index: number, template: IBreakpointTemplateData): void {
 		template.elementDisposables.clear();
 	}
 
@@ -913,7 +911,7 @@ class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakp
 		data.breakpoint.classList.toggle('disabled', !this.debugService.getModel().areBreakpointsActivated());
 
 		data.name.textContent = '0x' + breakpoint.address.toString(16);
-		data.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.name, `Decimal address: breakpoint.address.toString()`));
+		data.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.name, localize('debug.decimal.address', "Decimal Address: {0}", breakpoint.address.toString())));
 		data.checkbox.checked = breakpoint.enabled;
 
 		const { message, icon } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), breakpoint, this.labelService, this.debugService.getModel());

@@ -7,7 +7,8 @@ import { sumBy } from '../../../../base/common/arrays.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { OffsetRange } from '../ranges/offsetRange.js';
 
-export abstract class BaseEdit<T extends BaseReplacement<T>, TEdit extends BaseEdit<T, TEdit>> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export abstract class BaseEdit<T extends BaseReplacement<T> = BaseReplacement<any>, TEdit extends BaseEdit<T, TEdit> = BaseEdit<T, any>> {
 	constructor(
 		public readonly replacements: readonly T[],
 	) {
@@ -48,7 +49,7 @@ export abstract class BaseEdit<T extends BaseReplacement<T>, TEdit extends BaseE
 	 * Normalizes the edit by removing empty replacements and joining touching replacements (if the replacements allow joining).
 	 * Two edits have an equal normalized edit if and only if they have the same effect on any input.
 	 *
-	 * ![](./docs/BaseEdit_normalize.dio.svg)
+	 * ![](https://raw.githubusercontent.com/microsoft/vscode/refs/heads/main/src/vs/editor/common/core/edits/docs/BaseEdit_normalize.drawio.png)
 	 *
 	 * Invariant:
 	 * ```
@@ -90,7 +91,7 @@ export abstract class BaseEdit<T extends BaseReplacement<T>, TEdit extends BaseE
 	/**
 	 * Combines two edits into one with the same effect.
 	 *
-	 * ![](./docs/BaseEdit_compose.dio.svg)
+	 * ![](https://raw.githubusercontent.com/microsoft/vscode/refs/heads/main/src/vs/editor/common/core/edits/docs/BaseEdit_compose.drawio.png)
 	 *
 	 * Invariant:
 	 * ```
@@ -112,7 +113,7 @@ export abstract class BaseEdit<T extends BaseReplacement<T>, TEdit extends BaseE
 		for (const r2 of edits2.replacements) {
 			// Copy over edit1 unmodified until it touches edit2.
 			while (true) {
-				const r1 = edit1Queue[0]!;
+				const r1 = edit1Queue[0];
 				if (!r1 || r1.replaceRange.start + edit1ToEdit2 + r1.getNewLength() >= r2.replaceRange.start) {
 					break;
 				}
@@ -181,6 +182,22 @@ export abstract class BaseEdit<T extends BaseReplacement<T>, TEdit extends BaseE
 		}
 
 		return this._createNew(result).normalize();
+	}
+
+	public decomposeSplit(shouldBeInE1: (repl: T) => boolean): { e1: TEdit; e2: TEdit } {
+		const e1: T[] = [];
+		const e2: T[] = [];
+
+		let e2delta = 0;
+		for (const edit of this.replacements) {
+			if (shouldBeInE1(edit)) {
+				e1.push(edit);
+				e2delta += edit.getNewLength() - edit.replaceRange.length;
+			} else {
+				e2.push(edit.slice(edit.replaceRange.delta(e2delta), new OffsetRange(0, edit.getNewLength())));
+			}
+		}
+		return { e1: this._createNew(e1), e2: this._createNew(e2) };
 	}
 
 	/**
@@ -254,6 +271,40 @@ export abstract class BaseEdit<T extends BaseReplacement<T>, TEdit extends BaseE
 		}
 		return postEditsOffset - accumulatedDelta;
 	}
+
+	/**
+	 * Return undefined if the originalOffset is within an edit
+	 */
+	public applyToOffsetOrUndefined(originalOffset: number): number | undefined {
+		let accumulatedDelta = 0;
+		for (const edit of this.replacements) {
+			if (edit.replaceRange.start <= originalOffset) {
+				if (originalOffset < edit.replaceRange.endExclusive) {
+					// the offset is in the replaced range
+					return undefined;
+				}
+				accumulatedDelta += edit.getNewLength() - edit.replaceRange.length;
+			} else {
+				break;
+			}
+		}
+		return originalOffset + accumulatedDelta;
+	}
+
+	/**
+	 * Return undefined if the originalRange is within an edit
+	 */
+	public applyToOffsetRangeOrUndefined(originalRange: OffsetRange): OffsetRange | undefined {
+		const start = this.applyToOffsetOrUndefined(originalRange.start);
+		if (start === undefined) {
+			return undefined;
+		}
+		const end = this.applyToOffsetOrUndefined(originalRange.endExclusive);
+		if (end === undefined) {
+			return undefined;
+		}
+		return new OffsetRange(start, end);
+	}
 }
 
 export abstract class BaseReplacement<TSelf extends BaseReplacement<TSelf>> {
@@ -271,7 +322,7 @@ export abstract class BaseReplacement<TSelf extends BaseReplacement<TSelf>> {
 	*/
 	public abstract tryJoinTouching(other: TSelf): TSelf | undefined;
 
-	public abstract slice(newReplaceRange: OffsetRange, rangeInReplacement: OffsetRange): TSelf;
+	public abstract slice(newReplaceRange: OffsetRange, rangeInReplacement?: OffsetRange): TSelf;
 
 	public delta(offset: number): TSelf {
 		return this.slice(this.replaceRange.delta(offset), new OffsetRange(0, this.getNewLength()));
@@ -341,7 +392,7 @@ export class AnnotationReplacement<TAnnotation> extends BaseReplacement<Annotati
 		return new AnnotationReplacement<TAnnotation>(this.replaceRange.joinRightTouching(other.replaceRange), this.newLength + other.newLength, this.annotation);
 	}
 
-	slice(range: OffsetRange, rangeInReplacement: OffsetRange): AnnotationReplacement<TAnnotation> {
-		return new AnnotationReplacement<TAnnotation>(range, rangeInReplacement.length, this.annotation);
+	slice(range: OffsetRange, rangeInReplacement?: OffsetRange): AnnotationReplacement<TAnnotation> {
+		return new AnnotationReplacement<TAnnotation>(range, rangeInReplacement ? rangeInReplacement.length : this.newLength, this.annotation);
 	}
 }

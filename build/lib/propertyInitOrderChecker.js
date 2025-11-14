@@ -37,7 +37,6 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EntryKind = void 0;
 const ts = __importStar(require("typescript"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
@@ -53,6 +52,14 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 //
 // #############################################################################################
 //
+var EntryKind;
+(function (EntryKind) {
+    EntryKind[EntryKind["Span"] = 0] = "Span";
+    EntryKind[EntryKind["Node"] = 1] = "Node";
+    EntryKind[EntryKind["StringLiteral"] = 2] = "StringLiteral";
+    EntryKind[EntryKind["SearchedLocalFoundProperty"] = 3] = "SearchedLocalFoundProperty";
+    EntryKind[EntryKind["SearchedPropertyFoundLocal"] = 4] = "SearchedPropertyFoundLocal";
+})(EntryKind || (EntryKind = {}));
 const cancellationToken = {
     isCancellationRequested: () => false,
     throwIfCancellationRequested: () => { },
@@ -213,7 +220,7 @@ function* findAllReferencesInClass(node) {
     }
     for (const ref of findAllReferences(node)) {
         for (const entry of ref.references) {
-            if (entry.kind !== 1 /* EntryKind.Node */ || entry.node === node) {
+            if (entry.kind !== EntryKind.Node || entry.node === node) {
                 continue;
             }
             if (findClass(entry.node) === classDecl) {
@@ -222,13 +229,13 @@ function* findAllReferencesInClass(node) {
         }
     }
 }
-// NOTE: The following uses TypeScript internals and are subject to change from version to version.
 function findAllReferences(node) {
     const sourceFile = node.getSourceFile();
     const position = node.getStart();
-    const name = ts.getTouchingPropertyName(sourceFile, position);
-    const options = { use: ts.FindAllReferences.FindReferencesUse.References };
-    return ts.FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
+    const tsInternal = ts;
+    const name = tsInternal.getTouchingPropertyName(sourceFile, position);
+    const options = { use: tsInternal.FindAllReferences.FindReferencesUse.References };
+    return tsInternal.FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
 }
 var DefinitionKind;
 (function (DefinitionKind) {
@@ -239,13 +246,4 @@ var DefinitionKind;
     DefinitionKind[DefinitionKind["String"] = 4] = "String";
     DefinitionKind[DefinitionKind["TripleSlashReference"] = 5] = "TripleSlashReference";
 })(DefinitionKind || (DefinitionKind = {}));
-/** @internal */
-var EntryKind;
-(function (EntryKind) {
-    EntryKind[EntryKind["Span"] = 0] = "Span";
-    EntryKind[EntryKind["Node"] = 1] = "Node";
-    EntryKind[EntryKind["StringLiteral"] = 2] = "StringLiteral";
-    EntryKind[EntryKind["SearchedLocalFoundProperty"] = 3] = "SearchedLocalFoundProperty";
-    EntryKind[EntryKind["SearchedPropertyFoundLocal"] = 4] = "SearchedPropertyFoundLocal";
-})(EntryKind || (exports.EntryKind = EntryKind = {}));
 //# sourceMappingURL=propertyInitOrderChecker.js.map

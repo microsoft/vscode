@@ -41,8 +41,7 @@ import { ExplorerFolderContext } from '../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatContentInlineReference } from '../common/chatService.js';
 import { IChatWidgetService } from './chat.js';
-import { hookUpSymbolAttachmentDragAndContextMenu } from './chatAttachmentWidgets.js';
-import { chatAttachmentResourceContextKey } from './chatContentParts/chatAttachmentsContentPart.js';
+import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from './chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 
 type ContentRefData =
@@ -54,6 +53,7 @@ type ContentRefData =
 	};
 
 export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore) {
+	// eslint-disable-next-line no-restricted-syntax
 	const links = element.querySelectorAll('a');
 	links.forEach(a => {
 		// Empty link text -> render file widget
@@ -63,6 +63,7 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 			if (uri?.scheme) {
 				const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri });
 				disposables.add(chatMarkdownAnchorService.register(widget));
+				disposables.add(widget);
 			}
 		}
 	});
@@ -75,8 +76,6 @@ export class InlineAnchorWidget extends Disposable {
 	private readonly _chatResourceContext: IContextKey<string>;
 
 	readonly data: ContentRefData;
-
-	private _isDisposed = false;
 
 	constructor(
 		private readonly element: HTMLAnchorElement | HTMLElement,
@@ -170,7 +169,7 @@ export class InlineAnchorWidget extends Disposable {
 					console.error(e);
 				}
 
-				if (this._isDisposed) {
+				if (this._store.isDisposed) {
 					return;
 				}
 
@@ -214,11 +213,6 @@ export class InlineAnchorWidget extends Disposable {
 				e.dataTransfer?.setDragImage(element, 0, 0);
 			}));
 		}
-	}
-
-	override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
 	}
 
 	getHTMLElement(): HTMLElement {
@@ -386,7 +380,7 @@ registerAction2(class GoToDefinitionAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
+	override async run(accessor: ServicesAccessor, location: Location): Promise<unknown> {
 		const editorService = accessor.get(ICodeEditorService);
 		const instantiationService = accessor.get(IInstantiationService);
 
@@ -438,7 +432,7 @@ registerAction2(class GoToTypeDefinitionsAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToTypeDefinition', location);
+		await runGoToCommand(accessor, 'editor.action.goToTypeDefinition', location);
 	}
 });
 
@@ -463,7 +457,7 @@ registerAction2(class GoToImplementations extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToImplementation', location);
+		await runGoToCommand(accessor, 'editor.action.goToImplementation', location);
 	}
 });
 
@@ -488,7 +482,7 @@ registerAction2(class GoToReferencesAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
-		return runGoToCommand(accessor, 'editor.action.goToReferences', location);
+		await runGoToCommand(accessor, 'editor.action.goToReferences', location);
 	}
 });
 

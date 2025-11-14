@@ -308,6 +308,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 			this.filePickBox.matchOnLabel = false;
 			this.filePickBox.sortByLabel = false;
 			this.filePickBox.ignoreFocusOut = true;
+			this.filePickBox.placeholder = nls.localize('remoteFileDialog.placeholder', "Folder path");
 			this.filePickBox.ok = true;
 			this.filePickBox.okLabel = typeof this.options.openLabel === 'string' ? this.options.openLabel : this.options.openLabel?.withoutMnemonic;
 			if ((this.scheme !== Schemas.file) && this.options && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1) && (this.options.availableFileSystems.indexOf(Schemas.file) > -1)) {
@@ -639,7 +640,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 				} catch (e) {
 					// do nothing
 				}
-				if (stat && stat.isDirectory && (resources.basename(valueUri) !== '.') && this.endsWithSlash(value)) {
+				if (stat?.isDirectory && (resources.basename(valueUri) !== '.') && this.endsWithSlash(value)) {
 					valueUri = this.tryAddTrailingSeparatorToDirectory(valueUri, stat);
 					return await this.updateItems(valueUri) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
 				} else if (this.endsWithSlash(value)) {
@@ -662,7 +663,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 						} catch (e) {
 							// do nothing
 						}
-						if (statWithoutTrailing && statWithoutTrailing.isDirectory) {
+						if (statWithoutTrailing?.isDirectory) {
 							this.badPath = undefined;
 							inputUriDirname = this.tryAddTrailingSeparatorToDirectory(inputUriDirname, statWithoutTrailing);
 							return await this.updateItems(inputUriDirname, false, resources.basename(valueUri)) ? UpdateResult.UpdatedWithTrailing : UpdateResult.Updated;
@@ -859,7 +860,7 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		}
 
 		if (this.requiresTrailing) { // save
-			if (stat && stat.isDirectory) {
+			if (stat?.isDirectory) {
 				// Can't do this
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateFolder', 'The folder already exists. Please use a new file name.');
 				return Promise.resolve(false);

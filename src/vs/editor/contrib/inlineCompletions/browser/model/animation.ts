@@ -79,14 +79,14 @@ export class ObservableAnimatedValue {
 	getValue(reader: IReader | undefined): number {
 		const value = this._value.read(reader);
 		if (!value.isFinished()) {
-			Scheduler.instance.invalidateOnNextAnimationFrame(reader);
+			AnimationFrameScheduler.instance.invalidateOnNextAnimationFrame(reader);
 		}
 		return value.getValue();
 	}
 }
 
-class Scheduler {
-	public static instance = new Scheduler();
+export class AnimationFrameScheduler {
+	public static instance = new AnimationFrameScheduler();
 
 	private readonly _counter = observableSignal(this);
 

@@ -293,7 +293,7 @@ interface InstalledThemesPickerOptions {
 class InstalledThemesPicker {
 	constructor(
 		private readonly options: InstalledThemesPickerOptions,
-		private readonly setTheme: (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => Promise<any>,
+		private readonly setTheme: (theme: IWorkbenchTheme | undefined, settingsTarget: ThemeSettingTarget) => Promise<unknown>,
 		private readonly getMarketplaceColorThemes: (publisher: string, name: string, version: string) => Promise<IWorkbenchTheme[]>,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
@@ -611,6 +611,7 @@ interface ThemeItem extends IQuickPickItem {
 }
 
 function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
+	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 	return (<any>i)['type'] !== 'separator';
 }
 
@@ -771,11 +772,18 @@ registerAction2(class extends Action2 {
 		const themeService = accessor.get(IWorkbenchThemeService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		const extensionResourceLoaderService = accessor.get(IExtensionResourceLoaderService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		if (!extensionGalleryService.isEnabled() || !await extensionResourceLoaderService.supportsExtensionGalleryResources()) {
+		if (!extensionGalleryService.isEnabled()) {
 			return;
 		}
+
+		if (!await extensionResourceLoaderService.supportsExtensionGalleryResources()) {
+			await extensionsWorkbenchService.openSearch(marketplaceTag);
+			return;
+		}
+
 		const currentTheme = themeService.getColorTheme();
 		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceColorThemes(publisher, name, version);
 

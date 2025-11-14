@@ -35,7 +35,7 @@ export interface IResourceLabelProps {
 }
 
 function toResource(props: IResourceLabelProps | undefined): URI | undefined {
-	if (!props || !props.resource) {
+	if (!props?.resource) {
 		return undefined;
 	}
 
@@ -62,6 +62,16 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	 * Will take the provided label as is and e.g. not override it for untitled files.
 	 */
 	readonly forceLabel?: boolean;
+
+	/**
+	 * A prefix to be added to the name of the label.
+	 */
+	readonly namePrefix?: string;
+
+	/**
+	 * A suffix to be added to the name of the label.
+	 */
+	readonly nameSuffix?: string;
 
 	/**
 	 * Uses the provided icon instead of deriving a resource icon.
@@ -115,7 +125,7 @@ export const DEFAULT_LABELS_CONTAINER: IResourceLabelsContainer = {
 export class ResourceLabels extends Disposable {
 
 	private readonly _onDidChangeDecorations = this._register(new Emitter<void>());
-	readonly onDidChangeDecorations = this._onDidChangeDecorations.event;
+	get onDidChangeDecorations() { return this._onDidChangeDecorations.event; }
 
 	private widgets: ResourceLabelWidget[] = [];
 	private labels: IResourceLabel[] = [];
@@ -215,7 +225,7 @@ export class ResourceLabels extends Disposable {
 		// Only expose a handle to the outside
 		const label: IResourceLabel = {
 			element: widget.element,
-			onDidRender: widget.onDidRender,
+			get onDidRender() { return widget.onDidRender; },
 			setLabel: (label: string, description?: string, options?: IIconLabelValueOptions) => widget.setLabel(label, description, options),
 			setResource: (label: IResourceLabelProps, options?: IResourceLabelOptions) => widget.setResource(label, options),
 			setFile: (resource: URI, options?: IFileLabelOptions) => widget.setFile(resource, options),
@@ -288,7 +298,7 @@ enum Redraw {
 class ResourceLabelWidget extends IconLabel {
 
 	private readonly _onDidRender = this._register(new Emitter<void>());
-	readonly onDidRender = this._onDidRender.event;
+	get onDidRender() { return this._onDidRender.event; }
 
 	private label: IResourceLabelProps | undefined = undefined;
 	private readonly decoration = this._register(new MutableDisposable<IDecoration>());
@@ -522,6 +532,22 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
+		if (options.namePrefix) {
+			if (typeof label.name === 'string') {
+				label.name = options.namePrefix + label.name;
+			} else if (Array.isArray(label.name) && label.name.length > 0) {
+				label.name = [options.namePrefix + label.name[0], ...label.name.slice(1)];
+			}
+		}
+
+		if (options.nameSuffix) {
+			if (typeof label.name === 'string') {
+				label.name = label.name + options.nameSuffix;
+			} else if (Array.isArray(label.name) && label.name.length > 0) {
+				label.name = [...label.name.slice(0, label.name.length - 1), label.name[label.name.length - 1] + options.nameSuffix];
+			}
+		}
+
 		const hasResourceChanged = this.hasResourceChanged(label);
 		const hasPathLabelChanged = hasResourceChanged || this.hasPathLabelChanged(label);
 		const hasFileKindChanged = this.hasFileKindChanged(options);
@@ -605,6 +631,7 @@ class ResourceLabelWidget extends IconLabel {
 
 		const iconLabelOptions: IIconLabelValueOptions & { extraClasses: string[] } = {
 			title: '',
+			bold: this.options?.bold,
 			italic: this.options?.italic,
 			strikethrough: this.options?.strikethrough,
 			matches: this.options?.matches,
@@ -615,6 +642,7 @@ class ResourceLabelWidget extends IconLabel {
 			disabledCommand: this.options?.disabledCommand,
 			labelEscapeNewLines: this.options?.labelEscapeNewLines,
 			descriptionTitle: this.options?.descriptionTitle,
+			supportIcons: this.options?.supportIcons,
 		};
 
 		const resource = toResource(this.label);

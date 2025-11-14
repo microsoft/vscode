@@ -16,12 +16,12 @@ import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
 import { InlineEdit } from '../../model/inlineEdit.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
-import { GhostTextIndicator, InlineEditHost, InlineEditModel } from './inlineEditsModel.js';
+import { GhostTextIndicator, InlineEditHost, ModelPerInlineEdit } from './inlineEditsModel.js';
 import { InlineEditsView } from './inlineEditsView.js';
 import { InlineEditTabAction } from './inlineEditsViewInterface.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This class is no longer a diff producer. Rename it or get rid of it
-	public static readonly hot = createHotClass(InlineEditsViewAndDiffProducer);
+	public static readonly hot = createHotClass(this);
 
 	private readonly _editorObs: ObservableCodeEditor;
 
@@ -33,7 +33,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const textModel = this._editor.getModel();
 		if (!textModel) { return undefined; }
 
-		const editOffset = model.inlineEditState.get()?.inlineCompletion.updatedEdit;
+		const editOffset = model.inlineEditState.read(undefined)?.inlineCompletion.updatedEdit;
 		if (!editOffset) { return undefined; }
 
 		const edits = editOffset.replacements.map(e => {
@@ -47,16 +47,17 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const diffEdits = new TextEdit(edits);
 		const text = new TextModelText(textModel);
 
-		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.get(), inlineEdit.commands, inlineEdit.inlineCompletion);
+		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.read(undefined), model.allPositions.read(undefined), inlineEdit.commands, inlineEdit.inlineCompletion);
 	});
 
-	private readonly _inlineEditModel = derived<InlineEditModel | undefined>(this, reader => {
+	private readonly _inlineEditModel = derived<ModelPerInlineEdit | undefined>(this, reader => {
 		const model = this._model.read(reader);
 		if (!model) { return undefined; }
 		const edit = this._inlineEdit.read(reader);
 		if (!edit) { return undefined; }
 
 		const tabAction = derived<InlineEditTabAction>(this, reader => {
+			/** @description tabAction */
 			if (this._editorObs.isFocused.read(reader)) {
 				if (model.tabShouldJumpToInlineEdit.read(reader)) { return InlineEditTabAction.Jump; }
 				if (model.tabShouldAcceptInlineEdit.read(reader)) { return InlineEditTabAction.Accept; }
@@ -64,7 +65,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 			return InlineEditTabAction.Inactive;
 		});
 
-		return new InlineEditModel(model, edit, tabAction);
+		return new ModelPerInlineEdit(model, edit, tabAction);
 	});
 
 	private readonly _inlineEditHost = derived<InlineEditHost | undefined>(this, reader => {

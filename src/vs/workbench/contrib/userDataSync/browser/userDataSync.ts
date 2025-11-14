@@ -53,8 +53,6 @@ import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { PromptsConfig } from '../../../../platform/prompts/common/config.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 type ConfigureSyncQuickPickItem = { id: SyncResource; label: string; description?: string };
 
@@ -116,8 +114,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IUserDataSyncStoreManagementService private readonly userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IWorkbenchIssueService private readonly workbenchIssueService: IWorkbenchIssueService,
-		@IConfigurationService private readonly configService: IConfigurationService,
+		@IWorkbenchIssueService private readonly workbenchIssueService: IWorkbenchIssueService
 	) {
 		super();
 
@@ -607,6 +604,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			id: SyncResource.Tasks,
 			label: getSyncAreaLabel(SyncResource.Tasks)
 		}, {
+			id: SyncResource.Mcp,
+			label: getSyncAreaLabel(SyncResource.Mcp)
+		}, {
 			id: SyncResource.GlobalState,
 			label: getSyncAreaLabel(SyncResource.GlobalState),
 		}, {
@@ -615,16 +615,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}, {
 			id: SyncResource.Profiles,
 			label: getSyncAreaLabel(SyncResource.Profiles),
+		}, {
+			id: SyncResource.Prompts,
+			label: getSyncAreaLabel(SyncResource.Prompts)
 		}];
 
-		// if the `reusable prompt` feature is enabled and in vscode
-		// insiders, add the `Prompts` resource item to the list
-		if (PromptsConfig.enabled(this.configService) === true) {
-			result.push({
-				id: SyncResource.Prompts,
-				label: getSyncAreaLabel(SyncResource.Prompts)
-			});
-		}
 
 		return result;
 	}
@@ -792,7 +787,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}]
 				});
 			}
-			async run(): Promise<any> {
+			async run(): Promise<void> {
 				return that.turnOn();
 			}
 		}));
@@ -818,7 +813,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}]
 				});
 			}
-			async run(): Promise<any> { }
+			async run(): Promise<void> { }
 		}));
 	}
 
@@ -838,7 +833,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 			}
-			async run(): Promise<any> {
+			async run(): Promise<void> {
 				return that.userDataSyncWorkbenchService.turnoff(false);
 			}
 		}));
@@ -861,7 +856,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 			}
-			async run(): Promise<any> {
+			async run(): Promise<void> {
 				try {
 					await that.userDataSyncWorkbenchService.signIn();
 				} catch (e) {
@@ -908,7 +903,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}]
 				});
 			}
-			async run(): Promise<any> {
+			async run(): Promise<void> {
 				return that.userDataSyncWorkbenchService.showConflicts();
 			}
 		});
@@ -1018,7 +1013,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 			}
-			run(accessor: ServicesAccessor): Promise<any> {
+			run(accessor: ServicesAccessor): Promise<void> {
 				return that.userDataSyncWorkbenchService.syncNow();
 			}
 		}));
@@ -1038,7 +1033,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					},
 				});
 			}
-			async run(): Promise<any> {
+			async run(): Promise<void> {
 				try {
 					await that.turnOff();
 				} catch (e) {

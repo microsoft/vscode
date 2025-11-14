@@ -15,6 +15,7 @@ import { Schemas } from '../../base/common/network.js';
 import { EditorInput } from './editor/editorInput.js';
 import { IEditorResolverService } from '../services/editor/common/editorResolverService.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from './editor.js';
+import { DiffEditorInput } from './editor/diffEditorInput.js';
 
 //#region < --- Workbench --- >
 
@@ -35,6 +36,8 @@ export const TemporaryWorkspaceContext = new RawContextKey<boolean>('temporaryWo
 export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false, true); // Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
 
 export const EmbedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined, localize('embedderIdentifier', 'The identifier of the embedder according to the product service, if one is defined'));
+
+export const InAutomationContext = new RawContextKey<boolean>('inAutomation', false, localize('inAutomation', "Whether VS Code is running under automation/smoke test"));
 
 //#endregion
 
@@ -145,6 +148,7 @@ export const NotificationsToastsVisibleContext = new RawContextKey<boolean>('not
 export const ActiveAuxiliaryContext = new RawContextKey<string>('activeAuxiliary', '', localize('activeAuxiliary', "The identifier of the active auxiliary panel"));
 export const AuxiliaryBarFocusContext = new RawContextKey<boolean>('auxiliaryBarFocus', false, localize('auxiliaryBarFocus', "Whether the auxiliary bar has keyboard focus"));
 export const AuxiliaryBarVisibleContext = new RawContextKey<boolean>('auxiliaryBarVisible', false, localize('auxiliaryBarVisible', "Whether the auxiliary bar is visible"));
+export const AuxiliaryBarMaximizedContext = new RawContextKey<boolean>('auxiliaryBarMaximized', false, localize('auxiliaryBarMaximized', "Whether the auxiliary bar is maximized"));
 
 //#endregion
 
@@ -302,13 +306,30 @@ export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor:
 		return;
 	}
 
-	const editorResource = editor.resource;
-	if (editorResource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
-		// Non text editor untitled files cannot be easily serialized between extensions
-		// so instead we disable this context key to prevent common commands that act on the active editor
-		contextKey.set('');
-	} else {
-		const editors = editorResource ? editorResolverService.getEditors(editorResource).map(editor => editor.id) : [];
-		contextKey.set(editors.join(','));
+	const editors = getAvailableEditorIds(editor, editorResolverService);
+	contextKey.set(editors.join(','));
+}
+
+function getAvailableEditorIds(editor: EditorInput, editorResolverService: IEditorResolverService): string[] {
+	// Non text editor untitled files cannot be easily serialized between
+	// extensions so instead we disable this context key to prevent common
+	// commands that act on the active editor.
+	if (editor.resource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
+		return [];
 	}
+
+	// Diff editors. The original and modified resources of a diff editor
+	// *should* be the same, but calculate the set intersection just to be safe.
+	if (editor instanceof DiffEditorInput) {
+		const original = getAvailableEditorIds(editor.original, editorResolverService);
+		const modified = new Set(getAvailableEditorIds(editor.modified, editorResolverService));
+		return original.filter(editor => modified.has(editor));
+	}
+
+	// Normal editors.
+	if (editor.resource) {
+		return editorResolverService.getEditors(editor.resource).map(editor => editor.id);
+	}
+
+	return [];
 }

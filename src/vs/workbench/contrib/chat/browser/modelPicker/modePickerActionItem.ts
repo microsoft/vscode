@@ -6,25 +6,29 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { Event } from '../../../../../base/common/event.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
+import { groupBy } from '../../../../../base/common/collections.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { localize } from '../../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { ChatAgentLocation, ChatMode, modeToString } from '../../common/constants.js';
-import { IPromptsService } from '../../common/promptSyntax/service/types.js';
+import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
-import { IToggleChatModeArgs } from '../actions/chatExecuteActions.js';
+import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../actions/chatExecuteActions.js';
 
 export interface IModePickerDelegate {
-	onDidChangeMode: Event<void>;
-	getMode(): IChatMode;
+	readonly currentMode: IObservable<IChatMode>;
 }
 
 export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
@@ -35,52 +39,60 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IPromptsService promptsService: IPromptsService,
 		@IChatModeService chatModeService: IChatModeService,
-		@IMenuService private readonly menuService: IMenuService
+		@IMenuService private readonly menuService: IMenuService,
+		@ICommandService commandService: ICommandService,
+		@IProductService productService: IProductService
 	) {
-		const makeAction = (mode: ChatMode, includeCategory: boolean): IActionWidgetDropdownAction => ({
+		const builtInCategory = { label: localize('built-in', "Built-In"), order: 0 };
+		const customCategory = { label: localize('custom', "Custom"), order: 1 };
+		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...action,
 			id: getOpenChatActionIdForMode(mode),
-			label: modeToString(mode),
+			label: mode.label.get(),
 			class: undefined,
 			enabled: true,
-			checked: delegate.getMode().id === mode,
-			tooltip: chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode)?.description ?? action.tooltip,
+			checked: currentMode.id === mode.id,
+			tooltip: chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
 			run: async () => {
-				const result = await action.run({ mode } satisfies IToggleChatModeArgs);
+				const result = await commandService.executeCommand(ToggleAgentModeActionId, { modeId: mode.id } satisfies IToggleChatModeArgs);
 				this.renderLabel(this.element!);
 				return result;
 			},
-			category: includeCategory ? { label: 'Standard', order: 0 } : undefined
+			category: builtInCategory
 		});
 
-		const makeActionFromCustomMode = (mode: IChatMode): IActionWidgetDropdownAction => ({
-			...action,
-			id: getOpenChatActionIdForMode(mode.name as ChatMode),
-			label: mode.name,
-			class: undefined,
-			enabled: true,
-			checked: delegate.getMode().id === mode.id,
-			tooltip: mode.description ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode.kind)?.description ?? action.tooltip,
-			run: async () => {
-				const result = await action.run({ mode } satisfies IToggleChatModeArgs);
-				this.renderLabel(this.element!);
-				return result;
-			},
-			category: { label: 'Custom', order: 1 }
+		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
+			...makeAction(mode, currentMode),
+			tooltip: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
+			category: customCategory
 		});
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				const modes = chatModeService.getModes();
-				const hasCustomModes = modes.custom && modes.custom.length > 0;
-				const agentStateActions: IActionWidgetDropdownAction[] = modes.builtin.map(mode => makeAction(mode.kind, !!hasCustomModes));
-				if (modes.custom) {
-					agentStateActions.push(...modes.custom.map(mode => makeActionFromCustomMode(mode)));
-				}
+				const currentMode = delegate.currentMode.get();
+				const agentMode = modes.builtin.find(mode => mode.id === ChatMode.Agent.id);
+				const otherBuiltinModes = modes.builtin.filter(mode => mode.id !== ChatMode.Agent.id);
+				const customModes = groupBy(
+					modes.custom,
+					mode => mode.source?.storage === PromptsStorage.extension && mode.source.extensionId.value === productService.defaultChatAgent?.chatExtensionId ?
+						'builtin' : 'custom');
 
-				return agentStateActions;
+				const customBuiltinModeActions = customModes.builtin?.map(mode => {
+					const action = makeActionFromCustomMode(mode, currentMode);
+					action.category = builtInCategory;
+					return action;
+				}) ?? [];
+
+				const orderedModes = coalesce([
+					agentMode && makeAction(agentMode, currentMode),
+					...customBuiltinModeActions,
+					...otherBuiltinModes.map(mode => mode && makeAction(mode, currentMode)),
+					...customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? []
+				]);
+
+				return orderedModes;
 			}
 		};
 
@@ -94,7 +106,13 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 		super(action, modePickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
 
-		this._register(delegate.onDidChangeMode(() => this.renderLabel(this.element!)));
+		// Listen to changes in the current mode and its properties
+		this._register(autorun(reader => {
+			this.delegate.currentMode.read(reader).label.read(reader); // use the reader so autorun tracks it
+			if (this.element) {
+				this.renderLabel(this.element);
+			}
+		}));
 	}
 
 	private getModePickerActionBarActions(): IAction[] {
@@ -106,11 +124,8 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		if (!this.element) {
-			return null;
-		}
 		this.setAriaLabelAttributes(element);
-		const state = this.delegate.getMode().name;
+		const state = this.delegate.currentMode.get().label.get();
 		dom.reset(element, dom.$('span.chat-model-label', undefined, state), ...renderLabelWithIcons(`$(chevron-down)`));
 		return null;
 	}

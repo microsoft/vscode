@@ -3,25 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
+import { URI } from '../../../../base/common/uri.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { IChatAgentData, IChatAgentService } from './chatAgents.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from './chatVariables.js';
-import { ChatAgentLocation, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 import { IToolData, ToolSet } from './languageModelToolsService.js';
-import { IPromptsService } from './promptSyntax/service/types.js';
+import { IPromptsService } from './promptSyntax/service/promptsService.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-const slashReg = /^\/([\w_\-\.:]+)(?=(\s|$|\b))/i; // A / command
+const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
 	selectedAgent?: IChatAgentData;
-	mode?: ChatMode;
+	mode?: ChatModeKind;
+	/** Parse as this agent, even when it does not appear in the query text */
+	forcedAgent?: IChatAgentData;
 }
 
 export class ChatRequestParser {
@@ -32,15 +35,20 @@ export class ChatRequestParser {
 		@IPromptsService private readonly promptsService: IPromptsService,
 	) { }
 
-	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
+	parseChatRequest(sessionResource: URI, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
-		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
-		const toolsByName = new Map<string, IToolData>(this.variableService.getSelectedTools(sessionId)
-			.filter(t => t.canBeReferencedInPrompt && t.toolReferenceName)
-			.map(t => [t.toolReferenceName!, t]));
-
-		const toolSetsByName = new Map<string, ToolSet>(this.variableService.getSelectedToolSets(sessionId)
-			.map(t => [t.displayName, t]));
+		const references = this.variableService.getDynamicVariables(sessionResource); // must access this list before any async calls
+		const toolsByName = new Map<string, IToolData>();
+		const toolSetsByName = new Map<string, ToolSet>();
+		for (const [entry, enabled] of this.variableService.getSelectedToolAndToolSets(sessionResource)) {
+			if (enabled) {
+				if (entry instanceof ToolSet) {
+					toolSetsByName.set(entry.referenceName, entry);
+				} else {
+					toolsByName.set(entry.toolReferenceName ?? entry.displayName, entry);
+				}
+			}
+		}
 
 		let lineNumber = 1;
 		let column = 1;
@@ -103,7 +111,7 @@ export class ChatRequestParser {
 
 	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: Array<IParsedChatRequestPart>, location: ChatAgentLocation, context: IChatParserContext | undefined): ChatRequestAgentPart | undefined {
 		const nextAgentMatch = message.match(agentReg);
-		if (!nextAgentMatch || context?.mode !== undefined && context.mode !== ChatMode.Ask) {
+		if (!nextAgentMatch) {
 			return;
 		}
 
@@ -125,6 +133,10 @@ export class ChatRequestParser {
 			context.selectedAgent :
 			agents.find((a) => a.locations.includes(location));
 		if (!agent) {
+			return;
+		}
+
+		if (context?.mode && !agent.modes.includes(context.mode)) {
 			return;
 		}
 
@@ -165,7 +177,8 @@ export class ChatRequestParser {
 
 		const toolset = toolSetsByName.get(name);
 		if (toolset) {
-			return new ChatRequestToolSetPart(varRange, varEditorRange, toolset.id, toolset.displayName, toolset.icon);
+			const value = Array.from(toolset.getTools()).map(t => new ChatRequestToolPart(varRange, varEditorRange, t.toolReferenceName ?? t.displayName, t.id, t.displayName, t.icon).toVariableEntry());
+			return new ChatRequestToolSetPart(varRange, varEditorRange, toolset.id, toolset.referenceName, toolset.icon, value);
 		}
 
 		return;
@@ -194,15 +207,16 @@ export class ChatRequestParser {
 		const slashRange = new OffsetRange(offset, offset + full.length);
 		const slashEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
-		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart)?.agent ??
+			(context?.forcedAgent ? context.forcedAgent : undefined);
 		if (usedAgent) {
-			const subCommand = usedAgent.agent.slashCommands.find(c => c.name === command);
+			const subCommand = usedAgent.slashCommands.find(c => c.name === command);
 			if (subCommand) {
 				// Valid agent subcommand
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);
 			}
 		} else {
-			const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatMode.Ask);
+			const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatModeKind.Ask);
 			const slashCommand = slashCommands.find(c => c.command === command);
 			if (slashCommand) {
 				// Valid standalone slash command
@@ -217,10 +231,10 @@ export class ChatRequestParser {
 				}
 			}
 
-			// if there's no agent, check if it's a prompt command
-			const promptCommand = this.promptsService.asPromptSlashCommand(command);
-			if (promptCommand) {
-				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, promptCommand);
+			// if there's no agent, asume it is a prompt slash command
+			const isPromptCommand = this.promptsService.isValidSlashCommandName(command);
+			if (isPromptCommand) {
+				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, command);
 			}
 		}
 		return;

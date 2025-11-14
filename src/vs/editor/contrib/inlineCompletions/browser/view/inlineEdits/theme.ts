@@ -188,7 +188,7 @@ export function getEditorBlendedColor(colorIdentifier: ColorIdentifier | IObserv
 
 	const backgroundColor = observeColor(editorBackground, themeService);
 
-	return color.map((c, reader) => c.makeOpaque(backgroundColor.read(reader)));
+	return color.map((c, reader) => /** @description makeOpaque */ c.makeOpaque(backgroundColor.read(reader)));
 }
 
 export function observeColor(colorIdentifier: ColorIdentifier, themeService: IThemeService): IObservable<Color> {
@@ -196,6 +196,7 @@ export function observeColor(colorIdentifier: ColorIdentifier, themeService: ITh
 		{
 			owner: { observeColor: colorIdentifier },
 			equalsFn: (a: Color, b: Color) => a.equals(b),
+			debugName: () => `observeColor(${colorIdentifier})`
 		},
 		themeService.onDidColorThemeChange,
 		() => {

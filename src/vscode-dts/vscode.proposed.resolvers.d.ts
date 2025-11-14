@@ -34,9 +34,9 @@ declare module 'vscode' {
 	}
 
 	export interface ManagedMessagePassing {
-		onDidReceiveMessage: Event<Uint8Array>;
-		onDidClose: Event<Error | undefined>;
-		onDidEnd: Event<void>;
+		readonly onDidReceiveMessage: Event<Uint8Array>;
+		readonly onDidClose: Event<Error | undefined>;
+		readonly onDidEnd: Event<void>;
 
 		send: (data: Uint8Array) => void;
 		end: () => void;
@@ -102,7 +102,7 @@ declare module 'vscode' {
 
 	export interface Tunnel extends TunnelDescription {
 		// Implementers of Tunnel should fire onDidDispose when dispose is called.
-		onDidDispose: Event<void>;
+		readonly onDidDispose: Event<void>;
 		dispose(): void | Thenable<void>;
 	}
 
