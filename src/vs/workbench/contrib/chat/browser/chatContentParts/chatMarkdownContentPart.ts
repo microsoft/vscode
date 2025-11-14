@@ -438,6 +438,8 @@ export function codeblockHasClosingBackticks(str: string): boolean {
 export class CollapsedCodeBlock extends Disposable {
 
 	readonly element: HTMLElement;
+	private readonly pillElement: HTMLElement;
+	private readonly statusIndicatorContainer: HTMLElement;
 
 	private _uri: URI | undefined;
 	get uri(): URI | undefined { return this._uri; }
@@ -462,21 +464,29 @@ export class CollapsedCodeBlock extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
-		this.element = $('.chat-codeblock-pill-widget');
-		this.element.tabIndex = 0;
-		this.element.classList.add('show-file-icons');
-		this.element.role = 'button';
+		this.element = $('div.chat-codeblock-pill-container');
+
+		this.statusIndicatorContainer = $('div.status-indicator-container');
+
+		this.pillElement = $('.chat-codeblock-pill-widget');
+		this.pillElement.tabIndex = 0;
+		this.pillElement.classList.add('show-file-icons');
+		this.pillElement.role = 'button';
+
+		this.element.appendChild(this.statusIndicatorContainer);
+		this.element.appendChild(this.pillElement);
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this._register(registerOpenEditorListeners(this.element, e => this.showDiff(e)));
+		this._register(registerOpenEditorListeners(this.pillElement, e => this.showDiff(e)));
 
-		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, e => {
+		this._register(dom.addDisposableListener(this.pillElement, dom.EventType.CONTEXT_MENU, e => {
 			const event = new StandardMouseEvent(dom.getWindow(e), e);
 			dom.EventHelper.stop(e, true);
 
@@ -520,7 +530,7 @@ export class CollapsedCodeBlock extends Disposable {
 	 * @param isStreaming Whether the edit has completed (at the time of this being rendered)
 	 */
 	render(uri: URI, fromSubagent?: boolean): void {
-		this.element.classList.toggle('from-sub-agent', !!fromSubagent);
+		this.pillElement.classList.toggle('from-sub-agent', !!fromSubagent);
 
 		this.progressStore.clear();
 
@@ -529,12 +539,18 @@ export class CollapsedCodeBlock extends Disposable {
 		const session = this.chatService.getSession(this.sessionResource);
 		const iconText = this.labelService.getUriBasenameLabel(uri);
 
-		const iconEl = dom.$('span.icon');
-		const children = [dom.$('span.icon-label', {}, iconText)];
-		const labelDetail = dom.$('span.label-detail', {}, '');
-		children.push(labelDetail);
+		const statusIconEl = dom.$('span.status-icon');
+		const statusLabelEl = dom.$('span.status-label', {}, '');
 
-		this.element.replaceChildren(iconEl, ...children);
+		this.statusIndicatorContainer.replaceChildren(statusIconEl, statusLabelEl);
+
+		const iconEl = dom.$('span.icon');
+		const iconLabelEl = dom.$('span.icon-label', {}, iconText);
+		const labelDetail = dom.$('span.label-detail', {}, '');
+
+		// Create a progress fill element for the animation
+		const progressFill = dom.$('span.progress-fill');
+		this.pillElement.replaceChildren(progressFill, iconEl, iconLabelEl, labelDetail);
 		this.updateTooltip(this.labelService.getUriLabel(uri, { relative: false }));
 
 		const editSessionObservable = session?.editingSessionObs?.promiseResult.map(r => r?.data) || observableValue(this, undefined);
@@ -553,26 +569,39 @@ export class CollapsedCodeBlock extends Disposable {
 		});
 
 		// Set the icon/classes while edits are streaming
-		let iconClasses: string[] = [];
+		let statusIconClasses: string[] = [];
+		let pillIconClasses: string[] = [];
 		this.progressStore.add(autorun(r => {
-			iconEl.classList.remove(...iconClasses);
+			statusIconEl.classList.remove(...statusIconClasses);
+			iconEl.classList.remove(...pillIconClasses);
 			if (isStreaming.read(r)) {
 				const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
-				iconClasses = ThemeIcon.asClassNameArray(codicon);
-			} else {
-				iconEl.classList.remove(...iconClasses);
-				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
-				iconEl.classList.add(...getIconClasses(this.modelService, this.languageService, uri, fileKind));
-			}
-		}));
-
-		// Set the label detail for streaming progress
-		this.progressStore.add(autorun(r => {
-			if (isStreaming.read(r)) {
+				statusIconClasses = ThemeIcon.asClassNameArray(codicon);
+				statusIconEl.classList.add(...statusIconClasses);
 				const entry = editSessionEntry.read(r);
 				const rwRatio = Math.floor((entry?.rewriteRatio.read(r) || 0) * 100);
-				labelDetail.textContent = rwRatio === 0 || !rwRatio ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "Applying edits ({0}%)...", rwRatio);
+				statusLabelEl.textContent = localize('chat.codeblock.applyingEdits', 'Applying edits');
+
+				const showAnimation = this.configurationService.getValue<boolean>(ChatConfiguration.ShowCodeBlockProgressAnimation);
+				if (showAnimation) {
+					progressFill.style.width = `${rwRatio}%`;
+					this.pillElement.classList.add('progress-filling');
+					labelDetail.textContent = '';
+				} else {
+					progressFill.style.width = '0%';
+					this.pillElement.classList.remove('progress-filling');
+					labelDetail.textContent = rwRatio === 0 || !rwRatio ? localize('chat.codeblock.generating', "Generating edits...") : localize('chat.codeblock.applyingPercentage', "({0}%)...", rwRatio);
+				}
 			} else {
+				const statusCodeicon = Codicon.check;
+				statusIconClasses = ThemeIcon.asClassNameArray(statusCodeicon);
+				statusIconEl.classList.add(...statusIconClasses);
+				statusLabelEl.textContent = localize('chat.codeblock.edited', 'Edited');
+				const fileKind = uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+				pillIconClasses = getIconClasses(this.modelService, this.languageService, uri, fileKind);
+				iconEl.classList.add(...pillIconClasses);
+				this.pillElement.classList.remove('progress-filling');
+				progressFill.style.width = '0%';
 				labelDetail.textContent = '';
 			}
 		}));
@@ -585,9 +614,9 @@ export class CollapsedCodeBlock extends Disposable {
 			}
 
 			// eslint-disable-next-line no-restricted-syntax
-			const labelAdded = this.element.querySelector('.label-added') ?? this.element.appendChild(dom.$('span.label-added'));
+			const labelAdded = this.pillElement.querySelector('.label-added') ?? this.pillElement.appendChild(dom.$('span.label-added'));
 			// eslint-disable-next-line no-restricted-syntax
-			const labelRemoved = this.element.querySelector('.label-removed') ?? this.element.appendChild(dom.$('span.label-removed'));
+			const labelRemoved = this.pillElement.querySelector('.label-removed') ?? this.pillElement.appendChild(dom.$('span.label-removed'));
 			if (changes && !changes?.identical && !changes?.quitEarly) {
 				this.currentDiff = changes;
 				labelAdded.textContent = `+${changes.added}`;
@@ -610,7 +639,7 @@ export class CollapsedCodeBlock extends Disposable {
 		this.tooltip = tooltip;
 
 		if (!this.hover.value) {
-			this.hover.value = this.hoverService.setupDelayedHover(this.element, () => ({
+			this.hover.value = this.hoverService.setupDelayedHover(this.pillElement, () => ({
 				content: this.tooltip!,
 				style: HoverStyle.Pointer,
 				position: { hoverPosition: HoverPosition.BELOW },

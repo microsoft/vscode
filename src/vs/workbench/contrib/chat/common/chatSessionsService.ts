@@ -57,6 +57,7 @@ export interface IChatSessionsExtensionPoint {
 	readonly inputPlaceholder?: string;
 	readonly capabilities?: IChatAgentAttachmentCapabilities;
 	readonly commands?: IChatSessionCommandContribution[];
+	readonly canDelegate?: boolean;
 }
 export interface IChatSessionItem {
 	resource: URI;
