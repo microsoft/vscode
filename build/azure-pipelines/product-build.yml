@@ -471,7 +471,6 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true))) }}:
               - template: build/azure-pipelines/darwin/product-build-darwin-cli-sign.yml@self
                 parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
                   VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 
