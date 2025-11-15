@@ -5,12 +5,14 @@
 
 
 import { Event } from '../../../../../base/common/event.js';
-import { ChatMode, IChatMode, IChatModeService, IChatCustomAgentActionsManager } from '../../common/chatModes.js';
+import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 
 export class MockChatModeService implements IChatModeService {
 	readonly _serviceBrand: undefined;
 
 	public readonly onDidChangeChatModes = Event.None;
+	public readonly onDidAddCustomMode = Event.None;
+	public readonly onDidRemoveCustomMode = Event.None;
 
 	constructor(private readonly _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] }) { }
 
@@ -24,9 +26,5 @@ export class MockChatModeService implements IChatModeService {
 
 	findModeByName(name: string): IChatMode | undefined {
 		return this._modes.builtin.find(mode => mode.name.get() === name) ?? this._modes.custom.find(mode => mode.name.get() === name);
-	}
-
-	setActionsManager(manager: IChatCustomAgentActionsManager | undefined): void {
-		// No-op for mock
 	}
 }

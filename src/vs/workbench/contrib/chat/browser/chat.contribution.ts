@@ -6,7 +6,7 @@
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
@@ -36,7 +36,7 @@ import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperS
 import '../common/chatColors.js';
 import { IChatEditingService } from '../common/chatEditingService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
-import { ChatModeService, IChatMode, IChatModeService, IChatCustomAgentActionsManager } from '../common/chatModes.js';
+import { ChatModeService, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatService } from '../common/chatServiceImpl.js';
@@ -906,34 +906,43 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 
 
 /**
- * Manages dynamic action registration for custom chat modes
- */
-class ChatAgentActionsManager implements IChatCustomAgentActionsManager {
-	registerModeAction(mode: IChatMode): IDisposable {
-		const actionClass = class extends ModeOpenChatGlobalAction {
-			constructor() {
-				super(mode);
-			}
-		};
-		return registerAction2(actionClass);
-	}
-}
-
-/**
- * Workbench contribution to initialize custom chat agent actions
+ * Workbench contribution to register actions for custom chat modes via events
  */
 class ChatAgentActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatAgentActions';
+
+	private readonly _modeActionDisposables = new DisposableMap<string>();
 
 	constructor(
 		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
 		super();
 
-		// Initialize the actions manager for dynamic custom mode registration
-		const actionsManager = new ChatAgentActionsManager();
-		this.chatModeService.setActionsManager(actionsManager);
+		// Register actions for existing custom modes
+		const { custom } = this.chatModeService.getModes();
+		for (const mode of custom) {
+			this._registerModeAction(mode);
+		}
+
+		// Listen for new modes being added
+		this._register(this.chatModeService.onDidAddCustomMode((mode) => {
+			this._registerModeAction(mode);
+		}));
+
+		// Listen for modes being removed
+		this._register(this.chatModeService.onDidRemoveCustomMode((mode) => {
+			this._modeActionDisposables.deleteAndDispose(mode.id);
+		}));
+	}
+
+	private _registerModeAction(mode: IChatMode): void {
+		const actionClass = class extends ModeOpenChatGlobalAction {
+			constructor() {
+				super(mode);
+			}
+		};
+		this._modeActionDisposables.set(mode.id, registerAction2(actionClass));
 	}
 }
 

@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
@@ -27,25 +27,11 @@ export interface IChatModeService {
 
 	// TODO expose an observable list of modes
 	readonly onDidChangeChatModes: Event<void>;
+	readonly onDidAddCustomMode: Event<IChatMode>;
+	readonly onDidRemoveCustomMode: Event<IChatMode>;
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] };
 	findModeById(id: string): IChatMode | undefined;
 	findModeByName(name: string): IChatMode | undefined;
-
-	/**
-	 * Set the actions manager for dynamic registration of custom agent actions.
-	 * This is called from the browser layer to provide action registration functionality.
-	 */
-	setActionsManager(manager: IChatCustomAgentActionsManager | undefined): void;
-}
-
-/**
- * Interface for managing dynamic action registration for custom chat modes
- */
-export interface IChatCustomAgentActionsManager {
-	/**
-	 * Register an action for the given custom chat mode
-	 */
-	registerModeAction(mode: IChatMode): IDisposable;
 }
 
 export class ChatModeService extends Disposable implements IChatModeService {
@@ -55,11 +41,15 @@ export class ChatModeService extends Disposable implements IChatModeService {
 
 	private readonly hasCustomModes: IContextKey<boolean>;
 	private readonly _customModeInstances = new Map<string, CustomChatMode>();
-	private readonly _customModeActionDisposables = new DisposableStore();
-	private _actionsManager: IChatCustomAgentActionsManager | undefined;
 
 	private readonly _onDidChangeChatModes = new Emitter<void>();
 	public readonly onDidChangeChatModes = this._onDidChangeChatModes.event;
+
+	private readonly _onDidAddCustomMode = new Emitter<IChatMode>();
+	public readonly onDidAddCustomMode = this._onDidAddCustomMode.event;
+
+	private readonly _onDidRemoveCustomMode = new Emitter<IChatMode>();
+	public readonly onDidRemoveCustomMode = this._onDidRemoveCustomMode.event;
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
@@ -80,7 +70,6 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			void this.refreshCustomPromptModes(true);
 		}));
 		this._register(this.storageService.onWillSaveState(() => this.saveCachedModes()));
-		this._register(this._customModeActionDisposables);
 
 		// Ideally we can get rid of the setting to disable agent mode?
 		let didHaveToolsAgent = this.chatAgentService.hasToolsAgent;
@@ -164,20 +153,22 @@ export class ChatModeService extends Disposable implements IChatModeService {
 					// Create new instance
 					modeInstance = new CustomChatMode(customMode);
 					this._customModeInstances.set(uriString, modeInstance);
+					this._onDidAddCustomMode.fire(modeInstance);
 				}
 			}
 
 			// Clean up instances for modes that no longer exist
 			for (const [uriString] of this._customModeInstances.entries()) {
 				if (!seenUris.has(uriString)) {
+					const removedMode = this._customModeInstances.get(uriString);
 					this._customModeInstances.delete(uriString);
+					if (removedMode) {
+						this._onDidRemoveCustomMode.fire(removedMode);
+					}
 				}
 			}
 
 			this.hasCustomModes.set(this._customModeInstances.size > 0);
-
-			// Update action registrations
-			this._updateActionRegistrations();
 		} catch (error) {
 			this.logService.error(error, 'Failed to load custom agents');
 			this._customModeInstances.clear();
@@ -217,23 +208,6 @@ export class ChatModeService extends Disposable implements IChatModeService {
 
 	private getCustomModes(): IChatMode[] {
 		return this.chatAgentService.hasToolsAgent ? Array.from(this._customModeInstances.values()) : [];
-	}
-
-	setActionsManager(manager: IChatCustomAgentActionsManager | undefined): void {
-		this._actionsManager = manager;
-		this._updateActionRegistrations();
-	}
-
-	private _updateActionRegistrations(): void {
-		// Clear existing action registrations
-		this._customModeActionDisposables.clear();
-
-		// Register actions for custom modes if manager is available
-		if (this._actionsManager) {
-			for (const mode of this.getCustomModes()) {
-				this._customModeActionDisposables.add(this._actionsManager.registerModeAction(mode));
-			}
-		}
 	}
 }
 
