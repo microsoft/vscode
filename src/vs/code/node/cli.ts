@@ -296,15 +296,16 @@ export async function main(argv: string[]): Promise<void> {
 						processCallbacks.push(() => readFromStdinDone.p);
 					}
 
-					// Replace all "-" occurrences in argv with the stdin file path to preserve position
+					// Replace "-" occurrence in argv with the stdin file path to preserve position
 					const stdinIndices = argv
 						.map((arg, idx) => arg === '-' ? idx : -1)
 						.filter(idx => idx !== -1);
 
-					if (stdinIndices.length > 0) {
-						for (const idx of stdinIndices) {
-							argv[idx] = stdinFilePath;
-						}
+					if (stdinIndices.length > 1) {
+						console.error("Error: Multiple '-' arguments provided. Only one is allowed when reading from stdin.");
+						process.exit(1);
+					} else if (stdinIndices.length === 1) {
+						argv[stdinIndices[0]] = stdinFilePath;
 					}
 
 					if (args.chat) {
