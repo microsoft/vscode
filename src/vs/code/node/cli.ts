@@ -261,7 +261,6 @@ export async function main(argv: string[]): Promise<void> {
 			if (args.chat) {
 				args.chat._ = args.chat._.filter(a => a !== '-');
 			}
-			// keep "-" in argv to preserve position for later replacement
 		}
 
 		let stdinFilePath: string | undefined;
@@ -302,20 +301,23 @@ export async function main(argv: string[]): Promise<void> {
 						.filter(idx => idx !== -1);
 
 					if (stdinIndices.length > 1) {
-						console.error("Error: Multiple '-' arguments provided. Only one is allowed when reading from stdin.");
+						console.error("Error: Multiple \"-\" arguments provided. Only one is allowed when reading from stdin.");
 						process.exit(1);
 					} else if (stdinIndices.length === 1) {
 						argv[stdinIndices[0]] = stdinFilePath;
 					}
 
 					if (args.chat) {
-						// Make sure to add tmp file as context to chat
+						// Defensive fallback: if "-" wasn't found in argv (unexpected edge case),
+						// append the stdin file as context to chat as before. This should never
+						// occur in normal execution, but is retained for robustness.
 						if (stdinIndices.length === 0) {
 							addArg(argv, '--add-file', stdinFilePath);
 						}
 					} else {
-						// Make sure to open tmp file as editor but ignore
-						// it in the "recently open" list
+						// Defensive fallback: if "-" wasn't found in argv (unexpected edge case),
+						// append the stdin file as before. This should never occur in normal
+						// execution, but is retained for robustness.
 						if (stdinIndices.length === 0) {
 							addArg(argv, stdinFilePath);
 						}
