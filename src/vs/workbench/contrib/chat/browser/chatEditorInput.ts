@@ -259,11 +259,13 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const chatSessionType = searchParams.get('chatSessionType');
 		const inputType = chatSessionType ?? this.resource.authority;
 
-		if (this.resource.scheme !== Schemas.vscodeChatEditor) {
-			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Chat, CancellationToken.None);
-		} else if (this._sessionResource) {
-			this.model = await this.chatService.getOrRestoreSession(this._sessionResource)
-				?? this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: false });
+		if (this._sessionResource) {
+			this.model = await this.chatService.loadSessionForResource(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+
+			// For local session only, if we find no existing session, create a new one
+			if (!this.model && LocalChatSessionUri.parseLocalSessionId(this._sessionResource)) {
+				this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: true });
+			}
 		} else if (!this.options.target) {
 			this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: !inputType });
 		} else if (this.options.target.data) {

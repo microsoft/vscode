@@ -6,23 +6,18 @@ import { getWindow, n, ObserverNode, ObserverNodeWithElement } from '../../../..
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, constObservable, derived, derivedDisposable, observableValue } from '../../../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
-import { EmbeddedCodeEditorWidget } from '../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
 import { Position } from '../../../../../../common/core/position.js';
-import { Range } from '../../../../../../common/core/range.js';
-import { IModelDeltaDecoration, ITextModel } from '../../../../../../common/model.js';
-import { InlineCompletionContextKeys } from '../../../controller/inlineCompletionContextKeys.js';
+import { ITextModel } from '../../../../../../common/model.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
 import { getContentRenderWidth, getContentSizeOfLines, maxContentWidthInRange, rectToProps } from '../utils/utils.js';
 import { DetailedLineRangeMapping } from '../../../../../../common/diff/rangeMapping.js';
-import { ModelDecorationOptions } from '../../../../../../common/model/textModel.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
-import { InlineEditsGutterIndicator } from '../components/gutterIndicatorView.js';
 import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { ModelPerInlineEdit } from '../inlineEditsModel.js';
 import { HideUnchangedRegionsFeature } from '../../../../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
@@ -37,6 +32,7 @@ import { getMaxTowerHeightInAvailableArea } from './layout.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../theme.js';
 import { asCssVariable, editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
 
 
 const BORDER_WIDTH = 1;
@@ -66,8 +62,8 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
 	readonly onDidClick = this._onDidClick.event;
 	private _viewWithElement: ObserverNodeWithElement<HTMLDivElement> | undefined = undefined;
-	private readonly _previewRef = n.ref<HTMLDivElement>();
-	public readonly previewEditor;
+
+	private readonly _previewEditor;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -95,20 +91,15 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 		this._editorObs = observableCodeEditor(this._editor);
 
-		this.previewEditor = this._register(this._createPreviewEditor());
-		this.previewEditor.setModel(this._previewTextModel);
-		this._previewEditorObs = observableCodeEditor(this.previewEditor);
-		this._register(this._previewEditorObs.setDecorations(this._editorDecorations));
-
-		this._register(this._instantiationService.createInstance(
-			InlineEditsGutterIndicator,
-			this._previewEditorObs,
-			derived(reader => LineRange.ofLength(this._viewState.read(reader)!.diff[0].modified.startLineNumber, 1)),
-			constObservable(0),
-			this._model,
-			constObservable(false),
-			observableValue(this, false),
-		));
+		this._previewEditor = this._register(
+			this._instantiationService.createInstance(
+				LongDistancePreviewEditor,
+				this._previewTextModel,
+				this._model,
+				this._viewState.map((m) => (m ? { diff: m.diff } : undefined)),
+				this._editor
+			)
+		);
 
 		this._hintTopLeft = this._editorObs.observePosition(this._hintTextPosition, this._store);
 
@@ -127,143 +118,20 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			if (!layoutInfo) {
 				return;
 			}
-			this.previewEditor.layout(layoutInfo.codeEditorSize.toDimension());
+			this._previewEditor.layout(layoutInfo.codeEditorSize.toDimension(), layoutInfo.desiredPreviewEditorScrollLeft);
 		}));
 
-		this._register(autorun(reader => {
-			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
-			if (!layoutInfo) {
-				return;
-			}
-			this._previewEditorObs.editor.setScrollLeft(layoutInfo.desiredPreviewEditorScrollLeft);
-		}));
-
-		this._updatePreviewEditorEffect.recomputeInitiallyAndOnChange(this._store);
+		this._isVisibleDelayed.recomputeInitiallyAndOnChange(this._store);
 	}
 
 
 	private readonly _styles;
 
-	private _createPreviewEditor() {
-		return this._instantiationService.createInstance(
-			EmbeddedCodeEditorWidget,
-			this._previewRef.element,
-			{
-				glyphMargin: false,
-				lineNumbers: 'on',
-				minimap: { enabled: false },
-				guides: {
-					indentation: false,
-					bracketPairs: false,
-					bracketPairsHorizontal: false,
-					highlightActiveIndentation: false,
-				},
-
-				rulers: [],
-				padding: { top: 0, bottom: 0 },
-				//folding: false,
-				selectOnLineNumbers: false,
-				selectionHighlight: false,
-				columnSelection: false,
-				overviewRulerBorder: false,
-				overviewRulerLanes: 0,
-				//lineDecorationsWidth: 0,
-				//lineNumbersMinChars: 0,
-				revealHorizontalRightPadding: 0,
-				bracketPairColorization: { enabled: true, independentColorPoolPerBracketType: false },
-				scrollBeyondLastLine: false,
-				scrollbar: {
-					vertical: 'hidden',
-					horizontal: 'hidden',
-					handleMouseWheel: false,
-				},
-				readOnly: true,
-				wordWrap: 'off',
-				wordWrapOverride1: 'off',
-				wordWrapOverride2: 'off',
-			},
-			{
-				contextKeyValues: {
-					[InlineCompletionContextKeys.inInlineEditsPreviewEditor.key]: true,
-				},
-				contributions: [],
-			},
-			this._editor
-		);
-	}
-
-	private readonly _editorDecorations = derived(this, reader => {
-		const viewState = this._viewState.read(reader);
-		if (!viewState) { return []; }
-
-		const hasOneInnerChange = viewState.diff.length === 1 && viewState.diff[0].innerChanges?.length === 1;
-		const showEmptyDecorations = true;
-		const modifiedDecorations: IModelDeltaDecoration[] = [];
-
-		const diffWholeLineAddDecoration = ModelDecorationOptions.register({
-			className: 'inlineCompletions-char-insert',
-			description: 'char-insert',
-			isWholeLine: true,
-		});
-
-
-		const diffAddDecoration = ModelDecorationOptions.register({
-			className: 'inlineCompletions-char-insert',
-			description: 'char-insert',
-			shouldFillLineOnLineBreak: true,
-		});
-
-		const diffAddDecorationEmpty = ModelDecorationOptions.register({
-			className: 'inlineCompletions-char-insert diff-range-empty',
-			description: 'char-insert diff-range-empty',
-		});
-
-		for (const m of viewState.diff) {
-			if (m.modified.isEmpty || m.original.isEmpty) {
-				if (!m.modified.isEmpty) {
-					modifiedDecorations.push({ range: m.modified.toInclusiveRange()!, options: diffWholeLineAddDecoration });
-				}
-			} else {
-				for (const i of m.innerChanges || []) {
-					// Don't show empty markers outside the line range
-					if (m.modified.contains(i.modifiedRange.startLineNumber)) {
-						modifiedDecorations.push({
-							range: i.modifiedRange,
-							options: (i.modifiedRange.isEmpty() && showEmptyDecorations && hasOneInnerChange)
-								? diffAddDecorationEmpty
-								: diffAddDecoration
-						});
-					}
-				}
-			}
-		}
-
-		return modifiedDecorations;
-	});
 
 
 	public get isHovered() { return this._widgetContent.didMouseMoveDuringHover; }
 
-	private readonly _previewEditorObs;
 
-	private readonly _updatePreviewEditorEffect = derived(this, reader => {
-		this._widgetContent.readEffect(reader);
-		this._previewEditorObs.model.read(reader); // update when the model is set
-
-		const viewState = this._viewState.read(reader);
-		if (!viewState) {
-			return;
-		}
-		const range = viewState.edit.originalLineRange;
-		const hiddenAreas: Range[] = [];
-		if (range.startLineNumber > 1) {
-			hiddenAreas.push(new Range(1, 1, range.startLineNumber - 1, 1));
-		}
-		if (range.startLineNumber + viewState.newTextLineCount < this._previewTextModel.getLineCount() + 1) {
-			hiddenAreas.push(new Range(range.startLineNumber + viewState.newTextLineCount, 1, this._previewTextModel.getLineCount() + 1, 1));
-		}
-		this.previewEditor.setHiddenAreas(hiddenAreas, undefined, true);
-	});
 
 	private readonly _hintTextPosition = derived(this, (reader) => {
 		const viewState = this._viewState.read(reader);
@@ -313,20 +181,17 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		return this._editorObs.observeBottomForLineNumber(p.lineNumber);
 	}).flatten();
 
-	private readonly _previewEditorHeight = derived(this, (reader) => {
-		const viewState = this._viewState.read(reader);
-		if (!viewState) {
-			return constObservable(null);
-		}
 
-		const previewEditorHeight = this._previewEditorObs.observeLineHeightForLine(viewState.edit.modifiedLineRange.startLineNumber);
-		return previewEditorHeight;
-	}).flatten();
+	private readonly _isVisibleDelayed = debouncedObservable2(
+		derived(this, reader => this._viewState.read(reader)?.hint.isVisible),
+		(lastValue, newValue) => lastValue === true && newValue === false ? 200 : 0,
+	);
 
 	private readonly _previewEditorLayoutInfo = derived(this, (reader) => {
 		const viewState = this._viewState.read(reader);
-		if (!viewState) {
-			return null;
+
+		if (!viewState || !this._isVisibleDelayed.read(reader)) {
+			return undefined;
 		}
 
 		const lineSizes = this._lineSizesAroundHintPosition.read(reader);
@@ -337,9 +202,8 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		const scrollTop = this._editorObs.scrollTop.read(reader);
 		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
-		const previewEditorHeight = this._previewEditorHeight.read(reader);
-		const previewEditorHorizontalRange = this._horizontalContentRangeInPreviewEditorToShow.read(reader);
-
+		const previewEditorHeight = this._previewEditor.previewEditorHeight.read(reader);
+		const previewEditorHorizontalRange = this._previewEditor.horizontalContentRangeInPreviewEditorToShow.read(reader);
 
 		if (!previewEditorHeight) {
 			return undefined;
@@ -464,23 +328,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 	protected readonly _hintTopLeft;
 
-	private readonly _horizontalContentRangeInPreviewEditorToShow = derived(this, reader => {
-		return this._getHorizontalContentRangeInPreviewEditorToShow(this.previewEditor, this._viewState.read(reader)?.diff ?? [], reader);
-	});
 
-	private _getHorizontalContentRangeInPreviewEditorToShow(editor: ICodeEditor, diff: DetailedLineRangeMapping[], reader: IReader) {
-
-		//diff[0].innerChanges[0].originalRange;
-		const r = LineRange.ofLength(diff[0].modified.startLineNumber, 1);
-		const l = this._previewEditorObs.layoutInfo.read(reader);
-		const w = maxContentWidthInRange(this._previewEditorObs, r, reader) + l.contentLeft - l.verticalScrollbarWidth;
-		const preferredRange = new OffsetRange(0, w);
-
-		return {
-			preferredRange,
-			contentWidth: w,
-		};
-	}
 
 	private readonly _view = n.div({
 		class: 'inline-edits-view',
@@ -495,11 +343,6 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		derived(this, _reader => [this._widgetContent]),
 	]);
 
-	private readonly _originalOutlineSource = derivedDisposable(this, (reader) => {
-		const m = this._editorObs.model.read(reader);
-		const factory = HideUnchangedRegionsFeature._breadcrumbsSourceFactory.read(reader);
-		return (!m || !factory) ? undefined : factory(m, this._instantiationService);
-	});
 
 	private readonly _widgetContent = n.div({
 		style: {
@@ -512,6 +355,8 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			border: derived(reader => `1px solid ${this._styles.read(reader).border}`),
 			display: 'flex',
 			flexDirection: 'column',
+			opacity: derived(reader => this._viewState.read(reader)?.hint.isVisible ? '1' : '0'),
+			transition: 'opacity 200ms ease-in-out',
 			...rectToProps(reader => this._previewEditorLayoutInfo.read(reader)?.widgetRect)
 		},
 		onmousedown: e => {
@@ -529,7 +374,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 				background: 'var(--vscode-editor-background)',
 			},
 		}, [
-			n.div({ class: 'preview', style: { /*pointerEvents: 'none'*/ }, ref: this._previewRef }),
+			derived(this, r => this._previewEditor.element),
 		]),
 		n.div({ class: 'bar', style: { pointerEvents: 'none', margin: '0 4px', height: this._previewEditorLayoutInfo.map(i => i?.lowerBarHeight), display: 'flex', justifyContent: 'flex-start', alignItems: 'center' } }, [
 			derived(this, reader => {
@@ -565,10 +410,17 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			})
 		]),
 	]);
+
+	private readonly _originalOutlineSource = derivedDisposable(this, (reader) => {
+		const m = this._editorObs.model.read(reader);
+		const factory = HideUnchangedRegionsFeature._breadcrumbsSourceFactory.read(reader);
+		return (!m || !factory) ? undefined : factory(m, this._instantiationService);
+	});
 }
 
 export interface ILongDistanceHint {
 	lineNumber: number;
+	isVisible: boolean;
 }
 
 export interface ILongDistanceViewState {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentsessionsviewer.css';
-import { addDisposableListener, EventType, h } from '../../../../../base/browser/dom.js';
+import { h } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
@@ -153,17 +153,6 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				},
 			}, template.description);
 			template.elementDisposable.add(descriptionMarkdown);
-
-			// Prevent link clicks from opening the session itself
-			// by stopping propagation of mouse events from links
-			// within (TODO@bpasero revisit this in the future).
-			// eslint-disable-next-line no-restricted-syntax
-			const anchors = descriptionMarkdown.element.querySelectorAll('a');
-			for (const anchor of anchors) {
-				template.elementDisposable.add(addDisposableListener(anchor, EventType.MOUSE_DOWN, e => e.stopPropagation()));
-				template.elementDisposable.add(addDisposableListener(anchor, EventType.CLICK, e => e.stopPropagation()));
-				template.elementDisposable.add(addDisposableListener(anchor, EventType.AUXCLICK, e => e.stopPropagation()));
-			}
 		}
 
 		// Status (updated every minute)

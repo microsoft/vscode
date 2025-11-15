@@ -36,6 +36,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { isString } from '../../../../../base/common/types.js';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -481,7 +482,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 				class: undefined, tooltip: labelCopyCommandAndOutput, id: 'terminal.copyCommandAndOutput', label: labelCopyCommandAndOutput, enabled: true,
 				run: () => {
 					const output = command.getOutput();
-					if (typeof output === 'string') {
+					if (isString(output)) {
 						this._clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${output}`);
 					}
 				}
@@ -491,7 +492,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 				class: undefined, tooltip: labelText, id: 'terminal.copyOutput', label: labelText, enabled: true,
 				run: () => {
 					const text = command.getOutput();
-					if (typeof text === 'string') {
+					if (isString(text)) {
 						this._clipboardService.writeText(text);
 					}
 				}
