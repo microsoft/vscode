@@ -445,7 +445,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			prepared = await preparePromise;
 		}
 
-		// TODO: If the user has _previously_ auto-approved this tool, I don't think we make it to this check.
 		const isEligibleForAutoApproval = this.isToolEligibleForAutoApproval(tool.data);
 
 		// Default confirmation messages if tool is not eligible for auto-approval
@@ -530,6 +529,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown): Promise<ConfirmedReason | undefined> {
+		const tool = this._tools.get(toolId);
+		if (!tool) {
+			return undefined;
+		}
+
+		if (!this.isToolEligibleForAutoApproval(tool.data)) {
+			return undefined;
+		}
+
 		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters });
 		if (reason) {
 			return reason;
