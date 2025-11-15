@@ -1,6 +1,12 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
+const apiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+
+let genAI: GoogleGenerativeAI | null = null;
+
+if (apiKey) {
+  genAI = new GoogleGenerativeAI(apiKey);
+}
 
 export interface Message {
   role: 'user' | 'assistant';
@@ -14,6 +20,10 @@ export interface CodeFile {
 }
 
 export async function generateCode(prompt: string, context?: string): Promise<string> {
+  if (!genAI) {
+    throw new Error('API key not configured. Please set VITE_GEMINI_API_KEY in your environment.');
+  }
+
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
     
@@ -31,6 +41,10 @@ export async function generateCode(prompt: string, context?: string): Promise<st
 }
 
 export async function chatWithAI(messages: Message[]): Promise<string> {
+  if (!genAI) {
+    throw new Error('API key not configured. Please set VITE_GEMINI_API_KEY in your environment.');
+  }
+
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
     
@@ -52,6 +66,10 @@ export async function chatWithAI(messages: Message[]): Promise<string> {
 }
 
 export async function explainCode(code: string): Promise<string> {
+  if (!genAI) {
+    throw new Error('API key not configured.');
+  }
+
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
     
@@ -67,6 +85,10 @@ export async function explainCode(code: string): Promise<string> {
 }
 
 export async function improveCode(code: string, instructions?: string): Promise<string> {
+  if (!genAI) {
+    throw new Error('API key not configured.');
+  }
+
   try {
     const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
     
