@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, Event, EventEmitter, LogOutputChannel, SecretStorage } from 'vscode';
+import { Disposable, Event, EventEmitter, SecretStorage } from 'vscode';
 import { AccountInfo } from '@azure/msal-node';
 
 export interface IAccountAccess {
@@ -33,10 +33,9 @@ export class ScopedAccountAccess implements IAccountAccess, Disposable {
 
 	static async create(
 		secretStorage: SecretStorage,
-		cloudName: string,
-		logger: LogOutputChannel
+		cloudName: string
 	): Promise<ScopedAccountAccess> {
-		const storage = new AccountAccessSecretStorage(secretStorage, cloudName, logger);
+		const storage = new AccountAccessSecretStorage(secretStorage, cloudName);
 		const access = new ScopedAccountAccess(storage, [storage]);
 		await access.initialize();
 		return access;
@@ -93,8 +92,7 @@ class AccountAccessSecretStorage implements IAccountAccessSecretStorage, Disposa
 
 	constructor(
 		private readonly _secretStorage: SecretStorage,
-		private readonly _cloudName: string,
-		private readonly _logger: LogOutputChannel
+		private readonly _cloudName: string
 	) {
 		this._key = `accounts-${this._cloudName}`;
 

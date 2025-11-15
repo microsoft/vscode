@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AccountInfo } from '@azure/msal-node';
-import { SecretStorage, LogOutputChannel, Disposable, EventEmitter, Memento, Event } from 'vscode';
+import { SecretStorage, LogOutputChannel, Disposable, EventEmitter, Event } from 'vscode';
 import { ICachedPublicClientApplication, ICachedPublicClientApplicationManager } from '../common/publicClientCache';
 import { CachedPublicClientApplication } from './cachedPublicClientApplication';
 import { IAccountAccess, ScopedAccountAccess } from '../common/accountAccess';
@@ -51,7 +51,7 @@ export class CachedPublicClientApplicationManager implements ICachedPublicClient
 		env: Environment
 	): Promise<CachedPublicClientApplicationManager> {
 		const pcasSecretStorage = new PublicClientApplicationsSecretStorage(secretStorage, env.name);
-		const accountAccess = await ScopedAccountAccess.create(secretStorage, env.name, logger);
+		const accountAccess = await ScopedAccountAccess.create(secretStorage, env.name);
 		const manager = new CachedPublicClientApplicationManager(env, pcasSecretStorage, accountAccess, secretStorage, logger, telemetryReporter, [pcasSecretStorage, accountAccess]);
 		await manager.initialize();
 		return manager;
