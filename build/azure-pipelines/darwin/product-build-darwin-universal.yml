@@ -67,11 +67,7 @@ jobs:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Install build dependencies
 
-      # Install ts-node so we can run our build scripts with it
-      - script: npm install ts-node --ignore-scripts
-        displayName: Install ts-node
-
-      - pwsh: node -- build/azure-pipelines/common/waitForArtifacts.js unsigned_vscode_client_darwin_x64_archive unsigned_vscode_client_darwin_arm64_archive
+      - pwsh: node -- build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_client_darwin_x64_archive unsigned_vscode_client_darwin_arm64_archive
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Wait for x64 and arm64 artifacts
