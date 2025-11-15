@@ -5,27 +5,25 @@
 			"ES2024"
 		],
 		"rootDir": ".",
-		"module": "commonjs",
-		"esModuleInterop": true,
-		"alwaysStrict": true,
-		"allowJs": true,
+		"module": "esnext",
+		"allowImportingTsExtensions": true,
+		"erasableSyntaxOnly": true,
+		"noEmit": true,
 		"strict": true,
 		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"newLine": "lf",
-		"noEmit": true,
 		"typeRoots": [
 			"."
 		]
 	},
 	"include": [
 		"./**/*.ts",
-		"./**/*.js"
 	],
 	"exclude": [
 		"node_modules/**",
-		"tests/**"
+		"./tests/**"
 	]
 }

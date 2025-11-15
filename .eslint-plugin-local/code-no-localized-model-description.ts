@@ -6,7 +6,7 @@
 import { TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
 import * as visitorKeys from 'eslint-visitor-keys';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 
 const MESSAGE_ID = 'noLocalizedModelDescription';
 type NodeWithChildren = TSESTree.Node & {
@@ -15,10 +15,10 @@ type NodeWithChildren = TSESTree.Node & {
 type PropertyKeyNode = TSESTree.Property['key'] | TSESTree.MemberExpression['property'];
 type AssignmentTarget = TSESTree.AssignmentExpression['left'];
 
-export = new class NoLocalizedModelDescriptionRule implements eslint.Rule.RuleModule {
-	readonly meta: eslint.Rule.RuleMetaData = {
+export default new class NoLocalizedModelDescriptionRule implements eslint.Rule.RuleModule {
+	meta: eslint.Rule.RuleMetaData = {
 		messages: {
-			[MESSAGE_ID]: 'modelDescription is only seen by the LLM and must not use localized strings.'
+			[MESSAGE_ID]: 'modelDescription values describe behavior to the language model and must not use localized strings.'
 		},
 		type: 'problem',
 		schema: false
@@ -110,6 +110,7 @@ function isLocalizeCall(node: TSESTree.Node): boolean {
 	}
 	return false;
 }
+
 
 function isLocalizeCallee(callee: TSESTree.CallExpression['callee']): boolean {
 	if (callee.type === 'Identifier') {

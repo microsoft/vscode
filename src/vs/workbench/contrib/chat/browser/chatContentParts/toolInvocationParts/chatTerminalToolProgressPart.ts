@@ -220,7 +220,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (expandedStateByInvocation.get(toolInvocation)) {
 			void this._toggleOutput(true);
 		}
-		this._register(this._terminalChatService.registerChatTerminalToolProgressPart(this));
+		this._register(this._terminalChatService.registerProgressPart(this));
 	}
 
 	private async _initializeTerminalActions(): Promise<void> {
@@ -436,7 +436,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private _handleOutputFocus(): void {
 		this._terminalOutputContextKey.set(true);
-		this._terminalChatService.setFocusedChatTerminalToolProgressPart(this);
+		this._terminalChatService.setFocusedProgressPart(this);
 		this._outputView.updateAriaLabel();
 	}
 
@@ -446,12 +446,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 		this._terminalOutputContextKey.reset();
-		this._terminalChatService.clearFocusedChatTerminalToolProgressPart(this);
+		this._terminalChatService.clearFocusedProgressPart(this);
 	}
 
 	private _handleDispose(): void {
 		this._terminalOutputContextKey.reset();
-		this._terminalChatService.clearFocusedChatTerminalToolProgressPart(this);
+		this._terminalChatService.clearFocusedProgressPart(this);
 	}
 
 	public getCommandAndOutputAsText(): string | undefined {
@@ -821,7 +821,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyT,
 	handler: async (accessor: ServicesAccessor) => {
 		const terminalChatService = accessor.get(ITerminalChatService);
-		const part = terminalChatService.getMostRecentChatTerminalToolProgressPart();
+		const part = terminalChatService.getMostRecentProgressPart();
 		if (!part) {
 			return;
 		}
@@ -836,7 +836,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyO,
 	handler: async (accessor: ServicesAccessor) => {
 		const terminalChatService = accessor.get(ITerminalChatService);
-		const part = terminalChatService.getMostRecentChatTerminalToolProgressPart();
+		const part = terminalChatService.getMostRecentProgressPart();
 		if (!part) {
 			return;
 		}
@@ -861,6 +861,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 });
 
 export const openTerminalSettingsLinkCommandId = '_chat.openTerminalSettingsLink';
+export const disableSessionAutoApprovalCommandId = '_chat.disableSessionAutoApproval';
 
 CommandsRegistry.registerCommand(openTerminalSettingsLinkCommandId, async (accessor, scopeRaw: string) => {
 	const preferencesService = accessor.get(IPreferencesService);
@@ -895,6 +896,11 @@ CommandsRegistry.registerCommand(openTerminalSettingsLinkCommandId, async (acces
 			}
 		}
 	}
+});
+
+CommandsRegistry.registerCommand(disableSessionAutoApprovalCommandId, async (accessor, chatSessionId: string) => {
+	const terminalChatService = accessor.get(ITerminalChatService);
+	terminalChatService.setChatSessionAutoApproval(chatSessionId, false);
 });
 
 
