@@ -308,16 +308,11 @@ export async function main(argv: string[]): Promise<void> {
 					}
 
 					if (args.chat) {
-						// Defensive fallback: if "-" wasn't found in argv (unexpected edge case),
-						// append the stdin file as context to chat as before. This should never
-						// occur in normal execution, but is retained for robustness.
-						if (stdinIndices.length === 0) {
-							addArg(argv, '--add-file', stdinFilePath);
-						}
+						// Always add the stdin file as context to chat via --add-file,
+						// regardless of whether "-" was present and replaced.
+						addArg(argv, '--add-file', stdinFilePath);
 					} else {
-						// Defensive fallback: if "-" wasn't found in argv (unexpected edge case),
-						// append the stdin file as before. This should never occur in normal
-						// execution, but is retained for robustness.
+						// Fallback: append stdin file if "-" was not found in argv (unexpected edge case)
 						if (stdinIndices.length === 0) {
 							addArg(argv, stdinFilePath);
 						}
