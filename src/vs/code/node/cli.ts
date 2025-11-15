@@ -301,7 +301,7 @@ export async function main(argv: string[]): Promise<void> {
 						.filter(idx => idx !== -1);
 
 					if (stdinIndices.length > 1) {
-						console.error("Error: Multiple \"-\" arguments provided. Only one is allowed when reading from stdin.");
+						console.error('Error: Multiple \'-\' arguments provided. Only one is allowed when reading from stdin.');
 						process.exit(1);
 					} else if (stdinIndices.length === 1) {
 						argv[stdinIndices[0]] = stdinFilePath;
