@@ -295,7 +295,7 @@ export async function main(argv: string[]): Promise<void> {
 						processCallbacks.push(() => readFromStdinDone.p);
 					}
 
-					// Replace "-" occurrence in argv with the stdin file path to preserve position
+					// Find all "-" occurrences in argv
 					const stdinIndices = argv
 						.map((arg, idx) => arg === '-' ? idx : -1)
 						.filter(idx => idx !== -1);
@@ -303,17 +303,20 @@ export async function main(argv: string[]): Promise<void> {
 					if (stdinIndices.length > 1) {
 						console.error('Error: Multiple \'-\' arguments provided. Only one is allowed when reading from stdin.');
 						process.exit(1);
-					} else if (stdinIndices.length === 1) {
-						argv[stdinIndices[0]] = stdinFilePath;
 					}
 
 					if (args.chat) {
-						// Always add the stdin file as context to chat via --add-file,
-						// regardless of whether "-" was present and replaced.
+						// For chat mode: remove "-" from argv and add stdin file via --add-file
+						if (stdinIndices.length > 0) {
+							argv = argv.filter(arg => arg !== '-');
+						}
 						addArg(argv, '--add-file', stdinFilePath);
 					} else {
-						// Fallback: append stdin file if "-" was not found in argv (unexpected edge case)
-						if (stdinIndices.length === 0) {
+						// For regular mode: replace "-" in-place to preserve position (for diff, etc.)
+						if (stdinIndices.length === 1) {
+							argv[stdinIndices[0]] = stdinFilePath;
+						} else if (stdinIndices.length === 0) {
+							// Fallback: append stdin file if "-" was not found in argv
 							addArg(argv, stdinFilePath);
 						}
 						addArg(argv, '--skip-add-to-recently-opened');
