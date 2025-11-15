@@ -44,7 +44,7 @@ async function main() {
 	console.log(JSON.stringify({ cosmosDBAccessToken, blobServiceAccessToken }));
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main().then(() => {
 		process.exit(0);
 	}, err => {

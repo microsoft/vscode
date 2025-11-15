@@ -11,7 +11,7 @@ import es from 'event-stream';
 import filter from 'gulp-filter';
 import { Stream } from 'stream';
 
-const watcherPath = path.join(__dirname, 'watcher.exe');
+const watcherPath = path.join(import.meta.dirname, 'watcher.exe');
 
 function toChangeType(type: '0' | '1' | '2'): 'change' | 'add' | 'unlink' {
 	switch (type) {
@@ -33,7 +33,7 @@ function watch(root: string): Stream {
 				continue;
 			}
 
-			const changeType = <'0' | '1' | '2'>line[0];
+			const changeType = line[0] as '0' | '1' | '2';
 			const changePath = line.substr(2);
 
 			// filter as early as possible

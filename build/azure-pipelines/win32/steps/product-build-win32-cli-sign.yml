@@ -41,7 +41,11 @@ steps:
           archiveFilePatterns: $(Build.BinariesDirectory)/pkg/${{ target }}/*.zip
           destinationFolder: $(Build.BinariesDirectory)/sign/${{ target }}
 
-  - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(Build.BinariesDirectory)/sign "*.exe"
+  # Install ts-node so we can run our build scripts with it
+  - script: npm install ts-node --ignore-scripts
+    displayName: Install ts-node
+
+  - powershell: node build\azure-pipelines\common\sign.ts $env:EsrpCliDllPath sign-windows $(Build.BinariesDirectory)/sign "*.exe"
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: ✍️ Codesign

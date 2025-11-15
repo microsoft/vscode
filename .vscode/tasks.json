@@ -257,7 +257,7 @@
 		},
 		{
 			"type": "shell",
-			"command": "node build/lib/preLaunch.js",
+			"command": "node build/lib/preLaunch.ts",
 			"label": "Ensure Prelaunch Dependencies",
 			"presentation": {
 				"reveal": "silent",

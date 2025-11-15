@@ -92,10 +92,10 @@ steps:
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
 
-  - script: node build/azure-pipelines/distro/mixin-npm
+  - script: node build/azure-pipelines/distro/mixin-npm.ts
     displayName: Mixin distro node modules
 
-  - script: node build/azure-pipelines/distro/mixin-quality
+  - script: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
     env:
       VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
