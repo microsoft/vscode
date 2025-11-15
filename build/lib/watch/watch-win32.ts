@@ -70,7 +70,7 @@ function watch(root: string): Stream {
 
 const cache: { [cwd: string]: Stream } = Object.create(null);
 
-module.exports = function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string; dot?: boolean }) {
+export default function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string; dot?: boolean }) {
 	options = options || {};
 
 	const cwd = path.normalize(options.cwd || process.cwd());
@@ -105,4 +105,4 @@ module.exports = function (pattern: string | string[] | filter.FileFunction, opt
 			});
 		}))
 		.pipe(rebase);
-};
+}
