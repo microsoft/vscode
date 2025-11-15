@@ -120,7 +120,9 @@ steps:
   - template: ../../common/install-builtin-extensions.yml@self
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - powershell: npm run copy-policy-dto --prefix build && node build\lib\policies\policyGenerator.ts build\lib\policies\policyData.jsonc win32
+    - powershell: |
+        npm run copy-policy-dto --prefix build
+        node build\lib\policies\policyGenerator.ts build\lib\policies\policyData.jsonc win32
       displayName: Generate Group Policy definitions
       retryCountOnTaskFailure: 3
 
