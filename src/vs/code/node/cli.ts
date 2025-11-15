@@ -258,6 +258,9 @@ export async function main(argv: string[]): Promise<void> {
 		if (hasReadStdinArg) {
 			// remove the "-" argument from parsed args
 			args._ = args._.filter(a => a !== '-');
+			if (args.chat) {
+				args.chat._ = args.chat._.filter(a => a !== '-');
+			}
 			// keep "-" in argv to preserve position for later replacement
 		}
 
