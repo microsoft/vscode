@@ -457,13 +457,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			prepared.confirmationMessages = {
 				title: localize('defaultToolConfirmation.title', 'Allow tool to execute?'),
 				message: localize('defaultToolConfirmation.message', 'Run the \'{0}\' tool?', toolReferenceName),
-				disclaimer: localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted by \'[{1}]({2})\'.', toolReferenceName, ChatConfiguration.EligibleForAutoApproval, `command:workbench.action.openSettings?%5B%22${ChatConfiguration.EligibleForAutoApproval}%22%5D`),
+				disclaimer: localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted by \'{1}\'.', toolReferenceName, ChatConfiguration.EligibleForAutoApproval),
 				allowAutoConfirm: false,
 			};
 		}
 
 		if (!isEligibleForAutoApproval && prepared?.confirmationMessages?.title && !prepared.confirmationMessages.disclaimer) {
-			prepared.confirmationMessages.disclaimer = localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted by \'[{1}]({2})\'.', getToolReferenceName(tool.data), ChatConfiguration.EligibleForAutoApproval, `command:workbench.action.openSettings?%5B%22${ChatConfiguration.EligibleForAutoApproval}%22%5D`);
+			prepared.confirmationMessages.disclaimer = localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted by \'{1}\'.', getToolReferenceName(tool.data), ChatConfiguration.EligibleForAutoApproval);
 		}
 
 		if (prepared?.confirmationMessages?.title) {
