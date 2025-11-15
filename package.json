@@ -16,8 +16,6 @@
     "test-node": "mocha test/unit/node/index.js --delay --ui=tdd --timeout=5000 --exit",
     "test-extension": "vscode-test",
     "test-build-scripts": "cd build && npm run test",
-    "preinstall": "node build/npm/preinstall.js",
-    "postinstall": "node build/npm/postinstall.js",
     "compile": "node ./node_modules/gulp/bin/gulp.js compile",
     "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "watch": "npm-run-all -lp watch-client watch-extensions",
@@ -69,11 +67,14 @@
     "extensions-ci": "node ./node_modules/gulp/bin/gulp.js extensions-ci",
     "extensions-ci-pr": "node ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
-    "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run compile)"
+    "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run compile)",
+    "build": "tsc && vite build"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
+    "@monaco-editor/react": "^4.7.0",
     "@parcel/watcher": "parcel-bundler/watcher#1ca032aa8339260a8a3bcf825c3a1a71e3e43542",
     "@types/semver": "^7.5.8",
     "@vscode/deviceid": "^0.1.1",
