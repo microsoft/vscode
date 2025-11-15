@@ -6,14 +6,14 @@
 import minimist from 'minimist';
 import * as fs from 'fs';
 import path from 'path';
-import { CategoryDto, ExportedPolicyDataDto } from './policyDto.ts';
+import { type CategoryDto, type ExportedPolicyDataDto } from './policyDto.ts';
 import * as JSONC from 'jsonc-parser';
 import { BooleanPolicy } from './booleanPolicy.ts';
 import { NumberPolicy } from './numberPolicy.ts';
 import { ObjectPolicy } from './objectPolicy.ts';
 import { StringEnumPolicy } from './stringEnumPolicy.ts';
 import { StringPolicy } from './stringPolicy.ts';
-import { Version, LanguageTranslations, Policy, Translations, Languages, ProductJson } from './types.ts';
+import { type Version, type LanguageTranslations, type Policy, type Translations, Languages, type ProductJson } from './types.ts';
 import { renderGP, renderJsonPolicies, renderMacOSPolicy } from './render.ts';
 
 const product: ProductJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../../product.json'), 'utf8'));

@@ -5,7 +5,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { sign, SignOptions } from '@electron/osx-sign';
+import { sign, type SignOptions } from '@electron/osx-sign';
 import { spawn } from '@malept/cross-spawn-promise';
 
 const root = path.dirname(path.dirname(import.meta.dirname));
