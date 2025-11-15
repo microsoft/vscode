@@ -47,6 +47,12 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _hasToolTerminalContext: IContextKey<boolean>;
 	private readonly _hasHiddenToolTerminalContext: IContextKey<boolean>;
 
+	/**
+	 * Tracks chat session IDs that have auto approval enabled for all commands. This is a temporary
+	 * approval that lasts only for the duration of the session.
+	 */
+	private readonly _sessionAutoApprovalEnabled = new Set<string>();
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -83,6 +89,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 				this._toolSessionIdByTerminalInstance.delete(instance);
 				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
+				// Clean up session auto approval state
+				const sessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
+				if (sessionId) {
+					this._sessionAutoApprovalEnabled.delete(sessionId);
+				}
 				this._persistToStorage();
 				this._updateHasToolTerminalContextKeys();
 			}
@@ -278,5 +289,17 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._hasToolTerminalContext.set(toolCount > 0);
 		const hiddenTerminalCount = this.getToolSessionTerminalInstances(true).length;
 		this._hasHiddenToolTerminalContext.set(hiddenTerminalCount > 0);
+	}
+
+	setChatSessionAutoApproval(chatSessionId: string, enabled: boolean): void {
+		if (enabled) {
+			this._sessionAutoApprovalEnabled.add(chatSessionId);
+		} else {
+			this._sessionAutoApprovalEnabled.delete(chatSessionId);
+		}
+	}
+
+	hasChatSessionAutoApproval(chatSessionId: string): boolean {
+		return this._sessionAutoApprovalEnabled.has(chatSessionId);
 	}
 }

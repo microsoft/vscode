@@ -79,7 +79,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
@@ -146,7 +147,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 					shell: 'bash',
 					os: OperatingSystem.Linux,
 					treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-					terminalToolSessionId: 'test'
+					terminalToolSessionId: 'test',
+					chatSessionId: 'test',
 				};
 
 				const result = await analyzer.analyze(options);
@@ -182,7 +184,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				shell: 'pwsh',
 				os: OperatingSystem.Windows,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.PowerShell,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
@@ -257,7 +260,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
@@ -288,7 +292,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
@@ -316,7 +321,8 @@ suite('CommandLineFileWriteAnalyzer', () => {
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
