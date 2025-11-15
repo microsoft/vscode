@@ -31,7 +31,6 @@ suite('Buffer', () => {
 		// Verify the BOM character is preserved
 		assert.strictEqual(result, filename);
 		assert.strictEqual(result.charCodeAt(0), 0xFEFF);
-		assert.strictEqual(result, '\uFEFFc.txt');
 	});
 
 	test('bufferToReadable / readableToBuffer', () => {
