@@ -8,8 +8,8 @@ import path from 'path';
 import tseslint from 'typescript-eslint';
 
 import stylisticTs from '@stylistic/eslint-plugin-ts';
-import pluginJsdoc from 'eslint-plugin-jsdoc';
 import * as pluginLocal from './.eslint-plugin-local/index.ts';
+import pluginJsdoc from 'eslint-plugin-jsdoc';
 
 import pluginHeader from 'eslint-plugin-header';
 pluginHeader.rules.header.meta.schema = false;
