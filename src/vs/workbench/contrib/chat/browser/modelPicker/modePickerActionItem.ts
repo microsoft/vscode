@@ -7,9 +7,11 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { groupBy } from '../../../../../base/common/collections.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -17,11 +19,12 @@ import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/ac
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { ChatMode, IChatMode, IChatModeService, isAgentModePolicyDisabled } from '../../common/chatModes.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
@@ -42,25 +45,37 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IChatModeService chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService commandService: ICommandService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const builtInCategory = { label: localize('built-in', "Built-In"), order: 0 };
 		const customCategory = { label: localize('custom', "Custom"), order: 1 };
-		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
-			...action,
-			id: getOpenChatActionIdForMode(mode),
-			label: mode.label.get(),
-			class: undefined,
-			enabled: true,
-			checked: currentMode.id === mode.id,
-			tooltip: chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
-			run: async () => {
-				const result = await commandService.executeCommand(ToggleAgentModeActionId, { modeId: mode.id } satisfies IToggleChatModeArgs);
-				this.renderLabel(this.element!);
-				return result;
-			},
-			category: builtInCategory
-		});
+		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
+			const isAgentMode = mode.id === ChatMode.Agent.id;
+			const isPolicyDisabled = isAgentMode && isAgentModePolicyDisabled(configurationService);
+
+			return {
+				...action,
+				id: getOpenChatActionIdForMode(mode),
+				label: mode.label.get(),
+				class: undefined,
+				enabled: !isPolicyDisabled,
+				checked: currentMode.id === mode.id,
+				tooltip: isPolicyDisabled
+					? localize('agentMode.disabledByAdmin', "Agent mode has been disabled by your administrator")
+					: (chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip),
+				run: async () => {
+					if (isPolicyDisabled) {
+						return; // Do nothing if disabled
+					}
+					const result = await commandService.executeCommand(ToggleAgentModeActionId, { modeId: mode.id } satisfies IToggleChatModeArgs);
+					this.renderLabel(this.element!);
+					return result;
+				},
+				category: builtInCategory,
+				icon: isPolicyDisabled ? ThemeIcon.fromId(Codicon.lock.id) : undefined
+			};
+		};
 
 		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...makeAction(mode, currentMode),
