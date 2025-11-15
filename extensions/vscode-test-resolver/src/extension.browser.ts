@@ -54,8 +54,8 @@ class InitialManagedMessagePassing implements vscode.ManagedMessagePassing {
 		// example str GET ws://localhost/oss-dev?reconnectionToken=4354a323-a45a-452c-b5d7-d8d586e1cd5c&reconnection=false&skipWebSocketFrames=true HTTP/1.1
 		const match = str.match(/GET\s+(\S+)\s+HTTP/);
 		if (!match) {
-			console.error(`Coult not parse ${str}`);
-			this.closeEmitter.fire(new Error(`Coult not parse ${str}`));
+			console.error(`Could not parse ${str}`);
+			this.closeEmitter.fire(new Error(`Could not parse ${str}`));
 			return;
 		}
 

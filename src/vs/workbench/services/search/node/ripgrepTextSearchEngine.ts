@@ -584,7 +584,7 @@ export type IRgBytesOrText = { bytes: string } | { text: string };
 const isLookBehind = (node: ReAST.Node) => node.type === 'Assertion' && node.kind === 'lookbehind';
 
 export function fixRegexNewline(pattern: string): string {
-	// we parse the pattern anew each tiem
+	// we parse the pattern anew each time
 	let re: ReAST.Pattern;
 	try {
 		re = new RegExpParser().parsePattern(pattern);
