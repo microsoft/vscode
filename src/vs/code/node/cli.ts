@@ -293,21 +293,26 @@ export async function main(argv: string[]): Promise<void> {
 						processCallbacks.push(() => readFromStdinDone.p);
 					}
 
-					// Replace "-" in argv with the stdin file path to preserve position
-					const stdinIndex = argv.indexOf('-');
-					if (stdinIndex !== -1) {
-						argv[stdinIndex] = stdinFilePath;
+					// Replace all "-" occurrences in argv with the stdin file path to preserve position
+					const stdinIndices = argv
+						.map((arg, idx) => arg === '-' ? idx : -1)
+						.filter(idx => idx !== -1);
+
+					if (stdinIndices.length > 0) {
+						for (const idx of stdinIndices) {
+							argv[idx] = stdinFilePath;
+						}
 					}
 
 					if (args.chat) {
 						// Make sure to add tmp file as context to chat
-						if (stdinIndex === -1) {
+						if (stdinIndices.length === 0) {
 							addArg(argv, '--add-file', stdinFilePath);
 						}
 					} else {
 						// Make sure to open tmp file as editor but ignore
 						// it in the "recently open" list
-						if (stdinIndex === -1) {
+						if (stdinIndices.length === 0) {
 							addArg(argv, stdinFilePath);
 						}
 						addArg(argv, '--skip-add-to-recently-opened');
