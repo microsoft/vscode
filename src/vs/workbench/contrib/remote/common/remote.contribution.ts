@@ -363,7 +363,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			[REMOTE_DEFAULT_IF_LOCAL_EXTENSIONS]: {
 				type: 'array',
-				markdownDescription: localize('remote.defaultExtensionsIfInstalledLocally.markdownDescription', 'List of extensions to install automatically on all remotes if already installed locally.'),
+				markdownDescription: localize('remote.defaultExtensionsIfInstalledLocally.markdownDescription', 'List of extensions to install upon connection to a remote when already installed locally.'),
 				default: product?.remoteDefaultExtensionsIfInstalledLocally || [],
 				items: {
 					type: 'string',

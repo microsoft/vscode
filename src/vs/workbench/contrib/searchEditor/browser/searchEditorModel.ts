@@ -11,7 +11,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { parseSavedSearchEditor, parseSerializedSearchEditor } from './searchEditorSerialization.js';
 import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
 import { SearchConfiguration, SearchEditorWorkingCopyTypeId } from './constants.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { createTextBufferFactoryFromStream } from '../../../../editor/common/model/textModel.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -33,7 +33,7 @@ export class SearchEditorModel {
 	) { }
 
 	async resolve(): Promise<SearchEditorData> {
-		return assertIsDefined(searchEditorModelFactory.models.get(this.resource)).resolve();
+		return assertReturnsDefined(searchEditorModelFactory.models.get(this.resource)).resolve();
 	}
 }
 

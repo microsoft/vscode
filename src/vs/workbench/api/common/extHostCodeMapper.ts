@@ -52,6 +52,8 @@ export class ExtHostCodeMapper implements extHostProtocol.ExtHostCodeMapperShape
 		const request: vscode.MappedEditsRequest = {
 			location: internalRequest.location,
 			chatRequestId: internalRequest.chatRequestId,
+			chatRequestModel: internalRequest.chatRequestModel,
+			chatSessionId: internalRequest.chatSessionId,
 			codeBlocks: internalRequest.codeBlocks.map(block => {
 				return {
 					code: block.code,

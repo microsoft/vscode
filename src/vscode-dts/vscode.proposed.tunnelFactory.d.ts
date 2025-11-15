@@ -31,7 +31,7 @@ declare module 'vscode' {
 
 	export interface TunnelProvider {
 		/**
-		 * Provides port forwarding capabilities. If there is a resolver that already provids tunnels, then the resolver's provider will
+		 * Provides port forwarding capabilities. If there is a resolver that already provides tunnels, then the resolver's provider will
 		 * be used. If multiple providers are registered, then only the first will be used.
 		 */
 		provideTunnel(tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions, token: CancellationToken): ProviderResult<Tunnel>;

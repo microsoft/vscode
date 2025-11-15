@@ -8,7 +8,7 @@ import { Readable } from 'stream';
 import { createCancelablePromise, Sequencer } from '../common/async.js';
 import { CancellationToken } from '../common/cancellation.js';
 import * as path from '../common/path.js';
-import { assertIsDefined } from '../common/types.js';
+import { assertReturnsDefined } from '../common/types.js';
 import { Promises } from './pfs.js';
 import * as nls from '../../nls.js';
 import type { Entry, ZipFile } from 'yauzl';
@@ -168,7 +168,7 @@ async function openZip(zipFile: string, lazy: boolean = false): Promise<ZipFile>
 			if (error) {
 				reject(toExtractError(error));
 			} else {
-				resolve(assertIsDefined(zipfile));
+				resolve(assertReturnsDefined(zipfile));
 			}
 		});
 	});
@@ -180,7 +180,7 @@ function openZipStream(zipFile: ZipFile, entry: Entry): Promise<Readable> {
 			if (error) {
 				reject(toExtractError(error));
 			} else {
-				resolve(assertIsDefined(stream));
+				resolve(assertReturnsDefined(stream));
 			}
 		});
 	});

@@ -6,7 +6,7 @@
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { GroupIdentifier } from '../../../common/editor.js';
 import { IEditorGroupsService, GroupsOrder, IEditorGroup, preferredSideBySideGroupDirection } from './editorGroupsService.js';
-import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, SIDE_GROUP, SIDE_GROUP_TYPE } from './editorService.js';
+import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP, SIDE_GROUP, SIDE_GROUP_TYPE } from './editorService.js';
 
 /**
  * A way to address editor groups through a column based system
@@ -16,7 +16,7 @@ import { ACTIVE_GROUP, ACTIVE_GROUP_TYPE, SIDE_GROUP, SIDE_GROUP_TYPE } from './
 export type EditorGroupColumn = number;
 
 export function columnToEditorGroup(editorGroupService: IEditorGroupsService, configurationService: IConfigurationService, column = ACTIVE_GROUP): GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE {
-	if (column === ACTIVE_GROUP || column === SIDE_GROUP) {
+	if (column === ACTIVE_GROUP || column === SIDE_GROUP || column === AUX_WINDOW_GROUP) {
 		return column; // return early for when column is well known
 	}
 

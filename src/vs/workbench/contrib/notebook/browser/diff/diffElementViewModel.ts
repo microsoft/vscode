@@ -680,8 +680,8 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 		return this.mainDocumentTextModel;
 	}
 
-	override readonly original!: DiffNestedCellViewModel;
-	override readonly modified!: DiffNestedCellViewModel;
+	declare readonly original: DiffNestedCellViewModel;
+	declare readonly modified: DiffNestedCellViewModel;
 	override readonly type: 'unchanged' | 'modified';
 
 	/**
@@ -745,7 +745,7 @@ export class SideBySideDiffElementViewModel extends DiffElementCellViewModelBase
 				const modifiedMedataRaw = Object.assign({}, this.modified.metadata);
 				const originalCellMetadata = this.original.metadata;
 				for (const key of cellMetadataKeys) {
-					if (key in originalCellMetadata) {
+					if (Object.hasOwn(originalCellMetadata, key)) {
 						modifiedMedataRaw[key] = originalCellMetadata[key];
 					}
 				}

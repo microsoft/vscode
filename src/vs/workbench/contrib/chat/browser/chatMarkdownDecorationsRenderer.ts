@@ -20,7 +20,7 @@ import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { contentRefUrl } from '../common/annotations.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../common/chatAgents.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../common/chatColors.js';
-import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestToolPart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../common/chatParserTypes.js';
+import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, chatSubcommandLeader, IParsedChatRequest, IParsedChatRequestPart } from '../common/chatParserTypes.js';
 import { IChatMarkdownContent, IChatService } from '../common/chatService.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { IChatWidgetService } from './chat.js';
@@ -112,8 +112,9 @@ export class ChatMarkdownDecorationsRenderer {
 		const title = uri ? this.labelService.getUriLabel(uri, { relative: true }) :
 			part instanceof ChatRequestSlashCommandPart ? part.slashCommand.detail :
 				part instanceof ChatRequestAgentSubcommandPart ? part.command.description :
-					part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
-						'';
+					part instanceof ChatRequestSlashPromptPart ? part.name :
+						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
+							'';
 
 		const args: IDecorationWidgetArgs = { title };
 		const text = part.text;
@@ -122,6 +123,7 @@ export class ChatMarkdownDecorationsRenderer {
 
 	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement): IDisposable {
 		const store = new DisposableStore();
+		// eslint-disable-next-line no-restricted-syntax
 		element.querySelectorAll('a').forEach(a => {
 			const href = a.getAttribute('data-href');
 			if (href) {
@@ -134,9 +136,7 @@ export class ChatMarkdownDecorationsRenderer {
 					}
 
 					if (args) {
-						a.parentElement!.replaceChild(
-							this.renderAgentWidget(args, store),
-							a);
+						a.replaceWith(this.renderAgentWidget(args, store));
 					}
 				} else if (href.startsWith(agentSlashRefUrl)) {
 					let args: ISlashCommandWidgetArgs | undefined;
@@ -147,9 +147,7 @@ export class ChatMarkdownDecorationsRenderer {
 					}
 
 					if (args) {
-						a.parentElement!.replaceChild(
-							this.renderSlashCommandWidget(a.textContent!, args, store),
-							a);
+						a.replaceWith(this.renderSlashCommandWidget(a.textContent!, args, store));
 					}
 				} else if (href.startsWith(decorationRefUrl)) {
 					let args: IDecorationWidgetArgs | undefined;
@@ -157,9 +155,7 @@ export class ChatMarkdownDecorationsRenderer {
 						args = JSON.parse(decodeURIComponent(href.slice(decorationRefUrl.length + 1)));
 					} catch (e) { }
 
-					a.parentElement!.replaceChild(
-						this.renderResourceWidget(a.textContent!, args, store),
-						a);
+					a.replaceWith(this.renderResourceWidget(a.textContent!, args, store));
 				} else if (href.startsWith(contentRefUrl)) {
 					this.renderFileWidget(content, href, a, store);
 				} else if (href.startsWith('command:')) {
@@ -189,12 +185,12 @@ export class ChatMarkdownDecorationsRenderer {
 					return;
 				}
 
-				this.chatService.sendRequest(widget.viewModel!.sessionId, agent.metadata.sampleRequest ?? '',
+				this.chatService.sendRequest(widget.viewModel!.sessionResource, agent.metadata.sampleRequest ?? '',
 					{
 						location: widget.location,
 						agentId: agent.id,
 						userSelectedModelId: widget.input.currentLanguageModel,
-						mode: widget.input.currentMode
+						modeInfo: widget.input.currentModeInfo
 					});
 			}));
 		} else {
@@ -226,12 +222,12 @@ export class ChatMarkdownDecorationsRenderer {
 			}
 
 			const command = agent.slashCommands.find(c => c.name === args.command);
-			this.chatService.sendRequest(widget.viewModel!.sessionId, command?.sampleRequest ?? '', {
+			this.chatService.sendRequest(widget.viewModel!.sessionResource, command?.sampleRequest ?? '', {
 				location: widget.location,
 				agentId: agent.id,
 				slashCommand: args.command,
 				userSelectedModelId: widget.input.currentLanguageModel,
-				mode: widget.input.currentMode
+				modeInfo: widget.input.currentModeInfo
 			});
 		}));
 

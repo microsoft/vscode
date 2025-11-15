@@ -75,9 +75,7 @@
           "keyword.operator.assignment.compound.bitwise.ts"
         ],
         "tokenTypes": {
-          "meta.template.expression": "other",
-          "meta.template.expression string": "string",
-          "meta.template.expression comment": "comment",
+          "punctuation.definition.template-expression": "other",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",
@@ -102,9 +100,7 @@
           "meta.embedded.expression.tsx": "typescriptreact"
         },
         "tokenTypes": {
-          "meta.template.expression": "other",
-          "meta.template.expression string": "string",
-          "meta.template.expression comment": "comment",
+          "punctuation.definition.template-expression": "other",
           "entity.name.type.instance.jsdoc": "other",
           "entity.name.function.tagged-template": "other",
           "meta.import string.quoted": "other",

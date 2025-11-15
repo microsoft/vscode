@@ -13,6 +13,7 @@ import {
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions, DocumentDiagnosticReportKind,
+	Diagnostic as LSPDiagnostic,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature
 } from 'vscode-languageclient';
@@ -38,6 +39,9 @@ namespace LanguageStatusRequest {
 	export const type: RequestType<string, JSONLanguageStatus, any> = new RequestType('json/languageStatus');
 }
 
+namespace ValidateContentRequest {
+	export const type: RequestType<{ schemaUri: string; content: string }, LSPDiagnostic[], any> = new RequestType('json/validateContent');
+}
 interface SortOptions extends LSPFormattingOptions {
 }
 
@@ -211,6 +215,10 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 		window.showInformationMessage(l10n.t('JSON schema cache cleared.'));
 	}));
 
+	toDispose.push(commands.registerCommand('json.validate', async (schemaUri: Uri, content: string) => {
+		const diagnostics: LSPDiagnostic[] = await client.sendRequest(ValidateContentRequest.type, { schemaUri: schemaUri.toString(), content });
+		return diagnostics.map(client.protocol2CodeConverter.asDiagnostic);
+	}));
 
 	toDispose.push(commands.registerCommand('json.sort', async () => {
 
@@ -363,7 +371,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	// handle content request
 	client.onRequest(VSCodeContentRequest.type, async (uriPath: string) => {
 		const uri = Uri.parse(uriPath);
-		const uriString = uri.toString();
+		const uriString = uri.toString(true);
 		if (uri.scheme === 'untitled') {
 			throw new ResponseError(3, l10n.t('Unable to load {0}', uriString));
 		}
@@ -384,7 +392,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 			} catch (e) {
 				throw new ResponseError(2, e.toString(), e);
 			}
-		} else if (schemaDownloadEnabled) {
+		} else if (schemaDownloadEnabled && workspace.isTrusted) {
 			if (runtime.telemetry && uri.authority === 'schema.management.azure.com') {
 				/* __GDPR__
 					"json.schema" : {
@@ -401,6 +409,9 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 				throw new ResponseError(4, e.toString());
 			}
 		} else {
+			if (!workspace.isTrusted) {
+				throw new ResponseError(1, l10n.t('Downloading schemas is disabled in untrusted workspaces'));
+			}
 			throw new ResponseError(1, l10n.t('Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload));
 		}
 	});
@@ -525,6 +536,7 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 			client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() });
 		}
 	}));
+	toDispose.push(workspace.onDidGrantWorkspaceTrust(updateSchemaDownloadSetting));
 
 	toDispose.push(createLanguageStatusItem(documentSelector, (uri: string) => client.sendRequest(LanguageStatusRequest.type, uri)));
 
@@ -561,6 +573,11 @@ async function startClientWithParticipants(_context: ExtensionContext, languageP
 	}
 
 	function updateSchemaDownloadSetting() {
+		if (!workspace.isTrusted) {
+			schemaResolutionErrorStatusBarItem.tooltip = l10n.t('Unable to download schemas in untrusted workspaces.');
+			schemaResolutionErrorStatusBarItem.command = 'workbench.trust.manage';
+			return;
+		}
 		schemaDownloadEnabled = workspace.getConfiguration().get(SettingIds.enableSchemaDownload) !== false;
 		if (schemaDownloadEnabled) {
 			schemaResolutionErrorStatusBarItem.tooltip = l10n.t('Unable to resolve schema. Click to retry.');
@@ -754,8 +771,8 @@ function getSchemaId(schema: JSONSchemaSettings, settingsLocation?: Uri): string
 	return url;
 }
 
-function isThenable<T>(obj: ProviderResult<T>): obj is Thenable<T> {
-	return obj && (<any>obj)['then'];
+function isThenable<T>(obj: unknown): obj is Thenable<T> {
+	return !!obj && typeof (obj as unknown as Thenable<T>).then === 'function';
 }
 
 function updateMarkdownString(h: MarkdownString): MarkdownString {
@@ -767,3 +784,5 @@ function updateMarkdownString(h: MarkdownString): MarkdownString {
 function isSchemaResolveError(d: Diagnostic) {
 	return d.code === /* SchemaResolveError */ 0x300;
 }
+
+

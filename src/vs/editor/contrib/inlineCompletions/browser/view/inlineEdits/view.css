@@ -14,9 +14,9 @@
 		z-index: 34; /* Below the find widget */
 		height: 20px;
 
-		color: var(--vscode-inlineEdit-indicator-foreground);
-		background-color: var(--vscode-inlineEdit-indicator-background);
-		border: 1px solid var(--vscode-inlineEdit-indicator-border);
+		color: var(--vscode-inlineEdit-gutterIndicator-primaryForeground);
+		background-color: var(--vscode-inlineEdit-gutterIndicator-background);
+		border: 1px solid var(--vscode-inlineEdit-gutterIndicator-primaryBorder);
 		border-radius: 3px;
 
 		align-items: center;
@@ -63,7 +63,7 @@
 			transform: none;
 			transition: transform 0.2s ease-in-out;
 			.codicon {
-				color: var(--vscode-inlineEdit-indicator-foreground);
+				color: var(--vscode-inlineEdit-gutterIndicator-primaryForeground);
 			}
 		}
 
@@ -153,11 +153,11 @@
 
 	/* line replacement bubbles */
 
-	.inlineCompletions-modified-bubble{
+	.inlineCompletions-modified-bubble {
 		background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
 	}
 
-	.inlineCompletions-original-bubble{
+	.inlineCompletions-original-bubble {
 		background: var(--vscode-inlineEdit-originalChangedTextBackground);
 	}
 
@@ -180,27 +180,40 @@
 	.inline-edit.modified-background.ghost-text,
 	.inline-edit.modified-background.ghost-text-decoration,
 	.inline-edit.modified-background.ghost-text-decoration-preview,
-	.inline-edit.modified-background.suggest-preview-text .ghost-text{
+	.inline-edit.modified-background.suggest-preview-text .ghost-text {
 		background: var(--vscode-inlineEdit-modifiedChangedTextBackground) !important;
 		display: inline-block !important;
+	}
+
+	.inlineCompletions-original-lines {
+		background: var(--vscode-editor-background);
 	}
 }
 
 .monaco-menu-option {
 	color: var(--vscode-editorActionList-foreground);
 	font-size: 13px;
-	padding: 0 10px;
-	line-height: 26px;
+	padding: 0 4px;
+	line-height: 28px;
 	display: flex;
-	gap: 8px;
+	gap: 4px;
 	align-items: center;
-	border-radius: 4px;
+	border-radius: 3px;
 	cursor: pointer;
+
+	.monaco-keybinding-key {
+		font-size: 13px;
+		opacity: 0.7;
+	}
 
 	&.active {
 		background: var(--vscode-editorActionList-focusBackground);
 		color: var(--vscode-editorActionList-focusForeground);
 		outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
 		outline-offset: -1px;
+
+		.monaco-keybinding-key {
+			color: var(--vscode-editorActionList-focusForeground);
+		}
 	}
 }

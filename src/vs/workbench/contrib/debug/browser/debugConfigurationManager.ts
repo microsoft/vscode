@@ -675,7 +675,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 
 	async writeConfiguration(configuration: IConfig): Promise<void> {
 		// note: we don't get the deduplicated config since we don't want that to 'leak' into the file
-		const fullConfig: Partial<IGlobalConfig> = this.getConfig() || {};
+		const fullConfig: Partial<IGlobalConfig> = { ...(this.getConfig() ?? {}) };
 		fullConfig.configurations = [...fullConfig.configurations || [], configuration];
 		await this.configurationService.updateValue('launch', fullConfig, { resource: this.workspace.uri }, ConfigurationTarget.WORKSPACE_FOLDER);
 	}

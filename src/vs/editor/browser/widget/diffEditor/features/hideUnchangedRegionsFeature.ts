@@ -8,13 +8,13 @@ import { renderIcon, renderLabelWithIcons } from '../../../../../base/browser/ui
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, derived, derivedDisposable, derivedWithStore, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, derived, derivedDisposable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isDefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../common/core/lineRange.js';
+import { LineRange } from '../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { CursorChangeReason } from '../../../../common/cursorEvents.js';
@@ -31,13 +31,14 @@ import { IObservableViewZone, PlaceholderViewZone, ViewZoneOverlayWidget, applyO
  * Make sure to add the view zones to the editor!
  */
 export class HideUnchangedRegionsFeature extends Disposable {
-	private static readonly _breadcrumbsSourceFactory = observableValue<((textModel: ITextModel, instantiationService: IInstantiationService) => IDiffEditorBreadcrumbsSource)>(
-		HideUnchangedRegionsFeature, () => ({
+	public static readonly _breadcrumbsSourceFactory = observableValue<((textModel: ITextModel, instantiationService: IInstantiationService) => IDiffEditorBreadcrumbsSource)>(
+		this, () => ({
 			dispose() {
 			},
 			getBreadcrumbItems(startRange, reader) {
 				return [];
 			},
+			getAt: () => [],
 		}));
 	public static setBreadcrumbsSourceFactory(factory: (textModel: ITextModel, instantiationService: IInstantiationService) => IDiffEditorBreadcrumbsSource) {
 		this._breadcrumbsSourceFactory.set(factory, undefined);
@@ -95,7 +96,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 			return regions;
 		});
 
-		this.viewZones = derivedWithStore(this, (reader, store) => {
+		this.viewZones = derived(this, (reader) => {
 			/** @description view Zones */
 			const modifiedOutlineSource = this._modifiedOutlineSource.read(reader);
 			if (!modifiedOutlineSource) { return { origViewZones: [], modViewZones: [] }; }
@@ -122,7 +123,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 						const d = derived(this, reader => /** @description hiddenOriginalRangeStart */ r.getHiddenOriginalRange(reader).startLineNumber - 1);
 						const origVz = new PlaceholderViewZone(d, 12);
 						origViewZones.push(origVz);
-						store.add(new CompactCollapsedCodeOverlayWidget(
+						reader.store.add(new CompactCollapsedCodeOverlayWidget(
 							this._editors.original,
 							origVz,
 							r,
@@ -133,7 +134,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 						const d = derived(this, reader => /** @description hiddenModifiedRangeStart */ r.getHiddenModifiedRange(reader).startLineNumber - 1);
 						const modViewZone = new PlaceholderViewZone(d, 12);
 						modViewZones.push(modViewZone);
-						store.add(new CompactCollapsedCodeOverlayWidget(
+						reader.store.add(new CompactCollapsedCodeOverlayWidget(
 							this._editors.modified,
 							modViewZone,
 							r,
@@ -144,7 +145,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 						const d = derived(this, reader => /** @description hiddenOriginalRangeStart */ r.getHiddenOriginalRange(reader).startLineNumber - 1);
 						const origVz = new PlaceholderViewZone(d, 24);
 						origViewZones.push(origVz);
-						store.add(new CollapsedCodeOverlayWidget(
+						reader.store.add(new CollapsedCodeOverlayWidget(
 							this._editors.original,
 							origVz,
 							r,
@@ -159,7 +160,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 						const d = derived(this, reader => /** @description hiddenModifiedRangeStart */ r.getHiddenModifiedRange(reader).startLineNumber - 1);
 						const modViewZone = new PlaceholderViewZone(d, 24);
 						modViewZones.push(modViewZone);
-						store.add(new CollapsedCodeOverlayWidget(
+						reader.store.add(new CollapsedCodeOverlayWidget(
 							this._editors.modified,
 							modViewZone,
 							r,
@@ -243,7 +244,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 				const lineNumber = event.target.position.lineNumber;
 				const model = this._diffModel.get();
 				if (!model) { return; }
-				const region = model.unchangedRegions.get().find(r => r.modifiedUnchangedRange.includes(lineNumber));
+				const region = model.unchangedRegions.get().find(r => r.modifiedUnchangedRange.contains(lineNumber));
 				if (!region) { return; }
 				region.collapseAll(undefined);
 				event.event.stopPropagation();
@@ -256,7 +257,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 				const lineNumber = event.target.position.lineNumber;
 				const model = this._diffModel.get();
 				if (!model) { return; }
-				const region = model.unchangedRegions.get().find(r => r.originalUnchangedRange.includes(lineNumber));
+				const region = model.unchangedRegions.get().find(r => r.originalUnchangedRange.contains(lineNumber));
 				if (!region) { return; }
 				region.collapseAll(undefined);
 				event.event.stopPropagation();
@@ -491,4 +492,6 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 
 export interface IDiffEditorBreadcrumbsSource extends IDisposable {
 	getBreadcrumbItems(startRange: LineRange, reader: IReader): { name: string; kind: SymbolKind; startLineNumber: number }[];
+
+	getAt(lineNumber: number, reader: IReader): { name: string; kind: SymbolKind; startLineNumber: number }[];
 }

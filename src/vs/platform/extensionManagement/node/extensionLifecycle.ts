@@ -51,7 +51,7 @@ export class ExtensionsLifecycle extends Disposable {
 	private parseScript(extension: ILocalExtension, type: string): { script: string; args: string[] } | null {
 		const scriptKey = `vscode:${type}`;
 		if (extension.location.scheme === Schemas.file && extension.manifest && extension.manifest['scripts'] && typeof extension.manifest['scripts'][scriptKey] === 'string') {
-			const script = (<string>extension.manifest['scripts'][scriptKey]).split(' ');
+			const script = (extension.manifest['scripts'][scriptKey]).split(' ');
 			if (script.length < 2 || script[0] !== 'node' || !script[1]) {
 				this.logService.warn(extension.identifier.id, extension.manifest.version, `${scriptKey} should be a node script`);
 				return null;
@@ -65,7 +65,7 @@ export class ExtensionsLifecycle extends Disposable {
 		return new Promise<void>((c, e) => {
 
 			const extensionLifecycleProcess = this.start(lifecycleHook, lifecycleType, args, extension);
-			let timeoutHandler: any;
+			let timeoutHandler: Timeout | null;
 
 			const onexit = (error?: string) => {
 				if (timeoutHandler) {

@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { MainContext, IMainContext, ExtHostUrlsShape, MainThreadUrlsShape } from './extHost.protocol.js';
+import { MainContext, ExtHostUrlsShape, MainThreadUrlsShape } from './extHost.protocol.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { ExtensionIdentifierSet, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { isURLDomainTrusted } from '../../contrib/url/common/trustedDomains.js';
+import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
+import { IExtHostRpcService } from './extHostRpcService.js';
 
 export class ExtHostUrls implements ExtHostUrlsShape {
+
+	declare _serviceBrand: undefined;
 
 	private static HandlePool = 0;
 	private readonly _proxy: MainThreadUrlsShape;
@@ -19,12 +22,10 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 	private handles = new ExtensionIdentifierSet();
 	private handlers = new Map<number, vscode.UriHandler>();
 
-	private _trustedDomains: string[] = [];
-
 	constructor(
-		mainContext: IMainContext
+		@IExtHostRpcService extHostRpc: IExtHostRpcService
 	) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadUrls);
+		this._proxy = extHostRpc.getProxy(MainContext.MainThreadUrls);
 	}
 
 	registerUriHandler(extension: IExtensionDescription, handler: vscode.UriHandler): vscode.Disposable {
@@ -63,16 +64,7 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 	async createAppUri(uri: URI): Promise<vscode.Uri> {
 		return URI.revive(await this._proxy.$createAppUri(uri));
 	}
-
-	async $updateTrustedDomains(trustedDomains: string[]): Promise<void> {
-		this._trustedDomains = trustedDomains;
-	}
-
-	isTrustedExternalUris(uris: URI[]): boolean[] {
-		return uris.map(uri => isURLDomainTrusted(uri, this._trustedDomains));
-	}
-
-	extractExternalUris(uris: URI[]): Promise<string[]> {
-		return this._proxy.$extractExternalUris(uris);
-	}
 }
+
+export interface IExtHostUrlsService extends ExtHostUrls { }
+export const IExtHostUrlsService = createDecorator<IExtHostUrlsService>('IExtHostUrlsService');

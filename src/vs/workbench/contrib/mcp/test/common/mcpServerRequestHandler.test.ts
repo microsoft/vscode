@@ -14,7 +14,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IMcpHostDelegate } from '../../common/mcpRegistryTypes.js';
 import { McpServerRequestHandler } from '../../common/mcpServerRequestHandler.js';
-import { McpConnectionState } from '../../common/mcpTypes.js';
+import { McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
@@ -24,9 +24,16 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
 
+	priority = 0;
+
 	constructor() {
 		super();
 		this._transport = this._register(new TestMcpMessageTransport());
+	}
+
+
+	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
+		return Promise.resolve(launch);
 	}
 
 	canStart(): boolean {
@@ -77,29 +84,7 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 			.createLogger('mcpServerTest', { hidden: true, name: 'MCP Test' }));
 
 		// Start the handler creation
-		const handlerPromise = McpServerRequestHandler.create(instantiationService, transport, logger, cts.token);
-
-		// Simulate successful initialization
-		// We need to respond to the initialize request that the handler will make
-		transport.simulateReceiveMessage({
-			jsonrpc: MCP.JSONRPC_VERSION,
-			id: 1, // The handler uses 1 for the first request
-			result: {
-				protocolVersion: MCP.LATEST_PROTOCOL_VERSION,
-				serverInfo: {
-					name: 'Test MCP Server',
-					version: '1.0.0',
-				},
-				capabilities: {
-					resources: {
-						supportedTypes: ['text/plain'],
-					},
-					tools: {
-						supportsCancellation: true,
-					}
-				}
-			}
-		});
+		const handlerPromise = McpServerRequestHandler.create(instantiationService, { logger, launch: transport }, cts.token);
 
 		handler = await handlerPromise;
 		store.add(handler);
@@ -212,9 +197,9 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 		try {
 			await requestPromise;
 			assert.fail('Expected error was not thrown');
-		} catch (e: any) {
-			assert.strictEqual(e.message, 'MPC -32601: Resource not found');
-			assert.strictEqual(e.code, MCP.METHOD_NOT_FOUND);
+		} catch (e: unknown) {
+			assert.strictEqual((e as Error).message, 'MPC -32601: Resource not found');
+			assert.strictEqual((e as { code: number }).code, MCP.METHOD_NOT_FOUND);
 		}
 	});
 

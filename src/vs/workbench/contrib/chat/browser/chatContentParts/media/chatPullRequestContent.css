@@ -1,0 +1,75 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-pull-request-content-part {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 6px;
+	margin: 4px 0;
+	overflow: hidden;
+}
+
+.chat-pull-request-content-part .container .icon {
+	padding-right: 4px;
+	padding-top: 2px;
+}
+
+.chat-pull-request-content-part .content-container {
+	display: flex;
+	flex-direction: column;
+}
+
+.chat-pull-request-content-part .title-container .link {
+	color: var(--vscode-textLink-foreground);
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
+.chat-pull-request-content-part {
+
+	.title-container {
+		display: flex;
+		padding: 8px 12px;
+		border-bottom: 1px solid var(--vscode-chat-requestBorder);
+	}
+
+	p {
+		margin: 0px;
+	}
+
+	.description .see-more {
+		display: none;
+		position: absolute;
+		right: 12px;
+		bottom: 8px;
+
+		a {
+			color: var(--vscode-textLink-foreground);
+			text-decoration: underline;
+			cursor: pointer;
+		}
+	}
+
+	.description {
+		position: relative;
+		padding: 8px 12px;
+		background: var(--vscode-editor-background);
+		line-height: 1.5em;
+
+		.description-wrapper {
+			/* This mask fades out the end of text so the "see more" message can be displayed over it. */
+			mask-image:
+				linear-gradient(to right, rgba(0, 0, 0, 1) calc(100% - 7em), rgba(0, 0, 0, 0) calc(100% - 4.5em)),
+				linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 1.2em, rgba(0, 0, 0, 1) 0.15em, rgba(0, 0, 0, 1) 100%);
+			mask-repeat: no-repeat, no-repeat;
+			pointer-events: none;
+			/* Two lines tall, relative to font size (line-height is 1.5em) */
+			max-height: calc(2 * 1.5em);
+		}
+
+		.see-more {
+			display: block;
+		}
+	}
+}

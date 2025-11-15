@@ -1,6 +1,4 @@
 {
-  requesterUsername: "test",
-  requesterAvatarIconUri: undefined,
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
@@ -27,11 +25,13 @@
                 value: "nullExtensionDescription",
                 _lower: "nullextensiondescription"
               },
+              extensionVersion: undefined,
               extensionPublisherId: "",
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
-              metadata: { requester: { name: "test" } },
+              modes: [ "ask" ],
+              metadata: {  },
               slashCommands: [  ],
               disambiguation: [  ]
             },
@@ -59,6 +59,7 @@
       responseId: undefined,
       shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
+      responseMarkdownInfo: undefined,
       followups: [
         {
           kind: "reply",
@@ -77,11 +78,13 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         extensionPublisherId: "",
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
-        metadata: { requester: { name: "test" } },
+        modes: [ "ask" ],
+        metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ]
       },
@@ -105,7 +108,10 @@
       },
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     },
     {
       requestId: undefined,
@@ -133,6 +139,7 @@
       responseId: undefined,
       shouldBeRemovedOnSend: undefined,
       result: {  },
+      responseMarkdownInfo: undefined,
       followups: [  ],
       isCanceled: false,
       vote: undefined,
@@ -144,11 +151,13 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         extensionPublisherId: "",
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
-        metadata: { requester: { name: "test" } },
+        modes: [ "ask" ],
+        metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ],
         isDefault: true
@@ -157,7 +166,10 @@
       usedContext: undefined,
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     }
   ]
 }

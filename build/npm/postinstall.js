@@ -56,7 +56,16 @@ function npmInstall(dir, opts) {
 		if (process.env['npm_config_arch'] === 'arm64') {
 			run('sudo', ['docker', 'run', '--rm', '--privileged', 'multiarch/qemu-user-static', '--reset', '-p', 'yes'], opts);
 		}
-		run('sudo', ['docker', 'run', '-e', 'GITHUB_TOKEN', '-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`, '-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`, '-w', path.resolve('/root/vscode', dir), process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && npm i -g node-gyp-build && npm ci\"`], opts);
+		run('sudo', [
+			'docker', 'run',
+			'-e', 'GITHUB_TOKEN',
+			'-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`,
+			'-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`,
+			'-v', `${process.env['VSCODE_NPMRC_PATH']}:/root/.npmrc`,
+			'-w', path.resolve('/root/vscode', dir),
+			process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'],
+			'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && export PATH="/root/vscode/.build/nodejs-musl/usr/local/bin:$PATH" && npm i -g node-gyp-build && npm ci\"`
+		], opts);
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], opts);
 	} else {
 		log(dir, 'Installing dependencies...');
@@ -76,6 +85,12 @@ function setNpmrcConfig(dir, env) {
 			env[`npm_config_${key}`] = value.replace(/^"(.*)"$/, '$1');
 		}
 	}
+
+	// Use our bundled node-gyp version
+	env['npm_config_node_gyp'] =
+		process.platform === 'win32'
+			? path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
+			: path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
 
 	// Force node-gyp to use process.config on macOS
 	// which defines clang variable as expected. Otherwise we
@@ -162,26 +177,8 @@ for (let dir of dirs) {
 		if (process.env['VSCODE_REMOTE_LDFLAGS']) { opts.env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { opts.env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
-		const globalGypPath = path.join(os.homedir(), '.gyp');
-		const globalInclude = path.join(globalGypPath, 'include.gypi');
-		const tempGlobalInclude = path.join(globalGypPath, 'include.gypi.bak');
-		if (process.platform === 'linux' &&
-			(process.env['CI'] || process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'])) {
-			// Following include file rename should be removed
-			// when `Override gnu target for arm64 and arm` step
-			// is removed from the product build pipeline.
-			if (fs.existsSync(globalInclude)) {
-				fs.renameSync(globalInclude, tempGlobalInclude);
-			}
-		}
 		setNpmrcConfig('remote', opts.env);
 		npmInstall(dir, opts);
-		if (process.platform === 'linux' &&
-			(process.env['CI'] || process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'])) {
-			if (fs.existsSync(tempGlobalInclude)) {
-				fs.renameSync(tempGlobalInclude, globalInclude);
-			}
-		}
 		continue;
 	}
 

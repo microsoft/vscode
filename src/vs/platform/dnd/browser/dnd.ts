@@ -33,6 +33,8 @@ export const CodeDataTransfers = {
 	FILES: 'CodeFiles',
 	SYMBOLS: 'application/vnd.code.symbols',
 	MARKERS: 'application/vnd.code.diagnostics',
+	NOTEBOOK_CELL_OUTPUT: 'notebook-cell-output',
+	SCM_HISTORY_ITEM: 'scm-history-item',
 };
 
 export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
@@ -416,6 +418,10 @@ export interface DocumentSymbolTransferData {
 	kind: number;
 }
 
+export interface NotebookCellOutputTransferData {
+	outputId: string;
+}
+
 function setDataAsJSON(e: DragEvent, kind: string, data: unknown) {
 	e.dataTransfer?.setData(kind, JSON.stringify(data));
 }
@@ -451,13 +457,25 @@ export function fillInMarkersDragData(markerData: MarkerTransferData[], e: DragE
 	setDataAsJSON(e, CodeDataTransfers.MARKERS, markerData);
 }
 
+export function extractNotebookCellOutputDropData(e: DragEvent): NotebookCellOutputTransferData | undefined {
+	return getDataAsJSON(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT, undefined);
+}
+
+interface IElectronWebUtils {
+	vscode?: {
+		webUtils?: {
+			getPathForFile(file: File): string;
+		};
+	};
+}
+
 /**
  * A helper to get access to Electrons `webUtils.getPathForFile` function
  * in a safe way without crashing the application when running in the web.
  */
 export function getPathForFile(file: File): string | undefined {
-	if (isNative && typeof (globalThis as any).vscode?.webUtils?.getPathForFile === 'function') {
-		return (globalThis as any).vscode.webUtils.getPathForFile(file);
+	if (isNative && typeof (globalThis as IElectronWebUtils).vscode?.webUtils?.getPathForFile === 'function') {
+		return (globalThis as IElectronWebUtils).vscode?.webUtils?.getPathForFile(file);
 	}
 
 	return undefined;

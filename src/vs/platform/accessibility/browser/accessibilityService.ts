@@ -70,8 +70,8 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 		const updateRootClasses = () => {
 			const reduce = this.isMotionReduced();
-			this._layoutService.mainContainer.classList.toggle('reduce-motion', reduce);
-			this._layoutService.mainContainer.classList.toggle('enable-motion', !reduce);
+			this._layoutService.mainContainer.classList.toggle('monaco-reduce-motion', reduce);
+			this._layoutService.mainContainer.classList.toggle('monaco-enable-motion', !reduce);
 		};
 
 		updateRootClasses();

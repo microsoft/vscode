@@ -47,7 +47,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private readonly _ruleFactory: DynamicCssRules;
 
-	private readonly _decoratorLimitReporter = new DecoratorLimitReporter();
+	private readonly _decoratorLimitReporter = this._register(new DecoratorLimitReporter());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -57,7 +57,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	) {
 		super();
 		this._colorDecoratorIds = this._editor.createDecorationsCollection();
-		this._ruleFactory = new DynamicCssRules(this._editor);
+		this._ruleFactory = this._register(new DynamicCssRules(this._editor));
 		this._debounceInformation = languageFeatureDebounceService.for(_languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
 		this._register(_editor.onDidChangeModel(() => {
 			this._isColorDecoratorsEnabled = this.isEnabled();
@@ -97,6 +97,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		// handle deprecated settings. [languageId].colorDecorators.enable
 		const deprecatedConfig = this._configurationService.getValue(languageId);
 		if (deprecatedConfig && typeof deprecatedConfig === 'object') {
+			// eslint-disable-next-line local/code-no-any-casts
 			const colorDecorators = (deprecatedConfig as any)['colorDecorators']; // deprecatedConfig.valueOf('.colorDecorators.enable');
 			if (colorDecorators && colorDecorators['enable'] !== undefined && !colorDecorators['enable']) {
 				return colorDecorators['enable'];
@@ -269,8 +270,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 }
 
-export class DecoratorLimitReporter {
-	private _onDidChange = new Emitter<void>();
+export class DecoratorLimitReporter extends Disposable {
+	private _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _computed: number = 0;

@@ -23,6 +23,7 @@ let documentResource = settings.settings.source;
 
 const vscode = acquireVsCodeApi();
 
+// eslint-disable-next-line local/code-no-any-casts
 const originalState = vscode.getState() ?? {} as any;
 const state = {
 	...originalState,
@@ -184,6 +185,17 @@ async function copyImage(image: HTMLImageElement, retries = 5) {
 		})]);
 	} catch (e) {
 		console.error(e);
+		const selection = window.getSelection();
+		if (!selection) {
+			await navigator.clipboard.writeText(image.getAttribute('data-src') ?? image.src);
+			return;
+		}
+		selection.removeAllRanges();
+		const range = document.createRange();
+		range.selectNode(image);
+		selection.addRange(range);
+		document.execCommand('copy');
+		selection.removeAllRanges();
 	}
 }
 
@@ -238,6 +250,7 @@ window.addEventListener('message', async event => {
 				}
 				newRoot.prepend(...styles);
 
+				// eslint-disable-next-line local/code-no-any-casts
 				morphdom(root, newRoot, {
 					childrenOnly: true,
 					onBeforeElUpdated: (fromEl: Element, toEl: Element) => {
@@ -290,6 +303,11 @@ window.addEventListener('message', async event => {
 
 document.addEventListener('dblclick', event => {
 	if (!settings.settings.doubleClickToSwitchToEditor) {
+		return;
+	}
+
+	// Disable double-click to switch editor for .copilotmd files
+	if (documentResource.endsWith('.copilotmd')) {
 		return;
 	}
 
@@ -421,8 +439,9 @@ function domEval(el: Element): void {
 		const trustedScript = node.innerText;
 		scriptTag.text = trustedScript as string;
 		for (const key of preservedScriptAttributes) {
-			const val = node.getAttribute && node.getAttribute(key);
+			const val = node.getAttribute?.(key);
 			if (val) {
+				// eslint-disable-next-line local/code-no-any-casts
 				scriptTag.setAttribute(key, val as any);
 			}
 		}

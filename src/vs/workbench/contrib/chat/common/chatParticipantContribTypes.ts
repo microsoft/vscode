@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RawChatParticipantLocation } from './constants.js';
+import { ChatModeKind, RawChatParticipantLocation } from './constants.js';
 
 export interface IRawChatCommandContribution {
 	name: string;
@@ -11,7 +11,6 @@ export interface IRawChatCommandContribution {
 	sampleRequest?: string;
 	isSticky?: boolean;
 	when?: string;
-	defaultImplicitVariables?: string[];
 	disambiguation?: { category: string; categoryName?: string /** Deprecated */; description: string; examples: string[] }[];
 }
 
@@ -22,11 +21,14 @@ export interface IRawChatParticipantContribution {
 	when?: string;
 	description?: string;
 	isDefault?: boolean;
-	isAgent?: boolean;
 	isSticky?: boolean;
 	sampleRequest?: string;
 	commands?: IRawChatCommandContribution[];
 	locations?: RawChatParticipantLocation[];
+	/**
+	 * Valid for default participants in 'panel' location
+	 */
+	modes?: ChatModeKind[];
 	disambiguation?: { category: string; categoryName?: string /** Deprecated */; description: string; examples: string[] }[];
 }
 

@@ -29,6 +29,27 @@ function _definePolyfillMarks(timeOrigin?: number) {
 
 declare const process: INodeProcess;
 
+interface IPerformanceEntry {
+	readonly name: string;
+	readonly startTime: number;
+}
+
+interface IPerformanceTiming {
+	readonly navigationStart?: number;
+	readonly redirectStart?: number;
+	readonly fetchStart?: number;
+}
+
+interface IPerformance {
+	mark(name: string, markOptions?: { startTime?: number }): void;
+	getEntriesByType(type: string): IPerformanceEntry[];
+	readonly timeOrigin: number;
+	readonly timing: IPerformanceTiming;
+	readonly nodeTiming?: any;
+}
+
+declare const performance: IPerformance;
+
 function _define() {
 
 	// Identify browser environment when following property is not present
@@ -53,7 +74,7 @@ function _define() {
 					if (typeof timeOrigin !== 'number') {
 						// safari: there is no timerOrigin but in renderers there is the timing-property
 						// see https://bugs.webkit.org/show_bug.cgi?id=174862
-						timeOrigin = performance.timing.navigationStart || performance.timing.redirectStart || performance.timing.fetchStart;
+						timeOrigin = (performance.timing.navigationStart || performance.timing.redirectStart || performance.timing.fetchStart) ?? 0;
 					}
 					const result = [{ name: 'code/timeOrigin', startTime: Math.round(timeOrigin) }];
 					for (const entry of performance.getEntriesByType('mark')) {

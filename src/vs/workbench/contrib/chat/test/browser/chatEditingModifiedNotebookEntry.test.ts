@@ -27,10 +27,12 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 		});
 		ensureNoDisposablesAreLeakedInTestSuite();
 		function createModifiedModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Modified:${id}` as any;
 
 		}
 		function createOriginalModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Original:${id}` as any;
 
 		}
@@ -58,6 +60,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 			];
 
 			const result = adjustCellDiffForKeepingAnInsertedCell(0,
+				// eslint-disable-next-line local/code-no-any-casts
 				cellsDiffInfo, {} as any,
 				applyEdits, createModifiedCellDiffInfo);
 
@@ -100,6 +103,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 			];
 
 			const result = adjustCellDiffForKeepingAnInsertedCell(0,
+				// eslint-disable-next-line local/code-no-any-casts
 				cellsDiffInfo, {} as any,
 				applyEdits, createModifiedCellDiffInfo);
 
@@ -154,6 +158,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 			];
 
 			const result = adjustCellDiffForKeepingAnInsertedCell(2,
+				// eslint-disable-next-line local/code-no-any-casts
 				cellsDiffInfo, {} as any,
 				applyEdits, createModifiedCellDiffInfo);
 
@@ -196,10 +201,12 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 		});
 		ensureNoDisposablesAreLeakedInTestSuite();
 		function createModifiedModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Modified:${id}` as any;
 
 		}
 		function createOriginalModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Original:${id}` as any;
 
 		}
@@ -405,10 +412,12 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 		});
 		ensureNoDisposablesAreLeakedInTestSuite();
 		function createModifiedModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Modified:${id}` as any;
 
 		}
 		function createOriginalModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Original:${id}` as any;
 
 		}
@@ -565,10 +574,12 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 		});
 		ensureNoDisposablesAreLeakedInTestSuite();
 		function createModifiedModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Modified:${id}` as any;
 
 		}
 		function createOriginalModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Original:${id}` as any;
 
 		}
@@ -605,6 +616,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 
 			const result = adjustCellDiffForRevertingADeletedCell(0,
 				cellsDiffInfo,
+				// eslint-disable-next-line local/code-no-any-casts
 				{} as any,
 				applyEdits,
 				createModifiedCellDiffInfo);
@@ -653,6 +665,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 
 			const result = adjustCellDiffForRevertingADeletedCell(1,
 				cellsDiffInfo,
+				// eslint-disable-next-line local/code-no-any-casts
 				{} as any,
 				applyEdits,
 				createModifiedCellDiffInfo);
@@ -710,6 +723,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 
 			const result = adjustCellDiffForRevertingADeletedCell(1,
 				cellsDiffInfo,
+				// eslint-disable-next-line local/code-no-any-casts
 				{} as any,
 				applyEdits,
 				createModifiedCellDiffInfo);
@@ -757,10 +771,12 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 		});
 		ensureNoDisposablesAreLeakedInTestSuite();
 		function createModifiedModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Modified:${id}` as any;
 
 		}
 		function createOriginalModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Original:${id}` as any;
 
 		}
@@ -771,6 +787,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 
 		function createICell(cellKind: CellKind, source: string): ICell {
 			const handle = hash(generateUuid());
+			// eslint-disable-next-line local/code-no-any-casts
 			return {
 				uri: URI.parse(`file:///path/${handle}`),
 				handle,
@@ -807,7 +824,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 
 			const cell = createICell(CellKind.Code, 'print("Hello World")');
 			const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([0, 0, [cell]],
-				cellsDiffInfo, 2, 2, applyEdits, createModifiedCellDiffInfo);
+				cellsDiffInfo, 3, 2, applyEdits, createModifiedCellDiffInfo);
 			assert.deepStrictEqual(appliedEdits, [
 				{
 					editType: CellEditType.Replace,
@@ -838,7 +855,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 				},
 			]);
 		});
-		test('Insert a new cell into an notebook with 3 cells deleted', async function () {
+		test('Insert a new cell into a notebook with 3 cells deleted', async function () {
 			const cellsDiffInfo: ICellDiffInfo[] = [
 				{
 					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
@@ -875,7 +892,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 			];
 			const cell = createICell(CellKind.Code, 'print("Hello World")');
 			const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([2, 0, [cell]],
-				cellsDiffInfo, 5, 7, applyEdits, createModifiedCellDiffInfo);
+				cellsDiffInfo, 6, 7, applyEdits, createModifiedCellDiffInfo);
 
 			assert.deepStrictEqual(appliedEdits, [
 				{
@@ -1090,6 +1107,53 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 				},
 			]);
 		});
+		test('Delete the first cell, then insert a new cell at the top', async function () {
+			const cellsDiffInfo: ICellDiffInfo[] = [
+				{
+					diff, keep, undo, type: 'delete', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('1'),
+				},
+			];
+
+			const cell1 = createICell(CellKind.Code, 'print("Hello World")');
+			const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([0, 0, [cell1]],
+				cellsDiffInfo, 2, 2, applyEdits, createModifiedCellDiffInfo);
+
+			assert.deepStrictEqual(appliedEdits, [
+				{
+					editType: CellEditType.Replace,
+					index: 1,
+					cells: [{
+						cellKind: CellKind.Code,
+						language: 'python',
+						outputs: [],
+						mime: undefined,
+						metadata: {},
+						internalMetadata: {},
+						source: cell1.getValue(),
+					}], count: 0
+				}
+			]);
+
+			assert.deepStrictEqual(result, [
+				{
+					diff, keep, undo, type: 'delete', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: undefined, modifiedModel: createModifiedModel('null'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('InsertedOriginal:1'), originalCellIndex: 1,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('InsertedModified:0'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 2,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('1'),
+				},
+			]);
+		});
 		test('Delete a new cell from a notebook with 3 cells deleted', async function () {
 			const cellsDiffInfo: ICellDiffInfo[] = [
 				{
@@ -1300,6 +1364,161 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 				},
 			]);
 		});
+
+		test('Insert 1 cell at the bottom via chat, then user creats a new cell just below that', async function () {
+			const cellsDiffInfo: ICellDiffInfo[] = [
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('New1'),
+				},
+			];
+			const cell1 = createICell(CellKind.Code, 'print("Hello World")');
+			const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([2, 0, [cell1]],
+				cellsDiffInfo, 3, 1, applyEdits, createModifiedCellDiffInfo);
+
+			assert.deepStrictEqual(appliedEdits, [
+				{
+					editType: CellEditType.Replace,
+					index: 1,
+					cells: [{
+						cellKind: CellKind.Code,
+						language: 'python',
+						outputs: [],
+						mime: undefined,
+						metadata: {},
+						internalMetadata: {},
+						source: cell1.getValue(),
+					}], count: 0
+				}
+			]);
+
+			assert.deepStrictEqual(result, [
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('New1'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('InsertedOriginal:1'), originalCellIndex: 1,
+					modifiedCellIndex: 2, modifiedModel: createModifiedModel('InsertedModified:2'),
+				},
+			]);
+		});
+		test('Insert 1 cell at the bottom via chat, then user creats anew cells above the previous new cell', async function () {
+			const cellsDiffInfo: ICellDiffInfo[] = [
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('1'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 2, modifiedModel: createModifiedModel('New1'),
+				},
+			];
+			const cell1 = createICell(CellKind.Code, 'print("Hello World")');
+			const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([2, 0, [cell1]],
+				cellsDiffInfo, 3, 2, applyEdits, createModifiedCellDiffInfo);
+
+			assert.deepStrictEqual(appliedEdits, [
+				{
+					editType: CellEditType.Replace,
+					index: 2,
+					cells: [{
+						cellKind: CellKind.Code,
+						language: 'python',
+						outputs: [],
+						mime: undefined,
+						metadata: {},
+						internalMetadata: {},
+						source: cell1.getValue(),
+					}], count: 0
+				}
+			]);
+
+			assert.deepStrictEqual(result, [
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('1'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('InsertedOriginal:2'), originalCellIndex: 2,
+					modifiedCellIndex: 2, modifiedModel: createModifiedModel('InsertedModified:2'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 3, modifiedModel: createModifiedModel('New1'),
+				},
+			]);
+		});
+		test('Insert 1 cell at the bottom via chat, then user inserts a new cells below the  previous new cell', async function () {
+			const cellsDiffInfo: ICellDiffInfo[] = [
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('1'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 2, modifiedModel: createModifiedModel('New1'),
+				},
+			];
+			const cell1 = createICell(CellKind.Code, 'print("Hello World")');
+			const result = adjustCellDiffAndOriginalModelBasedOnCellAddDelete([3, 0, [cell1]],
+				cellsDiffInfo, 3, 2, applyEdits, createModifiedCellDiffInfo);
+
+			assert.deepStrictEqual(appliedEdits, [
+				{
+					editType: CellEditType.Replace,
+					index: 2,
+					cells: [{
+						cellKind: CellKind.Code,
+						language: 'python',
+						outputs: [],
+						mime: undefined,
+						metadata: {},
+						internalMetadata: {},
+						source: cell1.getValue(),
+					}], count: 0
+				}
+			]);
+
+			assert.deepStrictEqual(result, [
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('0'), originalCellIndex: 0,
+					modifiedCellIndex: 0, modifiedModel: createModifiedModel('0'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('1'), originalCellIndex: 1,
+					modifiedCellIndex: 1, modifiedModel: createModifiedModel('1'),
+				},
+				{
+					diff, keep, undo, type: 'insert', originalModel: createOriginalModel('null'), originalCellIndex: undefined,
+					modifiedCellIndex: 2, modifiedModel: createModifiedModel('New1'),
+				},
+				{
+					diff, keep, undo, type: 'unchanged', originalModel: createOriginalModel('InsertedOriginal:2'), originalCellIndex: 2,
+					modifiedCellIndex: 3, modifiedModel: createModifiedModel('InsertedModified:3'),
+				},
+			]);
+		});
 	});
 
 	suite('Cell Movements', function () {
@@ -1310,10 +1529,12 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 
 		ensureNoDisposablesAreLeakedInTestSuite();
 		function createModifiedModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Modified:${id}` as any;
 
 		}
 		function createOriginalModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Original:${id}` as any;
 
 		}

@@ -1,0 +1,86 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.element-selection-message,
+.connecting-webview-element {
+	position: absolute;
+	bottom: 10px;
+	right: 10px;
+	padding: 0px 10px;
+	background: var(--vscode-notifications-background);
+	color: var(--vscode-notifications-foreground);
+	border-radius: 4px;
+	font-size: 12px;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	width: max-content;
+	z-index: 1;
+	height: 42px;
+}
+
+.connecting-webview-element {
+	bottom: 15px;
+	right: 15px;
+}
+
+.element-selection-main-content,
+.element-expand-container {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.element-selection-cancel {
+	padding: 2px 8px;
+	width: fit-content;
+}
+
+.element-selection-main-content .monaco-button-dropdown > .monaco-button.monaco-text-button {
+	height: 24px;
+	align-content: center;
+	padding: 0px 5px;
+}
+
+.element-selection-main-content .monaco-button.codicon.codicon-close,
+.element-expand-container .monaco-button.codicon.codicon-layout,
+.element-selection-main-content .monaco-button.codicon.codicon-chevron-right,
+.element-selection-main-content .monaco-button.codicon.codicon-gear {
+	width: 17px;
+	height: 17px;
+	padding: 2px 2px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+	color: var(--vscode-descriptionForeground);
+	border: none;
+	outline: none;
+	padding: 0;
+	border-radius: 5px;
+	cursor: pointer;
+}
+
+.element-selection .monaco-button {
+	height: 17px;
+	width: fit-content;
+	padding: 2px 6px;
+	font-size: 11px;
+	background-color: var(--vscode-button-background);
+	border: 1px solid var(--vscode-button-border);
+	color: var(--vscode-button-foreground);
+}
+
+.element-selection-main-content .monaco-button:hover,
+.element-expand-container .monaco-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.element-selection-main-content .hidden,
+.element-expand-container.hidden,
+.element-selection-main-content.hidden {
+	display: none !important;
+}

@@ -28,7 +28,7 @@ import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, Sid
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext } from '../../../common/contextkeys.js';
 import { AnchorAlignment } from '../../../../base/browser/ui/contextview/contextview.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { isFirefox } from '../../../../base/browser/browser.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
@@ -260,7 +260,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		const editorActions = this.groupView.createEditorActions(this.editorActionsDisposables);
 		this.editorActionsDisposables.add(editorActions.onDidChange(() => this.updateEditorActionsToolbar()));
 
-		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
+		const editorActionsToolbar = assertReturnsDefined(this.editorActionsToolbar);
 		const { primary, secondary } = this.prepareEditorActions(editorActions.actions);
 		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
 	}
@@ -275,7 +275,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			return;
 		}
 
-		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
+		const editorActionsToolbar = assertReturnsDefined(this.editorActionsToolbar);
 		editorActionsToolbar.setActions([], []);
 	}
 

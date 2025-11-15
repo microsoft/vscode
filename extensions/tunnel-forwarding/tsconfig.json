@@ -2,7 +2,9 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"downlevelIteration": true,
+		"typeRoots": [
+			"./node_modules/@types"
+		],
 		"types": [
 			"node"
 		]

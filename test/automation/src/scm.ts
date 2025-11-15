@@ -6,7 +6,6 @@
 import { Viewlet } from './viewlet';
 import { IElement } from './driver';
 import { findElement, findElements, Code } from './code';
-import { Quality } from './application';
 
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT_NATIVE_EDIT_CONTEXT = `${VIEWLET} .scm-editor .native-edit-context`;
@@ -45,7 +44,7 @@ export class SCM extends Viewlet {
 	}
 
 	async openSCMViewlet(): Promise<any> {
-		await this.code.sendKeybinding('ctrl+shift+g', async () => { await this.code.waitForElement(this._editContextSelector()); });
+		await this.code.dispatchKeybinding('ctrl+shift+g', async () => { await this.code.waitForElement(this._editContextSelector()); });
 	}
 
 	async waitForChange(name: string, type?: string): Promise<void> {
@@ -79,6 +78,6 @@ export class SCM extends Viewlet {
 	}
 
 	private _editContextSelector(): string {
-		return this.code.quality === Quality.Stable ? SCM_INPUT_TEXTAREA : SCM_INPUT_NATIVE_EDIT_CONTEXT;
+		return !this.code.editContextEnabled ? SCM_INPUT_TEXTAREA : SCM_INPUT_NATIVE_EDIT_CONTEXT;
 	}
 }

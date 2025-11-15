@@ -11,7 +11,7 @@ import { IPartsSplash } from '../../../../platform/theme/common/themeService.js'
 
 registerSingleton(ISplashStorageService, class SplashStorageService implements ISplashStorageService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	async saveWindowSplash(splash: IPartsSplash): Promise<void> {
 		const raw = JSON.stringify(splash);

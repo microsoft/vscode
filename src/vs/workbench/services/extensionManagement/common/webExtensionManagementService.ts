@@ -119,7 +119,7 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 		return this.install(location, { profileLocation });
 	}
 
-	protected async removeExtension(extension: ILocalExtension): Promise<void> {
+	protected async deleteExtension(extension: ILocalExtension): Promise<void> {
 		// do nothing
 	}
 
@@ -135,6 +135,30 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 			scanned = await this.webExtensionsScannerService.addExtension(extension.location, metadata, toProfileLocation);
 		}
 		return toLocalExtension(scanned);
+	}
+
+	protected async moveExtension(extension: ILocalExtension, fromProfileLocation: URI, toProfileLocation: URI, metadata: Partial<Metadata>): Promise<ILocalExtension> {
+		const target = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, toProfileLocation);
+		const source = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, fromProfileLocation);
+		metadata = { ...source?.metadata, ...metadata };
+
+		let scanned;
+		if (target) {
+			scanned = await this.webExtensionsScannerService.updateMetadata(extension, { ...target.metadata, ...metadata }, toProfileLocation);
+		} else {
+			scanned = await this.webExtensionsScannerService.addExtension(extension.location, metadata, toProfileLocation);
+			if (source) {
+				await this.webExtensionsScannerService.removeExtension(source, fromProfileLocation);
+			}
+		}
+		return toLocalExtension(scanned);
+	}
+
+	protected async removeExtension(extension: ILocalExtension, fromProfileLocation: URI): Promise<void> {
+		const source = await this.webExtensionsScannerService.scanExistingExtension(extension.location, extension.type, fromProfileLocation);
+		if (source) {
+			await this.webExtensionsScannerService.removeExtension(source, fromProfileLocation);
+		}
 	}
 
 	async installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]> {
@@ -255,7 +279,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 	readonly identifier: IExtensionIdentifier;
 	readonly source: URI | IGalleryExtension;
 
-	private _profileLocation = this.options.profileLocation;
+	private _profileLocation: URI;
 	get profileLocation() { return this._profileLocation; }
 
 	private _operation = InstallOperation.Install;
@@ -269,6 +293,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 		private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
+		this._profileLocation = options.profileLocation;
 		this.identifier = URI.isUri(extension) ? { id: getGalleryExtensionId(manifest.publisher, manifest.name) } : extension.identifier;
 		this.source = extension;
 	}

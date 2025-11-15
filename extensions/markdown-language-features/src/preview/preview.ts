@@ -53,7 +53,7 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	private readonly _webviewPanel: vscode.WebviewPanel;
 
 	private _line: number | undefined;
-	private _scrollToFragment: string | undefined;
+	private readonly _scrollToFragment: string | undefined;
 	private _firstUpdate = true;
 	private _currentVersion?: PreviewDocumentVersion;
 	private _isScrolling = false;
@@ -110,15 +110,17 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 			}
 		}));
 
-		const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
-		this._register(watcher.onDidChange(uri => {
-			if (this.isPreviewOf(uri)) {
-				// Only use the file system event when VS Code does not already know about the file
-				if (!vscode.workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString())) {
-					this.refresh();
+		if (vscode.workspace.fs.isWritableFileSystem(resource.scheme)) {
+			const watcher = this._register(vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(resource, '*')));
+			this._register(watcher.onDidChange(uri => {
+				if (this.isPreviewOf(uri)) {
+					// Only use the file system event when VS Code does not already know about the file
+					if (!vscode.workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString())) {
+						this.refresh();
+					}
 				}
-			}
-		}));
+			}));
+		}
 
 		this._register(this._webviewPanel.webview.onDidReceiveMessage((e: FromWebviewMessage.Type) => {
 			if (e.source !== this._resource.toString()) {
@@ -428,7 +430,17 @@ class MarkdownPreview extends Disposable implements WebviewResourceProvider {
 	}
 
 	get cspSource() {
-		return this._webviewPanel.webview.cspSource;
+		return [
+			this._webviewPanel.webview.cspSource,
+
+			// On web, we also need to allow loading of resources from contributed extensions
+			...this._contributionProvider.contributions.previewResourceRoots
+				.filter(root => root.scheme === 'http' || root.scheme === 'https')
+				.map(root => {
+					const dirRoot = root.path.endsWith('/') ? root : root.with({ path: root.path + '/' });
+					return dirRoot.toString();
+				}),
+		].join(' ');
 	}
 
 	//#endregion

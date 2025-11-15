@@ -15,7 +15,6 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from '../.
 import { isWindows, isWeb, isMacintosh, isNative } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { trim } from '../../../../base/common/strings.js';
-import { IEditorGroupsContainer } from '../../../services/editor/common/editorGroupsService.js';
 import { template } from '../../../../base/common/labels.js';
 import { ILabelService, Verbosity as LabelVerbosity } from '../../../../platform/label/common/label.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -83,16 +82,13 @@ export class WindowTitle extends Disposable {
 	private titleIncludesFocusedView: boolean = false;
 	private titleIncludesEditorState: boolean = false;
 
-	private readonly editorService: IEditorService;
-
 	private readonly windowId: number;
 
 	constructor(
 		targetWindow: CodeWindow,
-		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorService editorService: IEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -104,7 +100,6 @@ export class WindowTitle extends Disposable {
 	) {
 		super();
 
-		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
 		this.windowId = targetWindow.vscodeWindowId;
 
 		this.checkTitleVariables();

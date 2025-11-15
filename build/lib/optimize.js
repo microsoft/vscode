@@ -50,11 +50,11 @@ const fs_1 = __importDefault(require("fs"));
 const pump_1 = __importDefault(require("pump"));
 const vinyl_1 = __importDefault(require("vinyl"));
 const bundle = __importStar(require("./bundle"));
-const postcss_1 = require("./postcss");
 const esbuild_1 = __importDefault(require("esbuild"));
 const gulp_sourcemaps_1 = __importDefault(require("gulp-sourcemaps"));
 const fancy_log_1 = __importDefault(require("fancy-log"));
 const ansi_colors_1 = __importDefault(require("ansi-colors"));
+const tsconfigUtils_1 = require("./tsconfigUtils");
 const REPO_ROOT_PATH = path_1.default.join(__dirname, '../..');
 const DEFAULT_FILE_HEADER = [
     '/*!--------------------------------------------------------',
@@ -64,6 +64,7 @@ const DEFAULT_FILE_HEADER = [
 function bundleESMTask(opts) {
     const resourcesStream = event_stream_1.default.through(); // this stream will contain the resources
     const bundlesStream = event_stream_1.default.through(); // this stream will contain the bundled files
+    const target = getBuildTarget();
     const entryPoints = opts.entryPoints.map(entryPoint => {
         if (typeof entryPoint === 'string') {
             return { name: path_1.default.parse(entryPoint).name };
@@ -126,7 +127,7 @@ function bundleESMTask(opts) {
                 format: 'esm',
                 sourcemap: 'external',
                 plugins: [contentsMapper, externalOverride],
-                target: ['es2022'],
+                target: [target],
                 loader: {
                     '.ttf': 'file',
                     '.svg': 'file',
@@ -186,13 +187,12 @@ function bundleTask(opts) {
 }
 function minifyTask(src, sourceMapBaseUrl) {
     const sourceMappingURL = sourceMapBaseUrl ? ((f) => `${sourceMapBaseUrl}/${f.relative}.map`) : undefined;
+    const target = getBuildTarget();
     return cb => {
-        const cssnano = require('cssnano');
         const svgmin = require('gulp-svgmin');
-        const jsFilter = (0, gulp_filter_1.default)('**/*.js', { restore: true });
-        const cssFilter = (0, gulp_filter_1.default)('**/*.css', { restore: true });
+        const esbuildFilter = (0, gulp_filter_1.default)('**/*.{js,css}', { restore: true });
         const svgFilter = (0, gulp_filter_1.default)('**/*.svg', { restore: true });
-        (0, pump_1.default)(gulp_1.default.src([src + '/**', '!' + src + '/**/*.map']), jsFilter, gulp_sourcemaps_1.default.init({ loadMaps: true }), event_stream_1.default.map((f, cb) => {
+        (0, pump_1.default)(gulp_1.default.src([src + '/**', '!' + src + '/**/*.map']), esbuildFilter, gulp_sourcemaps_1.default.init({ loadMaps: true }), event_stream_1.default.map((f, cb) => {
             esbuild_1.default.build({
                 entryPoints: [f.path],
                 minify: true,
@@ -200,12 +200,12 @@ function minifyTask(src, sourceMapBaseUrl) {
                 outdir: '.',
                 packages: 'external', // "external all the things", see https://esbuild.github.io/api/#packages
                 platform: 'neutral', // makes esm
-                target: ['es2022'],
-                write: false
+                target: [target],
+                write: false,
             }).then(res => {
-                const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path));
-                const sourceMapFile = res.outputFiles.find(f => /\.js\.map$/.test(f.path));
-                const contents = Buffer.from(jsFile.contents);
+                const jsOrCSSFile = res.outputFiles.find(f => /\.(js|css)$/.test(f.path));
+                const sourceMapFile = res.outputFiles.find(f => /\.(js|css)\.map$/.test(f.path));
+                const contents = Buffer.from(jsOrCSSFile.contents);
                 const unicodeMatch = contents.toString().match(/[^\x00-\xFF]+/g);
                 if (unicodeMatch) {
                     cb(new Error(`Found non-ascii character ${unicodeMatch[0]} in the minified output of ${f.path}. Non-ASCII characters in the output can cause performance problems when loading. Please review if you have introduced a regular expression that esbuild is not automatically converting and convert it to using unicode escape sequences.`));
@@ -216,12 +216,16 @@ function minifyTask(src, sourceMapBaseUrl) {
                     cb(undefined, f);
                 }
             }, cb);
-        }), jsFilter.restore, cssFilter, (0, postcss_1.gulpPostcss)([cssnano({ preset: 'default' })]), cssFilter.restore, svgFilter, svgmin(), svgFilter.restore, gulp_sourcemaps_1.default.write('./', {
+        }), esbuildFilter.restore, svgFilter, svgmin(), svgFilter.restore, gulp_sourcemaps_1.default.write('./', {
             sourceMappingURL,
             sourceRoot: undefined,
             includeContent: true,
             addComment: true
         }), gulp_1.default.dest(src + '-min'), (err) => cb(err));
     };
+}
+function getBuildTarget() {
+    const tsconfigPath = path_1.default.join(REPO_ROOT_PATH, 'src', 'tsconfig.base.json');
+    return (0, tsconfigUtils_1.getTargetStringFromTsConfig)(tsconfigPath);
 }
 //# sourceMappingURL=optimize.js.map

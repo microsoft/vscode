@@ -7,6 +7,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.e = e;
+exports.requestAZDOAPI = requestAZDOAPI;
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const stream_1 = require("stream");
@@ -228,11 +230,11 @@ class ESRPReleaseService {
     }
     async getReleaseStatus(releaseId) {
         const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grs/${releaseId}`;
-        const res = await fetch(url, {
+        const res = await (0, retry_1.retry)(() => fetch(url, {
             headers: {
                 'Authorization': `Bearer ${this.accessToken}`
             }
-        });
+        }));
         if (!res.ok) {
             const text = await res.text();
             throw new Error(`Failed to get release status: ${res.statusText}\n${text}`);
@@ -241,11 +243,11 @@ class ESRPReleaseService {
     }
     async getReleaseDetails(releaseId) {
         const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grd/${releaseId}`;
-        const res = await fetch(url, {
+        const res = await (0, retry_1.retry)(() => fetch(url, {
             headers: {
                 'Authorization': `Bearer ${this.accessToken}`
             }
-        });
+        }));
         if (!res.ok) {
             const text = await res.text();
             throw new Error(`Failed to get release status: ${res.statusText}\n${text}`);
@@ -253,17 +255,19 @@ class ESRPReleaseService {
         return await res.json();
     }
     async generateJwsToken(message) {
+        // Create header with properly typed properties, then override x5c with the non-standard string format
+        const header = {
+            alg: 'RS256',
+            crit: ['exp', 'x5t'],
+            // Release service uses ticks, not seconds :roll_eyes: (https://stackoverflow.com/a/7968483)
+            exp: ((Date.now() + (6 * 60 * 1000)) * 10000) + 621355968000000000,
+            // Release service uses hex format, not base64url :roll_eyes:
+            x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
+        };
+        // The Release service expects x5c as a '.' separated string, not the standard array format
+        header['x5c'] = this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.');
         return jws_1.default.sign({
-            header: {
-                alg: 'RS256',
-                crit: ['exp', 'x5t'],
-                // Release service uses ticks, not seconds :roll_eyes: (https://stackoverflow.com/a/7968483)
-                exp: ((Date.now() + (6 * 60 * 1000)) * 10000) + 621355968000000000,
-                // Release service uses hex format, not base64url :roll_eyes:
-                x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
-                // Release service uses a '.' separated string, not an array of strings :roll_eyes:
-                x5c: this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.'),
-            },
+            header,
             payload: message,
             privateKey: this.requestSigningKey,
         });
@@ -317,7 +321,7 @@ async function requestAZDOAPI(path) {
     const abortController = new AbortController();
     const timeout = setTimeout(() => abortController.abort(), 2 * 60 * 1000);
     try {
-        const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal });
+        const res = await (0, retry_1.retry)(() => fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal }));
         if (!res.ok) {
             throw new Error(`Unexpected status code: ${res.status}`);
         }
@@ -618,10 +622,12 @@ async function main() {
     if (e('VSCODE_BUILD_STAGE_WEB') === 'True') {
         stages.add('Web');
     }
+    let timeline;
+    let artifacts;
     let resultPromise = Promise.resolve([]);
     const operations = [];
     while (true) {
-        const [timeline, artifacts] = await Promise.all([(0, retry_1.retry)(() => getPipelineTimeline()), (0, retry_1.retry)(() => getPipelineArtifacts())]);
+        [timeline, artifacts] = await Promise.all([(0, retry_1.retry)(() => getPipelineTimeline()), (0, retry_1.retry)(() => getPipelineArtifacts())]);
         const stagesCompleted = new Set(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
         const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
         const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
@@ -689,8 +695,21 @@ async function main() {
             console.error(`[${operations[i].name}]`, result.reason);
         }
     }
+    // Fail the job if any of the artifacts failed to publish
     if (results.some(r => r.status === 'rejected')) {
         throw new Error('Some artifacts failed to publish');
+    }
+    // Also fail the job if any of the stages did not succeed
+    let shouldFail = false;
+    for (const stage of stages) {
+        const record = timeline.records.find(r => r.name === stage && r.type === 'Stage');
+        if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
+            shouldFail = true;
+            console.error(`Stage ${stage} did not succeed: ${record.result}`);
+        }
+    }
+    if (shouldFail) {
+        throw new Error('Some stages did not succeed');
     }
     console.log(`All ${done.size} artifacts published!`);
 }
