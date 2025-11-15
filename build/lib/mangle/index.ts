@@ -429,7 +429,7 @@ export class Mangler {
 		this.log = log;
 		this.config = config;
 
-		this.renameWorkerPool = workerpool.pool(path.join(import.meta.dirname, 'renameWorker.js'), {
+		this.renameWorkerPool = workerpool.pool(path.join(import.meta.dirname, 'renameWorker.ts'), {
 			maxWorkers: 4,
 			minWorkers: 'max'
 		});

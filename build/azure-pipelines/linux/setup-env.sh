@@ -13,14 +13,14 @@ if [ -d "$VSCODE_CLIENT_SYSROOT_DIR" ]; then
   echo "Using cached client sysroot"
 else
   echo "Downloading client sysroot"
-  SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_DIR="$VSCODE_CLIENT_SYSROOT_DIR" node -- -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+  SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_DIR="$VSCODE_CLIENT_SYSROOT_DIR" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
 fi
 
 if [ -d "$VSCODE_REMOTE_SYSROOT_DIR" ]; then
   echo "Using cached remote sysroot"
 else
   echo "Downloading remote sysroot"
-  SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_DIR="$VSCODE_REMOTE_SYSROOT_DIR" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -- -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+  SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_DIR="$VSCODE_REMOTE_SYSROOT_DIR" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
 fi
 
 if [ "$npm_config_arch" == "x64" ]; then
