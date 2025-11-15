@@ -31,10 +31,6 @@ jobs:
           versionSource: fromFile
           versionFilePath: .nvmrc
 
-      # Install ts-node early in process so we can run the build scripts with it
-      - script: npm install ts-node --ignore-scripts
-        displayName: Install ts-node
-
       - task: AzureKeyVault@2
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
@@ -94,7 +90,7 @@ jobs:
         displayName: Create build if it hasn't been created before
 
       - pwsh: |
-          $publishAuthTokens = (npm run --silent _build-script build/azure-pipelines/common/getPublishAuthTokens.ts)
+          $publishAuthTokens = (node build/azure-pipelines/common/getPublishAuthTokens.ts)
           Write-Host "##vso[task.setvariable variable=PUBLISH_AUTH_TOKENS;issecret=true]$publishAuthTokens"
         env:
           AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
