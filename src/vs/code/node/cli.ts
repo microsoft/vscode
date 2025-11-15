@@ -256,7 +256,7 @@ export async function main(argv: string[]): Promise<void> {
 
 		const hasReadStdinArg = args._.some(arg => arg === '-') || args.chat?._.some(arg => arg === '-');
 		if (hasReadStdinArg) {
-			// remove the "-" argument from parsed args
+			// Remove "-" from parsed args (args._), but keep it in argv to preserve position for later replacement
 			args._ = args._.filter(a => a !== '-');
 			if (args.chat) {
 				args.chat._ = args.chat._.filter(a => a !== '-');
