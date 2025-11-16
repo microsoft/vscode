@@ -385,7 +385,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		private readonly location: ChatAgentLocation,
 		private readonly options: IChatInputPartOptions,
 		styles: IChatInputStyles,
-		getContribsInputState: () => any,
+		getContribsInputState: () => IChatInputState,
 		private readonly inline: boolean,
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
