@@ -518,7 +518,7 @@ export class ContinueChatInSessionAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+	override async run(): Promise<void> {
 		// Handled by a custom action item
 	}
 }
@@ -845,11 +845,11 @@ export function registerChatExecuteActions() {
 	registerAction2(CancelAction);
 	registerAction2(SendToNewChatAction);
 	registerAction2(ChatSubmitWithCodebaseAction);
+	registerAction2(ContinueChatInSessionAction);
 	registerAction2(ToggleChatModeAction);
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
-	registerAction2(ContinueChatInSessionAction);
 	registerAction2(ChatSessionPrimaryPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
