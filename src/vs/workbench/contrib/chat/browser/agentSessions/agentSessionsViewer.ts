@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentsessionsviewer.css';
-import { addDisposableListener, EventType, h } from '../../../../../base/browser/dom.js';
+import { h } from '../../../../../base/browser/dom.js';
 import { localize } from '../../../../../nls.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { IListAccessibilityProvider } from '../../../../../base/browser/ui/list/listWidget.js';
@@ -35,6 +35,8 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../commo
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { AgentSessionDiffActionViewItem, AgentSessionShowDiffAction } from './agentSessionsActions.js';
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -44,11 +46,10 @@ interface IAgentSessionItemTemplate {
 
 	// Column 2 Row 1
 	readonly title: IconLabel;
+	readonly toolbar: ActionBar;
 
 	// Column 2 Row 2
 	readonly description: HTMLElement;
-	readonly diffAdded: HTMLElement;
-	readonly diffRemoved: HTMLElement;
 	readonly status: HTMLElement;
 
 	readonly elementDisposable: DisposableStore;
@@ -67,12 +68,12 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
 		// Hack to disable twistie in advent of on official option
-		// eslint-disable-next-line no-restricted-syntax
-		container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie')?.classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
+		container.previousElementSibling?.classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
 
 		const disposables = new DisposableStore();
 		const elementDisposable = disposables.add(new DisposableStore());
@@ -86,13 +87,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				h('div.agent-session-main-col', [
 					h('div.agent-session-title-row', [
 						h('div.agent-session-title@title'),
+						h('div.agent-session-toolbar@toolbar'),
 					]),
 					h('div.agent-session-details-row', [
 						h('div.agent-session-description@description'),
-						h('div.agent-session-diff', [
-							h('span.agent-session-diff-added@diffAdded'),
-							h('span.agent-session-diff-removed@diffRemoved')
-						]),
 						h('div.agent-session-status@status')
 					])
 				])
@@ -101,13 +99,22 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		container.appendChild(elements.item);
 
+		const toolbar = disposables.add(new ActionBar(elements.toolbar, {
+			actionViewItemProvider: (action, options) => {
+				if (action.id === AgentSessionShowDiffAction.ID) {
+					return this.instantiationService.createInstance(AgentSessionDiffActionViewItem, action, options);
+				}
+
+				return undefined;
+			},
+		}));
+
 		return {
 			element: elements.item,
 			icon: elements.icon,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
 			description: elements.description,
-			diffAdded: elements.diffAdded,
-			diffRemoved: elements.diffRemoved,
+			toolbar,
 			status: elements.status,
 			elementDisposable,
 			disposables
@@ -123,16 +130,20 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		// Title
 		template.title.setLabel(session.element.label, undefined, { matches: createMatches(session.filterData) });
 
-		// Diff
+		// Toolbar
+		template.toolbar.clear();
+
 		const { statistics: diff } = session.element;
-		template.diffAdded.textContent = diff ? `+${diff.insertions}` : '';
-		template.diffRemoved.textContent = diff ? `-${diff.deletions}` : '';
+		if (diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
+			const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
+			template.toolbar.push([diffAction], { icon: false, label: true });
+		}
 
 		// Description
 		if (typeof session.element.description === 'string') {
 			template.description.textContent = session.element.description;
 		} else {
-			template.elementDisposable.add(this.markdownRendererService.render(session.element.description, {
+			const descriptionMarkdown = this.markdownRendererService.render(session.element.description, {
 				sanitizerConfig: {
 					replaceWithPlaintext: true,
 					allowedTags: {
@@ -140,14 +151,8 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 					},
 					allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
 				},
-			}, template.description));
-
-			// TODO@bpasero this is needed so that a user can click into a link of the session
-			// without opening the session itself. Revisit this approach as we want to move
-			// away from allowing different results based on where the user clicks.
-			template.elementDisposable.add(addDisposableListener(template.description, EventType.MOUSE_DOWN, e => e.stopPropagation()));
-			template.elementDisposable.add(addDisposableListener(template.description, EventType.CLICK, e => e.stopPropagation()));
-			template.elementDisposable.add(addDisposableListener(template.description, EventType.AUXCLICK, e => e.stopPropagation()));
+			}, template.description);
+			template.elementDisposable.add(descriptionMarkdown);
 		}
 
 		// Status (updated every minute)

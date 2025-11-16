@@ -45,6 +45,7 @@ import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { chatSessionResourceToId } from '../../common/chatUri.js';
+import { isITextModel } from '../../../../../editor/common/model.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -293,15 +294,23 @@ export interface IToggleChatModeArgs {
 type ChatModeChangeClassification = {
 	owner: 'digitarald';
 	comment: 'Reporting when agent is switched between different modes';
-	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent' };
-	toMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new agent' };
+	fromMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The previous agent name' };
+	mode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The new agent name' };
 	requestCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of requests in the current chat session'; 'isMeasurement': true };
+	storage?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Source of the target mode (builtin, local, user, extension)' };
+	extensionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Extension ID if the target mode is from an extension' };
+	toolsCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of custom tools in the target mode'; 'isMeasurement': true };
+	handoffsCount?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of handoffs in the target mode'; 'isMeasurement': true };
 };
 
 type ChatModeChangeEvent = {
 	fromMode: string;
-	toMode: string;
+	mode: string;
 	requestCount: number;
+	storage?: string;
+	extensionId?: string;
+	toolsCount?: number;
+	handoffsCount?: number;
 };
 
 class ToggleChatModeAction extends Action2 {
@@ -348,10 +357,19 @@ class ToggleChatModeAction extends Action2 {
 		}
 
 		// Send telemetry for mode change
+		const storage = switchToMode.source?.storage ?? 'builtin';
+		const extensionId = switchToMode.source?.storage === 'extension' ? switchToMode.source.extensionId.value : undefined;
+		const toolsCount = switchToMode.customTools?.get()?.length ?? 0;
+		const handoffsCount = switchToMode.handOffs?.get()?.length ?? 0;
+
 		telemetryService.publicLog2<ChatModeChangeEvent, ChatModeChangeClassification>('chat.modeChange', {
-			fromMode: currentMode.id,
-			toMode: switchToMode.id,
-			requestCount: requestCount
+			fromMode: currentMode.name.get(),
+			mode: switchToMode.name.get(),
+			requestCount: requestCount,
+			storage,
+			extensionId,
+			toolsCount,
+			handoffsCount
 		});
 
 		context.chatWidget.input.setChatMode(switchToMode.id);
@@ -576,9 +594,7 @@ class SubmitWithoutDispatchingAction extends Action2 {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
-			// if the input has prompt instructions attached, allow submitting requests even
-			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
+			ChatContextKeys.inputHasText,
 			whenNotInProgress,
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask),
 		);
@@ -747,31 +763,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			});
 		}
 	}
-
-	/**
-	 * Converts full URIs from the user's systems into workspace-relative paths for coding agent.
-	 */
-	private extractRelativeFromAttachedContext(attachedContext: ChatRequestVariableSet, workspaceContextService: IWorkspaceContextService): string[] {
-		if (!attachedContext) {
-			return [];
-		}
-		const relativePaths: string[] = [];
-		for (const contextEntry of attachedContext.asArray()) {
-			if (isChatRequestFileEntry(contextEntry)) { // TODO: Extend for more variable types as needed
-				if (!(contextEntry.value instanceof URI)) {
-					continue;
-				}
-				const workspaceFolder = workspaceContextService.getWorkspaceFolder(contextEntry.value);
-				const fileUri = contextEntry.value;
-				const relativePathResult = workspaceFolder ? relativePath(workspaceFolder.uri, fileUri) : undefined;
-				if (relativePathResult) {
-					relativePaths.push(relativePathResult);
-				}
-			}
-		}
-		return relativePaths;
-	}
-
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
@@ -822,7 +813,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				if (activeEditor) {
 					const model = activeEditor.getModel();
 					let activeEditorUri: URI | undefined = undefined;
-					if (model && 'uri' in model) {
+					if (model && isITextModel(model)) {
 						activeEditorUri = model.uri as URI;
 					}
 					const selection = activeEditor.getSelection();
@@ -847,31 +838,34 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const contributions = chatSessionsService.getAllChatSessionContributions();
 
 			// Sort contributions by order, then alphabetically by display name
-			const sortedContributions = [...contributions].sort((a, b) => {
-				// Both have no order - sort by display name
-				if (a.order === undefined && b.order === undefined) {
+			// Filter out contributions that have canDelegate set to false
+			const sortedContributions = [...contributions]
+				.filter(contrib => contrib.canDelegate !== false) // Default to true if not specified
+				.sort((a, b) => {
+					// Both have no order - sort by display name
+					if (a.order === undefined && b.order === undefined) {
+						return a.displayName.localeCompare(b.displayName);
+					}
+
+					// Only a has no order - push it to the end
+					if (a.order === undefined) {
+						return 1;
+					}
+
+					// Only b has no order - push it to the end
+					if (b.order === undefined) {
+						return -1;
+					}
+
+					// Both have orders - compare numerically
+					const orderCompare = a.order - b.order;
+					if (orderCompare !== 0) {
+						return orderCompare;
+					}
+
+					// Same order - sort by display name
 					return a.displayName.localeCompare(b.displayName);
-				}
-
-				// Only a has no order - push it to the end
-				if (a.order === undefined) {
-					return 1;
-				}
-
-				// Only b has no order - push it to the end
-				if (b.order === undefined) {
-					return -1;
-				}
-
-				// Both have orders - compare numerically
-				const orderCompare = a.order - b.order;
-				if (orderCompare !== 0) {
-					return orderCompare;
-				}
-
-				// Same order - sort by display name
-				return a.displayName.localeCompare(b.displayName);
-			});
+				});
 
 			const agent = await this.pickCodingAgent(quickPickService, sortedContributions);
 			if (!agent) {
@@ -907,10 +901,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			}
 
 			let summary: string = '';
-			const relativeAttachedContext = this.extractRelativeFromAttachedContext(attachedContext, workspaceContextService);
-			if (relativeAttachedContext.length) {
-				summary += `\n\n${localize('attachedFiles', "The user has attached the following files from their workspace:")}\n${relativeAttachedContext.map(file => `- ${file}`).join('\n')}\n\n`;
-			}
 
 			// Add selection or cursor information to the summary
 			attachedContext.asArray().forEach(ctx => {
@@ -995,9 +985,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 
 	private async generateSummarizedChatHistory(chatRequests: IChatRequestModel[], sessionResource: URI, title: string | undefined, chatAgentService: IChatAgentService, defaultAgent: IChatAgent, summary: string) {
 		const historyEntries: IChatAgentHistoryEntry[] = chatRequests
-			.map(req => ({
+			.map((req): IChatAgentHistoryEntry => ({
 				request: {
 					sessionId: chatSessionResourceToId(sessionResource),
+					sessionResource,
 					requestId: req.id,
 					agentId: req.response?.agent?.id ?? '',
 					message: req.message.text,
@@ -1022,6 +1013,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		const userPromptEntry: IChatAgentHistoryEntry = {
 			request: {
 				sessionId: chatSessionResourceToId(sessionResource),
+				sessionResource,
 				requestId: generateUuid(),
 				agentId: '',
 				message: userPrompt,
@@ -1045,9 +1037,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 
 	constructor() {
 		const precondition = ContextKeyExpr.and(
-			// if the input has prompt instructions attached, allow submitting requests even
-			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
+			ChatContextKeys.inputHasText,
 			whenNotInProgress,
 		);
 
@@ -1092,11 +1082,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 
 class SendToNewChatAction extends Action2 {
 	constructor() {
-		const precondition = ContextKeyExpr.and(
-			// if the input has prompt instructions attached, allow submitting requests even
-			// without text present - having instructions is enough context for a request
-			ContextKeyExpr.or(ChatContextKeys.inputHasText, ChatContextKeys.hasPromptFile),
-		);
+		const precondition = ChatContextKeys.inputHasText;
 
 		super({
 			id: 'workbench.action.chat.sendToNewChat',

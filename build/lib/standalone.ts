@@ -57,8 +57,14 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 	const result = tss.shake(options);
 	for (const fileName in result) {
 		if (result.hasOwnProperty(fileName)) {
+			let fileContents = result[fileName];
+			// Replace .ts? with .js? in new URL() patterns
+			fileContents = fileContents.replace(
+				/(new\s+URL\s*\(\s*['"`][^'"`]*?)\.ts(\?[^'"`]*['"`])/g,
+				'$1.js$2'
+			);
 			const relativePath = path.relative(options.sourcesRoot, fileName);
-			writeFile(path.join(options.destRoot, relativePath), result[fileName]);
+			writeFile(path.join(options.destRoot, relativePath), fileContents);
 		}
 	}
 	const copied: { [fileName: string]: boolean } = {};

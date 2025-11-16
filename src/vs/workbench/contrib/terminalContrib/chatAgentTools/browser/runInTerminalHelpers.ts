@@ -177,6 +177,18 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		actions.push(new Separator());
 	}
 
+
+	// Allow all commands for this session
+	actions.push({
+		label: localize('allowSession', 'Allow All Commands in this Session'),
+		tooltip: localize('allowSessionTooltip', 'Allow this tool to run in this session without confirmation.'),
+		data: {
+			type: 'sessionApproval'
+		} satisfies TerminalNewAutoApproveButtonData
+	});
+
+	actions.push(new Separator());
+
 	// Always show configure option
 	actions.push({
 		label: localize('autoApprove.configure', 'Configure Auto Approve...'),

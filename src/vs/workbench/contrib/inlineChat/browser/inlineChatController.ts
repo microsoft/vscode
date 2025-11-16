@@ -14,7 +14,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -49,7 +49,6 @@ import { ISharedWebContentExtractorService } from '../../../../platform/webConte
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
-import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
@@ -1270,7 +1269,6 @@ export class InlineChatController2 implements IEditorContribution {
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
-		@IChatAgentService chatAgentService: IChatAgentService,
 		@IChatService chatService: IChatService,
 	) {
 
@@ -1336,20 +1334,7 @@ export class InlineChatController2 implements IEditorContribution {
 				{ editor: this._editor, notebookEditor },
 			);
 
-			this._store.add(result);
-
 			result.domNode.classList.add('inline-chat-2');
-
-			// agent lock
-			const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
-			this._store.add(autorun(r => {
-				const agent = agentObs.read(r);
-				if (agent) {
-					result.widget.chatWidget.lockToCodingAgent(agent.name, agent.fullName || agent.name, agent.id);
-				} else {
-					result.widget.chatWidget.unlockFromCodingAgent();
-				}
-			}));
 
 			return result;
 		});
@@ -1427,7 +1412,9 @@ export class InlineChatController2 implements IEditorContribution {
 			}
 
 			const entry = session.editingSession.readEntry(session.uri, r);
-			entry?.enableReviewModeUntilSettled();
+			if (entry?.state.read(r) === ModifiedFileEntryState.Modified) {
+				entry?.enableReviewModeUntilSettled();
+			}
 
 			const inProgress = session.chatModel.requestInProgressObs.read(r);
 			this._zone.value.widget.domNode.classList.toggle('request-in-progress', inProgress);
@@ -1543,9 +1530,22 @@ export class InlineChatController2 implements IEditorContribution {
 		return !rejected;
 	}
 
-	acceptSession() {
-		const value = this._currentSession.get();
-		value?.editingSession.accept();
+	async acceptSession() {
+		const session = this._currentSession.get();
+		if (!session) {
+			return;
+		}
+		await session.editingSession.accept();
+		session.dispose();
+	}
+
+	async rejectSession() {
+		const session = this._currentSession.get();
+		if (!session) {
+			return;
+		}
+		await session.editingSession.reject();
+		session.dispose();
 	}
 
 	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {

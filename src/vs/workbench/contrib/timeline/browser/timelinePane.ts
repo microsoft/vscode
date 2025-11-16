@@ -693,7 +693,7 @@ export class TimelinePane extends ViewPane {
 		}
 	}
 
-	private *getItems(): Generator<ITreeElement<TreeElement>, any, any> {
+	private *getItems(): Generator<ITreeElement<TreeElement>, void, undefined> {
 		let more = false;
 
 		if (this.uri === undefined || this.timelinesBySource.size === 0) {

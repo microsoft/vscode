@@ -50,6 +50,7 @@ export interface IAgentSessionViewModel {
 	};
 
 	readonly statistics?: {
+		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
 	};
@@ -107,10 +108,6 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	}
 
 	async resolve(provider: string | string[] | undefined): Promise<void> {
-		if (this.lifecycleService.willShutdown) {
-			return;
-		}
-
 		if (Array.isArray(provider)) {
 			for (const p of provider) {
 				this.providersToResolve.add(p);
@@ -120,7 +117,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		}
 
 		return this.resolver.trigger(async token => {
-			if (token.isCancellationRequested) {
+			if (token.isCancellationRequested || this.lifecycleService.willShutdown) {
 				return;
 			}
 
@@ -155,10 +152,6 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			}
 
 			for (const session of sessions) {
-				if (session.id === 'show-history' || session.id === 'workbench.panel.chat.view.copilot') {
-					continue; // TODO@bpasero this needs to be fixed at the provider level
-				}
-
 				let description;
 				if (session.description) {
 					description = session.description;
@@ -181,11 +174,11 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 				switch ((provider.chatSessionType)) {
 					case localChatSessionType:
 						providerLabel = localize('chat.session.providerLabel.local', "Local");
-						icon = Codicon.window;
+						icon = Codicon.vm;
 						break;
 					case AgentSessionProviders.Background:
 						providerLabel = localize('chat.session.providerLabel.background', "Background");
-						icon = Codicon.layers;
+						icon = Codicon.collection;
 						break;
 					case AgentSessionProviders.Cloud:
 						providerLabel = localize('chat.session.providerLabel.cloud', "Cloud");

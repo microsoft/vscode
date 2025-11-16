@@ -18,7 +18,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IGalleryMcpServerConfiguration, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -113,15 +112,16 @@ type AddServerCompletedClassification = {
 };
 
 type AssistedServerConfiguration = {
-	type?: 'vscode';
+	type?: 'assisted';
 	name?: string;
 	server: Omit<IMcpStdioServerConfiguration, 'type'>;
 	inputs?: IMcpServerVariable[];
 	inputValues?: Record<string, string>;
 } | {
-	type: 'server.json';
+	type: 'mapped';
 	name?: string;
-	server: IGalleryMcpServerConfiguration;
+	server: Omit<IMcpStdioServerConfiguration, 'type'>;
+	inputs?: IMcpServerVariable[];
 };
 
 export class McpAddConfigurationCommand {
@@ -406,21 +406,13 @@ export class McpAddConfigurationCommand {
 			}
 		);
 
-		if (config?.type === 'server.json') {
-			const packageType = this.getPackageTypeEnum(type);
-			if (!packageType) {
-				throw new Error(`Unsupported assisted package type ${type}`);
-			}
-			const { mcpServerConfiguration } = this._mcpManagementService.getMcpServerConfigurationFromManifest(config.server, packageType);
-			if (mcpServerConfiguration.config.type !== McpServerType.LOCAL) {
-				throw new Error(`Unexpected server type ${mcpServerConfiguration.config.type} for assisted configuration from server.json.`);
-			}
+		if (config?.type === 'mapped') {
 			return {
 				name: config.name,
-				server: mcpServerConfiguration.config,
-				inputs: mcpServerConfiguration.inputs,
+				server: config.server,
+				inputs: config.inputs,
 			};
-		} else if (config?.type === 'vscode' || !config?.type) {
+		} else if (config?.type === 'assisted' || !config?.type) {
 			return config;
 		} else {
 			assertNever(config?.type);
@@ -581,21 +573,6 @@ export class McpAddConfigurationCommand {
 				}
 				break;
 			}
-		}
-	}
-
-	private getPackageTypeEnum(type: AddConfigurationType): RegistryType | undefined {
-		switch (type) {
-			case AddConfigurationType.NpmPackage:
-				return RegistryType.NODE;
-			case AddConfigurationType.PipPackage:
-				return RegistryType.PYTHON;
-			case AddConfigurationType.NuGetPackage:
-				return RegistryType.NUGET;
-			case AddConfigurationType.DockerImage:
-				return RegistryType.DOCKER;
-			default:
-				return undefined;
 		}
 	}
 

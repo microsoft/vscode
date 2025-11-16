@@ -15,7 +15,6 @@ import { IChatAgentRequest, IChatAgentService } from '../chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../chatModel.js';
 import { IChatModeService } from '../chatModes.js';
 import { IChatProgress, IChatService } from '../chatService.js';
-import { LocalChatSessionUri } from '../chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../languageModels.js';
 import {
@@ -32,6 +31,7 @@ import {
 	ToolSet,
 	VSCodeToolReference
 } from '../languageModelToolsService.js';
+import { ManageTodoListToolToolId } from './manageTodoListTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
 
 export const RunSubagentToolId = 'runSubagent';
@@ -114,7 +114,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		}
 
 		// Get the chat model and request for writing progress
-		const model = this.chatService.getSession(LocalChatSessionUri.forSession(invocation.context.sessionId)) as ChatModel | undefined;
+		const model = this.chatService.getSession(invocation.context.sessionResource) as ChatModel | undefined;
 		if (!model) {
 			throw new Error('Chat model not found for session');
 		}
@@ -206,9 +206,15 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				}
 			};
 
+			if (modeTools) {
+				modeTools[RunSubagentToolId] = false;
+				modeTools[ManageTodoListToolToolId] = false;
+			}
+
 			// Build the agent request
 			const agentRequest: IChatAgentRequest = {
 				sessionId: invocation.context.sessionId,
+				sessionResource: invocation.context.sessionResource,
 				requestId: invocation.callId ?? `subagent-${Date.now()}`,
 				agentId: defaultAgent.id,
 				message: args.prompt,

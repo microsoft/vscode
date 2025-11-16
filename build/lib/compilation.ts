@@ -18,8 +18,9 @@ import File from 'vinyl';
 import * as task from './task';
 import { Mangler } from './mangle/index';
 import { RawSourceMap } from 'source-map';
-import ts = require('typescript');
-const watch = require('./watch');
+import ts from 'typescript';
+import watch from './watch';
+import bom from 'gulp-bom';
 
 
 // --- gulp-tsb: compile and transpile --------------------------------
@@ -66,7 +67,6 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 	}, err => reporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {
-		const bom = require('gulp-bom') as typeof import('gulp-bom');
 
 		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
 		const isUtf8Test = (f: File) => /(\/|\\)test(\/|\\).*utf8/.test(f.path);

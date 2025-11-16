@@ -14,6 +14,7 @@ import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { truncate } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
@@ -48,13 +49,17 @@ import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
-import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
+import { ArchivedSessionItems, GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
 // Identity provider for session items
 class SessionsIdentityProvider {
-	getId(element: ChatSessionItemWithProvider): string {
+	getId(element: ChatSessionItemWithProvider | ArchivedSessionItems): string {
+		if (element instanceof ArchivedSessionItems) {
+			return 'archived-session-items';
+		}
 		return element.resource.toString();
 	}
+
 }
 
 // Accessibility provider for session items
@@ -63,7 +68,7 @@ class SessionsAccessibilityProvider {
 		return nls.localize('chatSessions', 'Chat Sessions');
 	}
 
-	getAriaLabel(element: ChatSessionItemWithProvider): string | null {
+	getAriaLabel(element: ChatSessionItemWithProvider | ArchivedSessionItems): string | null {
 		return element.label;
 	}
 }
@@ -293,7 +298,7 @@ export class SessionsViewPane extends ViewPane {
 		this.messageElement = append(container, $('.chat-sessions-message'));
 		this.messageElement.style.display = 'none';
 		// Create the tree components
-		const dataSource = new SessionsDataSource(this.provider, this.chatService, this.sessionTracker);
+		const dataSource = new SessionsDataSource(this.provider, this.sessionTracker);
 		const delegate = new SessionsDelegate(this.configurationService);
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();
@@ -303,7 +308,7 @@ export class SessionsViewPane extends ViewPane {
 		this._register(renderer);
 
 		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
-			if (element.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
+			if (isEqual(element.resource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
 				return null;
 			}
 
@@ -329,9 +334,6 @@ export class SessionsViewPane extends ViewPane {
 						}
 					},
 					getDragURI: (element: ChatSessionItemWithProvider) => {
-						if (element.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-							return null;
-						}
 						return getResourceForElement(element)?.toString() ?? null;
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {
@@ -377,7 +379,10 @@ export class SessionsViewPane extends ViewPane {
 
 		// Register context menu event for right-click actions
 		this._register(this.tree.onContextMenu((e) => {
-			if (e.element && e.element.id !== LocalChatSessionsProvider.HISTORY_NODE_ID) {
+			if (e.element && !(e.element instanceof ArchivedSessionItems)) {
+				this.showContextMenu(e);
+			}
+			if (e.element) {
 				this.showContextMenu(e);
 			}
 		}));
@@ -473,13 +478,11 @@ export class SessionsViewPane extends ViewPane {
 			if (this.chatWidgetService.getWidgetBySessionResource(session.resource)) {
 				return;
 			}
-
-			if (session.id === LocalChatSessionsProvider.HISTORY_NODE_ID) {
-				// Don't try to open the "Show history..." node itself
+			if (session instanceof ArchivedSessionItems) {
 				return;
 			}
 
-			if (session.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
+			if (isEqual(session.resource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
 				await this.viewsService.openView(ChatViewId);
 				return;
 			}

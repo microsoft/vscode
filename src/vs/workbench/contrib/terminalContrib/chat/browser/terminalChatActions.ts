@@ -25,6 +25,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { getIconId } from '../../../terminal/browser/terminalIcon.js';
 import { TerminalChatController } from './terminalChatController.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { isString } from '../../../../../base/common/types.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
@@ -54,19 +55,25 @@ registerActiveXtermAction({
 		}
 
 		const contr = TerminalChatController.activeChatController || TerminalChatController.get(activeInstance);
+		if (!contr) {
+			return;
+		}
 
 		if (opts) {
-			opts = typeof opts === 'string' ? { query: opts } : opts;
-			if (typeof opts === 'object' && opts !== null && 'query' in opts && typeof opts.query === 'string') {
-				contr?.updateInput(opts.query, false);
-				if (!('isPartialQuery' in opts && opts.isPartialQuery)) {
-					contr?.terminalChatWidget?.acceptInput();
+			function isValidOptionsObject(obj: unknown): obj is { query: string; isPartialQuery?: boolean } {
+				return typeof obj === 'object' && obj !== null && 'query' in obj && isString(obj.query);
+			}
+			opts = isString(opts) ? { query: opts } : opts;
+			if (isValidOptionsObject(opts)) {
+				contr.updateInput(opts.query, false);
+				if (!opts.isPartialQuery) {
+					contr.terminalChatWidget?.acceptInput();
 				}
 			}
 
 		}
 
-		contr?.terminalChatWidget?.reveal();
+		contr.terminalChatWidget?.reveal();
 	}
 });
 
@@ -313,7 +320,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 			precondition: ContextKeyExpr.and(TerminalChatContextKeys.hasHiddenChatTerminals, ChatContextKeys.enabled),
 			menu: [{
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(TerminalChatContextKeys.hasChatTerminals, ContextKeyExpr.equals('view', ChatViewId)),
+				when: ContextKeyExpr.and(TerminalChatContextKeys.hasHiddenChatTerminals, ContextKeyExpr.equals('view', ChatViewId)),
 				group: 'terminal',
 				order: 0,
 				isHiddenByDefault: true

@@ -4,29 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual } from 'assert';
+import { Schemas } from '../../../../../../../base/common/network.js';
+import { isWindows, OperatingSystem } from '../../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import type { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ITreeSitterLibraryService } from '../../../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
-import { TreeSitterLibraryService } from '../../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
-import { FileService } from '../../../../../../../platform/files/common/fileService.js';
-import { NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { Schemas } from '../../../../../../../base/common/network.js';
-import { TestIPCFileSystemProvider } from '../../../../../../test/electron-browser/workbenchTestServices.js';
-import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../../browser/treeSitterCommandParser.js';
-import { arch } from '../../../../../../../base/common/process.js';
-import { isWindows, OperatingSystem } from '../../../../../../../base/common/platform.js';
-import { CommandLineFileWriteAnalyzer } from '../../../browser/tools/commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
+import type { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, toWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
-import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import type { ICommandLineAnalyzerOptions } from '../../../browser/tools/commandLineAnalyzer/commandLineAnalyzer.js';
-import { TestContextService } from '../../../../../../test/common/workbenchTestServices.js';
 import { Workspace } from '../../../../../../../platform/workspace/test/common/testWorkspace.js';
+import { TreeSitterLibraryService } from '../../../../../../services/treeSitter/browser/treeSitterLibraryService.js';
+import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { TestContextService } from '../../../../../../test/common/workbenchTestServices.js';
+import { TestIPCFileSystemProvider } from '../../../../../../test/electron-browser/workbenchTestServices.js';
+import type { ICommandLineAnalyzerOptions } from '../../../browser/tools/commandLineAnalyzer/commandLineAnalyzer.js';
+import { CommandLineFileWriteAnalyzer } from '../../../browser/tools/commandLineAnalyzer/commandLineFileWriteAnalyzer.js';
+import { TreeSitterCommandParser, TreeSitterCommandParserLanguage } from '../../../browser/treeSitterCommandParser.js';
+import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 
-// TODO: The powershell grammar can cause an OOM crash on Windows/arm https://github.com/microsoft/vscode/issues/273177
-(isWindows && (arch === 'arm' || arch === 'arm64') ? suite.skip : suite)('CommandLineFileWriteAnalyzer', () => {
+suite('CommandLineFileWriteAnalyzer', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
@@ -81,7 +79,8 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
@@ -110,10 +109,11 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 			test('absolute path - /etc - block', () => t('echo hello > /etc/config.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - /home - block', () => t('echo hello > /home/user/file.txt', 'outsideWorkspace', false, 1));
 			test('absolute path - root - block', () => t('echo hello > /file.txt', 'outsideWorkspace', false, 1));
-			test('absolute path - /dev/null - block', () => t('echo hello > /dev/null', 'outsideWorkspace', false, 1));
+			test('absolute path - /dev/null - allow (null device)', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1));
 
 			// Special cases
 			test('no workspace folders - block', () => t('echo hello > file.txt', 'outsideWorkspace', false, 1, []));
+			test('no workspace folders - /dev/null allowed', () => t('echo hello > /dev/null', 'outsideWorkspace', true, 1, []));
 			test('no redirections - allow', () => t('echo hello', 'outsideWorkspace', true, 0));
 			test('variable in filename - block', () => t('echo hello > $HOME/file.txt', 'outsideWorkspace', false, 1));
 			test('command substitution - block', () => t('echo hello > $(pwd)/file.txt', 'outsideWorkspace', false, 1));
@@ -131,6 +131,7 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 			test('pipeline with redirection inside workspace', () => t('cat file.txt | grep "test" > output.txt', 'outsideWorkspace', true, 1));
 			test('multiple redirections mixed inside/outside', () => t('echo hello > file.txt && echo world > /tmp/file.txt', 'outsideWorkspace', false, 1));
 			test('here-document', () => t('cat > file.txt << EOF\nhello\nEOF', 'outsideWorkspace', true, 1));
+			test('error output to /dev/null - allow', () => t('cat missing.txt 2> /dev/null', 'outsideWorkspace', true, 1));
 		});
 
 		suite('no cwd provided', () => {
@@ -146,7 +147,8 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 					shell: 'bash',
 					os: OperatingSystem.Linux,
 					treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-					terminalToolSessionId: 'test'
+					terminalToolSessionId: 'test',
+					chatSessionId: 'test',
 				};
 
 				const result = await analyzer.analyze(options);
@@ -182,7 +184,8 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 				shell: 'pwsh',
 				os: OperatingSystem.Windows,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.PowerShell,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
@@ -235,7 +238,7 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 		});
 
 		suite('edge cases', () => {
-			test('redirection to $null (variable) - block', () => t('Write-Host "hello" > $null', 'outsideWorkspace', false, 1));
+			test('redirection to $null (PowerShell null device) - allow', () => t('Write-Host "hello" > $null', 'outsideWorkspace', true, 1));
 			test('relative path with backslashes - allow', () => t('Write-Host "hello" > server\\share\\file.txt', 'outsideWorkspace', true, 1));
 			test('quoted filename inside workspace - allow', () => t('Write-Host "hello" > "file with spaces.txt"', 'outsideWorkspace', true, 1));
 			test('forward slashes on Windows (relative) - allow', () => t('Write-Host "hello" > subdir/file.txt', 'outsideWorkspace', true, 1));
@@ -257,7 +260,8 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
@@ -288,7 +292,8 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);
@@ -316,7 +321,8 @@ import { Workspace } from '../../../../../../../platform/workspace/test/common/t
 				shell: 'bash',
 				os: OperatingSystem.Linux,
 				treeSitterLanguage: TreeSitterCommandParserLanguage.Bash,
-				terminalToolSessionId: 'test'
+				terminalToolSessionId: 'test',
+				chatSessionId: 'test',
 			};
 
 			const result = await analyzer.analyze(options);

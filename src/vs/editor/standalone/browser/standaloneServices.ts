@@ -61,8 +61,6 @@ import { LanguageService } from '../../common/services/languageService.js';
 import { ContextMenuService } from '../../../platform/contextview/browser/contextMenuService.js';
 import { getSingletonServiceDescriptors, InstantiationType, registerSingleton } from '../../../platform/instantiation/common/extensions.js';
 import { OpenerService } from '../../browser/services/openerService.js';
-import { IEditorWorkerService } from '../../common/services/editorWorker.js';
-import { EditorWorkerService } from '../../browser/services/editorWorkerService.js';
 import { ILanguageService } from '../../common/languages/language.js';
 import { MarkerDecorationsService } from '../../common/services/markerDecorationsService.js';
 import { IMarkerDecorationsService } from '../../common/services/markerDecorations.js';
@@ -89,18 +87,17 @@ import { IStorageService, InMemoryStorageService } from '../../../platform/stora
 import { DefaultConfiguration } from '../../../platform/configuration/common/configurations.js';
 import { WorkspaceEdit } from '../../common/languages.js';
 import { AccessibilitySignal, AccessibilityModality, IAccessibilitySignalService, Sound } from '../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
-import { ILanguageFeaturesService } from '../../common/services/languageFeatures.js';
-import { ILanguageConfigurationService } from '../../common/languages/languageConfigurationRegistry.js';
 import { LogService } from '../../../platform/log/common/logService.js';
 import { getEditorFeatures } from '../../common/editorFeatures.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from '../../../platform/environment/common/environment.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ResourceMap } from '../../../base/common/map.js';
-import { IWebWorkerDescriptor } from '../../../base/browser/webWorkerFactory.js';
 import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
 import { StandaloneTreeSitterLibraryService } from './standaloneTreeSitterLibraryService.js';
 import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
+import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
+import { StandaloneWebWorkerService } from './services/standaloneWebWorkerService.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1075,23 +1072,6 @@ class StandaloneContextMenuService extends ContextMenuService {
 	}
 }
 
-const standaloneEditorWorkerDescriptor: IWebWorkerDescriptor = {
-	esmModuleLocation: undefined,
-	label: 'editorWorkerService'
-};
-
-class StandaloneEditorWorkerService extends EditorWorkerService {
-	constructor(
-		@IModelService modelService: IModelService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@ILogService logService: ILogService,
-		@ILanguageConfigurationService languageConfigurationService: ILanguageConfigurationService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
-	) {
-		super(standaloneEditorWorkerDescriptor, modelService, configurationService, logService, languageConfigurationService, languageFeaturesService);
-	}
-}
-
 class StandaloneAccessbilitySignalService implements IAccessibilitySignalService {
 	_serviceBrand: undefined;
 	async playSignal(cue: AccessibilitySignal, options: {}): Promise<void> {
@@ -1132,6 +1112,7 @@ export interface IEditorOverrideServices {
 }
 
 
+registerSingleton(IWebWorkerService, StandaloneWebWorkerService, InstantiationType.Eager);
 registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IConfigurationService, StandaloneConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService, InstantiationType.Eager);
@@ -1151,7 +1132,6 @@ registerSingleton(IContextKeyService, ContextKeyService, InstantiationType.Eager
 registerSingleton(IProgressService, StandaloneProgressService, InstantiationType.Eager);
 registerSingleton(IEditorProgressService, StandaloneEditorProgressService, InstantiationType.Eager);
 registerSingleton(IStorageService, InMemoryStorageService, InstantiationType.Eager);
-registerSingleton(IEditorWorkerService, StandaloneEditorWorkerService, InstantiationType.Eager);
 registerSingleton(IBulkEditService, StandaloneBulkEditService, InstantiationType.Eager);
 registerSingleton(IWorkspaceTrustManagementService, StandaloneWorkspaceTrustManagementService, InstantiationType.Eager);
 registerSingleton(ITextModelService, StandaloneTextModelService, InstantiationType.Eager);

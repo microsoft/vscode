@@ -317,6 +317,8 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.reset();
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
+		this._cfTitleScrollbarSizing.dispose();
+		this._cfTitleScrollbarVisibility.dispose();
 		this._widget.dispose();
 		this._labels.dispose();
 		this.domNode.remove();
@@ -705,8 +707,10 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const config = accessor.get(IConfigurationService);
-		const value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
-		BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
+		const breadCrumbsConfig = BreadcrumbsConfig.IsEnabled.bindTo(config);
+		const value = breadCrumbsConfig.getValue();
+		breadCrumbsConfig.updateValue(!value);
+		breadCrumbsConfig.dispose();
 	}
 
 });
@@ -779,6 +783,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			await isEnabled.updateValue(true);
 			await timeout(50); // hacky - the widget might not be ready yet...
 		}
+		isEnabled.dispose();
 		return instant.invokeFunction(focusAndSelectHandler, true);
 	}
 });

@@ -73,7 +73,6 @@ declare module 'vscode' {
 		range: Range;
 		kind: InlineCompletionDisplayLocationKind;
 		label: string;
-		jumpToEdit?: boolean;
 	}
 
 	export enum InlineCompletionDisplayLocationKind {

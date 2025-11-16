@@ -760,7 +760,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
 .interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container {
-	/* Remove top border radius when editing session or todo list is present (TODO@bpasero rewrite chat input widget and then do this properly without :has() */
+	/* Remove top border radius when editing session or todo list is present */
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
 }
@@ -1594,9 +1594,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 20px;
-	height: 20px;
-	padding: 0;
+	padding: 2px 4px 2px 4px;
+	height: fit-content;
 	gap: 0;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;

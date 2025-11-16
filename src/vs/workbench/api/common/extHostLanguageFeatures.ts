@@ -1439,7 +1439,6 @@ class InlineCompletionAdapter {
 						range: typeConvert.Range.from(item.displayLocation.range),
 						content: item.displayLocation.label,
 						style: item.displayLocation.kind ? typeConvert.InlineCompletionHintStyle.from(item.displayLocation.kind) : languages.InlineCompletionHintStyle.Code,
-						jumpToEdit: item.displayLocation.jumpToEdit ?? false,
 					} : undefined,
 					warning: (item.warning && this._isAdditionsProposedApiEnabled) ? {
 						message: typeConvert.MarkdownString.from(item.warning.message),

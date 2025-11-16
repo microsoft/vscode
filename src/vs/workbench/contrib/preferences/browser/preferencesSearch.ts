@@ -6,7 +6,7 @@
 import { distinct } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
-import { IMatch, matchesContiguousSubString, matchesSubString, matchesWords } from '../../../../base/common/filters.js';
+import { IMatch, matchesBaseContiguousSubString, matchesContiguousSubString, matchesSubString, matchesWords } from '../../../../base/common/filters.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import * as strings from '../../../../base/common/strings.js';
 import { TfIdfCalculator, TfIdfDocument } from '../../../../base/common/tfIdf.js';
@@ -261,7 +261,7 @@ export class SettingMatches {
 			for (const word of queryWords) {
 				// Search the description lines.
 				for (let lineIndex = 0; lineIndex < setting.description.length; lineIndex++) {
-					const descriptionMatches = matchesContiguousSubString(word, setting.description[lineIndex]);
+					const descriptionMatches = matchesBaseContiguousSubString(word, setting.description[lineIndex]);
 					if (descriptionMatches?.length) {
 						descriptionMatchingWords.set(word, descriptionMatches.map(match => this.toDescriptionRange(setting, match, lineIndex)));
 					}
