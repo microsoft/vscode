@@ -861,6 +861,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 });
 
 export const openTerminalSettingsLinkCommandId = '_chat.openTerminalSettingsLink';
+export const disableSessionAutoApprovalCommandId = '_chat.disableSessionAutoApproval';
 
 CommandsRegistry.registerCommand(openTerminalSettingsLinkCommandId, async (accessor, scopeRaw: string) => {
 	const preferencesService = accessor.get(IPreferencesService);
@@ -895,6 +896,11 @@ CommandsRegistry.registerCommand(openTerminalSettingsLinkCommandId, async (acces
 			}
 		}
 	}
+});
+
+CommandsRegistry.registerCommand(disableSessionAutoApprovalCommandId, async (accessor, chatSessionId: string) => {
+	const terminalChatService = accessor.get(ITerminalChatService);
+	terminalChatService.setChatSessionAutoApproval(chatSessionId, false);
 });
 
 
