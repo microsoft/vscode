@@ -30,7 +30,6 @@ interface LogEntry {
 	message?: string;
 	args?: any[];
 	exceptionDetails?: any;
-	params?: any;
 	timestamp: number;
 	rawData: string;
 }
@@ -238,6 +237,8 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 				flatten: true,
 			});
 			sessionId = attachResult.sessionId;
+
+			allConsole.set(windowId!, []);
 
 			await debuggers.sendCommand('Debugger.enable', {}, sessionId);
 			await debuggers.sendCommand('Runtime.enable', {}, sessionId);

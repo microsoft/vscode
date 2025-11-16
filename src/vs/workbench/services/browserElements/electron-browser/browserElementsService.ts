@@ -70,7 +70,7 @@ class WorkbenchBrowserElementsService implements IBrowserElementsService {
 	}
 
 	async getConsoleLogs(): Promise<string | undefined> {
-		return await this.simpleBrowser.getConsoleLogs();
+		return this.simpleBrowser.getConsoleLogs();
 	}
 }
 

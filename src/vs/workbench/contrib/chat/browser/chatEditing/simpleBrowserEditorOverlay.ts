@@ -145,7 +145,7 @@ class SimpleBrowserOverlayWidget {
 		const cancelButtonLabel = localize('cancelSelectionLabel', 'Cancel');
 		cancelButton.label = cancelButtonLabel;
 
-		const attachLogs = this._showStore.add(new Button(mainContent, { supportIcons: true, title: localize('chat.attachLogs', "Attach Logs") }));
+		const attachLogs = this._showStore.add(new Button(mainContent, { ...defaultButtonStyles, supportIcons: true, title: localize('chat.attachLogs', "Attach Logs") }));
 		attachLogs.icon = Codicon.bug;
 
 		const configure = this._showStore.add(new Button(mainContent, { supportIcons: true, title: localize('chat.configureElements', "Configure Attachments Sent") }));
@@ -263,7 +263,7 @@ class SimpleBrowserOverlayWidget {
 			id: 'element-' + Date.now(),
 			name: localize('consoleLogs', 'Console Logs'),
 			fullName: localize('consoleLogs', 'Console Logs'),
-			value: logs,
+			value: logs ?? localize('noConsoleLogs', 'No console logs captured.'),
 			kind: 'element',
 			icon: ThemeIcon.fromId(Codicon.bug.id),
 		});
@@ -271,7 +271,6 @@ class SimpleBrowserOverlayWidget {
 		const widget = await showChatView(this._viewService, this._layoutService) ?? this._chatWidgetService.lastFocusedWidget;
 		widget?.attachmentModel?.addContext(...toAttach);
 	}
-
 
 	async addElementToChat(cts: CancellationTokenSource) {
 		// eslint-disable-next-line no-restricted-syntax
