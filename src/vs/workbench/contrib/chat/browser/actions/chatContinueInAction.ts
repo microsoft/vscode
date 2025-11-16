@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action2, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import * as dom from '../../../../../base/browser/dom.js';
-import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -40,7 +38,7 @@ import { ChatRequestVariableSet, isChatRequestFileEntry } from '../../common/cha
 import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { CHAT_CATEGORY } from './chatActions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 export class ContinueChatInSessionAction extends Action2 {
 
@@ -51,14 +49,6 @@ export class ContinueChatInSessionAction extends Action2 {
 			id: ContinueChatInSessionAction.ID,
 			title: localize2('continueChatInSession', "Continue Chat in..."),
 			tooltip: localize('continueChatInSession', "Continue Chat in..."),
-			icon: Codicon.export,
-			category: CHAT_CATEGORY,
-			f1: false,
-			toggled: {
-				condition: ChatContextKeys.remoteJobCreating,
-				icon: Codicon.sync,
-				tooltip: localize('remoteJobCreating', "Continuing Chat in Agent..."),
-			},
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.requestInProgress.negate(),
@@ -88,7 +78,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 	constructor(
 		action: MenuItemAction,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IInstantiationService instantiationService: IInstantiationService
@@ -136,13 +126,10 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		const domChildren = [];
-		domChildren.push(...renderLabelWithIcons(`$(export)`));
+		const icon = this.contextKeyService.contextMatchesRules(ChatContextKeys.remoteJobCreating) ? Codicon.sync : Codicon.export;
+		element.classList.add(...ThemeIcon.asClassNameArray(icon));
 
-		dom.reset(element, ...domChildren);
-		this.setAriaLabelAttributes(element);
-
-		return null;
+		return super.renderLabel(element);
 	}
 }
 
