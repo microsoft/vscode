@@ -82,6 +82,7 @@ function buildWin32Setup(arch, target) {
 		productJson['target'] = target;
 		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
+		const quality = product.quality || 'dev';
 		let RawVersion = pkg.version.replace(/-\w+$/, '');
 
 		// InnoSetup doesn't support versions like `1.0.107.20251114039`, so we bring it back down to zero
@@ -89,7 +90,6 @@ function buildWin32Setup(arch, target) {
 			RawVersion = RawVersion.replace(/(\d+)$/, '0');
 		}
 
-		const quality = product.quality || 'dev';
 		const definitions = {
 			NameLong: product.nameLong,
 			NameShort: product.nameShort,
