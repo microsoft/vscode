@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
-import { localize } from '../../../../../nls.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { basename, relativePath } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -40,6 +40,49 @@ import { ChatRequestVariableSet, isChatRequestFileEntry } from '../../common/cha
 import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { CHAT_CATEGORY } from './chatActions.js';
+
+export class ContinueChatInSessionAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.continueChatInSession';
+
+	constructor() {
+		super({
+			id: ContinueChatInSessionAction.ID,
+			title: localize2('continueChatInSession', "Continue Chat in..."),
+			tooltip: localize('continueChatInSession', "Continue Chat in..."),
+			icon: Codicon.export,
+			category: CHAT_CATEGORY,
+			f1: false,
+			toggled: {
+				condition: ChatContextKeys.remoteJobCreating,
+				icon: Codicon.sync,
+				tooltip: localize('remoteJobCreating', "Continuing Chat in Agent..."),
+			},
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.enabled,
+				ChatContextKeys.requestInProgress.negate(),
+				ChatContextKeys.remoteJobCreating.negate(),
+			),
+			menu: {
+				id: MenuId.ChatExecute,
+				group: 'navigation',
+				order: 3.4,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(
+						ChatContextKeys.hasRemoteCodingAgent,
+						ChatContextKeys.hasCloudButtonV2
+					),
+					ChatContextKeys.lockedToCodingAgent.negate(),
+				),
+			}
+		});
+	}
+
+	override async run(): Promise<void> {
+		// Handled by a custom action item
+	}
+}
 
 export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionViewItem {
 	constructor(

@@ -30,6 +30,7 @@ import { IChatWidget, IChatWidgetService, showChatWidgetInViewOrEditor } from '.
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
+import { ContinueChatInSessionAction } from './chatContinueInAction.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -478,48 +479,6 @@ export class OpenModePickerAction extends Action2 {
 		if (widget) {
 			widget.input.openModePicker();
 		}
-	}
-}
-
-export class ContinueChatInSessionAction extends Action2 {
-
-	static readonly ID = 'workbench.action.chat.continueChatInSession';
-
-	constructor() {
-		super({
-			id: ContinueChatInSessionAction.ID,
-			title: localize2('continueChatInSession', "Continue Chat in..."),
-			tooltip: localize('continueChatInSession', "Continue Chat in..."),
-			icon: Codicon.export,
-			category: CHAT_CATEGORY,
-			f1: false,
-			toggled: {
-				condition: ChatContextKeys.remoteJobCreating,
-				icon: Codicon.sync,
-				tooltip: localize('remoteJobCreating', "Continuing Chat in Agent..."),
-			},
-			precondition: ContextKeyExpr.and(
-				ChatContextKeys.enabled,
-				whenNotInProgress,
-				ChatContextKeys.remoteJobCreating.negate(),
-			),
-			menu: {
-				id: MenuId.ChatExecute,
-				group: 'navigation',
-				order: 3.4,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(
-						ChatContextKeys.hasRemoteCodingAgent,
-						ChatContextKeys.hasCloudButtonV2
-					),
-					ChatContextKeys.lockedToCodingAgent.negate(),
-				),
-			}
-		});
-	}
-
-	override async run(): Promise<void> {
-		// Handled by a custom action item
 	}
 }
 
