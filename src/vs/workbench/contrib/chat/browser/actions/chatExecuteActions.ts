@@ -497,6 +497,39 @@ export class OpenModePickerAction extends Action2 {
 	}
 }
 
+export class ContinueChatInSessionAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.continueChatInSession';
+
+	constructor() {
+		super({
+			id: ContinueChatInSessionAction.ID,
+			title: localize2('continueChatInSession', "Continue Chat in..."),
+			tooltip: localize('continueChatInSession', "Continue Chat in..."),
+			icon: Codicon.export,
+			category: CHAT_CATEGORY,
+			f1: false,
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.ChatExecute,
+				group: 'navigation',
+				order: 3.4,
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.or(
+						ChatContextKeys.hasRemoteCodingAgent,
+						ChatContextKeys.hasCloudButtonV2
+					),
+					ChatContextKeys.lockedToCodingAgent.negate(),
+				),
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		// Handled by a custom action item
+	}
+}
+
 export class ChatSessionPrimaryPickerAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.chatSessionPrimaryPicker';
 	constructor() {
@@ -648,20 +681,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				icon: Codicon.sync,
 				tooltip: localize('remoteJobCreating', "Delegating to Agent"),
 			},
-			menu: [
-				{
-					id: MenuId.ChatExecute,
-					group: 'navigation',
-					order: 3.4,
-					when: ContextKeyExpr.and(
-						ContextKeyExpr.or(
-							ChatContextKeys.hasRemoteCodingAgent,
-							ChatContextKeys.hasCloudButtonV2
-						),
-						ChatContextKeys.lockedToCodingAgent.negate(),
-					),
-				}
-			]
 		});
 	}
 
@@ -835,44 +854,51 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 
-			const contributions = chatSessionsService.getAllChatSessionContributions();
 
-			// Sort contributions by order, then alphabetically by display name
-			// Filter out contributions that have canDelegate set to false
-			const sortedContributions = [...contributions]
-				.filter(contrib => contrib.canDelegate !== false) // Default to true if not specified
-				.sort((a, b) => {
-					// Both have no order - sort by display name
-					if (a.order === undefined && b.order === undefined) {
+			// Determine target to continue in, this is either passed in via context or picked by user
+			let continuationTargetType: string | undefined = undefined;
+			const context = args[0] as { continuationTarget?: IChatSessionsExtensionPoint } | undefined;
+			if (context?.continuationTarget?.type) {
+				continuationTargetType = context.continuationTarget.type;
+			} else {
+				// Sort contributions by order, then alphabetically by display name
+				// Filter out contributions that have canDelegate set to false
+				const contributions = chatSessionsService.getAllChatSessionContributions();
+				const sortedContributions = [...contributions]
+					.filter(contrib => contrib.canDelegate !== false) // Default to true if not specified
+					.sort((a, b) => {
+						// Both have no order - sort by display name
+						if (a.order === undefined && b.order === undefined) {
+							return a.displayName.localeCompare(b.displayName);
+						}
+
+						// Only a has no order - push it to the end
+						if (a.order === undefined) {
+							return 1;
+						}
+
+						// Only b has no order - push it to the end
+						if (b.order === undefined) {
+							return -1;
+						}
+
+						// Both have orders - compare numerically
+						const orderCompare = a.order - b.order;
+						if (orderCompare !== 0) {
+							return orderCompare;
+						}
+
+						// Same order - sort by display name
 						return a.displayName.localeCompare(b.displayName);
-					}
+					});
 
-					// Only a has no order - push it to the end
-					if (a.order === undefined) {
-						return 1;
-					}
+				continuationTargetType = (await this.pickCodingAgent(quickPickService, sortedContributions))?.type;
+			}
 
-					// Only b has no order - push it to the end
-					if (b.order === undefined) {
-						return -1;
-					}
-
-					// Both have orders - compare numerically
-					const orderCompare = a.order - b.order;
-					if (orderCompare !== 0) {
-						return orderCompare;
-					}
-
-					// Same order - sort by display name
-					return a.displayName.localeCompare(b.displayName);
-				});
-
-			const agent = await this.pickCodingAgent(quickPickService, sortedContributions);
-			if (!agent) {
+			if (!continuationTargetType) {
 				widget.setInput(userPrompt); // Restore prompt
 				throw new Error('No coding agent selected');
 			}
-			const { type } = agent;
 
 			// Add the request to the model first
 			const parsedRequest = requestParser.parseChatRequest(sessionResource, userPrompt, ChatAgentLocation.Chat);
@@ -948,7 +974,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			if (isChatSessionsExperimentEnabled) {
 				await chatService.removeRequest(sessionResource, addedRequest.id);
 				return await this.createWithChatSessions(
-					type,
+					continuationTargetType,
 					chatSessionsService,
 					chatService,
 					quickPickService,
@@ -1234,6 +1260,7 @@ export function registerChatExecuteActions() {
 	registerAction2(SwitchToNextModelAction);
 	registerAction2(OpenModelPickerAction);
 	registerAction2(OpenModePickerAction);
+	registerAction2(ContinueChatInSessionAction);
 	registerAction2(ChatSessionPrimaryPickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
