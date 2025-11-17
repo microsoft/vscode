@@ -117,7 +117,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 		this._docFileEditorModel = this._register(resourceRef).object;
 		this.modifiedModel = resourceRef.object.textEditorModel;
-		this.originalURI = ChatEditingTextModelContentProvider.getFileURI(telemetryInfo.sessionId, this.entryId, this.modifiedURI.path);
+		this.originalURI = ChatEditingTextModelContentProvider.getFileURI(telemetryInfo.sessionResource, this.entryId, this.modifiedURI.path);
 
 		this.initialContent = initialContent ?? this.modifiedModel.getValue();
 		const docSnapshot = this.originalModel = this._register(
@@ -188,11 +188,11 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this.state.get() === snapshot.state;
 	}
 
-	createSnapshot(sessionId: string, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
+	createSnapshot(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionId, requestId, undoStop, this.modifiedURI.path),
+			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(chatSessionResource, requestId, undoStop, this.modifiedURI.path),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
 			state: this.state.get(),
