@@ -316,8 +316,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				const recentlyIdle = consecutiveIdleEvents >= PollingConsts.MinIdleEvents;
 				const isActive = execution.isActive ? await execution.isActive() : undefined;
 				this._logService.trace(`OutputMonitor: waitForIdle check: waited=${waited}ms, recentlyIdle=${recentlyIdle}, isActive=${isActive}`);
-
-				if (recentlyIdle || isActive === false) {
+				if (recentlyIdle && isActive !== true) {
 					this._state = OutputMonitorState.Idle;
 					return this._state;
 				}
