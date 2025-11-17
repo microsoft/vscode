@@ -243,9 +243,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const elements = h('.chat-terminal-content-part@container', [
 			h('.chat-terminal-content-title@title', [
-				h('.chat-terminal-command-block@commandBlock', [
-					h('span@terminalIcon', { className: ThemeIcon.asClassNameArray(Codicon.terminal).join(' '), ariaHidden: 'true' })
-				])
+				h('.chat-terminal-command-block@commandBlock')
 			]),
 			h('.chat-terminal-content-message@message'),
 			h('.chat-terminal-output-container@output')
@@ -254,7 +252,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._decoration = this._register(new TerminalCommandDecoration({
 			terminalData: this._terminalData,
 			getCommandBlock: () => elements.commandBlock,
-			getIconElement: () => elements.terminalIcon,
+			getIconElement: () => undefined,
 			getResolvedCommand: () => this._getResolvedCommand()
 		}));
 
