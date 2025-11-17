@@ -1969,7 +1969,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		type CancelRequestEventEditClassification = {
 			owner: 'justschen';
 			editRequestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Current entry point for editing a request.' };
-			editCanceled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Indicates whether the edit was canceled.' };
+			editCanceled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates whether the edit was canceled.' };
 			comment: 'Event used to gain insights into when edits are being canceled.';
 		};
 
@@ -2524,8 +2524,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				type ChatEditingWorkingSetClassification = {
 					owner: 'joyceerhl';
 					comment: 'Information about the working set size in a chat editing request';
-					originalSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of files that the user tried to attach in their editing request.' };
-					actualSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of files that were actually sent in their editing request.' };
+					originalSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of files that the user tried to attach in their editing request.' };
+					actualSize: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of files that were actually sent in their editing request.' };
 				};
 				type ChatEditingWorkingSetEvent = {
 					originalSize: number;
