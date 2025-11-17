@@ -64,11 +64,6 @@ export class TerminalCommandArtifactCollector {
 	private async _tryGetSerializedCommandOutput(toolSpecificData: IChatTerminalToolInvocationData, instance: ITerminalInstance, commandId: string): Promise<{ text: string; truncated?: boolean; exitCode?: number; timestamp?: number; duration?: number } | undefined> {
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const command = commandDetection?.commands.find(c => c.id === commandId);
-		// Removed redundant setting of terminalCommandState here.
-
-
-
-
 
 		if (!command?.endMarker) {
 			return undefined;
