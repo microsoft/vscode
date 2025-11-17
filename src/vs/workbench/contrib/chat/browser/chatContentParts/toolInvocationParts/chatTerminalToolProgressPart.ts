@@ -76,30 +76,27 @@ interface ITerminalCommandDecorationOptions {
 }
 
 class TerminalCommandDecoration extends Disposable {
-	private _element: HTMLElement | undefined;
+	private readonly _element: HTMLElement;
 	private readonly _hoverListener: MutableDisposable<IDisposable>;
 	private readonly _focusListener: MutableDisposable<IDisposable>;
 	private _interactionElement: HTMLElement | undefined;
 
 	constructor(private readonly _options: ITerminalCommandDecorationOptions) {
 		super();
+		const decorationElements = h('span.chat-terminal-command-decoration@decoration', { role: 'img' });
+		this._element = decorationElements.decoration;
 		this._hoverListener = this._register(new MutableDisposable<IDisposable>());
 		this._focusListener = this._register(new MutableDisposable<IDisposable>());
+		this._attachElementToContainer();
 	}
 
-	public ensureElement(): HTMLElement | undefined {
+	private _attachElementToContainer(): void {
 		const container = this._options.getCommandBlock();
 		if (!container) {
-			return undefined;
+			return;
 		}
 
-		let decoration = this._element;
-		if (!decoration) {
-			const decorationElements = h('span.chat-terminal-command-decoration@decoration', { role: 'img' });
-			decoration = decorationElements.decoration;
-			this._element = decoration;
-		}
-
+		const decoration = this._element;
 		if (!decoration.isConnected || decoration.parentElement !== container) {
 			const icon = this._options.getIconElement();
 			if (icon && icon.parentElement === container) {
@@ -109,18 +106,12 @@ class TerminalCommandDecoration extends Disposable {
 			}
 		}
 
-		if (decoration) {
-			this._attachInteractionHandlers(decoration);
-		}
-
-		return decoration;
+		this._attachInteractionHandlers(decoration);
 	}
 
 	public update(command?: ITerminalCommand): void {
-		const decoration = this.ensureElement();
-		if (!decoration) {
-			return;
-		}
+		this._attachElementToContainer();
+		const decoration = this._element;
 		const resolvedCommand = command ?? this._options.getResolvedCommand();
 		this._apply(decoration, resolvedCommand);
 	}
@@ -282,11 +273,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			undefined,
 		));
 		this._register(titlePart.onDidChangeHeight(() => {
-			this._decoration.ensureElement();
+			this._decoration.update();
 			this._onDidChangeHeight.fire();
 		}));
-
-		this._decoration.ensureElement();
 
 		const actionBarEl = h('.chat-terminal-action-bar@actionBar');
 		elements.title.append(actionBarEl.root);
@@ -349,7 +338,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this.domNode = progressPart.domNode;
-		this._decoration.ensureElement();
 		this._decoration.update();
 
 		if (expandedStateByInvocation.get(toolInvocation)) {
