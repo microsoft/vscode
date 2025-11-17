@@ -79,19 +79,19 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 
 		for (const formatter of documentFormatters) {
 			if (formatter.extensionId) {
-				formatterExtensionIds.add(formatter.extensionId.value.toLowerCase());
+				formatterExtensionIds.add(ExtensionIdentifier.toKey(formatter.extensionId));
 			}
 		}
 		for (const formatter of rangeFormatters) {
 			if (formatter.extensionId) {
-				formatterExtensionIds.add(formatter.extensionId.value.toLowerCase());
+				formatterExtensionIds.add(ExtensionIdentifier.toKey(formatter.extensionId));
 			}
 		}
 
 		extensions = extensions.sort((a, b) => {
 			// Ultimate boost: extensions that actually contribute formatters
-			const contributesFormatterA = formatterExtensionIds.has(a.identifier.value.toLowerCase());
-			const contributesFormatterB = formatterExtensionIds.has(b.identifier.value.toLowerCase());
+			const contributesFormatterA = formatterExtensionIds.has(ExtensionIdentifier.toKey(a.identifier));
+			const contributesFormatterB = formatterExtensionIds.has(ExtensionIdentifier.toKey(b.identifier));
 
 			if (contributesFormatterA && !contributesFormatterB) {
 				return -1;
