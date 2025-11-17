@@ -293,7 +293,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatToolsEligibleForAutoApproval',
 				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.107',
+				minimumVersion: '1.106',
 				localization: {
 					description: {
 						key: 'chat.tools.eligibleForAutoApproval',
