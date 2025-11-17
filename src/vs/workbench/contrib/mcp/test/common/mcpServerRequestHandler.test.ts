@@ -20,6 +20,7 @@ import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { IOutputService } from '../../../../services/output/common/output.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { McpTaskManager } from '../../common/mcpTaskManager.js';
 
 class TestMcpHostDelegate extends Disposable implements IMcpHostDelegate {
 	private readonly _transport: TestMcpMessageTransport;
@@ -84,7 +85,7 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 			.createLogger('mcpServerTest', { hidden: true, name: 'MCP Test' }));
 
 		// Start the handler creation
-		const handlerPromise = McpServerRequestHandler.create(instantiationService, { logger, launch: transport }, cts.token);
+		const handlerPromise = McpServerRequestHandler.create(instantiationService, { logger, launch: transport, taskManager: store.add(new McpTaskManager()) }, cts.token);
 
 		handler = await handlerPromise;
 		store.add(handler);
