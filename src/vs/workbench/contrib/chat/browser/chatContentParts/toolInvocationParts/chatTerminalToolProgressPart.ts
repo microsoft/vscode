@@ -107,11 +107,19 @@ class TerminalCommandDecoration extends Disposable {
 			container = wrapper;
 		}
 		// eslint-disable-next-line no-restricted-syntax
-		let decoration = container.querySelector<HTMLElement>(':scope > .chat-terminal-command-decoration');
+		let decoration = container.querySelector<HTMLElement>('.chat-terminal-command-decoration');
 		if (!decoration) {
 			decoration = document.createElement('span');
 			decoration.classList.add('chat-terminal-command-decoration');
 			decoration.setAttribute('role', 'img');
+			container.insertBefore(decoration, markdown);
+		}
+
+		// eslint-disable-next-line no-restricted-syntax
+		const icon = markdown.querySelector<HTMLElement>('[class~="codicon-terminal"]');
+		if (icon) {
+			icon.insertAdjacentElement('afterend', decoration);
+		} else if (decoration.parentElement !== container) {
 			container.insertBefore(decoration, markdown);
 		}
 
