@@ -3703,6 +3703,10 @@ declare namespace monaco.editor {
 		 */
 		stickyTabStops?: boolean;
 		/**
+		 * Controls whether indent actions keep additional spaces that were used for alignment instead of recomputing the entire indentation when `useTabStops` is enabled.
+		 */
+		preserveAlignedIndentation?: boolean;
+		/**
 		 * Enable format on type.
 		 * Defaults to false.
 		 */

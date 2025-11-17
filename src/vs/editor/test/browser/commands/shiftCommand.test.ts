@@ -53,24 +53,28 @@ class DocBlockCommentMode extends Disposable {
 	}
 }
 
-function testShiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void): void {
+function testShiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void, options?: { preserveAlignedIndentation?: boolean }): void {
+	const preserveAlignedIndentation = options?.preserveAlignedIndentation ?? false;
 	testCommand(lines, languageId, selection, (accessor, sel) => new ShiftCommand(sel, {
 		isUnshift: false,
 		tabSize: 4,
 		indentSize: 4,
 		insertSpaces: false,
 		useTabStops: useTabStops,
+		preserveAlignedIndentation,
 		autoIndent: EditorAutoIndentStrategy.Full,
 	}, accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection, undefined, prepare);
 }
 
-function testUnshiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void): void {
+function testUnshiftCommand(lines: string[], languageId: string | null, useTabStops: boolean, selection: Selection, expectedLines: string[], expectedSelection: Selection, prepare?: (accessor: ServicesAccessor, disposables: DisposableStore) => void, options?: { preserveAlignedIndentation?: boolean }): void {
+	const preserveAlignedIndentation = options?.preserveAlignedIndentation ?? false;
 	testCommand(lines, languageId, selection, (accessor, sel) => new ShiftCommand(sel, {
 		isUnshift: true,
 		tabSize: 4,
 		indentSize: 4,
 		insertSpaces: false,
 		useTabStops: useTabStops,
+		preserveAlignedIndentation,
 		autoIndent: EditorAutoIndentStrategy.Full,
 	}, accessor.get(ILanguageConfigurationService)), expectedLines, expectedSelection, undefined, prepare);
 }
@@ -176,6 +180,38 @@ suite('Editor Commands - ShiftCommand', () => {
 				'123'
 			],
 			new Selection(1, 1, 2, 1)
+		);
+	});
+
+	test('aligned spaces are replaced by default', () => {
+		testShiftCommand(
+			[
+				'\t   aligned'
+			],
+			null,
+			true,
+			new Selection(1, 1, 1, 1),
+			[
+				'\t\taligned'
+			],
+			new Selection(1, 2, 1, 2)
+		);
+	});
+
+	test('aligned spaces are preserved when enabled', () => {
+		testShiftCommand(
+			[
+				'\t   aligned'
+			],
+			null,
+			true,
+			new Selection(1, 1, 1, 1),
+			[
+				'\t\t   aligned'
+			],
+			new Selection(1, 2, 1, 2),
+			undefined,
+			{ preserveAlignedIndentation: true }
 		);
 	});
 
