@@ -392,7 +392,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			}
 			element.classList.add(...ThemeIcon.asClassNameArray(state.icon));
 		}
-
 		element.removeAttribute('title');
 		element.removeAttribute('aria-label');
 	}

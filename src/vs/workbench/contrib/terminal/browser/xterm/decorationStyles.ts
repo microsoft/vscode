@@ -62,7 +62,7 @@ export function getTerminalDecorationHoverContent(command: ITerminalCommand | un
 					hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNow(command.timestamp, true), command.exitCode);
 				}
 			} else {
-				hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0}', fromNow(command.timestamp, true));
+				hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0} now');
 			}
 		}
 	}
@@ -108,7 +108,7 @@ export function getTerminalCommandDecorationTooltip(command?: ITerminalCommand, 
 	const timestamp = storedState.timestamp;
 	const exitCode = storedState.exitCode;
 	const duration = storedState.duration;
-	if (typeof timestamp !== 'number') {
+	if (typeof timestamp !== 'number' || timestamp === undefined) {
 		return '';
 	}
 	let hoverContent = '';
@@ -132,7 +132,7 @@ export function getTerminalCommandDecorationTooltip(command?: ITerminalCommand, 
 				hoverContent += localize('terminalPromptCommandFailedWithExitCode', 'Command executed {0} and failed (Exit Code {1})', fromNowText, exitCode);
 			}
 		} else {
-			hoverContent += localize('terminalPromptCommandSuccess', 'Command executed {0}', fromNowText);
+			hoverContent += localize('terminalPromptCommandSuccess.', 'Command executed {0} ', fromNowText);
 		}
 	}
 	return hoverContent;
