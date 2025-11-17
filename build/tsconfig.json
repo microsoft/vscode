@@ -29,6 +29,7 @@
 	],
 	"exclude": [
 		"node_modules/**",
-		"monaco-editor-playground/**"
+		"monaco-editor-playground/**",
+		"vite-dev-workbench/**"
 	]
 }

@@ -1158,9 +1158,27 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		const devWindowUrl = process.env.DEV_WINDOW_SRC;
-		if (devWindowUrl !== undefined) {
-			this._win.loadURL(devWindowUrl);
+		// DEV_WINDOW_SRC: When set (e.g., to "http://localhost:5199/"), enables hot reload mode
+		// by loading the workbench from a Vite dev server instead of the compiled JavaScript.
+		// This allows for faster development iteration with hot module replacement.
+		// Should be set in development environments only.
+		const devWindowUrl = process.env.DEV_WINDOW_SRC as string | undefined;
+		if (devWindowUrl !== undefined && !this.environmentMainService.isBuilt) {
+			// Validate URL is from localhost for security
+			try {
+				const url = new URL(devWindowUrl);
+				if (
+					(url.protocol !== 'http:' && url.protocol !== 'https:') ||
+					(url.hostname !== 'localhost' && url.hostname !== '127.0.0.1')
+				) {
+					this.logService.warn('DEV_WINDOW_SRC must be http(s)://localhost or http(s)://127.0.0.1');
+					throw new Error('Invalid DEV_WINDOW_SRC hostname');
+				}
+				this._win.loadURL(devWindowUrl);
+			} catch (error) {
+				this.logService.error('Invalid DEV_WINDOW_SRC URL', error);
+				this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
+			}
 		} else {
 			this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
 		}

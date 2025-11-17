@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 /* eslint-disable no-restricted-globals */
 
 (async function () {
@@ -291,16 +290,27 @@
 		// Compute base URL and set as global
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
-		if (!globalThis._VSCODE_DISABLE_CSS_IMPORT_MAP) {
-			// Dev only: CSS import map tricks
+
+		/**
+		 * DEV_WINDOW_SRC: When set (e.g., to "http://localhost:5199/"), enables hot reload mode
+		 * by loading the workbench from a Vite dev server instead of the compiled JavaScript.
+		 * This allows for faster development iteration with hot module replacement.
+		 * Should be set in development environments only.
+		 */
+		const isHotReloadMode = !!process.env.DEV_WINDOW_SRC;
+
+		// Dev only: CSS import map tricks
+		const useCSSImportMap = !isHotReloadMode;
+		if (useCSSImportMap) {
 			setupCSSImportMaps<T>(configuration, baseUrl);
 		}
 
 		// ESM Import
 		try {
 			const result = await import(
-				globalThis._VSCODE_USE_RELATIVE_IMPORTS
-					? new URL(`../../../workbench/workbench.desktop.main.js`, import.meta.url).href
+				isHotReloadMode
+					// Import TypeScript source directly when using Vite dev server for hot reload
+					? new URL(`../../../workbench/workbench.desktop.main.ts`, import.meta.url).href
 					: new URL(`vs/workbench/workbench.desktop.main.js`, baseUrl).href
 			);
 

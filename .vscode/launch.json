@@ -279,7 +279,7 @@
 			},
 		},
 		{
-			// To debug observables you also need the extension "ms-vscode.debug-value-editor"
+			// Hot reload configuration - loads workbench from Vite dev server for faster iteration
 			"type": "chrome",
 			"request": "launch",
 			"name": "Launch VS Code Internal (Hot Reload)",
@@ -298,7 +298,7 @@
 				"VSCODE_EXTHOST_WILL_SEND_SOCKET": null,
 				"VSCODE_SKIP_PRELAUNCH": "1",
 				"VSCODE_DEV_DEBUG": "1",
-				"DEV_WINDOW_SRC": "http://localhost:5199/build/monaco-editor-playground/workbench-vite-electron.html",
+				"DEV_WINDOW_SRC": "http://localhost:5199/build/vite-dev-workbench/workbench-vite-electron.html",
 				"VSCODE_DEV_DEBUG_OBSERVABLES": "1",
 			},
 			"cleanUp": "wholeBrowser",
