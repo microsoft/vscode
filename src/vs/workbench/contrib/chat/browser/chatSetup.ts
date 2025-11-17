@@ -1180,7 +1180,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; retryCount?: number }): Promise<boolean> {
+				const MAX_RETRIES = 3;
+				const retryCount = options?.retryCount ?? 0;
 				const viewsService = accessor.get(IViewsService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const instantiationService = accessor.get(IInstantiationService);
@@ -1199,7 +1201,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				const setup = ChatSetup.getInstance(instantiationService, context, controller);
 				const { success } = await setup.run(options);
-				if (success === false && !lifecycleService.willShutdown) {
+				if (success === false && !lifecycleService.willShutdown && retryCount < MAX_RETRIES) {
 					const { confirmed } = await dialogService.confirm({
 						type: Severity.Error,
 						message: localize('setupErrorDialog', "Chat setup failed. Would you like to try again?"),
@@ -1207,7 +1209,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					});
 
 					if (confirmed) {
-						return Boolean(await commandService.executeCommand(CHAT_SETUP_ACTION_ID, mode, options));
+						return Boolean(await commandService.executeCommand(CHAT_SETUP_ACTION_ID, mode, { ...options, retryCount: retryCount + 1 }));
 					}
 				}
 
@@ -1864,7 +1866,8 @@ class ChatSetupController extends Disposable {
 		return success;
 	}
 
-	private async signIn(options: IChatSetupControllerOptions): Promise<{ session: AuthenticationSession | undefined; entitlement: ChatEntitlement | undefined }> {
+	private async signIn(options: IChatSetupControllerOptions, retryCount: number = 0): Promise<{ session: AuthenticationSession | undefined; entitlement: ChatEntitlement | undefined }> {
+		const MAX_RETRIES = 3;
 		let session: AuthenticationSession | undefined;
 		let entitlements;
 		try {
@@ -1873,7 +1876,7 @@ class ChatSetupController extends Disposable {
 			this.logService.error(`[chat setup] signIn: error ${e}`);
 		}
 
-		if (!session && !this.lifecycleService.willShutdown) {
+		if (!session && !this.lifecycleService.willShutdown && retryCount < MAX_RETRIES) {
 			const { confirmed } = await this.dialogService.confirm({
 				type: Severity.Error,
 				message: localize('unknownSignInError', "Failed to sign in to {0}. Would you like to try again?", ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id ? defaultChat.provider.enterprise.name : defaultChat.provider.default.name),
@@ -1882,7 +1885,7 @@ class ChatSetupController extends Disposable {
 			});
 
 			if (confirmed) {
-				return this.signIn(options);
+				return this.signIn(options, retryCount + 1);
 			}
 		}
 
@@ -1952,17 +1955,18 @@ class ChatSetupController extends Disposable {
 		return true;
 	}
 
-	private async doInstallWithRetry(): Promise<void> {
+	private async doInstallWithRetry(retryCount: number = 0): Promise<void> {
+		const MAX_RETRIES = 3;
 		let error: Error | undefined;
 		try {
 			await this.doInstall();
 		} catch (e) {
-			this.logService.error(`[chat setup] install: error ${error}`);
+			this.logService.error(`[chat setup] install: error ${e}`);
 			error = e;
 		}
 
 		if (error) {
-			if (!this.lifecycleService.willShutdown) {
+			if (!this.lifecycleService.willShutdown && retryCount < MAX_RETRIES) {
 				const { confirmed } = await this.dialogService.confirm({
 					type: Severity.Error,
 					message: localize('unknownSetupError', "An error occurred while setting up chat. Would you like to try again?"),
@@ -1971,7 +1975,7 @@ class ChatSetupController extends Disposable {
 				});
 
 				if (confirmed) {
-					return this.doInstallWithRetry();
+					return this.doInstallWithRetry(retryCount + 1);
 				}
 			}
 
