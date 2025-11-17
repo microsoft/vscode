@@ -322,7 +322,7 @@ function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], pat
 }
 
 function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, wordStart: number): FuzzyScore2 {
-	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
+	const score = fuzzyScore(query.normalized, query.normalizedLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
 	if (!score) {
 		return NO_SCORE2;
 	}
@@ -905,7 +905,8 @@ function normalizeQuery(original: string): { pathNormalized: string; normalized:
 	// - wildcards: are used for fuzzy matching
 	// - whitespace: are used to separate queries
 	// - ellipsis: sometimes used to indicate any path segments
-	const normalized = pathNormalized.replace(/[\*\u2026\s"]/g, '');
+	// - hash: used by some language servers (e.g. rust-analyzer) as query modifiers
+	const normalized = pathNormalized.replace(/[\*\u2026\s"#]/g, '');
 
 	return {
 		pathNormalized,
