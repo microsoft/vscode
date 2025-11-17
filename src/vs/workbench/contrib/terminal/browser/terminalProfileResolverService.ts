@@ -200,12 +200,18 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 			}
 		}
 
+		// When creating a local terminal in a remote window, skip looking up profiles from
+		// terminalProfileService as it contains remote profiles, not local ones
+		const isLocalTerminalInRemoteWindow = options.remoteAuthority === undefined && this._remoteAgentService.getConnection()?.remoteAuthority !== undefined;
+
 		// Return the real default profile if it exists and is valid, wait for profiles to be ready
 		// if the window just opened
-		await this._terminalProfileService.profilesReady;
-		const defaultProfile = this._getUnresolvedRealDefaultProfile(options.os);
-		if (defaultProfile) {
-			return this._setIconForAutomation(options, defaultProfile);
+		if (!isLocalTerminalInRemoteWindow) {
+			await this._terminalProfileService.profilesReady;
+			const defaultProfile = this._getUnresolvedRealDefaultProfile(options.os);
+			if (defaultProfile) {
+				return this._setIconForAutomation(options, defaultProfile);
+			}
 		}
 
 		// If there is no real default profile, create a fallback default profile based on the shell
