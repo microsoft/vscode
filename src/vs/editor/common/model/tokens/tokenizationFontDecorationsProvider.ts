@@ -13,8 +13,9 @@ import { Emitter } from '../../../../base/common/event.js';
 import { IModelContentChangedEvent, IModelOptionsChangedEvent } from '../../textModelEvents.js';
 import { classNameForFont } from '../../languages/supports/tokenization.js';
 import { Position } from '../../core/position.js';
-import { IModelContentChange } from '../mirrorTextModel.js';
-import { binarySearch2 } from '../../../../base/common/arrays.js';
+import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotation } from './annotations.js';
+import { OffsetRange } from '../../core/ranges/offsetRange.js';
+import { StringEdit } from '../../core/edits/stringEdit.js';
 
 export class LineHeightChangingDecoration {
 
@@ -43,15 +44,13 @@ export class LineFontChangingDecoration {
 	) { }
 }
 
-interface IFontSegment {
-	startIndex: number;
-	endIndex: number;
-	offset: number;
-	delete?: boolean;
+export interface IFontInfo {
 	fontFamily?: string;
 	fontSize?: string;
 	lineHeight?: number;
 }
+
+export type IFontAnnotation = IAnnotation<IFontInfo>;
 
 export class TokenizationFontDecorationProvider extends Disposable implements DecorationProvider {
 
@@ -61,8 +60,8 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	private readonly _onDidChangeFont = new Emitter<Set<LineFontChangingDecoration>>();
 	public readonly onDidChangeFont = this._onDidChangeFont.event;
 
-	private _fontSegments: IFontSegment[] = [];
-	private _queuedContentChangeEvents: IModelContentChange[] = [];
+	private _fontAnnotations: IAnnotatedString<IFontInfo> = new AnnotatedString<IFontInfo>();
+	private _queuedEdits: StringEdit = StringEdit.empty;
 
 	constructor(
 		private readonly textModel: TextModel,
@@ -84,21 +83,19 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 				const beginningLineOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
 				const endLineOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
 
-				const fontSegments: IFontSegment[] = [];
+				const fontAnnotations: IFontAnnotation[] = [];
 
 				for (const option of fontChange.options) {
 					const startOffset = beginningLineOffset + option.startIndex;
 					const endOffset = beginningLineOffset + option.endIndex;
-					fontSegments.push({
-						startIndex: startOffset,
-						endIndex: endOffset,
-						offset: 0,
-						delete: false,
-						fontFamily: option.fontFamily ?? undefined,
-						fontSize: option.fontSize ?? undefined,
-						lineHeight: option.lineHeight ?? undefined
+					fontAnnotations.push({
+						range: new OffsetRange(startOffset, endOffset),
+						annotation: {
+							fontFamily: option.fontFamily ?? undefined,
+							fontSize: option.fontSize ?? undefined,
+							lineHeight: option.lineHeight ?? undefined
+						}
 					});
-
 					if (changedLineNumberHeights.has(lineNumber)) {
 						const currentLineHeight = changedLineNumberHeights.get(lineNumber);
 						if (!currentLineHeight || (option.lineHeight && option.lineHeight > currentLineHeight)) {
@@ -109,16 +106,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 					}
 					changedLineNumberFonts.add(lineNumber);
 				}
-
-				const startIndexWhereToReplace = binarySearch2(this._fontSegments.length, (index) => {
-					return this._fontSegments[index].startIndex - beginningLineOffset;
-				});
-				const endIndexWhereToReplace = binarySearch2(this._fontSegments.length, (index) => {
-					return this._fontSegments[index].endIndex - endLineOffset;
-				});
-				const startIndex = (startIndexWhereToReplace > 0 ? startIndexWhereToReplace : - (startIndexWhereToReplace + 1));
-				const endIndex = (endIndexWhereToReplace > 0 ? endIndexWhereToReplace : - (endIndexWhereToReplace + 1));
-				this._fontSegments.splice(startIndex, endIndex - startIndex, ...fontSegments);
+				this._fontAnnotations.setAnnotations(new OffsetRange(beginningLineOffset, endLineOffset), AnnotationsUpdate.create(fontAnnotations));
 			}
 			const affectedLineHeights = new Set<LineHeightChangingDecoration>();
 			for (const [lineNumber, lineHeight] of changedLineNumberHeights) {
@@ -134,39 +122,31 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	}
 
 	public handleDidChangeContent(change: IModelContentChangedEvent) {
-		this._queuedContentChangeEvents.push(...change.changes);
+		this._queuedEdits = StringEdit.compose(change.changes.map((c) => {
+			const startOffset = this.textModel.getOffsetAt(new Position(c.range.startLineNumber, c.range.startColumn));
+			const endOffset = this.textModel.getOffsetAt(new Position(c.range.endLineNumber, c.range.endColumn));
+			const offsetRange = new OffsetRange(startOffset, endOffset);
+			return StringEdit.replace(offsetRange, c.text);
+		}));
 	}
 
 	public handleDidChangeOptions(e: IModelOptionsChangedEvent): void { }
 
 	public getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
+		console.log('getDecorationsInRange : ', range);
+
 		this._resolveDecorations();
-		console.log('getDecorationsInRange - range : ', range);
-		console.log('this._fontSegments : ', this._fontSegments);
-
-		const decorations: IModelDecoration[] = [];
-
 		const startOffsetOfRange = this.textModel.getOffsetAt(range.getStartPosition());
 		const endOffsetOfRange = this.textModel.getOffsetAt(range.getEndPosition());
-		const _startIndex = binarySearch2(this._fontSegments.length, (index) => {
-			return this._fontSegments[index].startIndex - startOffsetOfRange;
-		});
-		const _endIndex = binarySearch2(this._fontSegments.length, (index) => {
-			return this._fontSegments[index].endIndex - endOffsetOfRange;
-		});
+		const annotations = this._fontAnnotations.getAnnotationsIntersecting(new OffsetRange(startOffsetOfRange, endOffsetOfRange));
 
-		const startIndex = (_startIndex > 0 ? _startIndex : - (_startIndex + 1));
-		const endIndex = (_endIndex > 0 ? _endIndex : - (_endIndex + 1));
-
-		for (let i = startIndex; i <= endIndex; i++) {
-			const fontOption = this._fontSegments[i];
-			if (!fontOption) {
-				continue;
-			}
-			const startPosition = this.textModel.getPositionAt(fontOption.startIndex);
-			const endPosition = this.textModel.getPositionAt(fontOption.endIndex);
-			const className = classNameForFont(fontOption.fontFamily ?? '', fontOption.fontSize ?? '');
-			const id = `font-decoration-${i}-${fontOption.startIndex}-${fontOption.endIndex}`;
+		const decorations: IModelDecoration[] = [];
+		for (const annotation of annotations) {
+			const annotationStartPosition = this.textModel.getPositionAt(annotation.range.start);
+			const annotationEndPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
+			const range = Range.fromPositions(annotationStartPosition, annotationEndPosition);
+			const className = classNameForFont(annotation.annotation.fontFamily ?? '', annotation.annotation.fontSize ?? '');
+			const id = `font-decoration-${annotation.range.start}-${annotation.range.endExclusive}`;
 			decorations.push({
 				id: id,
 				options: {
@@ -175,11 +155,9 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 					affectsFont: true
 				},
 				ownerId: 0,
-				range: Range.fromPositions(startPosition, endPosition)
+				range
 			});
 		}
-
-		console.log('decorations : ', JSON.stringify(decorations));
 		return decorations;
 	}
 
@@ -192,76 +170,8 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	}
 
 	private _resolveDecorations(): void {
-		// Take the queued edits and apply them to the font infos
-		console.log('queuedTextEdits : ', this._queuedContentChangeEvents);
-		console.log('queuedTextEdits.length > 0 : ', this._queuedContentChangeEvents.length > 0);
-
-		for (const changeEvent of this._queuedContentChangeEvents) {
-			const changeEventRange = Range.lift(changeEvent.range);
-			const changeEventStartIndex = this.textModel.getOffsetAt(changeEventRange.getStartPosition());
-			const changeEventEndIndex = this.textModel.getOffsetAt(changeEventRange.getEndPosition());
-			const newLength = changeEvent.text.length;
-
-			console.log('changeEvent : ', changeEvent);
-			console.log('changeEventRange : ', changeEventRange);
-			console.log('changeEventStartIndex : ', changeEventStartIndex);
-			console.log('changeEventEndIndex : ', changeEventEndIndex);
-			console.log('newLength : ', newLength);
-
-			const _firstIndexEditAppliedTo = binarySearch2(this._fontSegments.length, (index) => {
-				return this._fontSegments[index].startIndex - changeEventStartIndex;
-			});
-			const _endIndexEditAppliedTo = binarySearch2(this._fontSegments.length, (index) => {
-				return this._fontSegments[index].startIndex - changeEventEndIndex;
-			});
-
-			const firstIndexEditAppliedTo = (_firstIndexEditAppliedTo > 0 ? _firstIndexEditAppliedTo : - (_firstIndexEditAppliedTo + 1));
-			const endIndexEditAppliedTo = (_endIndexEditAppliedTo > 0 ? _endIndexEditAppliedTo : - (_endIndexEditAppliedTo + 1));
-
-			console.log('firstIndexEditAppliedTo : ', firstIndexEditAppliedTo);
-			console.log('endIndexEditAppliedTo : ', endIndexEditAppliedTo);
-
-			const firstDecoration = this._fontSegments[firstIndexEditAppliedTo];
-			const lastDecoration = this._fontSegments[endIndexEditAppliedTo];
-			if (changeEventStartIndex > firstDecoration.endIndex && changeEventEndIndex > lastDecoration.endIndex) {
-				// The edit start and end borders are not enclosed within a decoration
-			} else if (changeEventStartIndex <= firstDecoration.endIndex && changeEventEndIndex > lastDecoration.endIndex) {
-				// The edit start border is enclosed within a decoration, but not the end
-				this._fontSegments[firstIndexEditAppliedTo].endIndex = changeEventStartIndex;
-
-			} else if (changeEventStartIndex > firstDecoration.endIndex && changeEventEndIndex <= lastDecoration.endIndex) {
-				// The edit end border is enclosed within a decoration, but not the start
-				this._fontSegments[endIndexEditAppliedTo].startIndex = changeEventStartIndex + newLength;
-				this._fontSegments[endIndexEditAppliedTo].endIndex = this._fontSegments[endIndexEditAppliedTo].startIndex + this._fontSegments[endIndexEditAppliedTo].endIndex - changeEventEndIndex;
-			} else {
-				// The edits start and end borders are enclosing within a decoration
-				this._fontSegments[firstIndexEditAppliedTo].endIndex = changeEventStartIndex;
-				this._fontSegments[endIndexEditAppliedTo].startIndex = changeEventStartIndex + newLength;
-				this._fontSegments[endIndexEditAppliedTo].endIndex = this._fontSegments[endIndexEditAppliedTo].startIndex + this._fontSegments[endIndexEditAppliedTo].endIndex - changeEventEndIndex;
-			}
-			if (firstIndexEditAppliedTo < endIndexEditAppliedTo) {
-				this._fontSegments[firstIndexEditAppliedTo + 1].delete = true;
-				this._fontSegments[endIndexEditAppliedTo + 1].delete = false;
-				this._fontSegments[endIndexEditAppliedTo + 1].offset -= (changeEventEndIndex - changeEventStartIndex + newLength);
-			}
-		}
-
-		console.log('this._fontSegments before cleanup : ', JSON.stringify(this._fontSegments));
-
-		const newFontSegments: IFontSegment[] = [];
-		let offset = 0;
-		for (const fontSegment of this._fontSegments) {
-			if (fontSegment.delete) {
-				continue;
-			}
-			offset += fontSegment.offset;
-			fontSegment.startIndex += offset;
-			fontSegment.endIndex += offset;
-			newFontSegments.push(fontSegment);
-		}
-		this._fontSegments = newFontSegments;
-
-		console.log('this._fontSegments after cleanup : ', JSON.stringify(this._fontSegments));
-		this._queuedContentChangeEvents = [];
+		console.log('this._queuedEdits.replacements : ', this._queuedEdits.replacements);
+		console.log('this._queuedEdits.length > 0 : ', this._queuedEdits.replacements.length > 0);
+		this._fontAnnotations.applyEdit(this._queuedEdits);
 	}
 }

@@ -194,8 +194,8 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 			for (const c of e.changes) {
 				const [eolCount, firstLineLength] = countEOL(c.text);
 
-				this._tokens.acceptEdit(c.range, eolCount, firstLineLength);
-				this._debugBackgroundTokens?.acceptEdit(c.range, eolCount, firstLineLength);
+				this._tokens.accetEdit(c.range, eolCount, firstLineLength);
+				this._debugBackgroundTokens?.accetEdit(c.range, eolCount, firstLineLength);
 			}
 			this._debugBackgroundStates?.acceptChanges(e.changes);
 

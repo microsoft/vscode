@@ -147,7 +147,7 @@ export class ContiguousTokensStore {
 
 	//#region Editing
 
-	public acceptEdit(range: IRange, eolCount: number, firstLineLength: number): void {
+	public accetEdit(range: IRange, eolCount: number, firstLineLength: number): void {
 		this._acceptDeleteRange(range);
 		this._acceptInsertText(new Position(range.startLineNumber, range.startColumn), eolCount, firstLineLength);
 	}
