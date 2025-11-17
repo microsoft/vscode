@@ -311,7 +311,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _ensureShowOutputAction(): void {
-		if (this._store.isDisposed) {
+		if (this._store.isDisposed || !this._outputView) {
 			return;
 		}
 		const command = this._getResolvedCommand();
