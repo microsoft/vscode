@@ -257,14 +257,14 @@ export class InlineChatController1 implements IEditorContribution {
 				location.location = ChatAgentLocation.Notebook;
 			}
 
-			const zone = _instaService.createInstance(InlineChatZoneWidget, location, undefined, { editor: this._editor, notebookEditor });
-			this._store.add(zone);
-			this._store.add(zone.widget.chatWidget.onDidClear(async () => {
+			const clear = async () => {
 				const r = this.joinCurrentRun();
 				this.cancelSession();
 				await r;
 				this.run();
-			}));
+			};
+			const zone = _instaService.createInstance(InlineChatZoneWidget, location, undefined, { editor: this._editor, notebookEditor }, clear);
+			this._store.add(zone);
 
 			return zone;
 		});
@@ -1332,6 +1332,7 @@ export class InlineChatController2 implements IEditorContribution {
 					defaultMode: ChatMode.Ask
 				},
 				{ editor: this._editor, notebookEditor },
+				() => Promise.resolve(),
 			);
 
 			result.domNode.classList.add('inline-chat-2');

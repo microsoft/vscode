@@ -70,7 +70,6 @@ class ChatCommandLineHandler extends Disposable {
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IViewsService private readonly viewsService: IViewsService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
@@ -108,8 +107,6 @@ class ChatCommandLineHandler extends Disposable {
 			attachFiles: args['add-file']?.map(file => URI.file(resolve(file))), // use `resolve` to deal with relative paths properly
 		};
 
-		const chatWidget = await showChatView(this.viewsService, this.layoutService);
-
 		if (args.maximize) {
 			const location = this.contextKeyService.getContextKeyValue<ViewContainerLocation>(ChatContextKeys.panelLocation.key);
 			if (location === ViewContainerLocation.AuxiliaryBar) {
@@ -119,7 +116,6 @@ class ChatCommandLineHandler extends Disposable {
 			}
 		}
 
-		await chatWidget?.waitForReady();
 		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
 	}

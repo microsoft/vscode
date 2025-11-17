@@ -37,7 +37,7 @@ import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEdito
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { chatEditingSessionIsReady, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatProgress, IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -476,6 +476,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._baselineCreationLocks.queue(resource.path, () => startPromise.p);
 
 		this._streamingEditLocks.queue(resource.toString(), async () => {
+			await chatEditingSessionIsReady(this);
+
 			if (!this.isDisposed) {
 				await this._acceptStreamingEditsStart(responseModel, inUndoStop, resource);
 			}
@@ -536,6 +538,8 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			id: undoStopId,
 		}];
 		const telemetryInfo = this._getTelemetryInfoForModel(responseModel);
+
+		await chatEditingSessionIsReady(this);
 
 		// Acquire locks for each resource and take snapshots
 		for (const resource of resources) {
