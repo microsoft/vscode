@@ -13,3 +13,4 @@ trim_trailing_whitespace = true
 [{*.yml,*.yaml,package.json}]
 indent_style = space
 indent_size = 2
+.editorconfig
