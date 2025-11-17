@@ -25,40 +25,49 @@ export async function getSystemShell(os: platform.OperatingSystem, env: platform
 	return getSystemShellUnixLike(os, env);
 }
 
-let _TERMINAL_DEFAULT_SHELL_UNIX_LIKE: string | null = null;
+const _TERMINAL_DEFAULT_SHELL_UNIX_LIKE_CACHE = new Map<string, string>();
 function getSystemShellUnixLike(os: platform.OperatingSystem, env: platform.IProcessEnvironment): string {
 	// Only use $SHELL for the current OS
 	if (platform.isLinux && os === platform.OperatingSystem.Macintosh || platform.isMacintosh && os === platform.OperatingSystem.Linux) {
 		return '/bin/bash';
 	}
 
-	if (!_TERMINAL_DEFAULT_SHELL_UNIX_LIKE) {
-		let unixLikeTerminal: string | undefined | null;
-		if (platform.isWindows) {
-			unixLikeTerminal = '/bin/bash'; // for WSL
-		} else {
-			unixLikeTerminal = env['SHELL'];
+	// Create a cache key based on the OS and the SHELL environment variable to handle
+	// cases where different environments (local vs remote) have different shells
+	const shellEnv = env['SHELL'] || '';
+	const cacheKey = `${os}-${shellEnv}`;
 
-			if (!unixLikeTerminal) {
-				try {
-					// It's possible for $SHELL to be unset, this API reads /etc/passwd. See https://github.com/github/codespaces/issues/1639
-					// Node docs: "Throws a SystemError if a user has no username or homedir."
-					unixLikeTerminal = userInfo().shell;
-				} catch (err) { }
-			}
-
-			if (!unixLikeTerminal) {
-				unixLikeTerminal = 'sh';
-			}
-
-			// Some systems have $SHELL set to /bin/false which breaks the terminal
-			if (unixLikeTerminal === '/bin/false') {
-				unixLikeTerminal = '/bin/bash';
-			}
-		}
-		_TERMINAL_DEFAULT_SHELL_UNIX_LIKE = unixLikeTerminal;
+	const cached = _TERMINAL_DEFAULT_SHELL_UNIX_LIKE_CACHE.get(cacheKey);
+	if (cached) {
+		return cached;
 	}
-	return _TERMINAL_DEFAULT_SHELL_UNIX_LIKE;
+
+	let unixLikeTerminal: string | undefined | null;
+	if (platform.isWindows) {
+		unixLikeTerminal = '/bin/bash'; // for WSL
+	} else {
+		unixLikeTerminal = env['SHELL'];
+
+		if (!unixLikeTerminal) {
+			try {
+				// It's possible for $SHELL to be unset, this API reads /etc/passwd. See https://github.com/github/codespaces/issues/1639
+				// Node docs: "Throws a SystemError if a user has no username or homedir."
+				unixLikeTerminal = userInfo().shell;
+			} catch (err) { }
+		}
+
+		if (!unixLikeTerminal) {
+			unixLikeTerminal = 'sh';
+		}
+
+		// Some systems have $SHELL set to /bin/false which breaks the terminal
+		if (unixLikeTerminal === '/bin/false') {
+			unixLikeTerminal = '/bin/bash';
+		}
+	}
+
+	_TERMINAL_DEFAULT_SHELL_UNIX_LIKE_CACHE.set(cacheKey, unixLikeTerminal);
+	return unixLikeTerminal;
 }
 
 let _TERMINAL_DEFAULT_SHELL_WINDOWS: string | null = null;
