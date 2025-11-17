@@ -6,7 +6,7 @@
 import { AST_NODE_TYPES, TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
 
-export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
+export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -21,7 +21,7 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 			['TSInterfaceDeclaration[id.name=/.+Provider/] TSMethodSignature[key.name=/^(provide|resolve).+/]']: (node: TSESTree.Node) => {
 
 				let found = false;
-				for (const param of (<TSESTree.TSMethodSignature>node).params) {
+				for (const param of (node as TSESTree.TSMethodSignature).params) {
 					if (param.type === AST_NODE_TYPES.Identifier) {
 						found = found || param.name === 'token';
 					}

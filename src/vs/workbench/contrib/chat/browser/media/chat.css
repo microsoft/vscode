@@ -78,6 +78,7 @@
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
+	margin-left: 4px;
 }
 
 .interactive-item-container .detail-container .detail .agentOrSlashCommandDetected A {
@@ -2485,6 +2486,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.checkpoint-container.hidden,
 	.checkpoint-restore-container.hidden {
 		display: none;
+	}
+
+	.interactive-request .header.partially-disabled .avatar-container,
+	.interactive-request .header.partially-disabled .username {
+		display: none;
+	}
+
+	.interactive-item-container .header .detail .codicon-check {
+		margin-right: 7px;
+		vertical-align: middle;
+		font-size: 11px;
 	}
 
 	.request-hover {

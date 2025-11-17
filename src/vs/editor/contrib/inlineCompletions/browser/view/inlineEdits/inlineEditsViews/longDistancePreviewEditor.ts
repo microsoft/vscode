@@ -5,7 +5,7 @@
 
 import { n } from '../../../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { IObservable, derived, constObservable, observableValue, IReader, autorun } from '../../../../../../../base/common/observable.js';
+import { IObservable, derived, constObservable, IReader, autorun, observableValue } from '../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
@@ -18,12 +18,14 @@ import { DetailedLineRangeMapping } from '../../../../../../common/diff/rangeMap
 import { IModelDeltaDecoration, ITextModel } from '../../../../../../common/model.js';
 import { ModelDecorationOptions } from '../../../../../../common/model/textModel.js';
 import { InlineCompletionContextKeys } from '../../../controller/inlineCompletionContextKeys.js';
-import { InlineEditsGutterIndicator } from '../components/gutterIndicatorView.js';
-import { ModelPerInlineEdit } from '../inlineEditsModel.js';
+import { InlineEditsGutterIndicator, InlineEditsGutterIndicatorData, InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../components/gutterIndicatorView.js';
+import { InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { classNames, maxContentWidthInRange } from '../utils/utils.js';
 
 export interface ILongDistancePreviewProps {
 	diff: DetailedLineRangeMapping[];
+	model: SimpleInlineSuggestModel;
+	suggestInfo: InlineSuggestionGutterMenuData;
 }
 
 export class LongDistancePreviewEditor extends Disposable {
@@ -37,9 +39,9 @@ export class LongDistancePreviewEditor extends Disposable {
 
 	constructor(
 		private readonly _previewTextModel: ITextModel,
-		private readonly _model: IObservable<ModelPerInlineEdit | undefined>,
 		private readonly _properties: IObservable<ILongDistancePreviewProps | undefined>,
 		private readonly _parentEditor: ICodeEditor,
+		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -64,10 +66,14 @@ export class LongDistancePreviewEditor extends Disposable {
 			derived(reader => {
 				const state = this._properties.read(reader);
 				if (!state) { return undefined; }
-				return LineRange.ofLength(state.diff[0].modified.startLineNumber, 1);
+				return new InlineEditsGutterIndicatorData(
+					state.suggestInfo,
+					LineRange.ofLength(state.diff[0].original.startLineNumber, 1),
+					state.model,
+				);
 			}),
+			this._tabAction,
 			constObservable(0),
-			this._model,
 			constObservable(false),
 			observableValue(this, false),
 		));

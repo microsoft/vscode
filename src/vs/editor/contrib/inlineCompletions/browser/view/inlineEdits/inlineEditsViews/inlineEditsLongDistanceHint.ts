@@ -19,7 +19,6 @@ import { getContentRenderWidth, getContentSizeOfLines, maxContentWidthInRange, r
 import { DetailedLineRangeMapping } from '../../../../../../common/diff/rangeMapping.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
-import { ModelPerInlineEdit } from '../inlineEditsModel.js';
 import { HideUnchangedRegionsFeature } from '../../../../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
@@ -32,7 +31,8 @@ import { getMaxTowerHeightInAvailableArea } from './layout.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../theme.js';
 import { asCssVariable, editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
-import { LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
+import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
+import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../components/gutterIndicatorView.js';
 
 
 const BORDER_WIDTH = 1;
@@ -70,7 +70,6 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		private readonly _viewState: IObservable<ILongDistanceViewState | undefined>,
 		private readonly _previewTextModel: ITextModel,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
-		private readonly _model: IObservable<ModelPerInlineEdit | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
@@ -95,9 +94,19 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			this._instantiationService.createInstance(
 				LongDistancePreviewEditor,
 				this._previewTextModel,
-				this._model,
-				this._viewState.map((m) => (m ? { diff: m.diff } : undefined)),
-				this._editor
+				derived(reader => {
+					const viewState = this._viewState.read(reader);
+					if (!viewState) {
+						return undefined;
+					}
+					return {
+						diff: viewState.diff,
+						model: viewState.model,
+						suggestInfo: viewState.suggestInfo,
+					} satisfies ILongDistancePreviewProps;
+				}),
+				this._editor,
+				this._tabAction,
 			)
 		);
 
@@ -428,6 +437,9 @@ export interface ILongDistanceViewState {
 	newTextLineCount: number;
 	edit: InlineEditWithChanges;
 	diff: DetailedLineRangeMapping[];
+
+	model: SimpleInlineSuggestModel;
+	suggestInfo: InlineSuggestionGutterMenuData;
 }
 
 function lengthsToOffsetRanges(lengths: number[], initialOffset = 0): OffsetRange[] {

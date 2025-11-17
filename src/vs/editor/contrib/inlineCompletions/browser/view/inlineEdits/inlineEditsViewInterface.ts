@@ -19,11 +19,6 @@ export interface IInlineEditsView {
 	readonly onDidClick: Event<IMouseEvent>;
 }
 
-export interface IInlineEditHost {
-	readonly onDidAccept: Event<void>;
-	inAcceptFlow: IObservable<boolean>;
-}
-
 // TODO: Move this out of here as it is also includes ghosttext
 export enum InlineCompletionViewKind {
 	GhostText = 'ghostText',

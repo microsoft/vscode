@@ -531,6 +531,9 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					getWidgetAriaLabel() {
 						return localize('scm', "Source Control Repositories");
 					}
+				},
+				twistieAdditionalCssClass: (e: unknown) => {
+					return isSCMRepository(e) ? 'force-twistie' : undefined;
 				}
 			}
 		) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement>;
