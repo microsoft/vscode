@@ -25,7 +25,7 @@ export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
 	displayName: 'Fetch Web Page',
 	canBeReferencedInPrompt: false,
-	modelDescription: localize('fetchWebPage.modelDescription', 'Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.'),
+	modelDescription: 'Fetches the main content from a web page. This tool is useful for summarizing or analyzing the content of a webpage.',
 	source: ToolDataSource.Internal,
 	canRequestPostApproval: true,
 	canRequestPreApproval: true,

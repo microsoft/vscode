@@ -178,7 +178,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				source: ToolDataSource.Internal,
 				icon: Codicon.newFolder,
 				displayName: localize('setupToolDisplayName', "New Workspace"),
-				modelDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
+				modelDescription: 'Scaffold a new workspace in VS Code',
 				userDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
 				canBeReferencedInPrompt: true,
 				toolReferenceName: 'new',

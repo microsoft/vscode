@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
+import { readFileSync } from 'fs';
 import { join } from 'path';
 
 
-export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
+export default new class ApiProviderNaming implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -22,7 +23,8 @@ export = new class ApiProviderNaming implements eslint.Rule.RuleModule {
 		const modules = new Set<string>();
 
 		try {
-			const { dependencies, optionalDependencies } = require(join(__dirname, '../package.json'));
+			const packageJson = JSON.parse(readFileSync(join(import.meta.dirname, '../package.json'), 'utf-8'));
+			const { dependencies, optionalDependencies } = packageJson;
 			const all = Object.keys(dependencies).concat(Object.keys(optionalDependencies));
 			for (const key of all) {
 				modules.add(key);
