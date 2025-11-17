@@ -1198,80 +1198,80 @@ suite('Glob', () => {
 	});
 
 	test('toGlobIgnoreCase works as expected', () => {
-		assert.strictEqual(glob.toGlobIgnoreCase(GlobCaseSensitivity.caseInsensitive), true);
-		assert.strictEqual(glob.toGlobIgnoreCase(GlobCaseSensitivity.caseSensitive), false);
-		assert.strictEqual(glob.toGlobIgnoreCase(GlobCaseSensitivity.auto), !isLinux);
+		assert.strictEqual(glob.toGlobIgnoreCase(GlobCaseSensitivity.CaseInsensitive), true);
+		assert.strictEqual(glob.toGlobIgnoreCase(GlobCaseSensitivity.CaseSensitive), false);
+		assert.strictEqual(glob.toGlobIgnoreCase(GlobCaseSensitivity.Auto), !isLinux);
 	});
 
 	test('toGlobCaseSensitivity works as expected', () => {
-		assert.strictEqual(glob.toGlobCaseSensitivity(undefined), GlobCaseSensitivity.auto);
+		assert.strictEqual(glob.toGlobCaseSensitivity(undefined), GlobCaseSensitivity.Auto);
 
-		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.caseSensitive), GlobCaseSensitivity.caseSensitive);
-		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.caseInsensitive), GlobCaseSensitivity.caseInsensitive);
-		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.auto), GlobCaseSensitivity.auto);
+		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.CaseSensitive), GlobCaseSensitivity.CaseSensitive);
+		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.CaseInsensitive), GlobCaseSensitivity.CaseInsensitive);
+		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.Auto), GlobCaseSensitivity.Auto);
 
-		assert.strictEqual(glob.toGlobCaseSensitivity('caseSensitive'), GlobCaseSensitivity.caseSensitive);
-		assert.strictEqual(glob.toGlobCaseSensitivity('caseInsensitive'), GlobCaseSensitivity.caseInsensitive);
-		assert.strictEqual(glob.toGlobCaseSensitivity('auto'), GlobCaseSensitivity.auto);
-
-		assert.strictEqual(glob.toGlobCaseSensitivity({
-			globCaseSensitivity: GlobCaseSensitivity.caseSensitive
-		}), GlobCaseSensitivity.caseSensitive);
+		assert.strictEqual(glob.toGlobCaseSensitivity('caseSensitive'), GlobCaseSensitivity.CaseSensitive);
+		assert.strictEqual(glob.toGlobCaseSensitivity('caseInsensitive'), GlobCaseSensitivity.CaseInsensitive);
+		assert.strictEqual(glob.toGlobCaseSensitivity('auto'), GlobCaseSensitivity.Auto);
 
 		assert.strictEqual(glob.toGlobCaseSensitivity({
-			globCaseSensitivity: GlobCaseSensitivity.caseInsensitive
-		}), GlobCaseSensitivity.caseInsensitive);
+			globCaseSensitivity: GlobCaseSensitivity.CaseSensitive
+		}), GlobCaseSensitivity.CaseSensitive);
 
 		assert.strictEqual(glob.toGlobCaseSensitivity({
-			globCaseSensitivity: GlobCaseSensitivity.auto
-		}), GlobCaseSensitivity.auto);
+			globCaseSensitivity: GlobCaseSensitivity.CaseInsensitive
+		}), GlobCaseSensitivity.CaseInsensitive);
+
+		assert.strictEqual(glob.toGlobCaseSensitivity({
+			globCaseSensitivity: GlobCaseSensitivity.Auto
+		}), GlobCaseSensitivity.Auto);
 
 
 		assert.strictEqual(glob.toGlobCaseSensitivity({
 			search: { globCaseSensitivity: 'caseSensitive' }
-		}), GlobCaseSensitivity.caseSensitive);
+		}), GlobCaseSensitivity.CaseSensitive);
 
 		assert.strictEqual(glob.toGlobCaseSensitivity({
 			search: { globCaseSensitivity: 'caseInsensitive' }
-		}), GlobCaseSensitivity.caseInsensitive);
+		}), GlobCaseSensitivity.CaseInsensitive);
 
 		assert.strictEqual(glob.toGlobCaseSensitivity({
 			search: { globCaseSensitivity: 'auto' }
-		}), GlobCaseSensitivity.auto);
+		}), GlobCaseSensitivity.Auto);
 
 
 		assert.strictEqual(glob.toGlobCaseSensitivity({
 			files: { globCaseSensitivity: 'caseSensitive' }
-		}), GlobCaseSensitivity.caseSensitive);
+		}), GlobCaseSensitivity.CaseSensitive);
 
 		assert.strictEqual(glob.toGlobCaseSensitivity({
 			files: { globCaseSensitivity: 'caseInsensitive' }
-		}), GlobCaseSensitivity.caseInsensitive);
+		}), GlobCaseSensitivity.CaseInsensitive);
 
 		assert.strictEqual(glob.toGlobCaseSensitivity({
 			files: { globCaseSensitivity: 'auto' }
-		}), GlobCaseSensitivity.auto);
+		}), GlobCaseSensitivity.Auto);
 
 
 		assert.strictEqual(glob.toGlobCaseSensitivity({
 			search: { globCaseSensitivity: 'caseSensitive' },
 			files: { globCaseSensitivity: 'caseInsensitive' }
-		}), GlobCaseSensitivity.caseSensitive);
+		}), GlobCaseSensitivity.CaseSensitive);
 
 		assert.strictEqual(glob.toGlobCaseSensitivity({
 			search: { globCaseSensitivity: 'auto' },
 			files: { globCaseSensitivity: 'caseInsensitive' }
-		}), GlobCaseSensitivity.caseInsensitive);
+		}), GlobCaseSensitivity.CaseInsensitive);
 
 		assert.strictEqual(glob.toGlobCaseSensitivity(
-			GlobCaseSensitivity.auto,
+			GlobCaseSensitivity.Auto,
 			'auto',
 			{ search: { globCaseSensitivity: 'auto' } },
 			undefined,
-			GlobCaseSensitivity.caseSensitive,
-			GlobCaseSensitivity.auto,
-			GlobCaseSensitivity.caseInsensitive
-		), GlobCaseSensitivity.caseSensitive);
+			GlobCaseSensitivity.CaseSensitive,
+			GlobCaseSensitivity.Auto,
+			GlobCaseSensitivity.CaseInsensitive
+		), GlobCaseSensitivity.CaseSensitive);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

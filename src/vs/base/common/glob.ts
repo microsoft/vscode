@@ -16,9 +16,9 @@ import { endsWithIgnoreCase, equalsIgnoreCase, escapeRegExpCharacters, ltrim } f
  * The possible case sensitivity options for glob pattern matching.
  */
 export enum GlobCaseSensitivity {
-	caseSensitive = 1,
-	caseInsensitive = 2,
-	auto = 3
+	CaseSensitive = 1,
+	CaseInsensitive = 2,
+	Auto = 3
 }
 
 export interface IRelativePattern {
@@ -888,9 +888,9 @@ type GlobCaseSensitivitySource =
  */
 export function toGlobIgnoreCase(...args: GlobCaseSensitivitySource[]): boolean {
 	switch (toGlobCaseSensitivity(...args)) {
-		case GlobCaseSensitivity.caseSensitive:
+		case GlobCaseSensitivity.CaseSensitive:
 			return false;
-		case GlobCaseSensitivity.caseInsensitive:
+		case GlobCaseSensitivity.CaseInsensitive:
 			return true;
 		default:
 			return !isLinux;
@@ -899,13 +899,13 @@ export function toGlobIgnoreCase(...args: GlobCaseSensitivitySource[]): boolean 
 
 /**
  * Combines multiple {@link GlobCaseSensitivity} sources in priority order into a single value,
- * skipping over intermediate {@link GlobCaseSensitivity.auto} values.
+ * skipping over intermediate {@link GlobCaseSensitivity.Auto} values.
  */
 export function toGlobCaseSensitivity(...args: GlobCaseSensitivitySource[]): GlobCaseSensitivity {
 	for (const arg of args) {
 		let value: string | undefined;
 		if (typeof arg === 'number') {
-			if (arg !== GlobCaseSensitivity.auto) {
+			if (arg !== GlobCaseSensitivity.Auto) {
 				return arg;
 			} else {
 				continue;
@@ -915,7 +915,7 @@ export function toGlobCaseSensitivity(...args: GlobCaseSensitivitySource[]): Glo
 			if (argValue !== undefined) {
 				if (typeof argValue === 'string') {
 					value = argValue;
-				} else if (argValue !== GlobCaseSensitivity.auto) {
+				} else if (argValue !== GlobCaseSensitivity.Auto) {
 					return argValue;
 				} else {
 					continue;
@@ -929,17 +929,17 @@ export function toGlobCaseSensitivity(...args: GlobCaseSensitivitySource[]): Glo
 		} else if (typeof arg === 'string') {
 			value = arg;
 		} else if (typeof arg === 'boolean') {
-			return arg ? GlobCaseSensitivity.caseSensitive : GlobCaseSensitivity.caseInsensitive;
+			return arg ? GlobCaseSensitivity.CaseSensitive : GlobCaseSensitivity.CaseInsensitive;
 		} else {
 			continue;
 		}
 		if (value !== undefined) {
 			if (equalsIgnoreCase(value, 'casesensitive')) {
-				return GlobCaseSensitivity.caseSensitive;
+				return GlobCaseSensitivity.CaseSensitive;
 			} else if (equalsIgnoreCase(value, 'caseinsensitive')) {
-				return GlobCaseSensitivity.caseInsensitive;
+				return GlobCaseSensitivity.CaseInsensitive;
 			}
 		}
 	}
-	return GlobCaseSensitivity.auto;
+	return GlobCaseSensitivity.Auto;
 }

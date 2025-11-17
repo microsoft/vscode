@@ -806,19 +806,19 @@ suite.skip('File Watcher (node.js)', function () {
 	});
 
 	(isWindows ? test.skip : test)('includes are case insensitive when globCaseSensitivity is set (posix)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], includes: ['*.TXT'], recursive: false, globCaseSensitivity: GlobCaseSensitivity.caseInsensitive }]);
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['*.TXT'], recursive: false, globCaseSensitivity: GlobCaseSensitivity.CaseInsensitive }]);
 
 		return basicCrudTest(join(testDir, 'newFile.txt'));
 	});
 
 	(!isWindows ? test.skip : test)('includes are case insensitive when globCaseSensitivity is set (windows)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], includes: ['*.TXT'], recursive: false, globCaseSensitivity: GlobCaseSensitivity.caseInsensitive }]);
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['*.TXT'], recursive: false, globCaseSensitivity: GlobCaseSensitivity.CaseInsensitive }]);
 
 		return basicCrudTest(join(testDir, 'newFile.txt'));
 	});
 
 	(isWindows ? test.skip : test)('excludes are case insensitive when globCaseSensitivity is set (posix)', async function () {
-		await watcher.watch([{ path: testDir, excludes: ['*.TXT'], recursive: false, globCaseSensitivity: GlobCaseSensitivity.caseInsensitive }]);
+		await watcher.watch([{ path: testDir, excludes: ['*.TXT'], recursive: false, globCaseSensitivity: GlobCaseSensitivity.CaseInsensitive }]);
 
 		// New file (should be excluded)
 		const newFilePath = join(testDir, 'newFile.txt');
@@ -836,7 +836,7 @@ suite.skip('File Watcher (node.js)', function () {
 	});
 
 	(!isWindows ? test.skip : test)('excludes are case insensitive when globCaseSensitivity is set (windows)', async function () {
-		await watcher.watch([{ path: testDir, excludes: ['*.TXT'], recursive: false, globCaseSensitivity: GlobCaseSensitivity.caseInsensitive }]);
+		await watcher.watch([{ path: testDir, excludes: ['*.TXT'], recursive: false, globCaseSensitivity: GlobCaseSensitivity.CaseInsensitive }]);
 
 		// New file (should be excluded)
 		const newFilePath = join(testDir, 'newFile.txt');
