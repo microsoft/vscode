@@ -299,12 +299,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				await timeout(waitTime, token);
 				waited += waitTime;
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
-				const currentOutput = execution.getOutput();
-				const promptResult = detectsInputRequiredPattern(currentOutput);
-				if (promptResult) {
-					this._state = OutputMonitorState.Idle;
-					return this._state;
-				}
 
 				if (hasReceivedData) {
 					consecutiveIdleEvents = 0;
@@ -317,7 +311,18 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				const isActive = execution.isActive ? await execution.isActive() : undefined;
 				this._logService.trace(`OutputMonitor: waitForIdle check: waited=${waited}ms, recentlyIdle=${recentlyIdle}, isActive=${isActive}`);
 
+				// Check if task is complete first, before checking for input patterns
+				// This prevents false positives from shell prompts when background tasks with
+				// problem matchers complete (e.g., "Press Ctrl-C to detach" from daemons)
 				if (recentlyIdle || isActive === false) {
+					this._state = OutputMonitorState.Idle;
+					return this._state;
+				}
+
+				// Only check for input-required patterns if the task is still active
+				const currentOutput = execution.getOutput();
+				const promptResult = detectsInputRequiredPattern(currentOutput);
+				if (promptResult) {
 					this._state = OutputMonitorState.Idle;
 					return this._state;
 				}

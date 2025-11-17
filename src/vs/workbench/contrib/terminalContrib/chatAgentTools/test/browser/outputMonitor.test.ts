@@ -147,6 +147,20 @@ suite('OutputMonitor', () => {
 			monitor.dispose();
 		});
 	});
+
+	test('returns idle when task is inactive even if output contains input pattern', async () => {
+		return runWithFakedTimers({}, async () => {
+			// Simulate a background task that completed with output that looks like it needs input
+			// e.g., daemon message "Press Ctrl-C to detach" followed by shell prompt
+			execution.getOutput = () => '[deemon] Attached to running build daemon. Press Ctrl-C to detach, Ctrl-D to kill.\nuser@host: ';
+			execution.isActive = async () => false;
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
+			// Should be Idle because isActive is false, not because of input pattern
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+		});
+	});
 	test('timeout prompt unanswered → continues polling and completes when idle', async () => {
 		return runWithFakedTimers({}, async () => {
 			// Fake a ChatModel enough to pass instanceof and the two methods used
