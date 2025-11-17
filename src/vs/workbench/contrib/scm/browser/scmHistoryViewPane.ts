@@ -107,10 +107,6 @@ class SCMRepositoryActionViewItem extends ActionViewItem {
 	protected override getTooltip(): string | undefined {
 		return this._repository.provider.name;
 	}
-
-	override onClick(event: EventLike, preserveFocus?: boolean): void {
-		this.actionRunner?.run(this.action, this.element);
-	}
 }
 
 class SCMHistoryItemRefsActionViewItem extends ActionViewItem {
@@ -183,8 +179,8 @@ registerAction2(class extends ViewAction<SCMHistoryViewPane> {
 		});
 	}
 
-	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane, anchor: HTMLElement): Promise<void> {
-		view.pickRepository(anchor);
+	async runInView(_: ServicesAccessor, view: SCMHistoryViewPane): Promise<void> {
+		view.pickRepository();
 	}
 });
 
@@ -1476,7 +1472,7 @@ class RepositoryPicker {
 		@ISCMViewService private readonly _scmViewService: ISCMViewService
 	) { }
 
-	async pickRepository(anchor: HTMLElement): Promise<RepositoryQuickPickItem | undefined> {
+	async pickRepository(): Promise<RepositoryQuickPickItem | undefined> {
 		const picks: (RepositoryQuickPickItem | IQuickPickSeparator)[] = [
 			this._autoQuickPickItem,
 			{ type: 'separator' }];
@@ -1491,8 +1487,7 @@ class RepositoryPicker {
 		})));
 
 		return this._quickInputService.pick(picks, {
-			placeHolder: localize('scmGraphRepository', "Select the repository to view, type to filter all repositories"),
-			anchor
+			placeHolder: localize('scmGraphRepository', "Select the repository to view, type to filter all repositories")
 		});
 	}
 }
@@ -1923,9 +1918,9 @@ export class SCMHistoryViewPane extends ViewPane {
 		this._tree.scrollTop = 0;
 	}
 
-	async pickRepository(anchor: HTMLElement): Promise<void> {
+	async pickRepository(): Promise<void> {
 		const picker = this._instantiationService.createInstance(RepositoryPicker);
-		const result = await picker.pickRepository(anchor);
+		const result = await picker.pickRepository();
 
 		if (result) {
 			this._treeViewModel.setRepository(result.repository);
