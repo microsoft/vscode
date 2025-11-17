@@ -83,7 +83,7 @@ class TerminalCommandDecoration extends Disposable {
 
 	constructor(private readonly _options: ITerminalCommandDecorationOptions) {
 		super();
-		const decorationElements = h('span.chat-terminal-command-decoration@decoration', { role: 'img' });
+		const decorationElements = h('span.chat-terminal-command-decoration@decoration', { role: 'img', tabIndex: 0 });
 		this._element = decorationElements.decoration;
 		this._hoverListener = this._register(new MutableDisposable<IDisposable>());
 		this._focusListener = this._register(new MutableDisposable<IDisposable>());
@@ -146,6 +146,13 @@ class TerminalCommandDecoration extends Disposable {
 			decoration.classList.add(className);
 		}
 		decoration.classList.add(...ThemeIcon.asClassNameArray(decorationState.icon));
+		const isInteractive = !decoration.classList.contains(DecorationSelector.Default);
+		decoration.tabIndex = isInteractive ? 0 : -1;
+		if (isInteractive) {
+			decoration.removeAttribute('aria-disabled');
+		} else {
+			decoration.setAttribute('aria-disabled', 'true');
+		}
 		const hoverText = tooltip || decorationState.hoverMessage;
 		if (hoverText) {
 			decoration.setAttribute('title', hoverText);
