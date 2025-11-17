@@ -216,6 +216,12 @@ abstract class BaseSwitchWindow extends Action2 {
 		alwaysVisible: true
 	};
 
+	private readonly closeActiveWindowAction: IQuickInputButton = {
+		iconClass: 'active-window ' + ThemeIcon.asClassName(Codicon.windowActive),
+		tooltip: localize('closeActive', "Close Active Window"),
+		alwaysVisible: true
+	};
+
 	protected abstract isQuickNavigate(): boolean;
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
@@ -269,7 +275,7 @@ abstract class BaseSwitchWindow extends Action2 {
 				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
 				iconClasses: getIconClasses(modelService, languageService, resource, fileKind),
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
-				buttons: currentWindowId !== window.id ? window.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
+				buttons: window.dirty ? [this.closeDirtyWindowAction] : currentWindowId === window.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 			};
 			picks.push(pick);
 
@@ -280,7 +286,7 @@ abstract class BaseSwitchWindow extends Action2 {
 						label: auxiliaryWindow.title,
 						iconClasses: getIconClasses(modelService, languageService, auxiliaryWindow.filename ? URI.file(auxiliaryWindow.filename) : undefined, FileKind.FILE),
 						description: (currentWindowId === auxiliaryWindow.id) ? localize('current', "Current Window") : undefined,
-						buttons: [this.closeWindowAction]
+						buttons: currentWindowId === auxiliaryWindow.id ? [this.closeActiveWindowAction] : [this.closeWindowAction]
 					};
 					picks.push(pick);
 				}
