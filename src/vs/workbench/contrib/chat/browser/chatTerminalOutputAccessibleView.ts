@@ -18,7 +18,7 @@ export class ChatTerminalOutputAccessibleView implements IAccessibleViewImplemen
 
 	getProvider(accessor: ServicesAccessor) {
 		const terminalChatService = accessor.get(ITerminalChatService);
-		const part = terminalChatService.getFocusedChatTerminalToolProgressPart();
+		const part = terminalChatService.getFocusedProgressPart();
 		if (!part) {
 			return;
 		}

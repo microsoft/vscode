@@ -8,7 +8,7 @@ import path from 'path';
 import tseslint from 'typescript-eslint';
 
 import stylisticTs from '@stylistic/eslint-plugin-ts';
-import * as pluginLocal from './.eslint-plugin-local/index.js';
+import * as pluginLocal from './.eslint-plugin-local/index.ts';
 import pluginJsdoc from 'eslint-plugin-jsdoc';
 
 import pluginHeader from 'eslint-plugin-header';
@@ -89,7 +89,9 @@ export default tseslint.config(
 			'local/code-declare-service-brand': 'warn',
 			'local/code-no-reader-after-await': 'warn',
 			'local/code-no-observable-get-in-reactive-context': 'warn',
+			'local/code-no-localized-model-description': 'warn',
 			'local/code-policy-localization-key-match': 'warn',
+			'local/code-no-localization-template-literals': 'error',
 			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
 				'warn',
@@ -183,7 +185,8 @@ export default tseslint.config(
 	// Disallow 'in' operator except in type predicates
 	{
 		files: [
-			'**/*.ts'
+			'**/*.ts',
+			'.eslint-plugin-local/**/*.ts', // Explicitly include files under dot directories
 		],
 		ignores: [
 			'src/bootstrap-node.ts',
@@ -227,7 +230,6 @@ export default tseslint.config(
 			'src/vs/editor/contrib/inlineCompletions/browser/model/provideInlineCompletions.ts',
 			'src/vs/editor/contrib/inlineCompletions/browser/view/ghostText/ghostTextView.ts',
 			'src/vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/debugVisualization.ts',
-			'src/vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess.ts',
 			'src/vs/platform/accessibilitySignal/browser/accessibilitySignalService.ts',
 			'src/vs/platform/configuration/common/configuration.ts',
 			'src/vs/platform/configuration/common/configurationModels.ts',
@@ -507,7 +509,6 @@ export default tseslint.config(
 			'src/vs/platform/userDataSync/common/userDataSyncIpc.ts',
 			'src/vs/platform/userDataSync/common/userDataSyncServiceIpc.ts',
 			'src/vs/platform/webview/common/webviewManagerService.ts',
-			'src/vs/platform/configuration/test/common/testConfigurationService.ts',
 			'src/vs/platform/instantiation/test/common/instantiationServiceMock.ts',
 			'src/vs/platform/keybinding/test/common/mockKeybindingService.ts',
 			// Editor
@@ -556,7 +557,6 @@ export default tseslint.config(
 			'src/vs/workbench/api/common/extHostChatSessions.ts',
 			'src/vs/workbench/api/common/extHostCodeInsets.ts',
 			'src/vs/workbench/api/common/extHostCommands.ts',
-			'src/vs/workbench/api/common/extHostConfiguration.ts',
 			'src/vs/workbench/api/common/extHostConsoleForwarder.ts',
 			'src/vs/workbench/api/common/extHostDataChannels.ts',
 			'src/vs/workbench/api/common/extHostDebugService.ts',
@@ -623,11 +623,9 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingActions.ts',
 			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingEditorActions.ts',
 			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingServiceImpl.ts',
-			'src/vs/workbench/contrib/chat/browser/chatInputPart.ts',
 			'src/vs/workbench/contrib/chat/browser/chatSessions.contribution.ts',
 			'src/vs/workbench/contrib/chat/browser/chatSessions/common.ts',
 			'src/vs/workbench/contrib/chat/browser/chatSessions/view/sessionsTreeRenderer.ts',
-			'src/vs/workbench/contrib/chat/browser/chatWidget.ts',
 			'src/vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables.ts',
 			'src/vs/workbench/contrib/chat/common/chatAgents.ts',
 			'src/vs/workbench/contrib/chat/common/chatModel.ts',
@@ -807,8 +805,6 @@ export default tseslint.config(
 			'src/vs/workbench/services/commands/common/commandService.ts',
 			'src/vs/workbench/services/configurationResolver/common/configurationResolver.ts',
 			'src/vs/workbench/services/configurationResolver/common/configurationResolverExpression.ts',
-			'src/vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.ts',
-			'src/vs/workbench/services/extensionManagement/browser/webExtensionsScannerService.ts',
 			'src/vs/workbench/services/extensions/common/extensionHostManager.ts',
 			'src/vs/workbench/services/extensions/common/extensionsRegistry.ts',
 			'src/vs/workbench/services/extensions/common/lazyPromise.ts',

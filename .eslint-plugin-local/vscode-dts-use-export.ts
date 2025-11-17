@@ -5,9 +5,9 @@
 
 import { TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 
-export = new class VscodeDtsUseExport implements eslint.Rule.RuleModule {
+export default new class VscodeDtsUseExport implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {

@@ -130,7 +130,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		const { message, disclaimer } = this.toolInvocation.confirmationMessages!;
 		const toolInvocation = this.toolInvocation as IChatToolInvocation;
 
-		if (typeof message === 'string') {
+		if (typeof message === 'string' && !disclaimer) {
 			return message;
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {

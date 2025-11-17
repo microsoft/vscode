@@ -12,6 +12,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IChatService } from '../../../chat/common/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
 import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
+import { isNumber, isString } from '../../../../../base/common/types.js';
 
 const enum StorageKeys {
 	ToolSessionMappings = 'terminalChat.toolSessionMappings',
@@ -45,6 +46,12 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	private readonly _hasToolTerminalContext: IContextKey<boolean>;
 	private readonly _hasHiddenToolTerminalContext: IContextKey<boolean>;
+
+	/**
+	 * Tracks chat session IDs that have auto approval enabled for all commands. This is a temporary
+	 * approval that lasts only for the duration of the session.
+	 */
+	private readonly _sessionAutoApprovalEnabled = new Set<string>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -82,6 +89,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 				this._toolSessionIdByTerminalInstance.delete(instance);
 				this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
+				// Clean up session auto approval state
+				const sessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
+				if (sessionId) {
+					this._sessionAutoApprovalEnabled.delete(sessionId);
+				}
 				this._persistToStorage();
 				this._updateHasToolTerminalContextKeys();
 			}
@@ -90,7 +102,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		// Update context keys when terminal instances change (including when terminals are created, disposed, revealed, or hidden)
 		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKeys()));
 
-		if (typeof instance.shellLaunchConfig?.attachPersistentProcess?.id === 'number' || typeof instance.persistentProcessId === 'number') {
+		if (isNumber(instance.shellLaunchConfig?.attachPersistentProcess?.id) || isNumber(instance.persistentProcessId)) {
 			this._persistToStorage();
 		}
 
@@ -159,9 +171,11 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		return this._terminalService.instances.includes(instance) && !this._terminalService.foregroundInstances.includes(instance);
 	}
 
-	registerChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): IDisposable {
+	registerProgressPart(part: IChatTerminalToolProgressPart): IDisposable {
 		this._activeProgressParts.add(part);
-		this._mostRecentProgressPart = part;
+		if (this._isAfter(part, this._mostRecentProgressPart)) {
+			this._mostRecentProgressPart = part;
+		}
 		return toDisposable(() => {
 			this._activeProgressParts.delete(part);
 			if (this._focusedProgressPart === part) {
@@ -173,26 +187,42 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		});
 	}
 
-	setFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void {
+	setFocusedProgressPart(part: IChatTerminalToolProgressPart): void {
 		this._focusedProgressPart = part;
 	}
 
-	clearFocusedChatTerminalToolProgressPart(part: IChatTerminalToolProgressPart): void {
+	clearFocusedProgressPart(part: IChatTerminalToolProgressPart): void {
 		if (this._focusedProgressPart === part) {
 			this._focusedProgressPart = undefined;
 		}
 	}
 
-	getFocusedChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined {
+	getFocusedProgressPart(): IChatTerminalToolProgressPart | undefined {
 		return this._focusedProgressPart;
 	}
 
-	getMostRecentChatTerminalToolProgressPart(): IChatTerminalToolProgressPart | undefined {
+	getMostRecentProgressPart(): IChatTerminalToolProgressPart | undefined {
 		return this._mostRecentProgressPart;
 	}
 
 	private _getLastActiveProgressPart(): IChatTerminalToolProgressPart | undefined {
-		return Array.from(this._activeProgressParts).at(-1);
+		let latest: IChatTerminalToolProgressPart | undefined;
+		for (const part of this._activeProgressParts) {
+			if (this._isAfter(part, latest)) {
+				latest = part;
+			}
+		}
+		return latest;
+	}
+
+	private _isAfter(candidate: IChatTerminalToolProgressPart, current: IChatTerminalToolProgressPart | undefined): boolean {
+		if (!current) {
+			return true;
+		}
+		if (candidate.elementIndex === current.elementIndex) {
+			return candidate.contentIndex >= current.contentIndex;
+		}
+		return candidate.elementIndex > current.elementIndex;
 	}
 
 	private _restoreFromStorage(): void {
@@ -203,7 +233,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			}
 			const parsed: [string, number][] = JSON.parse(raw);
 			for (const [toolSessionId, persistentProcessId] of parsed) {
-				if (typeof toolSessionId === 'string' && typeof persistentProcessId === 'number') {
+				if (isString(toolSessionId) && isNumber(persistentProcessId)) {
 					this._pendingRestoredMappings.set(toolSessionId, persistentProcessId);
 				}
 			}
@@ -240,7 +270,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		try {
 			const entries: [string, number][] = [];
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId.entries()) {
-				if (typeof instance.persistentProcessId === 'number' && instance.shouldPersist) {
+				if (isNumber(instance.persistentProcessId) && instance.shouldPersist) {
 					entries.push([toolSessionId, instance.persistentProcessId]);
 				}
 			}
@@ -259,5 +289,17 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._hasToolTerminalContext.set(toolCount > 0);
 		const hiddenTerminalCount = this.getToolSessionTerminalInstances(true).length;
 		this._hasHiddenToolTerminalContext.set(hiddenTerminalCount > 0);
+	}
+
+	setChatSessionAutoApproval(chatSessionId: string, enabled: boolean): void {
+		if (enabled) {
+			this._sessionAutoApprovalEnabled.add(chatSessionId);
+		} else {
+			this._sessionAutoApprovalEnabled.delete(chatSessionId);
+		}
+	}
+
+	hasChatSessionAutoApproval(chatSessionId: string): boolean {
+		return this._sessionAutoApprovalEnabled.has(chatSessionId);
 	}
 }

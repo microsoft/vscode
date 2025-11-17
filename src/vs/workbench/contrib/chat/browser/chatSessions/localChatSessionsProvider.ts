@@ -191,20 +191,24 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			});
 		});
 
+		const sessionsByResource = new ResourceSet();
+
 		// Add chat view instance
 		const chatWidget = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)
 			.find(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
-		const status = chatWidget?.viewModel?.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
-		const widgetSession: ChatSessionItemWithProvider = {
-			resource: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE,
-			label: chatWidget?.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
-			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
-			iconPath: Codicon.chatSparkle,
-			status,
-			timing: { startTime: chatWidget?.viewModel?.model.getRequests().at(0)?.timestamp || 0 },
-			provider: this
-		};
-		sessions.push(widgetSession);
+		if (chatWidget?.viewModel) {
+			const status = chatWidget.viewModel.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
+			const widgetSession: ChatSessionItemWithProvider = {
+				resource: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE,
+				label: chatWidget.viewModel.model.title || nls.localize2('chat.sessions.chatView', "Local Chat").value,
+				iconPath: Codicon.chatSparkle,
+				status,
+				timing: { startTime: chatWidget.viewModel.model.getRequests().at(0)?.timestamp || 0 },
+				provider: this
+			};
+			sessionsByResource.add(chatWidget.viewModel.sessionResource);
+			sessions.push(widgetSession);
+		}
 
 		// Build editor-based sessions in the order specified by editorOrder
 		this.editorOrder.forEach((editorKey, index) => {
@@ -236,13 +240,14 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 							startTime: startTime ?? 0
 						}
 					};
+					sessionsByResource.add(editorInfo.editor.resource);
 					sessions.push(editorSession);
 				}
 			}
 		});
 		const history = await this.getHistoryItems();
-		const existingIds = new ResourceSet(sessions.map(s => s.resource));
-		sessions.push(...history.filter(h => !existingIds.has(h.resource)));
+		sessions.push(...history.filter(h => !sessionsByResource.has(h.resource)));
+
 		return sessions;
 	}
 

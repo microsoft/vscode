@@ -429,52 +429,56 @@ function addIncomingOutgoingChangesHistoryItems(
 	addOutgoingChanges?: boolean,
 	mergeBase?: string
 ): void {
-	if (mergeBase && currentHistoryItemRef?.revision !== currentHistoryItemRemoteRef?.revision) {
+	if (historyItems.length > 0 && mergeBase && currentHistoryItemRef?.revision !== currentHistoryItemRemoteRef?.revision) {
 		// Incoming changes history item
 		if (addIncomingChanges && currentHistoryItemRemoteRef && currentHistoryItemRemoteRef.revision !== mergeBase) {
 			// Start from the current history item remote ref and walk towards the merge base
-			const currentHistoryItemRemoteIndex = historyItems.findIndex(h => h.id === currentHistoryItemRemoteRef.revision);
+			const currentHistoryItemRemoteIndex = historyItems
+				.findIndex(h => h.id === currentHistoryItemRemoteRef.revision);
 
 			let beforeHistoryItemIndex = -1;
-			let historyItemParentId = historyItems[currentHistoryItemRemoteIndex]?.parentIds[0];
-			for (let index = currentHistoryItemRemoteIndex; index < historyItems.length; index++) {
-				if (historyItems[index].parentIds.includes(mergeBase)) {
-					beforeHistoryItemIndex = index;
-					break;
-				}
+			if (currentHistoryItemRemoteIndex !== -1) {
+				let historyItemParentId = historyItems[currentHistoryItemRemoteIndex].parentIds[0];
+				for (let index = currentHistoryItemRemoteIndex; index < historyItems.length; index++) {
+					if (historyItems[index].parentIds.includes(mergeBase)) {
+						beforeHistoryItemIndex = index;
+						break;
+					}
 
-				if (historyItems[index].parentIds.includes(historyItemParentId)) {
-					historyItemParentId = historyItems[index].parentIds[0];
+					if (historyItems[index].parentIds.includes(historyItemParentId)) {
+						historyItemParentId = historyItems[index].parentIds[0];
+					}
 				}
 			}
 
 			const afterHistoryItemIndex = historyItems.findIndex(h => h.id === mergeBase);
 
-			// There is a known edge case in which the incoming changes have already
-			// been merged. For this scenario, we will not be showing the incoming
-			// changes history item.
-			// https://github.com/microsoft/vscode/issues/276064
-			const incomingChangeMerged = historyItems[beforeHistoryItemIndex].parentIds.length === 2 &&
-				historyItems[beforeHistoryItemIndex].parentIds.includes(mergeBase);
+			if (beforeHistoryItemIndex !== -1 && afterHistoryItemIndex !== -1) {
+				// There is a known edge case in which the incoming changes have already
+				// been merged. For this scenario, we will not be showing the incoming
+				// changes history item. https://github.com/microsoft/vscode/issues/276064
+				const incomingChangeMerged = historyItems[beforeHistoryItemIndex].parentIds.length === 2 &&
+					historyItems[beforeHistoryItemIndex].parentIds.includes(mergeBase);
 
-			if (beforeHistoryItemIndex !== -1 && afterHistoryItemIndex !== -1 && !incomingChangeMerged) {
-				// Insert incoming history item
-				historyItems.splice(afterHistoryItemIndex, 0, {
-					id: SCMIncomingHistoryItemId,
-					displayId: '0'.repeat(historyItems[0].displayId?.length ?? 0),
-					parentIds: historyItems[beforeHistoryItemIndex].parentIds.slice(),
-					author: currentHistoryItemRemoteRef?.name,
-					subject: localize('incomingChanges', 'Incoming Changes'),
-					message: ''
-				} satisfies ISCMHistoryItem);
+				if (!incomingChangeMerged) {
+					// Insert incoming history item
+					historyItems.splice(afterHistoryItemIndex, 0, {
+						id: SCMIncomingHistoryItemId,
+						displayId: '0'.repeat(historyItems[0].displayId?.length ?? 0),
+						parentIds: historyItems[beforeHistoryItemIndex].parentIds.slice(),
+						author: currentHistoryItemRemoteRef?.name,
+						subject: localize('incomingChanges', 'Incoming Changes'),
+						message: ''
+					} satisfies ISCMHistoryItem);
 
-				// Update the before history item to point to incoming changes history item
-				historyItems[beforeHistoryItemIndex] = {
-					...historyItems[beforeHistoryItemIndex],
-					parentIds: historyItems[beforeHistoryItemIndex].parentIds.map(id => {
-						return id === mergeBase ? SCMIncomingHistoryItemId : id;
-					})
-				} satisfies ISCMHistoryItem;
+					// Update the before history item to point to incoming changes history item
+					historyItems[beforeHistoryItemIndex] = {
+						...historyItems[beforeHistoryItemIndex],
+						parentIds: historyItems[beforeHistoryItemIndex].parentIds.map(id => {
+							return id === mergeBase ? SCMIncomingHistoryItemId : id;
+						})
+					} satisfies ISCMHistoryItem;
+				}
 			}
 		}
 

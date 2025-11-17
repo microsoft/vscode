@@ -17,7 +17,6 @@ import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
 import { TestLifecycleService } from '../../../../test/browser/workbenchTestServices.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { LocalChatSessionsProvider } from '../../browser/chatSessions/localChatSessionsProvider.js';
 
 suite('AgentSessionsViewModel', () => {
 
@@ -258,38 +257,6 @@ suite('AgentSessionsViewModel', () => {
 
 			assert.strictEqual(viewModel.sessions.length, 1);
 			assert.ok(typeof viewModel.sessions[0].description === 'string');
-		});
-	});
-
-	test('should filter out special session IDs', async () => {
-		return runWithFakedTimers({}, async () => {
-			const provider: IChatSessionItemProvider = {
-				chatSessionType: 'test-type',
-				onDidChangeChatSessionItems: Event.None,
-				provideChatSessionItems: async () => [
-					{
-						resource: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE,
-						label: 'Copilot',
-						timing: { startTime: Date.now() }
-					},
-					{
-						resource: URI.parse('test://valid'),
-						label: 'Valid Session',
-						timing: { startTime: Date.now() }
-					}
-				]
-			};
-
-			mockChatSessionsService.registerChatSessionItemProvider(provider);
-			viewModel = disposables.add(new AgentSessionsViewModel(
-				mockChatSessionsService,
-				mockLifecycleService
-			));
-
-			await viewModel.resolve(undefined);
-
-			assert.strictEqual(viewModel.sessions.length, 1);
-			assert.strictEqual(viewModel.sessions[0].resource.toString(), 'test://valid');
 		});
 	});
 
