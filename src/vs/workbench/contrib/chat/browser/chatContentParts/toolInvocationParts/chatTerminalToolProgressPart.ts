@@ -68,10 +68,34 @@ const sanitizerConfig = Object.freeze<DomSanitizerConfig>({
  */
 const expandedStateByInvocation = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
 
+/**
+ * Options for configuring a terminal command decoration.
+ */
 interface ITerminalCommandDecorationOptions {
+	/**
+	 * The terminal data associated with the tool invocation.
+	 */
 	readonly terminalData: IChatTerminalToolInvocationData;
+
+	/**
+	 * Returns the HTML element representing the command block in the terminal output.
+	 * May return `undefined` if the command block is not currently rendered.
+	 * Called when attaching the decoration to the command block container.
+	 */
 	getCommandBlock(): HTMLElement | undefined;
+
+	/**
+	 * Returns the HTML element representing the icon for the command, if any.
+	 * May return `undefined` if no icon is present.
+	 * Used to determine where to insert the decoration relative to the icon.
+	 */
 	getIconElement(): HTMLElement | undefined;
+
+	/**
+	 * Returns the resolved terminal command associated with this decoration, if available.
+	 * May return `undefined` if the command has not been resolved yet.
+	 * Used to access command metadata for the decoration.
+	 */
 	getResolvedCommand(): ITerminalCommand | undefined;
 }
 
