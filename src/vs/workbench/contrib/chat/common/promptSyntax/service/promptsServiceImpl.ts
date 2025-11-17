@@ -31,6 +31,7 @@ import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 
 /**
  * Provides prompt services.
@@ -227,7 +228,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 		for (const model of this.modelService.getModels()) {
-			if (model.getLanguageId() === PROMPT_LANGUAGE_ID && !seen.has(model.uri)) {
+			if (model.getLanguageId() === PROMPT_LANGUAGE_ID && model.uri.scheme === Schemas.untitled && !seen.has(model.uri)) {
 				const parsedPromptFile = this.getParsedPromptFile(model);
 				result.push(this.asChatPromptSlashCommand(parsedPromptFile, { uri: model.uri, storage: PromptsStorage.local, type: PromptsType.prompt }));
 			}
@@ -358,6 +359,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		bucket.set(uri, entryPromise);
 
 		const flushCachesIfRequired = () => {
+			this.cachedFileLocations[PromptsType.agent] = undefined;
 			switch (type) {
 				case PromptsType.agent:
 					this.cachedCustomAgents.refresh();
