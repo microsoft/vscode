@@ -609,7 +609,6 @@ export namespace Event {
 			// not resolved, matching the behavior of a normal disposal
 			cancelRef = () => {
 				disposeAndRemove(listener, disposables);
-				listener.dispose();
 			};
 		}) as CancelablePromise<T>;
 		promise.cancel = cancelRef!;
