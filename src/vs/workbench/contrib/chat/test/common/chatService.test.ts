@@ -268,6 +268,45 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getRequests()[2].response?.result?.metadata?.historyLength, 2);
 	});
 
+	test('history with canAccessPreviousChatHistory', async () => {
+		const historyLengthAgent: IChatAgentImplementation = {
+			async invoke(request, progress, history, token) {
+				return {
+					metadata: { historyLength: history.length }
+				};
+			},
+		};
+
+		testDisposables.add(chatAgentService.registerAgent('defaultAgent', { ...getAgentData('defaultAgent'), isDefault: true }));
+		testDisposables.add(chatAgentService.registerAgent('agent3', { ...getAgentData('agent3'), canAccessPreviousChatHistory: true }));
+		testDisposables.add(chatAgentService.registerAgentImplementation('defaultAgent', historyLengthAgent));
+		testDisposables.add(chatAgentService.registerAgentImplementation('agent3', historyLengthAgent));
+
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+
+		// Send a request to default agent
+		const response = await testService.sendRequest(model.sessionResource, `test request`, { agentId: 'defaultAgent' });
+		assert(response);
+		await response.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 1);
+		assert.strictEqual(model.getRequests()[0].response?.result?.metadata?.historyLength, 0);
+
+		// Send a request to agent3 with canAccessPreviousChatHistory - it should see the default agent's message
+		const response2 = await testService.sendRequest(model.sessionResource, `test request`, { agentId: 'agent3' });
+		assert(response2);
+		await response2.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 2);
+		assert.strictEqual(model.getRequests()[1].response?.result?.metadata?.historyLength, 1);
+
+		// Send another request to agent3 - it should see all previous messages
+		const response3 = await testService.sendRequest(model.sessionResource, `test request`, { agentId: 'agent3' });
+		assert(response3);
+		await response3.responseCompletePromise;
+		assert.strictEqual(model.getRequests().length, 3);
+		assert.strictEqual(model.getRequests()[2].response?.result?.metadata?.historyLength, 2);
+	});
+
 	test('can serialize', async () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithUsedContextId, chatAgentWithUsedContext));
 		chatAgentService.updateAgent(chatAgentWithUsedContextId, {});
