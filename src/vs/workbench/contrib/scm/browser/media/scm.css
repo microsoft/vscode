@@ -608,6 +608,12 @@
 	margin: 4px 0;
 }
 
+.monaco-hover.history-item-hover hr:nth-of-type(2):nth-last-of-type(2) + p {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
 .monaco-hover.history-item-hover span:not(.codicon) {
 	margin-bottom: 0 !important;
 }

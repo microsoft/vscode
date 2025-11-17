@@ -1,3 +1,7 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+
 jobs:
   - job: Compile
     timeoutInMinutes: 60
@@ -19,6 +23,9 @@ jobs:
         inputs:
           versionSource: fromFile
           versionFilePath: .nvmrc
+
+      - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
+        - template: ./common/bump-insiders-version.yml@self
 
       - template: ./distro/download-distro.yml@self
 
