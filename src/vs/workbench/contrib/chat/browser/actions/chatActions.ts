@@ -325,7 +325,9 @@ abstract class OpenChatGlobalAction extends Action2 {
 			chatWidget.setInput(opts.query);
 
 			if (!opts.isPartialQuery) {
-				await chatWidget.waitForReady();
+				if (!chatWidget.viewModel) {
+					await Event.toPromise(chatWidget.onDidChangeViewModel);
+				}
 				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
 				resp = chatWidget.acceptInput();
 			}
@@ -767,7 +769,6 @@ export function registerChatActions() {
 											lastMessageDate: 0,
 										},
 										buttons,
-										id: session.id
 									};
 
 									// Check if this agent already exists (update existing or add new)
@@ -996,16 +997,11 @@ export function registerChatActions() {
 			const menuService = accessor.get(IMenuService);
 
 			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
-			if (!view) {
+			if (!view?.widget.viewModel) {
 				return;
 			}
 
-			const chatSessionId = view.widget.viewModel?.model.sessionId;
-			if (!chatSessionId) {
-				return;
-			}
-
-			const editingSession = view.widget.viewModel?.model.editingSession;
+			const editingSession = view.widget.viewModel.model.editingSession;
 			if (editingSession) {
 				const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
 				if (!await handleCurrentEditingSession(editingSession, phrase, dialogService)) {
@@ -1161,8 +1157,7 @@ export function registerChatActions() {
 
 			if (chatWidget) {
 				// Clear the current chat to start a new one
-				chatWidget.clear();
-				await chatWidget.waitForReady();
+				await chatWidget.clear();
 				chatWidget.attachmentModel.clear(true);
 				chatWidget.input.relatedFiles?.clear();
 
@@ -1239,9 +1234,7 @@ export function registerChatActions() {
 
 			await chatService.clearAllHistoryEntries();
 
-			widgetService.getAllWidgets().forEach(widget => {
-				widget.clear();
-			});
+			await Promise.all(widgetService.getAllWidgets().map(widget => widget.clear()));
 
 			// Clear all chat editors. Have to go this route because the chat editor may be in the background and
 			// not have a ChatEditorInput.

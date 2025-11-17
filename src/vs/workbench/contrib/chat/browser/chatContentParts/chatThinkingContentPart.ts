@@ -153,6 +153,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private renderMarkdown(content: string, reuseExisting?: boolean): void {
+		// Guard against rendering after disposal to avoid leaking disposables
+		if (this._store.isDisposed) {
+			return;
+		}
 		const cleanedContent = content.trim();
 		if (!cleanedContent) {
 			if (this.markdownResult) {
@@ -221,6 +225,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public updateThinking(content: IChatThinkingPart): void {
+		// If disposed, ignore late updates coming from renderer diffing
+		if (this._store.isDisposed) {
+			return;
+		}
 		const raw = extractTextFromPart(content);
 		const next = raw;
 		if (next === this.currentThinkingValue) {
@@ -303,6 +311,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	// makes a new text container. when we update, we now update this container.
 	public setupThinkingContainer(content: IChatThinkingPart, context: IChatContentPartRenderContext) {
+		// Avoid creating new containers after disposal
+		if (this._store.isDisposed) {
+			return;
+		}
 		this.hasMultipleItems = true;
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		this.wrapper.appendChild(this.textContainer);

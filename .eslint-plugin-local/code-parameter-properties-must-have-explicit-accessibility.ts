@@ -11,7 +11,7 @@ import * as eslint from 'eslint';
  *
  * This catches a common bug where a service is accidentally made public by simply writing: `readonly prop: Foo`
  */
-export = new class implements eslint.Rule.RuleModule {
+export default new class implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		function check(node: TSESTree.TSParameterProperty) {

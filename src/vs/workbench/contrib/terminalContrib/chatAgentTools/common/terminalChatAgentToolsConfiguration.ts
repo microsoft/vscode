@@ -176,6 +176,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			du: true,
 			df: true,
 			sleep: true,
+			nl: true,
 
 			// grep
 			// - Variable

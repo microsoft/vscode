@@ -15,14 +15,18 @@ import { OperationKind, OperationResult } from './operation';
 import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { throttle } from './decorators';
 
-function compareSourceControlHistoryItemRef(ref1: SourceControlHistoryItemRef, ref2: SourceControlHistoryItemRef): number {
-	const getOrder = (ref: SourceControlHistoryItemRef): number => {
+type SourceControlHistoryItemRefWithRenderOptions = SourceControlHistoryItemRef & {
+	backgroundColor?: string;
+};
+
+function compareSourceControlHistoryItemRef(ref1: SourceControlHistoryItemRefWithRenderOptions, ref2: SourceControlHistoryItemRefWithRenderOptions): number {
+	const getOrder = (ref: SourceControlHistoryItemRefWithRenderOptions): number => {
 		if (ref.id.startsWith('refs/heads/')) {
-			return 1;
+			return ref.backgroundColor ? 1 : 5;
 		} else if (ref.id.startsWith('refs/remotes/')) {
-			return 2;
+			return ref.backgroundColor ? 2 : 15;
 		} else if (ref.id.startsWith('refs/tags/')) {
-			return 3;
+			return ref.backgroundColor ? 3 : 25;
 		}
 
 		return 99;
@@ -308,7 +312,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					processHistoryItemRemoteHoverCommands(remoteHoverCommands, commit.hash)
 				];
 
-				const tooltip = getHistoryItemHover(avatarUrl, commit.authorName, commit.authorEmail, commit.authorDate ?? commit.commitDate, messageWithLinks, commit.shortStat, commands);
+				const tooltip = getHistoryItemHover(avatarUrl, commit.authorName, commit.authorEmail, commit.authorDate ?? commit.commitDate, messageWithLinks, commit.shortStat, references, commands);
 
 				historyItems.push({
 					id: commit.hash,
@@ -485,8 +489,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return this.historyItemDecorations.get(uri.toString());
 	}
 
-	private _resolveHistoryItemRefs(commit: Commit): SourceControlHistoryItemRef[] {
-		const references: SourceControlHistoryItemRef[] = [];
+	private _resolveHistoryItemRefs(commit: Commit): SourceControlHistoryItemRefWithRenderOptions[] {
+		const references: SourceControlHistoryItemRefWithRenderOptions[] = [];
 
 		for (const ref of commit.refNames) {
 			if (ref === 'refs/remotes/origin/HEAD') {
@@ -500,7 +504,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						name: ref.substring('HEAD -> refs/heads/'.length),
 						revision: commit.hash,
 						category: l10n.t('branches'),
-						icon: new ThemeIcon('target')
+						icon: new ThemeIcon('target'),
+						backgroundColor: `--vscode-scmGraph-historyItemRefColor`
 					});
 					break;
 				case ref.startsWith('refs/heads/'):
@@ -518,7 +523,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						name: ref.substring('refs/remotes/'.length),
 						revision: commit.hash,
 						category: l10n.t('remote branches'),
-						icon: new ThemeIcon('cloud')
+						icon: new ThemeIcon('cloud'),
+						backgroundColor: `--vscode-scmGraph-historyItemRemoteRefColor`
 					});
 					break;
 				case ref.startsWith('tag: refs/tags/'):
@@ -527,7 +533,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						name: ref.substring('tag: refs/tags/'.length),
 						revision: commit.hash,
 						category: l10n.t('tags'),
-						icon: new ThemeIcon('tag')
+						icon: new ThemeIcon('tag'),
+						backgroundColor: ref === this.currentHistoryItemRef?.id
+							? `--vscode-scmGraph-historyItemRefColor`
+							: undefined
 					});
 					break;
 			}
@@ -632,7 +641,7 @@ export function processHistoryItemRemoteHoverCommands(commands: Command[], hash:
 	} satisfies Command));
 }
 
-export function getHistoryItemHover(authorAvatar: string | undefined, authorName: string | undefined, authorEmail: string | undefined, authorDate: Date | number | undefined, message: string, shortStats: CommitShortStat | undefined, commands: Command[][] | undefined): MarkdownString {
+export function getHistoryItemHover(authorAvatar: string | undefined, authorName: string | undefined, authorEmail: string | undefined, authorDate: Date | number | undefined, message: string, shortStats: CommitShortStat | undefined, references: SourceControlHistoryItemRefWithRenderOptions[] | undefined, commands: Command[][] | undefined): MarkdownString {
 	const markdownString = new MarkdownString('', true);
 	markdownString.isTrusted = {
 		enabledCommands: commands?.flat().map(c => c.command) ?? []
@@ -703,15 +712,19 @@ export function getHistoryItemHover(authorAvatar: string | undefined, authorName
 	}
 
 	// References
-	// TODO@lszomoru - move these to core
-	// if (references && references.length > 0) {
-	// 	markdownString.appendMarkdown((references ?? []).map(ref => {
-	// 		console.log(ref);
-	// 		const labelIconId = ref.icon instanceof ThemeIcon ? ref.icon.id : '';
-	// 		return `<span style="color:var(--vscode-scmGraph-historyItemHoverDefaultLabelForeground);background-color:var(--vscode-scmGraph-historyItemHoverDefaultLabelBackground);border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;${ref.name}&nbsp;&nbsp;</span>`;
-	// 	}).join('&nbsp;&nbsp;'));
-	// 	markdownString.appendMarkdown(`\n\n---\n\n`);
-	// }
+	if (references && references.length > 0) {
+		for (const reference of references) {
+			const labelIconId = reference.icon instanceof ThemeIcon ? reference.icon.id : '';
+			const backgroundColor = `var(${reference.backgroundColor ?? '--vscode-scmGraph-historyItemHoverDefaultLabelBackground'})`;
+			const color = reference.backgroundColor ? `var(--vscode-scmGraph-historyItemHoverLabelForeground)` : `var(--vscode-scmGraph-historyItemHoverDefaultLabelForeground)`;
+
+			markdownString.appendMarkdown(`<span style="color:${color};background-color:${backgroundColor};border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;`);
+			markdownString.appendText(reference.name);
+			markdownString.appendMarkdown(`&nbsp;&nbsp;</span>`);
+		}
+
+		markdownString.appendMarkdown(`\n\n---\n\n`);
+	}
 
 	// Commands
 	if (commands && commands.length > 0) {

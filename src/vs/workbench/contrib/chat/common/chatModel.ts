@@ -12,7 +12,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { IObservable, ObservablePromise, autorunSelfDisposable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { IObservable, autorunSelfDisposable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
@@ -53,9 +53,7 @@ export interface IChatRequestVariableData {
 export interface IChatRequestModel {
 	readonly id: string;
 	readonly timestamp: number;
-	readonly username: string;
 	readonly modeInfo?: IChatRequestModeInfo;
-	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
 	readonly message: IParsedChatRequest;
 	readonly attempt: number;
@@ -275,14 +273,6 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	public get session(): ChatModel {
 		return this._session;
-	}
-
-	public get username(): string {
-		return this.session.requesterUsername;
-	}
-
-	public get avatarIconUri(): URI | undefined {
-		return this.session.requesterAvatarIconUri;
 	}
 
 	public get attempt(): number {
@@ -1084,7 +1074,6 @@ export interface IChatModel extends IDisposable {
 	readonly requestInProgress: boolean;
 	readonly requestInProgressObs: IObservable<boolean>;
 	readonly inputPlaceholder?: string;
-	readonly editingSessionObs?: ObservablePromise<IChatEditingSession> | undefined;
 	readonly editingSession?: IChatEditingSession | undefined;
 	/**
 	 * Sets requests as 'disabled', removing them from the UI. If a request ID
@@ -1151,9 +1140,7 @@ export interface ISerializableMarkdownInfo {
 export interface IExportableChatData {
 	initialLocation: ChatAgentLocation | undefined;
 	requests: ISerializableChatRequestData[];
-	requesterUsername: string;
 	responderUsername: string;
-	requesterAvatarIconUri: UriComponents | undefined;
 	responderAvatarIconUri: ThemeIcon | UriComponents | undefined; // Keeping Uri name for backcompat
 }
 
@@ -1249,8 +1236,7 @@ function getLastYearDate(): number {
 
 export function isExportableSessionData(obj: unknown): obj is IExportableChatData {
 	const data = obj as IExportableChatData;
-	return typeof data === 'object' &&
-		typeof data.requesterUsername === 'string';
+	return typeof data === 'object';
 }
 
 export function isSerializableSessionData(obj: unknown): obj is ISerializableChatData {
@@ -1418,22 +1404,10 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, ChatModeKind.Ask);
 	}
 
-	private readonly _initialRequesterUsername: string | undefined;
-	get requesterUsername(): string {
-		return this._defaultAgent?.metadata.requester?.name ??
-			this._initialRequesterUsername ?? '';
-	}
-
 	private readonly _initialResponderUsername: string | undefined;
 	get responderUsername(): string {
 		return this._defaultAgent?.fullName ??
 			this._initialResponderUsername ?? '';
-	}
-
-	private readonly _initialRequesterAvatarIconUri: URI | undefined;
-	get requesterAvatarIconUri(): URI | undefined {
-		return this._defaultAgent?.metadata.requester?.icon ??
-			this._initialRequesterAvatarIconUri;
 	}
 
 	private readonly _initialResponderAvatarIconUri: ThemeIcon | URI | undefined;
@@ -1460,13 +1434,10 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._customTitle !== undefined;
 	}
 
-	private _editingSession: ObservablePromise<IChatEditingSession> | undefined;
-	get editingSessionObs(): ObservablePromise<IChatEditingSession> | undefined {
-		return this._editingSession;
-	}
+	private _editingSession: IChatEditingSession | undefined;
 
 	get editingSession(): IChatEditingSession | undefined {
-		return this._editingSession?.promiseResult.get()?.data;
+		return this._editingSession;
 	}
 
 	private readonly _initialLocation: ChatAgentLocation;
@@ -1502,9 +1473,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._lastMessageDate = (isValid && initialData.lastMessageDate) || this._creationDate;
 		this._customTitle = isValid ? initialData.customTitle : undefined;
 
-		this._initialRequesterUsername = initialData?.requesterUsername;
 		this._initialResponderUsername = initialData?.responderUsername;
-		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
 
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
@@ -1518,15 +1487,13 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void {
-		const editingSessionPromise = transferFromSession
-			? this.chatEditingService.transferEditingSession(this, transferFromSession)
-			: isGlobalEditingSession ?
-				this.chatEditingService.startOrContinueGlobalEditingSession(this) :
-				this.chatEditingService.createEditingSession(this);
-		this._editingSession = new ObservablePromise(editingSessionPromise);
-		this._editingSession.promise.then(editingSession => {
-			this._store.isDisposed ? editingSession.dispose() : this._register(editingSession);
-		});
+		this._editingSession ??= this._register(
+			transferFromSession
+				? this.chatEditingService.transferEditingSession(this, transferFromSession)
+				: isGlobalEditingSession
+					? this.chatEditingService.startOrContinueGlobalEditingSession(this)
+					: this.chatEditingService.createEditingSession(this)
+		);
 	}
 
 	private currentEditedFileEvents = new ResourceMap<IChatAgentEditedFileEvent>();
@@ -1869,8 +1836,6 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	toExport(): IExportableChatData {
 		return {
-			requesterUsername: this.requesterUsername,
-			requesterAvatarIconUri: this.requesterAvatarIconUri,
 			responderUsername: this.responderUsername,
 			responderAvatarIconUri: this.responderAvatarIcon,
 			initialLocation: this.initialLocation,

@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -15,6 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { LanguageModelPartAudience } from '../../common/languageModels.js';
@@ -84,6 +86,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	constructor(
 		title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
+		progressTooltip: IMarkdownString | string | undefined,
 		private readonly context: IChatContentPartRenderContext,
 		private readonly input: IChatCollapsibleInputData,
 		private readonly output: IChatCollapsibleOutputData | undefined,
@@ -91,6 +94,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		initiallyExpanded: boolean,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 		this._currentWidth = context.currentWidth();
@@ -124,6 +128,12 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 				: ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))
 		);
 		iconEl.root.appendChild(check.root);
+		if (progressTooltip) {
+			this._register(hoverService.setupDelayedHover(check.root, {
+				content: progressTooltip,
+				style: HoverStyle.Pointer,
+			}));
+		}
 
 		const expanded = this._expanded = observableValue(this, initiallyExpanded);
 		this._register(autorun(r => {

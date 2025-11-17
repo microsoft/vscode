@@ -175,7 +175,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		const impl: IChatAgentImplementation = {
 			invoke: async (request, progress, history, token) => {
-				const chatSession = this._chatService.getSessionByLegacyId(request.sessionId);
+				const chatSession = this._chatService.getSession(request.sessionResource);
 				this._pendingProgress.set(request.requestId, { progress, chatSession });
 				try {
 					return await this._proxy.$invokeAgent(handle, request, {

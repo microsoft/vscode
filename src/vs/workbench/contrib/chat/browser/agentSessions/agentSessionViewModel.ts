@@ -152,10 +152,6 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			}
 
 			for (const session of sessions) {
-				if (session.id === 'workbench.panel.chat.view.copilot') {
-					continue; // TODO@bpasero this needs to be fixed at the provider level
-				}
-
 				let description;
 				if (session.description) {
 					description = session.description;
@@ -178,11 +174,11 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 				switch ((provider.chatSessionType)) {
 					case localChatSessionType:
 						providerLabel = localize('chat.session.providerLabel.local', "Local");
-						icon = Codicon.window;
+						icon = Codicon.vm;
 						break;
 					case AgentSessionProviders.Background:
 						providerLabel = localize('chat.session.providerLabel.background', "Background");
-						icon = Codicon.serverProcess;
+						icon = Codicon.collection;
 						break;
 					case AgentSessionProviders.Cloud:
 						providerLabel = localize('chat.session.providerLabel.cloud', "Cloud");

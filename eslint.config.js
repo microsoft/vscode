@@ -8,7 +8,7 @@ import path from 'path';
 import tseslint from 'typescript-eslint';
 
 import stylisticTs from '@stylistic/eslint-plugin-ts';
-import * as pluginLocal from './.eslint-plugin-local/index.js';
+import * as pluginLocal from './.eslint-plugin-local/index.ts';
 import pluginJsdoc from 'eslint-plugin-jsdoc';
 
 import pluginHeader from 'eslint-plugin-header';
@@ -89,7 +89,9 @@ export default tseslint.config(
 			'local/code-declare-service-brand': 'warn',
 			'local/code-no-reader-after-await': 'warn',
 			'local/code-no-observable-get-in-reactive-context': 'warn',
+			'local/code-no-localized-model-description': 'warn',
 			'local/code-policy-localization-key-match': 'warn',
+			'local/code-no-localization-template-literals': 'error',
 			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
 				'warn',
@@ -183,7 +185,8 @@ export default tseslint.config(
 	// Disallow 'in' operator except in type predicates
 	{
 		files: [
-			'**/*.ts'
+			'**/*.ts',
+			'.eslint-plugin-local/**/*.ts', // Explicitly include files under dot directories
 		],
 		ignores: [
 			'src/bootstrap-node.ts',
@@ -227,7 +230,6 @@ export default tseslint.config(
 			'src/vs/editor/contrib/inlineCompletions/browser/model/provideInlineCompletions.ts',
 			'src/vs/editor/contrib/inlineCompletions/browser/view/ghostText/ghostTextView.ts',
 			'src/vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/debugVisualization.ts',
-			'src/vs/editor/contrib/quickAccess/browser/editorNavigationQuickAccess.ts',
 			'src/vs/platform/accessibilitySignal/browser/accessibilitySignalService.ts',
 			'src/vs/platform/configuration/common/configuration.ts',
 			'src/vs/platform/configuration/common/configurationModels.ts',
@@ -449,7 +451,6 @@ export default tseslint.config(
 			'src/vs/platform/diagnostics/common/diagnostics.ts',
 			'src/vs/platform/diagnostics/node/diagnosticsService.ts',
 			'src/vs/platform/download/common/downloadIpc.ts',
-			'src/vs/platform/extensions/common/extensionValidator.ts',
 			'src/vs/platform/extensions/common/extensions.ts',
 			'src/vs/platform/instantiation/common/descriptors.ts',
 			'src/vs/platform/instantiation/common/extensions.ts',
@@ -507,7 +508,6 @@ export default tseslint.config(
 			'src/vs/platform/userDataSync/common/userDataSyncIpc.ts',
 			'src/vs/platform/userDataSync/common/userDataSyncServiceIpc.ts',
 			'src/vs/platform/webview/common/webviewManagerService.ts',
-			'src/vs/platform/configuration/test/common/testConfigurationService.ts',
 			'src/vs/platform/instantiation/test/common/instantiationServiceMock.ts',
 			'src/vs/platform/keybinding/test/common/mockKeybindingService.ts',
 			// Editor
@@ -556,7 +556,6 @@ export default tseslint.config(
 			'src/vs/workbench/api/common/extHostChatSessions.ts',
 			'src/vs/workbench/api/common/extHostCodeInsets.ts',
 			'src/vs/workbench/api/common/extHostCommands.ts',
-			'src/vs/workbench/api/common/extHostConfiguration.ts',
 			'src/vs/workbench/api/common/extHostConsoleForwarder.ts',
 			'src/vs/workbench/api/common/extHostDataChannels.ts',
 			'src/vs/workbench/api/common/extHostDebugService.ts',
@@ -571,7 +570,6 @@ export default tseslint.config(
 			'src/vs/workbench/api/common/extHostMessageService.ts',
 			'src/vs/workbench/api/common/extHostNotebookDocument.ts',
 			'src/vs/workbench/api/common/extHostNotebookDocumentSaveParticipant.ts',
-			'src/vs/workbench/api/common/extHostQuickOpen.ts',
 			'src/vs/workbench/api/common/extHostRequireInterceptor.ts',
 			'src/vs/workbench/api/common/extHostRpcService.ts',
 			'src/vs/workbench/api/common/extHostSCM.ts',
@@ -616,20 +614,16 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview.ts',
 			'src/vs/workbench/contrib/chat/browser/actions/chatCodeblockActions.ts',
 			'src/vs/workbench/contrib/chat/browser/actions/chatContextActions.ts',
-			'src/vs/workbench/contrib/chat/browser/actions/chatToolActions.ts',
 			'src/vs/workbench/contrib/chat/browser/chatAttachmentWidgets.ts',
 			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationWidget.ts',
 			'src/vs/workbench/contrib/chat/browser/chatContentParts/chatMultiDiffContentPart.ts',
 			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingActions.ts',
 			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingEditorActions.ts',
 			'src/vs/workbench/contrib/chat/browser/chatEditing/chatEditingServiceImpl.ts',
-			'src/vs/workbench/contrib/chat/browser/chatInputPart.ts',
 			'src/vs/workbench/contrib/chat/browser/chatSessions.contribution.ts',
 			'src/vs/workbench/contrib/chat/browser/chatSessions/common.ts',
 			'src/vs/workbench/contrib/chat/browser/chatSessions/view/sessionsTreeRenderer.ts',
-			'src/vs/workbench/contrib/chat/browser/chatWidget.ts',
 			'src/vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables.ts',
-			'src/vs/workbench/contrib/chat/common/chatAgents.ts',
 			'src/vs/workbench/contrib/chat/common/chatModel.ts',
 			'src/vs/workbench/contrib/chat/common/chatModes.ts',
 			'src/vs/workbench/contrib/chat/common/chatService.ts',
@@ -686,7 +680,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/extensions/browser/extensionsViews.ts',
 			'src/vs/workbench/contrib/extensions/browser/extensionsWorkbenchService.ts',
 			'src/vs/workbench/contrib/extensions/common/extensions.ts',
-			'src/vs/workbench/contrib/extensions/electron-browser/extensionProfileService.ts',
 			'src/vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor.ts',
 			'src/vs/workbench/contrib/inlineChat/browser/inlineChatActions.ts',
 			'src/vs/workbench/contrib/inlineChat/browser/inlineChatController.ts',
@@ -704,7 +697,6 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard.ts',
 			'src/vs/workbench/contrib/notebook/browser/contrib/find/notebookFind.ts',
 			'src/vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions.ts',
-			'src/vs/workbench/contrib/notebook/browser/contrib/multicursor/notebookMulticursor.ts',
 			'src/vs/workbench/contrib/notebook/browser/contrib/profile/notebookProfile.ts',
 			'src/vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout.ts',
 			'src/vs/workbench/contrib/notebook/browser/controller/chat/cellChatActions.ts',
@@ -715,20 +707,17 @@ export default tseslint.config(
 			'src/vs/workbench/contrib/notebook/browser/diff/diffComponents.ts',
 			'src/vs/workbench/contrib/notebook/browser/diff/inlineDiff/notebookDeletedCellDecorator.ts',
 			'src/vs/workbench/contrib/notebook/browser/notebookBrowser.ts',
-			'src/vs/workbench/contrib/notebook/browser/notebookEditorWidget.ts',
 			'src/vs/workbench/contrib/notebook/browser/outputEditor/notebookOutputEditor.ts',
 			'src/vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl.ts',
 			'src/vs/workbench/contrib/notebook/browser/view/notebookCellList.ts',
 			'src/vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView.ts',
 			'src/vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages.ts',
 			'src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts',
-			'src/vs/workbench/contrib/notebook/browser/viewModel/cellEditorOptions.ts',
 			'src/vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel.ts',
 			'src/vs/workbench/contrib/notebook/browser/viewParts/notebookEditorStickyScroll.ts',
 			'src/vs/workbench/contrib/notebook/browser/viewParts/notebookHorizontalTracker.ts',
 			'src/vs/workbench/contrib/notebook/browser/viewParts/notebookKernelQuickPickStrategy.ts',
 			'src/vs/workbench/contrib/notebook/browser/viewParts/notebookViewZones.ts',
-			'src/vs/workbench/contrib/notebook/common/model/notebookCellOutputTextModel.ts',
 			'src/vs/workbench/contrib/notebook/common/model/notebookCellTextModel.ts',
 			'src/vs/workbench/contrib/notebook/common/model/notebookMetadataTextModel.ts',
 			'src/vs/workbench/contrib/notebook/common/model/notebookTextModel.ts',
@@ -807,8 +796,6 @@ export default tseslint.config(
 			'src/vs/workbench/services/commands/common/commandService.ts',
 			'src/vs/workbench/services/configurationResolver/common/configurationResolver.ts',
 			'src/vs/workbench/services/configurationResolver/common/configurationResolverExpression.ts',
-			'src/vs/workbench/services/extensionManagement/browser/builtinExtensionsScannerService.ts',
-			'src/vs/workbench/services/extensionManagement/browser/webExtensionsScannerService.ts',
 			'src/vs/workbench/services/extensions/common/extensionHostManager.ts',
 			'src/vs/workbench/services/extensions/common/extensionsRegistry.ts',
 			'src/vs/workbench/services/extensions/common/lazyPromise.ts',

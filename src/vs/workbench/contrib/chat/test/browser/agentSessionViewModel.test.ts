@@ -52,14 +52,12 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-1',
 						resource: URI.parse('test://session-1'),
 						label: 'Test Session 1',
 						description: 'Description 1',
 						timing: { startTime: Date.now() }
 					},
 					{
-						id: 'session-2',
 						resource: URI.parse('test://session-2'),
 						label: 'Test Session 2',
 						timing: { startTime: Date.now() }
@@ -90,7 +88,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-1',
 						resource: URI.parse('test://session-1'),
 						label: 'Session 1',
 						timing: { startTime: Date.now() }
@@ -103,7 +100,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-2',
 						resource: URI.parse('test://session-2'),
 						label: 'Session 2',
 						timing: { startTime: Date.now() }
@@ -168,7 +164,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-1',
 						resource: URI.parse('test://session-1'),
 						label: 'Test Session',
 						timing: { startTime: Date.now() }
@@ -203,7 +198,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-1',
 						resource: URI.parse('test://session-1'),
 						label: 'Test Session',
 						description: new MarkdownString('**Bold** description'),
@@ -246,7 +240,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-1',
 						resource: URI.parse('test://session-1'),
 						label: 'Test Session',
 						timing: { startTime: Date.now() }
@@ -267,40 +260,6 @@ suite('AgentSessionsViewModel', () => {
 		});
 	});
 
-	test('should filter out special session IDs', async () => {
-		return runWithFakedTimers({}, async () => {
-			const provider: IChatSessionItemProvider = {
-				chatSessionType: 'test-type',
-				onDidChangeChatSessionItems: Event.None,
-				provideChatSessionItems: async () => [
-					{
-						id: 'workbench.panel.chat.view.copilot',
-						resource: URI.parse('test://copilot'),
-						label: 'Copilot',
-						timing: { startTime: Date.now() }
-					},
-					{
-						id: 'valid-session',
-						resource: URI.parse('test://valid'),
-						label: 'Valid Session',
-						timing: { startTime: Date.now() }
-					}
-				]
-			};
-
-			mockChatSessionsService.registerChatSessionItemProvider(provider);
-			viewModel = disposables.add(new AgentSessionsViewModel(
-				mockChatSessionsService,
-				mockLifecycleService
-			));
-
-			await viewModel.resolve(undefined);
-
-			assert.strictEqual(viewModel.sessions.length, 1);
-			assert.strictEqual(viewModel.sessions[0].resource.toString(), 'test://valid');
-		});
-	});
-
 	test('should handle resolve with specific provider', async () => {
 		return runWithFakedTimers({}, async () => {
 			const provider1: IChatSessionItemProvider = {
@@ -308,7 +267,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-1',
 						resource: URI.parse('test://session-1'),
 						label: 'Session 1',
 						timing: { startTime: Date.now() }
@@ -355,7 +313,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-1',
 						resource: URI.parse('test://session-1'),
 						label: 'Session 1',
 						timing: { startTime: Date.now() }
@@ -397,7 +354,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-1',
 						resource: URI.parse('test://session-1'),
 						label: 'Test Session',
 						timing: { startTime: Date.now() }
@@ -430,7 +386,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-1',
 						resource: URI.parse('test://session-1'),
 						label: 'Test Session',
 						timing: { startTime: Date.now() }
@@ -463,7 +418,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-1',
 						resource: URI.parse('test://session-1'),
 						label: 'Test Session',
 						timing: { startTime: Date.now() }
@@ -496,7 +450,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-1',
 						resource: URI.parse('test://session-1'),
 						label: 'Test Session',
 						timing: { startTime: Date.now() }
@@ -594,7 +547,6 @@ suite('AgentSessionsViewModel', () => {
 					const sessions: IChatSessionItem[] = [];
 					for (let i = 0; i < sessionCount; i++) {
 						sessions.push({
-							id: `session-${i}`,
 							resource: URI.parse(`test://session-${i}`),
 							label: `Session ${i}`,
 							timing: { startTime: Date.now() }
@@ -656,7 +608,6 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-1',
 						resource: resource,
 						label: 'Test Session',
 						timing: { startTime: Date.now() }
@@ -688,7 +639,6 @@ suite('AgentSessionsViewModel', () => {
 					providerCallCount++;
 					return [
 						{
-							id: 'session-1',
 							resource: URI.parse('test://session-1'),
 							label: 'Test Session',
 							timing: { startTime: Date.now() }
@@ -730,7 +680,6 @@ suite('AgentSessionsViewModel', () => {
 					provider1CallCount++;
 					return [
 						{
-							id: 'session-1',
 							resource: URI.parse('test://session-1'),
 							label: `Session 1 (call ${provider1CallCount})`,
 							timing: { startTime: Date.now() }
@@ -746,7 +695,6 @@ suite('AgentSessionsViewModel', () => {
 					provider2CallCount++;
 					return [
 						{
-							id: 'session-2',
 							resource: URI.parse('test://session-2'),
 							label: `Session 2 (call ${provider2CallCount})`,
 							timing: { startTime: Date.now() }
@@ -796,7 +744,6 @@ suite('AgentSessionsViewModel', () => {
 					resolveCount++;
 					resolvedProviders.push('type-1');
 					return [{
-						id: 'session-1',
 						resource: URI.parse('test://session-1'),
 						label: 'Session 1',
 						timing: { startTime: Date.now() }
@@ -811,7 +758,6 @@ suite('AgentSessionsViewModel', () => {
 					resolveCount++;
 					resolvedProviders.push('type-2');
 					return [{
-						id: 'session-2',
 						resource: URI.parse('test://session-2'),
 						label: 'Session 2',
 						timing: { startTime: Date.now() }

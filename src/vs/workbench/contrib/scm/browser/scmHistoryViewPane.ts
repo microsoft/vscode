@@ -29,7 +29,7 @@ import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemIndex } from './scmHistory.js';
-import { addClassToTwistieElement, getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
+import { getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ViewMode } from '../common/scm.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
@@ -312,38 +312,43 @@ registerAction2(class extends Action2 {
 
 	override async run(accessor: ServicesAccessor, provider: ISCMProvider, ...historyItems: ISCMHistoryItem[]) {
 		const commandService = accessor.get(ICommandService);
-
-		if (!provider || historyItems.length === 0) {
-			return;
-		}
-
-		const historyItem = historyItems[0];
-		const historyItemLast = historyItems[historyItems.length - 1];
 		const historyProvider = provider.historyProvider.get();
 		const historyItemRef = historyProvider?.historyItemRef.get();
 		const historyItemRemoteRef = historyProvider?.historyItemRemoteRef.get();
 
-		if (historyItems.length > 1) {
-			const ancestor = await historyProvider?.resolveHistoryItemRefsCommonAncestor([historyItem.id, historyItemLast.id]);
-			if (!ancestor || (ancestor !== historyItem.id && ancestor !== historyItemLast.id)) {
-				return;
-			}
+		if (!provider || !historyProvider || !historyItemRef || historyItems.length === 0) {
+			return;
 		}
 
-		let title: string, historyItemId: string, historyItemParentId: string | undefined;
+		const historyItem = historyItems[0];
+		let title: string | undefined, historyItemId: string | undefined, historyItemParentId: string | undefined;
 
-		if (historyItem.id === SCMIncomingHistoryItemId) {
-			title = `${historyItem.subject} - ${historyItemRef?.name} \u2194 ${historyItemRemoteRef?.name}`;
-			historyItemId = historyProvider!.historyItemRemoteRef.get()!.id;
-			historyItemParentId = historyItem.parentIds[0];
-		} else if (historyItem.id === SCMOutgoingHistoryItemId) {
-			title = `${historyItem.subject} - ${historyItemRemoteRef?.name} \u2194 ${historyItemRef?.name}`;
-			historyItemId = historyProvider!.historyItemRef.get()!.id;
-			historyItemParentId = historyItem.parentIds[0];
+		if (historyItemRemoteRef && (historyItem.id === SCMIncomingHistoryItemId || historyItem.id === SCMOutgoingHistoryItemId)) {
+			// Incoming/Outgoing changes history item
+			const mergeBase = await historyProvider.resolveHistoryItemRefsCommonAncestor([
+				historyItemRef.name,
+				historyItemRemoteRef.name
+			]);
+
+			if (mergeBase && historyItem.id === SCMIncomingHistoryItemId) {
+				// Incoming changes history item
+				title = `${historyItem.subject} - ${historyItemRef.name} \u2194 ${historyItemRemoteRef.name}`;
+				historyItemId = historyItemRemoteRef.id;
+				historyItemParentId = mergeBase;
+			} else if (mergeBase && historyItem.id === SCMOutgoingHistoryItemId) {
+				// Outgoing changes history item
+				title = `${historyItem.subject} - ${historyItemRemoteRef.name} \u2194 ${historyItemRef.name}`;
+				historyItemId = historyItemRef.id;
+				historyItemParentId = mergeBase;
+			}
 		} else {
 			title = getHistoryItemEditorTitle(historyItem);
 			historyItemId = historyItem.id;
 			historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+		}
+
+		if (!title || !historyItemId || !historyItemParentId) {
+			return;
 		}
 
 		const multiDiffSourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(provider, historyItemId, historyItemParentId, '');
@@ -445,9 +450,6 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 	}
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
-		// HACK - use helper function as there is no tree API
-		addClassToTwistieElement(container, 'force-no-twistie');
-
 		const element = append(container, $('.history-item'));
 		const graphContainer = append(element, $('.graph-container'));
 		const iconLabel = new IconLabel(element, {
@@ -721,9 +723,6 @@ class HistoryItemLoadMoreRenderer implements ICompressibleTreeRenderer<SCMHistor
 	) { }
 
 	renderTemplate(container: HTMLElement): LoadMoreTemplate {
-		// HACK - use helper function as there is no tree API
-		addClassToTwistieElement(container, 'force-no-twistie');
-
 		const element = append(container, $('.history-item-load-more'));
 		const graphPlaceholder = append(element, $('.graph-placeholder'));
 		const historyItemPlaceholderContainer = append(element, $('.history-item-placeholder'));
@@ -921,7 +920,7 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 				historyItemViewModel.kind === 'incoming-changes' ||
 				historyItemViewModel.kind === 'outgoing-changes'
 			) {
-				// Incoming/Outgoing changes node
+				// Incoming/Outgoing changes history item
 				const historyItemRef = historyProvider?.historyItemRef.get();
 				const historyItemRemoteRef = historyProvider?.historyItemRemoteRef.get();
 
@@ -932,9 +931,12 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 				historyItemId = historyItemViewModel.kind === 'incoming-changes'
 					? historyItemRemoteRef.id
 					: historyItemRef.id;
-				historyItemParentId = historyItem.parentIds[0];
+
+				historyItemParentId = await historyProvider.resolveHistoryItemRefsCommonAncestor([
+					historyItemRef.name,
+					historyItemRemoteRef.name]);
 			} else {
-				// Regular node
+				// History item
 				historyItemId = historyItem.id;
 				historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
 			}
@@ -1975,7 +1977,12 @@ export class SCMHistoryViewPane extends ViewPane {
 				dnd: new SCMHistoryTreeDragAndDrop(),
 				keyboardNavigationLabelProvider: new SCMHistoryTreeKeyboardNavigationLabelProvider(),
 				horizontalScrolling: false,
-				multipleSelectionSupport: false
+				multipleSelectionSupport: false,
+				twistieAdditionalCssClass: (e: unknown) => {
+					return isSCMHistoryItemViewModelTreeElement(e) || isSCMHistoryItemLoadMoreTreeElement(e)
+						? 'force-no-twistie'
+						: undefined;
+				}
 			}
 		) as WorkbenchCompressibleAsyncDataTree<SCMHistoryViewModel, TreeElement, FuzzyScore>;
 		this._register(this._tree);
