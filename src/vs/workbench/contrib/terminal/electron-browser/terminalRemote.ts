@@ -9,8 +9,9 @@ import { localize2 } from '../../../../nls.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { registerTerminalAction } from '../browser/terminalActions.js';
-import { TerminalCommandId } from '../common/terminal.js';
+import { TerminalCommandId, ITerminalProfileResolverService } from '../common/terminal.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
+import { OS } from '../../../../base/common/platform.js';
 
 export function registerRemoteContributions() {
 	registerTerminalAction({
@@ -20,6 +21,8 @@ export function registerRemoteContributions() {
 			const historyService = accessor.get(IHistoryService);
 			const remoteAuthorityResolverService = accessor.get(IRemoteAuthorityResolverService);
 			const nativeEnvironmentService = accessor.get(INativeEnvironmentService);
+			const terminalProfileResolverService = accessor.get(ITerminalProfileResolverService);
+
 			let cwd: URI | undefined;
 			try {
 				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
@@ -33,7 +36,19 @@ export function registerRemoteContributions() {
 			if (!cwd) {
 				cwd = nativeEnvironmentService.userHome;
 			}
-			const instance = await c.service.createTerminal({ cwd });
+
+			// Fix: Explicitly get the local default profile to ensure we use the correct local shell
+			// instead of accidentally using remote shell profiles when in a remote workspace
+			const localProfile = await terminalProfileResolverService.getDefaultProfile({
+				remoteAuthority: undefined, // Force local backend
+				os: OS // Use the actual local OS
+			});
+
+			// Create terminal with explicit local profile configuration
+			const instance = await c.service.createTerminal({
+				cwd,
+				config: localProfile
+			});
 			if (!instance) {
 				return Promise.resolve(undefined);
 			}
