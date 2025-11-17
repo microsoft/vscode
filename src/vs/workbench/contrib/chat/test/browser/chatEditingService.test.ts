@@ -141,7 +141,7 @@ suite('ChatEditingService', function () {
 		const model = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
 		const session = await editingService.createEditingSession(model, true);
 
-		assert.strictEqual(session.chatSessionId, model.sessionId);
+		assert.strictEqual(session.chatSessionResource.toString(), model.sessionResource.toString());
 		assert.strictEqual(session.isGlobalEditingSession, true);
 
 		await assertThrowsAsync(async () => {

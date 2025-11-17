@@ -528,6 +528,10 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 	}
 
 	private _createAttachToChatAction(command: ITerminalCommand): IAction | undefined {
+		const chatIsEnabled = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).some(w => w.attachmentCapabilities.supportsTerminalAttachments);
+		if (!chatIsEnabled) {
+			return undefined;
+		}
 		const labelAttachToChat = localize("terminal.attachToChat", 'Attach To Chat');
 		return {
 			class: undefined, tooltip: labelAttachToChat, id: 'terminal.attachToChat', label: labelAttachToChat, enabled: true,

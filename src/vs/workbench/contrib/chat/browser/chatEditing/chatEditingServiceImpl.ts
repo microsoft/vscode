@@ -182,7 +182,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		assertType(this.getEditingSession(chatModel.sessionResource) === undefined, 'CANNOT have more than one editing session per chat session');
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionId, chatModel.sessionResource, global, this._lookupEntry.bind(this));
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionResource, global, this._lookupEntry.bind(this));
 		await session.init(initFrom);
 
 		const list = this._sessionsObs.get();
@@ -206,7 +206,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 	private installAutoApplyObserver(session: ChatEditingSession, chatModel: ChatModel): IDisposable {
 		if (!chatModel) {
-			throw new ErrorNoTelemetry(`Edit session was created for a non-existing chat session: ${session.chatSessionId}`);
+			throw new ErrorNoTelemetry(`Edit session was created for a non-existing chat session: ${session.chatSessionResource}`);
 		}
 
 		const observerDisposables = new DisposableStore();
@@ -469,7 +469,7 @@ export class ChatEditingMultiDiffSourceResolver implements IMultiDiffSourceResol
 
 		const parsed = parseChatMultiDiffUri(uri);
 		const thisSession = derived(this, r => {
-			return this._editingSessionsObs.read(r).find(candidate => candidate.chatSessionId === parsed.chatSessionId);
+			return this._editingSessionsObs.read(r).find(candidate => isEqual(candidate.chatSessionResource, parsed.chatSessionResource));
 		});
 
 		return this._instantiationService.createInstance(ChatEditingMultiDiffSource, thisSession, parsed.showPreviousChanges);
