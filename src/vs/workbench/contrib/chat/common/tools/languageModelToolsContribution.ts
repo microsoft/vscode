@@ -253,6 +253,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with tags starting with "vscode_" or "copilot_"`);
 					}
 
+					if (rawTool.legacyToolReferenceFullNames && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT use 'legacyToolReferenceFullNames' without the 'chatParticipantPrivate' API proposal enabled`);
+						continue;
+					}
+
 					const rawIcon = rawTool.icon;
 					let icon: IToolData['icon'] | undefined;
 					if (typeof rawIcon === 'string') {
@@ -323,6 +328,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 					if (isFalsyOrWhitespace(toolSet.name)) {
 						extension.collector.error(`Tool set '${toolSet.name}' CANNOT have an empty name`);
+						continue;
+					}
+
+					if (toolSet.legacyNames && !isProposedApiEnabled(extension.description, 'contribLanguageModelToolSets')) {
+						extension.collector.error(`Tool set '${toolSet.name}' CANNOT use 'legacyNames' without the 'contribLanguageModelToolSets' API proposal enabled`);
 						continue;
 					}
 

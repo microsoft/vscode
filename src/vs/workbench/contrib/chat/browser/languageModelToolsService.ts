@@ -140,7 +140,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			{
 				icon: ThemeIcon.fromId(Codicon.code.id),
 				description: localize('copilot.toolSet.vscode.description', 'Tools for VS Code'),
-				legacyNames: ['new', 'runNotebooks', 'runTasks']
 			}
 		));
 	}
@@ -722,7 +721,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					const enabled = Boolean(
 						toolOrToolSetNames.has(toolReferenceName) ||
 						toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName) ||
-						tool.legacyToolReferenceFullNames?.some(name => toolOrToolSetNames.has(name))
+						tool.legacyToolReferenceFullNames?.some(toolFullName => {
+							// enable tool if either the legacy fully qualified name or just the legacy tool set name is present
+							const toolSetFullName = toolFullName.substring(0, toolFullName.lastIndexOf('/'));
+							return toolOrToolSetNames.has(toolFullName) ||
+								(toolSetFullName && toolOrToolSetNames.has(toolSetFullName));
+						})
 					);
 					result.set(tool, enabled);
 				}
@@ -843,17 +847,32 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	getDeprecatedQualifiedToolNames(): Map<string, string> {
-		const result = new Map<string, string>();
+	getDeprecatedQualifiedToolNames(): Map<string, Set<string>> {
+		const result = new Map<string, Set<string>>();
+		const knownToolSetNames = new Set<string>();
 		const add = (name: string, toolReferenceName: string) => {
 			if (name !== toolReferenceName) {
-				result.set(name, toolReferenceName);
+				if (!result.has(name)) {
+					result.set(name, new Set<string>());
+				}
+				result.get(name)!.add(toolReferenceName);
 			}
 		};
+
+		for (const [tool, _] of this.getPromptReferencableTools()) {
+			if (tool instanceof ToolSet) {
+				knownToolSetNames.add(tool.referenceName);
+				if (tool.legacyNames) {
+					for (const legacyName of tool.legacyNames) {
+						knownToolSetNames.add(legacyName);
+					}
+				}
+			}
+		}
+
 		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
 			if (tool instanceof ToolSet) {
 				add(tool.referenceName, toolReferenceName);
-				// Add all legacy names for toolsets
 				if (tool.legacyNames) {
 					for (const legacyName of tool.legacyNames) {
 						add(legacyName, toolReferenceName);
@@ -861,10 +880,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			} else {
 				add(tool.toolReferenceName ?? tool.displayName, toolReferenceName);
-				// Add all legacy reference full names
 				if (tool.legacyToolReferenceFullNames) {
 					for (const legacyName of tool.legacyToolReferenceFullNames) {
 						add(legacyName, toolReferenceName);
+						// for any 'orphaned' toolsets (toolsets that no longer exist and
+						// do not have an explicit legacy mapping), we should
+						// just point them to the list of tools directly
+						if (legacyName.includes('/')) {
+							const toolSetFullName = legacyName.substring(0, legacyName.lastIndexOf('/'));
+							if (!knownToolSetNames.has(toolSetFullName)) {
+								add(toolSetFullName, toolReferenceName);
+							}
+						}
 					}
 				}
 			}

@@ -53,7 +53,7 @@ export class TestingChatAgentToolContribution extends Disposable implements IWor
 		super();
 		const runTestsTool = instantiationService.createInstance(RunTestTool);
 		this._register(toolsService.registerTool(RunTestTool.DEFINITION, runTestsTool));
-		toolsService.vscodeToolSet.addTool(RunTestTool.DEFINITION);
+		this._register(toolsService.vscodeToolSet.addTool(RunTestTool.DEFINITION));
 
 		// todo@connor4312: temporary for 1.103 release during changeover
 		contextKeyService.createKey('chat.coreTestFailureToolEnabled', true).set(true);

@@ -67,7 +67,7 @@ suite('PromptValidator', () => {
 		const prExtTool1 = { id: 'suggestFix', canBeReferencedInPrompt: true, toolReferenceName: 'suggest-fix', modelDescription: 'tool4', displayName: 'Test Tool 4', source: prExtSource, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(prExtTool1));
 
-		const toolWithLegacy = { id: 'newTool', toolReferenceName: 'newToolRef', displayName: 'New Tool', canBeReferencedInPrompt: true, modelDescription: 'New Tool', source: ToolDataSource.External, inputSchema: {}, legacyToolReferenceFullNames: ['oldToolName', 'deprecatedToolName'] } satisfies IToolData;
+		const toolWithLegacy = { id: 'newTool', toolReferenceName: 'newToolRef', displayName: 'New Tool', modelDescription: 'New Tool', source: ToolDataSource.External, inputSchema: {}, legacyToolReferenceFullNames: ['oldToolName', 'deprecatedToolName'] } satisfies IToolData;
 		disposables.add(toolService.registerToolData(toolWithLegacy));
 
 		const toolSetWithLegacy = disposables.add(toolService.createToolSet(
@@ -76,11 +76,11 @@ suite('PromptValidator', () => {
 			'newToolSetRef',
 			{ description: 'New Tool Set', legacyNames: ['oldToolSet', 'deprecatedToolSet'] }
 		));
-		const toolInSet = { id: 'toolInSet', toolReferenceName: 'toolInSetRef', displayName: 'Tool In Set', canBeReferencedInPrompt: true, modelDescription: 'Tool In Set', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		const toolInSet = { id: 'toolInSet', toolReferenceName: 'toolInSetRef', displayName: 'Tool In Set', modelDescription: 'Tool In Set', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(toolInSet));
 		disposables.add(toolSetWithLegacy.addTool(toolInSet));
 
-		const anotherToolWithLegacy = { id: 'anotherTool', toolReferenceName: 'anotherToolRef', displayName: 'Another Tool', canBeReferencedInPrompt: true, modelDescription: 'Another Tool', source: ToolDataSource.External, inputSchema: {}, legacyToolReferenceFullNames: ['legacyTool'] } satisfies IToolData;
+		const anotherToolWithLegacy = { id: 'anotherTool', toolReferenceName: 'anotherToolRef', displayName: 'Another Tool', modelDescription: 'Another Tool', source: ToolDataSource.External, inputSchema: {}, legacyToolReferenceFullNames: ['legacyTool'] } satisfies IToolData;
 		disposables.add(toolService.registerToolData(anotherToolWithLegacy));
 
 		const anotherToolSetWithLegacy = disposables.add(toolService.createToolSet(
@@ -92,6 +92,26 @@ suite('PromptValidator', () => {
 		const anotherToolInSet = { id: 'anotherToolInSet', toolReferenceName: 'anotherToolInSetRef', displayName: 'Another Tool In Set', canBeReferencedInPrompt: true, modelDescription: 'Another Tool In Set', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(anotherToolInSet));
 		disposables.add(anotherToolSetWithLegacy.addTool(anotherToolInSet));
+
+		const conflictToolSet1 = disposables.add(toolService.createToolSet(
+			ToolDataSource.External,
+			'conflictSet1',
+			'conflictSet1Ref',
+			{ legacyNames: ['sharedLegacyName'] }
+		));
+		const conflictTool1 = { id: 'conflictTool1', toolReferenceName: 'conflictTool1Ref', displayName: 'Conflict Tool 1', modelDescription: 'Conflict Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(conflictTool1));
+		disposables.add(conflictToolSet1.addTool(conflictTool1));
+
+		const conflictToolSet2 = disposables.add(toolService.createToolSet(
+			ToolDataSource.External,
+			'conflictSet2',
+			'conflictSet2Ref',
+			{ legacyNames: ['sharedLegacyName'] }
+		));
+		const conflictTool2 = { id: 'conflictTool2', toolReferenceName: 'conflictTool2Ref', displayName: 'Conflict Tool 2', modelDescription: 'Conflict Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(conflictTool2));
+		disposables.add(conflictToolSet2.addTool(conflictTool2));
 
 		instaService.set(ILanguageModelToolsService, toolService);
 
@@ -302,6 +322,73 @@ suite('PromptValidator', () => {
 					{ severity: MarkerSeverity.Info, message: `Tool or toolset 'tool3' has been renamed, use 'my.extension/tool3' instead.` },
 				]
 			);
+		});
+
+		test('deprecated tool name mapping to multiple new names', async () => {
+			// The toolsets are registered in setup with a shared legacy name 'sharedLegacyName'
+			// This simulates the case where one deprecated name maps to multiple current names
+			const content = [
+				'---',
+				'description: "Test"',
+				`tools: ['sharedLegacyName']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Info);
+			// When multiple toolsets share the same legacy name, the message should indicate multiple options
+			// The message will say "use the following tools instead:" for multiple mappings
+			assert.ok(markers[0].message.includes(`Tool or toolset 'sharedLegacyName' has been renamed, use the following tools instead:`));
+		});
+
+		test('deprecated tool name in body variable reference - single mapping', async () => {
+			// Test deprecated tool name used as variable reference in body
+			const content = [
+				'---',
+				'description: "Test"',
+				'---',
+				'Body with #tool:oldToolName reference',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Info);
+			assert.strictEqual(markers[0].message, `Tool or toolset 'oldToolName' has been renamed, use 'newToolRef' instead.`);
+		});
+
+		test('deprecated tool name in body variable reference - multiple mappings', async () => {
+			// Register tools with the same legacy name to create multiple mappings
+			const multiMapToolSet1 = disposables.add(instaService.get(ILanguageModelToolsService).createToolSet(
+				ToolDataSource.External,
+				'multiMapSet1',
+				'multiMapSet1Ref',
+				{ legacyNames: ['multiMapLegacy'] }
+			));
+			const multiMapTool1 = { id: 'multiMapTool1', toolReferenceName: 'multiMapTool1Ref', displayName: 'Multi Map Tool 1', canBeReferencedInPrompt: true, modelDescription: 'Multi Map Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+			disposables.add(instaService.get(ILanguageModelToolsService).registerToolData(multiMapTool1));
+			disposables.add(multiMapToolSet1.addTool(multiMapTool1));
+
+			const multiMapToolSet2 = disposables.add(instaService.get(ILanguageModelToolsService).createToolSet(
+				ToolDataSource.External,
+				'multiMapSet2',
+				'multiMapSet2Ref',
+				{ legacyNames: ['multiMapLegacy'] }
+			));
+			const multiMapTool2 = { id: 'multiMapTool2', toolReferenceName: 'multiMapTool2Ref', displayName: 'Multi Map Tool 2', canBeReferencedInPrompt: true, modelDescription: 'Multi Map Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+			disposables.add(instaService.get(ILanguageModelToolsService).registerToolData(multiMapTool2));
+			disposables.add(multiMapToolSet2.addTool(multiMapTool2));
+
+			const content = [
+				'---',
+				'description: "Test"',
+				'---',
+				'Body with #tool:multiMapLegacy reference',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Info);
+			// When multiple toolsets share the same legacy name, the message should indicate multiple options
+			// The message will say "use the following names instead:" for multiple mappings in body references
+			assert.ok(markers[0].message.includes(`Tool or toolset 'multiMapLegacy' has been renamed, use the following names instead:`));
 		});
 
 		test('unknown attribute in agent file', async () => {
