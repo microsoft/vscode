@@ -50,8 +50,11 @@ import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCd
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
+import { ChatConfiguration } from '../../../../chat/common/constants.js';
 
 // #region Tool data
+
+const TOOL_REFERENCE_NAME = 'runInTerminal';
 
 function createPowerShellModelDescription(shell: string): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
@@ -188,7 +191,7 @@ export async function createRunInTerminalToolData(
 
 	return {
 		id: 'run_in_terminal',
-		toolReferenceName: 'runInTerminal',
+		toolReferenceName: TOOL_REFERENCE_NAME,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
 		modelDescription,
 		userDescription: localize('runInTerminalTool.userDescription', 'Tool for running commands in the terminal'),
@@ -397,9 +400,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// commands that would be auto approved if it were enabled.
 		const commandLine = rewrittenCommand ?? args.command;
 
+		const isEligibleForAutoApproval = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval)?.[TOOL_REFERENCE_NAME] ?? true;
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		const isAutoApproveAllowed = isAutoApproveEnabled && isAutoApproveWarningAccepted;
+		const isAutoApproveAllowed = isEligibleForAutoApproval && isAutoApproveEnabled && isAutoApproveWarningAccepted;
 
 		const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
 			commandLine,
@@ -417,7 +421,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			disclaimer = new MarkdownString(`$(${Codicon.info.id}) ` + disclaimersRaw.join(' '), { supportThemeIcons: true });
 		}
 
-		const customActions = commandLineAnalyzerResults.map(e => e.customActions ?? []).flat();
+		const customActions = isEligibleForAutoApproval ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
 		toolSpecificData.autoApproveInfo = commandLineAnalyzerResults.find(e => e.autoApproveInfo)?.autoApproveInfo;
 
 		let shellType = basename(shell, '.exe');
