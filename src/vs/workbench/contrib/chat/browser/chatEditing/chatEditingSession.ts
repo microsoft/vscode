@@ -167,7 +167,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	constructor(
-		readonly chatSessionId: string,
 		readonly chatSessionResource: URI,
 		readonly isGlobalEditingSession: boolean,
 		private _lookupExternalEntry: (uri: URI) => AbstractChatEditingModifiedFileEntry | undefined,
@@ -187,7 +186,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		super();
 		this._timeline = this._instantiationService.createInstance(
 			ChatEditingCheckpointTimelineImpl,
-			chatSessionId,
+			chatSessionResource,
 			this._getTimelineDelegate(),
 		);
 		this.canRedo = this._timeline.canRedo.map((hasHistory, reader) =>
@@ -240,10 +239,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	public async init(transferFrom?: IChatEditingSession): Promise<void> {
-		let restoredSessionState = await this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionId).restoreState();
+		let restoredSessionState = await this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionResource).restoreState();
 
 		if (!restoredSessionState && transferFrom instanceof ChatEditingSession) {
-			restoredSessionState = transferFrom._getStoredState(this.chatSessionId);
+			restoredSessionState = transferFrom._getStoredState(this.chatSessionResource);
 		}
 
 		if (restoredSessionState) {
@@ -277,14 +276,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	public storeState(): Promise<void> {
-		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionId);
+		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionResource);
 		return storage.storeState(this._getStoredState());
 	}
 
-	private _getStoredState(sessionId = this.chatSessionId): StoredSessionState {
+	private _getStoredState(sessionResource = this.chatSessionResource): StoredSessionState {
 		const entries = new ResourceMap<ISnapshotEntry>();
 		for (const entry of this._entriesObs.get()) {
-			entries.set(entry.modifiedURI, entry.createSnapshot(sessionId, undefined, undefined));
+			entries.set(entry.modifiedURI, entry.createSnapshot(sessionResource, undefined, undefined));
 		}
 
 		const state: StoredSessionState = {
@@ -414,7 +413,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._stopPromise ??= Promise.allSettled([this._performStop(), this.storeState()]).then(() => { });
 		await this._stopPromise;
 		if (clearState) {
-			await this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionId).clearState();
+			await this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionResource).clearState();
 		}
 	}
 
@@ -782,7 +781,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			get modelId() { return responseModel.request?.modelId; }
 			get modeId() { return responseModel.request?.modeInfo?.modeId; }
 			get command() { return responseModel.slashCommand?.name; }
-			get sessionId() { return responseModel.session.sessionId; }
+			get sessionResource() { return responseModel.session.sessionResource; }
 			get requestId() { return responseModel.requestId; }
 			get result() { return responseModel.result; }
 			get applyCodeBlockSuggestionId() { return responseModel.request?.modeInfo?.applyCodeBlockSuggestionId; }
