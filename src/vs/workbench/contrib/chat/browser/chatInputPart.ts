@@ -1945,6 +1945,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._workingSetLinesAddedSpan.value.textContent = `+${added}`;
 			this._workingSetLinesRemovedSpan.value.textContent = `-${removed}`;
 			button.element.setAttribute('aria-label', localize('chatEditingSession.ariaLabelWithCounts', '{0}, {1} lines added, {2} lines removed', baseLabel, added, removed));
+
+			const shouldShowEditingSession = added > 0 || removed > 0;
+			dom.setVisibility(shouldShowEditingSession, this.chatEditingSessionWidgetContainer);
+			if (!shouldShowEditingSession) {
+				this._onDidChangeHeight.fire();
+			}
 		}));
 
 		const countsContainer = dom.$('.working-set-line-counts');
