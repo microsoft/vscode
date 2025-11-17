@@ -74,7 +74,7 @@ suite('PromptValidator', () => {
 			ToolDataSource.External,
 			'newToolSet',
 			'newToolSetRef',
-			{ description: 'New Tool Set', legacyNames: ['oldToolSet', 'deprecatedToolSet'] }
+			{ description: 'New Tool Set', legacyFullNames: ['oldToolSet', 'deprecatedToolSet'] }
 		));
 		const toolInSet = { id: 'toolInSet', toolReferenceName: 'toolInSetRef', displayName: 'Tool In Set', modelDescription: 'Tool In Set', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(toolInSet));
@@ -87,7 +87,7 @@ suite('PromptValidator', () => {
 			ToolDataSource.External,
 			'anotherToolSet',
 			'anotherToolSetRef',
-			{ description: 'Another Tool Set', legacyNames: ['legacyToolSet'] }
+			{ description: 'Another Tool Set', legacyFullNames: ['legacyToolSet'] }
 		));
 		const anotherToolInSet = { id: 'anotherToolInSet', toolReferenceName: 'anotherToolInSetRef', displayName: 'Another Tool In Set', canBeReferencedInPrompt: true, modelDescription: 'Another Tool In Set', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(anotherToolInSet));
@@ -97,7 +97,7 @@ suite('PromptValidator', () => {
 			ToolDataSource.External,
 			'conflictSet1',
 			'conflictSet1Ref',
-			{ legacyNames: ['sharedLegacyName'] }
+			{ legacyFullNames: ['sharedLegacyName'] }
 		));
 		const conflictTool1 = { id: 'conflictTool1', toolReferenceName: 'conflictTool1Ref', displayName: 'Conflict Tool 1', modelDescription: 'Conflict Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(conflictTool1));
@@ -107,7 +107,7 @@ suite('PromptValidator', () => {
 			ToolDataSource.External,
 			'conflictSet2',
 			'conflictSet2Ref',
-			{ legacyNames: ['sharedLegacyName'] }
+			{ legacyFullNames: ['sharedLegacyName'] }
 		));
 		const conflictTool2 = { id: 'conflictTool2', toolReferenceName: 'conflictTool2Ref', displayName: 'Conflict Tool 2', modelDescription: 'Conflict Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(conflictTool2));
@@ -361,7 +361,7 @@ suite('PromptValidator', () => {
 				ToolDataSource.External,
 				'multiMapSet1',
 				'multiMapSet1Ref',
-				{ legacyNames: ['multiMapLegacy'] }
+				{ legacyFullNames: ['multiMapLegacy'] }
 			));
 			const multiMapTool1 = { id: 'multiMapTool1', toolReferenceName: 'multiMapTool1Ref', displayName: 'Multi Map Tool 1', canBeReferencedInPrompt: true, modelDescription: 'Multi Map Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 			disposables.add(instaService.get(ILanguageModelToolsService).registerToolData(multiMapTool1));
@@ -371,7 +371,7 @@ suite('PromptValidator', () => {
 				ToolDataSource.External,
 				'multiMapSet2',
 				'multiMapSet2Ref',
-				{ legacyNames: ['multiMapLegacy'] }
+				{ legacyFullNames: ['multiMapLegacy'] }
 			));
 			const multiMapTool2 = { id: 'multiMapTool2', toolReferenceName: 'multiMapTool2Ref', displayName: 'Multi Map Tool 2', canBeReferencedInPrompt: true, modelDescription: 'Multi Map Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 			disposables.add(instaService.get(ILanguageModelToolsService).registerToolData(multiMapTool2));
@@ -597,7 +597,7 @@ suite('PromptValidator', () => {
 				'Unknown tool \'edit\'.',
 			]);
 		});
-		
+
 		test('undefined target with mcp-servers and github-tools', async () => {
 			const content = [
 				'---',

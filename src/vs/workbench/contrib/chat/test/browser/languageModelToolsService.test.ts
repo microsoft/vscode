@@ -792,7 +792,7 @@ suite('LanguageModelToolsService', () => {
 			ToolDataSource.Internal,
 			'newToolSet',
 			'newToolSetRef',
-			{ description: 'New Tool Set', legacyNames: ['oldToolSet', 'deprecatedToolSet'] }
+			{ description: 'New Tool Set', legacyFullNames: ['oldToolSet', 'deprecatedToolSet'] }
 		));
 
 		// Create a tool in the toolset

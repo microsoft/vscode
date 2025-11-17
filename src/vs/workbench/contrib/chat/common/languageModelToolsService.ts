@@ -305,7 +305,7 @@ export class ToolSet {
 		readonly icon: ThemeIcon,
 		readonly source: ToolDataSource,
 		readonly description?: string,
-		readonly legacyNames?: string[],
+		readonly legacyFullNames?: string[],
 	) {
 
 		this.isHomogenous = derived(r => {
@@ -363,7 +363,7 @@ export interface ILanguageModelToolsService {
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;
 	getToolSetByName(name: string): ToolSet | undefined;
-	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyNames?: string[] }): ToolSet & IDisposable;
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyFullNames?: string[] }): ToolSet & IDisposable;
 
 	// tool names in prompt files handling ('qualified names')
 

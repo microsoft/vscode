@@ -708,7 +708,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const enabled = Boolean(
 					toolOrToolSetNames.has(toolReferenceName) ||
 					toolOrToolSetNames.has(tool.referenceName) ||
-					tool.legacyNames?.some(name => toolOrToolSetNames.has(name))
+					tool.legacyFullNames?.some(name => toolOrToolSetNames.has(name))
 				);
 				result.set(tool, enabled);
 				if (enabled) {
@@ -805,7 +805,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyNames?: string[] }): ToolSet & IDisposable {
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyFullNames?: string[] }): ToolSet & IDisposable {
 
 		const that = this;
 
@@ -817,7 +817,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 
 			}
-		}(id, referenceName, options?.icon ?? Codicon.tools, source, options?.description, options?.legacyNames);
+		}(id, referenceName, options?.icon ?? Codicon.tools, source, options?.description, options?.legacyFullNames);
 
 		this._toolSets.add(result);
 		return result;
@@ -862,8 +862,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		for (const [tool, _] of this.getPromptReferencableTools()) {
 			if (tool instanceof ToolSet) {
 				knownToolSetNames.add(tool.referenceName);
-				if (tool.legacyNames) {
-					for (const legacyName of tool.legacyNames) {
+				if (tool.legacyFullNames) {
+					for (const legacyName of tool.legacyFullNames) {
 						knownToolSetNames.add(legacyName);
 					}
 				}
@@ -873,8 +873,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
 			if (tool instanceof ToolSet) {
 				add(tool.referenceName, toolReferenceName);
-				if (tool.legacyNames) {
-					for (const legacyName of tool.legacyNames) {
+				if (tool.legacyFullNames) {
+					for (const legacyName of tool.legacyFullNames) {
 						add(legacyName, toolReferenceName);
 					}
 				}

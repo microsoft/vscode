@@ -150,7 +150,7 @@ export interface IRawToolSetContribution {
 	 * @deprecated
 	 */
 	referenceName?: string;
-	legacyNames?: string[];
+	legacyFullNames?: string[];
 	description: string;
 	icon?: string;
 	tools: string[];
@@ -179,8 +179,8 @@ const languageModelToolSetsExtensionPoint = extensionsRegistry.ExtensionsRegistr
 					type: 'string',
 					pattern: '^[\\w-]+$'
 				},
-				legacyNames: {
-					markdownDescription: localize('toolSetLegacyNames', "An array of deprecated names for backwards compatibility that can also be used to reference this tool set. Each name must not contain whitespace."),
+				legacyFullNames: {
+					markdownDescription: localize('toolSetlegacyFullNames', "An array of deprecated names for backwards compatibility that can also be used to reference this tool set. Each name must not contain whitespace. Full names are generally in the format `parentToolSetName/toolSetName` (e.g., `github/repo`) or just `toolSetName` when there is no parent toolset (e.g., `repo`)."),
 					type: 'array',
 					items: {
 						type: 'string',
@@ -331,8 +331,8 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						continue;
 					}
 
-					if (toolSet.legacyNames && !isProposedApiEnabled(extension.description, 'contribLanguageModelToolSets')) {
-						extension.collector.error(`Tool set '${toolSet.name}' CANNOT use 'legacyNames' without the 'contribLanguageModelToolSets' API proposal enabled`);
+					if (toolSet.legacyFullNames && !isProposedApiEnabled(extension.description, 'contribLanguageModelToolSets')) {
+						extension.collector.error(`Tool set '${toolSet.name}' CANNOT use 'legacyFullNames' without the 'contribLanguageModelToolSets' API proposal enabled`);
 						continue;
 					}
 
@@ -377,7 +377,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 							source,
 							toToolSetKey(extension.description.identifier, toolSet.name),
 							referenceName,
-							{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description, legacyNames: toolSet.legacyNames }
+							{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description, legacyFullNames: toolSet.legacyFullNames }
 						);
 					}
 
