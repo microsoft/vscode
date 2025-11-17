@@ -25,7 +25,7 @@ jobs:
           versionFilePath: .nvmrc
 
       - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-        - template: ../common/bump-insiders-version.yml@self
+        - template: ./common/bump-insiders-version.yml@self
 
       - template: ./distro/download-distro.yml@self
 
