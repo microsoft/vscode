@@ -28,6 +28,7 @@ export class TypeOperations {
 				indentSize: config.indentSize,
 				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops,
+				preserveAlignedIndentation: config.preserveAlignedIndentation,
 				autoIndent: config.autoIndent
 			}, config.languageConfigurationService);
 		}
@@ -43,6 +44,7 @@ export class TypeOperations {
 				indentSize: config.indentSize,
 				insertSpaces: config.insertSpaces,
 				useTabStops: config.useTabStops,
+				preserveAlignedIndentation: config.preserveAlignedIndentation,
 				autoIndent: config.autoIndent
 			}, config.languageConfigurationService);
 		}

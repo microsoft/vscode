@@ -557,6 +557,10 @@ export interface IEditorOptions {
 	 */
 	stickyTabStops?: boolean;
 	/**
+	 * Controls whether indent actions keep additional spaces used for alignment instead of recomputing the entire indentation.
+	 */
+	preserveAlignedIndentation?: boolean;
+	/**
 	 * Enable format on type.
 	 * Defaults to false.
 	 */
@@ -5869,6 +5873,7 @@ export const enum EditorOption {
 	unusualLineTerminators,
 	useShadowDOM,
 	useTabStops,
+	preserveAlignedIndentation,
 	wordBreak,
 	wordSegmenterLocales,
 	wordSeparators,
@@ -6693,6 +6698,10 @@ export const EditorOptions = {
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,
 		{ description: nls.localize('useTabStops', "Spaces and tabs are inserted and deleted in alignment with tab stops.") }
+	)),
+	preserveAlignedIndentation: register(new EditorBooleanOption(
+		EditorOption.preserveAlignedIndentation, 'preserveAlignedIndentation', false,
+		{ markdownDescription: nls.localize('preserveAlignedIndentation', "Controls whether indent actions keep additional spaces that were used for alignment instead of recomputing the entire indentation when `#editor.useTabStops#` is enabled.") }
 	)),
 	wordBreak: register(new EditorStringEnumOption(
 		EditorOption.wordBreak, 'wordBreak',
