@@ -1,0 +1,16 @@
+{
+  "name": "axium-ai",
+  "version": "0.0.1",
+  "description": "A VSCode fork that adds extra AI features I have found useful during my manual workflows when writing software",
+  "keywords": [
+    "axium-ai",
+    "vscode-fork"
+  ],
+  "license": "MIT",
+  "author": "Lukas Pabijonavičius",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
