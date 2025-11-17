@@ -16,7 +16,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, autorunSelfDisposable, derived, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunSelfDisposable, derived } from '../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -553,17 +553,18 @@ export class CollapsedCodeBlock extends Disposable {
 		this.pillElement.replaceChildren(progressFill, iconEl, iconLabelEl, labelDetail);
 		this.updateTooltip(this.labelService.getUriLabel(uri, { relative: false }));
 
-		const editSessionObservable = session?.editingSessionObs?.promiseResult.map(r => r?.data) || observableValue(this, undefined);
-		const editSessionEntry = editSessionObservable.map((es, r) => es?.readEntry(uri, r));
+		const editSession = session?.editingSession;
+		if (!editSession) {
+			return;
+		}
 
 		const diffObservable = derived(reader => {
-			const entry = editSessionEntry.read(reader);
-			const editSession = entry && editSessionObservable.read(reader);
-			return entry && editSession && editSession.getEntryDiffBetweenStops(entry.modifiedURI, this.requestId, this.inUndoStop);
+			const entry = editSession.readEntry(uri, reader);
+			return entry && editSession.getEntryDiffBetweenStops(entry.modifiedURI, this.requestId, this.inUndoStop);
 		}).map((d, r) => d?.read(r));
 
 		const isStreaming = derived(r => {
-			const entry = editSessionEntry.read(r);
+			const entry = editSession.readEntry(uri, r);
 			const currentlyModified = entry?.isCurrentlyBeingModifiedBy.read(r);
 			return !!currentlyModified && currentlyModified.responseModel.requestId === this.requestId && currentlyModified.undoStopId === this.inUndoStop;
 		});
@@ -578,7 +579,7 @@ export class CollapsedCodeBlock extends Disposable {
 				const codicon = ThemeIcon.modify(Codicon.loading, 'spin');
 				statusIconClasses = ThemeIcon.asClassNameArray(codicon);
 				statusIconEl.classList.add(...statusIconClasses);
-				const entry = editSessionEntry.read(r);
+				const entry = editSession.readEntry(uri, r);
 				const rwRatio = Math.floor((entry?.rewriteRatio.read(r) || 0) * 100);
 				statusLabelEl.textContent = localize('chat.codeblock.applyingEdits', 'Applying edits');
 

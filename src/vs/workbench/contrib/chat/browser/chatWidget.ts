@@ -62,7 +62,7 @@ import { katexContainerClassName } from '../../markdown/common/markedKatexExtens
 import { checkModeOption } from '../common/chat.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
+import { applyingChatEditsFailedContextKey, chatEditingSessionIsReady, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { ChatMode, IChatModeService } from '../common/chatModes.js';
@@ -427,9 +427,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModelDisposables.add(viewModel);
 			this.logService.debug('ChatWidget#setViewModel: have viewModel');
 
-			if (viewModel.model.editingSessionObs) {
+			if (viewModel.model.editingSession) {
 				this.logService.debug('ChatWidget#setViewModel: waiting for editing session');
-				viewModel.model.editingSessionObs?.promise.then(() => {
+				chatEditingSessionIsReady(viewModel.model.editingSession).then(() => {
+					this.logService.debug('ChatWidget#setViewModel: editing session ready');
 					this._isReady = true;
 					this._onDidBecomeReady.fire();
 				});

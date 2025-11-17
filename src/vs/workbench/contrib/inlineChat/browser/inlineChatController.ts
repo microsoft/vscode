@@ -1578,8 +1578,6 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 
 	chatModel.startEditingSession(true);
 
-	const editSession = await chatModel.editingSessionObs?.promise;
-
 	const store = new DisposableStore();
 	store.add(chatModel);
 
@@ -1609,7 +1607,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	}
 
 	const isSettled = derived(r => {
-		const entry = editSession?.readEntry(uri, r);
+		const entry = chatModel.editingSession?.readEntry(uri, r);
 		if (!entry) {
 			return false;
 		}
@@ -1630,8 +1628,6 @@ export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, 
 	const chatModel = chatService.startSession(ChatAgentLocation.EditorInline, token, false);
 
 	chatModel.startEditingSession(true);
-
-	const editSession = await chatModel.editingSessionObs?.promise;
 
 	const store = new DisposableStore();
 	store.add(chatModel);
@@ -1667,7 +1663,7 @@ export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, 
 	}
 
 	const isSettled = derived(r => {
-		const entry = editSession?.readEntry(uri, r);
+		const entry = chatModel.editingSession?.readEntry(uri, r);
 		if (!entry) {
 			return false;
 		}
