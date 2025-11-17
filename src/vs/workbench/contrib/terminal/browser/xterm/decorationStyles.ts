@@ -43,7 +43,7 @@ export function getTerminalDecorationHoverContent(command: ITerminalCommand | un
 			return '';
 		}
 	} else {
-		if (command.duration) {
+		if (isNumber(command.duration)) {
 			const durationText = getDurationString(command.duration);
 			if (command.exitCode) {
 				if (command.exitCode === -1) {
