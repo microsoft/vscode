@@ -40,6 +40,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { IOutputService } from '../../../services/output/common/output.js';
 import { ILoggerResource, ILoggerService, LogLevel } from '../../../../platform/log/common/log.js';
 import { VerifyExtensionSignatureConfigKey } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { TerminalContribSettingId } from '../../terminal/terminalContribExports.js';
 
 type TelemetryData = {
 	mimeType: TelemetryTrustedValue<string>;
@@ -426,8 +427,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
 				}>('extensions.autoRestart', { settingValue: this.getValueToReport(key, target), source });
 				return;
-
-			case 'chat.tools.terminal.outputLocation':
+			case TerminalContribSettingId.OutputLocation:
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'meganrogge';
 					comment: 'This is used to know the output location for chat terminals';
@@ -435,8 +435,8 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
 				}>('terminal.integrated.chatAgentTools.outputLocation', { settingValue: this.getValueToReport(key, target), source });
 				return;
+			case TerminalContribSettingId.SuggestEnabled:
 
-			case 'terminal.integrated.suggest.enabled':
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'meganrogge';
 					comment: 'This is used to know if terminal suggestions are enabled or not';
