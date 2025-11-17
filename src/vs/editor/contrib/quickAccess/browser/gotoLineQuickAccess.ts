@@ -97,7 +97,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 			picker.ariaLabel = localize(
 				{
 					key: 'gotoLine.ariaLabel',
-					comment: ['{0} is the line number, {1} is the column number, {2} is instructions for for typing in the Go To Line picker']
+					comment: ['{0} is the line number, {1} is the column number, {2} is instructions for typing in the Go To Line picker']
 				},
 				"Current position: line {0}, column {1}. {2}", cursor.lineNumber, cursor.column, label
 			);
