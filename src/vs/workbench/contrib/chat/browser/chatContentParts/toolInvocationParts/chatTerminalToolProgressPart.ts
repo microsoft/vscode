@@ -72,7 +72,8 @@ const expandedStateByInvocation = new WeakMap<IChatToolInvocation | IChatToolInv
 
 interface ITerminalCommandDecorationOptions {
 	readonly terminalData: IChatTerminalToolInvocationData;
-	getTitleElement(): HTMLElement | undefined;
+	getCommandBlock(): HTMLElement | undefined;
+	getIconElement(): HTMLElement | undefined;
 	getHost(): HTMLElement | undefined;
 	getResolvedCommand(): ITerminalCommand | undefined;
 }
@@ -86,44 +87,28 @@ class TerminalCommandDecoration extends Disposable {
 		this._register(toDisposable(() => this._stopTimer()));
 	}
 
-	public ensureElement(context?: HTMLElement): HTMLElement | undefined {
-		const title = context ?? this._options.getTitleElement();
-		if (!title) {
-			return undefined;
-		}
-		// eslint-disable-next-line no-restricted-syntax
-		const markdown = title.querySelector<HTMLElement>('.rendered-markdown');
-		const parent = markdown?.parentElement;
-		if (!markdown || !parent) {
+	public ensureElement(): HTMLElement | undefined {
+		const container = this._options.getCommandBlock();
+		if (!container) {
 			return undefined;
 		}
 
-		let container = parent;
-		if (!container.classList.contains('chat-terminal-command-block')) {
-			const wrapper = document.createElement('div');
-			wrapper.classList.add('chat-terminal-command-block');
-			container.insertBefore(wrapper, markdown);
-			wrapper.appendChild(markdown);
-			container = wrapper;
-		}
-		// eslint-disable-next-line no-restricted-syntax
-		let decoration = container.querySelector<HTMLElement>('.chat-terminal-command-decoration');
+		let decoration = this._element;
 		if (!decoration) {
-			decoration = document.createElement('span');
-			decoration.classList.add('chat-terminal-command-decoration');
-			decoration.setAttribute('role', 'img');
-			container.insertBefore(decoration, markdown);
+			const decorationElements = h('span.chat-terminal-command-decoration@decoration', { role: 'img' });
+			decoration = decorationElements.decoration;
+			this._element = decoration;
 		}
 
-		// eslint-disable-next-line no-restricted-syntax
-		const icon = markdown.querySelector<HTMLElement>('[class~="codicon-terminal"]');
-		if (icon) {
-			icon.insertAdjacentElement('afterend', decoration);
-		} else if (decoration.parentElement !== container) {
-			container.insertBefore(decoration, markdown);
+		if (!decoration.isConnected || decoration.parentElement !== container) {
+			const icon = this._options.getIconElement();
+			if (icon && icon.parentElement === container) {
+				icon.insertAdjacentElement('afterend', decoration);
+			} else {
+				container.insertBefore(decoration, container.firstElementChild ?? null);
+			}
 		}
 
-		this._element = decoration;
 		return decoration;
 	}
 
@@ -338,14 +323,19 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._isSerializedInvocation = (toolInvocation.kind === 'toolInvocationSerialized');
 
 		const elements = h('.chat-terminal-content-part@container', [
-			h('.chat-terminal-content-title@title'),
+			h('.chat-terminal-content-title@title', [
+				h('.chat-terminal-command-block@commandBlock', [
+					h('span@terminalIcon', { className: ThemeIcon.asClassNameArray(Codicon.terminal).join(' '), ariaHidden: 'true' })
+				])
+			]),
 			h('.chat-terminal-content-message@message'),
 			h('.chat-terminal-output-container@output')
 		]);
 
 		this._decoration = this._register(new TerminalCommandDecoration({
 			terminalData: this._terminalData,
-			getTitleElement: () => elements.title,
+			getCommandBlock: () => elements.commandBlock,
+			getIconElement: () => elements.terminalIcon,
 			getHost: () => this.domNode,
 			getResolvedCommand: () => this._getResolvedCommand()
 		}));
@@ -356,10 +346,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const titlePart = this._register(_instantiationService.createInstance(
 			ChatQueryTitlePart,
-			elements.title,
+			elements.commandBlock,
 			new MarkdownString([
-				`$(${Codicon.terminal.id})`,
-				``,
 				`\`\`\`${terminalData.language}`,
 				`${command.replaceAll('```', '\\`\\`\\`')}`,
 				`\`\`\``
@@ -367,11 +355,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			undefined,
 		));
 		this._register(titlePart.onDidChangeHeight(() => {
-			this._decoration.ensureElement(elements.title);
+			this._decoration.ensureElement();
 			this._onDidChangeHeight.fire();
 		}));
 
-		this._decoration.ensureElement(elements.title);
+		this._decoration.ensureElement();
 
 		const actionBarEl = h('.chat-terminal-action-bar@actionBar');
 		elements.title.append(actionBarEl.root);
@@ -890,7 +878,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (!serializedOutput) {
 			return false;
 		}
-		const content = this._renderOutput(serializedOutput);
+		const content = this._renderOutput(serializedOutput).element;
 		const theme = this._getTerminalTheme();
 		if (theme && !content.classList.contains('chat-terminal-output-content-empty')) {
 			// eslint-disable-next-line no-restricted-syntax
@@ -953,32 +941,35 @@ class ChatTerminalToolOutputSection extends Disposable {
 		};
 	}
 
-	private _renderOutput(result: { text: string; truncated: boolean }): HTMLElement {
+	private _renderOutput(result: { text: string; truncated: boolean }): { element: HTMLElement; inlineOutput?: HTMLElement; pre?: HTMLElement } {
 		this._lastOutputTruncated = result.truncated;
-		const container = document.createElement('div');
-		container.classList.add('chat-terminal-output-content');
+		const { content } = h('div.chat-terminal-output-content@content');
+		let inlineOutput: HTMLElement | undefined;
+		let preElement: HTMLElement | undefined;
 
 		if (result.text.trim() === '') {
-			container.classList.add('chat-terminal-output-content-empty');
-			const empty = document.createElement('div');
-			empty.classList.add('chat-terminal-output-empty');
+			content.classList.add('chat-terminal-output-content-empty');
+			const { empty } = h('div.chat-terminal-output-empty@empty');
 			empty.textContent = localize('chat.terminalOutputEmpty', 'No output was produced by the command.');
-			container.appendChild(empty);
+			content.appendChild(empty);
 		} else {
-			const pre = document.createElement('pre');
-			pre.classList.add('chat-terminal-output');
+			const { pre } = h('pre.chat-terminal-output@pre');
+			preElement = pre;
 			domSanitize.safeSetInnerHtml(pre, result.text, sanitizerConfig);
-			container.appendChild(pre);
+			const firstChild = pre.firstElementChild;
+			if (dom.isHTMLElement(firstChild)) {
+				inlineOutput = firstChild;
+			}
+			content.appendChild(pre);
 		}
 
 		if (result.truncated) {
-			const note = document.createElement('div');
-			note.classList.add('chat-terminal-output-info');
-			note.textContent = localize('chat.terminalOutputTruncated', 'Output truncated to first {0} lines.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
-			container.appendChild(note);
+			const { info } = h('div.chat-terminal-output-info@info');
+			info.textContent = localize('chat.terminalOutputTruncated', 'Output truncated to first {0} lines.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
+			content.appendChild(info);
 		}
 
-		return container;
+		return { element: content, inlineOutput, pre: preElement };
 	}
 
 	private _scheduleOutputRelayout(): void {
