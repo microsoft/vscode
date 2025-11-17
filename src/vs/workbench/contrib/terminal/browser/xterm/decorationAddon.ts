@@ -372,7 +372,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		if (!element) {
 			return;
 		}
-		element.className = '';
+		const preservedClasses = Array.from(element.classList).filter(className => className.startsWith('xterm-') || className === DecorationSelector.Hide);
+		element.className = preservedClasses.join(' ');
 		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
 
 		if (markProperties) {
