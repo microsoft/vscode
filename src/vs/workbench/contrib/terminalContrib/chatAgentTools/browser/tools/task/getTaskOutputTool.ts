@@ -13,7 +13,7 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
+import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks, tasksMatch } from '../../taskHelpers.js';
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
 
@@ -133,6 +133,6 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 	}
 	private async _isTaskActive(task: Task): Promise<boolean> {
 		const busyTasks = await this._tasksService.getBusyTasks();
-		return busyTasks?.some((t) => t._id === task._id);
+		return busyTasks?.some(t => tasksMatch(t, task)) ?? false;
 	}
 }

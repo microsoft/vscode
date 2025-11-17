@@ -49,6 +49,26 @@ export function getTaskRepresentation(task: IConfiguredTask | Task): string {
 	return '';
 }
 
+export function getTaskKey(task: Task): string {
+	return task.getKey() ?? task.getMapKey();
+}
+
+export function tasksMatch(a: Task, b: Task): boolean {
+	if (!a || !b) {
+		return false;
+	}
+
+	if (getTaskKey(a) === getTaskKey(b)) {
+		return true;
+	}
+
+	if (a.getCommonTaskId?.() === b.getCommonTaskId?.()) {
+		return true;
+	}
+
+	return a._id === b._id;
+}
+
 export async function getTaskForTool(id: string | undefined, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService, allowParentTask?: boolean): Promise<Task | undefined> {
 	let index = 0;
 	let task: IConfiguredTask | undefined;
@@ -227,7 +247,7 @@ export async function collectTerminalResults(
 			const startTime = Date.now();
 			while (!token.isCancellationRequested && Date.now() - startTime < maxWaitTime) {
 				const busyTasks = await taskService.getBusyTasks();
-				if (busyTasks.some(t => t._id === terminalTask._id)) {
+				if (busyTasks.some(t => tasksMatch(t, terminalTask))) {
 					break;
 				}
 				await timeout(100);
