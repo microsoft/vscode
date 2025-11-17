@@ -6,6 +6,7 @@
 import { h } from '../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { getDurationString } from '../../../../../../base/common/date.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -31,6 +32,8 @@ import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationSuccess } from '../../../../terminal/browser/terminalIcons.js';
+import { DecorationSelector } from '../../../../terminal/browser/xterm/decorationStyles.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
@@ -67,6 +70,200 @@ const sanitizerConfig = Object.freeze<DomSanitizerConfig>({
  */
 const expandedStateByInvocation = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
 
+interface ITerminalCommandDecorationOptions {
+	readonly terminalData: IChatTerminalToolInvocationData;
+	getTitleElement(): HTMLElement | undefined;
+	getHost(): HTMLElement | undefined;
+	getResolvedCommand(): ITerminalCommand | undefined;
+}
+
+class TerminalCommandDecoration extends Disposable {
+	private _element: HTMLElement | undefined;
+	private _interval: number | undefined;
+
+	constructor(private readonly _options: ITerminalCommandDecorationOptions) {
+		super();
+		this._register(toDisposable(() => this._stopTimer()));
+	}
+
+	public ensureElement(context?: HTMLElement): HTMLElement | undefined {
+		const title = context ?? this._options.getTitleElement();
+		if (!title) {
+			return undefined;
+		}
+		// eslint-disable-next-line no-restricted-syntax
+		const markdown = title.querySelector<HTMLElement>('.rendered-markdown');
+		const parent = markdown?.parentElement;
+		if (!markdown || !parent) {
+			return undefined;
+		}
+
+		let container = parent;
+		if (!container.classList.contains('chat-terminal-command-block')) {
+			const wrapper = document.createElement('div');
+			wrapper.classList.add('chat-terminal-command-block');
+			container.insertBefore(wrapper, markdown);
+			wrapper.appendChild(markdown);
+			container = wrapper;
+		}
+		// eslint-disable-next-line no-restricted-syntax
+		let decoration = container.querySelector<HTMLElement>(':scope > .chat-terminal-command-decoration');
+		if (!decoration) {
+			decoration = document.createElement('span');
+			decoration.classList.add('chat-terminal-command-decoration');
+			decoration.setAttribute('role', 'img');
+			container.insertBefore(decoration, markdown);
+		}
+
+		this._element = decoration;
+		return decoration;
+	}
+
+	public update(command?: ITerminalCommand): void {
+		const decoration = this.ensureElement();
+		if (!decoration) {
+			this._stopTimer();
+			return;
+		}
+		const resolvedCommand = command ?? this._options.getResolvedCommand();
+		this._apply(decoration, resolvedCommand);
+		const storedState = this._options.terminalData.terminalCommandState;
+		if (resolvedCommand?.exitCode === undefined || (!resolvedCommand && storedState && storedState.exitCode === undefined)) {
+			this._startTimer();
+		} else {
+			this._stopTimer();
+		}
+	}
+
+	private _apply(decoration: HTMLElement, command: ITerminalCommand | undefined): void {
+		decoration.className = `chat-terminal-command-decoration ${DecorationSelector.CommandDecoration}`;
+		decoration.classList.add(DecorationSelector.Codicon);
+
+		const terminalData = this._options.terminalData;
+		let storedState = terminalData.terminalCommandState;
+		const unknownText = localize('chatTerminalCommandDecoration.unknown', 'Unknown');
+		const runningText = localize('chatTerminalCommandDecoration.running', 'Running');
+		let exitCodeText = unknownText;
+		let startText = unknownText;
+		let durationText = unknownText;
+		let status: 'running' | 'success' | 'error' | 'unknown' = 'unknown';
+
+		if (command) {
+			startText = new Date(command.timestamp).toLocaleString();
+			if (command.exitCode === undefined) {
+				status = 'running';
+				exitCodeText = runningText;
+				durationText = getDurationString(Math.max(0, Date.now() - command.timestamp));
+			} else if (command.exitCode !== 0) {
+				status = 'error';
+				exitCodeText = String(command.exitCode);
+				const durationMs = command.duration ?? Math.max(0, Date.now() - command.timestamp);
+				durationText = getDurationString(Math.max(durationMs, 0));
+			} else {
+				status = 'success';
+				exitCodeText = String(command.exitCode);
+				const durationMs = command.duration ?? Math.max(0, Date.now() - command.timestamp);
+				durationText = getDurationString(Math.max(durationMs, 0));
+			}
+			const existingState = terminalData.terminalCommandState ?? {};
+			terminalData.terminalCommandState = {
+				...existingState,
+				exitCode: command.exitCode,
+				timestamp: command.timestamp ?? existingState.timestamp,
+				duration: command.duration ?? existingState.duration
+			};
+			storedState = terminalData.terminalCommandState;
+		} else if (storedState) {
+			if (typeof storedState.timestamp === 'number') {
+				startText = new Date(storedState.timestamp).toLocaleString();
+			}
+			if (storedState.exitCode === undefined) {
+				status = 'running';
+				exitCodeText = runningText;
+				if (typeof storedState.timestamp === 'number') {
+					durationText = getDurationString(Math.max(0, Date.now() - storedState.timestamp));
+				}
+			} else if (storedState.exitCode !== 0) {
+				status = 'error';
+				exitCodeText = String(storedState.exitCode);
+				if (typeof storedState.duration === 'number') {
+					durationText = getDurationString(Math.max(storedState.duration, 0));
+				}
+			} else {
+				status = 'success';
+				exitCodeText = String(storedState.exitCode);
+				if (typeof storedState.duration === 'number') {
+					durationText = getDurationString(Math.max(storedState.duration, 0));
+				}
+			}
+		} else if (!this._options.terminalData.terminalCommandOutput) {
+			status = 'running';
+			exitCodeText = runningText;
+			durationText = unknownText;
+			if (!storedState) {
+				const now = Date.now();
+				terminalData.terminalCommandState = { exitCode: undefined, timestamp: now };
+				storedState = terminalData.terminalCommandState;
+			}
+		}
+
+		let icon = terminalDecorationIncomplete;
+		if (status === 'running') {
+			icon = terminalDecorationIncomplete;
+			decoration.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
+		} else if (status === 'error') {
+			icon = terminalDecorationError;
+			decoration.classList.add(DecorationSelector.ErrorColor);
+		} else if (status === 'success') {
+			icon = terminalDecorationSuccess;
+			decoration.classList.add('success');
+		} else {
+			icon = terminalDecorationIncomplete;
+			decoration.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
+		}
+
+		decoration.classList.add(...ThemeIcon.asClassNameArray(icon));
+		const hoverMessage = localize('chatTerminalCommandDecoration.hover', 'Exit Code: {0}\nStart: {1}\nDuration: {2}', exitCodeText, startText, durationText);
+		decoration.setAttribute('title', hoverMessage);
+		decoration.setAttribute('aria-label', hoverMessage);
+	}
+
+	private _startTimer(): void {
+		if (this._interval !== undefined) {
+			return;
+		}
+		const host = this._options.getHost();
+		const win = host ? dom.getWindow(host) : dom.getActiveWindow();
+		if (!win) {
+			return;
+		}
+		this._interval = win.setInterval(() => {
+			const element = this._element?.isConnected ? this._element : this.ensureElement();
+			if (!element) {
+				this._stopTimer();
+				return;
+			}
+			const command = this._options.getResolvedCommand();
+			this._apply(element, command);
+			const storedState = this._options.terminalData.terminalCommandState;
+			if ((!command && (!storedState || storedState.exitCode !== undefined)) || (command && command.exitCode !== undefined)) {
+				this._stopTimer();
+			}
+		}, 1000);
+	}
+
+	private _stopTimer(): void {
+		if (this._interval === undefined) {
+			return;
+		}
+		const window = dom.getActiveWindow();
+		if (window) {
+			window.clearInterval(this._interval);
+		}
+		this._interval = undefined;
+	}
+}
+
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart implements IChatTerminalToolProgressPart {
 	public readonly domNode: HTMLElement;
 
@@ -88,6 +285,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _storedCommandId: string | undefined;
 	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
+	private readonly _decoration: TerminalCommandDecoration;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -137,6 +335,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			h('.chat-terminal-output-container@output')
 		]);
 
+		this._decoration = this._register(new TerminalCommandDecoration({
+			terminalData: this._terminalData,
+			getTitleElement: () => elements.title,
+			getHost: () => this.domNode,
+			getResolvedCommand: () => this._getResolvedCommand()
+		}));
+
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 		const displayCommand = stripIcons(command);
 		this._terminalOutputContextKey = ChatContextKeys.inChatTerminalToolOutput.bindTo(this._contextKeyService);
@@ -153,7 +358,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			].join('\n'), { supportThemeIcons: true }),
 			undefined,
 		));
-		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this._register(titlePart.onDidChangeHeight(() => {
+			this._decoration.ensureElement(elements.title);
+			this._onDidChangeHeight.fire();
+		}));
+
+		this._decoration.ensureElement(elements.title);
 
 		const actionBarEl = h('.chat-terminal-action-bar@actionBar');
 		elements.title.append(actionBarEl.root);
@@ -216,6 +426,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this.domNode = progressPart.domNode;
+		this._decoration.ensureElement();
+		this._decoration.update();
 
 		if (expandedStateByInvocation.get(toolInvocation)) {
 			void this._toggleOutput(true);
@@ -290,16 +502,17 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 		const actionBar = this._actionBar;
 		this._removeFocusAction();
+		const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
 		if (terminalInstance) {
 			const isTerminalHidden = terminalInstance && terminalToolSessionId ? this._terminalChatService.isBackgroundTerminal(terminalToolSessionId) : false;
-			const resolvedCommand = this._getResolvedCommand(terminalInstance);
 			const focusAction = this._instantiationService.createInstance(FocusChatInstanceAction, terminalInstance, resolvedCommand, this._terminalCommandUri, this._storedCommandId, isTerminalHidden);
 			this._focusAction.value = focusAction;
 			actionBar.push(focusAction, { icon: true, label: false, index: 0 });
 		}
 
-		this._ensureShowOutputAction();
+		this._ensureShowOutputAction(resolvedCommand);
+		this._decoration.update(resolvedCommand);
 	}
 
 	private _getResolvedCommand(instance?: ITerminalInstance): ITerminalCommand | undefined {
@@ -310,20 +523,23 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		return this._resolveCommand(target);
 	}
 
-	private _ensureShowOutputAction(): void {
+	private _ensureShowOutputAction(command?: ITerminalCommand): void {
 		if (this._store.isDisposed) {
 			return;
 		}
-		const command = this._getResolvedCommand();
+		let resolvedCommand = command;
+		if (!resolvedCommand) {
+			resolvedCommand = this._getResolvedCommand();
+		}
 		const hasStoredOutput = !!this._terminalData.terminalCommandOutput;
-		if (!command && !hasStoredOutput) {
+		if (!resolvedCommand && !hasStoredOutput) {
 			return;
 		}
 		let showOutputAction = this._showOutputAction.value;
 		if (!showOutputAction) {
 			showOutputAction = this._instantiationService.createInstance(ToggleChatTerminalOutputAction, () => this._toggleOutputFromAction());
 			this._showOutputAction.value = showOutputAction;
-			if (command?.exitCode) {
+			if (resolvedCommand?.exitCode) {
 				this._toggleOutput(true);
 			}
 		}
@@ -356,6 +572,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (this._terminalData.terminalToolSessionId) {
 			delete this._terminalData.terminalToolSessionId;
 		}
+		this._decoration.update();
 	}
 
 	private _registerInstanceListener(terminalInstance: ITerminalInstance): void {

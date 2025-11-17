@@ -328,6 +328,12 @@ export interface IChatTerminalToolInvocationData {
 		background?: string;
 		foreground?: string;
 	};
+	/** Stored command state to restore decorations after reload */
+	terminalCommandState?: {
+		exitCode?: number;
+		timestamp?: number;
+		duration?: number;
+	};
 	autoApproveInfo?: IMarkdownString;
 }
 

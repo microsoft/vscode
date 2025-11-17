@@ -546,6 +546,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 
 				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId, pollingResult?.output);
+				const state = toolSpecificData.terminalCommandState ?? {};
+				state.timestamp = state.timestamp ?? timingStart;
+				toolSpecificData.terminalCommandState = state;
 
 				let resultText = (
 					didUserEditCommand
@@ -642,6 +645,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 
 				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId, executeResult.output);
+				{
+					const state = toolSpecificData.terminalCommandState ?? {};
+					state.timestamp = state.timestamp ?? timingStart;
+					if (executeResult.exitCode !== undefined) {
+						state.exitCode = executeResult.exitCode;
+						if (state.timestamp !== undefined) {
+							state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
+						}
+					}
+					toolSpecificData.terminalCommandState = state;
+				}
 
 				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
 				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
