@@ -15,12 +15,14 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { localize } from '../../../../nls.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Barrier } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { isString } from '../../../../base/common/types.js';
+import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
+import { isWeb } from '../../../../base/common/platform.js';
 
 export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
@@ -110,22 +112,6 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 
 }
 
-export class NullDefaultAccountService extends Disposable implements IDefaultAccountService {
-
-	declare _serviceBrand: undefined;
-
-	readonly onDidChangeDefaultAccount = Event.None;
-
-	async getDefaultAccount(): Promise<IDefaultAccount | null> {
-		return null;
-	}
-
-	setDefaultAccount(account: IDefaultAccount | null): void {
-		// noop
-	}
-
-}
-
 export class DefaultAccountManagementContribution extends Disposable implements IWorkbenchContribution {
 
 	static ID = 'workbench.contributions.defaultAccountManagement';
@@ -141,6 +127,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -153,6 +140,11 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 
 		if (!this.productService.defaultAccount) {
 			this.logService.debug('[DefaultAccount] No default account configuration in product service, skipping initialization');
+			return;
+		}
+
+		if (isWeb && !this.environmentService.remoteAuthority) {
+			this.logService.debug('[DefaultAccount] Running in web without remote, skipping initialization');
 			return;
 		}
 
@@ -448,3 +440,5 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	}
 
 }
+
+registerWorkbenchContribution2('workbench.contributions.defaultAccountManagement', DefaultAccountManagementContribution, WorkbenchPhase.AfterRestored);

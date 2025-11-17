@@ -36,10 +36,6 @@ import { InlineCompletionViewData } from '../inlineEdits/inlineEditsViewInterfac
 import { InlineDecorationType } from '../../../../../common/viewModel/inlineDecorations.js';
 import { sum } from '../../../../../../base/common/arrays.js';
 
-export interface IGhostTextWidgetModel {
-
-}
-
 export interface IGhostTextWidgetData {
 	readonly ghostText: GhostText | GhostTextReplacement;
 	readonly warning: GhostTextWidgetWarning | undefined;
