@@ -684,10 +684,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const res: (vscode.ChatRequestTurn | vscode.ChatResponseTurn)[] = [];
 
 		for (const h of context.history) {
-			const ehResult = typeConvert.ChatAgentResult.to(h.result);
-			const result: vscode.ChatResult = agentId === h.request.agentId ?
-				ehResult :
-				{ ...ehResult, metadata: undefined };
+			const result: vscode.ChatResult = typeConvert.ChatAgentResult.to(h.result);
 
 			// REQUEST turn
 			const varsWithoutTools: vscode.ChatPromptReference[] = [];
