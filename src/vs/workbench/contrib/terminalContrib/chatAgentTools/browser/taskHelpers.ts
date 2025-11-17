@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -156,7 +157,8 @@ export async function collectTerminalResults(
 	token: CancellationToken,
 	disposableStore: DisposableStore,
 	isActive?: (task: Task) => Promise<boolean>,
-	dependencyTasks?: Task[]
+	dependencyTasks?: Task[],
+	taskService?: ITaskService
 ): Promise<Array<{
 	name: string;
 	output: string;
@@ -218,6 +220,19 @@ export async function collectTerminalResults(
 			dependencyTasks,
 			sessionId: invocationContext.sessionId
 		};
+
+		// For tasks with problem matchers, wait until the task becomes busy before creating the output monitor
+		if (terminalTask.configurationProperties.problemMatchers && terminalTask.configurationProperties.problemMatchers.length > 0 && taskService) {
+			const maxWaitTime = 5000; // Wait up to 5 seconds
+			const startTime = Date.now();
+			while (!token.isCancellationRequested && Date.now() - startTime < maxWaitTime) {
+				const busyTasks = await taskService.getBusyTasks();
+				if (busyTasks.some(t => t._id === terminalTask._id)) {
+					break;
+				}
+				await timeout(100);
+			}
+		}
 
 		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn, invocationContext, token, task._label));
 		await Event.toPromise(outputMonitor.onDidFinishCommand);

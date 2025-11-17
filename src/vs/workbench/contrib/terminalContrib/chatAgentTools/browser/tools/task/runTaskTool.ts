@@ -76,7 +76,8 @@ export class RunTaskTool implements IToolImpl {
 			token,
 			store,
 			(terminalTask) => this._isTaskActive(terminalTask),
-			dependencyTasks
+			dependencyTasks,
+			this._tasksService
 		);
 		store.dispose();
 		for (const r of terminalResults) {
@@ -106,8 +107,8 @@ export class RunTaskTool implements IToolImpl {
 	}
 
 	private async _isTaskActive(task: Task): Promise<boolean> {
-		const activeTasks = await this._tasksService.getActiveTasks();
-		return Promise.resolve(activeTasks?.some((t) => t._id === task._id));
+		const busyTasks = await this._tasksService.getBusyTasks();
+		return Promise.resolve(busyTasks?.some((t) => t._id === task._id));
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {

@@ -103,7 +103,8 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			token,
 			store,
 			(terminalTask) => this._isTaskActive(terminalTask),
-			dependencyTasks
+			dependencyTasks,
+			this._tasksService
 		);
 		store.dispose();
 		for (const r of terminalResults) {
@@ -131,7 +132,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		};
 	}
 	private async _isTaskActive(task: Task): Promise<boolean> {
-		const activeTasks = await this._tasksService.getActiveTasks();
-		return activeTasks?.some((t) => t._id === task._id);
+		const busyTasks = await this._tasksService.getBusyTasks();
+		return busyTasks?.some((t) => t._id === task._id);
 	}
 }
