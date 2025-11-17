@@ -6,13 +6,15 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
+import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../common/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
+import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { CollapsibleListPool } from '../chatReferencesContentPart.js';
 import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInstallToolSubPart.js';
@@ -25,10 +27,6 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
-import { autorun } from '../../../../../../base/common/observable.js';
-import { localize } from '../../../../../../nls.js';
-import { markdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { EditorPool } from '../chatContentCodePools.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
