@@ -262,7 +262,7 @@ export class GitBlameController {
 			arguments: ['git.blame']
 		}] satisfies Command[]);
 
-		return getHistoryItemHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, commands);
+		return getHistoryItemHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, undefined, commands);
 	}
 
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {

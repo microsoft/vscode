@@ -29,7 +29,7 @@ import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemIndex } from './scmHistory.js';
-import { addClassToTwistieElement, getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
+import { getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ViewMode } from '../common/scm.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
@@ -450,9 +450,6 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 	}
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
-		// HACK - use helper function as there is no tree API
-		addClassToTwistieElement(container, 'force-no-twistie');
-
 		const element = append(container, $('.history-item'));
 		const graphContainer = append(element, $('.graph-container'));
 		const iconLabel = new IconLabel(element, {
@@ -726,9 +723,6 @@ class HistoryItemLoadMoreRenderer implements ICompressibleTreeRenderer<SCMHistor
 	) { }
 
 	renderTemplate(container: HTMLElement): LoadMoreTemplate {
-		// HACK - use helper function as there is no tree API
-		addClassToTwistieElement(container, 'force-no-twistie');
-
 		const element = append(container, $('.history-item-load-more'));
 		const graphPlaceholder = append(element, $('.graph-placeholder'));
 		const historyItemPlaceholderContainer = append(element, $('.history-item-placeholder'));
@@ -1983,7 +1977,12 @@ export class SCMHistoryViewPane extends ViewPane {
 				dnd: new SCMHistoryTreeDragAndDrop(),
 				keyboardNavigationLabelProvider: new SCMHistoryTreeKeyboardNavigationLabelProvider(),
 				horizontalScrolling: false,
-				multipleSelectionSupport: false
+				multipleSelectionSupport: false,
+				twistieAdditionalCssClass: (e: unknown) => {
+					return isSCMHistoryItemViewModelTreeElement(e) || isSCMHistoryItemLoadMoreTreeElement(e)
+						? 'force-no-twistie'
+						: undefined;
+				}
 			}
 		) as WorkbenchCompressibleAsyncDataTree<SCMHistoryViewModel, TreeElement, FuzzyScore>;
 		this._register(this._tree);

@@ -1,4 +1,6 @@
 parameters:
+  - name: VSCODE_QUALITY
+    type: string
   - name: VSCODE_CIBUILD
     type: boolean
   - name: VSCODE_TEST_SUITE
@@ -36,6 +38,7 @@ jobs:
     steps:
       - template: ./steps/product-build-darwin-compile.yml@self
         parameters:
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_ARCH: arm64
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
           ${{ if eq(parameters.VSCODE_TEST_SUITE, 'Electron') }}:
