@@ -72,7 +72,34 @@ export class DefaultFormatter extends Disposable implements IWorkbenchContributi
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		let extensions = [...this._extensionService.extensions];
 
+		// Get all formatter providers to identify which extensions actually contribute formatters
+		const documentFormatters = this._languageFeaturesService.documentFormattingEditProvider.allNoModel();
+		const rangeFormatters = this._languageFeaturesService.documentRangeFormattingEditProvider.allNoModel();
+		const formatterExtensionIds = new Set<string>();
+
+		for (const formatter of documentFormatters) {
+			if (formatter.extensionId) {
+				formatterExtensionIds.add(formatter.extensionId.value.toLowerCase());
+			}
+		}
+		for (const formatter of rangeFormatters) {
+			if (formatter.extensionId) {
+				formatterExtensionIds.add(formatter.extensionId.value.toLowerCase());
+			}
+		}
+
 		extensions = extensions.sort((a, b) => {
+			// Ultimate boost: extensions that actually contribute formatters
+			const contributesFormatterA = formatterExtensionIds.has(a.identifier.value.toLowerCase());
+			const contributesFormatterB = formatterExtensionIds.has(b.identifier.value.toLowerCase());
+
+			if (contributesFormatterA && !contributesFormatterB) {
+				return -1;
+			} else if (!contributesFormatterA && contributesFormatterB) {
+				return 1;
+			}
+
+			// Secondary boost: category-based sorting
 			const boostA = a.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
 			const boostB = b.categories?.find(cat => cat === 'Formatters' || cat === 'Programming Languages');
 
