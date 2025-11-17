@@ -553,6 +553,17 @@
 	display: block;
 }
 
+/* Hide twisties and remove indentation when repositories are flat (no parent-child hierarchy) */
+.scm-repositories-view.hide-twisties .monaco-list .monaco-list-row .monaco-tl-twistie {
+	display: none !important;
+}
+
+.scm-repositories-view.hide-twisties .monaco-list .monaco-list-row .monaco-tl-twistie,
+.scm-repositories-view.hide-twisties .monaco-list .monaco-list-row .monaco-tl-indent {
+	width: 0 !important;
+	padding: 0 !important;
+}
+
 .scm-view.scm-repositories-view .monaco-highlighted-label {
 	font-weight: normal;
 }
