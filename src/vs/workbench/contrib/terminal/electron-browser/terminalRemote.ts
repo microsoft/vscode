@@ -37,11 +37,10 @@ export function registerRemoteContributions() {
 				cwd = nativeEnvironmentService.userHome;
 			}
 
-			// Fix: Explicitly get the local default profile to ensure we use the correct local shell
-			// instead of accidentally using remote shell profiles when in a remote workspace
+			// Make sure to explicitly get the local default profile
 			const localProfile = await terminalProfileResolverService.getDefaultProfile({
-				remoteAuthority: undefined, // Force local backend
-				os: OS // Use the actual local OS
+				remoteAuthority: undefined,
+				os: OS
 			});
 
 			// Create terminal with explicit local profile configuration
