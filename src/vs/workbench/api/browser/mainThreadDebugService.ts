@@ -116,12 +116,12 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	$registerDebugVisualizerTree(treeId: string, canEdit: boolean): void {
-		this.visualizerService.registerTree(treeId, {
+		this._visualizerTreeHandles.set(treeId, this.visualizerService.registerTree(treeId, {
 			disposeItem: id => this._proxy.$disposeVisualizedTree(id),
 			getChildren: e => this._proxy.$getVisualizerTreeItemChildren(treeId, e),
 			getTreeItem: e => this._proxy.$getVisualizerTreeItem(treeId, e),
 			editItem: canEdit ? ((e, v) => this._proxy.$editVisualizerTreeItem(e, v)) : undefined
-		});
+		}));
 	}
 
 	$unregisterDebugVisualizerTree(treeId: string): void {
@@ -347,7 +347,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		session?.setName(name);
 	}
 
-	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): Promise<any> {
+	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: unknown): Promise<unknown> {
 		const session = this.debugService.getModel().getSession(sessionId, true);
 		if (session) {
 			return session.customRequest(request, args).then(response => {
@@ -422,7 +422,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	getSessionDto(session: IDebugSession | undefined): IDebugSessionDto | undefined;
 	getSessionDto(session: IDebugSession | undefined): IDebugSessionDto | undefined {
 		if (session) {
-			const sessionID = <DebugSessionUUID>session.getId();
+			const sessionID = session.getId();
 			if (this._extHostKnownSessions.has(sessionID)) {
 				return sessionID;
 			} else {

@@ -15,8 +15,7 @@ import { Schemas } from '../../base/common/network.js';
 import { EditorInput } from './editor/editorInput.js';
 import { IEditorResolverService } from '../services/editor/common/editorResolverService.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from './editor.js';
-import { isLinux } from '../../base/common/platform.js';
-import product from '../../platform/product/common/product.js';
+import { DiffEditorInput } from './editor/diffEditorInput.js';
 
 //#region < --- Workbench --- >
 
@@ -34,12 +33,23 @@ export const RemoteNameContext = new RawContextKey<string>('remoteName', '', loc
 export const VirtualWorkspaceContext = new RawContextKey<string>('virtualWorkspace', '', localize('virtualWorkspace', "The scheme of the current workspace is from a virtual file system or an empty string."));
 export const TemporaryWorkspaceContext = new RawContextKey<boolean>('temporaryWorkspace', false, localize('temporaryWorkspace', "The scheme of the current workspace is from a temporary file system."));
 
-export const IsMainWindowFullscreenContext = new RawContextKey<boolean>('isFullscreen', false, localize('isFullscreen', "Whether the main window is in fullscreen mode"));
-export const IsAuxiliaryWindowFocusedContext = new RawContextKey<boolean>('isAuxiliaryWindowFocusedContext', false, localize('isAuxiliaryWindowFocusedContext', "Whether an auxiliary window is focused"));
-
 export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false, true); // Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
 
 export const EmbedderIdentifierContext = new RawContextKey<string | undefined>('embedderIdentifier', undefined, localize('embedderIdentifier', 'The identifier of the embedder according to the product service, if one is defined'));
+
+export const InAutomationContext = new RawContextKey<boolean>('inAutomation', false, localize('inAutomation', "Whether VS Code is running under automation/smoke test"));
+
+//#endregion
+
+//#region < --- Window --- >
+
+export const IsMainWindowFullscreenContext = new RawContextKey<boolean>('isFullscreen', false, localize('isFullscreen', "Whether the main window is in fullscreen mode"));
+export const IsAuxiliaryWindowFocusedContext = new RawContextKey<boolean>('isAuxiliaryWindowFocusedContext', false, localize('isAuxiliaryWindowFocusedContext', "Whether an auxiliary window is focused"));
+
+export const IsWindowAlwaysOnTopContext = new RawContextKey<boolean>('isWindowAlwaysOnTop', false, localize('isWindowAlwaysOnTop', "Whether the window is always on top"));
+
+export const IsAuxiliaryWindowContext = new RawContextKey<boolean>('isAuxiliaryWindow', false, localize('isAuxiliaryWindow', "Window is an auxiliary window"));
+
 
 //#endregion
 
@@ -81,7 +91,6 @@ export const SelectedEditorsInGroupFileOrUntitledResourceContextKey = new RawCon
 export const EditorPartMultipleEditorGroupsContext = new RawContextKey<boolean>('editorPartMultipleEditorGroups', false, localize('editorPartMultipleEditorGroups', "Whether there are multiple editor groups opened in an editor part"));
 export const EditorPartSingleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.toNegated();
 export const EditorPartMaximizedEditorGroupContext = new RawContextKey<boolean>('editorPartMaximizedEditorGroup', false, localize('editorPartEditorGroupMaximized', "Editor Part has a maximized group"));
-export const IsAuxiliaryEditorPartContext = new RawContextKey<boolean>('isAuxiliaryEditorPart', false, localize('isAuxiliaryEditorPart', "Editor Part is in an auxiliary window"));
 
 // Editor Layout Context Keys
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false, localize('editorIsOpen', "Whether an editor is open"));
@@ -111,8 +120,9 @@ export const StatusBarFocused = new RawContextKey<boolean>('statusBarFocused', f
 
 //#region < --- Title Bar --- >
 
-export const TitleBarStyleContext = new RawContextKey<string>('titleBarStyle', isLinux && product.quality === 'stable' ? 'native' : 'custom', localize('titleBarStyle', "Style of the window title bar"));
+export const TitleBarStyleContext = new RawContextKey<string>('titleBarStyle', 'custom', localize('titleBarStyle', "Style of the window title bar"));
 export const TitleBarVisibleContext = new RawContextKey<boolean>('titleBarVisible', false, localize('titleBarVisible', "Whether the title bar is visible"));
+export const IsCompactTitleBarContext = new RawContextKey<boolean>('isCompactTitleBar', false, localize('isCompactTitleBar', "Title bar is in compact mode"));
 
 //#endregion
 
@@ -138,6 +148,7 @@ export const NotificationsToastsVisibleContext = new RawContextKey<boolean>('not
 export const ActiveAuxiliaryContext = new RawContextKey<string>('activeAuxiliary', '', localize('activeAuxiliary', "The identifier of the active auxiliary panel"));
 export const AuxiliaryBarFocusContext = new RawContextKey<boolean>('auxiliaryBarFocus', false, localize('auxiliaryBarFocus', "Whether the auxiliary bar has keyboard focus"));
 export const AuxiliaryBarVisibleContext = new RawContextKey<boolean>('auxiliaryBarVisible', false, localize('auxiliaryBarVisible', "Whether the auxiliary bar is visible"));
+export const AuxiliaryBarMaximizedContext = new RawContextKey<boolean>('auxiliaryBarMaximized', false, localize('auxiliaryBarMaximized', "Whether the auxiliary bar is maximized"));
 
 //#endregion
 
@@ -295,13 +306,30 @@ export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor:
 		return;
 	}
 
-	const editorResource = editor.resource;
-	if (editorResource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
-		// Non text editor untitled files cannot be easily serialized between extensions
-		// so instead we disable this context key to prevent common commands that act on the active editor
-		contextKey.set('');
-	} else {
-		const editors = editorResource ? editorResolverService.getEditors(editorResource).map(editor => editor.id) : [];
-		contextKey.set(editors.join(','));
+	const editors = getAvailableEditorIds(editor, editorResolverService);
+	contextKey.set(editors.join(','));
+}
+
+function getAvailableEditorIds(editor: EditorInput, editorResolverService: IEditorResolverService): string[] {
+	// Non text editor untitled files cannot be easily serialized between
+	// extensions so instead we disable this context key to prevent common
+	// commands that act on the active editor.
+	if (editor.resource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
+		return [];
 	}
+
+	// Diff editors. The original and modified resources of a diff editor
+	// *should* be the same, but calculate the set intersection just to be safe.
+	if (editor instanceof DiffEditorInput) {
+		const original = getAvailableEditorIds(editor.original, editorResolverService);
+		const modified = new Set(getAvailableEditorIds(editor.modified, editorResolverService));
+		return original.filter(editor => modified.has(editor));
+	}
+
+	// Normal editors.
+	if (editor.resource) {
+		return editorResolverService.getEditors(editor.resource).map(editor => editor.id);
+	}
+
+	return [];
 }

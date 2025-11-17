@@ -874,6 +874,76 @@ suite('NotebookTextModel', () => {
 		});
 	});
 
+	test('metadata changes on newly added cells should combine their undo operations', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}]
+		], async (editor, viewModel, ds) => {
+			const textModel = editor.textModel;
+			editor.textModel.applyEdits([
+				{
+					editType: CellEditType.Replace, index: 1, count: 0, cells: [
+						ds.add(new TestCell(textModel.viewType, 1, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)),
+						ds.add(new TestCell(textModel.viewType, 2, 'var f = 6;', 'javascript', CellKind.Code, [], languageService))
+					]
+				},
+			], true, undefined, () => undefined, undefined, true);
+
+			assert.strictEqual(textModel.cells.length, 3);
+
+			editor.textModel.applyEdits([
+				{ editType: CellEditType.Metadata, index: 1, metadata: { id: '123' } },
+			], true, undefined, () => undefined, undefined, true);
+
+			assert.strictEqual(textModel.cells[1].metadata.id, '123');
+
+			await viewModel.undo();
+
+			assert.strictEqual(textModel.cells.length, 1);
+
+			await viewModel.redo();
+
+			assert.strictEqual(textModel.cells.length, 3);
+		});
+	});
+
+	test('changes with non-metadata edit should not combine their undo operations', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}]
+		], async (editor, viewModel, ds) => {
+			const textModel = editor.textModel;
+			editor.textModel.applyEdits([
+				{
+					editType: CellEditType.Replace, index: 1, count: 0, cells: [
+						ds.add(new TestCell(textModel.viewType, 1, 'var e = 5;', 'javascript', CellKind.Code, [], languageService)),
+						ds.add(new TestCell(textModel.viewType, 2, 'var f = 6;', 'javascript', CellKind.Code, [], languageService))
+					]
+				},
+			], true, undefined, () => undefined, undefined, true);
+
+			assert.strictEqual(textModel.cells.length, 3);
+
+			editor.textModel.applyEdits([
+				{ editType: CellEditType.Metadata, index: 1, metadata: { id: '123' } },
+				{
+					editType: CellEditType.Output, handle: 0, append: true, outputs: [{
+						outputId: 'newOutput',
+						outputs: [{ mime: Mimes.text, data: valueBytesFromString('cba') }, { mime: 'application/foo', data: valueBytesFromString('cba') }]
+					}]
+				}
+			], true, undefined, () => undefined, undefined, true);
+
+			assert.strictEqual(textModel.cells[1].metadata.id, '123');
+
+			await viewModel.undo();
+
+			assert.strictEqual(textModel.cells.length, 3);
+
+			await viewModel.undo();
+
+			assert.strictEqual(textModel.cells.length, 1);
+		});
+	});
+
 	test('Destructive sorting in _doApplyEdits #121994', async function () {
 		await withTestNotebook([
 			['var a = 1;', 'javascript', CellKind.Code, [{ outputId: 'i42', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}]

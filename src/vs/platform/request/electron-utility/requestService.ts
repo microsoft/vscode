@@ -12,6 +12,7 @@ import { INativeEnvironmentService } from '../../environment/common/environment.
 import { ILogService } from '../../log/common/log.js';
 
 function getRawRequest(options: IRequestOptions): IRawRequestFunction {
+	// eslint-disable-next-line local/code-no-any-casts
 	return net.request as any as IRawRequestFunction;
 }
 

@@ -6,6 +6,7 @@ import * as matchers from '../../common/problemMatcher.js';
 
 import assert from 'assert';
 import { ValidationState, IProblemReporter, ValidationStatus } from '../../../../../base/common/parsers.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 class ProblemReporter implements IProblemReporter {
 	private _validationStatus: ValidationStatus;
@@ -59,6 +60,8 @@ suite('ProblemPatternParser', () => {
 	let reporter: ProblemReporter;
 	let parser: matchers.ProblemPatternParser;
 	const testRegexp = new RegExp('test');
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		reporter = new ProblemReporter();
@@ -252,6 +255,14 @@ suite('ProblemPatternParser', () => {
 			assert.strictEqual(null, parsed);
 			assert.strictEqual(ValidationState.Error, reporter.state);
 			assert(reporter.hasMessage('The problem pattern is invalid. It must have at least have a file and a message.'));
+		});
+
+		test('empty pattern array should be handled gracefully', () => {
+			const problemPattern: matchers.Config.MultiLineProblemPattern = [];
+			const parsed = parser.parse(problemPattern);
+			assert.strictEqual(null, parsed);
+			assert.strictEqual(ValidationState.Error, reporter.state);
+			assert(reporter.hasMessage('The problem pattern is invalid. It must contain at least one pattern.'));
 		});
 	});
 });

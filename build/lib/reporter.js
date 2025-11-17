@@ -75,6 +75,9 @@ try {
 catch (err) {
     // ignore
 }
+class ReporterError extends Error {
+    __reporter__ = true;
+}
 function createReporter(id) {
     const errorLog = getErrorLog(id);
     const errors = [];
@@ -91,8 +94,7 @@ function createReporter(id) {
                     errorLog.log();
                 }
                 errors.__logged__ = true;
-                const err = new Error(`Found ${errors.length} errors`);
-                err.__reporter__ = true;
+                const err = new ReporterError(`Found ${errors.length} errors`);
                 this.emit('error', err);
             }
             else {

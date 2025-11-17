@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IActiveCodeEditor, ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
+import { ICodeEditor, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { IEditorContribution, ScrollType } from '../../../common/editorCommon.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { EditorOption, RenderLineNumbersType, ConfigurationChangedEvent } from '../../../common/config/editorOptions.js';
@@ -44,7 +44,7 @@ export interface IStickyScrollController {
 	findScrollWidgetState(): StickyScrollWidgetState;
 	dispose(): void;
 	selectEditor(): void;
-	onDidChangeStickyScrollHeight: Event<{ height: number }>;
+	readonly onDidChangeStickyScrollHeight: Event<{ height: number }>;
 }
 
 export class StickyScrollController extends Disposable implements IEditorContribution, IStickyScrollController {
@@ -96,6 +96,22 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 		this._widgetState = StickyScrollWidgetState.Empty;
 		const stickyScrollDomNode = this._stickyScrollWidget.getDomNode();
+		this._register(this._editor.onDidChangeLineHeight((e) => {
+			e.changes.forEach((change) => {
+				const lineNumber = change.lineNumber;
+				if (this._widgetState.startLineNumbers.includes(lineNumber)) {
+					this._renderStickyScroll(lineNumber);
+				}
+			});
+		}));
+		this._register(this._editor.onDidChangeFont((e) => {
+			e.changes.forEach((change) => {
+				const lineNumber = change.lineNumber;
+				if (this._widgetState.startLineNumbers.includes(lineNumber)) {
+					this._renderStickyScroll(lineNumber);
+				}
+			});
+		}));
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			this._readConfigurationChange(e);
 		}));
@@ -302,26 +318,18 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 			this._revealPosition(position);
 		}));
-		const mouseMoveListener = (mouseEvent: MouseEvent) => {
+		this._register(dom.addDisposableListener(mainWindow, dom.EventType.MOUSE_MOVE, mouseEvent => {
 			this._mouseTarget = mouseEvent.target;
 			this._onMouseMoveOrKeyDown(mouseEvent);
-		};
-		const keyDownListener = (mouseEvent: KeyboardEvent) => {
+		}));
+		this._register(dom.addDisposableListener(mainWindow, dom.EventType.KEY_DOWN, mouseEvent => {
 			this._onMouseMoveOrKeyDown(mouseEvent);
-		};
-		const keyUpListener = (e: KeyboardEvent) => {
+		}));
+		this._register(dom.addDisposableListener(mainWindow, dom.EventType.KEY_UP, () => {
 			if (this._showEndForLine !== undefined) {
 				this._showEndForLine = undefined;
 				this._renderStickyScroll();
 			}
-		};
-		mainWindow.addEventListener(dom.EventType.MOUSE_MOVE, mouseMoveListener);
-		mainWindow.addEventListener(dom.EventType.KEY_DOWN, keyDownListener);
-		mainWindow.addEventListener(dom.EventType.KEY_UP, keyUpListener);
-		this._register(toDisposable(() => {
-			mainWindow.removeEventListener(dom.EventType.MOUSE_MOVE, mouseMoveListener);
-			mainWindow.removeEventListener(dom.EventType.KEY_DOWN, keyDownListener);
-			mainWindow.removeEventListener(dom.EventType.KEY_UP, keyUpListener);
 		}));
 
 		this._register(gesture.onMouseMoveOrRelevantKeyDown(([mouseEvent, _keyboardEvent]) => {
@@ -392,7 +400,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				}
 				this._revealPosition({ lineNumber: position.lineNumber, column: 1 });
 			}
-			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor as IActiveCodeEditor, { uri: this._editor.getModel().uri, range: this._stickyRangeProjectedOnEditor });
+			this._instaService.invokeFunction(goToDefinitionWithLocation, e, this._editor, { uri: this._editor.getModel().uri, range: this._stickyRangeProjectedOnEditor });
 		}));
 	}
 
@@ -584,7 +592,6 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	findScrollWidgetState(): StickyScrollWidgetState {
-		const lineHeight: number = this._editor.getOption(EditorOption.lineHeight);
 		const maxNumberStickyLines = Math.min(this._maxStickyLines, this._editor.getOption(EditorOption.stickyScroll).maxLineCount);
 		const scrollTop: number = this._editor.getScrollTop();
 		let lastLineRelativePosition: number = 0;
@@ -597,30 +604,19 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			for (const range of candidateRanges) {
 				const start = range.startLineNumber;
 				const end = range.endLineNumber;
-				const depth = range.nestingDepth;
-				if (end - start > 0) {
-					const topOfElementAtDepth = (depth - 1) * lineHeight;
-					const bottomOfElementAtDepth = depth * lineHeight;
-
-					const bottomOfBeginningLine = this._editor.getBottomForLineNumber(start) - scrollTop;
-					const topOfEndLine = this._editor.getTopForLineNumber(end) - scrollTop;
-					const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
-
-					if (topOfElementAtDepth > topOfEndLine && topOfElementAtDepth <= bottomOfEndLine) {
-						startLineNumbers.push(start);
-						endLineNumbers.push(end + 1);
-						if (topOfElementAtDepth > bottomOfEndLine - lineHeight) {
-							lastLineRelativePosition = bottomOfEndLine - bottomOfElementAtDepth;
-						}
-						break;
+				const topOfElement = range.top;
+				const bottomOfElement = topOfElement + range.height;
+				const topOfBeginningLine = this._editor.getTopForLineNumber(start) - scrollTop;
+				const bottomOfEndLine = this._editor.getBottomForLineNumber(end) - scrollTop;
+				if (topOfElement > topOfBeginningLine && topOfElement <= bottomOfEndLine) {
+					startLineNumbers.push(start);
+					endLineNumbers.push(end + 1);
+					if (bottomOfElement > bottomOfEndLine) {
+						lastLineRelativePosition = bottomOfEndLine - bottomOfElement;
 					}
-					else if (bottomOfElementAtDepth > bottomOfBeginningLine && bottomOfElementAtDepth <= bottomOfEndLine) {
-						startLineNumbers.push(start);
-						endLineNumbers.push(end + 1);
-					}
-					if (startLineNumbers.length === maxNumberStickyLines) {
-						break;
-					}
+				}
+				if (startLineNumbers.length === maxNumberStickyLines) {
+					break;
 				}
 			}
 		}

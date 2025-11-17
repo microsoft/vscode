@@ -8,7 +8,7 @@ import { RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { setTimeout0 } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { LineRange } from '../../../../../../editor/common/core/lineRange.js';
+import { LineRange } from '../../../../../../editor/common/core/ranges/lineRange.js';
 import { LanguageId } from '../../../../../../editor/common/encodedTokenAttributes.js';
 import { IModelChangedEvent, MirrorTextModel } from '../../../../../../editor/common/model/mirrorTextModel.js';
 import { TokenizerWithStateStore } from '../../../../../../editor/common/model/textModelTokens.js';

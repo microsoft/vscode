@@ -5,89 +5,156 @@
 
 import { URI } from '../../../../base/common/uri.js';
 
-// TODO: rewrite this to use URIs directly and validate each part individually
-// instead of relying on memoization of the stringified URI.
-export const testUrlMatchesGlob = (uri: URI, globUrl: string): boolean => {
-	let url = uri.with({ query: null, fragment: null }).toString(true);
-	const normalize = (url: string) => url.replace(/\/+$/, '');
-	globUrl = normalize(globUrl);
-	url = normalize(url);
+/**
+ * Normalizes a URL by removing trailing slashes and query/fragment components.
+ * @param url The URL to normalize.
+ * @returns URI - The normalized URI object.
+ */
+function normalizeURL(url: string | URI): URI {
+	const uri = typeof url === 'string' ? URI.parse(url) : url;
+	return uri.with({
+		// Remove trailing slashes
+		path: uri.path.replace(/\/+$/, ''),
+		// Remove query and fragment
+		query: null,
+		fragment: null,
+	});
+}
 
-	const memo = Array.from({ length: url.length + 1 }).map(() =>
-		Array.from({ length: globUrl.length + 1 }).map(() => undefined),
+/**
+ * Checks if a given URL matches a glob URL pattern.
+ * The glob URL pattern can contain wildcards (*) and subdomain matching (*.)
+ * @param uri The URL to check.
+ * @param globUrl The glob URL pattern to match against.
+ * @returns boolean - True if the URL matches the glob URL pattern, false otherwise.
+ */
+export function testUrlMatchesGlob(uri: string | URI, globUrl: string): boolean {
+	const normalizedUrl = normalizeURL(uri);
+	let normalizedGlobUrl: URI;
+
+	const globHasScheme = /^[^./:]*:\/\//.test(globUrl);
+	// if the glob does not have a scheme we assume the scheme is http or https
+	// so if the url doesn't have a scheme of http or https we return false
+	if (!globHasScheme) {
+		if (normalizedUrl.scheme !== 'http' && normalizedUrl.scheme !== 'https') {
+			return false;
+		}
+		normalizedGlobUrl = normalizeURL(`${normalizedUrl.scheme}://${globUrl}`);
+	} else {
+		normalizedGlobUrl = normalizeURL(globUrl);
+	}
+
+	return (
+		doMemoUrlMatch(normalizedUrl.scheme, normalizedGlobUrl.scheme) &&
+		// The authority is the only thing that should do port logic.
+		doMemoUrlMatch(normalizedUrl.authority, normalizedGlobUrl.authority, true) &&
+		(
+			//
+			normalizedGlobUrl.path === '/' ||
+			doMemoUrlMatch(normalizedUrl.path, normalizedGlobUrl.path)
+		)
+	);
+}
+
+/**
+ * @param normalizedUrlPart The normalized URL part to match.
+ * @param normalizedGlobUrlPart The normalized glob URL part to match against.
+ * @param includePortLogic Whether to include port logic in the matching process.
+ * @returns boolean - True if the URL part matches the glob URL part, false otherwise.
+ */
+function doMemoUrlMatch(
+	normalizedUrlPart: string,
+	normalizedGlobUrlPart: string,
+	includePortLogic: boolean = false,
+) {
+	const memo = Array.from({ length: normalizedUrlPart.length + 1 }).map(() =>
+		Array.from({ length: normalizedGlobUrlPart.length + 1 }).map(() => undefined),
 	);
 
-	if (/^[^./:]*:\/\//.test(globUrl)) {
-		return doUrlMatch(memo, url, globUrl, 0, 0);
-	}
+	return doUrlPartMatch(memo, includePortLogic, normalizedUrlPart, normalizedGlobUrlPart, 0, 0);
+}
 
-	const scheme = /^(https?):\/\//.exec(url)?.[1];
-	if (scheme) {
-		return doUrlMatch(memo, url, `${scheme}://${globUrl}`, 0, 0);
-	}
-
-	return false;
-};
-
-const doUrlMatch = (
+/**
+ * Recursively checks if a URL part matches a glob URL part.
+ * This function uses memoization to avoid recomputing results for the same inputs.
+ * It handles various cases such as exact matches, wildcard matches, and port logic.
+ * @param memo A memoization table to avoid recomputing results for the same inputs.
+ * @param includePortLogic Whether to include port logic in the matching process.
+ * @param urlPart The URL part to match with.
+ * @param globUrlPart The glob URL part to match against.
+ * @param urlOffset The current offset in the URL part.
+ * @param globUrlOffset The current offset in the glob URL part.
+ * @returns boolean - True if the URL part matches the glob URL part, false otherwise.
+ */
+function doUrlPartMatch(
 	memo: (boolean | undefined)[][],
-	url: string,
-	globUrl: string,
+	includePortLogic: boolean,
+	urlPart: string,
+	globUrlPart: string,
 	urlOffset: number,
-	globUrlOffset: number,
-): boolean => {
+	globUrlOffset: number
+): boolean {
 	if (memo[urlOffset]?.[globUrlOffset] !== undefined) {
 		return memo[urlOffset][globUrlOffset]!;
 	}
 
 	const options = [];
 
-	// Endgame.
-	// Fully exact match
-	if (urlOffset === url.length) {
-		return globUrlOffset === globUrl.length;
+	// We've reached the end of the url.
+	if (urlOffset === urlPart.length) {
+		// We're also at the end of the glob url as well so we have an exact match.
+		if (globUrlOffset === globUrlPart.length) {
+			return true;
+		}
+
+		if (includePortLogic && globUrlPart[globUrlOffset] + globUrlPart[globUrlOffset + 1] === ':*') {
+			// any port match. Consume a port if it exists otherwise nothing. Always consume the base.
+			return globUrlOffset + 2 === globUrlPart.length;
+		}
+
+		return false;
 	}
 
 	// Some path remaining in url
-	if (globUrlOffset === globUrl.length) {
-		const remaining = url.slice(urlOffset);
+	if (globUrlOffset === globUrlPart.length) {
+		const remaining = urlPart.slice(urlOffset);
 		return remaining[0] === '/';
 	}
 
-	if (url[urlOffset] === globUrl[globUrlOffset]) {
+	if (urlPart[urlOffset] === globUrlPart[globUrlOffset]) {
 		// Exact match.
-		options.push(doUrlMatch(memo, url, globUrl, urlOffset + 1, globUrlOffset + 1));
+		options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset + 1, globUrlOffset + 1));
 	}
 
-	if (globUrl[globUrlOffset] + globUrl[globUrlOffset + 1] === '*.') {
+	if (globUrlPart[globUrlOffset] + globUrlPart[globUrlOffset + 1] === '*.') {
 		// Any subdomain match. Either consume one thing that's not a / or : and don't advance base or consume nothing and do.
-		if (!['/', ':'].includes(url[urlOffset])) {
-			options.push(doUrlMatch(memo, url, globUrl, urlOffset + 1, globUrlOffset));
+		if (!['/', ':'].includes(urlPart[urlOffset])) {
+			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset + 1, globUrlOffset));
 		}
-		options.push(doUrlMatch(memo, url, globUrl, urlOffset, globUrlOffset + 2));
+		options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset, globUrlOffset + 2));
 	}
 
-	if (globUrl[globUrlOffset] === '*') {
+	if (globUrlPart[globUrlOffset] === '*') {
 		// Any match. Either consume one thing and don't advance base or consume nothing and do.
-		if (urlOffset + 1 === url.length) {
+		if (urlOffset + 1 === urlPart.length) {
 			// If we're at the end of the input url consume one from both.
-			options.push(doUrlMatch(memo, url, globUrl, urlOffset + 1, globUrlOffset + 1));
+			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset + 1, globUrlOffset + 1));
 		} else {
-			options.push(doUrlMatch(memo, url, globUrl, urlOffset + 1, globUrlOffset));
+			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset + 1, globUrlOffset));
 		}
-		options.push(doUrlMatch(memo, url, globUrl, urlOffset, globUrlOffset + 1));
+		options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset, globUrlOffset + 1));
 	}
 
-	if (globUrl[globUrlOffset] + globUrl[globUrlOffset + 1] === ':*') {
-		// any port match. Consume a port if it exists otherwise nothing. Always comsume the base.
-		if (url[urlOffset] === ':') {
+	if (includePortLogic && globUrlPart[globUrlOffset] + globUrlPart[globUrlOffset + 1] === ':*') {
+		// any port match. Consume a port if it exists otherwise nothing. Always consume the base.
+		if (urlPart[urlOffset] === ':') {
 			let endPortIndex = urlOffset + 1;
-			do { endPortIndex++; } while (/[0-9]/.test(url[endPortIndex]));
-			options.push(doUrlMatch(memo, url, globUrl, endPortIndex, globUrlOffset + 2));
+			do { endPortIndex++; } while (/[0-9]/.test(urlPart[endPortIndex]));
+			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, endPortIndex, globUrlOffset + 2));
 		} else {
-			options.push(doUrlMatch(memo, url, globUrl, urlOffset, globUrlOffset + 2));
+			options.push(doUrlPartMatch(memo, includePortLogic, urlPart, globUrlPart, urlOffset, globUrlOffset + 2));
 		}
 	}
 
 	return (memo[urlOffset][globUrlOffset] = options.some(a => a === true));
-};
+}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CellLayoutState, ICellOutputViewModel, ICommonCellInfo, IGenericCellViewModel, IInsetRenderOutput } from '../notebookBrowser.js';
+import { CellLayoutState, ICellOutputViewModel, ICommonCellInfo, IGenericCellViewModel, IInsetRenderOutput, INotebookEditor } from '../notebookBrowser.js';
 import { DiffElementCellViewModelBase, IDiffElementViewModelBase } from './diffElementViewModel.js';
 import { Event } from '../../../../../base/common/event.js';
 import { BareFontInfo } from '../../../../../editor/common/config/fontInfo.js';
@@ -18,6 +18,7 @@ import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolba
 import { DiffEditorWidget } from '../../../../../editor/browser/widget/diffEditor/diffEditorWidget.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../nls.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 
 export enum DiffSide {
 	Original = 0,
@@ -31,9 +32,11 @@ export interface IDiffCellInfo extends ICommonCellInfo {
 export interface INotebookTextDiffEditor {
 	notebookOptions: NotebookOptions;
 	readonly textModel?: NotebookTextModel;
-	onMouseUp: Event<{ readonly event: MouseEvent; readonly target: IDiffElementViewModelBase }>;
-	onDidScroll: Event<void>;
-	onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel; output: ICellOutputViewModel }>;
+	inlineNotebookEditor: INotebookEditor | undefined;
+	readonly currentChangedIndex: IObservable<number>;
+	readonly onMouseUp: Event<{ readonly event: MouseEvent; readonly target: IDiffElementViewModelBase }>;
+	readonly onDidScroll: Event<void>;
+	readonly onDidDynamicOutputRendered: Event<{ cell: IGenericCellViewModel; output: ICellOutputViewModel }>;
 	getOverflowContainerDomNode(): HTMLElement;
 	getLayoutInfo(): NotebookLayoutInfo;
 	getScrollTop(): number;
@@ -53,8 +56,11 @@ export interface INotebookTextDiffEditor {
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, height: number, isInit: boolean): void;
 	deltaCellOutputContainerClassNames(diffSide: DiffSide, cellId: string, added: string[], removed: string[]): void;
+	firstChange(): void;
+	lastChange(): void;
 	previousChange(): void;
 	nextChange(): void;
+	toggleInlineView(): void;
 }
 
 export interface IDiffNestedCellViewModel {
@@ -106,7 +112,7 @@ export interface NotebookDocumentDiffElementRenderTemplate extends CellDiffCommo
 }
 
 export interface IDiffCellMarginOverlay extends IDisposable {
-	onAction: Event<void>;
+	readonly onAction: Event<void>;
 	show(): void;
 	hide(): void;
 }
@@ -179,7 +185,7 @@ export interface INotebookDiffViewModel extends IDisposable {
 	/**
 	 * Triggered when ever there's a change in the view model items.
 	 */
-	onDidChangeItems: Event<INotebookDiffViewModelUpdateEvent>;
+	readonly onDidChangeItems: Event<INotebookDiffViewModelUpdateEvent>;
 	/**
 	 * Computes the differences and generates the viewmodel.
 	 * If view models are generated, then the onDidChangeItems is triggered.

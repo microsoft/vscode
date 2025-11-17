@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IHoverWidget, IManagedHoverOptions } from './hover.js';
+import type { IHoverWidget, IManagedHoverContentOrFactory, IManagedHoverOptions } from './hover.js';
 import { HoverPosition } from './hoverWidget.js';
 import { IMarkdownString } from '../../../common/htmlContent.js';
 import { IDisposable } from '../../../common/lifecycle.js';
@@ -67,7 +67,7 @@ export interface IHoverDelegateOptions extends IManagedHoverOptions {
 export interface IHoverDelegate {
 	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined;
 	onDidHideHover?: () => void;
-	delay: number;
+	delay: number | ((content?: IManagedHoverContentOrFactory) => number);
 	placement?: 'mouse' | 'element';
 	showNativeHover?: boolean; // TODO@benibenj remove this, only temp fix for contextviews
 }

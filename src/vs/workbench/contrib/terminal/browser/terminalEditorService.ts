@@ -144,7 +144,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 					options: {
 						pinned: true,
 						forceReload: true,
-						preserveFocus: editorOptions?.preserveFocus
+						preserveFocus: editorOptions?.preserveFocus,
+						auxiliary: editorOptions?.auxiliary,
 					}
 				}, editorOptions?.viewColumn ?? ACTIVE_GROUP)
 			};
@@ -181,8 +182,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._instanceDisposables.set(inputKey, [
 			instance.onDidFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance),
 			instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
-			instance.capabilities.onDidAddCapabilityType(() => this._onDidChangeInstanceCapability.fire(instance)),
-			instance.capabilities.onDidRemoveCapabilityType(() => this._onDidChangeInstanceCapability.fire(instance)),
+			instance.capabilities.onDidChangeCapabilities(() => this._onDidChangeInstanceCapability.fire(instance)),
 		]);
 		this.instances.push(instance);
 		this._onDidChangeInstances.fire();
@@ -231,15 +231,11 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput {
-		if ('pid' in deserializedInput) {
-			const newDeserializedInput = { ...deserializedInput, findRevivedId: true };
-			const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: newDeserializedInput }, TerminalLocation.Editor);
-			const input = this._instantiationService.createInstance(TerminalEditorInput, instance.resource, instance);
-			this._registerInstance(instance.resource.path, input, instance);
-			return input;
-		} else {
-			throw new Error(`Could not revive terminal editor input, ${deserializedInput}`);
-		}
+		const newDeserializedInput = { ...deserializedInput, findRevivedId: true };
+		const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: newDeserializedInput }, TerminalLocation.Editor);
+		const input = this._instantiationService.createInstance(TerminalEditorInput, instance.resource, instance);
+		this._registerInstance(instance.resource.path, input, instance);
+		return input;
 	}
 
 	detachInstance(instance: ITerminalInstance) {

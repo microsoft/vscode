@@ -183,7 +183,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 		}
 
 		const contents = fs.readFileSync(fileName).toString();
-		let desc: any = null;
+		let desc: any;
 		try {
 			desc = JSON.parse(contents);
 		} catch (err) {

@@ -17,6 +17,7 @@ import minimatch from 'minimatch';
 import minimist from 'minimist';
 import * as module from 'module';
 import { fileURLToPath, pathToFileURL } from 'url';
+import semver from 'semver';
 
 /**
  * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; coverageFormats: string | string[]; coveragePath: string; }}
@@ -56,7 +57,7 @@ Options:
 const TEST_GLOB = '**/test/**/*.test.js';
 
 const excludeGlobs = [
-	'**/{browser,electron-sandbox,electron-main,electron-utility}/**/*.test.js',
+	'**/{browser,electron-browser,electron-main,electron-utility}/**/*.test.js',
 	'**/vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
 	'**/vs/base/parts/storage/test/node/storage.test.js', // same as above, due to direct dependency to sqlite native module
 	'**/vs/workbench/contrib/testing/test/**' // flaky (https://github.com/microsoft/vscode/issues/137853)
@@ -68,10 +69,11 @@ const src = path.join(REPO_ROOT, out);
 const baseUrl = pathToFileURL(src);
 
 //@ts-ignore
-const majorRequiredNodeVersion = `v${/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))[1]}`.substring(0, 3);
-const currentMajorNodeVersion = process.version.substring(0, 3);
-if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
-	console.error(`node.js unit tests require a major node.js version of ${majorRequiredNodeVersion} (your version is: ${currentMajorNodeVersion})`);
+const requiredNodeVersion = semver.parse(/^target="(.*)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.npmrc'), 'utf8'))[1]);
+const currentNodeVersion = semver.parse(process.version);
+//@ts-ignore
+if (currentNodeVersion?.major < requiredNodeVersion?.major) {
+	console.error(`node.js unit tests require a major node.js version of ${requiredNodeVersion?.major} (your version is: ${currentNodeVersion?.major})`);
 	process.exit(1);
 }
 

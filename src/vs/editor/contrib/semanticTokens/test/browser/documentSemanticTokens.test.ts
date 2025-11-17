@@ -36,6 +36,8 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { UndoRedoService } from '../../../../../platform/undoRedo/common/undoRedoService.js';
+import { ITreeSitterLibraryService } from '../../../../common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../../../../test/common/services/testTreeSitterLibraryService.js';
 
 suite('ModelSemanticColoring', () => {
 
@@ -55,6 +57,7 @@ suite('ModelSemanticColoring', () => {
 		const instantiationService = new TestInstantiationService();
 		instantiationService.set(ILanguageService, languageService);
 		instantiationService.set(ILanguageConfigurationService, new TestLanguageConfigurationService());
+		instantiationService.set(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
 		modelService = disposables.add(new ModelService(
 			configService,
 			new TestTextResourcePropertiesService(configService),

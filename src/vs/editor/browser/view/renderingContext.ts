@@ -6,7 +6,8 @@
 import { Position } from '../../common/core/position.js';
 import { Range } from '../../common/core/range.js';
 import { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
-import { IViewLayout, ViewModelDecoration } from '../../common/viewModel.js';
+import { IViewLayout } from '../../common/viewModel.js';
+import { ViewModelDecoration } from '../../common/viewModel/viewModelDecoration.js';
 
 export interface IViewLines {
 	linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null;
@@ -61,6 +62,10 @@ export abstract class RestrictedRenderingContext {
 		return this._viewLayout.getVerticalOffsetAfterLineNumber(lineNumber, includeViewZones);
 	}
 
+	public getLineHeightForLineNumber(lineNumber: number): number {
+		return this._viewLayout.getLineHeightForLineNumber(lineNumber);
+	}
+
 	public getDecorationsInViewport(): ViewModelDecoration[] {
 		return this.viewportData.getDecorationsInViewport();
 	}
@@ -82,7 +87,7 @@ export class RenderingContext extends RestrictedRenderingContext {
 	public linesVisibleRangesForRange(range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
 		const domRanges = this._viewLines.linesVisibleRangesForRange(range, includeNewLines);
 		if (!this._viewLinesGpu) {
-			return domRanges ?? null;
+			return domRanges;
 		}
 		const gpuRanges = this._viewLinesGpu.linesVisibleRangesForRange(range, includeNewLines);
 		if (!domRanges) {

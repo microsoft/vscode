@@ -6,7 +6,7 @@
 import type { Terminal } from '@xterm/xterm';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { localize2 } from '../../../../../nls.js';
@@ -19,7 +19,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ICurrentPartialCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
+import { ICurrentPartialCommand, isFullTerminalCommand } from '../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { accessibleViewCurrentProviderId, accessibleViewIsShown } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityHelpAction, AccessibleViewAction } from '../../../accessibility/browser/accessibleViewActions.js';
@@ -68,7 +68,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 	private _bufferTracker: BufferContentTracker | undefined;
 	private _bufferProvider: TerminalAccessibleBufferProvider | undefined;
 	private _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal } | undefined;
-	private readonly _onDidRunCommand: MutableDisposable<IDisposable> = new MutableDisposable();
+	private readonly _onDidRunCommand = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
@@ -144,11 +144,11 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		}
 
 		const capability = this._ctx.instance.capabilities.get(TerminalCapability.CommandDetection)!;
-		this._onDidRunCommand.value = this._register(capability.onCommandExecuted(() => {
+		this._onDidRunCommand.value = capability.onCommandExecuted(() => {
 			if (this._ctx.instance.hasFocus) {
 				this.show();
 			}
-		}));
+		});
 	}
 
 	private _isTerminalAccessibleViewOpen(): boolean {
@@ -226,9 +226,9 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			return;
 		}
 		let line: number | undefined;
-		if ('marker' in command) {
+		if (isFullTerminalCommand(command)) {
 			line = command.marker?.line;
-		} else if ('commandStartMarker' in command) {
+		} else {
 			line = command.commandStartMarker?.line;
 		}
 		if (line === undefined || line < 0) {
@@ -289,7 +289,7 @@ class FocusAccessibleBufferAction extends Action2 {
 			]
 		});
 	}
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const terminalService = accessor.get(ITerminalService);
 		const terminal = await terminalService.getActiveOrCreateInstance();
 		if (!terminal?.xterm) {

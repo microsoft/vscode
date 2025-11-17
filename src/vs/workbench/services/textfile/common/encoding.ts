@@ -117,7 +117,7 @@ class DecoderStream implements IDecoderStream {
 }
 
 export function toDecodeStream(source: VSBufferReadableStream, options: IDecodeStreamOptions): Promise<IDecodeStreamResult> {
-	const minBytesRequiredForDetection = options.minBytesRequiredForDetection ?? options.guessEncoding ? AUTO_ENCODING_GUESS_MIN_BYTES : NO_ENCODING_GUESS_MIN_BYTES;
+	const minBytesRequiredForDetection = options.minBytesRequiredForDetection ?? (options.guessEncoding ? AUTO_ENCODING_GUESS_MIN_BYTES : NO_ENCODING_GUESS_MIN_BYTES);
 
 	return new Promise<IDecodeStreamResult>((resolve, reject) => {
 		const target = newWriteableStream<string>(strings => strings.join(''));
@@ -338,8 +338,14 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 		}
 	}
 
-	const guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
-	if (!guessed || !guessed.encoding) {
+	let guessed: { encoding: string | undefined } | undefined;
+	try {
+		guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
+	} catch (error) {
+		return null; // jschardet throws for unknown encodings (https://github.com/microsoft/vscode/issues/239928)
+	}
+
+	if (!guessed?.encoding) {
 		return null;
 	}
 
@@ -371,7 +377,7 @@ function toJschardetEncoding(encodingName: string): string | undefined {
 	const normalizedEncodingName = normalizeEncoding(encodingName);
 	const mapped = GUESSABLE_ENCODINGS[normalizedEncodingName];
 
-	return mapped.guessableName;
+	return mapped ? mapped.guessableName : undefined;
 }
 
 function encodeLatin1(buffer: Uint8Array): string {

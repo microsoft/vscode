@@ -331,10 +331,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/contrib/deprecatedExtensionMigrator",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/bracketPairColorizer2Telemetry",
 			"project": "vscode-workbench"
 		},

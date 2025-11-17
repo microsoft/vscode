@@ -54,12 +54,13 @@ function isGalleryExtensionInfo(obj: unknown): obj is GalleryExtensionInfo {
 		&& (galleryExtensionInfo.migrateStorageFrom === undefined || typeof galleryExtensionInfo.migrateStorageFrom === 'string');
 }
 
-function isUriComponents(thing: unknown): thing is UriComponents {
-	if (!thing) {
+function isUriComponents(obj: unknown): obj is UriComponents {
+	if (!obj) {
 		return false;
 	}
-	return isString((<any>thing).path) &&
-		isString((<any>thing).scheme);
+	const thing = obj as UriComponents | undefined;
+	return typeof thing?.path === 'string' &&
+		typeof thing?.scheme === 'string';
 }
 
 interface IStoredWebExtension {
@@ -146,7 +147,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 						}
 					} else if (isUriComponents(e)) {
 						const extensionLocation = URI.revive(e);
-						if (this.extensionResourceLoaderService.isExtensionGalleryResource(extensionLocation)) {
+						if (await this.extensionResourceLoaderService.isExtensionGalleryResource(extensionLocation)) {
 							extensionGalleryResources.push(extensionLocation);
 						} else {
 							extensionLocations.push(extensionLocation);
@@ -175,7 +176,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const extensionsControlManifest = await this.galleryService.getExtensionsControlManifest();
 		const result: ExtensionInfo[] = [];
 		for (const extension of extensions) {
-			if (isMalicious({ id: extension.id }, extensionsControlManifest)) {
+			if (isMalicious({ id: extension.id }, extensionsControlManifest.malicious)) {
 				this.logService.info(`Checking additional builtin extensions: Ignoring '${extension.id}' because it is reported to be malicious.`);
 				continue;
 			}
@@ -651,7 +652,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async toWebExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: Metadata): Promise<IWebExtension> {
-		const extensionLocation = this.extensionResourceLoaderService.getExtensionGalleryResourceURL({
+		const extensionLocation = await this.extensionResourceLoaderService.getExtensionGalleryResourceURL({
 			publisher: galleryExtension.publisher,
 			name: galleryExtension.name,
 			version: galleryExtension.version,

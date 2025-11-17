@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkerServer, IWorkerClient } from '../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerServer, IWebWorkerClient } from '../../../base/common/worker/webWorker.js';
 
 export abstract class EditorWorkerHost {
 	public static CHANNEL_NAME = 'editorWorkerHost';
-	public static getChannel(workerServer: IWorkerServer): EditorWorkerHost {
+	public static getChannel(workerServer: IWebWorkerServer): EditorWorkerHost {
 		return workerServer.getChannel<EditorWorkerHost>(EditorWorkerHost.CHANNEL_NAME);
 	}
-	public static setChannel(workerClient: IWorkerClient<any>, obj: EditorWorkerHost): void {
+	public static setChannel(workerClient: IWebWorkerClient<unknown>, obj: EditorWorkerHost): void {
 		workerClient.setChannel<EditorWorkerHost>(EditorWorkerHost.CHANNEL_NAME, obj);
 	}
 
 	// foreign host request
-	abstract $fhr(method: string, args: any[]): Promise<any>;
+	abstract $fhr(method: string, args: unknown[]): Promise<unknown>;
 }

@@ -10,7 +10,7 @@ import { Delayer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import './media/searchEditor.css';
 import { ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
@@ -137,7 +137,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		super.createEditor(searchResultContainer);
 		this.registerEditorListeners();
 
-		const scopedContextKeyService = assertIsDefined(this.scopedContextKeyService);
+		const scopedContextKeyService = assertReturnsDefined(this.scopedContextKeyService);
 		InSearchEditor.bindTo(scopedContextKeyService).set(true);
 
 		this.createQueryEditor(
@@ -201,7 +201,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			ariaLabel: localize('label.includes', 'Search Include Patterns'),
 			inputBoxStyles: searchEditorInputboxStyles
 		}));
-		this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
+		this._register(this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 })));
 		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerSearch()));
 
 		// Excludes
@@ -212,7 +212,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			ariaLabel: localize('label.excludes', 'Search Exclude Patterns'),
 			inputBoxStyles: searchEditorInputboxStyles
 		}));
-		this.inputPatternExcludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
+		this._register(this.inputPatternExcludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 })));
 		this._register(this.inputPatternExcludes.onChangeIgnoreBox(() => this.triggerSearch()));
 
 		// Messages
@@ -251,7 +251,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	private registerEditorListeners() {
-		this.searchResultEditor.onMouseUp(e => {
+		this._register(this.searchResultEditor.onMouseUp(e => {
 			if (e.event.detail === 1) {
 				const behaviour = this.searchConfig.searchEditor.singleClickBehaviour;
 				const position = e.target.position;
@@ -276,7 +276,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 					}
 				}
 			}
-		});
+		}));
 		this._register(this.searchResultEditor.onDidChangeModelContent(() => {
 			if (!this.updatingModelForSearch) {
 				this.getInput()?.setDirty(true);

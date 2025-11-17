@@ -29,6 +29,10 @@ export function assertNever(value: never, message = 'Unreachable'): never {
 	throw new Error(message);
 }
 
+export function softAssertNever(value: never): void {
+	// no-op
+}
+
 /**
  * Asserts that a condition is `truthy`.
  *
@@ -54,9 +58,9 @@ export function assert(
 /**
  * Like assert, but doesn't throw.
  */
-export function softAssert(condition: boolean): void {
+export function softAssert(condition: boolean, message = 'Soft Assertion Failed'): void {
 	if (!condition) {
-		onUnexpectedError(new BugIndicatingError('Soft Assertion Failed'));
+		onUnexpectedError(new BugIndicatingError(message));
 	}
 }
 

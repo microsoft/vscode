@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ICommandAction } from '../../../../platform/action/common/action.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandMetadata } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IWorkbenchIssueService, IssueReporterData } from './issue.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IssueReporterData, IWorkbenchIssueService } from './issue.js';
 
 const OpenIssueReporterActionId = 'workbench.action.openIssueReporter';
 const OpenIssueReporterApiId = 'vscode.openIssueReporter';
@@ -64,6 +65,18 @@ export class BaseIssueContribution extends Disposable implements IWorkbenchContr
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+
+		if (!configurationService.getValue<boolean>('telemetry.feedback.enabled')) {
+			this._register(CommandsRegistry.registerCommand({
+				id: 'workbench.action.openIssueReporter',
+				handler: function (accessor) {
+					const data = accessor.get(INotificationService);
+					data.info('Feedback is disabled.');
+
+				},
+			}));
+			return;
+		}
 
 		if (!productService.reportIssueUrl) {
 			return;

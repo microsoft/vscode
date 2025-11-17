@@ -34,6 +34,10 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkbenchAsyncDataTreeOptions, WorkbenchAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { IColorTheme, IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel.js';
+import { ITreeDragAndDrop, ITreeDragOverReaction } from '../../../../../base/browser/ui/tree/tree.js';
+import { DataTransfers, IDragAndDropData } from '../../../../../base/browser/dnd.js';
+import { ElementsDragAndDropData } from '../../../../../base/browser/ui/list/listView.js';
+import { withSelection } from '../../../../../platform/opener/common/opener.js';
 
 class DecorationsManager implements IDisposable {
 
@@ -188,6 +192,51 @@ export interface SelectionEvent {
 
 class ReferencesTree extends WorkbenchAsyncDataTree<ReferencesModel | FileReferences, TreeElement, FuzzyScore> { }
 
+class ReferencesDragAndDrop implements ITreeDragAndDrop<TreeElement> {
+
+	private readonly disposables = new DisposableStore();
+
+	constructor(@ILabelService private readonly labelService: ILabelService) { }
+
+	getDragURI(element: TreeElement): string | null {
+		if (element instanceof FileReferences) {
+			return element.uri.toString();
+		} else if (element instanceof OneReference) {
+			return withSelection(element.uri, element.range).toString();
+		}
+		return null;
+	}
+
+	getDragLabel(elements: TreeElement[]): string | undefined {
+		if (elements.length === 0) {
+			return undefined;
+		}
+		const labels = elements.map(e => this.labelService.getUriBasenameLabel(e.uri));
+		return labels.join(', ');
+	}
+
+	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
+		if (!originalEvent.dataTransfer) {
+			return;
+		}
+
+		const elements = (data as ElementsDragAndDropData<TreeElement, TreeElement[]>).elements;
+		const resources = elements.map(e => this.getDragURI(e)).filter(Boolean);
+
+		if (resources.length) {
+			// Apply resources as resource-list
+			originalEvent.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(resources));
+
+			// Also add as plain text for outside consumers
+			originalEvent.dataTransfer.setData(DataTransfers.TEXT, resources.join('\n'));
+		}
+	}
+
+	onDragOver(): boolean | ITreeDragOverReaction { return false; }
+	drop(): void { }
+	dispose(): void { this.disposables.dispose(); }
+}
+
 /**
  * ZoneWidget that is shown inside the editor
  */
@@ -328,7 +377,8 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 			selectionNavigation: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
-			}
+			},
+			dnd: this._instantiationService.createInstance(ReferencesDragAndDrop)
 		};
 		if (this._defaultTreeKeyboardSupport) {
 			// the tree will consume `Escape` and prevent the widget from closing
@@ -382,7 +432,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		}, undefined));
 
 		// listen on selection and focus
-		const onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
+		const onEvent = (element: TreeElement | undefined, kind: 'show' | 'goto' | 'side') => {
 			if (element instanceof OneReference) {
 				if (kind === 'show') {
 					this._revealReference(element, false);
@@ -417,7 +467,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		this._splitView.resizeView(0, widthInPixel * this.layoutData.ratio);
 	}
 
-	setSelection(selection: OneReference): Promise<any> {
+	setSelection(selection: OneReference): Promise<unknown> {
 		return this._revealReference(selection, true).then(() => {
 			if (!this._model) {
 				// disposed
@@ -429,7 +479,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		});
 	}
 
-	setModel(newModel: ReferencesModel | undefined): Promise<any> {
+	setModel(newModel: ReferencesModel | undefined): Promise<unknown> {
 		// clean up
 		this._disposeOnNewModel.clear();
 		this._model = newModel;
@@ -439,7 +489,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		return Promise.resolve();
 	}
 
-	private _onNewModel(): Promise<any> {
+	private _onNewModel(): Promise<unknown> {
 		if (!this._model) {
 			return Promise.resolve(undefined);
 		}

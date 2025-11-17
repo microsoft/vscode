@@ -4,10 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 import Severity from '../../../base/common/severity.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+
+export interface IMarkerReadOptions {
+	owner?: string;
+	resource?: URI;
+	severities?: number;
+	take?: number;
+	ignoreResourceFilters?: boolean;
+}
 
 export interface IMarkerService {
 	readonly _serviceBrand: undefined;
@@ -20,7 +29,9 @@ export interface IMarkerService {
 
 	remove(owner: string, resources: URI[]): void;
 
-	read(filter?: { owner?: string; resource?: URI; severities?: number; take?: number }): IMarker[];
+	read(filter?: IMarkerReadOptions): IMarker[];
+
+	installResourceFilter(resource: URI, reason: string): IDisposable;
 
 	readonly onMarkerChanged: Event<readonly URI[]>;
 }
@@ -64,6 +75,15 @@ export namespace MarkerSeverity {
 		return _displayStrings[a] || '';
 	}
 
+	const _displayStringsPlural: { [value: number]: string } = Object.create(null);
+	_displayStringsPlural[MarkerSeverity.Error] = localize('sev.errors', "Errors");
+	_displayStringsPlural[MarkerSeverity.Warning] = localize('sev.warnings', "Warnings");
+	_displayStringsPlural[MarkerSeverity.Info] = localize('sev.infos', "Infos");
+
+	export function toStringPlural(a: MarkerSeverity): string {
+		return _displayStringsPlural[a] || '';
+	}
+
 	export function fromSeverity(severity: Severity): MarkerSeverity {
 		switch (severity) {
 			case Severity.Error: return MarkerSeverity.Error;
@@ -98,6 +118,7 @@ export interface IMarkerData {
 	modelVersionId?: number;
 	relatedInformation?: IRelatedInformation[];
 	tags?: MarkerTag[];
+	origin?: string | undefined;
 }
 
 export interface IResourceMarker {
@@ -119,6 +140,7 @@ export interface IMarker {
 	modelVersionId?: number;
 	relatedInformation?: IRelatedInformation[];
 	tags?: MarkerTag[];
+	origin?: string | undefined;
 }
 
 export interface MarkerStatistics {

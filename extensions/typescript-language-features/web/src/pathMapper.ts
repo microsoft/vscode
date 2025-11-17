@@ -16,7 +16,7 @@ export class PathMapper {
 	 * Copied from toResource in typescriptServiceClient.ts
 	 */
 	toResource(filepath: string): URI {
-		if (looksLikeLibDtsPath(filepath)) {
+		if (looksLikeLibDtsPath(filepath) || looksLikeLocaleResourcePath(filepath)) {
 			return URI.from({
 				scheme: this.extensionUri.scheme,
 				authority: this.extensionUri.authority,
@@ -81,6 +81,10 @@ export function fromResource(extensionUri: URI, uri: URI) {
 
 export function looksLikeLibDtsPath(filepath: string) {
 	return filepath.startsWith('/lib.') && filepath.endsWith('.d.ts');
+}
+
+export function looksLikeLocaleResourcePath(filepath: string) {
+	return !!filepath.match(/^\/[a-zA-Z]+(-[a-zA-Z]+)?\/diagnosticMessages\.generated\.json$/);
 }
 
 export function looksLikeNodeModules(filepath: string) {

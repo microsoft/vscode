@@ -14,9 +14,9 @@ export class MainThreadErrors implements MainThreadErrorsShape {
 		//
 	}
 
-	$onUnexpectedError(err: any | SerializedError): void {
-		if (err && err.$isError) {
-			err = transformErrorFromSerialization(err);
+	$onUnexpectedError(err: unknown | SerializedError): void {
+		if ((err as SerializedError | undefined)?.$isError) {
+			err = transformErrorFromSerialization(err as SerializedError);
 		}
 		onUnexpectedError(err);
 	}

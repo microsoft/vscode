@@ -17,12 +17,13 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { HoverVerbosityAction } from '../../../common/languages.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { isMousePositionWithinElement } from './hoverUtils.js';
+import { isMousePositionWithinElement, shouldShowHover } from './hoverUtils.js';
 import { ContentHoverWidgetWrapper } from './contentHoverWidgetWrapper.js';
 import './hover.css';
 import { Emitter } from '../../../../base/common/event.js';
 import { isOnColorDecorator } from '../../colorPicker/browser/hoverColorPicker/hoverColorPicker.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { isModifierKey, KeyCode } from '../../../../base/common/keyCodes.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 
 // sticky hover widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -30,7 +31,7 @@ const _sticky = false
 	;
 
 interface IHoverSettings {
-	readonly enabled: boolean;
+	readonly enabled: 'on' | 'off' | 'onKeyboardModifier';
 	readonly sticky: boolean;
 	readonly hidingDelay: number;
 }
@@ -54,8 +55,11 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	private _hoverSettings!: IHoverSettings;
 	private _isMouseDown: boolean = false;
 
+	private _ignoreMouseEvents: boolean = false;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IContextMenuService _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
@@ -67,6 +71,13 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 				}
 			}, 0
 		));
+		this._register(_contextMenuService.onDidShowContextMenu(() => {
+			this.hideContentHover();
+			this._ignoreMouseEvents = true;
+		}));
+		this._register(_contextMenuService.onDidHideContextMenu(() => {
+			this._ignoreMouseEvents = false;
+		}));
 		this._hookListeners();
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.hover)) {
@@ -87,7 +98,7 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 			sticky: hoverOpts.sticky,
 			hidingDelay: hoverOpts.hidingDelay
 		};
-		if (!hoverOpts.enabled) {
+		if (hoverOpts.enabled === 'off') {
 			this._cancelSchedulerAndHide();
 		}
 		this._listenersStore.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
@@ -115,12 +126,18 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _onEditorScrollChanged(e: IScrollEvent): void {
+		if (this._ignoreMouseEvents) {
+			return;
+		}
 		if (e.scrollTopChanged || e.scrollLeftChanged) {
 			this.hideContentHover();
 		}
 	}
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
+		if (this._ignoreMouseEvents) {
+			return;
+		}
 		this._isMouseDown = true;
 		const shouldKeepHoverWidgetVisible = this._shouldKeepHoverWidgetVisible(mouseEvent);
 		if (shouldKeepHoverWidgetVisible) {
@@ -141,10 +158,16 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _onEditorMouseUp(): void {
+		if (this._ignoreMouseEvents) {
+			return;
+		}
 		this._isMouseDown = false;
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
+		if (this._ignoreMouseEvents) {
+			return;
+		}
 		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
 			return;
 		}
@@ -198,6 +221,9 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
+		if (this._ignoreMouseEvents) {
+			return;
+		}
 		this._mouseMoveEvent = mouseEvent;
 		const shouldKeepCurrentHover = this._shouldKeepCurrentHover(mouseEvent);
 		if (shouldKeepCurrentHover) {
@@ -223,7 +249,11 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		if (this._hoverSettings.enabled) {
+		if (shouldShowHover(
+			this._hoverSettings.enabled,
+			this._editor.getOption(EditorOption.multiCursorModifier),
+			mouseEvent
+		)) {
 			const contentWidget: ContentHoverWidgetWrapper = this._getOrCreateContentWidget();
 			if (contentWidget.showsOrWillShow(mouseEvent)) {
 				return;
@@ -236,11 +266,15 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
+		if (this._ignoreMouseEvents) {
+			return;
+		}
 		if (!this._contentWidget) {
 			return;
 		}
 		const isPotentialKeyboardShortcut = this._isPotentialKeyboardShortcut(e);
-		if (isPotentialKeyboardShortcut) {
+		const isModifierKeyPressed = isModifierKey(e.keyCode);
+		if (isPotentialKeyboardShortcut || isModifierKeyPressed) {
 			return;
 		}
 		if (this._contentWidget.isFocused && e.keyCode === KeyCode.Tab) {

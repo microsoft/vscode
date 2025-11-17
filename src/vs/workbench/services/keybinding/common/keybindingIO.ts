@@ -11,7 +11,7 @@ import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/r
 export interface IUserKeybindingItem {
 	keybinding: Keybinding | null;
 	command: string | null;
-	commandArgs?: any;
+	commandArgs?: unknown;
 	when: ContextKeyExpression | undefined;
 	_sourceKey: string | undefined; /** captures `key` field from `keybindings.json`; `this.keybinding !== null` implies `_sourceKey !== null` */
 }

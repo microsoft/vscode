@@ -254,7 +254,7 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 
 		}, err => {
 			const messageOrError =
-				err instanceof Error ? (<Error>err).message : err;
+				err instanceof Error ? err.message : err;
 			// different error cases
 			if (messageOrError === 'invalid') {
 				this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url!.toString()));
@@ -287,14 +287,10 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 		return null;
 	}
 
-	public getAllLinkOccurrences(): LinkOccurrence[] {
-		return Object.values(this.currentOccurrences);
-	}
-
 	private isEnabled(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent | null): boolean {
 		return Boolean(
 			(mouseEvent.target.type === MouseTargetType.CONTENT_TEXT)
-			&& (mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey))
+			&& ((mouseEvent.hasTriggerModifier || (withKey && withKey.keyCodeIsTriggerKey)) || mouseEvent.isMiddleClick && mouseEvent.mouseMiddleClickAction === 'openLink')
 		);
 	}
 

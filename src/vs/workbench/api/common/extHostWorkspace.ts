@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { delta as arrayDelta, mapArrayOrNot } from '../../../base/common/arrays.js';
-import { AsyncIterableObject, Barrier } from '../../../base/common/async.js';
+import { AsyncIterableProducer, Barrier } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { AsyncEmitter, Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -13,7 +13,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { Counter } from '../../../base/common/numbers.js';
 import { basename, basenameOrAuthority, dirname, ExtUri, relativePath } from '../../../base/common/resources.js';
 import { compare } from '../../../base/common/strings.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderCapabilities } from '../../../platform/files/common/files.js';
@@ -35,6 +35,10 @@ import { ExtHostWorkspaceShape, IRelativePatternDto, IWorkspaceData, MainContext
 import { revive } from '../../../base/common/marshalling.js';
 import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
 import { ExcludeSettingOptions, TextSearchContext2, TextSearchMatch2 } from '../../services/search/common/searchExtTypes.js';
+import { bufferToStream, readableToBuffer, VSBuffer } from '../../../base/common/buffer.js';
+import { toDecodeStream, toEncodeReadable, UTF8 } from '../../services/textfile/common/encoding.js';
+import { consumeStream } from '../../../base/common/stream.js';
+import { stringToSnapshot } from '../../services/textfile/common/textfiles.js';
 
 export interface IExtHostWorkspaceProvider {
 	getWorkspaceFolder2(uri: vscode.Uri, resolveParent?: boolean): Promise<vscode.WorkspaceFolder | undefined>;
@@ -548,7 +552,20 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			token).then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : [])
 		) ?? []);
 
-		return result.flat();
+		const flatResult = result.flat();
+
+		// Dedupe entries in a flat array
+		const extUri = new ExtUri(uri => ignorePathCasing(uri, this._extHostFileSystemInfo));
+		const uriMap = new Map<string, vscode.Uri>();
+
+		for (const uri of flatResult) {
+			const key = extUri.getComparisonKey(uri);
+			if (!uriMap.has(key)) {
+				uriMap.set(key, uri);
+			}
+		}
+
+		return Array.from(uriMap.values());
 	}
 
 	findTextInFiles2(query: vscode.TextSearchQuery2, options: vscode.FindTextInFilesOptions2 | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {
@@ -570,7 +587,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				options: {
 
 					ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
-					disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
+					disregardIgnoreFiles: typeof options.useIgnoreFiles?.local === 'boolean' ? !options.useIgnoreFiles?.local : undefined,
 					disregardGlobalIgnoreFiles: typeof options.useIgnoreFiles?.global === 'boolean' ? !options.useIgnoreFiles?.global : undefined,
 					disregardParentIgnoreFiles: typeof options.useIgnoreFiles?.parent === 'boolean' ? !options.useIgnoreFiles?.parent : undefined,
 					disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
@@ -603,7 +620,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			(result, uri) => progressEmitter.fire({ result, uri }),
 			token
 		);
-		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResult2>(async emitter => {
+		const asyncIterable = new AsyncIterableProducer<vscode.TextSearchResult2>(async emitter => {
 			disposables.add(progressEmitter.event(e => {
 				const result = e.result;
 				const uri = e.uri;
@@ -937,6 +954,51 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	// called by main thread
 	async $provideCanonicalUri(uri: UriComponents, targetScheme: string, cancellationToken: CancellationToken): Promise<UriComponents | undefined> {
 		return this.provideCanonicalUri(URI.revive(uri), { targetScheme }, cancellationToken);
+	}
+
+	// --- encodings ---
+
+	async decode(content: Uint8Array, args?: { uri?: vscode.Uri; encoding?: string }): Promise<string> {
+		const [uri, opts] = this.toEncodeDecodeParameters(args);
+		const options = await this._proxy.$resolveDecoding(uri, opts);
+
+		const stream = (await toDecodeStream(bufferToStream(VSBuffer.wrap(content)), {
+			...options,
+			acceptTextOnly: true,
+			overwriteEncoding: detectedEncoding => {
+				if (detectedEncoding === null || detectedEncoding === options.preferredEncoding) {
+					// Prevent another roundtrip to the main thread
+					// if the detected encoding is null or the same
+					// as the preferred encoding
+					return Promise.resolve(options.preferredEncoding);
+				}
+
+				return this._proxy.$validateDetectedEncoding(uri, detectedEncoding, opts);
+			},
+		})).stream;
+
+		return consumeStream(stream, chunks => chunks.join(''));
+	}
+
+	async encode(content: string, args?: { uri?: vscode.Uri; encoding?: string }): Promise<Uint8Array> {
+		const [uri, options] = this.toEncodeDecodeParameters(args);
+		const { encoding, addBOM } = await this._proxy.$resolveEncoding(uri, options);
+
+		// when encoding is standard skip encoding step
+		if (encoding === UTF8 && !addBOM) {
+			return VSBuffer.fromString(content).buffer;
+		}
+
+		// otherwise create encoded readable
+		const res = await toEncodeReadable(stringToSnapshot(content), encoding, { addBOM });
+		return readableToBuffer(res).buffer;
+	}
+
+	private toEncodeDecodeParameters(opts?: { uri?: vscode.Uri; encoding?: string }): [UriComponents | undefined, { encoding: string } | undefined] {
+		const uri = isUriComponents(opts?.uri) ? opts.uri : undefined;
+		const encoding = typeof opts?.encoding === 'string' ? opts.encoding : undefined;
+
+		return [uri, encoding ? { encoding } : undefined];
 	}
 }
 

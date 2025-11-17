@@ -18,18 +18,19 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { ChatAgentLocation, IChatAgent, IChatAgentService } from '../../../chat/common/chatAgents.js';
+import { IChatAgent, IChatAgentService } from '../../../chat/common/chatAgents.js';
+import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { IDetachedTerminalInstance, ITerminalContribution, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { registerTerminalContribution, type IDetachedCompatibleTerminalContributionContext, type ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import { TerminalInstance } from '../../../terminal/browser/terminalInstance.js';
 import { TerminalInitialHintSettingId } from '../common/terminalInitialHintConfiguration.js';
 import './media/terminalInitialHint.css';
 import { TerminalChatCommandId } from './terminalChat.js';
+import { hasKey } from '../../../../../base/common/types.js';
 
 const $ = dom.$;
 
@@ -107,7 +108,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		// Don't show is the terminal was launched by an extension or a feature like debug
-		if ('shellLaunchConfig' in this._ctx.instance && (this._ctx.instance.shellLaunchConfig.isExtensionOwnedTerminal || this._ctx.instance.shellLaunchConfig.isFeatureTerminal)) {
+		if (hasKey(this._ctx.instance, { shellLaunchConfig: true }) && (this._ctx.instance.shellLaunchConfig.isExtensionOwnedTerminal || this._ctx.instance.shellLaunchConfig.isFeatureTerminal)) {
 			return;
 		}
 		// Don't show if disabled
@@ -214,19 +215,17 @@ class TerminalInitialHintWidget extends Disposable {
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IProductService private readonly _productService: IProductService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 		this._toDispose.add(_instance.onDidFocus(() => {
-			if (this._instance.hasFocus && this._isVisible && this._ariaLabel && this._configurationService.getValue(AccessibilityVerbositySettingId.TerminalChat)) {
+			if (this._instance.hasFocus && this._isVisible && this._ariaLabel && this._configurationService.getValue(AccessibilityVerbositySettingId.TerminalInlineChat)) {
 				status(this._ariaLabel);
 			}
 		}));
@@ -243,13 +242,7 @@ class TerminalInitialHintWidget extends Disposable {
 	}
 
 	private _getHintInlineChat(agents: IChatAgent[]) {
-		let providerName = (agents.length === 1 ? agents[0].fullName : undefined) ?? this._productService.nameShort;
-		const defaultAgent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
-		if (defaultAgent?.extensionId.value === agents[0].extensionId.value) {
-			providerName = defaultAgent.fullName ?? providerName;
-		}
-
-		let ariaLabel = `Ask ${providerName} something or start typing to dismiss.`;
+		let ariaLabel = `Open chat.`;
 
 		const handleClick = () => {
 			this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
@@ -284,7 +277,7 @@ class TerminalInitialHintWidget extends Disposable {
 		const keybindingHintLabel = keybindingHint?.getLabel();
 
 		if (keybindingHint && keybindingHintLabel) {
-			const actionPart = localize('emptyHintText', 'Press {0} to ask {1} to do something. ', keybindingHintLabel, providerName);
+			const actionPart = localize('emptyHintText', 'Open chat {0}. ', keybindingHintLabel);
 
 			const [before, after] = actionPart.split(keybindingHintLabel).map((fragment) => {
 				const hintPart = $('a', undefined, fragment);
@@ -315,7 +308,7 @@ class TerminalInitialHintWidget extends Disposable {
 				comment: [
 					'Preserve double-square brackets and their order',
 				]
-			}, '[[Ask {0} to do something]] or start typing to dismiss.', providerName);
+			}, '[[Open chat]] or start typing to dismiss.');
 			const rendered = renderFormattedText(hintMsg, { actionHandler: hintHandler });
 			hintElement.appendChild(rendered);
 		}
@@ -330,7 +323,7 @@ class TerminalInitialHintWidget extends Disposable {
 
 			const { hintElement, ariaLabel } = this._getHintInlineChat(agents);
 			this._domNode.append(hintElement);
-			this._ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.TerminalChat));
+			this._ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.TerminalInlineChat));
 
 			this._toDispose.add(dom.addDisposableListener(this._domNode, 'click', () => {
 				this._domNode?.remove();

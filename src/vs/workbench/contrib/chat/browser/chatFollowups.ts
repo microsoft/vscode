@@ -8,9 +8,10 @@ import { Button, IButtonStyles } from '../../../../base/browser/ui/button/button
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { ChatAgentLocation, IChatAgentService } from '../common/chatAgents.js';
+import { IChatAgentService } from '../common/chatAgents.js';
 import { formatChatQuestion } from '../common/chatParserTypes.js';
 import { IChatFollowup } from '../common/chatService.js';
+import { ChatAgentLocation } from '../common/constants.js';
 
 const $ = dom.$;
 
@@ -46,7 +47,7 @@ export class ChatFollowups<T extends IChatFollowup> extends Disposable {
 			: followup.title;
 		const message = followup.kind === 'reply' ? followup.message : followup.title;
 		const tooltip = (tooltipPrefix +
-			('tooltip' in followup && followup.tooltip || message)).trim();
+			(followup.tooltip || message)).trim();
 		const button = this._register(new Button(container, { ...this.options, title: tooltip }));
 		if (followup.kind === 'reply') {
 			button.element.classList.add('interactive-followup-reply');

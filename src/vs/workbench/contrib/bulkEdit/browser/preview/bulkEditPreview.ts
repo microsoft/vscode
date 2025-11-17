@@ -25,6 +25,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { SnippetParser } from '../../../../../editor/contrib/snippet/browser/snippetParser.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 export class CheckedStates<T extends object> {
 
@@ -388,7 +389,8 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 	}
 
 	asPreviewUri(uri: URI): URI {
-		return URI.from({ scheme: BulkEditPreviewProvider.Schema, authority: this._instanceId, path: uri.path, query: uri.toString() });
+		const path = uri.scheme === Schemas.untitled ? `/${uri.path}` : uri.path;
+		return URI.from({ scheme: BulkEditPreviewProvider.Schema, authority: this._instanceId, path, query: uri.toString() });
 	}
 
 	private async _init() {

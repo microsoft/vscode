@@ -7,13 +7,14 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { DisposableStore, dispose, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
-import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { ITelemetryData, ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from '../../services/search/common/search.js';
 import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol.js';
 import { revive } from '../../../base/common/marshalling.js';
 import * as Constants from '../../contrib/search/common/constants.js';
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { AISearchKeyword } from '../../services/search/common/searchExtTypes.js';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
@@ -72,7 +73,17 @@ export class MainThreadSearch implements MainThreadSearchShape {
 
 		provider.handleFindMatch(session, data);
 	}
-	$handleTelemetry(eventName: string, data: any): void {
+
+	$handleKeywordResult(handle: number, session: number, data: AISearchKeyword): void {
+		const provider = this._searchProvider.get(handle);
+		if (!provider) {
+			throw new Error('Got result for unknown provider');
+		}
+
+		provider.handleKeywordResult(session, data);
+	}
+
+	$handleTelemetry(eventName: string, data: ITelemetryData | undefined): void {
 		this._telemetryService.publicLog(eventName, data);
 	}
 }
@@ -82,9 +93,10 @@ class SearchOperation {
 	private static _idPool = 0;
 
 	constructor(
-		readonly progress?: (match: IFileMatch) => any,
+		readonly progress?: (match: IFileMatch | AISearchKeyword) => unknown,
 		readonly id: number = ++SearchOperation._idPool,
-		readonly matches = new Map<string, IFileMatch>()
+		readonly matches = new Map<string, IFileMatch>(),
+		readonly keywords: AISearchKeyword[] = []
 	) {
 		//
 	}
@@ -103,6 +115,11 @@ class SearchOperation {
 		}
 
 		this.progress?.(match);
+	}
+
+	addKeyword(result: AISearchKeyword): void {
+		this.keywords.push(result);
+		this.progress?.(result);
 	}
 }
 
@@ -153,7 +170,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 
 		return Promise.resolve(searchP).then((result: ISearchCompleteStats) => {
 			this._searches.delete(search.id);
-			return { results: Array.from(search.matches.values()), stats: result.stats, limitHit: result.limitHit, messages: result.messages };
+			return { results: Array.from(search.matches.values()), aiKeywords: Array.from(search.keywords), stats: result.stats, limitHit: result.limitHit, messages: result.messages };
 		}, err => {
 			this._searches.delete(search.id);
 			return Promise.reject(err);
@@ -181,6 +198,16 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 				});
 			}
 		});
+	}
+
+	handleKeywordResult(session: number, data: AISearchKeyword): void {
+		const searchOp = this._searches.get(session);
+
+		if (!searchOp) {
+			// ignore...
+			return;
+		}
+		searchOp.addKeyword(data);
 	}
 
 	private _provideSearchResults(query: ISearchQuery, session: number, token: CancellationToken): Promise<ISearchCompleteStats> {

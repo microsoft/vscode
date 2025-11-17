@@ -5,13 +5,10 @@
 		"types": [
 			"node"
 		],
-		"target": "es2020",
-		"module": "CommonJS",
-		"moduleResolution": "node",
-		"strict": true,
+		"typeRoots": [
+			"./node_modules/@types"
+		],
 		"esModuleInterop": true,
-		"skipLibCheck": true,
-
 		// Needed to suppress warnings in upstream completions
 		"noImplicitReturns": false,
 		"noUnusedParameters": false

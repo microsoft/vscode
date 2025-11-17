@@ -14,6 +14,7 @@ const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const fancy_log_1 = __importDefault(require("fancy-log"));
 const ansi_colors_1 = __importDefault(require("ansi-colors"));
+const typeScriptLanguageServiceHost_1 = require("./typeScriptLanguageServiceHost");
 const dtsv = '3';
 const tsfmt = require('../../tsfmt.json');
 const SRC = path_1.default.join(__dirname, '../../src');
@@ -335,7 +336,7 @@ function generateDeclarationFile(ts, recipe, sourceFileGetter) {
     usage.push(`var b: any;`);
     const generateUsageImport = (moduleId) => {
         const importName = 'm' + (++usageCounter);
-        usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
+        usageImports.push(`import * as ${importName} from './${moduleId}';`);
         return importName;
     };
     const enums = [];
@@ -537,6 +538,9 @@ class DeclarationResolver {
         if (/\.d\.ts$/.test(moduleId)) {
             return path_1.default.join(SRC, moduleId);
         }
+        if (/\.js$/.test(moduleId)) {
+            return path_1.default.join(SRC, moduleId.replace(/\.js$/, '.ts'));
+        }
         return path_1.default.join(SRC, `${moduleId}.ts`);
     }
     _getDeclarationSourceFile(moduleId) {
@@ -551,10 +555,10 @@ class DeclarationResolver {
             return new CacheEntry(this.ts.createSourceFile(fileName, fileContents, this.ts.ScriptTarget.ES5), mtime);
         }
         const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
-        const fileMap = {
-            'file.ts': fileContents
-        };
-        const service = this.ts.createLanguageService(new TypeScriptLanguageServiceHost(this.ts, {}, fileMap, {}));
+        const fileMap = new Map([
+            ['file.ts', fileContents]
+        ]);
+        const service = this.ts.createLanguageService(new typeScriptLanguageServiceHost_1.TypeScriptLanguageServiceHost(this.ts, fileMap, {}));
         const text = service.getEmitOutput('file.ts', true, true).outputFiles[0].text;
         return new CacheEntry(this.ts.createSourceFile(fileName, text, this.ts.ScriptTarget.ES5), mtime);
     }
@@ -563,62 +567,6 @@ exports.DeclarationResolver = DeclarationResolver;
 function run3(resolver) {
     const sourceFileGetter = (moduleId) => resolver.getDeclarationSourceFile(moduleId);
     return _run(resolver.ts, sourceFileGetter);
-}
-class TypeScriptLanguageServiceHost {
-    _ts;
-    _libs;
-    _files;
-    _compilerOptions;
-    constructor(ts, libs, files, compilerOptions) {
-        this._ts = ts;
-        this._libs = libs;
-        this._files = files;
-        this._compilerOptions = compilerOptions;
-    }
-    // --- language service host ---------------
-    getCompilationSettings() {
-        return this._compilerOptions;
-    }
-    getScriptFileNames() {
-        return ([]
-            .concat(Object.keys(this._libs))
-            .concat(Object.keys(this._files)));
-    }
-    getScriptVersion(_fileName) {
-        return '1';
-    }
-    getProjectVersion() {
-        return '1';
-    }
-    getScriptSnapshot(fileName) {
-        if (this._files.hasOwnProperty(fileName)) {
-            return this._ts.ScriptSnapshot.fromString(this._files[fileName]);
-        }
-        else if (this._libs.hasOwnProperty(fileName)) {
-            return this._ts.ScriptSnapshot.fromString(this._libs[fileName]);
-        }
-        else {
-            return this._ts.ScriptSnapshot.fromString('');
-        }
-    }
-    getScriptKind(_fileName) {
-        return this._ts.ScriptKind.TS;
-    }
-    getCurrentDirectory() {
-        return '';
-    }
-    getDefaultLibFileName(_options) {
-        return 'defaultLib:es5';
-    }
-    isDefaultLibFileName(fileName) {
-        return fileName === this.getDefaultLibFileName(this._compilerOptions);
-    }
-    readFile(path, _encoding) {
-        return this._files[path] || this._libs[path];
-    }
-    fileExists(path) {
-        return path in this._files || path in this._libs;
-    }
 }
 function execute() {
     const r = run3(new DeclarationResolver(new FSProvider()));

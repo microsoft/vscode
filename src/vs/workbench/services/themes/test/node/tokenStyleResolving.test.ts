@@ -21,6 +21,7 @@ import { IStorageService } from '../../../../../platform/storage/common/storage.
 import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifestService.js';
 
 const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };
@@ -89,7 +90,7 @@ suite('Themes - TokenStyleResolving', () => {
 	const environmentService = new (mock<IEnvironmentService>())();
 	const configurationService = new (mock<IConfigurationService>())();
 
-	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService, storageService, TestProductService, environmentService, configurationService, requestService);
+	const extensionResourceLoaderService = new ExtensionResourceLoaderService(fileService, storageService, TestProductService, environmentService, configurationService, new ExtensionGalleryManifestService(TestProductService), requestService, new NullLogService());
 
 	const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 	fileService.registerProvider(Schemas.file, diskFileSystemProvider);

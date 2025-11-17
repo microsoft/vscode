@@ -10,7 +10,7 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from '../../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../../editor/common/editorCommon.js';
-import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { HasSpeechProvider, ISpeechService, SpeechToTextInProgress, SpeechToTextStatus } from '../../../speech/common/speechService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
@@ -25,7 +25,7 @@ import { Selection } from '../../../../../editor/common/core/selection.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { assertIsDefined } from '../../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { toAction } from '../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -152,7 +152,8 @@ export class DictationWidget extends Disposable implements IContentWidget {
 	}
 
 	beforeRender(): IDimension | null {
-		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+		const position = this.editor.getPosition();
+		const lineHeight = position ? this.editor.getLineHeightForPosition(position) : this.editor.getOption(EditorOption.lineHeight);
 		const width = this.editor.getLayoutInfo().contentWidth * 0.7;
 
 		this.domNode.style.setProperty('--vscode-editor-dictation-widget-height', `${lineHeight}px`);
@@ -187,18 +188,21 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		return editor.getContribution<EditorDictation>(EditorDictation.ID);
 	}
 
-	private readonly widget = this._register(new DictationWidget(this.editor, this.keybindingService));
-	private readonly editorDictationInProgress = EDITOR_DICTATION_IN_PROGRESS.bindTo(this.contextKeyService);
+	private readonly widget: DictationWidget;
+	private readonly editorDictationInProgress: IContextKey<boolean>;
 
 	private readonly sessionDisposables = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ISpeechService private readonly speechService: ISpeechService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		super();
+
+		this.widget = this._register(new DictationWidget(this.editor, keybindingService));
+		this.editorDictationInProgress = EDITOR_DICTATION_IN_PROGRESS.bindTo(contextKeyService);
 	}
 
 	async start(): Promise<void> {
@@ -221,7 +225,7 @@ export class EditorDictation extends Disposable implements IEditorContribution {
 		let lastReplaceTextLength = 0;
 		const replaceText = (text: string, isPreview: boolean) => {
 			if (!previewStart) {
-				previewStart = assertIsDefined(this.editor.getPosition());
+				previewStart = assertReturnsDefined(this.editor.getPosition());
 			}
 
 			const endPosition = new Position(previewStart.lineNumber, previewStart.column + text.length);

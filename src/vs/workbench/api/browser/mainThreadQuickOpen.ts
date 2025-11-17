@@ -3,24 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IPickOptions, IInputOptions, IQuickInputService, IQuickInput, IQuickPick, IQuickPickItem } from '../../../platform/quickinput/common/quickInput.js';
-import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItem, MainContext, TransferQuickInput, TransferQuickInputButton, IInputBoxOptions, TransferQuickPickItemOrSeparator } from '../common/extHost.protocol.js';
-import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { URI } from '../../../base/common/uri.js';
+import { Toggle } from '../../../base/browser/ui/toggle/toggle.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { Lazy } from '../../../base/common/lazy.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { basenameOrAuthority, dirname, hasTrailingPathSeparator } from '../../../base/common/resources.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { isUriComponents, URI } from '../../../base/common/uri.js';
+import { ILanguageService } from '../../../editor/common/languages/language.js';
+import { getIconClasses } from '../../../editor/common/services/getIconClasses.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { FileKind } from '../../../platform/files/common/files.js';
+import { ILabelService } from '../../../platform/label/common/label.js';
+import { IInputOptions, IPickOptions, IQuickInput, IQuickInputService, IQuickPick, IQuickPickItem, QuickInputButtonLocation } from '../../../platform/quickinput/common/quickInput.js';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../platform/theme/common/colorRegistry.js';
+import { ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
+import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, ExtHostQuickOpenShape, IInputBoxOptions, MainContext, MainThreadQuickOpenShape, TransferQuickInput, TransferQuickInputButton, TransferQuickPickItem, TransferQuickPickItemOrSeparator } from '../common/extHost.protocol.js';
 
 interface QuickInputSession {
 	input: IQuickInput;
 	handlesToItems: Map<number, TransferQuickPickItem>;
+	handlesToToggles: Map<number, { toggle: Toggle; listener: IDisposable }>;
 	store: DisposableStore;
-}
-
-function reviveIconPathUris(iconPath: { dark: URI; light?: URI | undefined }) {
-	iconPath.dark = URI.revive(iconPath.dark);
-	if (iconPath.light) {
-		iconPath.light = URI.revive(iconPath.light);
-	}
 }
 
 @extHostNamedCustomer(MainContext.MainThreadQuickOpen)
@@ -35,7 +40,11 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IQuickInputService quickInputService: IQuickInputService
+		@IQuickInputService quickInputService: IQuickInputService,
+		@ILabelService private readonly labelService: ILabelService,
+		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostQuickOpen);
 		this._quickInputService = quickInputService;
@@ -56,7 +65,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			...options,
 			onDidFocus: el => {
 				if (el) {
-					this._proxy.$onItemSelected((<TransferQuickPickItem>el).handle);
+					this._proxy.$onItemSelected(el.handle);
 				}
 			}
 		};
@@ -80,6 +89,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	$setItems(instance: number, items: TransferQuickPickItemOrSeparator[]): Promise<void> {
 		if (this._items[instance]) {
+			items.forEach(item => this.expandItemProps(item));
 			this._items[instance].resolve(items);
 			delete this._items[instance];
 		}
@@ -159,58 +169,79 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			session = {
 				input,
 				handlesToItems: new Map(),
+				handlesToToggles: new Map(),
 				store
 			};
 			this.sessions.set(sessionId, session);
 		}
+
 		const { input, handlesToItems } = session;
+		const quickPick = input as IQuickPick<IQuickPickItem>;
 		for (const param in params) {
-			if (param === 'id' || param === 'type') {
-				continue;
-			}
-			if (param === 'visible') {
-				if (params.visible) {
-					input.show();
-				} else {
-					input.hide();
+			switch (param) {
+				case 'id':
+				case 'type':
+					continue;
+
+				case 'visible':
+					if (params.visible) {
+						input.show();
+					} else {
+						input.hide();
+					}
+					break;
+
+				case 'items': {
+					handlesToItems.clear();
+					params.items?.forEach((item: TransferQuickPickItemOrSeparator) => {
+						this.expandItemProps(item);
+						if (item.type !== 'separator') {
+							item.buttons?.forEach(button => this.expandIconPath(button));
+							handlesToItems.set(item.handle, item);
+						}
+					});
+					quickPick.items = params.items;
+					break;
 				}
-			} else if (param === 'items') {
-				handlesToItems.clear();
-				params[param].forEach((item: TransferQuickPickItemOrSeparator) => {
-					if (item.type === 'separator') {
-						return;
-					}
 
-					if (item.buttons) {
-						item.buttons = item.buttons.map((button: TransferQuickInputButton) => {
-							if (button.iconPath) {
-								reviveIconPathUris(button.iconPath);
+				case 'activeItems':
+					quickPick.activeItems = params.activeItems
+						?.map((handle: number) => handlesToItems.get(handle))
+						.filter(Boolean);
+					break;
+
+				case 'selectedItems':
+					quickPick.selectedItems = params.selectedItems
+						?.map((handle: number) => handlesToItems.get(handle))
+						.filter(Boolean);
+					break;
+
+				case 'buttons': {
+					const buttons = [], toggles = [];
+					for (const button of params.buttons!) {
+						if (button.handle === -1) {
+							buttons.push(this._quickInputService.backButton);
+						} else {
+							this.expandIconPath(button);
+
+							// Currently buttons are only supported outside of the input box
+							// and toggles only inside. When/if that changes, this will need to be updated.
+							if (button.location === QuickInputButtonLocation.Input) {
+								toggles.push(button);
+							} else {
+								buttons.push(button);
 							}
-
-							return button;
-						});
+						}
 					}
-					handlesToItems.set(item.handle, item);
-				});
-				(input as any)[param] = params[param];
-			} else if (param === 'activeItems' || param === 'selectedItems') {
-				(input as any)[param] = params[param]
-					.filter((handle: number) => handlesToItems.has(handle))
-					.map((handle: number) => handlesToItems.get(handle));
-			} else if (param === 'buttons') {
-				(input as any)[param] = params.buttons!.map(button => {
-					if (button.handle === -1) {
-						return this._quickInputService.backButton;
-					}
+					input.buttons = buttons;
+					this.updateToggles(sessionId, session, toggles);
+					break;
+				}
 
-					if (button.iconPath) {
-						reviveIconPathUris(button.iconPath);
-					}
-
-					return button;
-				});
-			} else {
-				(input as any)[param] = params[param];
+				default:
+					// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
+					(input as any)[param] = params[param];
+					break;
 			}
 		}
 		return Promise.resolve(undefined);
@@ -223,5 +254,116 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			this.sessions.delete(sessionId);
 		}
 		return Promise.resolve(undefined);
+	}
+
+	/**
+	* Derives icon, label and description for Quick Pick items that represent a resource URI.
+	*/
+	private expandItemProps(item: TransferQuickPickItemOrSeparator) {
+		if (item.type === 'separator') {
+			return;
+		}
+
+		if (!item.resourceUri) {
+			this.expandIconPath(item);
+			return;
+		}
+
+		// Derive missing label and description from resourceUri.
+		const resourceUri = URI.from(item.resourceUri);
+		item.label ??= this.customEditorLabelService.getName(resourceUri) || '';
+		if (item.label) {
+			item.description ??= this.labelService.getUriLabel(resourceUri, { relative: true });
+		} else {
+			item.label = basenameOrAuthority(resourceUri);
+			item.description ??= this.labelService.getUriLabel(dirname(resourceUri), { relative: true });
+		}
+
+		// Derive icon props from resourceUri if icon is set to ThemeIcon.File or ThemeIcon.Folder.
+		const icon = item.iconPathDto;
+		if (ThemeIcon.isThemeIcon(icon) && (ThemeIcon.isFile(icon) || ThemeIcon.isFolder(icon))) {
+			const fileKind = ThemeIcon.isFolder(icon) || hasTrailingPathSeparator(resourceUri) ? FileKind.FOLDER : FileKind.FILE;
+			const iconClasses = new Lazy(() => getIconClasses(this.modelService, this.languageService, resourceUri, fileKind));
+			Object.defineProperty(item, 'iconClasses', { get: () => iconClasses.value });
+		} else {
+			this.expandIconPath(item);
+		}
+	}
+
+	/**
+	* Converts IconPath DTO into iconPath/iconClass properties.
+	*/
+	private expandIconPath(target: Pick<TransferQuickPickItem, 'iconPathDto' | 'iconPath' | 'iconClass'>) {
+		const icon = target.iconPathDto;
+		if (!icon) {
+			return;
+		} else if (ThemeIcon.isThemeIcon(icon)) {
+			// TODO: Since IQuickPickItem and IQuickInputButton do not support ThemeIcon directly, the color ID is lost here.
+			// We should consider changing changing iconPath/iconClass to IconPath in both interfaces.
+			// Request for color support: https://github.com/microsoft/vscode/issues/185356..
+			target.iconClass = ThemeIcon.asClassName(icon);
+		} else if (isUriComponents(icon)) {
+			const uri = URI.from(icon);
+			target.iconPath = { dark: uri, light: uri };
+		} else {
+			const { dark, light } = icon;
+			target.iconPath = { dark: URI.from(dark), light: URI.from(light) };
+		}
+	}
+
+	/**
+	* Updates the toggles for a given quick input session by creating new {@link Toggle}-s
+	* from buttons, updating existing toggles props and removing old ones.
+	*/
+	private updateToggles(sessionId: number, session: QuickInputSession, buttons: TransferQuickInputButton[]) {
+		const { input, handlesToToggles, store } = session;
+
+		// Add new or update existing toggles.
+		const toggles = [];
+		for (const button of buttons) {
+			const title = button.tooltip || '';
+			const isChecked = !!button.checked;
+
+			// TODO: Toggle class only supports ThemeIcon at the moment, but not other formats of IconPath.
+			// We should consider adding support for the full IconPath to Toggle, in this code should be updated.
+			const icon = ThemeIcon.isThemeIcon(button.iconPathDto) ? button.iconPathDto : undefined;
+
+			let { toggle } = handlesToToggles.get(button.handle) || {};
+			if (toggle) {
+				// Toggle already exists, update its props.
+				toggle.setTitle(title);
+				toggle.setIcon(icon);
+				toggle.checked = isChecked;
+			} else {
+				// Create a new toggle from the button.
+				toggle = store.add(new Toggle({
+					title,
+					icon,
+					isChecked,
+					inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+					inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
+					inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
+				}));
+
+				const listener = store.add(toggle.onChange(() => {
+					this._proxy.$onDidTriggerButton(sessionId, button.handle, toggle!.checked);
+				}));
+
+				handlesToToggles.set(button.handle, { toggle, listener });
+			}
+			toggles.push(toggle);
+		}
+
+		// Remove toggles that are no longer present from the session map.
+		for (const [handle, { toggle, listener }] of handlesToToggles) {
+			if (!buttons.some(button => button.handle === handle)) {
+				handlesToToggles.delete(handle);
+				store.delete(toggle);
+				store.delete(listener);
+			}
+		}
+
+		// Update toggle interfaces on the input widget.
+		input.toggles = toggles;
 	}
 }

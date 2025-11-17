@@ -5,7 +5,7 @@
 
 import './media/userDataProfilesEditor.css';
 import { $, addDisposableListener, append, clearNode, Dimension, EventHelper, EventType, IDomPosition, trackFocus } from '../../../../base/browser/dom.js';
-import { Action, IAction, IActionChangeEvent, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+import { Action, IAction, IActionChangeEvent, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
@@ -225,7 +225,11 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 						actions.push(new SubmenuAction('from.template', localize('from template', "From Template"), this.getCreateFromTemplateActions()));
 						actions.push(new Separator());
 					}
-					actions.push(new Action('importProfile', localize('importProfile', "Import Profile..."), undefined, true, () => this.importProfile()));
+					actions.push(toAction({
+						id: 'importProfile',
+						label: localize('importProfile', "Import Profile..."),
+						run: () => this.importProfile()
+					}));
 					return actions;
 				}
 			},
@@ -240,12 +244,11 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 
 	private getCreateFromTemplateActions(): IAction[] {
 		return this.templates.map(template =>
-			new Action(
-				`template:${template.url}`,
-				template.name,
-				undefined,
-				true,
-				() => this.createNewProfile(URI.parse(template.url))));
+			toAction({
+				id: `template:${template.url}`,
+				label: template.name,
+				run: () => this.createNewProfile(URI.parse(template.url))
+			}));
 	}
 
 	private registerListeners(): void {
@@ -282,13 +285,21 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 
 	private getTreeContextMenuActions(): IAction[] {
 		const actions: IAction[] = [];
-		actions.push(new Action('newProfile', localize('newProfile', "New Profile"), undefined, true, () => this.createNewProfile()));
+		actions.push(toAction({
+			id: 'newProfile',
+			label: localize('newProfile', "New Profile"),
+			run: () => this.createNewProfile()
+		}));
 		const templateActions = this.getCreateFromTemplateActions();
 		if (templateActions.length) {
 			actions.push(new SubmenuAction('from.template', localize('new from template', "New Profile From Template"), templateActions));
 		}
 		actions.push(new Separator());
-		actions.push(new Action('importProfile', localize('importProfile', "Import Profile..."), undefined, true, () => this.importProfile()));
+		actions.push(toAction({
+			id: 'importProfile',
+			label: localize('importProfile', "Import Profile..."),
+			run: () => this.importProfile()
+		}));
 		return actions;
 	}
 
@@ -447,7 +458,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 		return { label, icon, dirty, description, actionBar, disposables, elementDisposables };
 	}
 
-	renderElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined) {
+	renderElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData) {
 		templateData.elementDisposables.clear();
 		templateData.label.textContent = element.name;
 		templateData.label.classList.toggle('new-profile', element instanceof NewProfileElement);
@@ -485,7 +496,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 
 	}
 
-	disposeElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined): void {
+	disposeElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -870,13 +881,15 @@ class AbstractProfileResourceTreeRenderer extends Disposable {
 				return localize('snippets', "Snippets");
 			case ProfileResourceType.Tasks:
 				return localize('tasks', "Tasks");
+			case ProfileResourceType.Mcp:
+				return localize('mcp', "MCP Servers");
 			case ProfileResourceType.Extensions:
 				return localize('extensions', "Extensions");
 		}
 		return '';
 	}
 
-	disposeElement(element: ITreeNode<ProfileContentTreeElement | ProfileTreeElement, void>, index: number, templateData: IProfileRendererTemplate, height: number | undefined): void {
+	disposeElement(element: ITreeNode<ProfileContentTreeElement | ProfileTreeElement, void>, index: number, templateData: IProfileRendererTemplate): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -890,7 +903,7 @@ abstract class ProfilePropertyRenderer extends AbstractProfileResourceTreeRender
 	abstract templateId: ProfileProperty;
 	abstract renderTemplate(parent: HTMLElement): IProfilePropertyRendererTemplate;
 
-	renderElement({ element }: ITreeNode<ProfileTreeElement, void>, index: number, templateData: IProfilePropertyRendererTemplate, height: number | undefined): void {
+	renderElement({ element }: ITreeNode<ProfileTreeElement, void>, index: number, templateData: IProfilePropertyRendererTemplate): void {
 		templateData.elementDisposables.clear();
 		templateData.element = element;
 	}
@@ -951,11 +964,11 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				}
 			}
 		));
-		nameInput.onDidChange(value => {
+		disposables.add(nameInput.onDidChange(value => {
 			if (profileElement && value) {
 				profileElement.root.name = value;
 			}
-		});
+		}));
 		const focusTracker = disposables.add(trackFocus(nameInput.inputElement));
 		disposables.add(focusTracker.onDidBlur(() => {
 			if (profileElement && !nameInput.value) {
@@ -1036,7 +1049,7 @@ class ProfileIconRenderer extends ProfilePropertyRenderer {
 				return;
 			}
 			iconSelectBox.clearInput();
-			hoverWidget = this.hoverService.showHover({
+			hoverWidget = this.hoverService.showInstantHover({
 				content: iconSelectBox.domNode,
 				target: iconElement,
 				position: {
@@ -1489,7 +1502,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				}));
 			},
 			disposables,
-			elementDisposables: new DisposableStore()
+			elementDisposables
 		};
 	}
 
@@ -1670,7 +1683,7 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 				}));
 			},
 			disposables,
-			elementDisposables: new DisposableStore()
+			elementDisposables
 		};
 	}
 
@@ -1720,7 +1733,7 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 		return { label, radio, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
-	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: IExistingProfileResourceTemplateData, height: number | undefined): void {
+	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: IExistingProfileResourceTemplateData): void {
 		templateData.elementDisposables.clear();
 		const { element, root } = profileResourceTreeElement;
 		if (!(root instanceof UserDataProfileElement)) {
@@ -1805,7 +1818,7 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		return { label, radio, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
-	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: INewProfileResourceTemplateData, height: number | undefined): void {
+	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: INewProfileResourceTemplateData): void {
 		templateData.elementDisposables.clear();
 		const { element, root } = profileResourceTreeElement;
 		if (!(root instanceof NewProfileElement)) {
@@ -1891,7 +1904,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 	) {
 		super();
 		this.labels = instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
-		this.hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'mouse', false, {}));
+		this.hoverDelegate = this._register(instantiationService.createInstance(WorkbenchHoverDelegate, 'mouse', undefined, {}));
 	}
 
 	renderTemplate(parent: HTMLElement): IProfileResourceChildTreeItemTemplateData {
@@ -1913,7 +1926,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 		return { checkbox, resourceLabel, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
-	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: IProfileResourceChildTreeItemTemplateData, height: number | undefined): void {
+	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: IProfileResourceChildTreeItemTemplateData): void {
 		templateData.elementDisposables.clear();
 		const { element } = profileResourceTreeElement;
 
@@ -1966,7 +1979,7 @@ class WorkspaceUriEmptyColumnRenderer implements ITableRenderer<WorkspaceTableEl
 		return {};
 	}
 
-	renderElement(item: WorkspaceTableElement, index: number, templateData: {}, height: number | undefined): void {
+	renderElement(item: WorkspaceTableElement, index: number, templateData: {}): void {
 	}
 
 	disposeTemplate(): void {
@@ -2009,7 +2022,7 @@ class WorkspaceUriHostColumnRenderer implements ITableRenderer<WorkspaceTableEle
 		};
 	}
 
-	renderElement(item: WorkspaceTableElement, index: number, templateData: IWorkspaceUriHostColumnTemplateData, height: number | undefined): void {
+	renderElement(item: WorkspaceTableElement, index: number, templateData: IWorkspaceUriHostColumnTemplateData): void {
 		templateData.renderDisposables.clear();
 		templateData.renderDisposables.add({ dispose: () => { clearNode(templateData.buttonBarContainer); } });
 
@@ -2064,7 +2077,7 @@ class WorkspaceUriPathColumnRenderer implements ITableRenderer<WorkspaceTableEle
 		};
 	}
 
-	renderElement(item: WorkspaceTableElement, index: number, templateData: IWorkspaceUriPathColumnTemplateData, height: number | undefined): void {
+	renderElement(item: WorkspaceTableElement, index: number, templateData: IWorkspaceUriPathColumnTemplateData): void {
 		templateData.renderDisposables.clear();
 		const stringValue = this.formatPath(item.workspace);
 		templateData.pathLabel.innerText = stringValue;
@@ -2102,15 +2115,22 @@ interface IActionsColumnTemplateData {
 	readonly disposables: DisposableStore;
 }
 
-class ChangeProfileAction extends Action {
+class ChangeProfileAction implements IAction {
+
+	readonly id = 'changeProfile';
+	readonly label = 'Change Profile';
+	readonly class = ThemeIcon.asClassName(editIcon);
+	readonly enabled = true;
+	readonly tooltip = localize('change profile', "Change Profile");
+	readonly checked = false;
 
 	constructor(
 		private readonly item: WorkspaceTableElement,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
-		super('changeProfile', '', ThemeIcon.asClassName(editIcon));
-		this.tooltip = localize('change profile', "Change Profile");
 	}
+
+	run(): void { }
 
 	getSwitchProfileActions(): IAction[] {
 		return this.userDataProfilesService.profiles
@@ -2166,7 +2186,7 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 		return { actionBar, disposables };
 	}
 
-	renderElement(item: WorkspaceTableElement, index: number, templateData: IActionsColumnTemplateData, height: number | undefined): void {
+	renderElement(item: WorkspaceTableElement, index: number, templateData: IActionsColumnTemplateData): void {
 		templateData.actionBar.clear();
 		const actions: IAction[] = [];
 		actions.push(this.createOpenAction(item));

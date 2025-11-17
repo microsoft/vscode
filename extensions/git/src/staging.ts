@@ -3,8 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Range, LineChange, Selection, Uri, TextEditor, TextEditorDiffInformation } from 'vscode';
+import { TextDocument, Range, Selection, Uri, TextEditor, TextEditorDiffInformation } from 'vscode';
 import { fromGitUri, isGitUri } from './uri';
+
+export interface LineChange {
+	readonly originalStartLineNumber: number;
+	readonly originalEndLineNumber: number;
+	readonly modifiedStartLineNumber: number;
+	readonly modifiedEndLineNumber: number;
+}
 
 export function applyLineChanges(original: TextDocument, modified: TextDocument, diffs: LineChange[]): string {
 	const result: string[] = [];
@@ -176,6 +183,35 @@ export function toLineChanges(diffInformation: TextEditorDiffInformation): LineC
 			modifiedEndLineNumber
 		};
 	});
+}
+
+export function compareLineChanges(a: LineChange, b: LineChange): number {
+	let result = a.modifiedStartLineNumber - b.modifiedStartLineNumber;
+
+	if (result !== 0) {
+		return result;
+	}
+
+	result = a.modifiedEndLineNumber - b.modifiedEndLineNumber;
+
+	if (result !== 0) {
+		return result;
+	}
+
+	result = a.originalStartLineNumber - b.originalStartLineNumber;
+
+	if (result !== 0) {
+		return result;
+	}
+
+	return a.originalEndLineNumber - b.originalEndLineNumber;
+}
+
+export function getIndexDiffInformation(textEditor: TextEditor): TextEditorDiffInformation | undefined {
+	// Diff Editor (Index)
+	return textEditor.diffInformation?.find(diff =>
+		diff.original && isGitUri(diff.original) && fromGitUri(diff.original).ref === 'HEAD' &&
+		diff.modified && isGitUri(diff.modified) && fromGitUri(diff.modified).ref === '');
 }
 
 export function getWorkingTreeDiffInformation(textEditor: TextEditor): TextEditorDiffInformation | undefined {

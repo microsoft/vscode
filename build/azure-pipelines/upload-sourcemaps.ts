@@ -10,7 +10,8 @@ import vfs from 'vinyl-fs';
 import * as util from '../lib/util';
 import { getProductionDependencies } from '../lib/dependencies';
 import { ClientAssertionCredential } from '@azure/identity';
-const azure = require('gulp-azure-storage');
+import Stream from 'stream';
+import azure from 'gulp-azure-storage';
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = process.env['BUILD_SOURCEVERSION'];
@@ -28,7 +29,7 @@ function src(base: string, maps = `${base}/**/*.map`) {
 }
 
 function main(): Promise<void> {
-	const sources: any[] = [];
+	const sources: Stream[] = [];
 
 	// vscode client maps (default)
 	if (!base) {
@@ -60,8 +61,8 @@ function main(): Promise<void> {
 			.pipe(azure.upload({
 				account: process.env.AZURE_STORAGE_ACCOUNT,
 				credential,
-				container: 'sourcemaps',
-				prefix: commit + '/'
+				container: '$web',
+				prefix: `sourcemaps/${commit}/`
 			}))
 			.on('end', () => c())
 			.on('error', (err: any) => e(err));

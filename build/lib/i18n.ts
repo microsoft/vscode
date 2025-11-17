@@ -18,7 +18,7 @@ import { l10nJsonFormat, getL10nXlf, l10nJsonDetails, getL10nFilesFromXlf, getL1
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
 
-function log(message: any, ...rest: any[]): void {
+function log(message: any, ...rest: unknown[]): void {
 	fancyLog(ansiColors.green('[i18n]'), message, ...rest);
 }
 
@@ -44,11 +44,12 @@ export const defaultLanguages: Language[] = [
 	{ id: 'it', folderName: 'ita' }
 ];
 
-// languages requested by the community to non-stable builds
+// languages requested by the community
 export const extraLanguages: Language[] = [
 	{ id: 'pt-br', folderName: 'ptb' },
-	{ id: 'hu', folderName: 'hun' },
-	{ id: 'tr', folderName: 'trk' }
+	{ id: 'tr', folderName: 'trk' },
+	{ id: 'cs' },
+	{ id: 'pl' }
 ];
 
 interface Item {
@@ -68,7 +69,7 @@ interface LocalizeInfo {
 }
 
 module LocalizeInfo {
-	export function is(value: any): value is LocalizeInfo {
+	export function is(value: unknown): value is LocalizeInfo {
 		const candidate = value as LocalizeInfo;
 		return candidate && typeof candidate.key === 'string' && (candidate.comment === undefined || (Array.isArray(candidate.comment) && candidate.comment.every(element => typeof element === 'string')));
 	}
@@ -387,9 +388,10 @@ globalThis._VSCODE_NLS_LANGUAGE=${JSON.stringify(language.id)};`),
 export function processNlsFiles(opts: { out: string; fileHeader: string; languages: Language[] }): ThroughStream {
 	return through(function (this: ThroughStream, file: File) {
 		const fileName = path.basename(file.path);
-		if (fileName === 'bundleInfo.json') { // pick a root level file to put the core bundles (TODO@esm this file is not created anymore, pick another)
+		if (fileName === 'nls.keys.json') {
 			try {
-				const json = JSON.parse(fs.readFileSync(path.join(REPO_ROOT_PATH, opts.out, 'nls.keys.json')).toString());
+				const contents = file.contents!.toString('utf8');
+				const json = JSON.parse(contents);
 				if (NLSKeysFormat.is(json)) {
 					processCoreBundleFormat(file.base, opts.fileHeader, opts.languages, json, this);
 				}
@@ -652,7 +654,7 @@ export function createXlfFilesForIsl(): ThroughStream {
 			keys: string[] = [],
 			messages: string[] = [];
 
-		const model = new TextModel(file.contents.toString());
+		const model = new TextModel(file.contents!.toString());
 		let inMessageSection = false;
 		model.lines.forEach(line => {
 			if (line.length === 0) {
@@ -743,7 +745,7 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 	const parsePromises: Promise<l10nJsonDetails[]>[] = [];
 	const mainPack: I18nPack = { version: i18nPackVersion, contents: {} };
 	const extensionsPacks: Record<string, I18nPack> = {};
-	const errors: any[] = [];
+	const errors: unknown[] = [];
 	return through(function (this: ThroughStream, xlf: File) {
 		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
 		// strip `-new` since vscode-extensions-loc uses the `-new` suffix to indicate that it's from the new loc pipeline
@@ -751,7 +753,7 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 		if (EXTERNAL_EXTENSIONS.find(e => e === resource)) {
 			project = extensionsProject;
 		}
-		const contents = xlf.contents.toString();
+		const contents = xlf.contents!.toString();
 		log(`Found ${project}: ${resource}`);
 		const parsePromise = getL10nFilesFromXlf(contents);
 		parsePromises.push(parsePromise);
@@ -807,7 +809,7 @@ export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup):
 
 	return through(function (this: ThroughStream, xlf: File) {
 		const stream = this;
-		const parsePromise = XLF.parse(xlf.contents.toString());
+		const parsePromise = XLF.parse(xlf.contents!.toString());
 		parsePromises.push(parsePromise);
 		parsePromise.then(
 			resolvedFiles => {

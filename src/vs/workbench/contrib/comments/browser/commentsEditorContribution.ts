@@ -28,6 +28,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/
 import { CommentsInputContentProvider } from './commentsInputContentProvider.js';
 import { AccessibleViewProviderId } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { CommentWidgetFocus } from './commentThreadZoneWidget.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 
 registerEditorContribution(ID, CommentController, EditorContributionInstantiation.AfterFirstRender);
 registerWorkbenchContribution2(CommentsInputContentProvider.ID, CommentsInputContentProvider, WorkbenchPhase.BlockRestore);
@@ -91,7 +92,7 @@ registerAction2(class extends Action2 {
 			}
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
 			return;
@@ -128,7 +129,7 @@ registerAction2(class extends Action2 {
 			}
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
 			return;
@@ -204,7 +205,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
 			return;
@@ -236,7 +237,7 @@ registerAction2(class extends Action2 {
 			}]
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		const commentService = accessor.get(ICommentService);
 		const enable = commentService.isCommentingEnabled;
 		commentService.enableCommenting(!enable);
@@ -300,7 +301,7 @@ registerAction2(class extends Action2 {
 			precondition: CommentContextKeys.activeCursorHasComment,
 		});
 	}
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const activeEditor = getActiveEditor(accessor);
 		if (!activeEditor) {
 			return;
@@ -347,7 +348,7 @@ registerAction2(class extends Action2 {
 			}]
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		getActiveController(accessor)?.collapseAll();
 	}
 });
@@ -370,7 +371,7 @@ registerAction2(class extends Action2 {
 			}]
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		getActiveController(accessor)?.expandAll();
 	}
 });
@@ -393,7 +394,7 @@ registerAction2(class extends Action2 {
 			}]
 		});
 	}
-	override run(accessor: ServicesAccessor, ...args: any[]): void {
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		getActiveController(accessor)?.expandUnresolved();
 	}
 });
@@ -417,8 +418,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.Escape,
 	secondary: [KeyMod.Shift | KeyCode.Escape],
 	when: ContextKeyExpr.or(ctxCommentEditorFocused, CommentContextKeys.commentFocused),
-	handler: (accessor, args) => {
+	handler: async (accessor, args) => {
 		const activeCodeEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
+		const keybindingService = accessor.get(IKeybindingService);
+		// Unfortunate, but collapsing the comment thread might cause a dialog to show
+		// If we don't wait for the key up here, then the dialog will consume it and immediately close
+		await keybindingService.enableKeybindingHoldMode(CommentCommandId.Hide);
 		if (activeCodeEditor instanceof SimpleCommentEditor) {
 			activeCodeEditor.getParentThread().collapse();
 		} else if (activeCodeEditor) {

@@ -83,9 +83,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
 
 	@memoize
-	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
-
-	@memoize
 	get workspaceStorageHome(): URI { return joinPath(this.appSettingsHome, 'workspaceStorage'); }
 
 	@memoize
@@ -217,7 +214,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		const result: [string, string][] = [];
 		for (const entry of this.args.log || []) {
 			const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
-			if (matches && matches[1] && matches[2]) {
+			if (matches?.[1] && matches[2]) {
 				result.push([matches[1], matches[2]]);
 			}
 		}
@@ -232,6 +229,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
+
+	@memoize
+	get disableExperiments(): boolean { return !!this.args['disable-experiments']; }
 
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
@@ -252,7 +252,11 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return undefined;
 	}
 
-	editSessionId: string | undefined = this.args['editSessionId'];
+	get editSessionId(): string | undefined { return this.args['editSessionId']; }
+
+	get exportPolicyData(): string | undefined {
+		return this.args['export-policy-data'];
+	}
 
 	get continueOn(): string | undefined {
 		return this.args['continueOn'];

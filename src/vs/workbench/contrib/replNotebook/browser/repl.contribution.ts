@@ -147,7 +147,7 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 
 					// untitled notebooks are disposed when they get saved. we should not hold a reference
 					// to such a disposed notebook and therefore dispose the reference as well
-					ref.object.notebook.onWillDispose(() => {
+					Event.once(ref.object.notebook.onWillDispose)(() => {
 						ref.dispose();
 					});
 					const label = (options as INotebookEditorOptions)?.label ?? undefined;
@@ -434,7 +434,7 @@ async function executeReplInput(
 			// Just accept any existing inline chat hunk
 			const ctrl = InlineChatController.get(editorControl.activeCodeEditor);
 			if (ctrl) {
-				ctrl.acceptHunk();
+				ctrl.acceptSession();
 			}
 
 			historyService.replaceLast(notebookDocument.uri, value);

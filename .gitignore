@@ -20,4 +20,6 @@ vscode.db
 /cli/openssl
 product.overrides.json
 *.snap.actual
+*.tsbuildinfo
 .vscode-test
+vscode-telemetry-docs/

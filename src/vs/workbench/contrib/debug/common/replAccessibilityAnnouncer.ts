@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -18,11 +18,13 @@ export class ReplAccessibilityAnnouncer extends Disposable implements IWorkbench
 	) {
 		super();
 		const viewModel = debugService.getViewModel();
+		const mutableDispoable = this._register(new MutableDisposable());
 		this._register(viewModel.onDidFocusSession((session) => {
+			mutableDispoable.clear();
 			if (!session) {
 				return;
 			}
-			this._register(session.onDidChangeReplElements((element) => {
+			mutableDispoable.value = session.onDidChangeReplElements((element) => {
 				if (!element || !('originalExpression' in element)) {
 					// element was removed or hasn't been resolved yet
 					return;
@@ -30,7 +32,7 @@ export class ReplAccessibilityAnnouncer extends Disposable implements IWorkbench
 				const value = element.toString();
 				accessibilityService.status(value);
 				logService.trace('ReplAccessibilityAnnouncer#onDidChangeReplElements', element.originalExpression + ': ' + value);
-			}));
+			});
 		}));
 	}
 }

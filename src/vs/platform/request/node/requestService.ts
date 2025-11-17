@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
-import * as https from 'https';
+import type * as http from 'http';
+import type * as https from 'https';
 import { parse as parseUrl } from 'url';
 import { Promises } from '../../../base/common/async.js';
 import { streamToBufferReadableStream } from '../../../base/common/buffer.js';
@@ -119,15 +119,18 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 
 	async loadCertificates(): Promise<string[]> {
 		const proxyAgent = await import('@vscode/proxy-agent');
-		return proxyAgent.loadSystemCertificates({ log: this.logService });
+		return proxyAgent.loadSystemCertificates({
+			loadSystemCertificatesFromNode: () => this.getConfigValue<boolean>('http.systemCertificatesNode', true),
+			log: this.logService,
+		});
 	}
 
-	private getConfigValue<T>(key: string): T | undefined {
+	private getConfigValue<T>(key: string, fallback?: T): T | undefined {
 		if (this.machine === 'remote') {
 			return this.configurationService.getValue<T>(key);
 		}
 		const values = this.configurationService.inspect<T>(key);
-		return values.userLocalValue || values.defaultValue;
+		return values.userLocalValue ?? values.defaultValue ?? fallback;
 	}
 }
 
@@ -201,8 +204,23 @@ export async function nodeRequest(options: NodeRequestOptions, token: Cancellati
 
 		req.on('error', reject);
 
+		// Handle timeout
 		if (options.timeout) {
-			req.setTimeout(options.timeout);
+			// Chromium network requests do not support the `timeout` option
+			if (options.isChromiumNetwork) {
+				// Use Node's setTimeout for Chromium network requests
+				const timeout = setTimeout(() => {
+					req.abort();
+					reject(new Error(`Request timeout after ${options.timeout}ms`));
+				}, options.timeout);
+
+				// Clear timeout when request completes
+				req.on('response', () => clearTimeout(timeout));
+				req.on('error', () => clearTimeout(timeout));
+				req.on('abort', () => clearTimeout(timeout));
+			} else {
+				req.setTimeout(options.timeout);
+			}
 		}
 
 		// Chromium will abort the request if forbidden headers are set.

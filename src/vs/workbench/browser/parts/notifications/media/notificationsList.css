@@ -13,7 +13,6 @@
 
 .monaco-workbench .notifications-list-container .notification-list-item {
 	display: flex;
-	flex-direction: column;
 	flex-direction: column-reverse; /* the details row appears first in order for better keyboard access to notification buttons */
 	padding: 10px 5px;
 	height: 100%;

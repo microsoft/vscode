@@ -12,13 +12,13 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { randomPath, isEqual, isEqualOrParent } from '../../../../../base/common/extpath.js';
-import { GLOBSTAR, patternsEquals } from '../../../../../base/common/glob.js';
+import { GLOBSTAR, ParsedPattern, patternsEquals } from '../../../../../base/common/glob.js';
 import { BaseWatcher } from '../baseWatcher.js';
 import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
 import { normalize, join } from '../../../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../../../base/common/platform.js';
-import { realcase, realpath } from '../../../../../base/node/extpath.js';
+import { Promises, realcase } from '../../../../../base/node/pfs.js';
 import { FileChangeType, IFileChange } from '../../../common/files.js';
 import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from '../../../common/watcher.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -37,8 +37,8 @@ export class ParcelWatcherInstance extends Disposable {
 	private didStop = false;
 	get stopped(): boolean { return this.didStop; }
 
-	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
-	private readonly excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
+	private readonly includes: ParsedPattern[] | undefined;
+	private readonly excludes: ParsedPattern[] | undefined;
 
 	private readonly subscriptions = new Map<string, Set<(change: IFileChange) => void>>();
 
@@ -64,6 +64,9 @@ export class ParcelWatcherInstance extends Disposable {
 		private readonly stopFn: () => Promise<void>
 	) {
 		super();
+
+		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
+		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
 
 		this._register(toDisposable(() => this.subscriptions.clear()));
 	}
@@ -192,10 +195,16 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	}
 
 	private registerListeners(): void {
+		const onUncaughtException = (error: unknown) => this.onUnexpectedError(error);
+		const onUnhandledRejection = (error: unknown) => this.onUnexpectedError(error);
 
-		// Error handling on process
-		process.on('uncaughtException', error => this.onUnexpectedError(error));
-		process.on('unhandledRejection', error => this.onUnexpectedError(error));
+		process.on('uncaughtException', onUncaughtException);
+		process.on('unhandledRejection', onUnhandledRejection);
+
+		this._register(toDisposable(() => {
+			process.off('uncaughtException', onUncaughtException);
+			process.off('unhandledRejection', onUnhandledRejection);
+		}));
 	}
 
 	protected override async doWatch(requests: IRecursiveWatchRequest[]): Promise<void> {
@@ -289,19 +298,23 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			// We already ran before, check for events since
 			const parcelWatcherLib = parcelWatcher;
-			if (counter > 1) {
-				const parcelEvents = await parcelWatcherLib.getEventsSince(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+			try {
+				if (counter > 1) {
+					const parcelEvents = await parcelWatcherLib.getEventsSince(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
-				if (cts.token.isCancellationRequested) {
-					return;
+					if (cts.token.isCancellationRequested) {
+						return;
+					}
+
+					// Handle & emit events
+					this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
 				}
 
-				// Handle & emit events
-				this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
+				// Store a snapshot of files to the snapshot file
+				await parcelWatcherLib.writeSnapshot(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
+			} catch (error) {
+				this.onUnexpectedError(error, request);
 			}
-
-			// Store a snapshot of files to the snapshot file
-			await parcelWatcherLib.writeSnapshot(realPath, snapshotFile, { ignore: this.addPredefinedExcludes(request.excludes), backend: ParcelWatcher.PARCEL_WATCHER_BACKEND });
 
 			// Signal we are ready now when the first snapshot was written
 			if (counter === 1) {
@@ -479,7 +492,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		try {
 
 			// First check for symbolic link
-			realPath = await realpath(request.path);
+			realPath = await Promises.realpath(request.path);
 
 			// Second check for casing difference
 			// Note: this will be a no-op on Linux platforms
@@ -576,6 +589,12 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 				this.enospcErrorLogged = true;
 			}
+		}
+
+		// Version 2.5.1 introduces 3 new errors on macOS
+		// via https://github.dev/parcel-bundler/watcher/pull/196
+		else if (msg.indexOf('File system must be re-scanned') !== -1) {
+			this.error(msg, request);
 		}
 
 		// Any other error is unexpected and we should try to
@@ -791,7 +810,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	}
 
 	private toMessage(message: string, request?: IRecursiveWatchRequest): string {
-		return request ? `[File Watcher] ${message} (path: ${request.path})` : `[File Watcher ('parcel')] ${message}`;
+		return request ? `[File Watcher ('parcel')] ${message} (path: ${request.path})` : `[File Watcher ('parcel')] ${message}`;
 	}
 
 	protected get recursiveWatcher() { return this; }

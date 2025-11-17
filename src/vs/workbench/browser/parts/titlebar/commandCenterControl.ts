@@ -27,7 +27,7 @@ export class CommandCenterControl {
 
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _onDidChangeVisibility = new Emitter<void>();
+	private readonly _onDidChangeVisibility = this._disposables.add(new Emitter<void>());
 	readonly onDidChangeVisibility: Event<void> = this._onDidChangeVisibility.event;
 
 	readonly element: HTMLElement = document.createElement('div');
@@ -142,6 +142,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							super.render(container);
 							container.classList.toggle('command-center-quick-pick');
 							container.role = 'button';
+							container.setAttribute('aria-description', this.getTooltip());
 							const action = this.action;
 
 							// icon (search)
@@ -154,7 +155,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							const label = this._getLabel();
 							const labelElement = document.createElement('span');
 							labelElement.classList.add('search-label');
-							labelElement.innerText = label;
+							labelElement.textContent = label;
 							reset(container, searchIcon, labelElement);
 
 							const hover = this._store.add(that._hoverService.setupManagedHover(that._hoverDelegate, container, this.getTooltip()));
@@ -162,14 +163,14 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							// update label & tooltip when window title changes
 							this._store.add(that._windowTitle.onDidChange(() => {
 								hover.update(this.getTooltip());
-								labelElement.innerText = this._getLabel();
+								labelElement.textContent = this._getLabel();
 							}));
 
 							// update label & tooltip when tabs visibility changes
 							this._store.add(that._editorGroupService.onDidChangeEditorPartOptions(({ newPartOptions, oldPartOptions }) => {
 								if (newPartOptions.showTabs !== oldPartOptions.showTabs) {
 									hover.update(this.getTooltip());
-									labelElement.innerText = this._getLabel();
+									labelElement.textContent = this._getLabel();
 								}
 							}));
 						}
@@ -208,7 +209,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 			// spacer
 			if (i < groups.length - 1) {
 				const icon = renderIcon(Codicon.circleSmallFilled);
-				icon.style.padding = '0 12px';
+				icon.style.padding = '0 8px';
 				icon.style.height = '100%';
 				icon.style.opacity = '0.5';
 				container.appendChild(icon);

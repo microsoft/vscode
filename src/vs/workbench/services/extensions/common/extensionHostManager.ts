@@ -27,7 +27,7 @@ import { IExtensionHostManager } from './extensionHostManagers.js';
 import { IExtensionDescriptionDelta } from './extensionHostProtocol.js';
 import { IExtensionHostProxy, IResolveAuthorityResult } from './extensionHostProxy.js';
 import { ExtensionRunningLocation } from './extensionRunningLocation.js';
-import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IInternalExtensionService } from './extensions.js';
+import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo, IInternalExtensionService } from './extensions.js';
 import { Proxied, ProxyIdentifier } from './proxyIdentifier.js';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from './rpcProtocol.js';
 
@@ -355,7 +355,7 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 		this._resolvedActivationEvents.add(activationEvent);
 	}
 
-	public async getInspectPort(tryEnableInspector: boolean): Promise<{ port: number; host: string } | undefined> {
+	public async getInspectPort(tryEnableInspector: boolean): Promise<IExtensionInspectInfo | undefined> {
 		if (this._extensionHost) {
 			if (tryEnableInspector) {
 				await this._extensionHost.enableInspectPort();
@@ -552,8 +552,7 @@ type RPCTelemetryDataClassification = {
 class TelemetryRPCLogger implements IRPCProtocolLogger {
 
 	static isEnabled(): boolean {
-		// this will be a very high frequency event, so we only log a small percentage of them
-		return Math.trunc(Math.random() * 1000) < 0.5;
+		return Math.random() < 0.0001; // 0.01% of users
 	}
 
 	private readonly _pendingRequests = new Map<number, string>();

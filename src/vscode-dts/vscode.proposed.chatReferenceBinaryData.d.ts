@@ -19,13 +19,13 @@ declare module 'vscode' {
 		readonly mimeType: string;
 
 		/**
-		 * Retrieves the binary data of the reference.
+		 * Retrieves the binary data of the reference. This is primarily used to receive image attachments from the chat.
 		 * @returns A promise that resolves to the binary data as a Uint8Array.
 		 */
 		data(): Thenable<Uint8Array>;
 
 		/**
-		 *
+		 * Retrieves a URI reference to the binary data, if available.
 		 */
 		readonly reference?: Uri;
 

@@ -22,18 +22,16 @@ import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import { DecorationCssRuleExtractor } from './css/decorationCssRuleExtractor.js';
 import { Event } from '../../../base/common/event.js';
 import { EditorOption, type IEditorOptions } from '../../common/config/editorOptions.js';
-import { InlineDecorationType } from '../../common/viewModel.js';
 import { DecorationStyleCache } from './css/decorationStyleCache.js';
-import { ViewportRenderStrategy } from './renderStrategy/viewportRenderStrategy.js';
+import { InlineDecorationType } from '../../common/viewModel/inlineDecorations.js';
 
 export class ViewGpuContext extends Disposable {
 	/**
 	 * The hard cap for line columns rendered by the GPU renderer.
 	 */
-	readonly maxGpuCols = ViewportRenderStrategy.maxSupportedColumns;
+	readonly maxGpuCols = 2000;
 
 	readonly canvas: FastDomNode<HTMLCanvasElement>;
-	readonly scrollWidthElement: FastDomNode<HTMLElement>;
 	readonly ctx: GPUCanvasContext;
 
 	static device: Promise<GPUDevice>;
@@ -88,7 +86,6 @@ export class ViewGpuContext extends Disposable {
 
 		this.canvas = createFastDomNode(document.createElement('canvas'));
 		this.canvas.setClassName('editorCanvas');
-		this.scrollWidthElement = createFastDomNode(document.createElement('div'));
 
 		// Adjust the canvas size to avoid drawing under the scroll bar
 		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
@@ -113,7 +110,7 @@ export class ViewGpuContext extends Disposable {
 			}).then(ref => {
 				ViewGpuContext.deviceSync = ref.object;
 				if (!ViewGpuContext._atlas) {
-					ViewGpuContext._atlas = this._instantiationService.createInstance(TextureAtlas, ref.object.limits.maxTextureDimension2D, undefined);
+					ViewGpuContext._atlas = this._instantiationService.createInstance(TextureAtlas, ref.object.limits.maxTextureDimension2D, undefined, ViewGpuContext.decorationStyleCache);
 				}
 				return ref.object;
 			});
@@ -226,6 +223,7 @@ export class ViewGpuContext extends Disposable {
 					}
 					for (const r of rule.style) {
 						if (!supportsCssRule(r, rule.style)) {
+							// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 							problemRules.push(`${r}: ${rule.style[r as any]}`);
 							return false;
 						}

@@ -67,14 +67,14 @@ export interface IRasterizedGlyph {
 	 */
 	originOffset: { x: number; y: number };
 	/**
-	 * The distance from the the glyph baseline to the top of the highest bounding rectangle of all
+	 * The distance from the glyph baseline to the top of the highest bounding rectangle of all
 	 * fonts used to render the text.
 	 *
 	 * @see {@link TextMetrics.fontBoundingBoxAscent}
 	 */
 	fontBoundingBoxAscent: number;
 	/**
-	 * The distance from the the glyph baseline to the bottom of the bounding rectangle of all fonts
+	 * The distance from the glyph baseline to the bottom of the bounding rectangle of all fonts
 	 * used to render the text.
 	 *
 	 * @see {@link TextMetrics.fontBoundingBoxDescent}

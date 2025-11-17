@@ -49,7 +49,6 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	private _initViewportData?: ViewportData[];
 	private _lastViewportData?: ViewportData;
 	private _lastViewLineOptions?: ViewLineOptions;
-	private _maxLocalContentWidthSoFar = 0;
 
 	private _device!: GPUDevice;
 	private _renderPassDescriptor!: GPURenderPassDescriptor;
@@ -197,7 +196,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		const fontFamily = this._context.configuration.options.get(EditorOption.fontFamily);
 		const fontSize = this._context.configuration.options.get(EditorOption.fontSize);
-		this._glyphRasterizer.value = this._register(new GlyphRasterizer(fontSize, fontFamily, this._viewGpuContext.devicePixelRatio.get()));
+		this._glyphRasterizer.value = this._register(new GlyphRasterizer(fontSize, fontFamily, this._viewGpuContext.devicePixelRatio.get(), ViewGpuContext.decorationStyleCache));
 		this._register(runOnChange(this._viewGpuContext.devicePixelRatio, () => {
 			this._refreshGlyphRasterizer();
 		}));
@@ -241,7 +240,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		const module = this._device.createShaderModule({
 			label: 'Monaco shader module',
-			code: this._renderStrategy.value!.wgsl,
+			code: this._renderStrategy.value.wgsl,
 		});
 
 		// #endregion Shader module
@@ -430,6 +429,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 	override onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean { return true; }
 	override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean { return true; }
 	override onFlushed(e: viewEvents.ViewFlushedEvent): boolean { return true; }
+
 	override onLinesChanged(e: viewEvents.ViewLinesChangedEvent): boolean { return true; }
 	override onLinesDeleted(e: viewEvents.ViewLinesDeletedEvent): boolean { return true; }
 	override onLinesInserted(e: viewEvents.ViewLinesInsertedEvent): boolean { return true; }
@@ -454,7 +454,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 			glyphRasterizer.fontSize !== fontSize ||
 			glyphRasterizer.devicePixelRatio !== devicePixelRatio
 		) {
-			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily, devicePixelRatio);
+			this._glyphRasterizer.value = new GlyphRasterizer(fontSize, fontFamily, devicePixelRatio, ViewGpuContext.decorationStyleCache);
 		}
 	}
 
@@ -473,14 +473,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 
 		const options = new ViewLineOptions(this._context.configuration, this._context.theme.type);
 
-		const { localContentWidth } = this._renderStrategy.value!.update(viewportData, options);
-
-		// Track the largest local content width so far in this session and use it as the scroll
-		// width. This is how the DOM renderer works as well, so you may not be able to scroll to
-		// the right in a file with long lines until you scroll down.
-		this._maxLocalContentWidthSoFar = Math.max(this._maxLocalContentWidthSoFar, localContentWidth / this._viewGpuContext.devicePixelRatio.get());
-		this._context.viewModel.viewLayout.setMaxLineWidth(this._maxLocalContentWidthSoFar);
-		this._viewGpuContext.scrollWidthElement.setWidth(this._context.viewLayout.getScrollWidth());
+		this._renderStrategy.value!.update(viewportData, options);
 
 		this._updateAtlasStorageBufferAndTexture();
 
@@ -542,7 +535,7 @@ export class ViewLinesGpu extends ViewPart implements IViewLines {
 				continue;
 			}
 			const startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
-			const continuesInNextLine = lineNumber !== range.endLineNumber;
+			const continuesInNextLine = lineNumber !== originalEndLineNumber;
 			const endColumn = continuesInNextLine ? this._context.viewModel.getLineMaxColumn(lineNumber) : range.endColumn;
 
 			const visibleRangesForLine = this._visibleRangesForLineRange(lineNumber, startColumn, endColumn);

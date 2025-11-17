@@ -7,22 +7,22 @@ import { TSESTree } from '@typescript-eslint/typescript-estree';
 import * as eslint from 'eslint';
 import { dirname, join, relative } from 'path';
 import minimatch from 'minimatch';
-import { createImportRuleListener } from './utils';
+import { createImportRuleListener } from './utils.ts';
 
-export = new class implements eslint.Rule.RuleModule {
+export default new class implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
 			layerbreaker: 'You are only allowed to import {{import}} from here using `import type ...`.'
 		},
 		schema: {
-			type: "array",
+			type: 'array',
 			items: {
-				type: "object",
+				type: 'object',
 				additionalProperties: {
-					type: "array",
+					type: 'array',
 					items: {
-						type: "string"
+						type: 'string'
 					}
 				}
 			}
@@ -30,11 +30,11 @@ export = new class implements eslint.Rule.RuleModule {
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		let fileRelativePath = relative(dirname(__dirname), context.getFilename());
+		let fileRelativePath = relative(dirname(import.meta.dirname), context.getFilename());
 		if (!fileRelativePath.endsWith('/')) {
 			fileRelativePath += '/';
 		}
-		const ruleArgs = <Record<string, string[]>>context.options[0];
+		const ruleArgs = context.options[0] as Record<string, string[]>;
 
 		const matchingKey = Object.keys(ruleArgs).find(key => fileRelativePath.startsWith(key) || minimatch(fileRelativePath, key));
 		if (!matchingKey) {

@@ -23,6 +23,7 @@ let documentResource = settings.settings.source;
 
 const vscode = acquireVsCodeApi();
 
+// eslint-disable-next-line local/code-no-any-casts
 const originalState = vscode.getState() ?? {} as any;
 const state = {
 	...originalState,
@@ -68,7 +69,14 @@ onceDocumentLoaded(() => {
 		getRawData('data-initial-md-content'),
 		'text/html'
 	);
-	document.body.appendChild(markDownHtml.body);
+
+	const newElements = [...markDownHtml.body.children];
+	document.body.append(...newElements);
+	for (const el of newElements) {
+		if (el instanceof HTMLElement) {
+			domEval(el);
+		}
+	}
 
 	// Restore
 	const scrollProgress = state.scrollProgress;
@@ -177,6 +185,17 @@ async function copyImage(image: HTMLImageElement, retries = 5) {
 		})]);
 	} catch (e) {
 		console.error(e);
+		const selection = window.getSelection();
+		if (!selection) {
+			await navigator.clipboard.writeText(image.getAttribute('data-src') ?? image.src);
+			return;
+		}
+		selection.removeAllRanges();
+		const range = document.createRange();
+		range.selectNode(image);
+		selection.addRange(range);
+		document.execCommand('copy');
+		selection.removeAllRanges();
 	}
 }
 
@@ -216,46 +235,11 @@ window.addEventListener('message', async event => {
 			}
 
 			if (data.source !== documentResource) {
-				root.replaceWith(newContent.querySelector('.markdown-body')!);
 				documentResource = data.source;
+				const newBody = newContent.querySelector('.markdown-body')!;
+				root.replaceWith(newBody);
+				domEval(newBody);
 			} else {
-				const skippedAttrs = [
-					'open', // for details
-				];
-
-				// Compare two elements but some elements
-				const areEqual = (a: Element, b: Element): boolean => {
-					if (a.isEqualNode(b)) {
-						return true;
-					}
-
-					if (a.tagName !== b.tagName || a.textContent !== b.textContent) {
-						return false;
-					}
-
-					const aAttrs = [...a.attributes].filter(attr => !skippedAttrs.includes(attr.name));
-					const bAttrs = [...b.attributes].filter(attr => !skippedAttrs.includes(attr.name));
-					if (aAttrs.length !== bAttrs.length) {
-						return false;
-					}
-
-					for (let i = 0; i < aAttrs.length; ++i) {
-						const aAttr = aAttrs[i];
-						const bAttr = bAttrs[i];
-						if (aAttr.name !== bAttr.name) {
-							return false;
-						}
-						if (aAttr.value !== bAttr.value && aAttr.name !== 'data-line') {
-							return false;
-						}
-					}
-
-					const aChildren = Array.from(a.children);
-					const bChildren = Array.from(b.children);
-
-					return aChildren.length === bChildren.length && aChildren.every((x, i) => areEqual(x, bChildren[i]));
-				};
-
 				const newRoot = newContent.querySelector('.markdown-body')!;
 
 				// Move styles to head
@@ -265,10 +249,12 @@ window.addEventListener('message', async event => {
 					style.remove();
 				}
 				newRoot.prepend(...styles);
+
+				// eslint-disable-next-line local/code-no-any-casts
 				morphdom(root, newRoot, {
 					childrenOnly: true,
-					onBeforeElUpdated: (fromEl, toEl) => {
-						if (areEqual(fromEl, toEl)) {
+					onBeforeElUpdated: (fromEl: Element, toEl: Element) => {
+						if (areNodesEqual(fromEl, toEl)) {
 							// areEqual doesn't look at `data-line` so copy those over manually
 							const fromLines = fromEl.querySelectorAll('[data-line]');
 							const toLines = toEl.querySelectorAll('[data-line]');
@@ -294,8 +280,14 @@ window.addEventListener('message', async event => {
 						}
 
 						return true;
+					},
+					addChild: (parentNode: Node, childNode: Node) => {
+						parentNode.appendChild(childNode);
+						if (childNode instanceof HTMLElement) {
+							domEval(childNode);
+						}
 					}
-				});
+				} as any);
 			}
 
 			++documentVersion;
@@ -311,6 +303,11 @@ window.addEventListener('message', async event => {
 
 document.addEventListener('dblclick', event => {
 	if (!settings.settings.doubleClickToSwitchToEditor) {
+		return;
+	}
+
+	// Disable double-click to switch editor for .copilotmd files
+	if (documentResource.endsWith('.copilotmd')) {
 		return;
 	}
 
@@ -383,3 +380,73 @@ function updateScrollProgress() {
 	vscode.setState(state);
 }
 
+
+/**
+ * Compares two nodes for morphdom to see if they are equal.
+ *
+ * This skips some attributes that should not cause equality to fail.
+ */
+function areNodesEqual(a: Element, b: Element): boolean {
+	const skippedAttrs = [
+		'open', // for details
+	];
+
+	if (a.isEqualNode(b)) {
+		return true;
+	}
+
+	if (a.tagName !== b.tagName || a.textContent !== b.textContent) {
+		return false;
+	}
+
+	const aAttrs = [...a.attributes].filter(attr => !skippedAttrs.includes(attr.name));
+	const bAttrs = [...b.attributes].filter(attr => !skippedAttrs.includes(attr.name));
+	if (aAttrs.length !== bAttrs.length) {
+		return false;
+	}
+
+	for (let i = 0; i < aAttrs.length; ++i) {
+		const aAttr = aAttrs[i];
+		const bAttr = bAttrs[i];
+		if (aAttr.name !== bAttr.name) {
+			return false;
+		}
+		if (aAttr.value !== bAttr.value && aAttr.name !== 'data-line') {
+			return false;
+		}
+	}
+
+	const aChildren = Array.from(a.children);
+	const bChildren = Array.from(b.children);
+
+	return aChildren.length === bChildren.length && aChildren.every((x, i) => areNodesEqual(x, bChildren[i]));
+}
+
+
+function domEval(el: Element): void {
+	const preservedScriptAttributes: (keyof HTMLScriptElement)[] = [
+		'type', 'src', 'nonce', 'noModule', 'async',
+	];
+
+	const scriptNodes = el.tagName === 'SCRIPT' ? [el] : Array.from(el.getElementsByTagName('script'));
+
+	for (const node of scriptNodes) {
+		if (!(node instanceof HTMLElement)) {
+			continue;
+		}
+
+		const scriptTag = document.createElement('script');
+		const trustedScript = node.innerText;
+		scriptTag.text = trustedScript as string;
+		for (const key of preservedScriptAttributes) {
+			const val = node.getAttribute?.(key);
+			if (val) {
+				// eslint-disable-next-line local/code-no-any-casts
+				scriptTag.setAttribute(key, val as any);
+			}
+		}
+
+		node.insertAdjacentElement('afterend', scriptTag);
+		node.remove();
+	}
+}

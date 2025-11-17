@@ -282,7 +282,7 @@ pub struct DownloadLogger<'a> {
 	logger: &'a Logger,
 }
 
-impl<'a> crate::util::io::ReportCopyProgress for DownloadLogger<'a> {
+impl crate::util::io::ReportCopyProgress for DownloadLogger<'_> {
 	fn report_progress(&mut self, bytes_so_far: u64, total_bytes: u64) {
 		if total_bytes > 0 {
 			self.logger.emit(

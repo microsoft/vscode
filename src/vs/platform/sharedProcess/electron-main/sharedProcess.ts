@@ -17,7 +17,7 @@ import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
 import { UtilityProcess } from '../../utilityProcess/electron-main/utilityProcess.js';
 import { NullTelemetryService } from '../../telemetry/common/telemetryUtils.js';
 import { parseSharedProcessDebugPort } from '../../environment/node/environmentService.js';
-import { assertIsDefined } from '../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
 import { SharedProcessChannelConnection, SharedProcessRawConnection, SharedProcessLifecycle } from '../common/sharedProcess.js';
 import { Emitter } from '../../../base/common/event.js';
 
@@ -148,18 +148,19 @@ export class SharedProcess extends Disposable {
 		this.utilityProcess = this._register(new UtilityProcess(this.logService, NullTelemetryService, this.lifecycleMainService));
 
 		// Install a log listener for very early shared process warnings and errors
-		this.utilityProcessLogListener = this.utilityProcess.onMessage((e: any) => {
-			if (typeof e.warning === 'string') {
-				this.logService.warn(e.warning);
-			} else if (typeof e.error === 'string') {
-				this.logService.error(e.error);
+		this.utilityProcessLogListener = this.utilityProcess.onMessage(e => {
+			const logValue = e as { warning?: unknown; error?: unknown };
+			if (typeof logValue.warning === 'string') {
+				this.logService.warn(logValue.warning);
+			} else if (typeof logValue.error === 'string') {
+				this.logService.error(logValue.error);
 			}
 		});
 
 		const inspectParams = parseSharedProcessDebugPort(this.environmentMainService.args, this.environmentMainService.isBuilt);
 		let execArgv: string[] | undefined = undefined;
 		if (inspectParams.port) {
-			execArgv = ['--nolazy'];
+			execArgv = ['--nolazy', '--experimental-network-inspection'];
 			if (inspectParams.break) {
 				execArgv.push(`--inspect-brk=${inspectParams.port}`);
 			} else {
@@ -169,6 +170,7 @@ export class SharedProcess extends Disposable {
 
 		this.utilityProcess.start({
 			type: 'shared-process',
+			name: 'shared-process',
 			entryPoint: 'vs/code/electron-utility/sharedProcess/sharedProcessMain',
 			payload: this.createSharedProcessConfiguration(),
 			respondToAuthRequestsFromMainProcess: true,
@@ -190,7 +192,7 @@ export class SharedProcess extends Disposable {
 			},
 			args: this.environmentMainService.args,
 			logLevel: this.loggerMainService.getLogLevel(),
-			loggers: this.loggerMainService.getRegisteredLoggers(),
+			loggers: this.loggerMainService.getGlobalLoggers(),
 			policiesData: this.policyService.serialize()
 		};
 	}
@@ -201,7 +203,7 @@ export class SharedProcess extends Disposable {
 		await this.whenIpcReady;
 
 		// Connect and return message port
-		const utilityProcess = assertIsDefined(this.utilityProcess);
+		const utilityProcess = assertReturnsDefined(this.utilityProcess);
 		return utilityProcess.connect(payload);
 	}
 }

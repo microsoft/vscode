@@ -234,11 +234,10 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
 
 		let separator: '/' | '\\' | undefined = undefined;
-		if (relative) {
-			const relativeSeparator = configurationService.getValue('explorer.copyRelativePathSeparator');
-			if (relativeSeparator === '/' || relativeSeparator === '\\') {
-				separator = relativeSeparator;
-			}
+		const copyRelativeOrFullPathSeparatorSection = relative ? 'explorer.copyRelativePathSeparator' : 'explorer.copyPathSeparator';
+		const copyRelativeOrFullPathSeparator: '/' | '\\' | undefined = configurationService.getValue(copyRelativeOrFullPathSeparatorSection);
+		if (copyRelativeOrFullPathSeparator === '/' || copyRelativeOrFullPathSeparator === '\\') {
+			separator = copyRelativeOrFullPathSeparator;
 		}
 
 		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true, separator })).join(lineDelimiter);
@@ -246,7 +245,7 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 	}
 }
 
-const copyPathCommandHandler: ICommandHandler = async (accessor, resource: URI | object) => {
+const copyPathCommandHandler: ICommandHandler = async (accessor, resource: unknown) => {
 	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 	await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 };
@@ -273,7 +272,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: copyPathCommandHandler
 });
 
-const copyRelativePathCommandHandler: ICommandHandler = async (accessor, resource: URI | object) => {
+const copyRelativePathCommandHandler: ICommandHandler = async (accessor, resource: unknown) => {
 	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 	await resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 };

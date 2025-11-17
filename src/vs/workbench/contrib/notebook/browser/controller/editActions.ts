@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Mimes } from '../../../../../base/common/mime.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -45,6 +45,7 @@ import { NotebookInlineVariablesController } from '../contrib/notebookVariables/
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
+const QUIT_EDIT_ALL_CELLS_COMMAND_ID = 'notebook.quitEditAllCells';
 export const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 export const SELECT_NOTEBOOK_INDENTATION_ID = 'notebook.selectIndentation';
 export const COMMENT_SELECTED_CELLS_ID = 'notebook.commentSelectedCells';
@@ -148,6 +149,41 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 		}
 
 		await context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
+	}
+});
+
+registerAction2(class QuitEditAllCellsAction extends NotebookAction {
+	constructor() {
+		super(
+			{
+				id: QUIT_EDIT_ALL_CELLS_COMMAND_ID,
+				title: localize('notebookActions.quitEditAllCells', "Stop Editing All Cells")
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext) {
+		if (!context.notebookEditor.hasModel()) {
+			return;
+		}
+
+		const viewModel = context.notebookEditor.getViewModel();
+		if (!viewModel) {
+			return;
+		}
+
+		const activeCell = context.notebookEditor.getActiveCell();
+
+		const editingCells = viewModel.viewCells.filter(cell =>
+			cell.cellKind === CellKind.Markup && cell.getEditState() === CellEditState.Editing
+		);
+
+		editingCells.forEach(cell => {
+			cell.updateEditState(CellEditState.Preview, QUIT_EDIT_ALL_CELLS_COMMAND_ID);
+		});
+
+		if (activeCell) {
+			await context.notebookEditor.focusNotebookCell(activeCell, 'container', { skipReveal: true });
+		}
 	}
 });
 
@@ -361,6 +397,11 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		super({
 			id: CHANGE_CELL_LANGUAGE,
 			title: localize('changeLanguage', 'Change Cell Language'),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyM),
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE)
+			},
 			metadata: {
 				description: localize('changeLanguage', 'Change Cell Language'),
 				args: [

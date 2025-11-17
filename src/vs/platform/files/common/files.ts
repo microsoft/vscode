@@ -134,6 +134,14 @@ export interface IFileService {
 	stat(resource: URI): Promise<IFileStatWithPartialMetadata>;
 
 	/**
+	 * Attempts to resolve the real path of the provided resource. The real path can be
+	 * different from the resource path for example when it is a symlink.
+	 *
+	 * Will return `undefined` if the real path cannot be resolved.
+	 */
+	realpath(resource: URI): Promise<URI | undefined>;
+
+	/**
 	 * Finds out if a file/folder identified by the resource exists.
 	 */
 	exists(resource: URI): Promise<boolean>;
@@ -240,8 +248,10 @@ export interface IFileService {
 	 *
 	 * The watcher runs correlated and thus, file events will be reported on the returned
 	 * `IFileSystemWatcher` and not on the generic `IFileService.onDidFilesChange` event.
+	 *
+	 * Note: only non-recursive file watching supports event correlation for now.
 	 */
-	createWatcher(resource: URI, options: IWatchOptionsWithoutCorrelation): IFileSystemWatcher;
+	createWatcher(resource: URI, options: IWatchOptionsWithoutCorrelation & { recursive: false }): IFileSystemWatcher;
 
 	/**
 	 * Allows to start a watcher that reports file/folder change events on the provided resource.
@@ -633,7 +643,12 @@ export const enum FileSystemProviderCapabilities {
 	/**
 	 * Provider support to clone files atomically.
 	 */
-	FileClone = 1 << 17
+	FileClone = 1 << 17,
+
+	/**
+	 * Provider support to resolve real paths.
+	 */
+	FileRealpath = 1 << 18
 }
 
 export interface IFileSystemProvider {
@@ -689,6 +704,14 @@ export interface IFileSystemProviderWithFileCloneCapability extends IFileSystemP
 
 export function hasFileCloneCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileCloneCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileClone);
+}
+
+export interface IFileSystemProviderWithFileRealpathCapability extends IFileSystemProvider {
+	realpath(resource: URI): Promise<string>;
+}
+
+export function hasFileRealpathCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileRealpathCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileRealpath);
 }
 
 export interface IFileSystemProviderWithOpenReadWriteCloseCapability extends IFileSystemProvider {

@@ -22,6 +22,7 @@ export interface IMouseEvent {
 	readonly altKey: boolean;
 	readonly metaKey: boolean;
 	readonly timestamp: number;
+	readonly defaultPrevented: boolean;
 
 	preventDefault(): void;
 	stopPropagation(): void;
@@ -44,6 +45,7 @@ export class StandardMouseEvent implements IMouseEvent {
 	public readonly altKey: boolean;
 	public readonly metaKey: boolean;
 	public readonly timestamp: number;
+	public readonly defaultPrevented: boolean;
 
 	constructor(targetWindow: Window, e: MouseEvent) {
 		this.timestamp = Date.now();
@@ -52,6 +54,7 @@ export class StandardMouseEvent implements IMouseEvent {
 		this.middleButton = e.button === 1;
 		this.rightButton = e.button === 2;
 		this.buttons = e.buttons;
+		this.defaultPrevented = e.defaultPrevented;
 
 		this.target = <HTMLElement>e.target;
 
@@ -94,6 +97,7 @@ export class DragMouseEvent extends StandardMouseEvent {
 
 	constructor(targetWindow: Window, e: MouseEvent) {
 		super(targetWindow, e);
+		// eslint-disable-next-line local/code-no-any-casts
 		this.dataTransfer = (<any>e).dataTransfer;
 	}
 }
@@ -131,6 +135,7 @@ export class StandardWheelEvent {
 	constructor(e: IMouseWheelEvent | null, deltaX: number = 0, deltaY: number = 0) {
 
 		this.browserEvent = e || null;
+		// eslint-disable-next-line local/code-no-any-casts
 		this.target = e ? (e.target || (<any>e).targetNode || e.srcElement) : null;
 
 		this.deltaY = deltaY;
@@ -147,7 +152,9 @@ export class StandardWheelEvent {
 
 		if (e) {
 			// Old (deprecated) wheel events
+			// eslint-disable-next-line local/code-no-any-casts
 			const e1 = <IWebKitMouseWheelEvent><any>e;
+			// eslint-disable-next-line local/code-no-any-casts
 			const e2 = <IGeckoMouseWheelEvent><any>e;
 			const devicePixelRatio = e.view?.devicePixelRatio || 1;
 
