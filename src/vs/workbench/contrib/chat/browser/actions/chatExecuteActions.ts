@@ -696,8 +696,7 @@ class SendToNewChatAction extends Action2 {
 			}
 		}
 
-		widget.clear();
-		await widget.waitForReady();
+		await widget.clear();
 		widget.acceptInput(context?.inputValue);
 	}
 }

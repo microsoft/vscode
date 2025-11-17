@@ -276,7 +276,6 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		await widget.waitForReady();
 		widget.attachmentModel.addContext(SCMHistoryItemContext.asAttachment(provider, historyItem));
 	}
 });

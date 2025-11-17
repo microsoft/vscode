@@ -325,7 +325,9 @@ abstract class OpenChatGlobalAction extends Action2 {
 			chatWidget.setInput(opts.query);
 
 			if (!opts.isPartialQuery) {
-				await chatWidget.waitForReady();
+				if (!chatWidget.viewModel) {
+					await Event.toPromise(chatWidget.onDidChangeViewModel);
+				}
 				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
 				resp = chatWidget.acceptInput();
 			}
@@ -1155,8 +1157,7 @@ export function registerChatActions() {
 
 			if (chatWidget) {
 				// Clear the current chat to start a new one
-				chatWidget.clear();
-				await chatWidget.waitForReady();
+				await chatWidget.clear();
 				chatWidget.attachmentModel.clear(true);
 				chatWidget.input.relatedFiles?.clear();
 
@@ -1233,9 +1234,7 @@ export function registerChatActions() {
 
 			await chatService.clearAllHistoryEntries();
 
-			widgetService.getAllWidgets().forEach(widget => {
-				widget.clear();
-			});
+			await Promise.all(widgetService.getAllWidgets().map(widget => widget.clear()));
 
 			// Clear all chat editors. Have to go this route because the chat editor may be in the background and
 			// not have a ChatEditorInput.
