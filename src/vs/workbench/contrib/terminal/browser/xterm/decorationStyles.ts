@@ -29,7 +29,7 @@ export const enum DecorationSelector {
 }
 
 export function getTerminalDecorationHoverContent(command: ITerminalCommand | undefined, hoverMessage?: string, showCommandActions?: boolean): string {
-	let hoverContent = showCommandActions ? `${localize('terminalPromptContextMenu', "Show Command Actions")}'\n\n---\n\n'` : '';
+	let hoverContent = showCommandActions ? `${localize('terminalPromptContextMenu', "Show Command Actions")}\n\n---\n\n` : '';
 	if (!command) {
 		if (hoverMessage) {
 			hoverContent = hoverMessage;
