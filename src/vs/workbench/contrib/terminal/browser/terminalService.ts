@@ -56,7 +56,7 @@ import { createInstanceCapabilityEventMultiplexer } from './terminalEvents.js';
 import { isAuxiliaryWindow, mainWindow } from '../../../../base/browser/window.js';
 import { GroupIdentifier } from '../../../common/editor.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
-import { hasKey } from '../../../../base/common/types.js';
+import { hasKey, isString } from '../../../../base/common/types.js';
 
 interface IBackgroundTerminal {
 	instance: ITerminalInstance;
@@ -243,7 +243,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		if (!result) {
 			return;
 		}
-		if (typeof result === 'string') {
+		if (isString(result)) {
 			return;
 		}
 		const keyMods: IKeyMods | undefined = result.keyMods;
@@ -1203,7 +1203,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _evaluateLocalCwd(shellLaunchConfig: IShellLaunchConfig) {
 		// Add welcome message and title annotation for local terminals launched within remote or
 		// virtual workspaces
-		if (typeof shellLaunchConfig.cwd !== 'string' && shellLaunchConfig.cwd?.scheme === Schemas.file) {
+		if (!isString(shellLaunchConfig.cwd) && shellLaunchConfig.cwd?.scheme === Schemas.file) {
 			if (VirtualWorkspaceContext.getValue(this._contextKeyService)) {
 				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalVirtualWorkspace', "This shell is open to a {0}local{1} folder, NOT to the virtual folder", '\x1b[3m', '\x1b[23m'), { excludeLeadingNewLine: true, loudFormatting: true });
 				shellLaunchConfig.type = 'Local';

@@ -120,12 +120,12 @@ export interface IChatWidgetContrib extends IDisposable {
 	/**
 	 * A piece of state which is related to the input editor of the chat widget
 	 */
-	getInputState?(): any;
+	getInputState?(): IChatInputState;
 
 	/**
 	 * Called with the result of getInputState when navigating input history.
 	 */
-	setInputState?(s: any): void;
+	setInputState?(s: IChatInputState): void;
 }
 
 interface IChatRequestInputOptions {
@@ -290,6 +290,7 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 };
 
 export class ChatWidget extends Disposable implements IChatWidget {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
 
 	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
@@ -1793,7 +1794,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.onDidChangeTreeContentHeight();
 		}));
 		this._register(this.renderer.onDidChangeItemHeight(e => {
-			if (this.tree.hasElement(e.element)) {
+			if (this.tree.hasElement(e.element) && this.visible) {
 				this.tree.updateElementHeight(e.element, e.height);
 			}
 		}));
@@ -2655,7 +2656,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listContainer.style.removeProperty('--chat-current-response-min-height');
 		} else {
 			this.listContainer.style.setProperty('--chat-current-response-min-height', contentHeight * .75 + 'px');
-			if (heightUpdated && lastItem) {
+			if (heightUpdated && lastItem && this.visible) {
 				this.tree.updateElementHeight(lastItem, undefined);
 			}
 		}
