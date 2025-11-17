@@ -472,7 +472,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			},
 			onHide: () => {
 				this.selectDropDownContainer.classList.remove('visible');
-				this.selectElement.classList.remove('synthetic-focus');
 			},
 			anchorPosition: this._dropDownPosition
 		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
@@ -487,7 +486,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			layout: () => this.layoutSelectDropDown(),
 			onHide: () => {
 				this.selectDropDownContainer.classList.remove('visible');
-				this.selectElement.classList.remove('synthetic-focus');
 			},
 			anchorPosition: this._dropDownPosition
 		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
@@ -682,11 +680,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			this.updateDetail(this.selected);
 
 			this.selectDropDownContainer.style.width = selectOptimalWidth;
-
-			// Maintain focus outline on parent select as well as list container - tabindex for focus
 			this.selectDropDownListContainer.setAttribute('tabindex', '0');
-			this.selectElement.classList.add('synthetic-focus');
-			this.selectDropDownContainer.classList.add('synthetic-focus');
 
 			return true;
 		} else {
