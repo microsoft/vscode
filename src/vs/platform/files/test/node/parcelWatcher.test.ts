@@ -22,6 +22,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { addUNCHostToAllowlist } from '../../../../base/node/unc.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { GlobCaseSensitivity } from '../../../../base/common/glob.js';
 
 export class TestParcelWatcher extends ParcelWatcher {
 
@@ -875,5 +876,81 @@ suite.skip('File Watcher (parcel)', function () {
 		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, undefined, 1);
 		await promises.unlink(filePath);
 		await changeFuture;
+	});
+
+	(isWindows ? test.skip : test)('includes are case insensitive when globCaseSensitivity is set (posix)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/*.TXT'], recursive: true, globCaseSensitivity: GlobCaseSensitivity.caseInsensitive }]);
+
+		// New file (matches *.TXT case-insensitively)
+		const newFilePath = join(testDir, 'deep', 'newFile.txt');
+		let changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newFilePath, 'Hello World');
+		await changeFuture;
+
+		// Change file
+		changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		await Promises.writeFile(newFilePath, 'Hello Change');
+		await changeFuture;
+
+		// Delete file
+		changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.DELETED);
+		await promises.unlink(newFilePath);
+		await changeFuture;
+	});
+
+	(!isWindows ? test.skip : test)('includes are case insensitive when globCaseSensitivity is set (windows)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/*.TXT'], recursive: true, globCaseSensitivity: GlobCaseSensitivity.caseInsensitive }]);
+
+		// New file (matches *.TXT case-insensitively)
+		const newFilePath = join(testDir, 'deep', 'newFile.txt');
+		let changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newFilePath, 'Hello World');
+		await changeFuture;
+
+		// Change file
+		changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		await Promises.writeFile(newFilePath, 'Hello Change');
+		await changeFuture;
+
+		// Delete file
+		changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.DELETED);
+		await promises.unlink(newFilePath);
+		await changeFuture;
+	});
+
+	(isWindows ? test.skip : test)('excludes are case insensitive when globCaseSensitivity is set (posix)', async function () {
+		await watcher.watch([{ path: testDir, excludes: ['**/DEEP/**'], recursive: true, globCaseSensitivity: GlobCaseSensitivity.caseInsensitive }]);
+
+		// New file in excluded folder (should not trigger event)
+		const newTextFilePath = join(testDir, 'deep', 'newFile.txt');
+		const changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newTextFilePath, 'Hello World');
+
+		const res = await Promise.any([
+			timeout(500).then(() => true),
+			changeFuture.then(() => false)
+		]);
+
+		if (!res) {
+			assert.fail('Unexpected change event');
+		}
+	});
+
+	(!isWindows ? test.skip : test)('excludes are case insensitive when globCaseSensitivity is set (windows)', async function () {
+		await watcher.watch([{ path: testDir, excludes: ['**/DEEP/**'], recursive: true, globCaseSensitivity: GlobCaseSensitivity.caseInsensitive }]);
+
+		// New file in excluded folder (should not trigger event)
+		const newTextFilePath = join(testDir, 'deep', 'newFile.txt');
+		const changeFuture = awaitEvent(watcher, newTextFilePath, FileChangeType.ADDED);
+		await Promises.writeFile(newTextFilePath, 'Hello World');
+
+		const res = await Promise.any([
+			timeout(500).then(() => true),
+			changeFuture.then(() => false)
+		]);
+
+		if (!res) {
+			assert.fail('Unexpected change event');
+		}
 	});
 });
