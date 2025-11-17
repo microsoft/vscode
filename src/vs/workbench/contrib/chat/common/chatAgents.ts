@@ -114,15 +114,6 @@ export interface IChatAgentCommand extends IRawChatCommandContribution {
 	followupPlaceholder?: string;
 }
 
-export interface IChatRequesterInformation {
-	name: string;
-
-	/**
-	 * A full URI for the icon of the requester.
-	 */
-	icon?: URI;
-}
-
 export interface IChatAgentMetadata {
 	helpTextPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
@@ -133,7 +124,6 @@ export interface IChatAgentMetadata {
 	supportIssueReporting?: boolean;
 	followupPlaceholder?: string;
 	isSticky?: boolean;
-	requester?: IChatRequesterInformation;
 	additionalWelcomeMessage?: string | IMarkdownString;
 }
 
@@ -141,7 +131,9 @@ export type UserSelectedTools = Record<string, boolean>;
 
 
 export interface IChatAgentRequest {
+	/** @deprecated Use {@linkcode sessionResource} instead */
 	sessionId: string;
+	sessionResource: URI;
 	requestId: string;
 	agentId: string;
 	command?: string;

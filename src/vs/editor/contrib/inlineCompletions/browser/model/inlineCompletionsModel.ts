@@ -96,6 +96,10 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _suppressInSnippetMode;
 	private readonly _isInSnippetMode;
 
+	get editor() {
+		return this._editor;
+	}
+
 	constructor(
 		public readonly textModel: ITextModel,
 		private readonly _selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
@@ -803,7 +807,7 @@ export class InlineCompletionsModel extends Disposable {
 			return true;
 		}
 
-		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader) && !s.inlineCompletion.hint?.jumpToEdit) {
+		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader)) {
 			return false;
 		}
 
@@ -821,7 +825,7 @@ export class InlineCompletionsModel extends Disposable {
 		if (this._tabShouldIndent.read(reader)) {
 			return false;
 		}
-		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader) && !s.inlineCompletion.hint?.jumpToEdit) {
+		if (this._inAcceptFlow.read(reader) && this._appearedInsideViewport.read(reader)) {
 			return true;
 		}
 		if (s.inlineCompletion.targetRange.startLineNumber === this._editorObs.cursorLineNumber.read(reader)) {
@@ -1041,7 +1045,7 @@ export class InlineCompletionsModel extends Disposable {
 
 				editor.edit(TextEdit.fromParallelReplacementsUnsorted(edits), this._getMetadata(completion, type));
 				editor.setSelections(selections, 'inlineCompletionPartialAccept');
-				editor.revealPositionInCenterIfOutsideViewport(editor.getPosition()!, ScrollType.Immediate);
+				editor.revealPositionInCenterIfOutsideViewport(editor.getPosition()!, ScrollType.Smooth);
 			} finally {
 				this._isAcceptingPartially = false;
 			}
@@ -1107,10 +1111,10 @@ export class InlineCompletionsModel extends Disposable {
 			// TODO: consider using view information to reveal it
 			const isSingleLineChange = targetRange.isSingleLine() && (s.inlineCompletion.hint || !s.inlineCompletion.insertText.includes('\n'));
 			if (isSingleLineChange) {
-				this._editor.revealPosition(targetPosition);
+				this._editor.revealPosition(targetPosition, ScrollType.Smooth);
 			} else {
 				const revealRange = new Range(targetRange.startLineNumber - 1, 1, targetRange.endLineNumber + 1, 1);
-				this._editor.revealRange(revealRange, ScrollType.Immediate);
+				this._editor.revealRange(revealRange, ScrollType.Smooth);
 			}
 
 			s.inlineCompletion.identity.setJumpTo(tx);
@@ -1206,13 +1210,22 @@ class FadeoutDecoration extends Disposable {
 	}
 }
 
-function isSuggestionInViewport(editor: ICodeEditor, suggestion: InlineSuggestionItem): boolean {
+export function isSuggestionInViewport(editor: ICodeEditor, suggestion: InlineSuggestionItem, reader: IReader | undefined = undefined): boolean {
 	const targetRange = suggestion.targetRange;
+
+	// TODO make getVisibleRanges reactive!
+	observableCodeEditor(editor).scrollTop.read(reader);
 	const visibleRanges = editor.getVisibleRanges();
+
 	if (visibleRanges.length < 1) {
 		return false;
 	}
 
-	const viewportRange = new Range(visibleRanges[0].startLineNumber, visibleRanges[0].startColumn, visibleRanges[visibleRanges.length - 1].endLineNumber, visibleRanges[visibleRanges.length - 1].endColumn);
+	const viewportRange = new Range(
+		visibleRanges[0].startLineNumber,
+		visibleRanges[0].startColumn,
+		visibleRanges[visibleRanges.length - 1].endLineNumber,
+		visibleRanges[visibleRanges.length - 1].endColumn
+	);
 	return viewportRange.containsRange(targetRange);
 }

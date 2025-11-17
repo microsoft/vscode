@@ -16,6 +16,7 @@ import { ConfigurationTarget } from '../../../platform/configuration/common/conf
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
+import product from '../../../platform/product/common/product.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
@@ -518,8 +519,14 @@ export class McpHTTPHandle extends Disposable {
 	 */
 	private async _attachStreamableBackchannel() {
 		let lastEventId: string | undefined;
+		let canReconnectAt: number | undefined;
 		for (let retry = 0; !this._store.isDisposed; retry++) {
-			await timeout(Math.min(retry * 1000, 30_000), this._cts.token);
+			if (canReconnectAt !== undefined) {
+				await timeout(Math.max(0, canReconnectAt - Date.now()), this._cts.token);
+				canReconnectAt = undefined;
+			} else {
+				await timeout(Math.min(retry * 1000, 30_000), this._cts.token);
+			}
 
 			let res: CommonResponse;
 			try {
@@ -561,7 +568,10 @@ export class McpHTTPHandle extends Disposable {
 			}
 
 			const parser = new SSEParser(event => {
-				if (event.type === 'message') {
+				if (event.retry) {
+					canReconnectAt = Date.now() + event.retry;
+				}
+				if (event.type === 'message' && event.data) {
 					this._proxy.$onDidReceiveMessage(this._id, event.data);
 				}
 				if (event.id) {
@@ -788,6 +798,8 @@ export class McpHTTPHandle extends Disposable {
 	}
 
 	private async _fetch(url: string, init: MinimalRequestInit): Promise<CommonResponse> {
+		init.headers['user-agent'] = `${product.nameLong}/${product.version}`;
+
 		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
 			const traceObj: any = { ...init, headers: { ...init.headers } };
 			if (traceObj.body) {

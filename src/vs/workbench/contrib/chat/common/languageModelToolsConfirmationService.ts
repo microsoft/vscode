@@ -38,6 +38,7 @@ export interface ILanguageModelToolConfirmationActionProducer {
 export interface ILanguageModelToolConfirmationContributionQuickTreeItem extends IQuickTreeItem {
 	onDidTriggerItemButton?(button: IQuickInputButton): void;
 	onDidChangeChecked?(checked: boolean): void;
+	onDidOpen?(): void;
 }
 
 /**

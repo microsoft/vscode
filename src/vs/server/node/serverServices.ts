@@ -216,8 +216,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const ptyHostStarter = instantiationService.createInstance(
 		NodePtyHostStarter,
 		{
-			graceTime: ProtocolConstants.ReconnectionGraceTime,
-			shortGraceTime: ProtocolConstants.ReconnectionShortGraceTime,
+			graceTime: environmentService.reconnectionGraceTime,
+			shortGraceTime: environmentService.reconnectionGraceTime > 0 ? Math.min(ProtocolConstants.ReconnectionShortGraceTime, environmentService.reconnectionGraceTime) : 0,
 			scrollback: configurationService.getValue<number>(TerminalSettingId.PersistentSessionScrollback) ?? 100
 		}
 	);
@@ -235,7 +235,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const extensionsScannerService = accessor.get(IExtensionsScannerService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		const languagePackService = accessor.get(ILanguagePackService);
-		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionHostStatusService);
+		const remoteExtensionEnvironmentChannel = new RemoteAgentEnvironmentChannel(connectionToken, environmentService, userDataProfilesService, extensionHostStatusService, logService);
 		socketServer.registerChannel('remoteextensionsenvironment', remoteExtensionEnvironmentChannel);
 
 		const telemetryChannel = new ServerTelemetryChannel(accessor.get(IServerTelemetryService), oneDsAppender);

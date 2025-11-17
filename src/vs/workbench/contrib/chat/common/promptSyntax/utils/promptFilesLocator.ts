@@ -21,13 +21,13 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 /**
  * Utility class to locate prompt files.
  */
-export class PromptFilesLocator extends Disposable {
+export class PromptFilesLocator {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -38,7 +38,6 @@ export class PromptFilesLocator extends Disposable {
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 		@ILogService private readonly logService: ILogService
 	) {
-		super();
 	}
 
 	/**

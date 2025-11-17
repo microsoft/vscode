@@ -11,7 +11,7 @@
         endLineNumber: 1,
         endColumn: 12
       },
-      slashPromptCommand: { command: "001-sample" },
+      name: "001-sample",
       kind: "prompt"
     },
     {

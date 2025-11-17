@@ -40,6 +40,9 @@ export interface IActionWidgetDropdownOptions extends IBaseDropdownOptions {
  * The benefits of this include non native features such as headers, descriptions, icons, and button bar
  */
 export class ActionWidgetDropdown extends BaseDropdown {
+
+	private enabled: boolean = true;
+
 	constructor(
 		container: HTMLElement,
 		private readonly _options: IActionWidgetDropdownOptions,
@@ -50,6 +53,10 @@ export class ActionWidgetDropdown extends BaseDropdown {
 	}
 
 	override show(): void {
+		if (!this.enabled) {
+			return;
+		}
+
 		let actionBarActions = this._options.actionBarActions ?? this._options.actionBarActionProvider?.getActions() ?? [];
 		const actions = this._options.actions ?? this._options.actionProvider?.getActions() ?? [];
 		const actionWidgetItems: IActionListItem<IActionWidgetDropdownAction>[] = [];
@@ -157,5 +164,9 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			actionBarActions,
 			accessibilityProvider
 		);
+	}
+
+	setEnabled(enabled: boolean): void {
+		this.enabled = enabled;
 	}
 }

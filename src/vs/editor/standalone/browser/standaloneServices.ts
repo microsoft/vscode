@@ -96,6 +96,8 @@ import { ResourceMap } from '../../../base/common/map.js';
 import { ITreeSitterLibraryService } from '../../common/services/treeSitter/treeSitterLibraryService.js';
 import { StandaloneTreeSitterLibraryService } from './standaloneTreeSitterLibraryService.js';
 import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
+import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
+import { StandaloneWebWorkerService } from './services/standaloneWebWorkerService.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1110,6 +1112,7 @@ export interface IEditorOverrideServices {
 }
 
 
+registerSingleton(IWebWorkerService, StandaloneWebWorkerService, InstantiationType.Eager);
 registerSingleton(ILogService, StandaloneLogService, InstantiationType.Eager);
 registerSingleton(IConfigurationService, StandaloneConfigurationService, InstantiationType.Eager);
 registerSingleton(ITextResourceConfigurationService, StandaloneResourceConfigurationService, InstantiationType.Eager);

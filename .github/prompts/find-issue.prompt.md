@@ -52,7 +52,7 @@ When the user describes a potential bug, crash, or feature request:
      - "NullReferenceException loader crash"
      - "Windows DataLoader crash"
      ```
-   - **Then**, summarize results in a Markdown table with the following columns: #, Title, State, Relevance, Notes. Use emojis for state (🔓 Open, 🔒 Closed) and relevance (✅ Exact, 🔗 Related).
+   - **Then**, summarize results in a Markdown table with the following columns: #, Title, State, Relevance, Notes. Use emojis for state (🔓 Open, 🔒 Closed) and relevance (✅ Exact, 🔗 Related). **Important**: Ensure the issue numbers are direct links to the issues.
 
 5. **Conclude**
    - Matching context → recommend most relevant issue

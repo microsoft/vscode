@@ -38,7 +38,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const confirmationTool = instantiationService.createInstance(ConfirmationTool);
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
 
-		const runSubagentTool = instantiationService.createInstance(RunSubagentTool);
+		const runSubagentTool = this._register(instantiationService.createInstance(RunSubagentTool));
 		this._register(toolsService.registerTool(runSubagentTool.getToolData(), runSubagentTool));
 	}
 }

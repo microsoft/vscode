@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.107.0",
-  "distro": "14448fdebff821982801580aba09897633a6e91b",
+  "distro": "4a547df2bc6ee54115566978a3f86f3f586e46a2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -55,8 +55,8 @@
     "compile-web": "node ./node_modules/gulp/bin/gulp.js compile-web",
     "watch-web": "node ./node_modules/gulp/bin/gulp.js watch-web",
     "watch-cli": "node ./node_modules/gulp/bin/gulp.js watch-cli",
-    "eslint": "node build/eslint",
-    "stylelint": "node build/stylelint",
+    "eslint": "node build/eslint.mjs",
+    "stylelint": "node build/stylelint.mjs",
     "playwright-install": "npm exec playwright install",
     "compile-build": "node ./node_modules/gulp/bin/gulp.js compile-build-with-mangling",
     "compile-extensions-build": "node ./node_modules/gulp/bin/gulp.js compile-extensions-build",
@@ -110,7 +110,7 @@
     "native-watchdog": "^1.4.1",
     "node-pty": "1.1.0-beta35",
     "open": "^10.1.2",
-    "tas-client-umd": "0.2.0",
+    "tas-client": "0.3.1",
     "undici": "^7.9.0",
     "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
@@ -160,7 +160,7 @@
     "css-loader": "^6.9.1",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "37.7.0",
+    "electron": "39.1.2",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",

@@ -185,8 +185,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			return undefined;
 		}
 		const authorizationServer = URI.revive(authDetails.authorizationServer);
+		const resourceServer = authDetails.resourceMetadata?.resource ? URI.parse(authDetails.resourceMetadata.resource) : undefined;
 		const resolvedScopes = authDetails.scopes ?? authDetails.resourceMetadata?.scopes_supported ?? authDetails.authorizationServerMetadata.scopes_supported ?? [];
-		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer);
+		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer);
 		if (forceNewRegistration && providerId) {
 			this._authenticationService.unregisterAuthenticationProvider(providerId);
 			// TODO: Encapsulate this and the unregister in one call in the auth service

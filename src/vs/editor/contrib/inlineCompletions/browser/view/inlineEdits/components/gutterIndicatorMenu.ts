@@ -27,7 +27,7 @@ import { asCssVariable, descriptionForeground, editorActionListForeground, edito
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { hideInlineCompletionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
-import { IInlineEditModel } from '../inlineEditsViewInterface.js';
+import { ModelPerInlineEdit } from '../inlineEditsModel.js';
 import { FirstFnArg, } from '../utils/utils.js';
 
 export class GutterIndicatorMenuContent {
@@ -35,7 +35,7 @@ export class GutterIndicatorMenuContent {
 	private readonly _inlineEditsShowCollapsed: IObservable<boolean>;
 
 	constructor(
-		private readonly _model: IInlineEditModel,
+		private readonly _model: ModelPerInlineEdit,
 		private readonly _close: (focusEditor: boolean) => void,
 		private readonly _editorObs: ObservableCodeEditor,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
