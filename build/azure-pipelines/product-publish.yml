@@ -31,6 +31,9 @@ jobs:
           versionSource: fromFile
           versionFilePath: .nvmrc
 
+      - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
+        - template: ./common/bump-insiders-version.yml@self
+
       - task: AzureKeyVault@2
         displayName: "Azure Key Vault: Get Secrets"
         inputs:
