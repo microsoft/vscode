@@ -551,7 +551,8 @@ export class CollapsedCodeBlock extends Disposable {
 		// Create a progress fill element for the animation
 		const progressFill = dom.$('span.progress-fill');
 		this.pillElement.replaceChildren(progressFill, iconEl, iconLabelEl, labelDetail);
-		this.updateTooltip(this.labelService.getUriLabel(uri, { relative: false }));
+		const tooltipLabel = this.labelService.getUriLabel(uri, { relative: true });
+		this.updateTooltip(tooltipLabel);
 
 		const editSession = session?.editingSession;
 		if (!editSession) {
@@ -626,7 +627,6 @@ export class CollapsedCodeBlock extends Disposable {
 				const deletionsFragment = changes.removed === 1 ? localize('chat.codeblock.deletions.one', "1 deletion") : localize('chat.codeblock.deletions', "{0} deletions", changes.removed);
 				const summary = localize('summary', 'Edited {0}, {1}, {2}', iconText, insertionsFragment, deletionsFragment);
 				this.element.ariaLabel = summary;
-				this.updateTooltip(summary);
 
 				// No need to keep updating once we get the diff info
 				if (changes.isFinal) {
