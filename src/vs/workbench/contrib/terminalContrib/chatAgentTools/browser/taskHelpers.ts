@@ -243,7 +243,7 @@ export async function collectTerminalResults(
 
 		// For tasks with problem matchers, wait until the task becomes busy before creating the output monitor
 		if (terminalTask.configurationProperties.problemMatchers && terminalTask.configurationProperties.problemMatchers.length > 0 && taskService) {
-			const maxWaitTime = 5000; // Wait up to 5 seconds
+			const maxWaitTime = 1000; // Wait up to 1 second
 			const startTime = Date.now();
 			while (!token.isCancellationRequested && Date.now() - startTime < maxWaitTime) {
 				const busyTasks = await taskService.getBusyTasks();
