@@ -102,7 +102,7 @@
             "localization": {
                 "description": {
                     "key": "chat.tools.eligibleForAutoApproval",
-                    "value": "Controls which tools are eligible for automatic approval. Tools set to 'false' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to 'true') may result in the tool offering auto-approval options."
+                    "value": "Controls which tools are eligible for automatic approval. Tools set to 'false' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to 'true') may result in the tool offering auto-approval options. Terminal tools are controlled by the 'chat.tools.terminal.enableAutoApprove' setting."
                 }
             },
             "type": "object",
