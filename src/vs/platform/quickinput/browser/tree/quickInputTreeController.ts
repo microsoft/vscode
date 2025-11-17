@@ -146,18 +146,13 @@ export class QuickInputTreeController extends Disposable {
 				children = item.children.map(child => createTreeElement(child));
 				item.checked = getParentNodeState(children);
 			}
-			// Map boolean collapsed values to PreserveOr* states to maintain initial state while preserving user changes:
-			// - false -> PreserveOrExpanded (starts expanded, then preserves)
-			// - true -> PreserveOrCollapsed (starts collapsed, then preserves)
-			// - undefined -> PreserveOrExpanded (default: starts expanded, then preserves)
-			const collapsed = item.collapsed === false ? ObjectTreeElementCollapseState.PreserveOrExpanded :
-				item.collapsed === true ? ObjectTreeElementCollapseState.PreserveOrCollapsed :
-				ObjectTreeElementCollapseState.PreserveOrExpanded;
 			return {
 				element: item,
 				children,
 				collapsible: !!children,
-				collapsed
+				collapsed: item.collapsed ?
+					ObjectTreeElementCollapseState.PreserveOrCollapsed :
+					ObjectTreeElementCollapseState.PreserveOrExpanded
 			};
 		};
 
