@@ -547,7 +547,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
-		let suggestedOptionValue = typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option;
+		let suggestedOptionValue = isString(suggestedOption) ? suggestedOption : suggestedOption.option;
 		if (suggestedOptionValue === 'any key') {
 			suggestedOptionValue = 'a';
 		}
@@ -556,7 +556,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			token,
 			execution.sessionId,
 			new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
-			new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, suggestedOptionValue, typeof suggestedOption === 'string' ? '' : suggestedOption.description ? ' (' + suggestedOption.description + ')' : '')),
+			new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, suggestedOptionValue, isString(suggestedOption) ? '' : suggestedOption.description ? ' (' + suggestedOption.description + ')' : '')),
 			'',
 			localize('poll.terminal.acceptRun', 'Allow'),
 			localize('poll.terminal.rejectRun', 'Focus Terminal'),
@@ -688,7 +688,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] | undefined {
 	const moreActions: IAction[] = [];
-	const moreOptions = confirmationPrompt.options.filter(a => a !== (typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option));
+	const moreOptions = confirmationPrompt.options.filter(a => a !== (isString(suggestedOption) ? suggestedOption : suggestedOption.option));
 	let i = 0;
 	for (const option of moreOptions) {
 		const label = option + (confirmationPrompt.descriptions ? ' (' + confirmationPrompt.descriptions[i] + ')' : '');
@@ -712,40 +712,27 @@ interface ISuggestedOptionResult {
 	sentToTerminal?: boolean;
 }
 
-
-
-// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending in whitespace
-const PS_CONFIRM_RE = /\s*(?:\[[^\]]\]\s+[^\[]+\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/;
-
-// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
-const YN_PAIRED_RE = /(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i;
-
-// Same as YN_PAIRED_RE but allows a preceding '?' or ':' and optional wrappers e.g. "Continue? (y/n)" or "Overwrite: [yes/no]"
-const YN_AFTER_PUNCT_RE = /[?:]\s*(?:\(|\[)?\s*y(?:es)?\s*\/\s*n(?:o)?\s*(?:\]|\))?\s+$/i;
-
-// Confirmation prompts ending with (y) e.g. "Ok to proceed? (y)"
-const CONFIRM_Y_RE = /\(y\)\s*$/i;
-
-const LINE_ENDS_WITH_COLON_RE = /:\s*$/;
-
-const END = /\(END\)$/;
-
-const PASSWORD = /password[:]?$/i;
-
-const QUESTION = /\?[\(\)\s]*$/i;
-
-const PRESS_ANY_KEY_RE = /press a(?:ny)? key/i;
-
 export function detectsInputRequiredPattern(cursorLine: string): boolean {
-	return (
-		PS_CONFIRM_RE.test(cursorLine) ||
-		YN_PAIRED_RE.test(cursorLine) ||
-		YN_AFTER_PUNCT_RE.test(cursorLine) ||
-		CONFIRM_Y_RE.test(cursorLine) ||
-		LINE_ENDS_WITH_COLON_RE.test(cursorLine.trim()) ||
-		END.test(cursorLine) ||
-		PASSWORD.test(cursorLine) ||
-		QUESTION.test(cursorLine) ||
-		PRESS_ANY_KEY_RE.test(cursorLine)
-	);
+	return [
+		// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending
+		// in whitespace
+		/\s*(?:\[[^\]]\]\s+[^\[]+\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/,
+		// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
+		/(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i,
+		// Same as above but allows a preceding '?' or ':' and optional wrappers e.g.
+		// "Continue? (y/n)" or "Overwrite: [yes/no]"
+		/[?:]\s*(?:\(|\[)?\s*y(?:es)?\s*\/\s*n(?:o)?\s*(?:\]|\))?\s+$/i,
+		// Confirmation prompts ending with (y) e.g. "Ok to proceed? (y)"
+		/\(y\)\s*$/i,
+		// Line ends with ':'
+		/:\s*$/,
+		// Line contains (END) which is common in pagers
+		/\(END\)$/,
+		// Password prompt
+		/password[:]?$/i,
+		// Line ends with '?'
+		/\?\s*(?:\([a-z\s]+\))?$/i,
+		// "Press a key" or "Press any key"
+		/press a(?:ny)? key/i,
+	].some(e => e.test(cursorLine));
 }

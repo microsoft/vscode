@@ -1170,7 +1170,7 @@ export class FindController<T, TFilterData> extends AbstractFindController<T, TF
 		this.disposables.add(this.tree.onWillRefilter(() => this.filter.reset()));
 	}
 
-	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
+	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate<T> = {}): void {
 		if (optionsUpdate.defaultFindMode !== undefined) {
 			this.mode = optionsUpdate.defaultFindMode;
 		}
@@ -1618,7 +1618,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return this._widget.focusedLast();
 	}
 
-	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
+	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate<T> = {}): void {
 		if (optionsUpdate.paddingTop !== undefined) {
 			this.paddingTop = optionsUpdate.paddingTop;
 		}
@@ -1632,7 +1632,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		}
 	}
 
-	validateStickySettings(options: IAbstractTreeOptionsUpdate): { stickyScrollMaxItemCount: number } {
+	validateStickySettings(options: IAbstractTreeOptionsUpdate<T>): { stickyScrollMaxItemCount: number } {
 		let stickyScrollMaxItemCount = 7;
 		if (typeof options.stickyScrollMaxItemCount === 'number') {
 			stickyScrollMaxItemCount = Math.max(options.stickyScrollMaxItemCount, 1);
@@ -2172,7 +2172,7 @@ function asTreeContextMenuEvent<T, TFilterData = void>(event: IListContextMenuEv
 	};
 }
 
-export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
+export interface IAbstractTreeOptionsUpdate<T> extends ITreeRendererOptions {
 	readonly multipleSelectionSupport?: boolean;
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;
@@ -2185,13 +2185,13 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly mouseWheelScrollSensitivity?: number;
 	readonly fastScrollSensitivity?: number;
 	readonly expandOnDoubleClick?: boolean;
-	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is the tree element (T)
+	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
 	readonly enableStickyScroll?: boolean;
 	readonly stickyScrollMaxItemCount?: number;
 	readonly paddingTop?: number;
 }
 
-export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
+export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate<T>, IListOptions<T> {
 	readonly contextViewProvider?: IContextViewProvider;
 	readonly collapseByDefault?: boolean; // defaults to false
 	readonly allowNonCollapsibleParents?: boolean; // defaults to false
@@ -2694,7 +2694,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.getHTMLElement().classList.toggle('always', this._options.renderIndentGuides === RenderIndentGuides.Always);
 	}
 
-	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
+	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate<T> = {}): void {
 		this._options = { ...this._options, ...optionsUpdate };
 
 		for (const renderer of this.renderers) {
@@ -2714,7 +2714,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this._options;
 	}
 
-	private updateStickyScroll(optionsUpdate: IAbstractTreeOptionsUpdate) {
+	private updateStickyScroll(optionsUpdate: IAbstractTreeOptionsUpdate<T>) {
 		if (!this.stickyScrollController && this._options.enableStickyScroll) {
 			this.stickyScrollController = new StickyScrollController(this, this.model, this.view, this.renderers, this.treeDelegate, this._options);
 			this.onDidChangeStickyScrollFocused = this.stickyScrollController.onDidChangeHasFocus;
@@ -3202,7 +3202,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		// a nice to have UI feature.
 		const activeNodesEmitter = this.modelDisposables.add(new Emitter<ITreeNode<T, TFilterData>[]>());
 		const activeNodesDebounce = this.modelDisposables.add(new Delayer(0));
-		this.modelDisposables.add(Event.any<any>(onDidModelSplice, this.focus.onDidChange, this.selection.onDidChange)(() => {
+		this.modelDisposables.add(Event.any(onDidModelSplice, this.focus.onDidChange, this.selection.onDidChange)(() => {
 			activeNodesDebounce.trigger(() => {
 				const set = new Set<ITreeNode<T, TFilterData>>();
 
@@ -3241,12 +3241,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 }
 
-interface ITreeNavigatorView<T extends NonNullable<any>, TFilterData> {
+interface ITreeNavigatorView<T, TFilterData> {
 	readonly length: number;
 	element(index: number): ITreeNode<T, TFilterData>;
 }
 
-class TreeNavigator<T extends NonNullable<any>, TFilterData, TRef> implements ITreeNavigator<T> {
+class TreeNavigator<T, TFilterData, TRef> implements ITreeNavigator<T> {
 
 	private index: number;
 

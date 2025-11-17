@@ -410,16 +410,3 @@
 .monaco-workbench .inline-chat .chat-attached-context {
 	padding: 3px 0px;
 }
-
-
-/* HINT */
-
-.monaco-workbench .monaco-editor .inline-chat-hint {
-	cursor: pointer;
-	color: var(--vscode-editorGhostText-foreground);
-}
-
-.monaco-workbench .monaco-editor .inline-chat-hint.embedded {
-	border: 1px solid var(--vscode-editorSuggestWidget-border);
-	border-radius: 3px;
-}

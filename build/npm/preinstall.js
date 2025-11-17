@@ -2,26 +2,44 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
-const majorNodeVersion = parseInt(nodeVersion[1]);
-const minorNodeVersion = parseInt(nodeVersion[2]);
-const patchNodeVersion = parseInt(nodeVersion[3]);
+// @ts-check
+const path = require('path');
+const fs = require('fs');
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
-	if (majorNodeVersion < 22 || (majorNodeVersion === 22 && minorNodeVersion < 15) || (majorNodeVersion === 22 && minorNodeVersion === 15 && patchNodeVersion < 1)) {
-		console.error('\x1b[1;31m*** Please use Node.js v22.15.1 or later for development.\x1b[0;0m');
+	// Get the running Node.js version
+	const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
+	const majorNodeVersion = parseInt(nodeVersion[1]);
+	const minorNodeVersion = parseInt(nodeVersion[2]);
+	const patchNodeVersion = parseInt(nodeVersion[3]);
+
+	// Get the required Node.js version from .nvmrc
+	const nvmrcPath = path.join(__dirname, '..', '..', '.nvmrc');
+	const requiredVersion = fs.readFileSync(nvmrcPath, 'utf8').trim();
+	const requiredVersionMatch = /^(\d+)\.(\d+)\.(\d+)/.exec(requiredVersion);
+
+	if (!requiredVersionMatch) {
+		console.error('\x1b[1;31m*** Unable to parse required Node.js version from .nvmrc\x1b[0;0m');
+		throw new Error();
+	}
+
+	const requiredMajor = parseInt(requiredVersionMatch[1]);
+	const requiredMinor = parseInt(requiredVersionMatch[2]);
+	const requiredPatch = parseInt(requiredVersionMatch[3]);
+
+	if (majorNodeVersion < requiredMajor ||
+		(majorNodeVersion === requiredMajor && minorNodeVersion < requiredMinor) ||
+		(majorNodeVersion === requiredMajor && minorNodeVersion === requiredMinor && patchNodeVersion < requiredPatch)) {
+		console.error(`\x1b[1;31m*** Please use Node.js v${requiredVersion} or later for development. Currently using v${process.versions.node}.\x1b[0;0m`);
 		throw new Error();
 	}
 }
 
-if (process.env['npm_execpath'].includes('yarn')) {
+if (process.env.npm_execpath?.includes('yarn')) {
 	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
 	throw new Error();
 }
 
-const path = require('path');
-const fs = require('fs');
 const cp = require('child_process');
 const os = require('os');
 
@@ -32,8 +50,9 @@ if (process.platform === 'win32') {
 		console.error('\x1b[1;31m*** set vs2022_install=<path> (or vs2019_install for older versions)\x1b[0;0m');
 		throw new Error();
 	}
-	installHeaders();
 }
+
+installHeaders();
 
 if (process.arch !== os.arch()) {
 	console.error(`\x1b[1;31m*** ARCHITECTURE MISMATCH: The node.js process is ${process.arch}, but your OS architecture is ${os.arch()}. ***\x1b[0;0m`);
@@ -82,30 +101,51 @@ function hasSupportedVisualStudioVersion() {
 }
 
 function installHeaders() {
-	cp.execSync(`npm.cmd ${process.env['npm_command'] || 'ci'}`, {
+	const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+	cp.execSync(`${npm} ${process.env.npm_command || 'ci'}`, {
 		env: process.env,
 		cwd: path.join(__dirname, 'gyp'),
 		stdio: 'inherit'
 	});
 
 	// The node gyp package got installed using the above npm command using the gyp/package.json
-	// file checked into our repository. So from that point it is save to construct the path
+	// file checked into our repository. So from that point it is safe to construct the path
 	// to that executable
-	const node_gyp = path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
-	const result = cp.execFileSync(node_gyp, ['list'], { encoding: 'utf8', shell: true });
-	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => value));
+	const node_gyp = process.platform === 'win32'
+		? path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
+		: path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
 
 	const local = getHeaderInfo(path.join(__dirname, '..', '..', '.npmrc'));
 	const remote = getHeaderInfo(path.join(__dirname, '..', '..', 'remote', '.npmrc'));
 
-	if (local !== undefined && !versions.has(local.target)) {
+	if (local !== undefined) {
 		// Both disturl and target come from a file checked into our repository
 		cp.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
 	}
 
-	if (remote !== undefined && !versions.has(remote.target)) {
+	if (remote !== undefined) {
 		// Both disturl and target come from a file checked into our repository
 		cp.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
+	}
+
+	// On Linux, apply a patch to the downloaded headers
+	// Remove dependency on std::source_location to avoid bumping the required GCC version to 11+
+	// Refs https://chromium-review.googlesource.com/c/v8/v8/+/6879784
+	if (process.platform === 'linux') {
+		const homedir = os.homedir();
+		const cachePath = process.env.XDG_CACHE_HOME || path.join(homedir, '.cache');
+		const nodeGypCache = path.join(cachePath, 'node-gyp');
+		const localHeaderPath = path.join(nodeGypCache, local.target, 'include', 'node');
+		if (fs.existsSync(localHeaderPath)) {
+			console.log('Applying v8-source-location.patch to', localHeaderPath);
+			try {
+				cp.execFileSync('patch', ['-p0', '-i', path.join(__dirname, 'gyp', 'custom-headers', 'v8-source-location.patch')], {
+					cwd: localHeaderPath
+				});
+			} catch (error) {
+				throw new Error(`Error applying v8-source-location.patch: ${error.message}`);
+			};
+		}
 	}
 }
 
@@ -114,7 +154,7 @@ function installHeaders() {
  * @returns {{ disturl: string; target: string } | undefined}
  */
 function getHeaderInfo(rcFile) {
-	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n?/g);
+	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n|\n/g);
 	let disturl, target;
 	for (const line of lines) {
 		let match = line.match(/\s*disturl=*\"(.*)\"\s*$/);

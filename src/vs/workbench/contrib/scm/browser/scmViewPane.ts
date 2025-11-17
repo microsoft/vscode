@@ -24,7 +24,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, MenuRegistry, Ac
 import { IAction, ActionRunner, Action, Separator, IActionRunner, toAction } from '../../../../base/common/actions.js';
 import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IThemeService, IFileIconTheme } from '../../../../platform/theme/common/themeService.js';
-import { isSCMResource, isSCMResourceGroup, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMResourceNode, connectPrimaryMenu } from './util.js';
+import { isSCMResource, isSCMResourceGroup, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMResourceNode, connectPrimaryMenu, addClassToTwistieElement } from './util.js';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from '../../../../platform/list/browser/listService.js';
 import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from '../../../../base/common/async.js';
@@ -191,13 +191,8 @@ export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActio
 	) { }
 
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
-		// HACK - add .force-no-twistie class to the twistie element
-		if (container.classList.contains('monaco-tl-contents')) {
-			const twistieElement = container.previousElementSibling;
-			if (twistieElement && twistieElement.classList.contains('monaco-tl-twistie')) {
-				twistieElement.classList.add('force-no-twistie');
-			}
-		}
+		// HACK - use helper function as there is no tree API
+		addClassToTwistieElement(container, 'force-no-twistie');
 
 		// Use default cursor & disable hover for list item
 		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
@@ -320,13 +315,8 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	) { }
 
 	renderTemplate(container: HTMLElement): InputTemplate {
-		// HACK - add .force-no-twistie class to the twistie element
-		if (container.classList.contains('monaco-tl-contents')) {
-			const twistieElement = container.previousElementSibling;
-			if (twistieElement && twistieElement.classList.contains('monaco-tl-twistie')) {
-				twistieElement.classList.add('force-no-twistie');
-			}
-		}
+		// HACK - use helper function as there is no tree API
+		addClassToTwistieElement(container, 'force-no-twistie');
 
 		// Disable hover for list item
 		container.parentElement!.parentElement!.classList.add('force-no-hover');
@@ -457,13 +447,8 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
-		// HACK - add .force-twistie class to the twistie element
-		if (container.classList.contains('monaco-tl-contents')) {
-			const twistieElement = container.previousElementSibling;
-			if (twistieElement && twistieElement.classList.contains('monaco-tl-twistie')) {
-				twistieElement.classList.add('force-twistie');
-			}
-		}
+		// HACK - use helper function as there is no tree API
+		addClassToTwistieElement(container, 'force-twistie');
 
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));

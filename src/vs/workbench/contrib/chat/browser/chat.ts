@@ -48,8 +48,6 @@ export interface IChatWidgetService {
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 
-	/** @deprecated Use {@link getWidgetBySessionResource} instead */
-	getWidgetBySessionId(sessionId: string): IChatWidget | undefined;
 	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
 
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;

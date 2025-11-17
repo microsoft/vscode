@@ -221,6 +221,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		contextKeyService: IContextKeyService,
 		instantiationService: IInstantiationService,
 		taskSystemInfoResolver: ITaskSystemInfoResolver,
+		private _taskLookup: (taskKey: string) => Promise<Task | undefined>,
 	) {
 		super();
 
@@ -1944,12 +1945,19 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return 'other';
 	}
 
-	public getTaskForTerminal(instanceId: number): Task | undefined {
+	public async getTaskForTerminal(instanceId: number): Promise<Task | undefined> {
+		// First check if there's an active task for this terminal
 		for (const key in this._activeTasks) {
 			const activeTask = this._activeTasks[key];
 			if (activeTask.terminal?.instanceId === instanceId) {
 				return activeTask.task;
 			}
+		}
+		// If no active task, check the terminals map for the last task that ran in this terminal
+		const terminalData = this._terminals[instanceId.toString()];
+		if (terminalData?.lastTask) {
+			// Look up the task using the callback provided by the task service
+			return await this._taskLookup(terminalData.lastTask);
 		}
 		return undefined;
 	}

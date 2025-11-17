@@ -31,11 +31,11 @@ export const badgeForeground = registerColor('badge.foreground',
 	nls.localize('badgeForeground', "Badge foreground color. Badges are small information labels, e.g. for search results count."));
 
 export const activityWarningBadgeForeground = registerColor('activityWarningBadge.foreground',
-	{ dark: Color.black.lighten(0.2), light: Color.white, hcDark: null, hcLight: Color.black.lighten(0.2) },
+	{ dark: Color.white, light: Color.white, hcDark: Color.white, hcLight: Color.white },
 	nls.localize('activityWarningBadge.foreground', 'Foreground color of the warning activity badge'));
 
 export const activityWarningBadgeBackground = registerColor('activityWarningBadge.background',
-	{ dark: '#CCA700', light: '#BF8803', hcDark: null, hcLight: '#CCA700' },
+	{ dark: '#B27C00', light: '#B27C00', hcDark: null, hcLight: '#B27C00' },
 	nls.localize('activityWarningBadge.background', 'Background color of the warning activity badge'));
 
 export const activityErrorBadgeForeground = registerColor('activityErrorBadge.foreground',
