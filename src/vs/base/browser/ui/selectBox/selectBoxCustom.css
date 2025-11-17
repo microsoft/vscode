@@ -17,7 +17,9 @@
 
 .monaco-select-box-dropdown-container {
 	display: none;
-	box-sizing:	border-box;
+	box-sizing: border-box;
+	border-radius: 5px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown * {
@@ -41,8 +43,6 @@
 	text-align: left;
 	width: 1px;
 	overflow: hidden;
-	border-bottom-left-radius: 3px;
-	border-bottom-right-radius: 3px;
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container {
@@ -54,7 +54,7 @@
 	padding-right: 1px;
 	width: 100%;
 	overflow: hidden;
-	box-sizing:	border-box;
+	box-sizing: border-box;
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane {
@@ -100,12 +100,12 @@
 /* https://webaim.org/techniques/css/invisiblecontent/ */
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row > .visually-hidden {
-		position: absolute;
-		left: -10000px;
-		top: auto;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
+	position: absolute;
+	left: -10000px;
+	top: auto;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-container-width-control {
