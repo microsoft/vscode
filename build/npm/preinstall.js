@@ -2,15 +2,35 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
-const majorNodeVersion = parseInt(nodeVersion[1]);
-const minorNodeVersion = parseInt(nodeVersion[2]);
-const patchNodeVersion = parseInt(nodeVersion[3]);
+// @ts-check
+const path = require('path');
+const fs = require('fs');
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
-	if (majorNodeVersion < 22 || (majorNodeVersion === 22 && minorNodeVersion < 15) || (majorNodeVersion === 22 && minorNodeVersion === 15 && patchNodeVersion < 1)) {
-		console.error('\x1b[1;31m*** Please use Node.js v22.15.1 or later for development.\x1b[0;0m');
+	// Get the running Node.js version
+	const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
+	const majorNodeVersion = parseInt(nodeVersion[1]);
+	const minorNodeVersion = parseInt(nodeVersion[2]);
+	const patchNodeVersion = parseInt(nodeVersion[3]);
+
+	// Get the required Node.js version from .nvmrc
+	const nvmrcPath = path.join(__dirname, '..', '..', '.nvmrc');
+	const requiredVersion = fs.readFileSync(nvmrcPath, 'utf8').trim();
+	const requiredVersionMatch = /^(\d+)\.(\d+)\.(\d+)/.exec(requiredVersion);
+
+	if (!requiredVersionMatch) {
+		console.error('\x1b[1;31m*** Unable to parse required Node.js version from .nvmrc\x1b[0;0m');
+		throw new Error();
+	}
+
+	const requiredMajor = parseInt(requiredVersionMatch[1]);
+	const requiredMinor = parseInt(requiredVersionMatch[2]);
+	const requiredPatch = parseInt(requiredVersionMatch[3]);
+
+	if (majorNodeVersion < requiredMajor ||
+		(majorNodeVersion === requiredMajor && minorNodeVersion < requiredMinor) ||
+		(majorNodeVersion === requiredMajor && minorNodeVersion === requiredMinor && patchNodeVersion < requiredPatch)) {
+		console.error(`\x1b[1;31m*** Please use Node.js v${requiredVersion} or later for development. Currently using v${process.versions.node}.\x1b[0;0m`);
 		throw new Error();
 	}
 }
@@ -20,8 +40,6 @@ if (process.env.npm_execpath?.includes('yarn')) {
 	throw new Error();
 }
 
-const path = require('path');
-const fs = require('fs');
 const cp = require('child_process');
 const os = require('os');
 

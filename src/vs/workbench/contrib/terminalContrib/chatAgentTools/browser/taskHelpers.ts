@@ -21,6 +21,7 @@ import { OutputMonitor } from './tools/monitoring/outputMonitor.js';
 import { IExecution, IPollingResult, OutputMonitorState } from './tools/monitoring/types.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IReconnectionTaskData } from '../../../tasks/browser/terminalTaskSystem.js';
+import { isString } from '../../../../../base/common/types.js';
 
 
 export function getTaskDefinition(id: string) {
@@ -42,7 +43,7 @@ export function getTaskRepresentation(task: IConfiguredTask | Task): string {
 	} else if ('script' in task && task.script) {
 		return task.script;
 	} else if ('command' in task && task.command) {
-		return typeof task.command === 'string' ? task.command : task.command.name?.toString() || '';
+		return isString(task.command) ? task.command : task.command.name?.toString() || '';
 	}
 	return '';
 }
@@ -134,7 +135,7 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
 		return undefined;
 	}
 	const dependencyTasks = await Promise.all(parentTask.configurationProperties.dependsOn.map(async (dep: ITaskDependency) => {
-		const depId: string | undefined = typeof dep.task === 'string' ? dep.task : dep.task?._key;
+		const depId: string | undefined = isString(dep.task) ? dep.task : dep.task?._key;
 		if (!depId) {
 			return undefined;
 		}
