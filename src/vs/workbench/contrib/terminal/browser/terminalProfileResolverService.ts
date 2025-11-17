@@ -232,7 +232,10 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		// Try select an existing profile to fallback to, based on the default system shell, only do
 		// this when it is NOT a local terminal in a remote window where the front and back end OS
 		// differs (eg. Windows -> WSL, Mac -> Linux)
-		if (options.os === OS) {
+		// When remoteAuthority is undefined but we have a remote connection, we're creating a local
+		// terminal in a remote window - skip profile matching as availableProfiles contains remote profiles
+		const isLocalTerminalInRemoteWindow = options.remoteAuthority === undefined && this._remoteAgentService.getConnection()?.remoteAuthority !== undefined;
+		if (options.os === OS && !isLocalTerminalInRemoteWindow) {
 			let existingProfile = this._terminalProfileService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
 			if (existingProfile) {
 				if (options.allowAutomationShell) {
