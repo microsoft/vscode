@@ -448,8 +448,4 @@ export class InlineCompletionsController extends Disposable {
 			m.jump();
 		}
 	}
-
-	public testOnlyDisableUi() {
-		this._view.get().dispose();
-	}
 }
