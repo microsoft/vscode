@@ -12,7 +12,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { IObservable, ObservablePromise, autorunSelfDisposable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { IObservable, autorunSelfDisposable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
@@ -1074,7 +1074,6 @@ export interface IChatModel extends IDisposable {
 	readonly requestInProgress: boolean;
 	readonly requestInProgressObs: IObservable<boolean>;
 	readonly inputPlaceholder?: string;
-	readonly editingSessionObs?: ObservablePromise<IChatEditingSession> | undefined;
 	readonly editingSession?: IChatEditingSession | undefined;
 	/**
 	 * Sets requests as 'disabled', removing them from the UI. If a request ID
@@ -1435,13 +1434,10 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._customTitle !== undefined;
 	}
 
-	private _editingSession: ObservablePromise<IChatEditingSession> | undefined;
-	get editingSessionObs(): ObservablePromise<IChatEditingSession> | undefined {
-		return this._editingSession;
-	}
+	private _editingSession: IChatEditingSession | undefined;
 
 	get editingSession(): IChatEditingSession | undefined {
-		return this._editingSession?.promiseResult.get()?.data;
+		return this._editingSession;
 	}
 
 	private readonly _initialLocation: ChatAgentLocation;
@@ -1491,15 +1487,13 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void {
-		const editingSessionPromise = transferFromSession
-			? this.chatEditingService.transferEditingSession(this, transferFromSession)
-			: isGlobalEditingSession ?
-				this.chatEditingService.startOrContinueGlobalEditingSession(this) :
-				this.chatEditingService.createEditingSession(this);
-		this._editingSession = new ObservablePromise(editingSessionPromise);
-		this._editingSession.promise.then(editingSession => {
-			this._store.isDisposed ? editingSession.dispose() : this._register(editingSession);
-		});
+		this._editingSession ??= this._register(
+			transferFromSession
+				? this.chatEditingService.transferEditingSession(this, transferFromSession)
+				: isGlobalEditingSession
+					? this.chatEditingService.startOrContinueGlobalEditingSession(this)
+					: this.chatEditingService.createEditingSession(this)
+		);
 	}
 
 	private currentEditedFileEvents = new ResourceMap<IChatAgentEditedFileEvent>();
