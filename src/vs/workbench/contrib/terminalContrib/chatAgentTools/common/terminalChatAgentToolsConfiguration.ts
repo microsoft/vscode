@@ -20,6 +20,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 	OutputLocation = 'chat.tools.terminal.outputLocation',
+	// Add a new sandboxing setting here
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',

@@ -489,6 +489,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolSpecificData.commandLine.toolEdited !== toolSpecificData.commandLine.original
 		);
 
+		// Check sandbox setting, assume it's correct
+
+		// Wrap command with srt "..."
+
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
@@ -655,6 +659,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				terminalResult = resultArr.join('\n\n');
 
+				// If sandboxing setting is enabled and exit code is non-zero and /\bsrt\b/ is in exeucteResult.output, add a note about sandboxing to toolResultMessage
+				// This can be a command URI that opens the settings UI at the sandboxing setting (Matt knows about this if you can't find similar things)
+
 			} catch (e) {
 				this._logService.debug(`RunInTerminalTool: Threw exception`);
 				toolTerminal.instance.dispose();
@@ -691,6 +698,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 
 			const resultText: string[] = [];
+			// Tell the agent about it
+			// if (didSandbox) {
+			// 	...
+			// }
 			if (didUserEditCommand) {
 				resultText.push(`Note: The user manually edited the command to \`${command}\`, and this is the output of running that command instead:\n`);
 			} else if (didToolEditCommand) {
