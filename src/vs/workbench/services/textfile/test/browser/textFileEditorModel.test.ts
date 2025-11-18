@@ -90,6 +90,14 @@ suite('Files - TextFileEditorModel', () => {
 		model.dispose();
 	});
 
+	test('isTextFileEditorModel - does not match untitled models', async function () {
+		const untitledModel = await accessor.textFileService.untitled.resolve();
+
+		assert.strictEqual(isTextFileEditorModel(untitledModel), false);
+
+		untitledModel.dispose();
+	});
+
 	test('save', async function () {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 

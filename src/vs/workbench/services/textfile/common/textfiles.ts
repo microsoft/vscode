@@ -566,7 +566,16 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 export function isTextFileEditorModel(model: ITextEditorModel): model is ITextFileEditorModel {
 	const candidate = model as ITextFileEditorModel;
 
-	return areFunctions(candidate.setEncoding, candidate.getEncoding, candidate.save, candidate.revert, candidate.isDirty, candidate.getLanguageId);
+	return areFunctions(
+		candidate.setEncoding,
+		candidate.getEncoding,
+		candidate.save,
+		candidate.revert,
+		candidate.isDirty,
+		candidate.getLanguageId,
+		candidate.hasState,
+		candidate.updatePreferredEncoding
+	);
 }
 
 export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
