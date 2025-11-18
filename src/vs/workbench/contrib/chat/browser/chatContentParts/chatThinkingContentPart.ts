@@ -90,7 +90,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.currentTitle = this.defaultTitle;
 			if (this._collapseButton) {
 				this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
-				this._collapseButton.label = localize('chat.thinking.fixed.progress', 'Thinking:');
+				this._collapseButton.label = localize('chat.thinking.fixed.progress', 'Thinking...');
 			}
 
 			// override for codicon chevron in the collapsible part
