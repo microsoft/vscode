@@ -132,12 +132,7 @@ export function trim(haystack: string, needle: string = ' '): string {
 	return rtrim(trimmed, needle);
 }
 
-/**
- * Removes all occurrences of needle from the beginning of haystack.
- * @param haystack string to trim
- * @param needle the thing to trim
- */
-export function ltrim(haystack: string, needle: string): string {
+export function ltrim_old(haystack: string, needle: string): string {
 	if (!haystack || !needle) {
 		return haystack;
 	}
@@ -156,11 +151,31 @@ export function ltrim(haystack: string, needle: string): string {
 }
 
 /**
- * Removes all occurrences of needle from the end of haystack.
+ * Removes all occurrences of needle from the beginning of haystack.
  * @param haystack string to trim
  * @param needle the thing to trim
  */
-export function rtrim(haystack: string, needle: string): string {
+export function ltrim(haystack: string, needle: string): string {
+	if (!haystack || !needle) {
+		return haystack;
+	}
+
+	const needleLen = needle.length;
+	let offset = 0;
+	if (needleLen === 1) {
+		const ch = needle.charCodeAt(0);
+		while (offset < haystack.length && haystack.charCodeAt(offset) === ch) {
+			offset++;
+		}
+	} else {
+		while (haystack.startsWith(needle, offset)) {
+			offset += needleLen;
+		}
+	}
+	return haystack.substring(offset);
+}
+
+export function rtrim_old(haystack: string, needle: string): string {
 	if (!haystack || !needle) {
 		return haystack;
 	}
@@ -184,6 +199,36 @@ export function rtrim(haystack: string, needle: string): string {
 			return '';
 		}
 		offset = idx;
+	}
+
+	return haystack.substring(0, offset);
+}
+
+/**
+ * Removes all occurrences of needle from the end of haystack.
+ * @param haystack string to trim
+ * @param needle the thing to trim
+ */
+export function rtrim(haystack: string, needle: string): string {
+	if (!haystack || !needle) {
+		return haystack;
+	}
+
+	const needleLen = needle.length,
+		haystackLen = haystack.length;
+
+	if (needleLen === 1) {
+		let end = haystackLen;
+		const ch = needle.charCodeAt(0);
+		while (end > 0 && haystack.charCodeAt(end - 1) === ch) {
+			end--;
+		}
+		return haystack.substring(0, end);
+	}
+
+	let offset = haystackLen;
+	while (offset > 0 && haystack.endsWith(needle, offset)) {
+		offset -= needleLen;
 	}
 
 	return haystack.substring(0, offset);
@@ -1197,10 +1242,9 @@ export class AmbiguousCharacters {
 		);
 	});
 
-	private static readonly cache = new LRUCachedFunction<
-		string[],
-		AmbiguousCharacters
-	>({ getCacheKey: JSON.stringify }, (locales) => {
+	private static readonly cache = new LRUCachedFunction<string, AmbiguousCharacters>((localesStr) => {
+		const locales = localesStr.split(',');
+
 		function arrayToMap(arr: number[]): Map<number, number> {
 			const result = new Map<number, number>();
 			for (let i = 0; i < arr.length; i += 2) {
@@ -1257,8 +1301,8 @@ export class AmbiguousCharacters {
 		return new AmbiguousCharacters(map);
 	});
 
-	public static getInstance(locales: Set<string>): AmbiguousCharacters {
-		return AmbiguousCharacters.cache.get(Array.from(locales));
+	public static getInstance(locales: Iterable<string>): AmbiguousCharacters {
+		return AmbiguousCharacters.cache.get(Array.from(locales).join(','));
 	}
 
 	private static _locales = new Lazy<string[]>(() =>
