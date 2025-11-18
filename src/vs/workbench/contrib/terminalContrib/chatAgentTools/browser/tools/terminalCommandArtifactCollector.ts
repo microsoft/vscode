@@ -28,9 +28,14 @@ export class TerminalCommandArtifactCollector {
 				this._logService.warn(`RunInTerminalTool: Failed to create terminal command URI for ${commandId}`, error);
 			}
 
-			const serialized = await this._tryGetSerializedCommandOutput(instance, commandId);
+			const serialized = await this._tryGetSerializedCommandOutput(toolSpecificData, instance, commandId);
 			if (serialized) {
 				toolSpecificData.terminalCommandOutput = { text: serialized.text, truncated: serialized.truncated };
+				toolSpecificData.terminalCommandState = {
+					exitCode: serialized.exitCode,
+					timestamp: serialized.timestamp,
+					duration: serialized.duration
+				};
 				this._applyTheme(toolSpecificData, instance);
 				return;
 			}
@@ -56,9 +61,10 @@ export class TerminalCommandArtifactCollector {
 		return instance.resource.with({ query: params.toString() });
 	}
 
-	private async _tryGetSerializedCommandOutput(instance: ITerminalInstance, commandId: string): Promise<{ text: string; truncated?: boolean } | undefined> {
+	private async _tryGetSerializedCommandOutput(toolSpecificData: IChatTerminalToolInvocationData, instance: ITerminalInstance, commandId: string): Promise<{ text: string; truncated?: boolean; exitCode?: number; timestamp?: number; duration?: number } | undefined> {
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const command = commandDetection?.commands.find(c => c.id === commandId);
+
 		if (!command?.endMarker) {
 			return undefined;
 		}
@@ -69,7 +75,14 @@ export class TerminalCommandArtifactCollector {
 		}
 
 		try {
-			return await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
+			const result = await xterm.getCommandOutputAsHtml(command, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
+			return {
+				text: result.text,
+				truncated: result.truncated,
+				exitCode: command.exitCode,
+				timestamp: command.timestamp,
+				duration: command.duration
+			};
 		} catch (error) {
 			this._logService.warn(`RunInTerminalTool: Failed to serialize command output for ${commandId}`, error);
 			return undefined;

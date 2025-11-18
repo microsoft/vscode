@@ -53,7 +53,7 @@ import { IChatAccessibilityService, IChatWidget, IChatWidgetService, IQuickChatS
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
 import { ChatLayoutService } from '../../../chat/browser/chatLayoutService.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
-import { ChatWidget, ChatWidgetService } from '../../../chat/browser/chatWidget.js';
+import { ChatWidget } from '../../../chat/browser/chatWidget.js';
 import { ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -84,6 +84,7 @@ import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionSer
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestWorkerService } from './testWorkerService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ChatWidgetService } from '../../../chat/browser/chatWidgetService.js';
 
 suite('InlineChatController', function () {
 

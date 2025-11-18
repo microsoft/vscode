@@ -287,7 +287,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this._onDidDelete.fire();
 		} else {
 			this._textModelChangeService.undo();
-			if (this._textModelChangeService.allEditsAreFromUs && isTextFileEditorModel(this._docFileEditorModel)) {
+			if (this._textModelChangeService.allEditsAreFromUs && isTextFileEditorModel(this._docFileEditorModel) && this._shouldAutoSave()) {
 				// save the file after discarding so that the dirty indicator goes away
 				// and so that an intermediate saved state gets reverted
 				await this._docFileEditorModel.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });

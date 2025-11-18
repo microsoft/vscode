@@ -129,12 +129,11 @@ export class InlineChatController implements IEditorContribution {
 		@IConfigurationService configurationService: IConfigurationService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService
 	) {
-		const inlineChat2 = observableConfigValue(InlineChatConfigKeys.EnableV2, false, configurationService);
 		const notebookAgent = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
 
 		this._delegate = derived(r => {
 			const isNotebookCell = !!this._notebookEditorService.getNotebookForPossibleCell(editor);
-			if (isNotebookCell ? notebookAgent.read(r) : inlineChat2.read(r)) {
+			if (!isNotebookCell || notebookAgent.read(r)) {
 				return InlineChatController2.get(editor)!;
 			} else {
 				return InlineChatController1.get(editor)!;
@@ -1403,6 +1402,19 @@ export class InlineChatController2 implements IEditorContribution {
 				}
 				this._zone.value.reveal(this._zone.value.position!);
 				this._zone.value.widget.focus();
+			}
+		}));
+
+		this._store.add(autorun(r => {
+			const session = visibleSessionObs.read(r);
+			if (session) {
+				const entries = session.editingSession.entries.read(r);
+				const otherEntries = entries.filter(entry => !isEqual(entry.modifiedURI, session.uri));
+				for (const entry of otherEntries) {
+					// OPEN other modified files in side group. This is a workaround, temp-solution until we have no more backend
+					// that modifies other files
+					this._editorService.openEditor({ resource: entry.modifiedURI }, SIDE_GROUP).catch(onUnexpectedError);
+				}
 			}
 		}));
 

@@ -209,8 +209,13 @@ export class OffsetRange implements IOffsetRange {
 		return new OffsetRange(this.start, range.endExclusive);
 	}
 
-	public withMargin(margin: number): OffsetRange {
-		return new OffsetRange(this.start - margin, this.endExclusive + margin);
+	public withMargin(margin: number): OffsetRange;
+	public withMargin(marginStart: number, marginEnd: number): OffsetRange;
+	public withMargin(marginStart: number, marginEnd?: number): OffsetRange {
+		if (marginEnd === undefined) {
+			marginEnd = marginStart;
+		}
+		return new OffsetRange(this.start - marginStart, this.endExclusive + marginEnd);
 	}
 }
 
