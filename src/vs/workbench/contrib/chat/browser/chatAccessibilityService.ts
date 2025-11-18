@@ -17,7 +17,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { FocusMode } from '../../../../platform/native/common/native.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { AccessibilityVoiceSettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { IChatElicitationRequest } from '../common/chatService.js';
+import { ElicitationState, IChatElicitationRequest } from '../common/chatService.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { IChatAccessibilityService, IChatWidgetService } from './chat.js';
@@ -73,7 +73,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		}
 	}
 	acceptElicitation(elicitation: IChatElicitationRequest): void {
-		if (elicitation.state !== 'pending') {
+		if (elicitation.state.get() !== ElicitationState.Pending) {
 			return;
 		}
 		const title = typeof elicitation.title === 'string' ? elicitation.title : elicitation.title.value;

@@ -1801,42 +1801,48 @@ export class Repository implements Disposable {
 
 	async createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
 		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`);
-		let { path: worktreePath, commitish, branch } = options || {};
-		let worktreeName: string | undefined;
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const branchPrefix = config.get<string>('branchPrefix', '');
 
 		return await this.run(Operation.Worktree, async () => {
-			// Generate branch name if not provided
-			if (branch === undefined) {
-				const config = workspace.getConfiguration('git', Uri.file(this.root));
-				const branchPrefix = config.get<string>('branchPrefix', '');
+			let worktreeName: string | undefined;
+			let { path: worktreePath, commitish, branch } = options || {};
 
-				let worktreeName = await this.getRandomBranchName();
+			if (branch === undefined) {
+				// Generate branch name if not provided
+				worktreeName = await this.getRandomBranchName();
 				if (!worktreeName) {
 					// Fallback to timestamp-based name if random generation fails
 					const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 					worktreeName = `worktree-${timestamp}`;
 				}
-
 				branch = `${branchPrefix}${worktreeName}`;
+
+				// Append worktree name to provided path
+				if (worktreePath !== undefined) {
+					worktreePath = path.join(worktreePath, worktreeName);
+				}
+			} else {
+				// Extract worktree name from branch
+				worktreeName = branch.startsWith(branchPrefix)
+					? branch.substring(branchPrefix.length).replace(/\//g, '-')
+					: branch.replace(/\//g, '-');
 			}
 
-			// Generate path if not provided
 			if (worktreePath === undefined) {
 				worktreePath = defaultWorktreeRoot
-					? path.join(defaultWorktreeRoot, worktreeName!)
-					: path.join(path.dirname(this.root), `${path.basename(this.root)}.worktrees`, worktreeName!);
+					? path.join(defaultWorktreeRoot, worktreeName)
+					: path.join(path.dirname(this.root), `${path.basename(this.root)}.worktrees`, worktreeName);
+			}
 
-				// Ensure that the worktree path is unique
-				if (this.worktrees.some(worktree => pathEquals(path.normalize(worktree.path), path.normalize(worktreePath!)))) {
-					let counter = 1;
-					let uniqueWorktreePath = `${worktreePath}-${counter}`;
-					while (this.worktrees.some(wt => pathEquals(path.normalize(wt.path), path.normalize(uniqueWorktreePath)))) {
-						counter++;
-						uniqueWorktreePath = `${worktreePath}-${counter}`;
-					}
+			// Ensure that the worktree path is unique
+			if (this.worktrees.some(worktree => pathEquals(path.normalize(worktree.path), path.normalize(worktreePath!)))) {
+				let counter = 0, uniqueWorktreePath: string;
+				do {
+					uniqueWorktreePath = `${worktreePath}-${++counter}`;
+				} while (this.worktrees.some(wt => pathEquals(path.normalize(wt.path), path.normalize(uniqueWorktreePath))));
 
-					worktreePath = uniqueWorktreePath;
-				}
+				worktreePath = uniqueWorktreePath;
 			}
 
 			// Create the worktree
@@ -3047,6 +3053,7 @@ export class Repository implements Disposable {
 		}
 
 		const dictionaries: string[][] = [];
+		const branchPrefix = config.get<string>('branchPrefix', '');
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar', '-');
 		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary', ['adjectives', 'animals']);
 
@@ -3075,7 +3082,7 @@ export class Repository implements Disposable {
 			});
 
 			// Check for local ref conflict
-			const refs = await this.getRefs({ pattern: `refs/heads/${randomName}` });
+			const refs = await this.getRefs({ pattern: `refs/heads/${branchPrefix}${randomName}` });
 			if (refs.length === 0) {
 				return randomName;
 			}
