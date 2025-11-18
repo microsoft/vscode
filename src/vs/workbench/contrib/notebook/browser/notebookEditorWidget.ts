@@ -1959,11 +1959,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		} else {
 			// We have to recompute position and size ourselves (which is slow)
 			const containerRect = shadowElement.getBoundingClientRect();
+			const elementContainerRect = this._overlayContainer.parentElement?.getBoundingClientRect();
 			this._shadowElementViewInfo = {
 				height: containerRect.height,
 				width: containerRect.width,
-				top: containerRect.top,
-				left: containerRect.left
+				top: containerRect.top - (elementContainerRect?.top || 0),
+				left: containerRect.left - (elementContainerRect?.left || 0)
 			};
 		}
 	}
@@ -1981,9 +1982,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
-		const elementContainerRect = this._overlayContainer.parentElement?.getBoundingClientRect();
-		this._overlayContainer.style.top = `${this._shadowElementViewInfo.top - (elementContainerRect?.top || 0)}px`;
-		this._overlayContainer.style.left = `${this._shadowElementViewInfo.left - (elementContainerRect?.left || 0)}px`;
+		this._overlayContainer.style.top = `${this._shadowElementViewInfo.top}px`;
+		this._overlayContainer.style.left = `${this._shadowElementViewInfo.left}px`;
 		this._overlayContainer.style.width = `${dimension ? dimension.width : this._shadowElementViewInfo.width}px`;
 		this._overlayContainer.style.height = `${dimension ? dimension.height : this._shadowElementViewInfo.height}px`;
 	}
