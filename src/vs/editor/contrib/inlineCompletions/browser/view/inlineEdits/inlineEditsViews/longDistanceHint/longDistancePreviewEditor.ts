@@ -3,24 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { n } from '../../../../../../../base/browser/dom.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { IObservable, derived, constObservable, IReader, autorun, observableValue } from '../../../../../../../base/common/observable.js';
-import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
-import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { EmbeddedCodeEditorWidget } from '../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
-import { IDimension } from '../../../../../../common/core/2d/dimension.js';
-import { Range } from '../../../../../../common/core/range.js';
-import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
-import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
-import { DetailedLineRangeMapping } from '../../../../../../common/diff/rangeMapping.js';
-import { IModelDeltaDecoration, ITextModel } from '../../../../../../common/model.js';
-import { ModelDecorationOptions } from '../../../../../../common/model/textModel.js';
-import { InlineCompletionContextKeys } from '../../../controller/inlineCompletionContextKeys.js';
-import { InlineEditsGutterIndicator, InlineEditsGutterIndicatorData, InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../components/gutterIndicatorView.js';
-import { InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { classNames, maxContentWidthInRange } from '../utils/utils.js';
+import { n } from '../../../../../../../../base/browser/dom.js';
+import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
+import { IObservable, derived, constObservable, IReader, autorun, observableValue } from '../../../../../../../../base/common/observable.js';
+import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
+import { ICodeEditor } from '../../../../../../../browser/editorBrowser.js';
+import { ObservableCodeEditor, observableCodeEditor } from '../../../../../../../browser/observableCodeEditor.js';
+import { EmbeddedCodeEditorWidget } from '../../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
+import { IDimension } from '../../../../../../../common/core/2d/dimension.js';
+import { Position } from '../../../../../../../common/core/position.js';
+import { Range } from '../../../../../../../common/core/range.js';
+import { LineRange } from '../../../../../../../common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../../../../common/core/ranges/offsetRange.js';
+import { DetailedLineRangeMapping } from '../../../../../../../common/diff/rangeMapping.js';
+import { IModelDeltaDecoration, ITextModel } from '../../../../../../../common/model.js';
+import { ModelDecorationOptions } from '../../../../../../../common/model/textModel.js';
+import { InlineCompletionContextKeys } from '../../../../controller/inlineCompletionContextKeys.js';
+import { InlineEditsGutterIndicator, InlineEditsGutterIndicatorData, InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
+import { InlineEditTabAction } from '../../inlineEditsViewInterface.js';
+import { classNames, maxContentWidthInRange } from '../../utils/utils.js';
 
 export interface ILongDistancePreviewProps {
 	diff: DetailedLineRangeMapping[];
@@ -59,6 +60,16 @@ export class LongDistancePreviewEditor extends Disposable {
 			const decorations = this._editorDecorations.read(reader);
 			return (state?.mode === 'original' ? decorations?.originalDecorations : decorations?.modifiedDecorations) ?? [];
 		})));
+
+		this._register(autorun(reader => {
+			const state = this._properties.read(reader);
+			if (!state) {
+				return;
+			}
+			// Ensure there is enough space to the left of the line number for the gutter indicator to fits.
+			const lineNumberDigets = state.diff[0].modified.startLineNumber.toString().length;
+			this.previewEditor.updateOptions({ lineNumbersMinChars: lineNumberDigets + 1 });
+		}));
 
 		this._register(this._instantiationService.createInstance(
 			InlineEditsGutterIndicator,
@@ -174,7 +185,7 @@ export class LongDistancePreviewEditor extends Disposable {
 		return this._getHorizontalContentRangeInPreviewEditorToShow(this.previewEditor, this._properties.read(reader)?.diff ?? [], reader);
 	});
 
-	public readonly previewEditorHeight = derived(this, (reader) => {
+	public readonly contentHeight = derived(this, (reader) => {
 		const viewState = this._properties.read(reader);
 		if (!viewState) {
 			return constObservable(null);
@@ -186,15 +197,34 @@ export class LongDistancePreviewEditor extends Disposable {
 
 	private _getHorizontalContentRangeInPreviewEditorToShow(editor: ICodeEditor, diff: DetailedLineRangeMapping[], reader: IReader) {
 
-		//diff[0].innerChanges[0].originalRange;
 		const r = LineRange.ofLength(diff[0].modified.startLineNumber, 1);
 		const l = this._previewEditorObs.layoutInfo.read(reader);
-		const w = maxContentWidthInRange(this._previewEditorObs, r, reader) + l.contentLeft - l.verticalScrollbarWidth;
-		const preferredRange = new OffsetRange(0, w);
+		const trueContentWidth = maxContentWidthInRange(this._previewEditorObs, r, reader);
+
+		const state = this._state.read(reader);
+		if (!state || !diff[0].innerChanges) {
+			return undefined;
+		}
+
+		const firstCharacterChange = state.mode === 'modified' ? diff[0].innerChanges[0].modifiedRange : diff[0].innerChanges[0].originalRange;
+
+
+		// find the horizontal range we want to show.
+		// use 5 characters before the first change, at most 1 indentation
+		const left = this._previewEditorObs.getLeftOfPosition(firstCharacterChange.getStartPosition(), reader);
+		const right = this._previewEditorObs.getLeftOfPosition(firstCharacterChange.getEndPosition(), reader);
+
+		const indentCol = editor.getModel()!.getLineFirstNonWhitespaceColumn(firstCharacterChange.startLineNumber);
+		const indentationEnd = this._previewEditorObs.getLeftOfPosition(new Position(firstCharacterChange.startLineNumber, indentCol), reader);
+
+		const preferredRangeToReveal = new OffsetRange(left, right);
 
 		return {
-			preferredRange,
-			contentWidth: w,
+			indentationEnd,
+			preferredRangeToReveal,
+			maxEditorWidth: trueContentWidth + l.contentLeft,
+			contentWidth: trueContentWidth,
+			nonContentWidth: l.contentLeft, // Width of area that is not content
 		};
 	}
 
