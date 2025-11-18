@@ -3564,7 +3564,7 @@ export class CommandCenter {
 			// Create new branch
 			const branch = await this.promptForBranchName(repository);
 			if (!branch) {
-				return;
+				return undefined;
 			}
 
 			return { commitish: 'HEAD', branch };

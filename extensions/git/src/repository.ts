@@ -1822,12 +1822,12 @@ export class Repository implements Disposable {
 
 			// Generate path if not provided
 			if (worktreePath === undefined) {
-				let worktreePath = defaultWorktreeRoot
+				worktreePath = defaultWorktreeRoot
 					? path.join(defaultWorktreeRoot, worktreeName!)
 					: path.join(path.dirname(this.root), `${path.basename(this.root)}.worktrees`, worktreeName!);
 
 				// Ensure that the worktree path is unique
-				if (this.worktrees.some(worktree => pathEquals(path.normalize(worktree.path), path.normalize(worktreePath)))) {
+				if (this.worktrees.some(worktree => pathEquals(path.normalize(worktree.path), path.normalize(worktreePath!)))) {
 					let counter = 1;
 					let uniqueWorktreePath = `${worktreePath}-${counter}`;
 					while (this.worktrees.some(wt => pathEquals(path.normalize(wt.path), path.normalize(uniqueWorktreePath)))) {
