@@ -30,6 +30,14 @@ export class MockChatWidgetService implements IChatWidgetService {
 		return [];
 	}
 
+	revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
+		return Promise.resolve(undefined);
+	}
+
+	reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> {
+		return Promise.resolve(true);
+	}
+
 	getAllWidgets(): ReadonlyArray<IChatWidget> {
 		throw new Error('Method not implemented.');
 	}

@@ -52,8 +52,11 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IHistoryService } from '../../../../../services/history/common/history.js';
 import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
 import { isNumber, isString } from '../../../../../../base/common/types.js';
+import { ChatConfiguration } from '../../../../chat/common/constants.js';
 
 // #region Tool data
+
+const TOOL_REFERENCE_NAME = 'runInTerminal';
 
 function createPowerShellModelDescription(shell: string): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
@@ -190,7 +193,7 @@ export async function createRunInTerminalToolData(
 
 	return {
 		id: 'run_in_terminal',
-		toolReferenceName: 'runInTerminal',
+		toolReferenceName: TOOL_REFERENCE_NAME,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
 		modelDescription,
 		userDescription: localize('runInTerminalTool.userDescription', 'Tool for running commands in the terminal'),
@@ -401,9 +404,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// commands that would be auto approved if it were enabled.
 		const commandLine = rewrittenCommand ?? args.command;
 
+		const isEligibleForAutoApproval = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval)?.[TOOL_REFERENCE_NAME] ?? true;
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		const isAutoApproveAllowed = isAutoApproveEnabled && isAutoApproveWarningAccepted;
+		const isAutoApproveAllowed = isEligibleForAutoApproval && isAutoApproveEnabled && isAutoApproveWarningAccepted;
 
 		const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
 			commandLine,
@@ -423,7 +427,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const analyzersIsAutoApproveAllowed = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
-		const customActions = analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
+		const customActions = isEligibleForAutoApproval && analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
 
 		let shellType = basename(shell, '.exe');
 		if (shellType === 'powershell') {

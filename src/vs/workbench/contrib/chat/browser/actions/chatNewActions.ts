@@ -134,8 +134,7 @@ export function registerNewChatActions() {
 			accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 
 			await editingSession?.stop();
-			widget.clear();
-			await widget.waitForReady();
+			await widget.clear();
 			widget.attachmentModel.clear(true);
 			widget.input.relatedFiles?.clear();
 			widget.focusInput();
