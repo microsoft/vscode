@@ -41,6 +41,8 @@ export interface IAgentSessionViewModel {
 	readonly resource: URI;
 
 	readonly status?: ChatSessionStatus;
+	readonly archived: boolean;
+
 	readonly tooltip?: string | IMarkdownString;
 
 	readonly label: string;
@@ -95,7 +97,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	private _sessions: IAgentSessionViewModel[] = [];
 
 	get sessions(): IAgentSessionViewModel[] {
-		return this._sessions.filter(session => !this.filter.excludes.has(session.provider.chatSessionType));
+		return this._sessions.filter(session => !this.filter.exclude(session));
 	}
 
 	private readonly resolver = this._register(new ThrottledDelayer<void>(100));
@@ -217,11 +219,12 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					icon,
 					tooltip: session.tooltip,
 					status: session.status,
+					archived: session.archived ?? false,
 					timing: {
 						startTime: session.timing.startTime,
 						endTime: session.timing.endTime
 					},
-					statistics: session.statistics
+					statistics: session.statistics,
 				});
 			}
 		}

@@ -757,7 +757,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			resource: URI.parse('test://local-1'),
 			label: 'Local',
 			description: 'test',
-			timing: { startTime: Date.now() }
+			timing: { startTime: Date.now() },
+			archived: false,
 		};
 
 		const remoteSession: IAgentSessionViewModel = {
@@ -771,7 +772,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			resource: URI.parse('test://remote-1'),
 			label: 'Remote',
 			description: 'test',
-			timing: { startTime: Date.now() }
+			timing: { startTime: Date.now() },
+			archived: false,
 		};
 
 		assert.strictEqual(isLocalAgentSessionItem(localSession), true);
@@ -790,7 +792,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			resource: URI.parse('test://test-1'),
 			label: 'Test',
 			description: 'test',
-			timing: { startTime: Date.now() }
+			timing: { startTime: Date.now() },
+			archived: false,
 		};
 
 		// Test with a session object
@@ -813,7 +816,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			resource: URI.parse('test://test-1'),
 			label: 'Test',
 			description: 'test',
-			timing: { startTime: Date.now() }
+			timing: { startTime: Date.now() },
+			archived: false,
 		};
 
 		// Test with actual view model
