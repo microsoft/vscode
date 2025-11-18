@@ -5,6 +5,7 @@
 // @ts-check
 const path = require('path');
 const fs = require('fs');
+const semver = require('semver');
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	// Get the running Node.js version
@@ -34,6 +35,21 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 		throw new Error();
 	}
 }
+
+	// Check npm version
+	const requiredNpmVersion = '10.5.0';
+	const npmUserAgent = process.env['npm_config_user_agent'];
+	if (npmUserAgent) {
+				const npmVersionMatch = npmUserAgent.match(/npm\/(\d+\.\d+\.\d+)/);
+				if (npmVersionMatch) {
+								const npmVersion = npmVersionMatch[1];
+								const currentNpmVersion = semver.coerce(npmVersion);
+								if (currentNpmVersion && semver.lt(currentNpmVersion, requiredNpmVersion)) {
+													console.error(`\x1b[1;31m*** Please use npm v${requiredNpmVersion} or later for development. Currently using v${npmVersion}.\x1b[0;0m`);
+													throw new Error();
+												}
+							}
+			}
 
 if (process.env.npm_execpath?.includes('yarn')) {
 	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
