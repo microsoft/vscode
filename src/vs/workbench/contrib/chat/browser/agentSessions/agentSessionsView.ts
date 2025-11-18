@@ -33,17 +33,15 @@ import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
+import { getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { assertReturnsDefined, upcast } from '../../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -51,6 +49,7 @@ import { IChatService } from '../../common/chatService.js';
 import { IChatWidgetService } from '../chat.js';
 import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID, AgentSessionProviders } from './agentSessions.js';
 import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -70,7 +69,6 @@ export class AgentSessionsView extends ViewPane {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IChatService private readonly chatService: IChatService,
 		@IMenuService private readonly menuService: IMenuService,
@@ -132,12 +130,6 @@ export class AgentSessionsView extends ViewPane {
 			return;
 		}
 
-		const existingSessionEditor = findExistingChatEditorByUri(session.resource, this.editorGroupsService);
-		if (existingSessionEditor) {
-			await existingSessionEditor.group.openEditor(existingSessionEditor.editor, e.editorOptions);
-			return;
-		}
-
 		let sessionOptions: IChatEditorOptions;
 		if (isLocalAgentSessionItem(session)) {
 			sessionOptions = {};
@@ -147,14 +139,14 @@ export class AgentSessionsView extends ViewPane {
 
 		sessionOptions.ignoreInView = true;
 
-		await this.editorService.openEditor({
-			resource: session.resource,
-			options: upcast<IEditorOptions, IChatEditorOptions>({
-				...sessionOptions,
-				title: { preferred: session.label },
-				...e.editorOptions
-			})
-		});
+		const options: IChatEditorOptions = {
+			preserveFocus: false,
+			...sessionOptions,
+			...e.editorOptions,
+		};
+
+		const group = e.sideBySide ? SIDE_GROUP : undefined;
+		await this.chatWidgetService.openSession(session.resource, group, options);
 	}
 
 	private showContextMenu({ element: session, anchor }: ITreeContextMenuEvent<IAgentSessionViewModel>): void {
