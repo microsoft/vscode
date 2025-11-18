@@ -3053,14 +3053,11 @@ export class Repository implements Disposable {
 		for (const dictionary of branchRandomNameDictionary) {
 			if (dictionary.toLowerCase() === 'adjectives') {
 				dictionaries.push(adjectives);
-			}
-			if (dictionary.toLowerCase() === 'animals') {
+			} else if (dictionary.toLowerCase() === 'animals') {
 				dictionaries.push(animals);
-			}
-			if (dictionary.toLowerCase() === 'colors') {
+			} else if (dictionary.toLowerCase() === 'colors') {
 				dictionaries.push(colors);
-			}
-			if (dictionary.toLowerCase() === 'numbers') {
+			} else if (dictionary.toLowerCase() === 'numbers') {
 				dictionaries.push(NumberDictionary.generate({ length: 3 }));
 			}
 		}
