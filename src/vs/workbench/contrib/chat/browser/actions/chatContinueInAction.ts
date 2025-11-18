@@ -12,7 +12,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { basename, relativePath } from '../../../../../base/common/resources.js';
@@ -89,13 +89,13 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 				// Continue in Background
 				const backgroundContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Background);
 				if (backgroundContrib && backgroundContrib.canDelegate !== false) {
-					actions.push(this.toAction(backgroundContrib, instantiationService));
+					actions.push(this.toAction(AgentSessionProviders.Background, backgroundContrib, instantiationService));
 				}
 
 				// Continue in Cloud
 				const cloudContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Cloud);
 				if (cloudContrib && cloudContrib.canDelegate !== false) {
-					actions.push(this.toAction(cloudContrib, instantiationService));
+					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService));
 				}
 
 				// Offer actions to enter setup if we have no contributions
@@ -109,32 +109,26 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		};
 	}
 
-	private static toAction(contrib: IChatSessionsExtensionPoint, instantiationService: IInstantiationService): IActionWidgetDropdownAction {
+	private static toAction(provider: AgentSessionProviders, contrib: IChatSessionsExtensionPoint, instantiationService: IInstantiationService): IActionWidgetDropdownAction {
 		return {
 			id: contrib.type,
 			enabled: true,
-			icon: contrib.type === AgentSessionProviders.Cloud ? Codicon.cloud : Codicon.collection,
+			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
+			label: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
 			tooltip: contrib.displayName,
-			label: contrib.type === AgentSessionProviders.Cloud ?
-				localize('continueInCloud', "Continue in Cloud") :
-				localize('continueInBackground', "Continue in Background"),
 			run: () => instantiationService.invokeFunction(accessor => new CreateRemoteAgentJobAction().run(accessor, contrib))
 		};
 	}
 
-	private static toSetupAction(type: string, instantiationService: IInstantiationService): IActionWidgetDropdownAction {
-		const label = type === AgentSessionProviders.Cloud ?
-			localize('continueInCloud', "Continue in Cloud") :
-			localize('continueInBackground', "Continue in Background");
-
+	private static toSetupAction(provider: AgentSessionProviders, instantiationService: IInstantiationService): IActionWidgetDropdownAction {
 		return {
-			id: type,
+			id: provider,
 			enabled: true,
-			icon: type === AgentSessionProviders.Cloud ? Codicon.cloud : Codicon.collection,
+			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
-			tooltip: label,
-			label,
+			label: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
+			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
 			run: () => instantiationService.invokeFunction(accessor => {
 				const commandService = accessor.get(ICommandService);
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);

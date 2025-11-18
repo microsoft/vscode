@@ -12,9 +12,12 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { AgentSessionProviders } from './agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
+import { AgentSessionsViewFilter } from './agentSessionsViewFilter.js';
 
 //#region Interfaces, Types
 
@@ -74,9 +77,11 @@ export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSe
 
 //#endregion
 
-export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
+export interface IAgentSessionsViewModelOptions {
+	readonly filterMenuId: MenuId;
+}
 
-	readonly sessions: IAgentSessionViewModel[] = [];
+export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
 
 	private readonly _onWillResolve = this._register(new Emitter<void>());
 	readonly onWillResolve = this._onWillResolve.event;
@@ -87,14 +92,26 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	private readonly _onDidChangeSessions = this._register(new Emitter<void>());
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
 
+	private _sessions: IAgentSessionViewModel[] = [];
+
+	get sessions(): IAgentSessionViewModel[] {
+		return this._sessions.filter(session => !this.filter.excludes.has(session.provider.chatSessionType));
+	}
+
 	private readonly resolver = this._register(new ThrottledDelayer<void>(100));
 	private readonly providersToResolve = new Set<string | undefined>();
 
+	private readonly filter: AgentSessionsViewFilter;
+
 	constructor(
+		options: IAgentSessionsViewModelOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this.filter = this._register(this.instantiationService.createInstance(AgentSessionsViewFilter, { filterMenuId: options.filterMenuId }));
 
 		this.registerListeners();
 
@@ -105,6 +122,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType: provider }) => this.resolve(provider)));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
 		this._register(this.chatSessionsService.onDidChangeSessionItems(provider => this.resolve(provider)));
+		this._register(this.filter.onDidChange(() => this._onDidChangeSessions.fire()));
 	}
 
 	async resolve(provider: string | string[] | undefined): Promise<void> {
@@ -142,7 +160,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		const newSessions: IAgentSessionViewModel[] = [];
 		for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
 			if (!providersToResolve.includes(undefined) && !providersToResolve.includes(provider.chatSessionType)) {
-				newSessions.push(...this.sessions.filter(session => session.provider.chatSessionType === provider.chatSessionType));
+				newSessions.push(...this._sessions.filter(session => session.provider.chatSessionType === provider.chatSessionType));
 				continue; // skipped for resolving, preserve existing ones
 			}
 
@@ -172,17 +190,17 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 				let icon: ThemeIcon;
 				let providerLabel: string;
 				switch ((provider.chatSessionType)) {
-					case localChatSessionType:
-						providerLabel = localize('chat.session.providerLabel.local', "Local");
-						icon = Codicon.vm;
+					case AgentSessionProviders.Local:
+						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Local);
+						icon = getAgentSessionProviderIcon(AgentSessionProviders.Local);
 						break;
 					case AgentSessionProviders.Background:
-						providerLabel = localize('chat.session.providerLabel.background', "Background");
-						icon = Codicon.collection;
+						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Background);
+						icon = getAgentSessionProviderIcon(AgentSessionProviders.Background);
 						break;
 					case AgentSessionProviders.Cloud:
-						providerLabel = localize('chat.session.providerLabel.cloud', "Cloud");
-						icon = Codicon.cloud;
+						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Cloud);
+						icon = getAgentSessionProviderIcon(AgentSessionProviders.Cloud);
 						break;
 					default: {
 						providerLabel = mapSessionContributionToType.get(provider.chatSessionType)?.name ?? provider.chatSessionType;
@@ -208,8 +226,8 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			}
 		}
 
-		this.sessions.length = 0;
-		this.sessions.push(...newSessions);
+		this._sessions.length = 0;
+		this._sessions.push(...newSessions);
 
 		this._onDidChangeSessions.fire();
 	}
