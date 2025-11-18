@@ -18,10 +18,12 @@ import { QuickTreeAccessibilityProvider } from './quickInputTreeAccessibilityPro
 import { QuickInputTreeFilter } from './quickInputTreeFilter.js';
 import { QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
 import { QuickInputTreeSorter } from './quickInputTreeSorter.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 
 const $ = dom.$;
 
 export class QuickInputTreeController extends Disposable {
+	private readonly _checkboxStateHandler: QuickInputCheckboxStateHandler<IQuickTreeItem>;
 	private readonly _renderer: QuickInputTreeRenderer<IQuickTreeItem>;
 	private readonly _filter: QuickInputTreeFilter;
 	private readonly _sorter: QuickInputTreeSorter;
@@ -57,7 +59,8 @@ export class QuickInputTreeController extends Disposable {
 	) {
 		super();
 		this._container = dom.append(container, $('.quick-input-tree'));
-		this._renderer = this._register(this.instantiationService.createInstance(QuickInputTreeRenderer, hoverDelegate, this._onDidTriggerButton, this.onDidChangeCheckboxState));
+		this._checkboxStateHandler = this._register(new QuickInputCheckboxStateHandler<IQuickTreeItem>());
+		this._renderer = this._register(this.instantiationService.createInstance(QuickInputTreeRenderer, hoverDelegate, this._onDidTriggerButton, this._checkboxStateHandler, this.onDidChangeCheckboxState));
 		this._filter = this.instantiationService.createInstance(QuickInputTreeFilter);
 		this._sorter = this._register(new QuickInputTreeSorter());
 		this._tree = this._register(this.instantiationService.createInstance(
@@ -81,7 +84,7 @@ export class QuickInputTreeController extends Disposable {
 				filter: this._filter
 			}
 		));
-		this.registerOnOpenListener();
+		this.registerCheckboxStateListeners();
 	}
 
 	get tree(): WorkbenchObjectTree<IQuickTreeItem, IQuickTreeFilterData> {
@@ -227,7 +230,7 @@ export class QuickInputTreeController extends Disposable {
 		}
 	}
 
-	registerOnOpenListener() {
+	private registerCheckboxStateListeners() {
 		this._register(this._tree.onDidOpen(e => {
 			const item = e.element;
 			if (!item) {
@@ -244,49 +247,59 @@ export class QuickInputTreeController extends Disposable {
 				return;
 			}
 
-			const newState = item.checked !== true;
-			if ((item.checked ?? false) === newState) {
-				return; // No change
+			if (e.browserEvent && e.browserEvent.target && (e.browserEvent.target as HTMLElement).classList.contains(Checkbox.CLASS_NAME)) {
+				return;
 			}
-
-			// Handle checked item
-			item.checked = newState;
-			this._tree.rerender(item);
-
-			// Handle children of the checked item
-			const updateSet = new Set<IQuickTreeItem>();
-			const toUpdate = [...this._tree.getNode(item).children];
-			while (toUpdate.length) {
-				const pop = toUpdate.shift();
-				if (pop?.element && !updateSet.has(pop.element)) {
-					updateSet.add(pop.element);
-					if ((pop.element.checked ?? false) !== item.checked) {
-						pop.element.checked = item.checked;
-						this._tree.rerender(pop.element);
-					}
-					toUpdate.push(...pop.children);
-				}
-			}
-
-			// Handle parents of the checked item
-			let parent = this._tree.getParentElement(item);
-			while (parent) {
-				const parentChildren = [...this._tree.getNode(parent).children];
-				const newState = getParentNodeState(parentChildren);
-
-				if ((parent.checked ?? false) !== newState) {
-					parent.checked = newState;
-					this._tree.rerender(parent);
-				}
-				parent = this._tree.getParentElement(parent);
-			}
-
-			this._onDidChangeCheckboxState.fire({
-				item,
-				checked: item.checked ?? false
-			});
-			this._onDidCheckedLeafItemsChange.fire(this.getCheckedLeafItems());
+			this.updateCheckboxState(item, item.checked !== true);
 		}));
+
+		this._register(this._checkboxStateHandler.onDidChangeCheckboxState(e => {
+			this.updateCheckboxState(e.item, e.checked);
+		}));
+	}
+
+	private updateCheckboxState(item: IQuickTreeItem, newState: boolean | 'mixed' = false): void {
+		if ((item.checked ?? false) === newState) {
+			return; // No change
+		}
+
+		// Handle checked item
+		item.checked = newState;
+		this._tree.rerender(item);
+
+		// Handle children of the checked item
+		const updateSet = new Set<IQuickTreeItem>();
+		const toUpdate = [...this._tree.getNode(item).children];
+		while (toUpdate.length) {
+			const pop = toUpdate.shift();
+			if (pop?.element && !updateSet.has(pop.element)) {
+				updateSet.add(pop.element);
+				if ((pop.element.checked ?? false) !== item.checked) {
+					pop.element.checked = item.checked;
+					this._tree.rerender(pop.element);
+				}
+				toUpdate.push(...pop.children);
+			}
+		}
+
+		// Handle parents of the checked item
+		let parent = this._tree.getParentElement(item);
+		while (parent) {
+			const parentChildren = [...this._tree.getNode(parent).children];
+			const newState = getParentNodeState(parentChildren);
+
+			if ((parent.checked ?? false) !== newState) {
+				parent.checked = newState;
+				this._tree.rerender(parent);
+			}
+			parent = this._tree.getParentElement(parent);
+		}
+
+		this._onDidChangeCheckboxState.fire({
+			item,
+			checked: item.checked ?? false
+		});
+		this._onDidCheckedLeafItemsChange.fire(this.getCheckedLeafItems());
 	}
 
 	getCheckedLeafItems() {
@@ -345,5 +358,14 @@ export class QuickInputTreeController extends Disposable {
 		if (fireCheckedChangeEvent) {
 			this._onDidCheckedLeafItemsChange.fire(this.getCheckedLeafItems());
 		}
+	}
+}
+
+export class QuickInputCheckboxStateHandler<T> extends Disposable {
+	private readonly _onDidChangeCheckboxState = this._register(new Emitter<{ item: T; checked: boolean | 'mixed' }>());
+	readonly onDidChangeCheckboxState = this._onDidChangeCheckboxState.event;
+
+	public setCheckboxState(node: T, checked: boolean | 'mixed') {
+		this._onDidChangeCheckboxState.fire({ item: node, checked });
 	}
 }

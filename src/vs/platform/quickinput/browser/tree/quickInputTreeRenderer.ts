@@ -21,6 +21,7 @@ import { IThemeService } from '../../../theme/common/themeService.js';
 import { IQuickTreeCheckboxEvent, IQuickTreeItem, IQuickTreeItemButtonEvent } from '../../common/quickInput.js';
 import { quickInputButtonToAction } from '../quickInputUtils.js';
 import { IQuickTreeFilterData } from './quickInputTree.js';
+import { QuickInputCheckboxStateHandler } from './quickInputTreeController.js';
 
 const $ = dom.$;
 
@@ -41,6 +42,7 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 	constructor(
 		private readonly _hoverDelegate: IHoverDelegate | undefined,
 		private readonly _buttonTriggeredEmitter: Emitter<IQuickTreeItemButtonEvent<T>>,
+		private readonly _checkboxStateHandler: QuickInputCheckboxStateHandler<T>,
 		private readonly onCheckedEvent: Event<IQuickTreeCheckboxEvent<T>>,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -93,6 +95,7 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			if (quickTreeItem.disabled) {
 				templateData.checkbox.disable();
 			}
+			store.add(templateData.checkbox.onChange((e) => this._checkboxStateHandler.setCheckboxState(quickTreeItem, templateData.checkbox.checked)));
 		}
 
 		// Icon
