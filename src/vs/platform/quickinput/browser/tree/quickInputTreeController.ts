@@ -27,20 +27,19 @@ class QuickInputTreeIdentityProvider implements IIdentityProvider<IQuickTreeItem
 	private _counter = 0;
 
 	getId(element: IQuickTreeItem): { toString(): string } {
-		// If element has an explicit id, use it for stable identity across different instances
-		if (element.id !== undefined) {
-			return { toString: () => element.id! };
+		let id = element.id;
+		if (id !== undefined) {
+			return id;
 		}
 
-		// For elements without id, generate a stable identity based on the object reference
-		// This allows the tree to use object reference matching (via nodes.get(element))
-		// while still providing a unique string ID when needed
-		let id = this._elementIds.get(element);
-		if (id === undefined) {
-			id = `__generated_${this._counter++}`;
-			this._elementIds.set(element, id);
+		id = this._elementIds.get(element);
+		if (id !== undefined) {
+			return id;
 		}
-		return { toString: () => id! };
+
+		id = `__generated_${this._counter++}`;
+		this._elementIds.set(element, id);
+		return id;
 	}
 }
 
