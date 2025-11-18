@@ -46,9 +46,9 @@ interface IAgentSessionItemTemplate {
 
 	// Column 2 Row 1
 	readonly title: IconLabel;
-	readonly toolbar: ActionBar;
 
 	// Column 2 Row 2
+	readonly toolbar: ActionBar;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
 
@@ -84,9 +84,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				h('div.agent-session-main-col', [
 					h('div.agent-session-title-row', [
 						h('div.agent-session-title@title'),
-						h('div.agent-session-toolbar@toolbar'),
 					]),
 					h('div.agent-session-details-row', [
+						h('div.agent-session-toolbar@toolbar'),
 						h('div.agent-session-description@description'),
 						h('div.agent-session-status@status')
 					])
@@ -110,8 +110,8 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			element: elements.item,
 			icon: elements.icon,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
-			description: elements.description,
 			toolbar,
+			description: elements.description,
 			status: elements.status,
 			elementDisposable,
 			disposables
@@ -120,6 +120,8 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 	renderElement(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
 		template.elementDisposable.clear();
+		template.toolbar.clear();
+		template.description.textContent = '';
 
 		// Icon
 		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}`;
@@ -127,29 +129,28 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		// Title
 		template.title.setLabel(session.element.label, undefined, { matches: createMatches(session.filterData) });
 
-		// Toolbar
-		template.toolbar.clear();
-
+		// Diff if provided and finished
 		const { statistics: diff } = session.element;
-		if (diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
+		if (session.element.status === ChatSessionStatus.Completed && diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
 			const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
 			template.toolbar.push([diffAction], { icon: false, label: true });
 		}
 
-		// Description
-		if (typeof session.element.description === 'string') {
-			template.description.textContent = session.element.description;
-		} else {
-			const descriptionMarkdown = this.markdownRendererService.render(session.element.description, {
-				sanitizerConfig: {
-					replaceWithPlaintext: true,
-					allowedTags: {
-						override: allowedChatMarkdownHtmlTags,
+		// Description otherwise
+		else {
+			if (typeof session.element.description === 'string') {
+				template.description.textContent = session.element.description;
+			} else {
+				template.elementDisposable.add(this.markdownRendererService.render(session.element.description, {
+					sanitizerConfig: {
+						replaceWithPlaintext: true,
+						allowedTags: {
+							override: allowedChatMarkdownHtmlTags,
+						},
+						allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
 					},
-					allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
-				},
-			}, template.description);
-			template.elementDisposable.add(descriptionMarkdown);
+				}, template.description));
+			}
 		}
 
 		// Status (updated every minute)

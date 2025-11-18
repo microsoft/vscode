@@ -77,13 +77,13 @@ export class AgentSessionsViewFilter extends Disposable {
 	private updateFilterActions(): void {
 		this.actionDisposables.clear();
 
-		this.registerProviderActions();
-		this.registerStateActions();
-		this.registerArchivedActions();
-		this.registerResetAction();
+		this.registerProviderActions(this.actionDisposables);
+		this.registerStateActions(this.actionDisposables);
+		this.registerArchivedActions(this.actionDisposables);
+		this.registerResetAction(this.actionDisposables);
 	}
 
-	private registerProviderActions(): void {
+	private registerProviderActions(disposables: DisposableStore): void {
 		const providers: { id: string; label: string }[] = [
 			{ id: AgentSessionProviders.Local, label: getAgentSessionProviderName(AgentSessionProviders.Local) },
 			{ id: AgentSessionProviders.Background, label: getAgentSessionProviderName(AgentSessionProviders.Background) },
@@ -101,7 +101,7 @@ export class AgentSessionsViewFilter extends Disposable {
 		const that = this;
 		let counter = 0;
 		for (const provider of providers) {
-			this.actionDisposables.add(registerAction2(class extends Action2 {
+			disposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: `agentSessions.filter.toggleExclude:${provider.id}`,
@@ -133,17 +133,17 @@ export class AgentSessionsViewFilter extends Disposable {
 		}
 	}
 
-	private registerStateActions(): void {
+	private registerStateActions(disposables: DisposableStore): void {
 		const states: { id: ChatSessionStatus; label: string }[] = [
-			{ id: ChatSessionStatus.Completed, label: localize('chatSessionStatus.completed', 'Completed') },
-			{ id: ChatSessionStatus.InProgress, label: localize('chatSessionStatus.inProgress', 'In Progress') },
-			{ id: ChatSessionStatus.Failed, label: localize('chatSessionStatus.failed', 'Failed') },
+			{ id: ChatSessionStatus.Completed, label: localize('chatSessionStatus.completed', "Completed") },
+			{ id: ChatSessionStatus.InProgress, label: localize('chatSessionStatus.inProgress', "In Progress") },
+			{ id: ChatSessionStatus.Failed, label: localize('chatSessionStatus.failed', "Failed") },
 		];
 
 		const that = this;
 		let counter = 0;
 		for (const state of states) {
-			this.actionDisposables.add(registerAction2(class extends Action2 {
+			disposables.add(registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: `agentSessions.filter.toggleExcludeState:${state.id}`,
@@ -175,9 +175,9 @@ export class AgentSessionsViewFilter extends Disposable {
 		}
 	}
 
-	private registerArchivedActions(): void {
+	private registerArchivedActions(disposables: DisposableStore): void {
 		const that = this;
-		this.actionDisposables.add(registerAction2(class extends Action2 {
+		disposables.add(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'agentSessions.filter.toggleExcludeArchived',
@@ -201,9 +201,9 @@ export class AgentSessionsViewFilter extends Disposable {
 		}));
 	}
 
-	private registerResetAction(): void {
+	private registerResetAction(disposables: DisposableStore): void {
 		const that = this;
-		this.actionDisposables.add(registerAction2(class extends Action2 {
+		disposables.add(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: 'agentSessions.filter.resetExcludes',
