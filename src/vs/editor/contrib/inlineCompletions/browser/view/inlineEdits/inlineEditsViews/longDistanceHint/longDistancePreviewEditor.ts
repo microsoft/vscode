@@ -283,7 +283,7 @@ export class LongDistancePreviewEditor extends Disposable {
 								shouldFillLineOnLineBreak: false,
 								className: classNames(
 									'inlineCompletions-char-delete',
-									i.originalRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline',
+									// i.originalRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline',
 									i.originalRange.isEmpty() && 'empty',
 								),
 								zIndex: 1

@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { n, ObserverNode, ObserverNodeWithElement } from '../../../../../../../../base/browser/dom.js';
-import { IMouseEvent } from '../../../../../../../../base/browser/mouseEvent.js';
-import { Emitter } from '../../../../../../../../base/common/event.js';
+import { Event } from '../../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
 import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable } from '../../../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
@@ -15,7 +14,7 @@ import { Position } from '../../../../../../../common/core/position.js';
 import { ITextModel } from '../../../../../../../common/model.js';
 import { IInlineEditsView, InlineEditTabAction } from '../../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../../inlineEditWithChanges.js';
-import { getContentRenderWidth, getContentSizeOfLines, maxContentWidthInRange, rectToProps } from '../../utils/utils.js';
+import { getContentSizeOfLines, rectToProps } from '../../utils/utils.js';
 import { DetailedLineRangeMapping } from '../../../../../../../common/diff/rangeMapping.js';
 import { OffsetRange } from '../../../../../../../common/core/ranges/offsetRange.js';
 import { LineRange } from '../../../../../../../common/core/ranges/lineRange.js';
@@ -34,33 +33,14 @@ import { asCssVariable, editorBackground } from '../../../../../../../../platfor
 import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
 import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
 
-
-const BORDER_WIDTH = 1;
 const BORDER_RADIUS = 4;
-const ORIGINAL_END_PADDING = 20;
-const MODIFIED_END_PADDING = 12;
+const MAX_WIDGET_WIDTH = 400;
+const MIN_WIDGET_WIDTH = 200;
 
 export class InlineEditsLongDistanceHint extends Disposable implements IInlineEditsView {
 
-	// This is an approximation and should be improved by using the real parameters used bellow
-	static fitsInsideViewport(editor: ICodeEditor, textModel: ITextModel, edit: InlineEditWithChanges, reader: IReader): boolean {
-		const editorObs = observableCodeEditor(editor);
-		const editorWidth = editorObs.layoutInfoWidth.read(reader);
-		const editorContentLeft = editorObs.layoutInfoContentLeft.read(reader);
-		const editorVerticalScrollbar = editor.getLayoutInfo().verticalScrollbarWidth;
-		const minimapWidth = editorObs.layoutInfoMinimap.read(reader).minimapLeft !== 0 ? editorObs.layoutInfoMinimap.read(reader).minimapWidth : 0;
-
-		const maxOriginalContent = maxContentWidthInRange(editorObs, edit.displayRange, undefined/* do not reconsider on each layout info change */);
-		const maxModifiedContent = edit.lineEdit.newLines.reduce((max, line) => Math.max(max, getContentRenderWidth(line, editor, textModel)), 0);
-		const originalPadding = ORIGINAL_END_PADDING; // padding after last line of original editor
-		const modifiedPadding = MODIFIED_END_PADDING + 2 * BORDER_WIDTH; // padding after last line of modified editor
-
-		return maxOriginalContent + maxModifiedContent + originalPadding + modifiedPadding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
-	}
-
 	private readonly _editorObs;
-	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
-	readonly onDidClick = this._onDidClick.event;
+	readonly onDidClick = Event.None;
 	private _viewWithElement: ObserverNodeWithElement<HTMLDivElement> | undefined = undefined;
 
 	private readonly _previewEditor;
@@ -109,8 +89,6 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 				this._tabAction,
 			)
 		);
-
-		this._hintTopLeft = this._editorObs.observePosition(this._hintTextPosition, this._store);
 
 		this._viewWithElement = this._view.keepUpdated(this._store);
 		this._register(this._editorObs.createOverlayWidget({
@@ -169,23 +147,6 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		};
 	});
 
-	protected readonly _bottomOfHintLine = derived(this, (reader) => {
-		const p = this._hintTextPosition.read(reader);
-		if (!p) {
-			return constObservable(null);
-		}
-		return this._editorObs.observeBottomForLineNumber(p.lineNumber);
-	}).flatten();
-
-	protected readonly _topOfHintLine = derived(this, (reader) => {
-		const p = this._hintTextPosition.read(reader);
-		if (!p) {
-			return constObservable(null);
-		}
-		return this._editorObs.observeBottomForLineNumber(p.lineNumber);
-	}).flatten();
-
-
 	private readonly _isVisibleDelayed = debouncedObservable2(
 		derived(this, reader => this._viewState.read(reader)?.hint.isVisible),
 		(lastValue, newValue) => lastValue === true && newValue === false ? 200 : 0,
@@ -242,7 +203,6 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			debugView(debugLogRects({ ...rects2 }, this._editor.getDomNode()!), reader);
 		}
 
-		const widgetMinWidth = 200;
 		const availableSpaceHeightPrefixSums = getSums(availableSpaceSizes, s => s.height);
 		const availableSpaceSizesTransposed = availableSpaceSizes.map(s => s.transpose());
 
@@ -265,7 +225,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		let possibleWidgetOutline = findFirstMinimzeDistance(lineSizes.lineRange.addMargin(-1, -1), viewState.hint.lineNumber, lineNumber => {
 			const verticalWidgetRange = getWidgetVerticalOutline(lineNumber);
 			const maxWidth = getMaxTowerHeightInAvailableArea(verticalWidgetRange.delta(-lineSizes.top), availableSpaceSizesTransposed);
-			if (maxWidth < widgetMinWidth) {
+			if (maxWidth < MIN_WIDGET_WIDTH) {
 				return undefined;
 			}
 			const horizontalWidgetRange = OffsetRange.ofStartAndLength(editorTrueContentRight - maxWidth, maxWidth);
@@ -273,7 +233,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		});
 		if (!possibleWidgetOutline) {
 			possibleWidgetOutline = {
-				horizontalWidgetRange: OffsetRange.ofStartAndLength(editorTrueContentRight - 400, 400),
+				horizontalWidgetRange: OffsetRange.ofStartAndLength(editorTrueContentRight - MAX_WIDGET_WIDTH, MAX_WIDGET_WIDTH),
 				verticalWidgetRange: getWidgetVerticalOutline(viewState.hint.lineNumber + 2).delta(10),
 			};
 		}
@@ -292,7 +252,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			debugView(debugLogRects({ rectAvailableSpace }, this._editor.getDomNode()!), reader);
 		}
 
-		const maxWidgetWidth = Math.min(400, previewEditorContentLayout.maxEditorWidth + previewEditorMargin + widgetPadding);
+		const maxWidgetWidth = Math.min(MAX_WIDGET_WIDTH, previewEditorContentLayout.maxEditorWidth + previewEditorMargin + widgetPadding);
 
 		const layout = distributeFlexBoxLayout(rectAvailableSpace.width, {
 			spaceBefore: { min: 0, max: 10, priority: 1 },
@@ -321,7 +281,13 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			debugView(debugLogRects({ previewEditorRect }, this._editor.getDomNode()!), reader);
 		}
 
-		const desiredPreviewEditorScrollLeft = scrollToReveal(previewEditorContentLayout.indentationEnd, previewEditorRect.width - previewEditorContentLayout.nonContentWidth, previewEditorContentLayout.preferredRangeToReveal);
+		const previewEditorContentWidth = previewEditorRect.width - previewEditorContentLayout.nonContentWidth;
+		const maxPrefferedRangeLength = previewEditorContentWidth * 0.8;
+		const preferredRangeToReveal = previewEditorContentLayout.preferredRangeToReveal.intersect(OffsetRange.ofStartAndLength(
+			previewEditorContentLayout.preferredRangeToReveal.start,
+			maxPrefferedRangeLength
+		)) ?? previewEditorContentLayout.preferredRangeToReveal;
+		const desiredPreviewEditorScrollLeft = scrollToReveal(previewEditorContentLayout.indentationEnd, previewEditorContentWidth, preferredRangeToReveal);
 
 		return {
 			codeEditorSize: previewEditorRect.getSize(),
@@ -339,8 +305,6 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			desiredPreviewEditorScrollLeft: desiredPreviewEditorScrollLeft.newScrollPosition,
 		};
 	});
-
-	protected readonly _hintTopLeft;
 
 	private readonly _view = n.div({
 		class: 'inline-edits-view',

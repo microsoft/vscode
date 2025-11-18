@@ -36,13 +36,14 @@
 			}
 
 			.progress-container {
-				margin-left: 6px;
+				margin: 0 0 2px 6px;
 			}
 		}
 
 		.chat-thinking-item.markdown-content {
-			padding: 3px 12px 3px 24px;
+			padding: 3px 12px 4px 24px;
 			position: relative;
+			font-size: var(--vscode-chat-font-size-body-s);
 
 			.progress-container {
 				margin-bottom: 0px;

@@ -392,7 +392,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					&& !entry.isCurrentlyBeingModifiedBy.read(r);
 			});
 
-			if (allSettled && !chatModel.requestInProgress) {
+			if (allSettled && !chatModel.requestInProgress.read(undefined)) {
 				// self terminate
 				store.dispose();
 			}
