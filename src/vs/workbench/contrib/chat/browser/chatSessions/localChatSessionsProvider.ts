@@ -14,6 +14,7 @@ import * as nls from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -230,6 +231,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 							startTime = Date.now();
 						}
 					}
+					const statistics = model ? this.getSessionStatistics(model) : undefined;
 					const editorSession: ChatSessionItemWithProvider = {
 						resource: editorInfo.editor.resource,
 						label: editorInfo.editor.getName(),
@@ -238,7 +240,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 						provider: this,
 						timing: {
 							startTime: startTime ?? 0
-						}
+						},
+						statistics
 					};
 					sessionsByResource.add(editorInfo.editor.resource);
 					sessions.push(editorSession);
@@ -254,21 +257,48 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
 		try {
 			const allHistory = await this.chatService.getLocalSessionHistory();
-			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => ({
-				resource: historyDetail.sessionResource,
-				label: historyDetail.title,
-				iconPath: Codicon.chatSparkle,
-				provider: this,
-				timing: {
-					startTime: historyDetail.lastMessageDate ?? Date.now()
-				},
-				archived: true,
-			}));
+			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => {
+				const model = this.chatService.getSession(historyDetail.sessionResource);
+				const statistics = model ? this.getSessionStatistics(model) : undefined;
+				return {
+					resource: historyDetail.sessionResource,
+					label: historyDetail.title,
+					iconPath: Codicon.chatSparkle,
+					provider: this,
+					timing: {
+						startTime: historyDetail.lastMessageDate ?? Date.now()
+					},
+					archived: true,
+					statistics
+				};
+
+			});
+
 
 			return historyItems;
 
 		} catch (error) {
 			return [];
 		}
+	}
+
+	private getSessionStatistics(chatModel: IChatModel) {
+		let linesAdded = 0;
+		let linesRemoved = 0;
+		const modifiedFiles = new Set<URI>();
+		const currentEdits = chatModel?.editingSession?.entries.get();
+		if (currentEdits) {
+			const uncommittedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+			uncommittedEdits.forEach(edit => {
+				linesAdded += edit.linesAdded?.get() ?? 0;
+				linesRemoved += edit.linesRemoved?.get() ?? 0;
+				modifiedFiles.add(edit.modifiedURI);
+			});
+		}
+		return {
+			files: modifiedFiles.size,
+			insertions: linesAdded,
+			deletions: linesRemoved,
+		};
 	}
 }
