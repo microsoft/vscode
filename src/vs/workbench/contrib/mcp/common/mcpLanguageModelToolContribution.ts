@@ -148,6 +148,10 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 			for (const fn of toRegister) {
 				fn();
 			}
+
+			// Important: flush tool updates when the server is fully registered so that
+			// any consuming (e.g. autostarting) requests have the tools available immediately.
+			this._toolsService.flushToolUpdates();
 		}));
 
 		store.add(toDisposable(() => {

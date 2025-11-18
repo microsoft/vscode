@@ -43,7 +43,7 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService, ToolDataSource, IToolData } from '../../chat/common/languageModelToolsService.js';
 import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
-import { IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer, moveToPanelChat } from './inlineChatSessionService.js';
+import { askInPanelChat, IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService.js';
 
 
 type SessionData = {
@@ -349,14 +349,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const chatModel = this._chatService.startSession(ChatAgentLocation.Chat, token, false);
 
-		const editingSession = await chatModel.editingSessionObs?.promise!;
 		const widget = this._chatWidgetService.getWidgetBySessionResource(chatModel.sessionResource);
 		await widget?.attachmentModel.addFile(uri);
 
 		const store = new DisposableStore();
 		store.add(toDisposable(() => {
 			this._chatService.cancelCurrentRequestForSession(chatModel.sessionResource);
-			editingSession.reject();
+			chatModel.editingSession?.reject();
 			this._sessions2.delete(uri);
 			this._onDidChangeSessions.fire(this);
 		}));
@@ -364,9 +363,27 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		store.add(autorun(r => {
 
-			const entries = editingSession.entries.read(r);
-			if (entries.length === 0) {
+			const entries = chatModel.editingSession?.entries.read(r);
+			if (!entries?.length) {
 				return;
+			}
+
+			const state = entries.find(entry => isEqual(entry.modifiedURI, uri))?.state.read(r);
+			if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
+				const response = chatModel.getRequests().at(-1)?.response;
+				if (response) {
+					this._chatService.notifyUserAction({
+						sessionResource: response.session.sessionResource,
+						requestId: response.requestId,
+						agentId: response.agent?.id,
+						command: response.slashCommand?.name,
+						result: response.result,
+						action: {
+							kind: 'inlineChat',
+							action: state === ModifiedFileEntryState.Accepted ? 'accepted' : 'discarded'
+						}
+					});
+				}
 			}
 
 			const allSettled = entries.every(entry => {
@@ -385,7 +402,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			uri,
 			initialPosition: editor.getSelection().getStartPosition().delta(-1), /* one line above selection start */
 			chatModel,
-			editingSession,
+			editingSession: chatModel.editingSession!,
 			dispose: store.dispose.bind(store)
 		};
 		this._sessions2.set(uri, result);
@@ -535,25 +552,25 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				let result: { confirmed: boolean; checkboxChecked?: boolean };
 				if (dontAskAgain !== undefined) {
-					// Use previously stored user preference: true = 'Rephrase', false = 'Continue in Chat'
+					// Use previously stored user preference: true = 'Continue in Chat', false = 'Rephrase' (Cancel)
 					result = { confirmed: dontAskAgain, checkboxChecked: false };
 				} else {
 					result = await dialogService.confirm({
 						type: 'question',
 						title: localize('confirm.title', "Continue in Panel Chat?"),
 						message: localize('confirm', "Do you want to continue in panel chat or rephrase your prompt?"),
-						detail: localize('confirm.detail', "This task is too complex for Inline Chat. You can rephrase your prompt or continue in the panel chat."),
-						primaryButton: localize('confirm.yes', "Rephrase"),
-						cancelButton: localize('confirm.no', "Continue in Chat"),
+						detail: localize('confirm.detail', "Inline Chat is designed for single file code changes. This task is either too complex or requires a text response. You can rephrase your prompt or continue in panel chat."),
+						primaryButton: localize('confirm.yes', "Continue in Chat"),
+						cancelButton: localize('confirm.cancel', "Cancel"),
 						checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
 					});
 				}
 
 				const editor = codeEditorService.getFocusedCodeEditor();
 
-				if (!result.confirmed || !editor) {
+				if (!editor || result.confirmed) {
 					logService.trace('InlineChatEscapeToolContribution: moving session to panel chat');
-					await instaService.invokeFunction(moveToPanelChat, session.chatModel, true);
+					await instaService.invokeFunction(askInPanelChat, session.chatModel.getRequests().at(-1)!);
 					session.dispose();
 
 				} else {

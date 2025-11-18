@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
+import { isString } from '../../../base/common/types.js';
 import { IProcessDataEvent } from './terminal.js';
 
 interface TerminalDataBuffer extends IDisposable {
@@ -27,7 +28,7 @@ export class TerminalDataBufferer implements IDisposable {
 	startBuffering(id: number, event: Event<string | IProcessDataEvent>, throttleBy: number = 5): IDisposable {
 
 		const disposable = event((e: string | IProcessDataEvent) => {
-			const data = (typeof e === 'string' ? e : e.data);
+			const data = isString(e) ? e : e.data;
 			let buffer = this._terminalBufferMap.get(id);
 			if (buffer) {
 				buffer.data.push(data);

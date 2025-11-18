@@ -134,7 +134,7 @@ export interface IUtilityProcessCrashEvent extends IUtilityProcessExitBaseEvent 
 	/**
 	 * The reason of the utility process crash.
 	 */
-	readonly reason: 'clean-exit' | 'abnormal-exit' | 'killed' | 'crashed' | 'oom' | 'launch-failed' | 'integrity-failure';
+	readonly reason: 'clean-exit' | 'abnormal-exit' | 'killed' | 'crashed' | 'oom' | 'launch-failed' | 'integrity-failure' | 'memory-eviction';
 }
 
 export interface IUtilityProcessInfo {

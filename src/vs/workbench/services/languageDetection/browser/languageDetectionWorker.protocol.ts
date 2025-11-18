@@ -10,7 +10,7 @@ export abstract class LanguageDetectionWorkerHost {
 	public static getChannel(workerServer: IWebWorkerServer): LanguageDetectionWorkerHost {
 		return workerServer.getChannel<LanguageDetectionWorkerHost>(LanguageDetectionWorkerHost.CHANNEL_NAME);
 	}
-	public static setChannel(workerClient: IWebWorkerClient<any>, obj: LanguageDetectionWorkerHost): void {
+	public static setChannel(workerClient: IWebWorkerClient<unknown>, obj: LanguageDetectionWorkerHost): void {
 		workerClient.setChannel<LanguageDetectionWorkerHost>(LanguageDetectionWorkerHost.CHANNEL_NAME, obj);
 	}
 

@@ -5,17 +5,17 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentService } from '../chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../chatModel.js';
 import { IChatModeService } from '../chatModes.js';
 import { IChatProgress, IChatService } from '../chatService.js';
-import { LocalChatSessionUri } from '../chatUri.js';
-import { ChatAgentLocation, ChatModeKind } from '../constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../languageModels.js';
 import {
 	CountTokensCallback,
@@ -28,55 +28,26 @@ import {
 	IToolResult,
 	ToolDataSource,
 	ToolProgress,
-	ToolSet
+	ToolSet,
+	VSCodeToolReference
 } from '../languageModelToolsService.js';
+import { ManageTodoListToolToolId } from './manageTodoListTool.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
 
-export const RunSubagentToolId = 'runSubagent2';
+export const RunSubagentToolId = 'runSubagent';
 
-const modelDescription = `Launch a new agent to handle complex, multi-step tasks autonomously. This tool is good at researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use this agent to perform the search for you.
+const BaseModelDescription = `Launch a new agent to handle complex, multi-step tasks autonomously. This tool is good at researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use this agent to perform the search for you.
 
 - Agents do not run async or in the background, you will wait for the agent\'s result.
 - When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
 - Each agent invocation is stateless. You will not be able to send additional messages to the agent, nor will the agent be able to communicate with you outside of its final report. Therefore, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
 - The agent's outputs should generally be trusted
-- Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user\'s intent
-- You can provide a subagentId to invoke a specific agent, if the user asks for it by name.`;
-
-export const RunSubagentToolData: IToolData = {
-	id: RunSubagentToolId,
-	toolReferenceName: 'runSubagent2',
-	canBeReferencedInPrompt: true,
-	icon: ThemeIcon.fromId(Codicon.organization.id),
-	displayName: localize('tool.runSubagent.displayName', 'Run Subagent'),
-	userDescription: localize('tool.runSubagent.userDescription', 'Runs a task within an isolated subagent context. Enables efficient organization of tasks and context window management.'),
-	modelDescription,
-	source: ToolDataSource.Internal,
-	when: ContextKeyExpr.has('config.chat.experimental.runSubagent2'),
-	inputSchema: {
-		type: 'object',
-		properties: {
-			prompt: {
-				type: 'string',
-				description: 'A detailed description of the task for the agent to perform'
-			},
-			description: {
-				type: 'string',
-				description: 'A short (3-5 word) description of the task'
-			},
-			subagentId: {
-				type: 'string',
-				description: 'Optional ID of a specific agent to invoke. If not provided, uses the current agent.'
-			}
-		},
-		required: ['prompt', 'description']
-	}
-};
+- Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user\'s intent`;
 
 interface IRunSubagentToolInputParams {
 	prompt: string;
 	description: string;
-	subagentId?: string;
+	subagentType?: string;
 }
 
 export class RunSubagentTool extends Disposable implements IToolImpl {
@@ -89,8 +60,48 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILogService private readonly logService: ILogService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+	}
+
+	getToolData(): IToolData {
+		const runSubagentToolData: IToolData = {
+			id: RunSubagentToolId,
+			toolReferenceName: VSCodeToolReference.runSubagent,
+			canBeReferencedInPrompt: true,
+			icon: ThemeIcon.fromId(Codicon.organization.id),
+			displayName: localize('tool.runSubagent.displayName', 'Run Subagent'),
+			userDescription: localize('tool.runSubagent.userDescription', 'Runs a task within an isolated subagent context. Enables efficient organization of tasks and context window management.'),
+			modelDescription: BaseModelDescription,
+			source: ToolDataSource.Internal,
+			inputSchema: {
+				type: 'object',
+				properties: {
+					prompt: {
+						type: 'string',
+						description: 'A detailed description of the task for the agent to perform'
+					},
+					description: {
+						type: 'string',
+						description: 'A short (3-5 word) description of the task'
+					}
+				},
+				required: ['prompt', 'description']
+			}
+		};
+
+		if (this.configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
+			runSubagentToolData.inputSchema!.properties!['subagentType'] = {
+				type: 'string',
+				description: 'Optional ID of a specific agent to invoke. If not provided, uses the current agent.'
+			};
+			runSubagentToolData.modelDescription += `\n- If the user asks for a certain agent by name, you MUST provide that EXACT subagentType (case-sensitive) to invoke that specific agent.`;
+		}
+
+
+
+		return runSubagentToolData;
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -103,7 +114,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		}
 
 		// Get the chat model and request for writing progress
-		const model = this.chatService.getSession(LocalChatSessionUri.forSession(invocation.context.sessionId)) as ChatModel | undefined;
+		const model = this.chatService.getSession(invocation.context.sessionResource) as ChatModel | undefined;
 		if (!model) {
 			throw new Error('Chat model not found for session');
 		}
@@ -122,8 +133,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			let modeTools = invocation.userSelectedTools;
 			let modeInstructions: IChatRequestModeInstructions | undefined;
 
-			if (args.subagentId) {
-				const mode = this.chatModeService.findModeByName(args.subagentId);
+			if (args.subagentType) {
+				const mode = this.chatModeService.findModeByName(args.subagentType);
 				if (mode) {
 					// Use mode-specific model if available
 					const modeModelQualifiedName = mode.model?.get();
@@ -143,7 +154,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					const modeCustomTools = mode.customTools?.get();
 					if (modeCustomTools) {
 						// Convert the mode's custom tools (array of qualified names) to UserSelectedTools format
-						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools);
+						const enablementMap = this.languageModelToolsService.toToolAndToolSetEnablementMap(modeCustomTools, mode.target?.get());
 						// Convert enablement map to UserSelectedTools (Record<string, boolean>)
 						modeTools = {};
 						for (const [tool, enabled] of enablementMap) {
@@ -155,23 +166,28 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 					const instructions = mode.modeInstructions?.get();
 					modeInstructions = instructions && {
-						name: mode.name,
+						name: mode.name.get(),
 						content: instructions.content,
 						toolReferences: this.toolsService.toToolReferences(instructions.toolReferences),
 						metadata: instructions.metadata,
 					};
 				} else {
-					this.logService.warn(`RunSubagentTool: Agent '${args.subagentId}' not found, using current configuration`);
+					this.logService.warn(`RunSubagentTool: Agent '${args.subagentType}' not found, using current configuration`);
 				}
 			}
 
 			// Track whether we should collect markdown (after the last prepare tool invocation)
 			const markdownParts: string[] = [];
 
+			let inEdit = false;
 			const progressCallback = (parts: IChatProgress[]) => {
 				for (const part of parts) {
 					// Write certain parts immediately to the model
-					if (part.kind === 'prepareToolInvocation' || part.kind === 'textEdit' || part.kind === 'notebookEdit') {
+					if (part.kind === 'prepareToolInvocation' || part.kind === 'textEdit' || part.kind === 'notebookEdit' || part.kind === 'codeblockUri') {
+						if (part.kind === 'codeblockUri' && !inEdit) {
+							inEdit = true;
+							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```\n'), fromSubagent: true });
+						}
 						model.acceptResponseProgress(request, part);
 
 						// When we see a prepare tool invocation, reset markdown collection
@@ -179,15 +195,26 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 							markdownParts.length = 0; // Clear previously collected markdown
 						}
 					} else if (part.kind === 'markdownContent') {
+						if (inEdit) {
+							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n```\n\n'), fromSubagent: true });
+							inEdit = false;
+						}
+
 						// Collect markdown content for the tool result
 						markdownParts.push(part.content.value);
 					}
 				}
 			};
 
+			if (modeTools) {
+				modeTools[RunSubagentToolId] = false;
+				modeTools[ManageTodoListToolToolId] = false;
+			}
+
 			// Build the agent request
 			const agentRequest: IChatAgentRequest = {
 				sessionId: invocation.context.sessionId,
+				sessionResource: invocation.context.sessionResource,
 				requestId: invocation.callId ?? `subagent-${Date.now()}`,
 				agentId: defaultAgent.id,
 				message: args.prompt,

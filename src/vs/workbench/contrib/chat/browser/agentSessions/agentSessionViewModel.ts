@@ -5,14 +5,19 @@
 
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { IChatService } from '../../common/chatService.js';
-import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
+import { AgentSessionsViewFilter } from './agentSessionsViewFilter.js';
 
 //#region Interfaces, Types
 
@@ -31,15 +36,18 @@ export interface IAgentSessionsViewModel {
 export interface IAgentSessionViewModel {
 
 	readonly provider: IChatSessionItemProvider;
+	readonly providerLabel: string;
 
 	readonly resource: URI;
 
 	readonly status?: ChatSessionStatus;
+	readonly archived: boolean;
+
 	readonly tooltip?: string | IMarkdownString;
 
 	readonly label: string;
 	readonly description: string | IMarkdownString;
-	readonly icon?: ThemeIcon;
+	readonly icon: ThemeIcon;
 
 	readonly timing: {
 		readonly startTime: number;
@@ -47,6 +55,7 @@ export interface IAgentSessionViewModel {
 	};
 
 	readonly statistics?: {
+		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
 	};
@@ -70,12 +79,11 @@ export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSe
 
 //#endregion
 
-const INCLUDE_HISTORY = false;
+export interface IAgentSessionsViewModelOptions {
+	readonly filterMenuId: MenuId;
+}
+
 export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
-
-	private static NO_DESCRIPTION_LABEL = new MarkdownString(`_<${localize('chat.session.noDescription', 'No description')}>_`);
-
-	readonly sessions: IAgentSessionViewModel[] = [];
 
 	private readonly _onWillResolve = this._register(new Emitter<void>());
 	readonly onWillResolve = this._onWillResolve.event;
@@ -86,14 +94,26 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	private readonly _onDidChangeSessions = this._register(new Emitter<void>());
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
 
+	private _sessions: IAgentSessionViewModel[] = [];
+
+	get sessions(): IAgentSessionViewModel[] {
+		return this._sessions.filter(session => !this.filter.exclude(session));
+	}
+
 	private readonly resolver = this._register(new ThrottledDelayer<void>(100));
 	private readonly providersToResolve = new Set<string | undefined>();
 
+	private readonly filter: AgentSessionsViewFilter;
+
 	constructor(
+		options: IAgentSessionsViewModelOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IChatService private readonly chatService: IChatService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+
+		this.filter = this._register(this.instantiationService.createInstance(AgentSessionsViewFilter, { filterMenuId: options.filterMenuId }));
 
 		this.registerListeners();
 
@@ -104,6 +124,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType: provider }) => this.resolve(provider)));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
 		this._register(this.chatSessionsService.onDidChangeSessionItems(provider => this.resolve(provider)));
+		this._register(this.filter.onDidChange(() => this._onDidChangeSessions.fire()));
 	}
 
 	async resolve(provider: string | string[] | undefined): Promise<void> {
@@ -116,7 +137,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		}
 
 		return this.resolver.trigger(async token => {
-			if (token.isCancellationRequested) {
+			if (token.isCancellationRequested || this.lifecycleService.willShutdown) {
 				return;
 			}
 
@@ -133,10 +154,15 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		const providersToResolve = Array.from(this.providersToResolve);
 		this.providersToResolve.clear();
 
+		const mapSessionContributionToType = new Map<string, IChatSessionsExtensionPoint>();
+		for (const contribution of this.chatSessionsService.getAllChatSessionContributions()) {
+			mapSessionContributionToType.set(contribution.type, contribution);
+		}
+
 		const newSessions: IAgentSessionViewModel[] = [];
 		for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
 			if (!providersToResolve.includes(undefined) && !providersToResolve.includes(provider.chatSessionType)) {
-				newSessions.push(...this.sessions.filter(session => session.provider.chatSessionType === provider.chatSessionType));
+				newSessions.push(...this._sessions.filter(session => session.provider.chatSessionType === provider.chatSessionType));
 				continue; // skipped for resolving, preserve existing ones
 			}
 
@@ -146,65 +172,65 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			}
 
 			for (const session of sessions) {
-				if (session.id === 'show-history' || session.id === 'workbench.panel.chat.view.copilot') {
-					continue; // TODO@bpasero this needs to be fixed at the provider level
-				}
-
 				let description;
 				if (session.description) {
 					description = session.description;
 				} else {
 					switch (session.status) {
 						case ChatSessionStatus.InProgress:
-							description = localize('chat.session.status.inProgress', 'Working...');
+							description = localize('chat.session.status.inProgress', "Working...");
 							break;
 						case ChatSessionStatus.Failed:
-							description = localize('chat.session.status.error', 'Failed');
-							break;
-						case ChatSessionStatus.Completed:
-							description = localize('chat.session.status.completed', 'Finished');
+							description = localize('chat.session.status.error', "Failed");
 							break;
 						default:
-							description = AgentSessionsViewModel.NO_DESCRIPTION_LABEL;
+							description = localize('chat.session.status.completed', "Finished");
+							break;
+					}
+				}
+
+				let icon: ThemeIcon;
+				let providerLabel: string;
+				switch ((provider.chatSessionType)) {
+					case AgentSessionProviders.Local:
+						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Local);
+						icon = getAgentSessionProviderIcon(AgentSessionProviders.Local);
+						break;
+					case AgentSessionProviders.Background:
+						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Background);
+						icon = getAgentSessionProviderIcon(AgentSessionProviders.Background);
+						break;
+					case AgentSessionProviders.Cloud:
+						providerLabel = getAgentSessionProviderName(AgentSessionProviders.Cloud);
+						icon = getAgentSessionProviderIcon(AgentSessionProviders.Cloud);
+						break;
+					default: {
+						providerLabel = mapSessionContributionToType.get(provider.chatSessionType)?.name ?? provider.chatSessionType;
+						icon = session.iconPath ?? Codicon.terminal;
 					}
 				}
 
 				newSessions.push({
 					provider,
+					providerLabel,
 					resource: session.resource,
 					label: session.label,
 					description,
-					icon: session.iconPath,
+					icon,
 					tooltip: session.tooltip,
 					status: session.status,
+					archived: session.archived ?? false,
 					timing: {
 						startTime: session.timing.startTime,
 						endTime: session.timing.endTime
 					},
-					statistics: session.statistics
+					statistics: session.statistics,
 				});
-			}
-
-			if (INCLUDE_HISTORY && provider.chatSessionType === localChatSessionType) {
-				// TODO@bpasero this needs to come from the local provider:
-				// - do we want to show history or not and how
-				// - can we support all properties including `startTime` properly
-				for (const history of await this.chatService.getLocalSessionHistory()) {
-					newSessions.push({
-						resource: history.sessionResource,
-						label: history.title,
-						provider: provider,
-						timing: {
-							startTime: history.lastMessageDate ?? Date.now()
-						},
-						description: AgentSessionsViewModel.NO_DESCRIPTION_LABEL,
-					});
-				}
 			}
 		}
 
-		this.sessions.length = 0;
-		this.sessions.push(...newSessions);
+		this._sessions.length = 0;
+		this._sessions.push(...newSessions);
 
 		this._onDidChangeSessions.fire();
 	}

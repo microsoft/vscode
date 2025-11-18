@@ -38,7 +38,6 @@ const SOURCE = 'IWorkbenchExtensionEnablementService';
 type WorkspaceType = { readonly virtual: boolean; readonly trusted: boolean };
 
 const EXTENSION_UNIFICATION_SETTING = 'chat.extensionUnification.enabled';
-const EXTENSION_UNIFICATION_STORAGE_KEY = 'chat.extensionUnification.enabled';
 
 export class ExtensionEnablementService extends Disposable implements IWorkbenchExtensionEnablementService {
 
@@ -105,11 +104,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		// Disabling extension unification should immediately disable the unified extension flow
 		// Enabling extension unification will only take effect after restart
-		this._extensionUnificationEnabled = storageService.getBoolean(EXTENSION_UNIFICATION_STORAGE_KEY, StorageScope.PROFILE, false);
+		this._extensionUnificationEnabled = this.configurationService.getValue<boolean>(EXTENSION_UNIFICATION_SETTING);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(EXTENSION_UNIFICATION_SETTING)) {
 				const extensionUnificationEnabled = this.configurationService.getValue<boolean>(EXTENSION_UNIFICATION_SETTING);
-				storageService.store(EXTENSION_UNIFICATION_STORAGE_KEY, extensionUnificationEnabled, StorageScope.PROFILE, StorageTarget.MACHINE);
 				if (!extensionUnificationEnabled) {
 					this._extensionUnificationEnabled = false;
 					this._onEnablementChanged.fire(this.extensionsManager.extensions.filter(ext => unificationExtensions.includes(ext.identifier.id.toLowerCase())));

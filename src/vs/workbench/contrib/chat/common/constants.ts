@@ -6,6 +6,7 @@
 import { Schemas } from '../../../../base/common/network.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 
 export enum ChatConfiguration {
 	AgentEnabled = 'chat.agent.enabled',
@@ -14,15 +15,18 @@ export enum ChatConfiguration {
 	EditRequests = 'chat.editRequests',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
+	AutoApprovedUrls = 'chat.tools.urls.autoApprove',
+	EligibleForAutoApproval = 'chat.tools.eligibleForAutoApproval',
 	EnableMath = 'chat.math.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
-	UseCloudButtonV2 = 'chat.useCloudButtonV2',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
+	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
+	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 }
 
 /**
@@ -93,7 +97,10 @@ const chatAlwaysUnsupportedFileSchemes = new Set([
 	Schemas.vscodeLocalChatSession,
 	Schemas.vscodeSettings,
 	Schemas.webviewPanel,
+	Schemas.vscodeUserData,
+	Schemas.extension,
 	'ccreq',
+	'openai-codex', // Codex session custom editor scheme
 ]);
 
 export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: string): boolean {
@@ -118,3 +125,5 @@ export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 export const ChatEditorTitleMaxLength = 30;
 
 export const CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES = 1000;
+export const CONTEXT_MODELS_EDITOR = new RawContextKey<boolean>('inModelsEditor', false);
+export const CONTEXT_MODELS_SEARCH_FOCUS = new RawContextKey<boolean>('inModelsSearch', false);

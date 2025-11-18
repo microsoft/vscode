@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
 import { ILogService } from '../../log/common/log.js';
-import { AbstractRequestService, AuthInfo, Credentials, IRequestService } from '../common/request.js';
+import { AbstractRequestService, AuthInfo, Credentials, IRequestService, systemCertificatesNodeDefault } from '../common/request.js';
 import { Agent, getProxyAgent } from './proxy.js';
 import { createGunzip } from 'zlib';
 
@@ -120,7 +120,7 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	async loadCertificates(): Promise<string[]> {
 		const proxyAgent = await import('@vscode/proxy-agent');
 		return proxyAgent.loadSystemCertificates({
-			loadSystemCertificatesFromNode: () => this.getConfigValue<boolean>('http.systemCertificatesNode', true),
+			loadSystemCertificatesFromNode: () => this.getConfigValue<boolean>('http.systemCertificatesNode', systemCertificatesNodeDefault),
 			log: this.logService,
 		});
 	}

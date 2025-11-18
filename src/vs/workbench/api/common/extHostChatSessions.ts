@@ -93,7 +93,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		commands.registerArgumentProcessor({
 			processArgument: (arg) => {
 				if (arg && arg.$mid === MarshalledId.ChatSessionContext) {
-					const id = arg.session.id;
+					const id = arg.session.resource || arg.sessionId;
 					const sessionContent = this._sessionItems.get(id);
 					if (sessionContent) {
 						return sessionContent;
@@ -167,7 +167,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 	private convertChatSessionItem(sessionType: string, sessionContent: vscode.ChatSessionItem): IChatSessionItem {
 		return {
-			id: sessionContent.resource.toString(),
 			resource: sessionContent.resource,
 			label: sessionContent.label,
 			description: sessionContent.description ? typeConvert.MarkdownString.from(sessionContent.description) : undefined,
@@ -178,6 +177,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				endTime: sessionContent.timing?.endTime
 			},
 			statistics: sessionContent.statistics ? {
+				files: sessionContent.statistics?.files ?? 0,
 				insertions: sessionContent.statistics?.insertions ?? 0,
 				deletions: sessionContent.statistics?.deletions ?? 0
 			} : undefined
@@ -257,6 +257,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const id = sessionResource.toString();
 		const chatSession = new ExtHostChatSession(session, provider.extension, {
 			sessionId: `${id}.${sessionId}`,
+			sessionResource,
 			requestId: 'ongoing',
 			agentId: id,
 			message: '',

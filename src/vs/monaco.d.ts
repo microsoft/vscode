@@ -103,7 +103,7 @@ declare namespace monaco {
 		 *
 		 * @event
 		 */
-		readonly onCancellationRequested: (listener: (e: any) => any, thisArgs?: any, disposables?: IDisposable[]) => IDisposable;
+		readonly onCancellationRequested: (listener: (e: void) => unknown, thisArgs?: unknown, disposables?: IDisposable[]) => IDisposable;
 	}
 	/**
 	 * Uniform Resource Identifier (Uri) http://tools.ietf.org/html/rfc3986.
@@ -4270,9 +4270,9 @@ declare namespace monaco.editor {
 	export interface IEditorHoverOptions {
 		/**
 		 * Enable the hover.
-		 * Defaults to true.
+		 * Defaults to 'on'.
 		 */
-		enabled?: boolean;
+		enabled?: 'on' | 'off' | 'onKeyboardModifier';
 		/**
 		 * Delay for showing the hover.
 		 * Defaults to 300.
@@ -5677,7 +5677,7 @@ declare namespace monaco.editor {
 		 * When set, stacks with other overlay widgets with the same preference,
 		 * in an order determined by the ordinal value.
 		 */
-		stackOridinal?: number;
+		stackOrdinal?: number;
 	}
 
 	/**
@@ -6129,6 +6129,7 @@ declare namespace monaco.editor {
 		 * Fires after the editor completes the operation it fired `onBeginUpdate` for.
 		*/
 		readonly onEndUpdate: IEvent<void>;
+		readonly onDidChangeViewZones: IEvent<void>;
 		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */
@@ -6262,6 +6263,10 @@ declare namespace monaco.editor {
 		 * @param command The commands to execute
 		 */
 		executeCommands(source: string | null | undefined, commands: (ICommand | null)[]): void;
+		/**
+		 * Scroll vertically or horizontally as necessary and reveal the current cursors.
+		 */
+		revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void;
 		/**
 		 * Get all the decorations on a line (filtering out decorations from other editors).
 		 */
@@ -7572,7 +7577,6 @@ declare namespace monaco.languages {
 		range: IRange;
 		style: InlineCompletionHintStyle;
 		content: string;
-		jumpToEdit: boolean;
 	}
 
 	export type IconPath = editor.ThemeIcon;

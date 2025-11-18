@@ -66,7 +66,7 @@ export interface IChatRequestToolSetEntry extends IBaseChatRequestVariableEntry 
 export type ChatRequestToolReferenceEntry = IChatRequestToolEntry | IChatRequestToolSetEntry;
 
 export interface StringChatContextValue {
-	value: string;
+	value?: string;
 	name: string;
 	modelDescription?: string;
 	icon: ThemeIcon;
@@ -84,7 +84,7 @@ export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVaria
 
 export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'string';
-	readonly value: string;
+	readonly value: string | undefined;
 	readonly modelDescription?: string;
 	readonly icon: ThemeIcon;
 	readonly uri: URI;
@@ -163,7 +163,7 @@ export namespace IDiagnosticVariableEntryFilterData {
 	}
 
 	export function id(data: IDiagnosticVariableEntryFilterData) {
-		return [data.filterUri, data.owner, data.filterSeverity, data.filterRange?.startLineNumber].join(':');
+		return [data.filterUri, data.owner, data.filterSeverity, data.filterRange?.startLineNumber, data.filterRange?.startColumn].join(':');
 	}
 
 	export function label(data: IDiagnosticVariableEntryFilterData) {
@@ -346,7 +346,7 @@ export function isStringImplicitContextValue(value: unknown): value is StringCha
 	return (
 		typeof asStringImplicitContextValue === 'object' &&
 		asStringImplicitContextValue !== null &&
-		typeof asStringImplicitContextValue.value === 'string' &&
+		(typeof asStringImplicitContextValue.value === 'string' || typeof asStringImplicitContextValue.value === 'undefined') &&
 		typeof asStringImplicitContextValue.name === 'string' &&
 		ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon) &&
 		URI.isUri(asStringImplicitContextValue.uri)
@@ -471,4 +471,3 @@ export class ChatRequestVariableSet {
 		return this._entries.length;
 	}
 }
-

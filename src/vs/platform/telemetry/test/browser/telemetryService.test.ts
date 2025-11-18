@@ -725,8 +725,8 @@ suite('TelemetryService', () => {
 			appenders: [testAppender]
 		}, new class extends TestConfigurationService {
 			override onDidChangeConfiguration = emitter.event;
-			override getValue() {
-				return telemetryLevel;
+			override getValue<T>(): T {
+				return telemetryLevel as T;
 			}
 		}(), TestProductService);
 

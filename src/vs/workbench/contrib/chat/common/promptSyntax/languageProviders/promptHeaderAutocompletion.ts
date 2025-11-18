@@ -195,7 +195,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 					const agents = this.chatModeService.getModes();
 					const suggestions: string[] = [];
 					for (const agent of Iterable.concat(agents.builtin, agents.custom)) {
-						suggestions.push(agent.name);
+						suggestions.push(agent.name.get());
 					}
 					return suggestions;
 				}

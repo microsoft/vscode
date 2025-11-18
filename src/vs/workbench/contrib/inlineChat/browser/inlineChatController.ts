@@ -257,14 +257,14 @@ export class InlineChatController1 implements IEditorContribution {
 				location.location = ChatAgentLocation.Notebook;
 			}
 
-			const zone = _instaService.createInstance(InlineChatZoneWidget, location, undefined, { editor: this._editor, notebookEditor });
-			this._store.add(zone);
-			this._store.add(zone.widget.chatWidget.onDidClear(async () => {
+			const clear = async () => {
 				const r = this.joinCurrentRun();
 				this.cancelSession();
 				await r;
 				this.run();
-			}));
+			};
+			const zone = _instaService.createInstance(InlineChatZoneWidget, location, undefined, { editor: this._editor, notebookEditor }, clear);
+			this._store.add(zone);
 
 			return zone;
 		});
@@ -1244,7 +1244,6 @@ export class InlineChatController2 implements IEditorContribution {
 	}
 
 	private readonly _store = new DisposableStore();
-	private readonly _showWidgetOverrideObs = observableValue(this, false);
 	private readonly _isActiveController = observableValue(this, false);
 	private readonly _zone: Lazy<InlineChatZoneWidget>;
 
@@ -1270,7 +1269,6 @@ export class InlineChatController2 implements IEditorContribution {
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
-		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
 		@IChatService chatService: IChatService,
 	) {
 
@@ -1291,7 +1289,7 @@ export class InlineChatController2 implements IEditorContribution {
 						selection: this._editor.getSelection(),
 						document,
 						wholeRange,
-						close: () => this._showWidgetOverrideObs.set(false, undefined),
+						close: () => { /* TODO@jrieken */ },
 						delegateSessionResource: chatService.editingSessions.find(session =>
 							session.entries.get().some(e => e.hasModificationAt({
 								range: wholeRange,
@@ -1334,6 +1332,7 @@ export class InlineChatController2 implements IEditorContribution {
 					defaultMode: ChatMode.Ask
 				},
 				{ editor: this._editor, notebookEditor },
+				() => Promise.resolve(),
 			);
 
 			result.domNode.classList.add('inline-chat-2');
@@ -1382,17 +1381,8 @@ export class InlineChatController2 implements IEditorContribution {
 
 			if (!session || !isActive || !model) {
 				visibleSessionObs.set(undefined, undefined);
-				return;
-			}
-
-			const { chatModel } = session;
-			const showShowUntil = this._showWidgetOverrideObs.read(r);
-			const hasNoRequests = chatModel.getRequests().length === 0;
-
-			if (showShowUntil || hasNoRequests) {
-				visibleSessionObs.set(session, undefined);
 			} else {
-				visibleSessionObs.set(undefined, undefined);
+				visibleSessionObs.set(session, undefined);
 			}
 		}));
 
@@ -1423,7 +1413,9 @@ export class InlineChatController2 implements IEditorContribution {
 			}
 
 			const entry = session.editingSession.readEntry(session.uri, r);
-			entry?.enableReviewModeUntilSettled();
+			if (entry?.state.read(r) === ModifiedFileEntryState.Modified) {
+				entry?.enableReviewModeUntilSettled();
+			}
 
 			const inProgress = session.chatModel.requestInProgressObs.read(r);
 			this._zone.value.widget.domNode.classList.toggle('request-in-progress', inProgress);
@@ -1465,11 +1457,6 @@ export class InlineChatController2 implements IEditorContribution {
 		this._store.dispose();
 	}
 
-	toggleWidgetUntilNextRequest() {
-		const value = this._showWidgetOverrideObs.get();
-		this._showWidgetOverrideObs.set(!value, undefined);
-	}
-
 	getWidgetPosition(): Position | undefined {
 		return this._zone.rawValue?.position;
 	}
@@ -1485,11 +1472,18 @@ export class InlineChatController2 implements IEditorContribution {
 	async run(arg?: InlineChatRunOptions): Promise<boolean> {
 		assertType(this._editor.hasModel());
 
-		this.markActiveController();
 
 		const uri = this._editor.getModel().uri;
-		const session = this._inlineChatSessions.getSession2(uri)
-			?? await this._inlineChatSessions.createSession2(this._editor, uri, CancellationToken.None);
+
+		const existingSession = this._inlineChatSessions.getSession2(uri);
+		if (existingSession) {
+			await existingSession.editingSession.accept();
+			existingSession.dispose();
+		}
+
+		this.markActiveController();
+
+		const session = await this._inlineChatSessions.createSession2(this._editor, uri, CancellationToken.None);
 
 		// ADD diagnostics
 		const entries: IChatRequestVariableEntry[] = [];
@@ -1537,9 +1531,22 @@ export class InlineChatController2 implements IEditorContribution {
 		return !rejected;
 	}
 
-	acceptSession() {
-		const value = this._currentSession.get();
-		value?.editingSession.accept();
+	async acceptSession() {
+		const session = this._currentSession.get();
+		if (!session) {
+			return;
+		}
+		await session.editingSession.accept();
+		session.dispose();
+	}
+
+	async rejectSession() {
+		const session = this._currentSession.get();
+		if (!session) {
+			return;
+		}
+		await session.editingSession.reject();
+		session.dispose();
 	}
 
 	async createImageAttachment(attachment: URI): Promise<IChatRequestVariableEntry | undefined> {
@@ -1572,8 +1579,6 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 
 	chatModel.startEditingSession(true);
 
-	const editSession = await chatModel.editingSessionObs?.promise;
-
 	const store = new DisposableStore();
 	store.add(chatModel);
 
@@ -1603,7 +1608,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	}
 
 	const isSettled = derived(r => {
-		const entry = editSession?.readEntry(uri, r);
+		const entry = chatModel.editingSession?.readEntry(uri, r);
 		if (!entry) {
 			return false;
 		}
@@ -1624,8 +1629,6 @@ export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, 
 	const chatModel = chatService.startSession(ChatAgentLocation.EditorInline, token, false);
 
 	chatModel.startEditingSession(true);
-
-	const editSession = await chatModel.editingSessionObs?.promise;
 
 	const store = new DisposableStore();
 	store.add(chatModel);
@@ -1661,7 +1664,7 @@ export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, 
 	}
 
 	const isSettled = derived(r => {
-		const entry = editSession?.readEntry(uri, r);
+		const entry = chatModel.editingSession?.readEntry(uri, r);
 		if (!entry) {
 			return false;
 		}

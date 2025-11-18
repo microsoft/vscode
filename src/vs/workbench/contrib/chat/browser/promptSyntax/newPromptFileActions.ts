@@ -140,7 +140,7 @@ class AbstractNewPromptFileAction extends Action2 {
 
 function getDefaultContentSnippet(promptType: PromptsType, chatModeService: IChatModeService): string {
 	const agents = chatModeService.getModes();
-	const agentNames = agents.builtin.map(agent => agent.name).join(',') + (agents.custom.length ? (',' + agents.custom.map(agent => agent.name).join(',')) : '');
+	const agentNames = agents.builtin.map(agent => agent.name.get()).join(',') + (agents.custom.length ? (',' + agents.custom.map(agent => agent.name.get()).join(',')) : '');
 	switch (promptType) {
 		case PromptsType.prompt:
 			return [

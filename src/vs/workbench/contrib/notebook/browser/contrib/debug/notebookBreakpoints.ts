@@ -16,6 +16,7 @@ import { CellUri, NotebookCellsChangeType } from '../../../common/notebookCommon
 import { INotebookService } from '../../../common/notebookService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 
 class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 	constructor(
@@ -58,7 +59,7 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 		}));
 
 		this._register(this._debugService.getModel().onDidChangeBreakpoints(e => {
-			const newCellBp = e?.added?.find(bp => 'uri' in bp && bp.uri.scheme === Schemas.vscodeNotebookCell) as IBreakpoint | undefined;
+			const newCellBp = e?.added?.find(bp => hasKey(bp, { uri: true }) && bp.uri.scheme === Schemas.vscodeNotebookCell) as IBreakpoint | undefined;
 			if (newCellBp) {
 				const parsed = CellUri.parse(newCellBp.uri);
 				if (!parsed) {
