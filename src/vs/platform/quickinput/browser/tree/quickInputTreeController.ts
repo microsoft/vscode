@@ -297,7 +297,7 @@ export class QuickInputTreeController extends Disposable {
 			if (!syncingSelection) {
 				try {
 					syncingSelection = true;
-					const item = this._tree.getFocus().findLast(item => item);
+					const item = this._tree.getFocus().findLast(item => item !== null);
 					this._tree.setSelection(item ? [item] : [], e.browserEvent);
 				} finally {
 					syncingSelection = false;
