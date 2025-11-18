@@ -167,6 +167,10 @@ export async function trackIdleOnPrompt(
 	}, idleDurationMs));
 	// Fallback in case prompt sequences are not seen but the terminal goes idle.
 	const promptFallbackScheduler = store.add(new RunOnceScheduler(() => {
+		if (hasSeenExecuteSequenceSinceLastPrompt) {
+			promptFallbackScheduler.cancel();
+			return;
+		}
 		hasSeenExecuteSequenceSinceLastPrompt = false;
 		state = TerminalState.PromptAfterExecuting;
 		scheduler.schedule();
