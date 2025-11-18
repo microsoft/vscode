@@ -20,6 +20,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('AgentSessionsViewModel', () => {
 
@@ -731,6 +733,211 @@ suite('AgentSessionsViewModel', () => {
 			await Promise.all([promise1, promise2]);
 
 			// Both providers should be resolved
+			assert.strictEqual(viewModel.sessions.length, 2);
+		});
+	});
+
+	test('should filter sessions based on excludes set', async () => {
+		return runWithFakedTimers({}, async () => {
+			const provider1: IChatSessionItemProvider = {
+				chatSessionType: 'type-1',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => [{
+					resource: URI.parse('test://session-1'),
+					label: 'Session 1',
+					timing: { startTime: Date.now() }
+				}]
+			};
+
+			const provider2: IChatSessionItemProvider = {
+				chatSessionType: 'type-2',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => [{
+					resource: URI.parse('test://session-2'),
+					label: 'Session 2',
+					timing: { startTime: Date.now() }
+				}]
+			};
+
+			const provider3: IChatSessionItemProvider = {
+				chatSessionType: 'type-3',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => [{
+					resource: URI.parse('test://session-3'),
+					label: 'Session 3',
+					timing: { startTime: Date.now() }
+				}]
+			};
+
+			mockChatSessionsService.registerChatSessionItemProvider(provider1);
+			mockChatSessionsService.registerChatSessionItemProvider(provider2);
+			mockChatSessionsService.registerChatSessionItemProvider(provider3);
+
+			viewModel = createViewModel();
+
+			// Initially, all sessions should be visible
+			await viewModel.resolve(undefined);
+			assert.strictEqual(viewModel.sessions.length, 3);
+
+			// Add type-1 to excludes using storage service
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+			storageService.store('agentSessions.filter.excludes', JSON.stringify(['type-1']), StorageScope.PROFILE, StorageTarget.USER);
+
+			// Wait for the change to be processed
+			await Event.toPromise(viewModel.onDidChangeSessions);
+
+			// Now type-1 sessions should be filtered out
+			assert.strictEqual(viewModel.sessions.length, 2);
+			assert.strictEqual(viewModel.sessions.find(s => s.provider.chatSessionType === 'type-1'), undefined);
+			assert.ok(viewModel.sessions.find(s => s.provider.chatSessionType === 'type-2'));
+			assert.ok(viewModel.sessions.find(s => s.provider.chatSessionType === 'type-3'));
+		});
+	});
+
+	test('should filter multiple provider types from excludes set', async () => {
+		return runWithFakedTimers({}, async () => {
+			const provider1: IChatSessionItemProvider = {
+				chatSessionType: 'type-1',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => [{
+					resource: URI.parse('test://session-1'),
+					label: 'Session 1',
+					timing: { startTime: Date.now() }
+				}]
+			};
+
+			const provider2: IChatSessionItemProvider = {
+				chatSessionType: 'type-2',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => [{
+					resource: URI.parse('test://session-2'),
+					label: 'Session 2',
+					timing: { startTime: Date.now() }
+				}]
+			};
+
+			const provider3: IChatSessionItemProvider = {
+				chatSessionType: 'type-3',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => [{
+					resource: URI.parse('test://session-3'),
+					label: 'Session 3',
+					timing: { startTime: Date.now() }
+				}]
+			};
+
+			mockChatSessionsService.registerChatSessionItemProvider(provider1);
+			mockChatSessionsService.registerChatSessionItemProvider(provider2);
+			mockChatSessionsService.registerChatSessionItemProvider(provider3);
+
+			viewModel = createViewModel();
+
+			await viewModel.resolve(undefined);
+			assert.strictEqual(viewModel.sessions.length, 3);
+
+			// Exclude both type-1 and type-2
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+			storageService.store('agentSessions.filter.excludes', JSON.stringify(['type-1', 'type-2']), StorageScope.PROFILE, StorageTarget.USER);
+
+			await Event.toPromise(viewModel.onDidChangeSessions);
+
+			// Only type-3 sessions should be visible
+			assert.strictEqual(viewModel.sessions.length, 1);
+			assert.strictEqual(viewModel.sessions[0].provider.chatSessionType, 'type-3');
+		});
+	});
+
+	test('should show all sessions when excludes set is empty', async () => {
+		return runWithFakedTimers({}, async () => {
+			const provider1: IChatSessionItemProvider = {
+				chatSessionType: 'type-1',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => [{
+					resource: URI.parse('test://session-1'),
+					label: 'Session 1',
+					timing: { startTime: Date.now() }
+				}]
+			};
+
+			const provider2: IChatSessionItemProvider = {
+				chatSessionType: 'type-2',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => [{
+					resource: URI.parse('test://session-2'),
+					label: 'Session 2',
+					timing: { startTime: Date.now() }
+				}]
+			};
+
+			mockChatSessionsService.registerChatSessionItemProvider(provider1);
+			mockChatSessionsService.registerChatSessionItemProvider(provider2);
+
+			// Set excludes initially to filter type-1
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+			storageService.store('agentSessions.filter.excludes', JSON.stringify(['type-1']), StorageScope.PROFILE, StorageTarget.USER);
+
+			viewModel = createViewModel();
+
+			await viewModel.resolve(undefined);
+			assert.strictEqual(viewModel.sessions.length, 1);
+
+			// Clear excludes
+			storageService.store('agentSessions.filter.excludes', JSON.stringify([]), StorageScope.PROFILE, StorageTarget.USER);
+
+			await Event.toPromise(viewModel.onDidChangeSessions);
+
+			// All sessions should now be visible
+			assert.strictEqual(viewModel.sessions.length, 2);
+		});
+	});
+
+	test('should dynamically update filtered sessions when excludes change', async () => {
+		return runWithFakedTimers({}, async () => {
+			const provider1: IChatSessionItemProvider = {
+				chatSessionType: 'type-1',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => [{
+					resource: URI.parse('test://session-1'),
+					label: 'Session 1',
+					timing: { startTime: Date.now() }
+				}]
+			};
+
+			const provider2: IChatSessionItemProvider = {
+				chatSessionType: 'type-2',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => [{
+					resource: URI.parse('test://session-2'),
+					label: 'Session 2',
+					timing: { startTime: Date.now() }
+				}]
+			};
+
+			mockChatSessionsService.registerChatSessionItemProvider(provider1);
+			mockChatSessionsService.registerChatSessionItemProvider(provider2);
+
+			viewModel = createViewModel();
+
+			await viewModel.resolve(undefined);
+			assert.strictEqual(viewModel.sessions.length, 2);
+
+			const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+			// Exclude type-1
+			storageService.store('agentSessions.filter.excludes', JSON.stringify(['type-1']), StorageScope.PROFILE, StorageTarget.USER);
+			await Event.toPromise(viewModel.onDidChangeSessions);
+			assert.strictEqual(viewModel.sessions.length, 1);
+			assert.strictEqual(viewModel.sessions[0].provider.chatSessionType, 'type-2');
+
+			// Switch to excluding type-2
+			storageService.store('agentSessions.filter.excludes', JSON.stringify(['type-2']), StorageScope.PROFILE, StorageTarget.USER);
+			await Event.toPromise(viewModel.onDidChangeSessions);
+			assert.strictEqual(viewModel.sessions.length, 1);
+			assert.strictEqual(viewModel.sessions[0].provider.chatSessionType, 'type-1');
+
+			// Clear all excludes
+			storageService.store('agentSessions.filter.excludes', JSON.stringify([]), StorageScope.PROFILE, StorageTarget.USER);
+			await Event.toPromise(viewModel.onDidChangeSessions);
 			assert.strictEqual(viewModel.sessions.length, 2);
 		});
 	});
