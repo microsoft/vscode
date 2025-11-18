@@ -83,7 +83,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		const register = () => {
 			this.registerModelTitleListener(widget);
 			if (widget.viewModel) {
-				this.registerProgressListener(widget.viewModel.model.requestInProgressObs);
+				this.registerProgressListener(widget.viewModel.model.requestInProgress);
 			}
 		};
 		// Listen for view model changes on this widget
@@ -119,7 +119,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
-		if (model.requestInProgress) {
+		if (model.requestInProgress.get()) {
 			return ChatSessionStatus.InProgress;
 		} else {
 			const requests = model.getRequests();

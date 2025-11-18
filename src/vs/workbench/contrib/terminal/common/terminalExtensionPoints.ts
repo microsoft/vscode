@@ -10,7 +10,7 @@ import { IExtensionTerminalProfile, ITerminalCompletionProviderContribution, ITe
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
-import { isObject } from '../../../../base/common/types.js';
+import { isObject, isString } from '../../../../base/common/types.js';
 
 // terminal extension point
 const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<ITerminalContributions>(terminalContributionsDescriptor);
@@ -72,7 +72,7 @@ function hasValidTerminalIcon(profile: ITerminalProfileContribution): boolean {
 		);
 	}
 	return !profile.icon || (
-		typeof profile.icon === 'string' ||
+		isString(profile.icon) ||
 		URI.isUri(profile.icon) ||
 		isValidDarkLightIcon(profile.icon)
 	);

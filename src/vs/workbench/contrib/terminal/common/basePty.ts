@@ -6,6 +6,7 @@
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { mark } from '../../../../base/common/performance.js';
+import { isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IPtyHostProcessReplayEvent, ISerializedCommandDetectionCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ProcessPropertyType, type IProcessDataEvent, type IProcessProperty, type IProcessPropertyMap, type IProcessReadyEvent, type ITerminalChildProcess } from '../../../../platform/terminal/common/terminal.js';
@@ -78,7 +79,7 @@ export abstract class BasePty extends Disposable implements Partial<ITerminalChi
 				break;
 			case ProcessPropertyType.ResolvedShellLaunchConfig: {
 				const cast = value as IProcessPropertyMap[ProcessPropertyType.ResolvedShellLaunchConfig];
-				if (cast.cwd && typeof cast.cwd !== 'string') {
+				if (cast.cwd && !isString(cast.cwd)) {
 					cast.cwd = URI.revive(cast.cwd);
 				}
 				break;

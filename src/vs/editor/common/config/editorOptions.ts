@@ -4502,7 +4502,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				showCollapsed: false,
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
-				showLongDistanceHint: false,
+				showLongDistanceHint: true,
 			},
 			triggerCommandOnProviderChange: false,
 			experimental: {

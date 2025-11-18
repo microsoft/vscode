@@ -6,7 +6,7 @@
 import { TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
 
-export = new class ApiLiteralOrTypes implements eslint.Rule.RuleModule {
+export default new class ApiLiteralOrTypes implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		docs: { url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines#enums' },

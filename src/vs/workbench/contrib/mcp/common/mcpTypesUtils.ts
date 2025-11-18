@@ -7,7 +7,7 @@ import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IReader } from '../../../../base/common/observable.js';
 import { ToolDataSource } from '../../chat/common/languageModelToolsService.js';
 import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState, McpServerTransportType } from './mcpTypes.js';
 
@@ -81,8 +81,8 @@ export async function startServerAndWaitForLiveTools(server: IMcpServer, opts?: 
 	return ok;
 }
 
-export function mcpServerToSourceData(server: IMcpServer): ToolDataSource {
-	const metadata = server.serverMetadata.get();
+export function mcpServerToSourceData(server: IMcpServer, reader?: IReader): ToolDataSource {
+	const metadata = server.serverMetadata.read(reader);
 	return {
 		type: 'mcp',
 		serverLabel: metadata?.serverName,

@@ -146,8 +146,8 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
-			override startOrContinueGlobalEditingSession(): Promise<IChatEditingSession> {
-				return Promise.resolve(Disposable.None as IChatEditingSession);
+			override startOrContinueGlobalEditingSession(): IChatEditingSession {
+				return Disposable.None as IChatEditingSession;
 			}
 		});
 

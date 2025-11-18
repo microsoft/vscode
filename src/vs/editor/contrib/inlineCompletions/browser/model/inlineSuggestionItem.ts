@@ -346,7 +346,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		data: InlineSuggestData,
 		textModel: ITextModel,
 	): InlineEditItem {
-		const offsetEdit = getStringEdit(textModel, data.range, data.insertText);
+		const offsetEdit = getStringEdit(textModel, data.range, data.insertText); // TODO compute async
 		const text = new TextModelText(textModel);
 		const textEdit = TextEdit.fromStringEdit(offsetEdit, text);
 		const singleTextEdit = offsetEdit.isEmpty() ? new TextReplacement(new Range(1, 1, 1, 1), '') : textEdit.toReplacement(text); // FIXME: .toReplacement() can throw because offsetEdit is empty because we get an empty diff in getStringEdit after diffing
@@ -366,7 +366,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 	public readonly isInlineEdit = true;
 
 	private constructor(
-		private readonly _edit: StringEdit,
+		private readonly _edit: StringEdit, // TODO@hediet remove, compute & cache from _edits
 		private readonly _textEdit: TextReplacement,
 		public readonly uri: URI | undefined,
 
@@ -544,7 +544,7 @@ class SingleUpdatedNextEdit {
 	}
 
 	private _applyTextModelChanges(textModelChanges: StringEdit) {
-		this._lastChangeUpdatedEdit = false;
+		this._lastChangeUpdatedEdit = false; // TODO @benibenj make immutable
 
 		if (!this._edit) {
 			throw new BugIndicatingError('UpdatedInnerEdits: No edit to apply changes to');

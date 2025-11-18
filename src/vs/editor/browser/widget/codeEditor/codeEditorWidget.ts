@@ -677,6 +677,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData.viewModel.revealRange('api', revealHorizontal, viewRange, verticalType, scrollType);
 	}
 
+	public revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void {
+		if (!this._modelData) {
+			return;
+		}
+		this._modelData.viewModel.revealAllCursors('api', revealHorizontal, minimalReveal);
+	}
+
 	public revealLine(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
 		this._revealLine(lineNumber, VerticalRevealType.Simple, scrollType);
 	}

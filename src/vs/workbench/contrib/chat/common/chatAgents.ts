@@ -70,6 +70,7 @@ export interface IChatAgentData {
 	isDynamic?: boolean;
 	/** This agent is contributed from core and not from an extension */
 	isCore?: boolean;
+	canAccessPreviousChatHistory?: boolean;
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
@@ -144,8 +145,8 @@ export interface IChatAgentRequest {
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
 	locationData?: Revived<IChatLocationData>;
-	acceptedConfirmationData?: any[];
-	rejectedConfirmationData?: any[];
+	acceptedConfirmationData?: unknown[];
+	rejectedConfirmationData?: unknown[];
 	userSelectedModelId?: string;
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
@@ -176,7 +177,7 @@ export interface IChatAgentResult {
 	errorDetails?: IChatResponseErrorDetails;
 	timings?: IChatAgentResultTimings;
 	/** Extra properties that the agent can use to identify a result */
-	readonly metadata?: { readonly [key: string]: any };
+	readonly metadata?: { readonly [key: string]: unknown };
 	readonly details?: string;
 	nextQuestion?: IChatQuestion;
 }

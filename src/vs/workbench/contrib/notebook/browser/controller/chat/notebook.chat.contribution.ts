@@ -21,9 +21,7 @@ import { ServicesAccessor } from '../../../../../../platform/instantiation/commo
 import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { IChatWidget, IChatWidgetService, showChatView } from '../../../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatContextPicker, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../../../chat/browser/chatContextPickService.js';
 import { ChatDynamicVariableModel } from '../../../../chat/browser/contrib/chatDynamicVariables.js';
 import { computeCompletionRanges } from '../../../../chat/browser/contrib/chatInputCompletions.js';
@@ -338,8 +336,6 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): Promise<void> {
 		const notebookEditor = this.getNoteboookEditor(accessor.get(IEditorService), outputContext);
-		const viewService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
 
 		if (!notebookEditor) {
 			return;
@@ -391,7 +387,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 			}
 
 			widget.attachmentModel.addContext(entry);
-			(await showChatView(viewService, layoutService))?.focusInput();
+			(await chatWidgetService.revealWidget())?.focusInput();
 		}
 	}
 
