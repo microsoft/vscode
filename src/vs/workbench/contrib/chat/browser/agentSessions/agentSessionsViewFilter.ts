@@ -106,7 +106,7 @@ export class AgentSessionsViewFilter extends Disposable {
 					}
 
 					const storageService = accessor.get(IStorageService);
-					storageService.store(AgentSessionsViewFilter.STORAGE_KEY, JSON.stringify([...excludes.keys()]), StorageScope.PROFILE, StorageTarget.USER);
+					storageService.store(AgentSessionsViewFilter.STORAGE_KEY, JSON.stringify([...excludes]), StorageScope.PROFILE, StorageTarget.USER);
 				}
 			}));
 		}
