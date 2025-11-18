@@ -17,6 +17,7 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 
 	private readonly _isHiddenValue = observableValue<boolean>('isHidden', false);
 	public readonly isHidden: IObservable<boolean> = this._isHiddenValue;
+	public reject?: (() => Promise<void>) | undefined;
 
 	constructor(
 		public readonly title: string | IMarkdownString,
@@ -25,13 +26,20 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 		public readonly acceptButtonLabel: string,
 		public readonly rejectButtonLabel: string | undefined,
 		// True when the primary action is accepted, otherwise the action that was selected
-		public readonly _accept: (value: IAction | true) => Promise<ElicitationState>,
-		public readonly _reject?: () => Promise<ElicitationState>,
+		private readonly _accept: (value: IAction | true) => Promise<ElicitationState>,
+		reject?: () => Promise<ElicitationState>,
 		public readonly source?: ToolDataSource,
 		public readonly moreActions?: IAction[],
 		public readonly onHide?: () => void,
 	) {
 		super();
+
+		if (reject) {
+			this.reject = async () => {
+				const state = await reject!();
+				this.state.set(state, undefined);
+			};
+		}
 	}
 
 	accept(value: IAction | true): Promise<void> {
