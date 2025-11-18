@@ -128,6 +128,10 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			if (terminalCustomActions) {
 				moreActions.push(...terminalCustomActions);
 			}
+			if (moreActions.length === 0) {
+				moreActions = undefined;
+			}
+
 		}
 
 		const codeBlockRenderOptions: ICodeBlockRenderOptions = {
