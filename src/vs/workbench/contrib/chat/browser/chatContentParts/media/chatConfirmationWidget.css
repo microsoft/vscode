@@ -298,3 +298,9 @@
 		}
 	}
 }
+
+.chat-confirmation-widget2 .interactive-result-code-block.compare {
+	.interactive-result-header .monaco-toolbar {
+		display: none; /* Don't show keep/discard for diffs shown within confirmation */
+	}
+}

@@ -759,7 +759,7 @@
     "compile": "gulp compile-extension:markdown-language-features-languageService && gulp compile-extension:markdown-language-features && npm run build-preview && npm run build-notebook",
     "watch": "npm run build-preview && gulp watch-extension:markdown-language-features watch-extension:markdown-language-features-languageService",
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
-    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
+    "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:markdown-language-features ./tsconfig.json",
     "build-notebook": "node ./esbuild-notebook.mjs",
     "build-preview": "node ./esbuild-preview.mjs",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",

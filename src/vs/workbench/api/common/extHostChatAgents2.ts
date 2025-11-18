@@ -855,7 +855,6 @@ class ExtHostChatAgent {
 	private _additionalWelcomeMessage?: string | vscode.MarkdownString | undefined;
 	private _titleProvider?: vscode.ChatTitleProvider | undefined;
 	private _summarizer?: vscode.ChatSummarizer | undefined;
-	private _requester: vscode.ChatRequesterInformation | undefined;
 	private _pauseStateEmitter = new Emitter<vscode.ChatParticipantPauseStateEvent>();
 
 	constructor(
@@ -943,7 +942,6 @@ class ExtHostChatAgent {
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					supportIssueReporting: this._supportIssueReporting,
-					requester: this._requester,
 					additionalWelcomeMessage: (!this._additionalWelcomeMessage || typeof this._additionalWelcomeMessage === 'string') ? this._additionalWelcomeMessage : typeConvert.MarkdownString.from(this._additionalWelcomeMessage),
 				});
 				updateScheduled = false;
@@ -1057,13 +1055,6 @@ class ExtHostChatAgent {
 				? undefined!
 				: this._onDidPerformAction.event
 			,
-			set requester(v) {
-				that._requester = v;
-				updateMetadataSoon();
-			},
-			get requester() {
-				return that._requester;
-			},
 			dispose() {
 				disposed = true;
 				that._followupProvider = undefined;

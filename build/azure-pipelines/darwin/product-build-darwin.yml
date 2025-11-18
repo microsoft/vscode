@@ -1,4 +1,6 @@
 parameters:
+  - name: VSCODE_QUALITY
+    type: string
   - name: VSCODE_ARCH
     type: string
   - name: VSCODE_CIBUILD
@@ -72,6 +74,7 @@ jobs:
     steps:
       - template: ./steps/product-build-darwin-compile.yml@self
         parameters:
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
           VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
           VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}

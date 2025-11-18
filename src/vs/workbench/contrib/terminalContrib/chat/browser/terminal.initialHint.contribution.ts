@@ -225,7 +225,7 @@ class TerminalInitialHintWidget extends Disposable {
 	) {
 		super();
 		this._toDispose.add(_instance.onDidFocus(() => {
-			if (this._instance.hasFocus && this._isVisible && this._ariaLabel && this._configurationService.getValue(AccessibilityVerbositySettingId.TerminalChat)) {
+			if (this._instance.hasFocus && this._isVisible && this._ariaLabel && this._configurationService.getValue(AccessibilityVerbositySettingId.TerminalInlineChat)) {
 				status(this._ariaLabel);
 			}
 		}));
@@ -323,7 +323,7 @@ class TerminalInitialHintWidget extends Disposable {
 
 			const { hintElement, ariaLabel } = this._getHintInlineChat(agents);
 			this._domNode.append(hintElement);
-			this._ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.TerminalChat));
+			this._ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.TerminalInlineChat));
 
 			this._toDispose.add(dom.addDisposableListener(this._domNode, 'click', () => {
 				this._domNode?.remove();

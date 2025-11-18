@@ -2294,9 +2294,9 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, IGo
 export interface IEditorHoverOptions {
 	/**
 	 * Enable the hover.
-	 * Defaults to true.
+	 * Defaults to 'on'.
 	 */
-	enabled?: boolean;
+	enabled?: 'on' | 'off' | 'onKeyboardModifier';
 	/**
 	 * Delay for showing the hover.
 	 * Defaults to 300.
@@ -2328,7 +2328,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 
 	constructor() {
 		const defaults: EditorHoverOptions = {
-			enabled: true,
+			enabled: 'on',
 			delay: 300,
 			hidingDelay: 300,
 			sticky: true,
@@ -2338,8 +2338,14 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			EditorOption.hover, 'hover', defaults,
 			{
 				'editor.hover.enabled': {
-					type: 'boolean',
+					type: 'string',
+					enum: ['on', 'off', 'onKeyboardModifier'],
 					default: defaults.enabled,
+					markdownEnumDescriptions: [
+						nls.localize('hover.enabled.on', "Hover is enabled."),
+						nls.localize('hover.enabled.off', "Hover is disabled."),
+						nls.localize('hover.enabled.onKeyboardModifier', "Hover is shown when holding `{0}` or `Alt` (the opposite modifier of `#editor.multiCursorModifier#`)", platform.isMacintosh ? `Command` : `Control`)
+					],
 					description: nls.localize('hover.enabled', "Controls whether the hover is shown.")
 				},
 				'editor.hover.delay': {
@@ -2375,7 +2381,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 		}
 		const input = _input as Unknown<IEditorHoverOptions>;
 		return {
-			enabled: boolean(input.enabled, this.defaultValue.enabled),
+			enabled: stringSet<'on' | 'off' | 'onKeyboardModifier'>(input.enabled, this.defaultValue.enabled, ['on', 'off', 'onKeyboardModifier']),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
 			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
@@ -4436,6 +4442,8 @@ export interface IInlineSuggestOptions {
 
 		showCollapsed?: boolean;
 
+		showLongDistanceHint?: boolean;
+
 		/**
 		* @internal
 		*/
@@ -4494,6 +4502,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				showCollapsed: false,
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
+				showLongDistanceHint: true,
 			},
 			triggerCommandOnProviderChange: false,
 			experimental: {
@@ -4593,6 +4602,12 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					enum: ['always', 'horizontal', 'never'],
 					tags: ['nextEditSuggestions']
 				},
+				'editor.inlineSuggest.edits.showLongDistanceHint': {
+					type: 'boolean',
+					default: defaults.edits.showLongDistanceHint,
+					description: nls.localize('inlineSuggest.edits.showLongDistanceHint', "Controls whether long distance inline suggestions are shown."),
+					tags: ['nextEditSuggestions', 'experimental']
+				},
 				'editor.inlineSuggest.edits.renderSideBySide': {
 					type: 'string',
 					default: defaults.edits.renderSideBySide,
@@ -4644,6 +4659,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			enabled: boolean(input.enabled, this.defaultValue.edits.enabled),
 			showCollapsed: boolean(input.showCollapsed, this.defaultValue.edits.showCollapsed),
 			allowCodeShifting: stringSet(input.allowCodeShifting, this.defaultValue.edits.allowCodeShifting, ['always', 'horizontal', 'never']),
+			showLongDistanceHint: boolean(input.showLongDistanceHint, this.defaultValue.edits.showLongDistanceHint),
 			renderSideBySide: stringSet(input.renderSideBySide, this.defaultValue.edits.renderSideBySide, ['never', 'auto']),
 		};
 	}

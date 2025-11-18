@@ -196,7 +196,9 @@ export class GitBlameController {
 		} satisfies BlameInformationTemplateTokens;
 
 		return template.replace(/\$\{(.+?)\}/g, (_, token) => {
-			return token in templateTokens ? templateTokens[token as keyof BlameInformationTemplateTokens] : `\${${token}}`;
+			return templateTokens.hasOwnProperty(token)
+				? templateTokens[token as keyof BlameInformationTemplateTokens]
+				: `\${${token}}`;
 		});
 	}
 
@@ -260,7 +262,7 @@ export class GitBlameController {
 			arguments: ['git.blame']
 		}] satisfies Command[]);
 
-		return getHistoryItemHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, commands);
+		return getHistoryItemHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, undefined, commands);
 	}
 
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {

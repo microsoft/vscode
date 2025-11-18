@@ -81,6 +81,7 @@ import { registerChatPromptNavigationActions } from './actions/chatPromptNavigat
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
 import { ChatSessionsGettingStartedAction, DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInNewWindowAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleAgentSessionsViewLocationAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
+import { registerChatElicitationActions } from './actions/chatElicitationActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
 import './agentSessions/agentSessionsView.js';
@@ -108,12 +109,13 @@ import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatPart
 import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
+import { ChatTerminalOutputAccessibleView } from './chatTerminalOutputAccessibleView.js';
 import { LocalChatSessionsProvider } from './chatSessions/localChatSessionsProvider.js';
 import { ChatSessionsView, ChatSessionsViewContrib } from './chatSessions/view/chatSessionsView.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
 import { ChatVariablesService } from './chatVariables.js';
-import { ChatWidget, ChatWidgetService } from './chatWidget.js';
+import { ChatWidget } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatImplicitContextContribution } from './contrib/chatImplicitContext.js';
@@ -128,6 +130,7 @@ import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import { ChatWidgetService } from './chatWidgetService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -181,7 +184,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.implicitContext.enabled': {
 			type: 'object',
-			tags: ['experimental'],
 			description: nls.localize('chat.implicitContext.enabled.1', "Enables automatically using the active editor as chat context for specified chat locations."),
 			additionalProperties: {
 				type: 'string',
@@ -199,7 +201,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.implicitContext.suggestedContext': {
 			type: 'boolean',
-			tags: ['experimental'],
 			markdownDescription: nls.localize('chat.implicitContext.suggestedContext', "Controls whether the new implicit context flow is shown. In Ask and Edit modes, the context will automatically be included. When using an agent, context will be suggested as an attachment. Selections are always included as context."),
 			default: true,
 		},
@@ -276,17 +277,60 @@ configurationRegistry.registerConfiguration({
 				type: 'boolean',
 			}
 		},
+		[ChatConfiguration.AutoApprovedUrls]: {
+			default: {},
+			markdownDescription: nls.localize('chat.tools.fetchPage.approvedUrls', "Controls which URLs are automatically approved when requested by chat tools. Keys are URL patterns and values can be `true` to approve both requests and responses, `false` to deny, or an object with `approveRequest` and `approveResponse` properties for granular control.\n\nExamples:\n- `\"https://example.com\": true` - Approve all requests to example.com\n- `\"https://*.example.com\": true` - Approve all requests to any subdomain of example.com\n- `\"https://example.com/api/*\": { \"approveRequest\": true, \"approveResponse\": false }` - Approve requests but not responses for example.com/api paths"),
+			type: 'object',
+			additionalProperties: {
+				oneOf: [
+					{ type: 'boolean' },
+					{
+						type: 'object',
+						properties: {
+							approveRequest: { type: 'boolean' },
+							approveResponse: { type: 'boolean' }
+						}
+					}
+				]
+			}
+		},
+		[ChatConfiguration.EligibleForAutoApproval]: {
+			default: {},
+			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval. Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.'),
+			type: 'object',
+			additionalProperties: {
+				type: 'boolean',
+			},
+			tags: ['experimental'],
+			examples: [
+				{
+					'fetch': false,
+					'runTests': false
+				}
+			],
+			policy: {
+				name: 'ChatToolsEligibleForAutoApproval',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.107',
+				localization: {
+					description: {
+						key: 'chat.tools.eligibleForAutoApproval',
+						value: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval. Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.')
+					}
+				},
+			}
+		},
 		'chat.sendElementsToChat.enabled': {
 			default: true,
 			description: nls.localize('chat.sendElementsToChat.enabled', "Controls whether elements can be sent to chat from the Simple Browser."),
 			type: 'boolean',
-			tags: ['experimental']
+			tags: ['preview']
 		},
 		'chat.sendElementsToChat.attachCSS': {
 			default: true,
 			markdownDescription: nls.localize('chat.sendElementsToChat.attachCSS', "Controls whether CSS of the selected element will be added to the chat. {0} must be enabled.", '`#chat.sendElementsToChat.enabled#`'),
 			type: 'boolean',
-			tags: ['experimental']
+			tags: ['preview']
 		},
 		'chat.sendElementsToChat.attachImages': {
 			default: true,
@@ -298,7 +342,6 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			markdownDescription: nls.localize('chat.undoRequests.restoreInput', "Controls whether the input of the chat should be restored when an undo request is made. The input will be filled with the text of the request that was restored."),
 			type: 'boolean',
-			tags: ['experimental']
 		},
 		'chat.editRequests': {
 			markdownDescription: nls.localize('chat.editRequests', "Enables editing of requests in the chat. This allows you to change the request content and resubmit it to the model."),
@@ -310,7 +353,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: product.quality === 'insiders',
 			description: nls.localize('chat.emptyState.history.enabled', "Show recent chat history on the empty chat state."),
-			tags: ['experimental']
+			tags: ['preview']
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
@@ -468,6 +511,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
 			default: true,
 			tags: ['preview'],
+		},
+		[ChatConfiguration.ShowCodeBlockProgressAnimation]: {
+			type: 'boolean',
+			description: nls.localize('chat.codeBlock.showProgressAnimation.description', "When applying edits, show a progress animation in the code block pill. If disabled, shows the progress percentage instead."),
+			default: true,
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
@@ -702,13 +751,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW
 		},
-		[ChatConfiguration.UseCloudButtonV2]: {
-			type: 'boolean',
-			description: nls.localize('chat.useCloudButtonV2', "Experimental implementation of 'cloud button'"),
-			default: true,
-			tags: ['experimental'],
-
-		},
 		[ChatConfiguration.ShowAgentSessionsViewDescription]: {
 			type: 'boolean',
 			description: nls.localize('chat.showAgentSessionsViewDescription', "Controls whether session descriptions are displayed on a second row in the Chat Sessions view."),
@@ -735,7 +777,7 @@ configurationRegistry.registerConfiguration({
 		'chat.extensionUnification.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.extensionUnification.enabled', "Enables the unification of GitHub Copilot extensions. When enabled, all GitHub Copilot functionality is served from the GitHub Copilot Chat extension. When disabled, the GitHub Copilot and GitHub Copilot Chat extensions operate independently."),
-			default: false,
+			default: true,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -873,6 +915,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 	}
 }
 
+AccessibleViewRegistry.register(new ChatTerminalOutputAccessibleView());
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
 AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
 AccessibleViewRegistry.register(new QuickChatAccessibilityHelp());
@@ -1007,6 +1050,7 @@ registerNewChatActions();
 registerChatContextActions();
 registerChatDeveloperActions();
 registerChatEditorActions();
+registerChatElicitationActions();
 registerChatToolActions();
 registerLanguageModelActions();
 

@@ -349,14 +349,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const chatModel = this._chatService.startSession(ChatAgentLocation.Chat, token, false);
 
-		const editingSession = await chatModel.editingSessionObs?.promise!;
 		const widget = this._chatWidgetService.getWidgetBySessionResource(chatModel.sessionResource);
 		await widget?.attachmentModel.addFile(uri);
 
 		const store = new DisposableStore();
 		store.add(toDisposable(() => {
 			this._chatService.cancelCurrentRequestForSession(chatModel.sessionResource);
-			editingSession.reject();
+			chatModel.editingSession?.reject();
 			this._sessions2.delete(uri);
 			this._onDidChangeSessions.fire(this);
 		}));
@@ -364,9 +363,27 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		store.add(autorun(r => {
 
-			const entries = editingSession.entries.read(r);
-			if (entries.length === 0) {
+			const entries = chatModel.editingSession?.entries.read(r);
+			if (!entries?.length) {
 				return;
+			}
+
+			const state = entries.find(entry => isEqual(entry.modifiedURI, uri))?.state.read(r);
+			if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
+				const response = chatModel.getRequests().at(-1)?.response;
+				if (response) {
+					this._chatService.notifyUserAction({
+						sessionResource: response.session.sessionResource,
+						requestId: response.requestId,
+						agentId: response.agent?.id,
+						command: response.slashCommand?.name,
+						result: response.result,
+						action: {
+							kind: 'inlineChat',
+							action: state === ModifiedFileEntryState.Accepted ? 'accepted' : 'discarded'
+						}
+					});
+				}
 			}
 
 			const allSettled = entries.every(entry => {
@@ -385,7 +402,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			uri,
 			initialPosition: editor.getSelection().getStartPosition().delta(-1), /* one line above selection start */
 			chatModel,
-			editingSession,
+			editingSession: chatModel.editingSession!,
 			dispose: store.dispose.bind(store)
 		};
 		this._sessions2.set(uri, result);

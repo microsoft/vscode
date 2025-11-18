@@ -50,8 +50,13 @@ import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCd
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
+import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
+import { isNumber, isString } from '../../../../../../base/common/types.js';
+import { ChatConfiguration } from '../../../../chat/common/constants.js';
 
 // #region Tool data
+
+const TOOL_REFERENCE_NAME = 'runInTerminal';
 
 function createPowerShellModelDescription(shell: string): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
@@ -188,7 +193,7 @@ export async function createRunInTerminalToolData(
 
 	return {
 		id: 'run_in_terminal',
-		toolReferenceName: 'runInTerminal',
+		toolReferenceName: TOOL_REFERENCE_NAME,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
 		modelDescription,
 		userDescription: localize('runInTerminalTool.userDescription', 'Tool for running commands in the terminal'),
@@ -254,6 +259,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _terminalToolCreator: ToolTerminalCreator;
 	private readonly _treeSitterCommandParser: TreeSitterCommandParser;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
+	private readonly _commandArtifactCollector: TerminalCommandArtifactCollector;
 	protected readonly _profileFetcher: TerminalProfileFetcher;
 
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
@@ -293,6 +299,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._terminalToolCreator = this._instantiationService.createInstance(ToolTerminalCreator);
 		this._treeSitterCommandParser = this._register(this._instantiationService.createInstance(TreeSitterCommandParser));
 		this._telemetry = this._instantiationService.createInstance(RunInTerminalToolTelemetry);
+		this._commandArtifactCollector = this._instantiationService.createInstance(TerminalCommandArtifactCollector);
 		this._profileFetcher = this._instantiationService.createInstance(TerminalProfileFetcher);
 
 		this._commandLineRewriters = [
@@ -397,9 +404,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// commands that would be auto approved if it were enabled.
 		const commandLine = rewrittenCommand ?? args.command;
 
+		const isEligibleForAutoApproval = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval)?.[TOOL_REFERENCE_NAME] ?? true;
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		const isAutoApproveAllowed = isAutoApproveEnabled && isAutoApproveWarningAccepted;
+		const isAutoApproveAllowed = isEligibleForAutoApproval && isAutoApproveEnabled && isAutoApproveWarningAccepted;
 
 		const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
 			commandLine,
@@ -408,6 +416,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			shell,
 			treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
 			terminalToolSessionId,
+			chatSessionId: context.chatSessionId,
 		};
 		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
@@ -418,7 +427,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const analyzersIsAutoApproveAllowed = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
-		const customActions = analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
+		const customActions = isEligibleForAutoApproval && analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
 
 		let shellType = basename(shell, '.exe');
 		if (shellType === 'powershell') {
@@ -460,6 +469,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
+		const commandId = toolSpecificData.terminalCommandId;
 		if (toolSpecificData.alternativeRecommendation) {
 			return {
 				content: [{
@@ -528,7 +538,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, commandId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
@@ -539,6 +548,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
+
+				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId, pollingResult?.output);
 
 				let resultText = (
 					didUserEditCommand
@@ -627,13 +638,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
 					}
 				}));
-				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
 				const executeResult = await strategy.execute(command, token, commandId);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
+
+				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId, executeResult.output);
 
 				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
 				outputLineCount = executeResult.output === undefined ? 0 : count(executeResult.output.trim(), '\n') + 1;
@@ -813,7 +825,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				timeout(5000).then(() => { throw new Error('Timeout'); })
 			]);
 
-			if (typeof pid === 'number') {
+			if (isNumber(pid)) {
 				const storedAssociations = this._storageService.get(TerminalToolStorageKeysInternal.TerminalSession, StorageScope.WORKSPACE, '{}');
 				const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
 
@@ -965,7 +977,7 @@ export class TerminalProfileFetcher {
 		if (profile === null || profile === undefined || typeof profile !== 'object') {
 			return false;
 		}
-		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
+		if ('path' in profile && isString((profile as { path: unknown }).path)) {
 			return true;
 		}
 		return false;

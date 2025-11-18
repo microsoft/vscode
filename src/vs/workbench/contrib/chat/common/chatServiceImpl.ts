@@ -349,9 +349,7 @@ export class ChatService extends Disposable implements IChatService {
 					isImported: metadata.isImported || false,
 					initialLocation: metadata.initialLocation,
 					requests: [], // Empty requests array - this is just for title lookup
-					requesterUsername: '',
 					responderUsername: '',
-					requesterAvatarIconUri: undefined,
 					responderAvatarIconUri: undefined,
 				};
 
@@ -459,10 +457,6 @@ export class ChatService extends Disposable implements IChatService {
 
 	getSession(sessionResource: URI): IChatModel | undefined {
 		return this._sessionModels.get(sessionResource);
-	}
-
-	getSessionByLegacyId(sessionId: string): IChatModel | undefined {
-		return Array.from(this._sessionModels.values()).find(session => session.sessionId === sessionId);
 	}
 
 	async getOrRestoreSession(sessionResource: URI): Promise<ChatModel | undefined> {
@@ -883,6 +877,7 @@ export class ChatService extends Disposable implements IChatService {
 
 						const agentRequest: IChatAgentRequest = {
 							sessionId: model.sessionId,
+							sessionResource: model.sessionResource,
 							requestId: request.id,
 							agentId: agent.id,
 							message,
@@ -1118,9 +1113,9 @@ export class ChatService extends Disposable implements IChatService {
 				continue;
 			}
 
-			if (forAgentId !== request.response.agent?.id && !agent?.isDefault) {
+			if (forAgentId !== request.response.agent?.id && !agent?.isDefault && !agent?.canAccessPreviousChatHistory) {
 				// An agent only gets to see requests that were sent to this agent.
-				// The default agent (the undefined case) gets to see all of them.
+				// The default agent (the undefined case), or agents with 'canAccessPreviousChatHistory', get to see all of them.
 				continue;
 			}
 
@@ -1132,6 +1127,7 @@ export class ChatService extends Disposable implements IChatService {
 			const promptTextResult = getPromptText(request.message);
 			const historyRequest: IChatAgentRequest = {
 				sessionId: sessionId,
+				sessionResource: request.session.sessionResource,
 				requestId: request.id,
 				agentId: request.response.agent?.id ?? '',
 				message: promptTextResult.message,

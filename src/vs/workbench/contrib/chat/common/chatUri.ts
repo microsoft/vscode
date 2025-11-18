@@ -19,7 +19,8 @@ export namespace LocalChatSessionUri {
 	export const scheme = Schemas.vscodeLocalChatSession;
 
 	export function forSession(sessionId: string): URI {
-		return forChatSessionTypeAndId(localChatSessionType, sessionId);
+		const encodedId = encodeBase64(VSBuffer.wrap(new TextEncoder().encode(sessionId)), false, true);
+		return URI.from({ scheme, authority: localChatSessionType, path: '/' + encodedId });
 	}
 
 	export function parseLocalSessionId(resource: URI): string | undefined {
@@ -27,19 +28,7 @@ export namespace LocalChatSessionUri {
 		return parsed?.chatSessionType === localChatSessionType ? parsed.sessionId : undefined;
 	}
 
-	/**
-	 * @deprecated Does not support non-local sessions
-	 */
-	export function forChatSessionTypeAndId(chatSessionType: string, sessionId: string): URI {
-		const encodedId = encodeBase64(VSBuffer.wrap(new TextEncoder().encode(sessionId)), false, true);
-		// TODO: Do we need to encode the authority too?
-		return URI.from({ scheme, authority: chatSessionType, path: '/' + encodedId });
-	}
-
-	/**
-	 * @deprecated Legacy parser that supports non-local sessions.
-	 */
-	export function parse(resource: URI): ChatSessionIdentifier | undefined {
+	function parse(resource: URI): ChatSessionIdentifier | undefined {
 		if (resource.scheme !== scheme) {
 			return undefined;
 		}

@@ -269,6 +269,10 @@ class RemoteTerminalBackend extends BaseTerminalBackend implements ITerminalBack
 		await this._remoteTerminalChannel.updateIcon(id, userInitiated, icon, color);
 	}
 
+	async setNextCommandId(id: number, commandLine: string, commandId: string): Promise<void> {
+		await this._remoteTerminalChannel.setNextCommandId(id, commandLine, commandId);
+	}
+
 	async getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._remoteTerminalChannel.getDefaultSystemShell(osOverride) || '';
 	}

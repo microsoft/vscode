@@ -191,10 +191,6 @@ export class ActionButtonRenderer implements ICompressibleTreeRenderer<ISCMActio
 	) { }
 
 	renderTemplate(container: HTMLElement): ActionButtonTemplate {
-		// hack
-		// eslint-disable-next-line no-restricted-syntax
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
-
 		// Use default cursor & disable hover for list item
 		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
 
@@ -316,10 +312,6 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 	) { }
 
 	renderTemplate(container: HTMLElement): InputTemplate {
-		// hack
-		// eslint-disable-next-line no-restricted-syntax
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
-
 		// Disable hover for list item
 		container.parentElement!.parentElement!.classList.add('force-no-hover');
 
@@ -449,10 +441,6 @@ class ResourceGroupRenderer implements ICompressibleTreeRenderer<ISCMResourceGro
 	) { }
 
 	renderTemplate(container: HTMLElement): ResourceGroupTemplate {
-		// hack
-		// eslint-disable-next-line no-restricted-syntax
-		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
-
 		const element = append(container, $('.resource-group'));
 		const name = append(element, $('.name'));
 		const actionsContainer = append(element, $('.actions'));
@@ -2415,7 +2403,16 @@ export class SCMViewPane extends ViewPane {
 					// History Item Group, History Item, or History Item Change
 					return (viewState?.expanded ?? []).indexOf(getSCMResourceId(e as TreeElement)) === -1;
 				},
-				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
+				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
+				twistieAdditionalCssClass: (e: unknown) => {
+					if (isSCMRepository(e)) {
+						return 'force-twistie';
+					} else if (isSCMActionButton(e) || isSCMInput(e)) {
+						return 'force-no-twistie';
+					}
+
+					return undefined;
+				},
 			}) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 
 		this.disposables.add(this.tree);

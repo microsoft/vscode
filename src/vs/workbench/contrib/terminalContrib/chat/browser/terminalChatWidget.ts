@@ -16,9 +16,7 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { IChatAcceptInputOptions, showChatView } from '../../../chat/browser/chat.js';
+import { IChatAcceptInputOptions, IChatWidgetService } from '../../../chat/browser/chat.js';
 import type { IChatViewState } from '../../../chat/browser/chatWidget.js';
 import { IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { ChatModel, IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/chatModel.js';
@@ -101,10 +99,9 @@ export class TerminalChatWidget extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -432,7 +429,7 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	async viewInChat(): Promise<void> {
-		const widget = await showChatView(this._viewsService, this._layoutService);
+		const widget = await this._chatWidgetService.revealWidget();
 		const currentRequest = this._inlineChatWidget.chatWidget.viewModel?.model.getRequests().find(r => r.id === this._currentRequestId);
 		if (!widget || !currentRequest?.response) {
 			return;
