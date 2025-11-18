@@ -97,8 +97,11 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	async openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | ChatEditorGroupType, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
 		// TODO remove this, open the real resource
 		if (isEqual(sessionResource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
-			await this.viewsService.openView(ChatViewId);
-			return;
+			const chatViewPane = await this.viewsService.openView<ChatViewPane>(ChatViewId, true);
+			if (chatViewPane) {
+				chatViewPane.focusInput();
+			}
+			return chatViewPane?.widget;
 		}
 
 		const alreadyOpenWidget = await this.revealSessionIfAlreadyOpen(sessionResource);
