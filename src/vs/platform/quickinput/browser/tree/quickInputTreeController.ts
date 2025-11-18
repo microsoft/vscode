@@ -136,7 +136,7 @@ export class QuickInputTreeController extends Disposable {
 		let hasNestedItems = false;
 		const createTreeElement = (item: IQuickTreeItem): IObjectTreeElement<IQuickTreeItem> => {
 			let children: IObjectTreeElement<IQuickTreeItem>[] | undefined;
-			if (item.children?.length) {
+			if ((item.children?.length ?? 0) > 0) {
 				hasNestedItems = true;
 				children = item.children.map(child => createTreeElement(child));
 				item.checked = getParentNodeState(children);
