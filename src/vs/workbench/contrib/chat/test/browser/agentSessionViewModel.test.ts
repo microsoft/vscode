@@ -19,6 +19,7 @@ import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelSc
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 suite('AgentSessionsViewModel', () => {
 
@@ -26,7 +27,7 @@ suite('AgentSessionsViewModel', () => {
 	let mockChatSessionsService: MockChatSessionsService;
 	let mockLifecycleService: TestLifecycleService;
 	let viewModel: AgentSessionsViewModel;
-	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
+	let instantiationService: TestInstantiationService;
 
 	function createViewModel(): AgentSessionsViewModel {
 		return disposables.add(instantiationService.createInstance(
