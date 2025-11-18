@@ -7,6 +7,7 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import * as fs from 'fs';
 import * as path from 'path';
 import picomatch from 'picomatch';
+import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { CancellationError, CancellationToken, CancellationTokenSource, Command, commands, Disposable, Event, EventEmitter, FileDecoration, FileType, l10n, LogLevel, LogOutputChannel, Memento, ProgressLocation, ProgressOptions, QuickDiffProvider, RelativePattern, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, TabInputNotebookDiff, TabInputTextDiff, TabInputTextMultiDiff, ThemeColor, ThemeIcon, Uri, window, workspace, WorkspaceEdit } from 'vscode';
 import { ActionButton } from './actionButton';
 import { ApiRepository } from './api/api1';
@@ -696,6 +697,7 @@ export interface IRepositoryResolver {
 }
 
 export class Repository implements Disposable {
+	static readonly WORKTREE_ROOT_STORAGE_KEY = 'worktreeRoot';
 
 	private _onDidChangeRepository = new EventEmitter<Uri>();
 	readonly onDidChangeRepository: Event<Uri> = this._onDidChangeRepository.event;
@@ -896,7 +898,7 @@ export class Repository implements Disposable {
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
 		private readonly branchProtectionProviderRegistry: IBranchProtectionProviderRegistry,
 		historyItemDetailProviderRegistry: ISourceControlHistoryItemDetailsProviderRegistry,
-		globalState: Memento,
+		private readonly globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter,
 		private readonly repositoryCache: RepositoryCache
@@ -1797,12 +1799,87 @@ export class Repository implements Disposable {
 		await this.run(Operation.DeleteTag, () => this.repository.deleteTag(name));
 	}
 
-	async addWorktree(options: { path: string; commitish: string; branch?: string }): Promise<void> {
-		await this.run(Operation.Worktree, () => this.repository.addWorktree(options));
+	async createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`);
+		let { path: worktreePath, commitish, branch } = options || {};
+		let worktreeName: string | undefined;
+
+		return await this.run(Operation.Worktree, async () => {
+			// Generate branch name if not provided
+			if (branch === undefined) {
+				const config = workspace.getConfiguration('git', Uri.file(this.root));
+				const branchPrefix = config.get<string>('branchPrefix', '');
+
+				let worktreeName = await this.getRandomBranchName();
+				if (!worktreeName) {
+					// Fallback to timestamp-based name if random generation fails
+					const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+					worktreeName = `worktree-${timestamp}`;
+				}
+
+				branch = `${branchPrefix}${worktreeName}`;
+			}
+
+			// Generate path if not provided
+			if (worktreePath === undefined) {
+				worktreePath = defaultWorktreeRoot
+					? path.join(defaultWorktreeRoot, worktreeName!)
+					: path.join(path.dirname(this.root), `${path.basename(this.root)}.worktrees`, worktreeName!);
+
+				// Ensure that the worktree path is unique
+				if (this.worktrees.some(worktree => pathEquals(path.normalize(worktree.path), path.normalize(worktreePath!)))) {
+					let counter = 1;
+					let uniqueWorktreePath = `${worktreePath}-${counter}`;
+					while (this.worktrees.some(wt => pathEquals(path.normalize(wt.path), path.normalize(uniqueWorktreePath)))) {
+						counter++;
+						uniqueWorktreePath = `${worktreePath}-${counter}`;
+					}
+
+					worktreePath = uniqueWorktreePath;
+				}
+			}
+
+			// Create the worktree
+			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch });
+
+			// Update worktree root in global state
+			const newWorktreeRoot = path.dirname(worktreePath!);
+			if (defaultWorktreeRoot && !pathEquals(newWorktreeRoot, defaultWorktreeRoot)) {
+				this.globalState.update(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`, newWorktreeRoot);
+			}
+
+			return worktreePath!;
+		});
 	}
 
 	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
-		await this.run(Operation.DeleteWorktree, () => this.repository.deleteWorktree(path, options));
+		await this.run(Operation.DeleteWorktree, async () => {
+			const worktree = this.repositoryResolver.getRepository(path);
+			if (!worktree || worktree.kind !== 'worktree') {
+				return;
+			}
+
+			const deleteWorktree = async (options?: { force?: boolean }): Promise<void> => {
+				await this.repository.deleteWorktree(path, options);
+				worktree.dispose();
+			};
+
+			try {
+				await deleteWorktree();
+			} catch (err) {
+				if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
+					const forceDelete = l10n.t('Force Delete');
+					const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+					const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
+					if (choice === forceDelete) {
+						await deleteWorktree({ ...options, force: true });
+					}
+					return;
+				}
+
+				throw err;
+			}
+		});
 	}
 
 	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {
@@ -2960,6 +3037,51 @@ export class Repository implements Disposable {
 		}
 
 		return this.unpublishedCommits;
+	}
+
+	private async getRandomBranchName(): Promise<string | undefined> {
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const branchRandomNameEnabled = config.get<boolean>('branchRandomName.enable', false);
+		if (!branchRandomNameEnabled) {
+			return undefined;
+		}
+
+		const dictionaries: string[][] = [];
+		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar', '-');
+		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary', ['adjectives', 'animals']);
+
+		for (const dictionary of branchRandomNameDictionary) {
+			if (dictionary.toLowerCase() === 'adjectives') {
+				dictionaries.push(adjectives);
+			} else if (dictionary.toLowerCase() === 'animals') {
+				dictionaries.push(animals);
+			} else if (dictionary.toLowerCase() === 'colors') {
+				dictionaries.push(colors);
+			} else if (dictionary.toLowerCase() === 'numbers') {
+				dictionaries.push(NumberDictionary.generate({ length: 3 }));
+			}
+		}
+
+		if (dictionaries.length === 0) {
+			return undefined;
+		}
+
+		// 5 attempts to generate a random branch name
+		for (let index = 0; index < 5; index++) {
+			const randomName = uniqueNamesGenerator({
+				dictionaries,
+				length: dictionaries.length,
+				separator: branchWhitespaceChar
+			});
+
+			// Check for local ref conflict
+			const refs = await this.getRefs({ pattern: `refs/heads/${randomName}` });
+			if (refs.length === 0) {
+				return randomName;
+			}
+		}
+
+		return undefined;
 	}
 
 	dispose(): void {

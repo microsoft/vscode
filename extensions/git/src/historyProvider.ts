@@ -524,7 +524,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						revision: commit.hash,
 						category: l10n.t('remote branches'),
 						icon: new ThemeIcon('cloud'),
-						backgroundColor: `--vscode-scmGraph-historyItemRemoteRefColor`
+						backgroundColor: ref === this.currentHistoryItemRemoteRef?.id
+							? `--vscode-scmGraph-historyItemRemoteRefColor`
+							: undefined
 					});
 					break;
 				case ref.startsWith('tag: refs/tags/'):

@@ -3825,6 +3825,10 @@ export namespace McpServerDefinition {
 					type: McpServerTransportType.HTTP,
 					uri: item.uri,
 					headers: Object.entries(item.headers),
+					authentication: (item as vscode.McpHttpServerDefinition2).authentication ? {
+						providerId: (item as vscode.McpHttpServerDefinition2).authentication!.providerId,
+						scopes: (item as vscode.McpHttpServerDefinition2).authentication!.scopes
+					} : undefined,
 				}
 				: {
 					type: McpServerTransportType.Stdio,
