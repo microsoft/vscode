@@ -416,23 +416,6 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			treeContainer.classList.toggle('auto-provider-counts', providerCountBadge === 'auto');
 		}));
 
-		// Hide twisties when repositories are flat (no parent-child hierarchy)
-		const onDidChangeRepositoriesSignal = observableSignalFromEvent(
-			this, this.scmViewService.onDidChangeRepositories);
-
-		this._register(autorun(reader => {
-			const explorerEnabled = this.scmViewService.explorerEnabledConfig.read(reader);
-			onDidChangeRepositoriesSignal.read(reader);
-			
-			const repositories = this.scmViewService.repositories;
-			
-			// Check if all repositories have no parentId (flat hierarchy)
-			const hasHierarchy = repositories.some(r => r.provider.parentId !== undefined);
-			
-			// Only hide twisties when explorer mode is disabled and there's no hierarchy
-			treeContainer.classList.toggle('hide-twisties', !explorerEnabled && !hasHierarchy);
-		}));
-
 		this.createTree(treeContainer);
 
 		this.onDidChangeBodyVisibility(async visible => {
