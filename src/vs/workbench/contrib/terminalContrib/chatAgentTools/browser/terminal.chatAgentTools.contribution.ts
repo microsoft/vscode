@@ -14,9 +14,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { IChatWidgetService, showChatView } from '../../../chat/browser/chat.js';
+import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 import { ILanguageModelToolsService, ToolDataSource, VSCodeToolReference } from '../../../chat/common/languageModelToolsService.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
@@ -132,16 +130,14 @@ registerActiveInstanceAction({
 		},
 	],
 	run: async (activeInstance, _c, accessor) => {
-		const viewsService = accessor.get(IViewsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
 
 		const selection = activeInstance.selection;
 		if (!selection) {
 			return;
 		}
 
-		const chatView = chatWidgetService.lastFocusedWidget || await showChatView(viewsService, layoutService);
+		const chatView = chatWidgetService.lastFocusedWidget ?? await chatWidgetService.revealWidget();
 		if (!chatView) {
 			return;
 		}

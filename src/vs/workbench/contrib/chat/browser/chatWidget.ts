@@ -10,7 +10,7 @@ import { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
-import { disposableTimeout, RunOnceScheduler, timeout } from '../../../../base/common/async.js';
+import { disposableTimeout, raceCancellablePromises, RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow, fromNowByDay } from '../../../../base/common/date.js';
@@ -42,6 +42,7 @@ import { ITextResourceEditorInput } from '../../../../platform/editor/common/edi
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
@@ -55,6 +56,7 @@ import { EditorResourceAccessor } from '../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { GroupsOrder, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -83,7 +85,7 @@ import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { IHandOff, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
-import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
+import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, IQuickChatService, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
@@ -2862,6 +2864,15 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	private readonly _onDidAddWidget = this._register(new Emitter<ChatWidget>());
 	readonly onDidAddWidget: Event<IChatWidget> = this._onDidAddWidget.event;
 
+	constructor(
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IQuickChatService private readonly quickChatService: IQuickChatService,
+		@ILayoutService private readonly layoutService: ILayoutService,
+	) {
+		super();
+	}
+
 	get lastFocusedWidget(): IChatWidget | undefined {
 		return this._lastFocusedWidget;
 	}
@@ -2880,6 +2891,58 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 	getWidgetBySessionResource(sessionResource: URI): ChatWidget | undefined {
 		return this._widgets.find(w => isEqual(w.viewModel?.sessionResource, sessionResource));
+	}
+
+	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
+		const last = this.lastFocusedWidget;
+		if (last && await this.reveal(last, preserveFocus)) {
+			return last;
+		}
+
+		return (await this.viewsService.openView<ChatViewPane>(ChatViewId, !preserveFocus))?.widget;
+	}
+
+	async reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> {
+		if (widget.viewModel?.sessionResource) {
+			for (const group of this.editorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
+				const editor = group.findEditors(widget.viewModel?.sessionResource).at(0);
+				if (!editor) {
+					continue;
+				}
+
+				// focus transfer to other documents is async. If we depend on the focus
+				// being synchronously transferred in consuming code, this can fail, so
+				// wait for it to propagate
+				const isGroupActive = () => dom.getWindowId(dom.getWindow(this.layoutService.activeContainer)) === group.windowId;
+
+				let ensureFocusTransfer: Promise<void> | undefined;
+				if (!isGroupActive()) {
+					ensureFocusTransfer = raceCancellablePromises([
+						timeout(500),
+						Event.toPromise(Event.once(Event.filter(this.layoutService.onDidChangeActiveContainer, isGroupActive))),
+					]);
+				}
+
+				const pane = await group.openEditor(editor, { preserveFocus });
+				await ensureFocusTransfer;
+				return !!pane;
+			}
+
+			if (isEqual(widget.viewModel?.sessionResource, this.quickChatService.sessionResource)) {
+				this.quickChatService.focus();
+				return true;
+			}
+		}
+
+		if (isIChatViewViewContext(widget.viewContext)) {
+			const view = await this.viewsService.openView(widget.viewContext.viewId, !preserveFocus);
+			if (!preserveFocus) {
+				view?.focus();
+			}
+			return !!view;
+		}
+
+		return false;
 	}
 
 	private setLastFocusedWidget(widget: ChatWidget | undefined): void {

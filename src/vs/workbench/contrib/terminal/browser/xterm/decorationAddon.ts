@@ -28,14 +28,12 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IChatContextPickService } from '../../../chat/browser/chatContextPickService.js';
-import { IChatWidgetService, showChatView } from '../../../chat/browser/chat.js';
+import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TerminalContext } from '../../../chat/browser/actions/chatContext.js';
 import { getTerminalUri, parseTerminalUri } from '../terminalUri.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { isString } from '../../../../../base/common/types.js';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
@@ -70,9 +68,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IChatContextPickService private readonly _contextPickService: IChatContextPickService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IViewsService private readonly _viewsService: IViewsService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._register(toDisposable(() => this._dispose()));
@@ -540,7 +536,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 
 				// If no widget found (e.g., after window reload when chat hasn't been focused), open chat view
 				if (!widget) {
-					widget = await showChatView(this._viewsService, this._layoutService);
+					widget = await this._chatWidgetService.revealWidget();
 				}
 
 				if (!widget) {
