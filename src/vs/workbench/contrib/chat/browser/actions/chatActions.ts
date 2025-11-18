@@ -69,14 +69,15 @@ import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService
 import { AGENT_SESSIONS_VIEWLET_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
-import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/languageModelToolsConfirmationService.js';
+import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
+import { IMarshalledChatSessionContext } from './chatSessionActions.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -670,13 +671,11 @@ export function registerChatActions() {
 			};
 
 			interface IChatPickerItem extends IQuickPickItem {
-				chat: IChatDetail;
+				readonly chat: IChatDetail;
 			}
 
 			interface ICodingAgentPickerItem extends IChatPickerItem {
-				id?: string;
-				session?: { providerType: string; session: IChatSessionItem };
-				uri?: URI;
+				readonly session: IChatSessionItem;
 			}
 
 			function isChatPickerItem(item: IQuickPickItem | IChatPickerItem): item is IChatPickerItem {
@@ -684,7 +683,7 @@ export function registerChatActions() {
 			}
 
 			function isCodingAgentPickerItem(item: IQuickPickItem): item is ICodingAgentPickerItem {
-				return isChatPickerItem(item) && hasKey(item, { id: true });
+				return isChatPickerItem(item) && hasKey(item as ICodingAgentPickerItem, { session: true });
 			}
 
 			const showMorePick: IQuickPickItem = {
@@ -760,7 +759,7 @@ export function registerChatActions() {
 									const agentPick: ICodingAgentPickerItem = {
 										label: session.label,
 										description: '',
-										session: { providerType: chatSessionType, session: session },
+										session: session,
 										chat: {
 											sessionResource: session.resource,
 											title: session.label,
@@ -916,11 +915,13 @@ export function registerChatActions() {
 					const buttonItem = context.button as ICodingAgentPickerItem;
 					if (buttonItem.id) {
 						const contextItem = context.item as ICodingAgentPickerItem;
-						commandService.executeCommand(buttonItem.id, {
-							uri: contextItem.uri,
-							session: contextItem.session?.session,
-							$mid: MarshalledId.ChatSessionContext
-						});
+
+						if (contextItem.session) {
+							commandService.executeCommand(buttonItem.id, {
+								session: contextItem.session,
+								$mid: MarshalledId.ChatSessionContext
+							} satisfies IMarshalledChatSessionContext);
+						}
 
 						// dismiss quick picker
 						picker.hide();
@@ -969,7 +970,7 @@ export function registerChatActions() {
 					} else if (isCodingAgentPickerItem(item)) {
 						// TODO: This is a temporary change that will be replaced by opening a new chat instance
 						if (item.session) {
-							await this.showChatSessionInEditor(item.session.providerType, item.session.session, editorService);
+							await this.showChatSessionInEditor(item.session, editorService);
 						}
 					} else if (isChatPickerItem(item)) {
 						await view.loadSession(item.chat.sessionResource);
@@ -1029,7 +1030,7 @@ export function registerChatActions() {
 			}
 		}
 
-		private async showChatSessionInEditor(providerType: string, session: IChatSessionItem, editorService: IEditorService) {
+		private async showChatSessionInEditor(session: IChatSessionItem, editorService: IEditorService) {
 			// Open the chat editor
 			await editorService.openEditor({
 				resource: session.resource,
