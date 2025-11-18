@@ -27,8 +27,6 @@ export interface IChatModeService {
 
 	// TODO expose an observable list of modes
 	readonly onDidChangeChatModes: Event<void>;
-	readonly onDidAddCustomMode: Event<IChatMode>;
-	readonly onDidRemoveCustomMode: Event<IChatMode>;
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] };
 	findModeById(id: string): IChatMode | undefined;
 	findModeByName(name: string): IChatMode | undefined;
@@ -44,12 +42,6 @@ export class ChatModeService extends Disposable implements IChatModeService {
 
 	private readonly _onDidChangeChatModes = new Emitter<void>();
 	public readonly onDidChangeChatModes = this._onDidChangeChatModes.event;
-
-	private readonly _onDidAddCustomMode = new Emitter<IChatMode>();
-	public readonly onDidAddCustomMode = this._onDidAddCustomMode.event;
-
-	private readonly _onDidRemoveCustomMode = new Emitter<IChatMode>();
-	public readonly onDidRemoveCustomMode = this._onDidRemoveCustomMode.event;
 
 	constructor(
 		@IPromptsService private readonly promptsService: IPromptsService,
@@ -153,18 +145,13 @@ export class ChatModeService extends Disposable implements IChatModeService {
 					// Create new instance
 					modeInstance = new CustomChatMode(customMode);
 					this._customModeInstances.set(uriString, modeInstance);
-					this._onDidAddCustomMode.fire(modeInstance);
 				}
 			}
 
 			// Clean up instances for modes that no longer exist
 			for (const [uriString] of this._customModeInstances.entries()) {
 				if (!seenUris.has(uriString)) {
-					const removedMode = this._customModeInstances.get(uriString);
 					this._customModeInstances.delete(uriString);
-					if (removedMode) {
-						this._onDidRemoveCustomMode.fire(removedMode);
-					}
 				}
 			}
 

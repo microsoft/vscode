@@ -11,8 +11,6 @@ export class MockChatModeService implements IChatModeService {
 	readonly _serviceBrand: undefined;
 
 	public readonly onDidChangeChatModes = Event.None;
-	public readonly onDidAddCustomMode = Event.None;
-	public readonly onDidRemoveCustomMode = Event.None;
 
 	constructor(private readonly _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] }) { }
 
