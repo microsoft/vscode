@@ -85,7 +85,6 @@ import { CodeActionKind } from '../../../../editor/contrib/codeAction/common/typ
 import { ACTION_START as INLINE_CHAT_START } from '../../inlineChat/common/inlineChat.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { IMarker, IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 
@@ -1414,14 +1413,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				CommandsRegistry.registerCommand(coreCommand, async accessor => {
 					const commandService = accessor.get(ICommandService);
-					const editorGroupService = accessor.get(IEditorGroupsService);
 					const codeEditorService = accessor.get(ICodeEditorService);
 					const markerService = accessor.get(IMarkerService);
-
-					if (editorGroupService.activeGroup.activeEditor) {
-						// Pinning the editor helps when the Chat extension welcome kicks in after install to keep context
-						editorGroupService.activeGroup.pinEditor(editorGroupService.activeGroup.activeEditor);
-					}
 
 					switch (coreCommand) {
 						case 'chat.internal.explain':

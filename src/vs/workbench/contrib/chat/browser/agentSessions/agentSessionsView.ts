@@ -10,7 +10,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
-import { IViewPaneOptions, ViewAction, ViewPane } from '../../../../browser/parts/views/viewPane.js';
+import { IViewPaneOptions, ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
 import { IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewDescriptor, IViewDescriptorService } from '../../../../common/views.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -18,7 +18,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -30,7 +30,7 @@ import { defaultButtonStyles } from '../../../../../platform/theme/browser/defau
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
-import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
@@ -74,9 +74,7 @@ export class AgentSessionsView extends ViewPane {
 		@IMenuService private readonly menuService: IMenuService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
-
-		this.registerActions();
+		super({ ...options, titleMenuId: MenuId.AgentSessionsTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -94,9 +92,9 @@ export class AgentSessionsView extends ViewPane {
 	}
 
 	private registerListeners(): void {
-		const list = assertReturnsDefined(this.list);
 
 		// Sessions List
+		const list = assertReturnsDefined(this.list);
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (!visible || this.sessionsViewModel) {
 				return;
@@ -124,7 +122,7 @@ export class AgentSessionsView extends ViewPane {
 		}));
 	}
 
-	private async openAgentSession(e: IOpenEvent<IAgentSessionViewModel | undefined>) {
+	private async openAgentSession(e: IOpenEvent<IAgentSessionViewModel | undefined>): Promise<void> {
 		const session = e.element;
 		if (!session) {
 			return;
@@ -172,48 +170,7 @@ export class AgentSessionsView extends ViewPane {
 		menu.dispose();
 	}
 
-	private registerActions(): void {
-
-		this._register(registerAction2(class extends ViewAction<AgentSessionsView> {
-			constructor() {
-				super({
-					id: 'agentSessionsView.refresh',
-					title: localize2('refresh', "Refresh Agent Sessions"),
-					icon: Codicon.refresh,
-					menu: {
-						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.equals('view', AGENT_SESSIONS_VIEW_ID),
-						group: 'navigation',
-						order: 1
-					},
-					viewId: AGENT_SESSIONS_VIEW_ID
-				});
-			}
-			runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
-				view.sessionsViewModel?.resolve(undefined);
-			}
-		}));
-
-		this._register(registerAction2(class extends ViewAction<AgentSessionsView> {
-			constructor() {
-				super({
-					id: 'agentSessionsView.find',
-					title: localize2('find', "Find Agent Session"),
-					icon: Codicon.search,
-					menu: {
-						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.equals('view', AGENT_SESSIONS_VIEW_ID),
-						group: 'navigation',
-						order: 2
-					},
-					viewId: AGENT_SESSIONS_VIEW_ID
-				});
-			}
-			runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
-				view.list?.openFind();
-			}
-		}));
-	}
+	//#endregion
 
 	//#region New Session Controls
 
@@ -343,7 +300,7 @@ export class AgentSessionsView extends ViewPane {
 	}
 
 	private createViewModel(): void {
-		const sessionsViewModel = this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel));
+		const sessionsViewModel = this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel, { filterMenuId: MenuId.AgentSessionsFilterSubMenu }));
 		this.list?.setInput(sessionsViewModel);
 
 		this._register(sessionsViewModel.onDidChangeSessions(() => {
@@ -366,6 +323,18 @@ export class AgentSessionsView extends ViewPane {
 				() => didResolve.p
 			);
 		}));
+	}
+
+	//#endregion
+
+	//#region Actions internal API
+
+	openFind(): void {
+		this.list?.openFind();
+	}
+
+	refresh(): void {
+		this.sessionsViewModel?.resolve(undefined);
 	}
 
 	//#endregion
