@@ -42,12 +42,14 @@ import { IWorkbenchLayoutService, Position } from '../../../../../services/layou
 import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 import { IChatService } from '../../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../../../common/chatUri.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { IMarshalledChatSessionContext } from '../../actions/chatSessionActions.js';
 import { IChatWidgetService } from '../../chat.js';
 import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
 import '../../media/chatSessions.css';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
+import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, processSessionsWithTimeGrouping } from '../common.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -230,7 +232,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		const session = element.element as ChatSessionItemWithProvider;
 		// Add CSS class for local sessions
 		let editableData: IEditableData | undefined;
-		if (isLocalChatSessionItem(session)) {
+		if (LocalChatSessionUri.parseLocalSessionId(session.resource)) {
 			templateData.container.classList.add('local-session');
 			editableData = this.chatSessionsService.getEditableData(session.resource);
 		} else {
@@ -375,7 +377,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			templateData.actionBar.clear();
 
 			// Create marshalled context for command execution
-			const marshalledSession = {
+			const marshalledSession: IMarshalledChatSessionContext = {
 				session: session,
 				$mid: MarshalledId.ChatSessionContext
 			};
