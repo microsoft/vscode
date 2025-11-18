@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { getWindow, n, ObserverNode, ObserverNodeWithElement } from '../../../../../../../../base/browser/dom.js';
-import { IMouseEvent, StandardMouseEvent } from '../../../../../../../../base/browser/mouseEvent.js';
+import { n, ObserverNode, ObserverNodeWithElement } from '../../../../../../../../base/browser/dom.js';
+import { IMouseEvent } from '../../../../../../../../base/browser/mouseEvent.js';
 import { Emitter } from '../../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
 import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable } from '../../../../../../../../base/common/observable.js';
@@ -133,14 +133,9 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		this._isVisibleDelayed.recomputeInitiallyAndOnChange(this._store);
 	}
 
-
 	private readonly _styles;
 
-
-
 	public get isHovered() { return this._widgetContent.didMouseMoveDuringHover; }
-
-
 
 	private readonly _hintTextPosition = derived(this, (reader) => {
 		const viewState = this._viewState.read(reader);
@@ -347,8 +342,6 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 	protected readonly _hintTopLeft;
 
-
-
 	private readonly _view = n.div({
 		class: 'inline-edits-view',
 		style: {
@@ -361,7 +354,6 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 	}, [
 		derived(this, _reader => [this._widgetContent]),
 	]);
-
 
 	private readonly _widgetContent = n.div({
 		style: {
@@ -382,8 +374,8 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		onmousedown: e => {
 			e.preventDefault(); // This prevents that the editor loses focus
 		},
-		onclick: (e) => {
-			this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e));
+		onclick: () => {
+			this._viewState.get()?.model.jump();
 		}
 	}, [
 		n.div({
@@ -392,6 +384,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 				overflow: 'hidden',
 				padding: this._previewEditorLayoutInfo.map(i => i?.previewEditorMargin),
 				background: 'var(--vscode-editor-background)',
+				pointerEvents: 'none',
 			},
 		}, [
 			derived(this, r => this._previewEditor.element),
