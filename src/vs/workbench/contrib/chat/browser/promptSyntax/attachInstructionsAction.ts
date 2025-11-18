@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { PromptFilePickers } from './pickers/promptFilePickers.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -27,7 +26,6 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 /**
  * Action ID for the `Attach Instruction` action.
@@ -94,9 +92,8 @@ class AttachInstructionsAction extends Action2 {
 		accessor: ServicesAccessor,
 		options?: IAttachInstructionsActionOptions,
 	): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
 		const instaService = accessor.get(IInstantiationService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const widgetService = accessor.get(IChatWidgetService);
 
 		if (!options) {
 			options = {
@@ -110,7 +107,7 @@ class AttachInstructionsAction extends Action2 {
 		const { skipSelectionDialog, resource } = options;
 
 
-		const widget = options.widget ?? (await showChatView(viewsService, layoutService));
+		const widget = options.widget ?? (await widgetService.revealWidget());
 		if (!widget) {
 			return;
 		}

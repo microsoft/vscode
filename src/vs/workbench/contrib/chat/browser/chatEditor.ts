@@ -92,6 +92,7 @@ export class ChatEditor extends EditorPane {
 					autoScroll: mode => mode !== ChatModeKind.Ask,
 					renderFollowups: true,
 					supportsFileReferences: true,
+					clear: () => this.clear(),
 					rendererOptions: {
 						renderTextEditsAsSummary: (uri) => {
 							return true;
@@ -110,7 +111,6 @@ export class ChatEditor extends EditorPane {
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));
-		this._register(this.widget.onDidClear(() => this.clear()));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
 	}
