@@ -467,7 +467,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		if (prepared?.confirmationMessages?.title) {
-			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
+			if (prepared.toolSpecificData?.kind !== 'terminal' && prepared.confirmationMessages.allowAutoConfirm !== false) {
 				prepared.confirmationMessages.allowAutoConfirm = isEligibleForAutoApproval;
 			}
 
@@ -525,8 +525,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
+	private getEligbleForAutoApprovalSpecialCase(toolData: IToolData): string | undefined {
+		if (toolData.id === 'vscode_fetchWebPage_internal') {
+			return 'fetch';
+		}
+		return undefined;
+	}
+
 	private isToolEligibleForAutoApproval(toolData: IToolData): boolean {
-		const toolReferenceName = getToolReferenceName(toolData);
+		const toolReferenceName = this.getEligbleForAutoApprovalSpecialCase(toolData) ?? getToolReferenceName(toolData);
+		if (toolData.id === 'copilot_fetchWebPage') {
+			// Special case, this fetch will call an internal tool 'vscode_fetchWebPage_internal'
+			return true;
+		}
 		const eligibilityConfig = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
 		return eligibilityConfig && typeof eligibilityConfig === 'object' && toolReferenceName
 			? (eligibilityConfig[toolReferenceName] ?? true) // Default to true if not specified
