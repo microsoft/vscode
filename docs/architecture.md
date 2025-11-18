@@ -1,9 +1,9 @@
----
-title: Architecture Guide
----
+# Architecture
 
-# Architecture Guide
+Visual Studio Code is composed of multiple layers:
 
-This guide outlines the high-level structure of the project. It highlights major packages, key modules, and the overall data flow so that new contributors can navigate the codebase with confidence.
+- **src/** – core editor and workbench source.
+- **extensions/** – bundled extensions providing language features and other functionality.
+- **resources/** – shared images and other static assets.
 
-The architecture will evolve. Update this document as significant components or patterns change.
+The codebase powers both the desktop and web experiences through a modular design.

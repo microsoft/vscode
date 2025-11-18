@@ -68,6 +68,8 @@ Please include the following with each issue:
 * Feature pull requests must update or add relevant documentation in the `docs/` directory.
 * Documentation completeness is reviewed at each project milestone.
 
+* Feature pull requests must update or create relevant documentation in the docs/ directory. Documentation completeness is reviewed at each project milestone.
+
 ### Final Checklist
 
 Please remember to do the following:
