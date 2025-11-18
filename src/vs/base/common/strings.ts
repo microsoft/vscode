@@ -132,24 +132,6 @@ export function trim(haystack: string, needle: string = ' '): string {
 	return rtrim(trimmed, needle);
 }
 
-export function ltrim_old(haystack: string, needle: string): string {
-	if (!haystack || !needle) {
-		return haystack;
-	}
-
-	const needleLen = needle.length;
-	if (needleLen === 0 || haystack.length === 0) {
-		return haystack;
-	}
-
-	let offset = 0;
-
-	while (haystack.indexOf(needle, offset) === offset) {
-		offset = offset + needleLen;
-	}
-	return haystack.substring(offset);
-}
-
 /**
  * Removes all occurrences of needle from the beginning of haystack.
  * @param haystack string to trim
@@ -173,35 +155,6 @@ export function ltrim(haystack: string, needle: string): string {
 		}
 	}
 	return haystack.substring(offset);
-}
-
-export function rtrim_old(haystack: string, needle: string): string {
-	if (!haystack || !needle) {
-		return haystack;
-	}
-
-	const needleLen = needle.length,
-		haystackLen = haystack.length;
-
-	if (needleLen === 0 || haystackLen === 0) {
-		return haystack;
-	}
-
-	let offset = haystackLen,
-		idx = -1;
-
-	while (true) {
-		idx = haystack.lastIndexOf(needle, offset - 1);
-		if (idx === -1 || idx + needleLen !== offset) {
-			break;
-		}
-		if (idx === 0) {
-			return '';
-		}
-		offset = idx;
-	}
-
-	return haystack.substring(0, offset);
 }
 
 /**
