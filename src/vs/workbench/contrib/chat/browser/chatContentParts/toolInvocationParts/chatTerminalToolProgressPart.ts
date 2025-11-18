@@ -613,14 +613,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					this._terminalData.terminalCommandId = finishedId;
 				}
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				try {
-					await this._updateStreamingOutput(terminalInstance, command);
-				} finally {
-					this._commandStreamingListener.clear();
-					this._streamingCommand = undefined;
-					this._trackedCommandId = undefined;
-					commandDetectionListener.clear();
-				}
+				await this._updateStreamingOutput(terminalInstance, command);
+				this._commandStreamingListener.clear();
+				this._streamingCommand = undefined;
+				this._trackedCommandId = undefined;
+				commandDetectionListener.clear();
 			}));
 
 			await tryResolveCommand();
