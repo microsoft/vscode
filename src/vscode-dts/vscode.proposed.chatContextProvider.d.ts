@@ -10,9 +10,19 @@ declare module 'vscode' {
 
 	export namespace chat {
 
-		// TODO@alexr00 API:
-		// selector is confusing
-		export function registerChatContextProvider(selector: DocumentSelector, id: string, provider: ChatContextProvider): Disposable;
+		/**
+		 * Register a chat context provider. Chat context can be provided:
+		 * - For a resource. Make sure to pass a selector that matches the resource you want to provide context for.
+		 *   Providers registered without a selector will not be called for resource-based context.
+		 * - Explicitly. These context items are shown as options when the user explicitly attaches context.
+		 *
+		 * To ensure your extension is activated when chat context is requested, make sure to include the `onChatContextProvider:<id>` activation event in your `package.json`.
+		 *
+		 * @param selector Optional document selector to filter which resources the provider is called for. If omitted, the provider will only be called for explicit context requests.
+		 * @param id Unique identifier for the provider.
+		 * @param provider The chat context provider.
+		 */
+		export function registerChatContextProvider(selector: DocumentSelector | undefined, id: string, provider: ChatContextProvider): Disposable;
 
 	}
 
@@ -24,6 +34,18 @@ declare module 'vscode' {
 	}
 
 	export interface ChatContextProvider<T extends ChatContextItem = ChatContextItem> {
+
+		/**
+		 * An optional event that should be fired when the background chat context has changed.
+		 */
+		onDidChangeBackgroundContext?: Event<void>;
+
+		/**
+		 * Provide a list of chat context items to be included as background context for all chat sessions.
+		 *
+		 * @param token
+		 */
+		provideBackgroundChatContext?(token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Provide a list of chat context items that a user can choose from. These context items are shown as options when the user explicitly attaches context.
