@@ -82,6 +82,7 @@ export class QuickInputTreeController extends Disposable {
 			}
 		));
 		this.registerOnOpenListener();
+		this.registerOnDidChangeFocus();
 	}
 
 	get tree(): WorkbenchObjectTree<IQuickTreeItem, IQuickTreeFilterData> {
@@ -286,6 +287,22 @@ export class QuickInputTreeController extends Disposable {
 				checked: item.checked ?? false
 			});
 			this._onDidCheckedLeafItemsChange.fire(this.getCheckedLeafItems());
+		}));
+	}
+
+	registerOnDidChangeFocus() {
+		// Ensure that selection follows focus
+		let syncingSelection = false;
+		this._register(this._tree.onDidChangeFocus(e => {
+			if (!syncingSelection) {
+				try {
+					syncingSelection = true;
+					const item = this._tree.getFocus().findLast(item => item);
+					this._tree.setSelection(item ? [item] : [], e.browserEvent);
+				} finally {
+					syncingSelection = false;
+				}
+			}
 		}));
 	}
 
