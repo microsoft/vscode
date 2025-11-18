@@ -119,9 +119,6 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 		if (!url || url === 'about:blank') {
 			return true;
 		}
-		if (url === process.env.DEV_WINDOW_SRC) {
-			return true;
-		}
 
 		let host = 'unknown';
 		try {
@@ -129,6 +126,10 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 		} catch (error) {
 			onUnexpectedError(`Refused to handle ipcMain event for channel '${channel}' because of a malformed URL '${url}'.`);
 			return false; // unexpected URL
+		}
+
+		if (url === process.env.DEV_WINDOW_SRC && host === 'localhost') {
+			return true;
 		}
 
 		if (host !== VSCODE_AUTHORITY) {

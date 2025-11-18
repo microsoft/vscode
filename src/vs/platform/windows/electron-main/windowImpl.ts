@@ -1158,7 +1158,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		const devWindowUrl = process.env.DEV_WINDOW_SRC;
+		const devWindowUrl = process.env.VSCODE_DEV ? process.env.DEV_WINDOW_SRC : undefined;
 		if (devWindowUrl !== undefined) {
 			this._win.loadURL(devWindowUrl);
 		} else {
