@@ -236,7 +236,7 @@ export class AgentSessionsViewFilter extends Disposable {
 			return true;
 		}
 
-		if (typeof session.status === 'number' && this.excludes.states.includes(session.status)) {
+		if (this.excludes.states.includes(session.status)) {
 			return true;
 		}
 

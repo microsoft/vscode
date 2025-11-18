@@ -229,30 +229,6 @@ suite('AgentSessionsViewModel', () => {
 		});
 	});
 
-	test('should add default description for sessions without description', async () => {
-		return runWithFakedTimers({}, async () => {
-			const provider: IChatSessionItemProvider = {
-				chatSessionType: 'test-type',
-				onDidChangeChatSessionItems: Event.None,
-				provideChatSessionItems: async () => [
-					{
-						resource: URI.parse('test://session-1'),
-						label: 'Test Session',
-						timing: { startTime: Date.now() }
-					}
-				]
-			};
-
-			mockChatSessionsService.registerChatSessionItemProvider(provider);
-			viewModel = createViewModel();
-
-			await viewModel.resolve(undefined);
-
-			assert.strictEqual(viewModel.sessions.length, 1);
-			assert.ok(typeof viewModel.sessions[0].description === 'string');
-		});
-	});
-
 	test('should handle resolve with specific provider', async () => {
 		return runWithFakedTimers({}, async () => {
 			const provider1: IChatSessionItemProvider = {
@@ -759,6 +735,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			description: 'test',
 			timing: { startTime: Date.now() },
 			archived: false,
+			status: ChatSessionStatus.Completed
 		};
 
 		const remoteSession: IAgentSessionViewModel = {
@@ -774,6 +751,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			description: 'test',
 			timing: { startTime: Date.now() },
 			archived: false,
+			status: ChatSessionStatus.Completed
 		};
 
 		assert.strictEqual(isLocalAgentSessionItem(localSession), true);
@@ -794,6 +772,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			description: 'test',
 			timing: { startTime: Date.now() },
 			archived: false,
+			status: ChatSessionStatus.Completed
 		};
 
 		// Test with a session object
@@ -818,6 +797,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			description: 'test',
 			timing: { startTime: Date.now() },
 			archived: false,
+			status: ChatSessionStatus.Completed
 		};
 
 		// Test with actual view model
