@@ -35,6 +35,8 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 
 export class ContinueChatInSessionAction extends Action2 {
 
@@ -96,6 +98,12 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 					actions.push(this.toAction(cloudContrib, instantiationService));
 				}
 
+				// Offer actions to enter setup if we have no contributions
+				if (actions.length === 0) {
+					actions.push(this.toSetupAction(AgentSessionProviders.Background, instantiationService));
+					actions.push(this.toSetupAction(AgentSessionProviders.Cloud, instantiationService));
+				}
+
 				return actions;
 			}
 		};
@@ -112,6 +120,25 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 				localize('continueInCloud', "Continue in Cloud") :
 				localize('continueInBackground', "Continue in Background"),
 			run: () => instantiationService.invokeFunction(accessor => new CreateRemoteAgentJobAction().run(accessor, contrib))
+		};
+	}
+
+	private static toSetupAction(type: string, instantiationService: IInstantiationService): IActionWidgetDropdownAction {
+		const label = type === AgentSessionProviders.Cloud ?
+			localize('continueInCloud', "Continue in Cloud") :
+			localize('continueInBackground', "Continue in Background");
+
+		return {
+			id: type,
+			enabled: true,
+			icon: type === AgentSessionProviders.Cloud ? Codicon.cloud : Codicon.collection,
+			class: undefined,
+			tooltip: label,
+			label,
+			run: () => instantiationService.invokeFunction(accessor => {
+				const commandService = accessor.get(ICommandService);
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+			})
 		};
 	}
 
