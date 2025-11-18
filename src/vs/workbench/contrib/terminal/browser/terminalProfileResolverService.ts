@@ -200,18 +200,12 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 			}
 		}
 
-		// When creating a local terminal in a remote window, skip looking up profiles from
-		// terminalProfileService as it contains remote profiles, not local ones
-		const isLocalTerminalInRemoteWindow = options.remoteAuthority === undefined && this._remoteAgentService.getConnection()?.remoteAuthority !== undefined;
-
 		// Return the real default profile if it exists and is valid, wait for profiles to be ready
 		// if the window just opened
-		if (!isLocalTerminalInRemoteWindow) {
-			await this._terminalProfileService.profilesReady;
-			const defaultProfile = this._getUnresolvedRealDefaultProfile(options.os);
-			if (defaultProfile) {
-				return this._setIconForAutomation(options, defaultProfile);
-			}
+		await this._terminalProfileService.profilesReady;
+		const defaultProfile = this._getUnresolvedRealDefaultProfile(options.os);
+		if (defaultProfile) {
+			return this._setIconForAutomation(options, defaultProfile);
 		}
 
 		// If there is no real default profile, create a fallback default profile based on the shell
@@ -238,10 +232,7 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 		// Try select an existing profile to fallback to, based on the default system shell, only do
 		// this when it is NOT a local terminal in a remote window where the front and back end OS
 		// differs (eg. Windows -> WSL, Mac -> Linux)
-		// When remoteAuthority is undefined but we have a remote connection, we're creating a local
-		// terminal in a remote window - skip profile matching as availableProfiles contains remote profiles
-		const isLocalTerminalInRemoteWindow = options.remoteAuthority === undefined && this._remoteAgentService.getConnection()?.remoteAuthority !== undefined;
-		if (options.os === OS && !isLocalTerminalInRemoteWindow) {
+		if (options.os === OS) {
 			let existingProfile = this._terminalProfileService.availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
 			if (existingProfile) {
 				if (options.allowAutomationShell) {
