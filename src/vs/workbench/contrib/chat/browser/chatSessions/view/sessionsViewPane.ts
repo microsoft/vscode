@@ -38,16 +38,14 @@ import { ResourceLabels } from '../../../../../browser/labels.js';
 import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatService } from '../../../common/chatService.js';
 import { IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
-import { ChatViewId, IChatWidgetService } from '../../chat.js';
+import { IChatWidgetService } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
+import { ChatSessionItemWithProvider, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { ArchivedSessionItems, GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
@@ -96,8 +94,6 @@ export class SessionsViewPane extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IViewsService private readonly viewsService: IViewsService,
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IMenuService private readonly menuService: IMenuService,
@@ -469,21 +465,7 @@ export class SessionsViewPane extends ViewPane {
 
 	private async openChatSession(session: ChatSessionItemWithProvider) {
 		try {
-			// Check first if we already have an open editor for this session
-			const existingEditor = findExistingChatEditorByUri(session.resource, this.editorGroupsService);
-			if (existingEditor) {
-				await this.editorService.openEditor(existingEditor.editor, existingEditor.group);
-				return;
-			}
-			if (this.chatWidgetService.getWidgetBySessionResource(session.resource)) {
-				return;
-			}
 			if (session instanceof ArchivedSessionItems) {
-				return;
-			}
-
-			if (isEqual(session.resource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
-				await this.viewsService.openView(ChatViewId);
 				return;
 			}
 
@@ -495,10 +477,7 @@ export class SessionsViewPane extends ViewPane {
 				},
 				preserveFocus: true,
 			};
-			await this.editorService.openEditor({
-				resource: session.resource,
-				options,
-			});
+			await this.chatWidgetService.openSession(session.resource, undefined, options);
 
 		} catch (error) {
 			this.logService.error('[SessionsViewPane] Failed to open chat session:', error);
