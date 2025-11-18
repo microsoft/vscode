@@ -66,6 +66,8 @@ Please include the following with each issue:
 
 * Please refer to the article on [creating pull requests](https://github.com/microsoft/vscode/wiki/How-to-Contribute#pull-requests) and contributing to this project.
 
+* Feature pull requests must update or create relevant documentation in the docs/ directory. Documentation completeness is reviewed at each project milestone.
+
 ### Final Checklist
 
 Please remember to do the following:
