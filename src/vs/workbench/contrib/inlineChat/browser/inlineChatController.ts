@@ -1407,6 +1407,19 @@ export class InlineChatController2 implements IEditorContribution {
 
 		this._store.add(autorun(r => {
 			const session = visibleSessionObs.read(r);
+			if (session) {
+				const entries = session.editingSession.entries.read(r);
+				const otherEntries = entries.filter(entry => !isEqual(entry.modifiedURI, session.uri));
+				for (const entry of otherEntries) {
+					// OPEN other modified files in side group. This is a workaround, temp-solution until we have no more backend
+					// that modifies other files
+					this._editorService.openEditor({ resource: entry.modifiedURI }, SIDE_GROUP).catch(onUnexpectedError);
+				}
+			}
+		}));
+
+		this._store.add(autorun(r => {
+			const session = visibleSessionObs.read(r);
 			if (!session) {
 				return;
 			}
