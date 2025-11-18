@@ -12,7 +12,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, ObservableSet } from '../../../../base/common/observable.js';
@@ -445,9 +445,33 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			prepared = await preparePromise;
 		}
 
+		const isEligibleForAutoApproval = this.isToolEligibleForAutoApproval(tool.data);
+
+		// Default confirmation messages if tool is not eligible for auto-approval
+		if (!isEligibleForAutoApproval && !prepared?.confirmationMessages?.title) {
+			if (!prepared) {
+				prepared = {};
+			}
+
+			const toolReferenceName = getToolReferenceName(tool.data);
+			// TODO: This should be more detailed per tool.
+			prepared.confirmationMessages = {
+				...prepared.confirmationMessages,
+				title: localize('defaultToolConfirmation.title', 'Allow tool to execute?'),
+				message: localize('defaultToolConfirmation.message', 'Run the \'{0}\' tool?', toolReferenceName),
+				disclaimer: new MarkdownString(localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted via {1}.', getToolReferenceName(tool.data), markdownCommandLink({ title: '`' + ChatConfiguration.EligibleForAutoApproval + '`', id: 'workbench.action.openSettings', arguments: [ChatConfiguration.EligibleForAutoApproval] }, false)), { isTrusted: true }),
+				allowAutoConfirm: false,
+			};
+		}
+
+		if (!isEligibleForAutoApproval && prepared?.confirmationMessages?.title) {
+			// Always overwrite the disclaimer if not eligible for auto-approval
+			prepared.confirmationMessages.disclaimer = new MarkdownString(localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted via {1}.', getToolReferenceName(tool.data), markdownCommandLink({ title: '`' + ChatConfiguration.EligibleForAutoApproval + '`', id: 'workbench.action.openSettings', arguments: [ChatConfiguration.EligibleForAutoApproval] }, false)), { isTrusted: true });
+		}
+
 		if (prepared?.confirmationMessages?.title) {
-			if (prepared.toolSpecificData?.kind !== 'terminal' && typeof prepared.confirmationMessages.allowAutoConfirm !== 'boolean') {
-				prepared.confirmationMessages.allowAutoConfirm = true;
+			if (prepared.toolSpecificData?.kind !== 'terminal' && prepared.confirmationMessages.allowAutoConfirm !== false) {
+				prepared.confirmationMessages.allowAutoConfirm = isEligibleForAutoApproval;
 			}
 
 			if (!prepared.toolSpecificData && tool.data.alwaysDisplayInputOutput) {
@@ -504,7 +528,35 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
+	private getEligbleForAutoApprovalSpecialCase(toolData: IToolData): string | undefined {
+		if (toolData.id === 'vscode_fetchWebPage_internal') {
+			return 'fetch';
+		}
+		return undefined;
+	}
+
+	private isToolEligibleForAutoApproval(toolData: IToolData): boolean {
+		const toolReferenceName = this.getEligbleForAutoApprovalSpecialCase(toolData) ?? getToolReferenceName(toolData);
+		if (toolData.id === 'copilot_fetchWebPage') {
+			// Special case, this fetch will call an internal tool 'vscode_fetchWebPage_internal'
+			return true;
+		}
+		const eligibilityConfig = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
+		return eligibilityConfig && typeof eligibilityConfig === 'object' && toolReferenceName
+			? (eligibilityConfig[toolReferenceName] ?? true) // Default to true if not specified
+			: true; // Default to eligible if the setting is not an object or no reference name
+	}
+
 	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown): Promise<ConfirmedReason | undefined> {
+		const tool = this._tools.get(toolId);
+		if (!tool) {
+			return undefined;
+		}
+
+		if (!this.isToolEligibleForAutoApproval(tool.data)) {
+			return undefined;
+		}
+
 		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters });
 		if (reason) {
 			return reason;

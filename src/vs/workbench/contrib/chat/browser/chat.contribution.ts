@@ -276,6 +276,32 @@ configurationRegistry.registerConfiguration({
 				type: 'boolean',
 			}
 		},
+		[ChatConfiguration.EligibleForAutoApproval]: {
+			default: {},
+			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval. Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.'),
+			type: 'object',
+			additionalProperties: {
+				type: 'boolean',
+			},
+			tags: ['experimental'],
+			examples: [
+				{
+					'fetch': false,
+					'runTests': false
+				}
+			],
+			policy: {
+				name: 'ChatToolsEligibleForAutoApproval',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.106',
+				localization: {
+					description: {
+						key: 'chat.tools.eligibleForAutoApproval',
+						value: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval. Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.')
+					}
+				},
+			}
+		},
 		'chat.sendElementsToChat.enabled': {
 			default: true,
 			description: nls.localize('chat.sendElementsToChat.enabled', "Controls whether elements can be sent to chat from the Simple Browser."),
