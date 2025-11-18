@@ -34,6 +34,8 @@ import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDist
 import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
 
 const BORDER_RADIUS = 4;
+const MAX_WIDGET_WIDTH = 400;
+const MIN_WIDGET_WIDTH = 200;
 
 export class InlineEditsLongDistanceHint extends Disposable implements IInlineEditsView {
 
@@ -201,7 +203,6 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			debugView(debugLogRects({ ...rects2 }, this._editor.getDomNode()!), reader);
 		}
 
-		const widgetMinWidth = 200;
 		const availableSpaceHeightPrefixSums = getSums(availableSpaceSizes, s => s.height);
 		const availableSpaceSizesTransposed = availableSpaceSizes.map(s => s.transpose());
 
@@ -224,7 +225,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		let possibleWidgetOutline = findFirstMinimzeDistance(lineSizes.lineRange.addMargin(-1, -1), viewState.hint.lineNumber, lineNumber => {
 			const verticalWidgetRange = getWidgetVerticalOutline(lineNumber);
 			const maxWidth = getMaxTowerHeightInAvailableArea(verticalWidgetRange.delta(-lineSizes.top), availableSpaceSizesTransposed);
-			if (maxWidth < widgetMinWidth) {
+			if (maxWidth < MIN_WIDGET_WIDTH) {
 				return undefined;
 			}
 			const horizontalWidgetRange = OffsetRange.ofStartAndLength(editorTrueContentRight - maxWidth, maxWidth);
@@ -232,7 +233,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		});
 		if (!possibleWidgetOutline) {
 			possibleWidgetOutline = {
-				horizontalWidgetRange: OffsetRange.ofStartAndLength(editorTrueContentRight - 400, 400),
+				horizontalWidgetRange: OffsetRange.ofStartAndLength(editorTrueContentRight - MAX_WIDGET_WIDTH, MAX_WIDGET_WIDTH),
 				verticalWidgetRange: getWidgetVerticalOutline(viewState.hint.lineNumber + 2).delta(10),
 			};
 		}
@@ -251,7 +252,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			debugView(debugLogRects({ rectAvailableSpace }, this._editor.getDomNode()!), reader);
 		}
 
-		const maxWidgetWidth = Math.min(400, previewEditorContentLayout.maxEditorWidth + previewEditorMargin + widgetPadding);
+		const maxWidgetWidth = Math.min(MAX_WIDGET_WIDTH, previewEditorContentLayout.maxEditorWidth + previewEditorMargin + widgetPadding);
 
 		const layout = distributeFlexBoxLayout(rectAvailableSpace.width, {
 			spaceBefore: { min: 0, max: 10, priority: 1 },
@@ -280,7 +281,13 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			debugView(debugLogRects({ previewEditorRect }, this._editor.getDomNode()!), reader);
 		}
 
-		const desiredPreviewEditorScrollLeft = scrollToReveal(previewEditorContentLayout.indentationEnd, previewEditorRect.width - previewEditorContentLayout.nonContentWidth, previewEditorContentLayout.preferredRangeToReveal);
+		const previewEditorContentWidth = previewEditorRect.width - previewEditorContentLayout.nonContentWidth;
+		const maxPrefferedRangeLength = previewEditorContentWidth * 0.8;
+		const preferredRangeToReveal = previewEditorContentLayout.preferredRangeToReveal.intersect(OffsetRange.ofStartAndLength(
+			previewEditorContentLayout.preferredRangeToReveal.start,
+			maxPrefferedRangeLength
+		)) ?? previewEditorContentLayout.preferredRangeToReveal;
+		const desiredPreviewEditorScrollLeft = scrollToReveal(previewEditorContentLayout.indentationEnd, previewEditorContentWidth, preferredRangeToReveal);
 
 		return {
 			codeEditorSize: previewEditorRect.getSize(),
