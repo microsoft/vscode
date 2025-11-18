@@ -527,7 +527,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
-	private getEligbleForAutoApprovalSpecialCase(toolData: IToolData): string | undefined {
+	private getEligibleForAutoApprovalSpecialCase(toolData: IToolData): string | undefined {
 		if (toolData.id === 'vscode_fetchWebPage_internal') {
 			return 'fetch';
 		}
@@ -535,7 +535,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private isToolEligibleForAutoApproval(toolData: IToolData): boolean {
-		const toolReferenceName = this.getEligbleForAutoApprovalSpecialCase(toolData) ?? getToolReferenceName(toolData);
+		const toolReferenceName = this.getEligibleForAutoApprovalSpecialCase(toolData) ?? getToolReferenceName(toolData);
 		if (toolData.id === 'copilot_fetchWebPage') {
 			// Special case, this fetch will call an internal tool 'vscode_fetchWebPage_internal'
 			return true;
