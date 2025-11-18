@@ -67,7 +67,6 @@ export interface IChatViewModel {
 	readonly sessionResource: URI;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
-	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[];
 	setInputPlaceholder(text: string): void;
@@ -265,10 +264,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	get sessionResource(): URI {
 		return this._model.sessionResource;
-	}
-
-	get requestInProgress(): boolean {
-		return this._model.requestInProgress;
 	}
 
 	constructor(

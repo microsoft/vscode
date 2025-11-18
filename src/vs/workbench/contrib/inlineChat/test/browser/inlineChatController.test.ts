@@ -919,7 +919,7 @@ suite('InlineChatController', function () {
 
 		await (await chatService.sendRequest(newSession.chatModel.sessionResource, 'Existing', { location: ChatAgentLocation.EditorInline }))?.responseCreatedPromise;
 
-		assert.strictEqual(newSession.chatModel.requestInProgress, true);
+		assert.strictEqual(newSession.chatModel.requestInProgress.get(), true);
 
 		const response = newSession.chatModel.lastRequest?.response;
 		assertType(response);

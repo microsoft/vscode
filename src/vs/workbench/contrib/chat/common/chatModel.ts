@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray } from '../../../../base/common/arrays.js';
+import { softAssertNever } from '../../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -28,7 +29,7 @@ import { migrateLegacyTerminalToolSpecificData } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { LocalChatSessionUri } from './chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
@@ -144,6 +145,7 @@ export type IChatProgressResponseContent =
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
 	| IChatElicitationRequest
+	| IChatElicitationRequestSerialized
 	| IChatClearToPreviousToolInvocation
 	| IChatMcpServersStarting;
 
@@ -394,7 +396,8 @@ class AbstractResponse implements IResponse {
 				case 'pullRequest':
 				case 'undoStop':
 				case 'prepareToolInvocation':
-				case 'elicitation':
+				case 'elicitation2':
+				case 'elicitationSerialized':
 				case 'thinking':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
@@ -432,7 +435,8 @@ class AbstractResponse implements IResponse {
 					segment = { text: part.content.value };
 					break;
 				default:
-					// Ignore any unknown/obsolete parts
+					// Ignore any unknown/obsolete parts, but assert that all are handled:
+					softAssertNever(part);
 					continue;
 			}
 
@@ -921,6 +925,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			return this._response.value.some(part =>
 				part.kind === 'toolInvocation' && part.state.read(r).type === IChatToolInvocation.StateKind.WaitingForConfirmation
 				|| part.kind === 'confirmation' && part.isUsed === false
+				|| part.kind === 'elicitation2' && part.state.read(r) === ElicitationState.Pending
 			);
 		});
 
@@ -1071,8 +1076,10 @@ export interface IChatModel extends IDisposable {
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
 	readonly hasCustomTitle: boolean;
-	readonly requestInProgress: boolean;
-	readonly requestInProgressObs: IObservable<boolean>;
+	/** True whenever a request is currently running */
+	readonly requestInProgress: IObservable<boolean>;
+	/** True whenever a request needs user interaction to continue */
+	readonly requestNeedsInput: IObservable<boolean>;
 	readonly inputPlaceholder?: string;
 	readonly editingSession?: IChatEditingSession | undefined;
 	/**
@@ -1375,12 +1382,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._sessionResource;
 	}
 
-	get requestInProgress(): boolean {
-		return this.requestInProgressObs.get();
-	}
-
-	readonly requestInProgressObs: IObservable<boolean>;
-
+	readonly requestInProgress: IObservable<boolean>;
+	readonly requestNeedsInput: IObservable<boolean>;
 
 	get hasRequests(): boolean {
 		return this._requests.length > 0;
@@ -1481,8 +1484,12 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		const lastResponse = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1)?.response);
 
-		this.requestInProgressObs = lastResponse.map((response, r) => {
+		this.requestInProgress = lastResponse.map((response, r) => {
 			return response?.isInProgress.read(r) ?? false;
+		});
+
+		this.requestNeedsInput = lastResponse.map((response, r) => {
+			return response?.isPendingConfirmation.read(r) ?? false;
 		});
 	}
 

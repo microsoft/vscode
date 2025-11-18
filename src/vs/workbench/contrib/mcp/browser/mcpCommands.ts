@@ -195,7 +195,7 @@ export class McpConfirmationServerOptionsCommand extends Action2 {
 			if (tool?.source.type === 'mcp') {
 				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, tool.source.definitionId);
 			}
-		} else if (arg.kind === 'elicitation') {
+		} else if (arg.kind === 'elicitation2') {
 			if (arg.source?.type === 'mcp') {
 				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, arg.source.definitionId);
 			}
