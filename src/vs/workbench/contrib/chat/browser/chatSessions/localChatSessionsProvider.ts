@@ -282,8 +282,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 	private getSessionStatistics(chatModel: IChatModel) {
 		let linesAdded = 0;
 		let linesRemoved = 0;
-		const modifiedFiles = new Set<URI>();
-		const currentEdits = chatModel?.editingSession?.entries.get();
+		const modifiedFiles = new ResourceSet();
+		const currentEdits = chatModel.editingSession?.entries.get();
 		if (currentEdits) {
 			const uncommittedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
 			uncommittedEdits.forEach(edit => {
