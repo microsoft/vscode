@@ -297,11 +297,10 @@
 
 		// ESM Import
 		try {
-			const result = await import(
+			const result =
 				globalThis._VSCODE_USE_RELATIVE_IMPORTS
-					? new URL(`../../../workbench/workbench.desktop.main.js`, import.meta.url).href
-					: new URL(`vs/workbench/workbench.desktop.main.js`, baseUrl).href
-			);
+					? await import('../../../workbench/workbench.desktop.main.js')
+					: await import(new URL(`vs/workbench/workbench.desktop.main.js`, baseUrl).href);
 
 			if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
 				developerDeveloperKeybindingsDisposable();
