@@ -258,10 +258,10 @@ export interface IEditorService {
 	 * @returns the editor that opened or `undefined` if the operation failed or the editor was not
 	 * opened to be active.
 	 */
-	openEditor(editor: IResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<IEditorPane | undefined>;
-	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<IEditorPane | undefined>;
-	openEditor(editor: ITextResourceDiffEditorInput | IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
-	openEditor(editor: IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditor(editor: IResourceEditorInput, group?: EditorGroupTarget): Promise<IEditorPane | undefined>;
+	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: EditorGroupTarget): Promise<IEditorPane | undefined>;
+	openEditor(editor: ITextResourceDiffEditorInput | IResourceDiffEditorInput, group?: EditorGroupTarget): Promise<ITextDiffEditorPane | undefined>;
+	openEditor(editor: IUntypedEditorInput, group?: EditorGroupTarget): Promise<IEditorPane | undefined>;
 
 	/**
 	 * @deprecated using this method is a sign that your editor has not adopted the editor
@@ -275,7 +275,7 @@ export interface IEditorService {
 	 * If you already have an `EditorInput` in hand and must use it for opening, use `group.openEditor`
 	 * instead, via `IEditorGroupsService`.
 	 */
-	openEditor(editor: EditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditor(editor: EditorInput, options?: IEditorOptions, group?: EditorGroupTarget): Promise<IEditorPane | undefined>;
 
 	/**
 	 * Open editors in an editor group.
@@ -369,3 +369,5 @@ export interface IEditorService {
 	 */
 	createScoped(editorGroupsContainer: IEditorGroupsContainer, disposables: DisposableStore): IEditorService;
 }
+
+export type EditorGroupTarget = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE;
