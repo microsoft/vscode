@@ -72,9 +72,6 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	) { }
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
-		// Hack to disable twistie in advent of on official option
-		container.previousElementSibling?.classList.add('force-no-twistie'); // hack, but no API for hiding twistie on tree
-
 		const disposables = new DisposableStore();
 		const elementDisposable = disposables.add(new DisposableStore());
 
