@@ -271,10 +271,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 					archived: true,
 					statistics
 				};
-
 			});
-
-
 			return historyItems;
 
 		} catch (error) {
