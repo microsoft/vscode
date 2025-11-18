@@ -9,9 +9,9 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
@@ -40,18 +40,21 @@ export interface IAgentSessionViewModel {
 
 	readonly resource: URI;
 
-	readonly status?: ChatSessionStatus;
+	readonly status: ChatSessionStatus;
 	readonly archived: boolean;
 
 	readonly tooltip?: string | IMarkdownString;
 
 	readonly label: string;
-	readonly description: string | IMarkdownString;
+	readonly description?: string | IMarkdownString;
 	readonly icon: ThemeIcon;
 
 	readonly timing: {
 		readonly startTime: number;
 		readonly endTime?: number;
+
+		readonly inProgressTime?: number;
+		readonly finishedOrFailedTime?: number;
 	};
 
 	readonly statistics?: {
@@ -102,6 +105,13 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 
 	private readonly resolver = this._register(new ThrottledDelayer<void>(100));
 	private readonly providersToResolve = new Set<string | undefined>();
+
+	private readonly mapSessionToState = new ResourceMap<{
+		status: ChatSessionStatus;
+
+		inProgressTime?: number;
+		finishedOrFailedTime?: number;
+	}>();
 
 	private readonly filter: AgentSessionsViewFilter;
 
@@ -159,36 +169,26 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
-		const newSessions: IAgentSessionViewModel[] = [];
+		const sessions = new ResourceMap<IAgentSessionViewModel>();
 		for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
 			if (!providersToResolve.includes(undefined) && !providersToResolve.includes(provider.chatSessionType)) {
-				newSessions.push(...this._sessions.filter(session => session.provider.chatSessionType === provider.chatSessionType));
+				for (const session of this._sessions) {
+					if (session.provider.chatSessionType === provider.chatSessionType) {
+						sessions.set(session.resource, session);
+					}
+				}
+
 				continue; // skipped for resolving, preserve existing ones
 			}
 
-			const sessions = await provider.provideChatSessionItems(token);
+			const providerSessions = await provider.provideChatSessionItems(token);
 			if (token.isCancellationRequested) {
 				return;
 			}
 
-			for (const session of sessions) {
-				let description;
-				if (session.description) {
-					description = session.description;
-				} else {
-					switch (session.status) {
-						case ChatSessionStatus.InProgress:
-							description = localize('chat.session.status.inProgress', "Working...");
-							break;
-						case ChatSessionStatus.Failed:
-							description = localize('chat.session.status.error', "Failed");
-							break;
-						default:
-							description = localize('chat.session.status.completed', "Finished");
-							break;
-					}
-				}
+			for (const session of providerSessions) {
 
+				// Icon + Label
 				let icon: ThemeIcon;
 				let providerLabel: string;
 				switch ((provider.chatSessionType)) {
@@ -210,19 +210,46 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					}
 				}
 
-				newSessions.push({
+				// State + Timings
+				const status = session.status ?? ChatSessionStatus.Completed;
+				const state = this.mapSessionToState.get(session.resource);
+				let inProgressTime = state?.inProgressTime;
+				let finishedOrFailedTime = state?.finishedOrFailedTime;
+
+				// No previous state, just add it
+				if (!state) {
+					this.mapSessionToState.set(session.resource, {
+						status
+					});
+				}
+
+				// State changed, update it
+				else if (status !== state.status) {
+					inProgressTime = status === ChatSessionStatus.InProgress ? Date.now() : state.inProgressTime;
+					finishedOrFailedTime = (status !== ChatSessionStatus.InProgress) ? Date.now() : state.finishedOrFailedTime;
+
+					this.mapSessionToState.set(session.resource, {
+						status,
+						inProgressTime,
+						finishedOrFailedTime
+					});
+				}
+
+				sessions.set(session.resource, {
 					provider,
 					providerLabel,
 					resource: session.resource,
 					label: session.label,
-					description,
+					description: session.description,
 					icon,
 					tooltip: session.tooltip,
-					status: session.status,
+					status,
 					archived: session.archived ?? false,
 					timing: {
 						startTime: session.timing.startTime,
-						endTime: session.timing.endTime
+						endTime: session.timing.endTime,
+						inProgressTime,
+						finishedOrFailedTime
 					},
 					statistics: session.statistics,
 				});
@@ -230,7 +257,13 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		}
 
 		this._sessions.length = 0;
-		this._sessions.push(...newSessions);
+		this._sessions.push(...sessions.values());
+
+		for (const [resource] of this.mapSessionToState) {
+			if (!sessions.has(resource)) {
+				this.mapSessionToState.delete(resource); // clean up tracking for removed sessions
+			}
+		}
 
 		this._onDidChangeSessions.fire();
 	}
