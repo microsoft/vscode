@@ -565,7 +565,7 @@ export class InlineChatController1 implements IEditorContribution {
 		}
 		options.position = await this._strategy.renderChanges();
 
-		if (this._session.chatModel.requestInProgress) {
+		if (this._session.chatModel.requestInProgress.get()) {
 			return State.SHOW_REQUEST;
 		} else {
 			return State.WAIT_FOR_INPUT;
@@ -647,7 +647,7 @@ export class InlineChatController1 implements IEditorContribution {
 	private async [State.SHOW_REQUEST](options: InlineChatRunOptions): Promise<State.WAIT_FOR_INPUT | State.CANCEL | State.PAUSE | State.ACCEPT> {
 		assertType(this._session);
 		assertType(this._strategy);
-		assertType(this._session.chatModel.requestInProgress);
+		assertType(this._session.chatModel.requestInProgress.get());
 
 		this._ctxRequestInProgress.set(true);
 
@@ -1429,7 +1429,7 @@ export class InlineChatController2 implements IEditorContribution {
 				entry?.enableReviewModeUntilSettled();
 			}
 
-			const inProgress = session.chatModel.requestInProgressObs.read(r);
+			const inProgress = session.chatModel.requestInProgress.read(r);
 			this._zone.value.widget.domNode.classList.toggle('request-in-progress', inProgress);
 			if (!inProgress) {
 				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder', "Edit, refactor, and generate code"));

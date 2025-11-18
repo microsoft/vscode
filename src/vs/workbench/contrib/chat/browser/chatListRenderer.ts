@@ -53,7 +53,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../common/chatService.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
@@ -1346,7 +1346,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderUndoStop(content);
 			} else if (content.kind === 'errorDetails') {
 				return this.renderChatErrorDetails(context, content, templateData);
-			} else if (content.kind === 'elicitation') {
+			} else if (content.kind === 'elicitation2' || content.kind === 'elicitationSerialized') {
 				return this.renderElicitation(context, content, templateData);
 			} else if (content.kind === 'changesSummary') {
 				return this.renderChangesSummary(content, context, templateData);
@@ -1557,7 +1557,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return part;
 	}
 
-	private renderElicitation(context: IChatContentPartRenderContext, elicitation: IChatElicitationRequest, templateData: IChatListItemTemplate): IChatContentPart {
+	private renderElicitation(context: IChatContentPartRenderContext, elicitation: IChatElicitationRequest | IChatElicitationRequestSerialized, templateData: IChatListItemTemplate): IChatContentPart {
+		if (elicitation.kind === 'elicitationSerialized' ? elicitation.isHidden : elicitation.isHidden?.get()) {
+			return this.renderNoContent(other => elicitation.kind === other.kind);
+		}
+
 		const part = this.instantiationService.createInstance(ChatElicitationContentPart, elicitation, context);
 		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return part;

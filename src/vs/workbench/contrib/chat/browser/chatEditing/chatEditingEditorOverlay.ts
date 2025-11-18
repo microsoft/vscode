@@ -376,7 +376,7 @@ class ChatEditingOverlayController {
 			}
 
 			const chatModel = chatService.getSession(session.chatSessionResource)!;
-			return chatModel.requestInProgressObs.read(r);
+			return chatModel.requestInProgress.read(r);
 		});
 
 		this._store.add(autorun(r => {
