@@ -115,6 +115,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 			enabled: true,
 			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
+			description: `@${contrib.name}`,
 			label: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
 			tooltip: contrib.displayName,
 			run: () => instantiationService.invokeFunction(accessor => new CreateRemoteAgentJobAction().run(accessor, contrib))
