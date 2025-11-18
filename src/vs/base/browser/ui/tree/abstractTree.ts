@@ -2390,8 +2390,6 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			expandOnlyOnTwistieClick = !!this.tree.expandOnlyOnTwistieClick;
 		}
 
-		let shouldCallSuperOnViewPointer = !isStickyElement;
-
 		if (!isStickyElement) {
 			if (expandOnlyOnTwistieClick && !onTwistie && e.browserEvent.detail !== 2) {
 				return super.onViewPointer(e);
@@ -2401,8 +2399,7 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 				return super.onViewPointer(e);
 			}
 		} else {
-			// handleStickyScrollMouseEvent returns true if super.onViewPointer should be called
-			shouldCallSuperOnViewPointer = this.handleStickyScrollMouseEvent(e, node);
+			this.handleStickyScrollMouseEvent(e, node);
 		}
 
 		if (node.collapsible && (!isStickyElement || onTwistie)) {
@@ -2418,16 +2415,14 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			}
 		}
 
-		if (shouldCallSuperOnViewPointer) {
+		if (!isStickyElement) {
 			super.onViewPointer(e);
 		}
 	}
 
-	private handleStickyScrollMouseEvent(e: IListMouseEvent<ITreeNode<T, TFilterData>>, node: ITreeNode<T, TFilterData>): boolean {
+	private handleStickyScrollMouseEvent(e: IListMouseEvent<ITreeNode<T, TFilterData>>, node: ITreeNode<T, TFilterData>): void {
 		if (isMonacoCustomToggle(e.browserEvent.target as HTMLElement) || isActionItem(e.browserEvent.target as HTMLElement)) {
-			// For checkboxes and action items, we want the default behavior (firing onDidOpen event)
-			// so return true to indicate the event should be handled by super.onViewPointer
-			return true;
+			return;
 		}
 
 		const stickyScrollController = this.stickyScrollProvider();
@@ -2442,7 +2437,6 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		this.list.domFocus();
 		this.list.setFocus([nodeIndex]);
 		this.list.setSelection([nodeIndex]);
-		return false;
 	}
 
 	protected override onDoubleClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
