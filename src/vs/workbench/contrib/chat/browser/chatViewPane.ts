@@ -185,16 +185,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	protected override async renderBody(parent: HTMLElement): Promise<void> {
 		super.renderBody(parent);
 
-		type ChatViewPaneOpenedEvent = {
-			location: string;
-		};
 
 		type ChatViewPaneOpenedClassification = {
 			owner: 'sbatten';
 			comment: 'Event fired when the chat view pane is opened';
 		};
 
-		this.telemetryService.publicLog2<ChatViewPaneOpenedEvent, ChatViewPaneOpenedClassification>('chatViewPaneOpened');
+		this.telemetryService.publicLog2<{}, ChatViewPaneOpenedClassification>('chatViewPaneOpened');
 
 		const welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
