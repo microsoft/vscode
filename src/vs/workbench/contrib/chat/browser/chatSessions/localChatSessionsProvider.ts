@@ -11,14 +11,11 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatSessionItemWithProvider } from './common.js';
 
 export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
@@ -34,7 +31,6 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 	public get onDidChangeChatSessionItems() { return this._onDidChangeChatSessionItems.event; }
 
 	constructor(
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
@@ -114,10 +110,6 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		}
 	}
 
-	private getEditorKey(editor: EditorInput, group: IEditorGroup): string {
-		return `${group.id}-${editor.typeId}-${editor.resource?.toString() || editor.getName()}`;
-	}
-
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
 		if (model.requestInProgress.get()) {
 			return ChatSessionStatus.InProgress;
@@ -142,18 +134,6 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 
 	async provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]> {
 		const sessions: ChatSessionItemWithProvider[] = [];
-		// Create a map to quickly find editors by their key
-		const editorMap = new Map<string, { editor: EditorInput; group: IEditorGroup }>();
-
-		this.editorGroupService.groups.forEach(group => {
-			group.editors.forEach(editor => {
-				if (editor instanceof ChatEditorInput) {
-					const key = this.getEditorKey(editor, group);
-					editorMap.set(key, { editor, group });
-				}
-			});
-		});
-
 		const sessionsByResource = new ResourceSet();
 		this.chatService.getLiveSessionItems().forEach(sessionDetail => {
 			let status: ChatSessionStatus | undefined;
