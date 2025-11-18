@@ -74,12 +74,13 @@ export const ITerminalProfileService = createDecorator<ITerminalProfileService>(
 export interface ITerminalProfileService {
 	readonly _serviceBrand: undefined;
 	readonly availableProfiles: ITerminalProfile[];
+	getAvailableProfiles(remoteAuthority?: string): ITerminalProfile[];
 	readonly contributedProfiles: IExtensionTerminalProfile[];
 	readonly profilesReady: Promise<void>;
 	getPlatformKey(): Promise<string>;
 	refreshAvailableProfiles(): void;
 	getDefaultProfileName(): string | undefined;
-	getDefaultProfile(os?: OperatingSystem): ITerminalProfile | undefined;
+	getDefaultProfile(os?: OperatingSystem, remoteAuthority?: string): ITerminalProfile | undefined;
 	readonly onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;

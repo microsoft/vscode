@@ -35,9 +35,10 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	private _profilesReadyBarrier: AutoOpenBarrier | undefined;
 	private _profilesReadyPromise: Promise<void>;
 	private _availableProfiles: ITerminalProfile[] | undefined;
+	private readonly _availableProfilesByAuthority = new Map<string | undefined, ITerminalProfile[]>();
 	private _automationProfile: unknown;
 	private _contributedProfiles: IExtensionTerminalProfile[] = [];
-	private _defaultProfileName?: string;
+	private readonly _defaultProfileNameByAuthority = new Map<string | undefined, string | undefined>();
 	private _platformConfigJustRefreshed = false;
 	private readonly _refreshTerminalActionsDisposable = this._register(new MutableDisposable());
 	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
@@ -47,13 +48,20 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 
 	get profilesReady(): Promise<void> { return this._profilesReadyPromise; }
 	get availableProfiles(): ITerminalProfile[] {
+		return this.getAvailableProfiles(this._environmentService.remoteAuthority);
+	}
+
+	getAvailableProfiles(remoteAuthority?: string): ITerminalProfile[] {
 		if (!this._platformConfigJustRefreshed) {
 			this.refreshAvailableProfiles();
 		}
-		return this._availableProfiles || [];
+		if (remoteAuthority === this._environmentService.remoteAuthority) {
+			return this._availableProfiles || this._availableProfilesByAuthority.get(remoteAuthority) || [];
+		}
+		return this._availableProfilesByAuthority.get(remoteAuthority) || [];
 	}
 	get contributedProfiles(): IExtensionTerminalProfile[] {
-		const userConfiguredProfileNames = this._availableProfiles?.map(p => p.profileName) || [];
+		const userConfiguredProfileNames = this.availableProfiles.map(p => p.profileName);
 		// Allow a user defined profile to override an extension contributed profile with the same name
 		return this._contributedProfiles?.filter(p => !userConfiguredProfileNames.includes(p.title)) || [];
 	}
@@ -108,18 +116,18 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	}
 
 	getDefaultProfileName(): string | undefined {
-		return this._defaultProfileName;
+		return this._defaultProfileNameByAuthority.get(this._environmentService.remoteAuthority);
 	}
 
-	getDefaultProfile(os?: OperatingSystem): ITerminalProfile | undefined {
-		let defaultProfileName: string | undefined;
+	getDefaultProfile(os?: OperatingSystem, remoteAuthority?: string): ITerminalProfile | undefined {
+		const authority = remoteAuthority ?? this._environmentService.remoteAuthority;
+		let defaultProfileName = this._defaultProfileNameByAuthority.get(authority);
 		if (os) {
-			defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${this._getOsKey(os)}`);
-			if (!defaultProfileName || typeof defaultProfileName !== 'string') {
-				return undefined;
+			const platformKey = this._getOsKey(os);
+			const configuredProfile = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platformKey}`);
+			if (typeof configuredProfile === 'string') {
+				defaultProfileName = configuredProfile;
 			}
-		} else {
-			defaultProfileName = this._defaultProfileName;
 		}
 		if (!defaultProfileName) {
 			return undefined;
@@ -127,7 +135,8 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 
 		// IMPORTANT: Only allow the default profile name to find non-auto detected profiles as
 		// to avoid unsafe path profiles being picked up.
-		return this.availableProfiles.find(e => e.profileName === defaultProfileName && !e.isAutoDetected);
+		const profiles = this.getAvailableProfiles(remoteAuthority);
+		return profiles.find(e => e.profileName === defaultProfileName && !e.isAutoDetected);
 	}
 
 	private _getOsKey(os: OperatingSystem): string {
@@ -145,9 +154,12 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	}
 
 	protected async _refreshAvailableProfilesNow(): Promise<void> {
-		// Profiles
-		const profiles = await this._detectProfiles(true);
-		const profilesChanged = !arrays.equals(profiles, this._availableProfiles, profilesEqual);
+		const currentAuthority = this._environmentService.remoteAuthority;
+		const currentProfilesChanged = await this._refreshAvailableProfilesForAuthority(currentAuthority, true);
+		if (currentAuthority) {
+			await this._refreshAvailableProfilesForAuthority(undefined, true);
+		}
+		const profiles = this.getAvailableProfiles(currentAuthority);
 		// Contributed profiles
 		const contributedProfilesChanged = await this._updateContributedProfiles();
 		// Automation profiles
@@ -155,7 +167,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		const automationProfile = this._configurationService.getValue<ITerminalExecutable | null | undefined>(`${TerminalSettingPrefix.AutomationProfile}${platform}`);
 		const automationProfileChanged = !objects.equals(automationProfile, this._automationProfile);
 		// Update
-		if (profilesChanged || contributedProfilesChanged || automationProfileChanged) {
+		if (currentProfilesChanged || contributedProfilesChanged || automationProfileChanged) {
 			this._availableProfiles = profiles;
 			this._automationProfile = automationProfile;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
@@ -163,6 +175,16 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 			this._updateWebContextKey();
 			await this._refreshPlatformConfig(this._availableProfiles);
 		}
+	}
+
+	private async _refreshAvailableProfilesForAuthority(remoteAuthority: string | undefined, includeDetectedProfiles?: boolean): Promise<boolean> {
+		const profiles = await this._detectProfiles(remoteAuthority, includeDetectedProfiles);
+		const existing = this._availableProfilesByAuthority.get(remoteAuthority);
+		const changed = !existing || !arrays.equals(profiles, existing, profilesEqual);
+		if (changed) {
+			this._availableProfilesByAuthority.set(remoteAuthority, profiles);
+		}
+		return changed;
 	}
 
 	private async _updateContributedProfiles(): Promise<boolean> {
@@ -185,14 +207,15 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		return extMap?.get(id);
 	}
 
-	private async _detectProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		const primaryBackend = await this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority);
-		if (!primaryBackend) {
-			return this._availableProfiles || [];
+	private async _detectProfiles(remoteAuthority: string | undefined, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
+		const backend = await this._terminalInstanceService.getBackend(remoteAuthority);
+		if (!backend) {
+			return this._availableProfilesByAuthority.get(remoteAuthority) || [];
 		}
-		const platform = await this.getPlatformKey();
-		this._defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`) ?? undefined;
-		return primaryBackend.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._defaultProfileName, includeDetectedProfiles);
+		const platform = await this._getPlatformKeyForAuthority(remoteAuthority);
+		const defaultProfileName = this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`) ?? undefined;
+		this._defaultProfileNameByAuthority.set(remoteAuthority, typeof defaultProfileName === 'string' ? defaultProfileName : undefined);
+		return backend.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), defaultProfileName, includeDetectedProfiles);
 	}
 
 	private _updateWebContextKey(): void {
@@ -209,6 +232,16 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		const env = await this._remoteAgentService.getEnvironment();
 		if (env) {
 			return env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
+		}
+		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
+	}
+
+	private async _getPlatformKeyForAuthority(remoteAuthority: string | undefined): Promise<string> {
+		if (remoteAuthority) {
+			const env = await this._remoteAgentService.getEnvironment();
+			if (env) {
+				return env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
+			}
 		}
 		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 	}
