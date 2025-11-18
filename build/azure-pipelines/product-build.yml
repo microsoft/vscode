@@ -192,6 +192,8 @@ extends:
       - stage: Compile
         jobs:
           - template: build/azure-pipelines/product-compile.yml@self
+            parameters:
+              VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
       - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
         - stage: CompileCLI
@@ -409,10 +411,12 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
               - template: build/azure-pipelines/alpine/product-build-alpine.yml@self
                 parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_ARCH: x64
             - ${{ if eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true) }}:
               - template: build/azure-pipelines/alpine/product-build-alpine.yml@self
                 parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_ARCH: arm64
 
       - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_MACOS'], true)) }}:
@@ -430,26 +434,31 @@ extends:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
                 parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_TEST_SUITE: Electron
               - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
                 parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_TEST_SUITE: Browser
               - template: build/azure-pipelines/darwin/product-build-darwin-ci.yml@self
                 parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_TEST_SUITE: Remote
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS, true)) }}:
               - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                 parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
               - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                 parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_ARCH: arm64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                   VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -458,6 +467,8 @@ extends:
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_MACOS_UNIVERSAL'], true)) }}:
               - template: build/azure-pipelines/darwin/product-build-darwin-universal.yml@self
+                parameters:
+                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true))) }}:
               - template: build/azure-pipelines/darwin/product-build-darwin-cli-sign.yml@self
@@ -471,6 +482,8 @@ extends:
             - Compile
           jobs:
             - template: build/azure-pipelines/web/product-build-web.yml@self
+              parameters:
+                VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
       - ${{ if eq(variables['VSCODE_PUBLISH'], 'true') }}:
         - stage: Publish

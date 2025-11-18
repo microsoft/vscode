@@ -2,41 +2,37 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { getWindow, n, ObserverNode, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { IObservable, IReader, autorun, constObservable, derived, derivedDisposable, observableValue } from '../../../../../../../base/common/observable.js';
-import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
-import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
-import { Rect } from '../../../../../../common/core/2d/rect.js';
-import { EmbeddedCodeEditorWidget } from '../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
-import { Position } from '../../../../../../common/core/position.js';
-import { Range } from '../../../../../../common/core/range.js';
-import { IModelDeltaDecoration, ITextModel } from '../../../../../../common/model.js';
-import { InlineCompletionContextKeys } from '../../../controller/inlineCompletionContextKeys.js';
-import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
-import { getContentRenderWidth, getContentSizeOfLines, maxContentWidthInRange, rectToProps } from '../utils/utils.js';
-import { DetailedLineRangeMapping } from '../../../../../../common/diff/rangeMapping.js';
-import { ModelDecorationOptions } from '../../../../../../common/model/textModel.js';
-import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
-import { InlineEditsGutterIndicator } from '../components/gutterIndicatorView.js';
-import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
-import { ModelPerInlineEdit } from '../inlineEditsModel.js';
-import { HideUnchangedRegionsFeature } from '../../../../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
-import { Codicon } from '../../../../../../../base/common/codicons.js';
-import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { SymbolKinds } from '../../../../../../common/languages.js';
-import { debugLogRects, debugView } from './debugVisualization.js';
-import { distributeFlexBoxLayout } from './flexBoxLayout.js';
-import { Point } from '../../../../../../common/core/2d/point.js';
-import { Size2D } from '../../../../../../common/core/2d/size.js';
-import { getMaxTowerHeightInAvailableArea } from './layout.js';
-import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
-import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../theme.js';
-import { asCssVariable, editorBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { getWindow, n, ObserverNode, ObserverNodeWithElement } from '../../../../../../../../base/browser/dom.js';
+import { IMouseEvent, StandardMouseEvent } from '../../../../../../../../base/browser/mouseEvent.js';
+import { Emitter } from '../../../../../../../../base/common/event.js';
+import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
+import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable } from '../../../../../../../../base/common/observable.js';
+import { IInstantiationService } from '../../../../../../../../platform/instantiation/common/instantiation.js';
+import { ICodeEditor } from '../../../../../../../browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../../../../../browser/observableCodeEditor.js';
+import { Rect } from '../../../../../../../common/core/2d/rect.js';
+import { Position } from '../../../../../../../common/core/position.js';
+import { ITextModel } from '../../../../../../../common/model.js';
+import { IInlineEditsView, InlineEditTabAction } from '../../inlineEditsViewInterface.js';
+import { InlineEditWithChanges } from '../../inlineEditWithChanges.js';
+import { getContentRenderWidth, getContentSizeOfLines, maxContentWidthInRange, rectToProps } from '../../utils/utils.js';
+import { DetailedLineRangeMapping } from '../../../../../../../common/diff/rangeMapping.js';
+import { OffsetRange } from '../../../../../../../common/core/ranges/offsetRange.js';
+import { LineRange } from '../../../../../../../common/core/ranges/lineRange.js';
+import { HideUnchangedRegionsFeature } from '../../../../../../../browser/widget/diffEditor/features/hideUnchangedRegionsFeature.js';
+import { Codicon } from '../../../../../../../../base/common/codicons.js';
+import { renderIcon } from '../../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { SymbolKinds } from '../../../../../../../common/languages.js';
+import { debugLogHorizontalOffsetRanges, debugLogRects, debugView } from '../debugVisualization.js';
+import { distributeFlexBoxLayout } from '../../utils/flexBoxLayout.js';
+import { Point } from '../../../../../../../common/core/2d/point.js';
+import { Size2D } from '../../../../../../../common/core/2d/size.js';
+import { getMaxTowerHeightInAvailableArea } from '../../utils/towersLayout.js';
+import { IThemeService } from '../../../../../../../../platform/theme/common/themeService.js';
+import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../../theme.js';
+import { asCssVariable, editorBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
+import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
+import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
 
 
 const BORDER_WIDTH = 1;
@@ -66,15 +62,14 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 	private readonly _onDidClick = this._register(new Emitter<IMouseEvent>());
 	readonly onDidClick = this._onDidClick.event;
 	private _viewWithElement: ObserverNodeWithElement<HTMLDivElement> | undefined = undefined;
-	private readonly _previewRef = n.ref<HTMLDivElement>();
-	public readonly previewEditor;
+
+	private readonly _previewEditor;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _viewState: IObservable<ILongDistanceViewState | undefined>,
 		private readonly _previewTextModel: ITextModel,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
-		private readonly _model: IObservable<ModelPerInlineEdit | undefined>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
@@ -95,20 +90,25 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 		this._editorObs = observableCodeEditor(this._editor);
 
-		this.previewEditor = this._register(this._createPreviewEditor());
-		this.previewEditor.setModel(this._previewTextModel);
-		this._previewEditorObs = observableCodeEditor(this.previewEditor);
-		this._register(this._previewEditorObs.setDecorations(this._editorDecorations));
-
-		this._register(this._instantiationService.createInstance(
-			InlineEditsGutterIndicator,
-			this._previewEditorObs,
-			derived(reader => LineRange.ofLength(this._viewState.read(reader)!.diff[0].modified.startLineNumber, 1)),
-			constObservable(0),
-			this._model,
-			constObservable(false),
-			observableValue(this, false),
-		));
+		this._previewEditor = this._register(
+			this._instantiationService.createInstance(
+				LongDistancePreviewEditor,
+				this._previewTextModel,
+				derived(reader => {
+					const viewState = this._viewState.read(reader);
+					if (!viewState) {
+						return undefined;
+					}
+					return {
+						diff: viewState.diff,
+						model: viewState.model,
+						suggestInfo: viewState.suggestInfo,
+					} satisfies ILongDistancePreviewProps;
+				}),
+				this._editor,
+				this._tabAction,
+			)
+		);
 
 		this._hintTopLeft = this._editorObs.observePosition(this._hintTextPosition, this._store);
 
@@ -127,143 +127,20 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			if (!layoutInfo) {
 				return;
 			}
-			this.previewEditor.layout(layoutInfo.codeEditorSize.toDimension());
+			this._previewEditor.layout(layoutInfo.codeEditorSize.toDimension(), layoutInfo.desiredPreviewEditorScrollLeft);
 		}));
 
-		this._register(autorun(reader => {
-			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
-			if (!layoutInfo) {
-				return;
-			}
-			this._previewEditorObs.editor.setScrollLeft(layoutInfo.desiredPreviewEditorScrollLeft);
-		}));
-
-		this._updatePreviewEditorEffect.recomputeInitiallyAndOnChange(this._store);
+		this._isVisibleDelayed.recomputeInitiallyAndOnChange(this._store);
 	}
 
 
 	private readonly _styles;
 
-	private _createPreviewEditor() {
-		return this._instantiationService.createInstance(
-			EmbeddedCodeEditorWidget,
-			this._previewRef.element,
-			{
-				glyphMargin: false,
-				lineNumbers: 'on',
-				minimap: { enabled: false },
-				guides: {
-					indentation: false,
-					bracketPairs: false,
-					bracketPairsHorizontal: false,
-					highlightActiveIndentation: false,
-				},
-
-				rulers: [],
-				padding: { top: 0, bottom: 0 },
-				//folding: false,
-				selectOnLineNumbers: false,
-				selectionHighlight: false,
-				columnSelection: false,
-				overviewRulerBorder: false,
-				overviewRulerLanes: 0,
-				//lineDecorationsWidth: 0,
-				//lineNumbersMinChars: 0,
-				revealHorizontalRightPadding: 0,
-				bracketPairColorization: { enabled: true, independentColorPoolPerBracketType: false },
-				scrollBeyondLastLine: false,
-				scrollbar: {
-					vertical: 'hidden',
-					horizontal: 'hidden',
-					handleMouseWheel: false,
-				},
-				readOnly: true,
-				wordWrap: 'off',
-				wordWrapOverride1: 'off',
-				wordWrapOverride2: 'off',
-			},
-			{
-				contextKeyValues: {
-					[InlineCompletionContextKeys.inInlineEditsPreviewEditor.key]: true,
-				},
-				contributions: [],
-			},
-			this._editor
-		);
-	}
-
-	private readonly _editorDecorations = derived(this, reader => {
-		const viewState = this._viewState.read(reader);
-		if (!viewState) { return []; }
-
-		const hasOneInnerChange = viewState.diff.length === 1 && viewState.diff[0].innerChanges?.length === 1;
-		const showEmptyDecorations = true;
-		const modifiedDecorations: IModelDeltaDecoration[] = [];
-
-		const diffWholeLineAddDecoration = ModelDecorationOptions.register({
-			className: 'inlineCompletions-char-insert',
-			description: 'char-insert',
-			isWholeLine: true,
-		});
-
-
-		const diffAddDecoration = ModelDecorationOptions.register({
-			className: 'inlineCompletions-char-insert',
-			description: 'char-insert',
-			shouldFillLineOnLineBreak: true,
-		});
-
-		const diffAddDecorationEmpty = ModelDecorationOptions.register({
-			className: 'inlineCompletions-char-insert diff-range-empty',
-			description: 'char-insert diff-range-empty',
-		});
-
-		for (const m of viewState.diff) {
-			if (m.modified.isEmpty || m.original.isEmpty) {
-				if (!m.modified.isEmpty) {
-					modifiedDecorations.push({ range: m.modified.toInclusiveRange()!, options: diffWholeLineAddDecoration });
-				}
-			} else {
-				for (const i of m.innerChanges || []) {
-					// Don't show empty markers outside the line range
-					if (m.modified.contains(i.modifiedRange.startLineNumber)) {
-						modifiedDecorations.push({
-							range: i.modifiedRange,
-							options: (i.modifiedRange.isEmpty() && showEmptyDecorations && hasOneInnerChange)
-								? diffAddDecorationEmpty
-								: diffAddDecoration
-						});
-					}
-				}
-			}
-		}
-
-		return modifiedDecorations;
-	});
 
 
 	public get isHovered() { return this._widgetContent.didMouseMoveDuringHover; }
 
-	private readonly _previewEditorObs;
 
-	private readonly _updatePreviewEditorEffect = derived(this, reader => {
-		this._widgetContent.readEffect(reader);
-		this._previewEditorObs.model.read(reader); // update when the model is set
-
-		const viewState = this._viewState.read(reader);
-		if (!viewState) {
-			return;
-		}
-		const range = viewState.edit.originalLineRange;
-		const hiddenAreas: Range[] = [];
-		if (range.startLineNumber > 1) {
-			hiddenAreas.push(new Range(1, 1, range.startLineNumber - 1, 1));
-		}
-		if (range.startLineNumber + viewState.newTextLineCount < this._previewTextModel.getLineCount() + 1) {
-			hiddenAreas.push(new Range(range.startLineNumber + viewState.newTextLineCount, 1, this._previewTextModel.getLineCount() + 1, 1));
-		}
-		this.previewEditor.setHiddenAreas(hiddenAreas, undefined, true);
-	});
 
 	private readonly _hintTextPosition = derived(this, (reader) => {
 		const viewState = this._viewState.read(reader);
@@ -313,20 +190,17 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		return this._editorObs.observeBottomForLineNumber(p.lineNumber);
 	}).flatten();
 
-	private readonly _previewEditorHeight = derived(this, (reader) => {
-		const viewState = this._viewState.read(reader);
-		if (!viewState) {
-			return constObservable(null);
-		}
 
-		const previewEditorHeight = this._previewEditorObs.observeLineHeightForLine(viewState.edit.modifiedLineRange.startLineNumber);
-		return previewEditorHeight;
-	}).flatten();
+	private readonly _isVisibleDelayed = debouncedObservable2(
+		derived(this, reader => this._viewState.read(reader)?.hint.isVisible),
+		(lastValue, newValue) => lastValue === true && newValue === false ? 200 : 0,
+	);
 
 	private readonly _previewEditorLayoutInfo = derived(this, (reader) => {
 		const viewState = this._viewState.read(reader);
-		if (!viewState) {
-			return null;
+
+		if (!viewState || !this._isVisibleDelayed.read(reader)) {
+			return undefined;
 		}
 
 		const lineSizes = this._lineSizesAroundHintPosition.read(reader);
@@ -334,21 +208,24 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			return undefined;
 		}
 
-		const scrollTop = this._editorObs.scrollTop.read(reader);
-		const horizontalScrollOffset = this._editorObs.scrollLeft.read(reader);
+		const editorScrollTop = this._editorObs.scrollTop.read(reader);
+		const editorScrollLeft = this._editorObs.scrollLeft.read(reader);
 		const editorLayout = this._editorObs.layoutInfo.read(reader);
-		const previewEditorHeight = this._previewEditorHeight.read(reader);
-		const previewEditorHorizontalRange = this._horizontalContentRangeInPreviewEditorToShow.read(reader);
 
+		const previewContentHeight = this._previewEditor.contentHeight.read(reader);
+		const previewEditorContentLayout = this._previewEditor.horizontalContentRangeInPreviewEditorToShow.read(reader);
 
-		if (!previewEditorHeight) {
+		if (!previewContentHeight || !previewEditorContentLayout) {
 			return undefined;
 		}
 
 		// const debugRects = stackSizesDown(new Point(editorLayout.contentLeft, lineSizes.top - scrollTop), lineSizes.sizes);
 
-		const contentWidthWithoutScrollbar = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
-		const editorLayoutContentRight = editorLayout.contentLeft + contentWidthWithoutScrollbar;
+		const editorTrueContentWidth = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
+		const editorTrueContentRight = editorLayout.contentLeft + editorTrueContentWidth;
+
+
+		// drawEditorWidths(this._editor, reader);
 
 		const c = this._editorObs.cursorLineNumber.read(reader);
 		if (!c) {
@@ -361,12 +238,12 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			if (lineNumber === viewState.hint.lineNumber) {
 				linePaddingLeft = 100;
 			}
-			return new Size2D(Math.max(0, contentWidthWithoutScrollbar - s.width - linePaddingLeft), s.height);
+			return new Size2D(Math.max(0, editorTrueContentWidth - s.width - linePaddingLeft), s.height);
 		});
 
 		const showRects = false;
 		if (showRects) {
-			const rects2 = stackSizesDown(new Point(editorLayoutContentRight, lineSizes.top - scrollTop), availableSpaceSizes, 'right');
+			const rects2 = stackSizesDown(new Point(editorTrueContentRight, lineSizes.top - editorScrollTop), availableSpaceSizes, 'right');
 			debugView(debugLogRects({ ...rects2 }, this._editor.getDomNode()!), reader);
 		}
 
@@ -375,47 +252,52 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		const availableSpaceSizesTransposed = availableSpaceSizes.map(s => s.transpose());
 
 		const previewEditorMargin = 2;
-		const borderSize = 2;
+		const widgetPadding = 2;
+		const lowerBarHeight = 20;
+		const widgetBorder = 1;
+
+		const extraGutterMarginToAvoidScrollBar = 2;
+		const previewEditorHeight = previewContentHeight! + extraGutterMarginToAvoidScrollBar;
 
 		function getWidgetVerticalOutline(lineNumber: number): OffsetRange {
 			const sizeIdx = lineNumber - lineSizes!.lineRange.startLineNumber;
 			const top = lineSizes!.top + availableSpaceHeightPrefixSums[sizeIdx];
-			const verticalWidgetRange = OffsetRange.ofStartAndLength(top, 2 * 19);
-			return verticalWidgetRange.withMargin(previewEditorMargin + borderSize);
+			const editorRange = OffsetRange.ofStartAndLength(top, previewEditorHeight);
+			const verticalWidgetRange = editorRange.withMargin(previewEditorMargin + widgetPadding + widgetBorder).withMargin(0, lowerBarHeight);
+			return verticalWidgetRange;
 		}
 
-		let result = findFirstMinimzeDistance(lineSizes.lineRange.addMargin(-1, -1), viewState.hint.lineNumber, lineNumber => {
+		let possibleWidgetOutline = findFirstMinimzeDistance(lineSizes.lineRange.addMargin(-1, -1), viewState.hint.lineNumber, lineNumber => {
 			const verticalWidgetRange = getWidgetVerticalOutline(lineNumber);
 			const maxWidth = getMaxTowerHeightInAvailableArea(verticalWidgetRange.delta(-lineSizes.top), availableSpaceSizesTransposed);
 			if (maxWidth < widgetMinWidth) {
 				return undefined;
 			}
-			return { width: maxWidth, verticalWidgetRange };
+			const horizontalWidgetRange = OffsetRange.ofStartAndLength(editorTrueContentRight - maxWidth, maxWidth);
+			return { horizontalWidgetRange, verticalWidgetRange };
 		});
-		if (!result) {
-			result = {
-				width: 400,
+		if (!possibleWidgetOutline) {
+			possibleWidgetOutline = {
+				horizontalWidgetRange: OffsetRange.ofStartAndLength(editorTrueContentRight - 400, 400),
 				verticalWidgetRange: getWidgetVerticalOutline(viewState.hint.lineNumber + 2).delta(10),
 			};
 		}
 
-		if (!result) {
+		if (!possibleWidgetOutline) {
 			return undefined;
 		}
 
-
 		const rectAvailableSpace = Rect.fromRanges(
-			OffsetRange.ofStartAndLength(editorLayoutContentRight - result.width, result.width),
-			result.verticalWidgetRange.withMargin(-previewEditorMargin - borderSize).delta(-scrollTop)
-		).translateX(-horizontalScrollOffset);
+			possibleWidgetOutline.horizontalWidgetRange,
+			possibleWidgetOutline.verticalWidgetRange
+		).translateX(-editorScrollLeft).translateY(-editorScrollTop);
 
 		const showAvailableSpace = false;
 		if (showAvailableSpace) {
 			debugView(debugLogRects({ rectAvailableSpace }, this._editor.getDomNode()!), reader);
 		}
 
-
-		const maxWidgetWidth = Math.min(400, previewEditorHorizontalRange.contentWidth + previewEditorMargin + borderSize);
+		const maxWidgetWidth = Math.min(400, previewEditorContentLayout.maxEditorWidth + previewEditorMargin + widgetPadding);
 
 		const layout = distributeFlexBoxLayout(rectAvailableSpace.width, {
 			spaceBefore: { min: 0, max: 10, priority: 1 },
@@ -427,60 +309,45 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			return null;
 		}
 
-
 		const ranges = lengthsToOffsetRanges([layout.spaceBefore, layout.content, layout.spaceAfter], rectAvailableSpace.left);
 		const spaceBeforeRect = rectAvailableSpace.withHorizontalRange(ranges[0]);
-		const contentRect = rectAvailableSpace.withHorizontalRange(ranges[1]);
+		const widgetRect = rectAvailableSpace.withHorizontalRange(ranges[1]);
 		const spaceAfterRect = rectAvailableSpace.withHorizontalRange(ranges[2]);
-
-		const codeEditorRect = contentRect.withHeight(previewEditorHeight + 2);
-
-		const lowerBarHeight = 20;
-		const codeEditorRectWithPadding = codeEditorRect.withMargin(borderSize);
-		const widgetRect = codeEditorRectWithPadding.withMargin(previewEditorMargin, previewEditorMargin, lowerBarHeight, previewEditorMargin);
 
 		const showRects2 = false;
 		if (showRects2) {
-			debugView(debugLogRects({ spaceBeforeRect, contentRect, spaceAfterRect }, this._editor.getDomNode()!), reader);
+			debugView(debugLogRects({ spaceBeforeRect, widgetRect, spaceAfterRect }, this._editor.getDomNode()!), reader);
 		}
 
+		const previewEditorRect = widgetRect.withMargin(-widgetPadding - widgetBorder - previewEditorMargin).withMargin(0, 0, -lowerBarHeight, 0);
+
+		const showEditorRect = false;
+		if (showEditorRect) {
+			debugView(debugLogRects({ previewEditorRect }, this._editor.getDomNode()!), reader);
+		}
+
+		const desiredPreviewEditorScrollLeft = scrollToReveal(previewEditorContentLayout.indentationEnd, previewEditorRect.width - previewEditorContentLayout.nonContentWidth, previewEditorContentLayout.preferredRangeToReveal);
+
 		return {
-			//codeEditorRect,
-			codeEditorSize: codeEditorRect.getSize(),
-			codeScrollLeft: horizontalScrollOffset,
+			codeEditorSize: previewEditorRect.getSize(),
+			codeScrollLeft: editorScrollLeft,
 			contentLeft: editorLayout.contentLeft,
 
 			widgetRect,
-			// codeEditorRectWithPadding,
 
 			previewEditorMargin,
-			borderSize,
+			widgetPadding,
+			widgetBorder,
+
 			lowerBarHeight,
 
-			desiredPreviewEditorScrollLeft: previewEditorHorizontalRange.preferredRange.start,
-			// previewEditorWidth,
+			desiredPreviewEditorScrollLeft: desiredPreviewEditorScrollLeft.newScrollPosition,
 		};
 	});
 
 	protected readonly _hintTopLeft;
 
-	private readonly _horizontalContentRangeInPreviewEditorToShow = derived(this, reader => {
-		return this._getHorizontalContentRangeInPreviewEditorToShow(this.previewEditor, this._viewState.read(reader)?.diff ?? [], reader);
-	});
 
-	private _getHorizontalContentRangeInPreviewEditorToShow(editor: ICodeEditor, diff: DetailedLineRangeMapping[], reader: IReader) {
-
-		//diff[0].innerChanges[0].originalRange;
-		const r = LineRange.ofLength(diff[0].modified.startLineNumber, 1);
-		const l = this._previewEditorObs.layoutInfo.read(reader);
-		const w = maxContentWidthInRange(this._previewEditorObs, r, reader) + l.contentLeft - l.verticalScrollbarWidth;
-		const preferredRange = new OffsetRange(0, w);
-
-		return {
-			preferredRange,
-			contentWidth: w,
-		};
-	}
 
 	private readonly _view = n.div({
 		class: 'inline-edits-view',
@@ -495,11 +362,6 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		derived(this, _reader => [this._widgetContent]),
 	]);
 
-	private readonly _originalOutlineSource = derivedDisposable(this, (reader) => {
-		const m = this._editorObs.model.read(reader);
-		const factory = HideUnchangedRegionsFeature._breadcrumbsSourceFactory.read(reader);
-		return (!m || !factory) ? undefined : factory(m, this._instantiationService);
-	});
 
 	private readonly _widgetContent = n.div({
 		style: {
@@ -507,11 +369,14 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			overflow: 'hidden',
 			cursor: 'pointer',
 			background: 'var(--vscode-editorWidget-background)',
-			padding: this._previewEditorLayoutInfo.map(i => i?.borderSize),
+			padding: this._previewEditorLayoutInfo.map(i => i?.widgetPadding),
+			boxSizing: 'border-box',
 			borderRadius: BORDER_RADIUS,
-			border: derived(reader => `1px solid ${this._styles.read(reader).border}`),
+			border: derived(reader => `${this._previewEditorLayoutInfo.read(reader)?.widgetBorder}px solid ${this._styles.read(reader).border}`),
 			display: 'flex',
 			flexDirection: 'column',
+			opacity: derived(reader => this._viewState.read(reader)?.hint.isVisible ? '1' : '0'),
+			transition: 'opacity 200ms ease-in-out',
 			...rectToProps(reader => this._previewEditorLayoutInfo.read(reader)?.widgetRect)
 		},
 		onmousedown: e => {
@@ -529,7 +394,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 				background: 'var(--vscode-editor-background)',
 			},
 		}, [
-			n.div({ class: 'preview', style: { /*pointerEvents: 'none'*/ }, ref: this._previewRef }),
+			derived(this, r => this._previewEditor.element),
 		]),
 		n.div({ class: 'bar', style: { pointerEvents: 'none', margin: '0 4px', height: this._previewEditorLayoutInfo.map(i => i?.lowerBarHeight), display: 'flex', justifyContent: 'flex-start', alignItems: 'center' } }, [
 			derived(this, reader => {
@@ -565,10 +430,17 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			})
 		]),
 	]);
+
+	private readonly _originalOutlineSource = derivedDisposable(this, (reader) => {
+		const m = this._editorObs.model.read(reader);
+		const factory = HideUnchangedRegionsFeature._breadcrumbsSourceFactory.read(reader);
+		return (!m || !factory) ? undefined : factory(m, this._instantiationService);
+	});
 }
 
 export interface ILongDistanceHint {
 	lineNumber: number;
+	isVisible: boolean;
 }
 
 export interface ILongDistanceViewState {
@@ -576,6 +448,9 @@ export interface ILongDistanceViewState {
 	newTextLineCount: number;
 	edit: InlineEditWithChanges;
 	diff: DetailedLineRangeMapping[];
+
+	model: SimpleInlineSuggestModel;
+	suggestInfo: InlineSuggestionGutterMenuData;
 }
 
 function lengthsToOffsetRanges(lengths: number[], initialOffset = 0): OffsetRange[] {
@@ -636,4 +511,41 @@ function getSums<T>(array: T[], fn: (item: T) => number): number[] {
 		result.push(sum);
 	}
 	return result;
+}
+
+export function drawEditorWidths(e: ICodeEditor, reader: IReader) {
+	const layoutInfo = e.getLayoutInfo();
+	const contentLeft = new OffsetRange(0, layoutInfo.contentLeft);
+	const trueContent = OffsetRange.ofStartAndLength(layoutInfo.contentLeft, layoutInfo.contentWidth - layoutInfo.verticalScrollbarWidth);
+	const minimap = OffsetRange.ofStartAndLength(trueContent.endExclusive, layoutInfo.minimap.minimapWidth);
+	const verticalScrollbar = OffsetRange.ofStartAndLength(minimap.endExclusive, layoutInfo.verticalScrollbarWidth);
+
+	const r = new OffsetRange(0, 200);
+	debugView(debugLogHorizontalOffsetRanges({
+		contentLeft: Rect.fromRanges(contentLeft, r),
+		trueContent: Rect.fromRanges(trueContent, r),
+		minimap: Rect.fromRanges(minimap, r),
+		verticalScrollbar: Rect.fromRanges(verticalScrollbar, r),
+	}, e.getDomNode()!), reader);
+}
+
+
+/**
+ * Changes the scroll position as little as possible just to reveal the given range in the window.
+*/
+export function scrollToReveal(currentScrollPosition: number, windowWidth: number, contentRangeToReveal: OffsetRange): { newScrollPosition: number } {
+	const visibleRange = new OffsetRange(currentScrollPosition, currentScrollPosition + windowWidth);
+	if (visibleRange.containsRange(contentRangeToReveal)) {
+		return { newScrollPosition: currentScrollPosition };
+	}
+	if (contentRangeToReveal.length > windowWidth) {
+		return { newScrollPosition: contentRangeToReveal.start };
+	}
+	if (contentRangeToReveal.endExclusive > visibleRange.endExclusive) {
+		return { newScrollPosition: contentRangeToReveal.endExclusive - windowWidth };
+	}
+	if (contentRangeToReveal.start < visibleRange.start) {
+		return { newScrollPosition: contentRangeToReveal.start };
+	}
+	return { newScrollPosition: currentScrollPosition };
 }

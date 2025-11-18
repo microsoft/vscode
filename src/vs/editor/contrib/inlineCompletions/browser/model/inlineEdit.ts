@@ -11,7 +11,7 @@ export class InlineEdit {
 	constructor(
 		public readonly edit: TextReplacement,
 		public readonly commands: readonly InlineCompletionCommand[],
-		public readonly inlineCompletion: InlineSuggestionItem,
+		public readonly inlineSuggestion: InlineSuggestionItem,
 	) { }
 
 	public get range() {
@@ -24,6 +24,6 @@ export class InlineEdit {
 
 	public equals(other: InlineEdit): boolean {
 		return this.edit.equals(other.edit)
-			&& this.inlineCompletion === other.inlineCompletion;
+			&& this.inlineSuggestion === other.inlineSuggestion;
 	}
 }

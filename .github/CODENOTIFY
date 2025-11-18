@@ -41,6 +41,8 @@ src/vs/platform/secrets/** @TylerLeonhardt
 src/vs/platform/sharedProcess/** @bpasero
 src/vs/platform/state/** @bpasero
 src/vs/platform/storage/** @bpasero
+src/vs/platform/terminal/electron-main/** @Tyriar
+src/vs/platform/terminal/node/** @Tyriar
 src/vs/platform/utilityProcess/** @bpasero
 src/vs/platform/window/** @bpasero
 src/vs/platform/windows/** @bpasero

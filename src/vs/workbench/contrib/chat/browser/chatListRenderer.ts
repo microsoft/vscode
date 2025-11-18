@@ -693,8 +693,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderConfirmationAction(element: IChatRequestViewModel, templateData: IChatListItemTemplate) {
 		dom.clearNode(templateData.detail);
 		if (element.confirmation) {
-			templateData.detail.textContent = localize('chatConfirmationAction', 'selected "{0}"', element.confirmation);
+			dom.append(templateData.detail, $('span.codicon.codicon-check', { 'aria-hidden': 'true' }));
+			dom.append(templateData.detail, $('span.confirmation-text', undefined, localize('chatConfirmationAction', 'Selected "{0}"', element.confirmation)));
 			templateData.header?.classList.remove('header-disabled');
+			templateData.header?.classList.add('partially-disabled');
 		}
 	}
 

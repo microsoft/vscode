@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, IReader } from '../../../../base/common/observable.js';
+import { autorunSelfDisposable, IObservable, IReader } from '../../../../base/common/observable.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
@@ -29,7 +29,7 @@ export interface IChatEditingService {
 
 	_serviceBrand: undefined;
 
-	startOrContinueGlobalEditingSession(chatModel: ChatModel): Promise<IChatEditingSession>;
+	startOrContinueGlobalEditingSession(chatModel: ChatModel): IChatEditingSession;
 
 	getEditingSession(chatSessionResource: URI): IChatEditingSession | undefined;
 
@@ -41,12 +41,12 @@ export interface IChatEditingService {
 	/**
 	 * Creates a new short lived editing session
 	 */
-	createEditingSession(chatModel: ChatModel): Promise<IChatEditingSession>;
+	createEditingSession(chatModel: ChatModel): IChatEditingSession;
 
 	/**
 	 * Creates an editing session with state transferred from the provided session.
 	 */
-	transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): Promise<IChatEditingSession>;
+	transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): IChatEditingSession;
 
 	//#region related files
 
@@ -92,7 +92,7 @@ export interface IStreamingEdits {
 export interface IModifiedEntryTelemetryInfo {
 	readonly agentId: string | undefined;
 	readonly command: string | undefined;
-	readonly sessionId: string;
+	readonly sessionResource: URI;
 	readonly requestId: string;
 	readonly result: IChatAgentResult | undefined;
 	readonly modelId: string | undefined;
@@ -113,8 +113,6 @@ export interface ISnapshotEntry {
 
 export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
-	/** @deprecated */
-	readonly chatSessionId: string;
 	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
@@ -175,6 +173,18 @@ export interface IChatEditingSession extends IDisposable {
 	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
 	redoInteraction(): Promise<void>;
+}
+
+export function chatEditingSessionIsReady(session: IChatEditingSession): Promise<void> {
+	return new Promise<void>(resolve => {
+		autorunSelfDisposable(reader => {
+			const state = session.state.read(reader);
+			if (state !== ChatEditingSessionState.Initial) {
+				reader.dispose();
+				resolve();
+			}
+		});
+	});
 }
 
 export interface IEditSessionEntryDiff {
@@ -345,14 +355,14 @@ export function isChatEditingActionContext(thing: unknown): thing is IChatEditin
 export function getMultiDiffSourceUri(session: IChatEditingSession, showPreviousChanges?: boolean): URI {
 	return URI.from({
 		scheme: CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME,
-		authority: session.chatSessionId,
+		authority: encodeHex(VSBuffer.fromString(session.chatSessionResource.toString())),
 		query: showPreviousChanges ? 'previous' : undefined,
 	});
 }
 
-export function parseChatMultiDiffUri(uri: URI): { chatSessionId: string; showPreviousChanges: boolean } {
-	const chatSessionId = uri.authority;
+export function parseChatMultiDiffUri(uri: URI): { chatSessionResource: URI; showPreviousChanges: boolean } {
+	const chatSessionResource = URI.parse(decodeHex(uri.authority).toString());
 	const showPreviousChanges = uri.query === 'previous';
 
-	return { chatSessionId, showPreviousChanges };
+	return { chatSessionResource, showPreviousChanges };
 }

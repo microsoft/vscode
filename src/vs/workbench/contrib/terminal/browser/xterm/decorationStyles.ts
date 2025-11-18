@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fromNow, getDurationString } from '../../../../../base/common/date.js';
+import { isNumber } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ITerminalCommand } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -74,7 +75,7 @@ export function updateLayout(configurationService: IConfigurationService, elemen
 	const fontSize = configurationService.inspect(TerminalSettingId.FontSize).value;
 	const defaultFontSize = configurationService.inspect(TerminalSettingId.FontSize).defaultValue;
 	const lineHeight = configurationService.inspect(TerminalSettingId.LineHeight).value;
-	if (typeof fontSize === 'number' && typeof defaultFontSize === 'number' && typeof lineHeight === 'number') {
+	if (isNumber(fontSize) && isNumber(defaultFontSize) && isNumber(lineHeight)) {
 		const scalar = (fontSize / defaultFontSize) <= 1 ? (fontSize / defaultFontSize) : 1;
 		// must be inlined to override the inlined styles from xterm
 		element.style.width = `${scalar * DecorationStyles.DefaultDimension}px`;

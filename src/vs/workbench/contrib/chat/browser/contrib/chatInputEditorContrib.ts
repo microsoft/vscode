@@ -41,6 +41,25 @@ function isWhitespaceOrPromptPart(p: IParsedChatRequestPart): boolean {
 	return (p instanceof ChatRequestTextPart && !p.text.trim().length) || (p instanceof ChatRequestSlashPromptPart);
 }
 
+function exactlyOneSpaceAfterPart(parsedRequest: readonly IParsedChatRequestPart[], part: IParsedChatRequestPart): boolean {
+	const partIdx = parsedRequest.indexOf(part);
+	if (parsedRequest.length > partIdx + 2) {
+		return false;
+	}
+
+	const nextPart = parsedRequest[partIdx + 1];
+	return nextPart && nextPart instanceof ChatRequestTextPart && nextPart.text === ' ';
+}
+
+function getRangeForPlaceholder(part: IParsedChatRequestPart) {
+	return {
+		startLineNumber: part.editorRange.startLineNumber,
+		endLineNumber: part.editorRange.endLineNumber,
+		startColumn: part.editorRange.endColumn + 1,
+		endColumn: 1000
+	};
+}
+
 class InputEditorDecorations extends Disposable {
 
 	private static readonly UPDATE_DELAY = 200;
@@ -136,10 +155,14 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private triggerInputEditorDecorationsUpdate(): void {
-		this.updateThrottle.trigger(token => this.updateInputEditorDecorations(token));
+		// update placeholder decorations immediately, in sync
+		this.updateInputPlaceholderDecoration();
+
+		// with a delay, update the rest of the decorations
+		this.updateThrottle.trigger(token => this.updateAsyncInputEditorDecorations(token));
 	}
 
-	private async updateInputEditorDecorations(token: CancellationToken): Promise<void> {
+	private updateInputPlaceholderDecoration(): void {
 		const inputValue = this.widget.inputEditor.getValue();
 
 		const viewModel = this.widget.viewModel;
@@ -181,32 +204,13 @@ class InputEditorDecorations extends Disposable {
 		let placeholderDecoration: IDecorationOptions[] | undefined;
 		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
 		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
-		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
-		const slashPromptPart = parsedRequest.find((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
-
-		const exactlyOneSpaceAfterPart = (part: IParsedChatRequestPart): boolean => {
-			const partIdx = parsedRequest.indexOf(part);
-			if (parsedRequest.length > partIdx + 2) {
-				return false;
-			}
-
-			const nextPart = parsedRequest[partIdx + 1];
-			return nextPart && nextPart instanceof ChatRequestTextPart && nextPart.text === ' ';
-		};
-
-		const getRangeForPlaceholder = (part: IParsedChatRequestPart) => ({
-			startLineNumber: part.editorRange.startLineNumber,
-			endLineNumber: part.editorRange.endLineNumber,
-			startColumn: part.editorRange.endColumn + 1,
-			endColumn: 1000
-		});
 
 		const onlyAgentAndWhitespace = agentPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart);
 		if (onlyAgentAndWhitespace) {
 			// Agent reference with no other text - show the placeholder
 			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent, undefined));
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentPart.agent.metadata.followupPlaceholder;
-			if (agentPart.agent.description && exactlyOneSpaceAfterPart(agentPart)) {
+			if (agentPart.agent.description && exactlyOneSpaceAfterPart(parsedRequest, agentPart)) {
 				placeholderDecoration = [{
 					range: getRangeForPlaceholder(agentPart),
 					renderOptions: {
@@ -224,7 +228,7 @@ class InputEditorDecorations extends Disposable {
 			// Agent reference and subcommand with no other text - show the placeholder
 			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent, agentSubcommandPart.command.name));
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentSubcommandPart.command.followupPlaceholder;
-			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(agentSubcommandPart)) {
+			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(parsedRequest, agentSubcommandPart)) {
 				placeholderDecoration = [{
 					range: getRangeForPlaceholder(agentSubcommandPart),
 					renderOptions: {
@@ -240,7 +244,7 @@ class InputEditorDecorations extends Disposable {
 		const onlyAgentCommandAndWhitespace = agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentSubcommandPart);
 		if (onlyAgentCommandAndWhitespace) {
 			// Agent subcommand with no other text - show the placeholder
-			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(agentSubcommandPart)) {
+			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(parsedRequest, agentSubcommandPart)) {
 				placeholderDecoration = [{
 					range: getRangeForPlaceholder(agentSubcommandPart),
 					renderOptions: {
@@ -252,26 +256,42 @@ class InputEditorDecorations extends Disposable {
 				}];
 			}
 		}
-
-		const promptSlashCommand = slashPromptPart ? await this.promptsService.resolvePromptSlashCommand(slashPromptPart.name, token) : undefined;
-
-		const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
-		if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(slashPromptPart) && promptSlashCommand) {
-			const description = promptSlashCommand.argumentHint ?? promptSlashCommand.description;
-			if (description) {
-				placeholderDecoration = [{
-					range: getRangeForPlaceholder(slashPromptPart),
-					renderOptions: {
-						after: {
-							contentText: description,
-							color: this.getPlaceholderColor(),
-						}
-					}
-				}];
-			}
-
-		}
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
+	}
+
+	private async updateAsyncInputEditorDecorations(token: CancellationToken): Promise<void> {
+
+		const parsedRequest = this.widget.parsedInput.parts;
+
+		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
+		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
+		const slashPromptPart = parsedRequest.find((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
+
+		// first, fetch all async context
+		const promptSlashCommand = slashPromptPart ? await this.promptsService.resolvePromptSlashCommand(slashPromptPart.name, token) : undefined;
+		if (token.isCancellationRequested) {
+			// a new update came in while we were waiting
+			return;
+		}
+
+		if (slashPromptPart && promptSlashCommand) {
+			const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
+			if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(parsedRequest, slashPromptPart) && promptSlashCommand) {
+				const description = promptSlashCommand.argumentHint ?? promptSlashCommand.description;
+				if (description) {
+					this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, [{
+						range: getRangeForPlaceholder(slashPromptPart),
+						renderOptions: {
+							after: {
+								contentText: description,
+								color: this.getPlaceholderColor(),
+							}
+						}
+					}]);
+				}
+			}
+		}
 
 		const textDecorations: IDecorationOptions[] | undefined = [];
 		if (agentPart) {

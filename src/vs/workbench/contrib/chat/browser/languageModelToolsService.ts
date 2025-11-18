@@ -444,7 +444,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			prepared = await preparePromise;
 		}
 
-		// TODO: If the user has _previously_ auto-approved this tool, I don't think we make it to this check.
 		const isEligibleForAutoApproval = this.isToolEligibleForAutoApproval(tool.data);
 
 		// Default confirmation messages if tool is not eligible for auto-approval
@@ -456,9 +455,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			// TODO: This should be more detailed per tool.
 			prepared.confirmationMessages = {
 				title: localize('defaultToolConfirmation.title', 'Allow tool to execute?'),
-				message: localize('defaultToolConfirmation.message', 'Run the "{0}" tool.', toolReferenceName),
+				message: localize('defaultToolConfirmation.message', 'Run the \'{0}\' tool?', toolReferenceName),
+				disclaimer: localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted by \'{1}\'.', toolReferenceName, ChatConfiguration.EligibleForAutoApproval),
 				allowAutoConfirm: false,
 			};
+		}
+
+		if (!isEligibleForAutoApproval && prepared?.confirmationMessages?.title && !prepared.confirmationMessages.disclaimer) {
+			prepared.confirmationMessages.disclaimer = localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted by \'{1}\'.', getToolReferenceName(tool.data), ChatConfiguration.EligibleForAutoApproval);
 		}
 
 		if (prepared?.confirmationMessages?.title) {
@@ -529,6 +533,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown): Promise<ConfirmedReason | undefined> {
+		const tool = this._tools.get(toolId);
+		if (!tool) {
+			return undefined;
+		}
+
+		if (!this.isToolEligibleForAutoApproval(tool.data)) {
+			return undefined;
+		}
+
 		const reason = this._confirmationService.getPreConfirmAction({ toolId, source, parameters });
 		if (reason) {
 			return reason;

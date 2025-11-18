@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import { Node } from 'estree';
+import type * as estree from 'estree';
 
-export = new class EnsureNoDisposablesAreLeakedInTestSuite implements eslint.Rule.RuleModule {
+export default new class EnsureNoDisposablesAreLeakedInTestSuite implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		type: 'problem',
@@ -18,7 +18,7 @@ export = new class EnsureNoDisposablesAreLeakedInTestSuite implements eslint.Rul
 	};
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const config = <{ exclude: string[] }>context.options[0];
+		const config = context.options[0] as { exclude: string[] };
 
 		const needle = context.getFilename().replace(/\\/g, '/');
 		if (config.exclude.some((e) => needle.endsWith(e))) {
@@ -26,7 +26,7 @@ export = new class EnsureNoDisposablesAreLeakedInTestSuite implements eslint.Rul
 		}
 
 		return {
-			[`Program > ExpressionStatement > CallExpression[callee.name='suite']`]: (node: Node) => {
+			[`Program > ExpressionStatement > CallExpression[callee.name='suite']`]: (node: estree.Node) => {
 				const src = context.getSourceCode().getText(node);
 				if (!src.includes('ensureNoDisposablesAreLeakedInTestSuite(')) {
 					context.report({
