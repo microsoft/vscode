@@ -20,9 +20,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { IChatWidget, showChatView } from '../../chat/browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, picksWithPromiseFn } from '../../chat/browser/chatContextPickService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemVariableEntry } from '../../chat/common/chatVariableEntries.js';
@@ -269,14 +267,12 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, provider: ISCMProvider, historyItem: ISCMHistoryItem): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const widget = await showChatView(viewsService, layoutService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = await chatWidgetService.revealWidget();
 		if (!provider || !historyItem || !widget) {
 			return;
 		}
 
-		await widget.waitForReady();
 		widget.attachmentModel.addContext(SCMHistoryItemContext.asAttachment(provider, historyItem));
 	}
 });
@@ -297,9 +293,8 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, provider: ISCMProvider, historyItem: ISCMHistoryItem): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const widget = await showChatView(viewsService, layoutService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = await chatWidgetService.revealWidget();
 		if (!provider || !historyItem || !widget) {
 			return;
 		}
@@ -325,9 +320,8 @@ registerAction2(class extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, historyItem: ISCMHistoryItem, historyItemChange: ISCMHistoryItemChange): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
-		const widget = await showChatView(viewsService, layoutService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = await chatWidgetService.revealWidget();
 		if (!historyItem || !historyItemChange.modifiedUri || !widget) {
 			return;
 		}

@@ -601,12 +601,21 @@ export namespace Event {
 	 */
 	export function toPromise<T>(event: Event<T>, disposables?: IDisposable[] | DisposableStore): CancelablePromise<T> {
 		let cancelRef: () => void;
-		const promise = new Promise((resolve, reject) => {
-			const listener = once(event)(resolve, null, disposables);
+		let listener: IDisposable;
+		const promise = new Promise((resolve) => {
+			listener = once(event)(resolve);
+			addToDisposables(listener, disposables);
+
 			// not resolved, matching the behavior of a normal disposal
-			cancelRef = () => listener.dispose();
+			cancelRef = () => {
+				disposeAndRemove(listener, disposables);
+			};
 		}) as CancelablePromise<T>;
 		promise.cancel = cancelRef!;
+
+		if (disposables) {
+			promise.finally(() => disposeAndRemove(listener, disposables));
+		}
 
 		return promise;
 	}
@@ -746,11 +755,7 @@ export namespace Event {
 				}
 			};
 
-			if (disposables instanceof DisposableStore) {
-				disposables.add(disposable);
-			} else if (Array.isArray(disposables)) {
-				disposables.push(disposable);
-			}
+			addToDisposables(disposable, disposables);
 
 			return disposable;
 		};
@@ -1129,11 +1134,7 @@ export class Emitter<T> {
 				removeMonitor?.();
 				this._removeListener(contained);
 			});
-			if (disposables instanceof DisposableStore) {
-				disposables.add(result);
-			} else if (Array.isArray(disposables)) {
-				disposables.push(result);
-			}
+			addToDisposables(result, disposables);
 
 			return result;
 		};
@@ -1777,4 +1778,25 @@ export function trackSetChanges<T>(getData: () => ReadonlySet<T>, onDidChangeDat
 	}));
 	store.add(map);
 	return store;
+}
+
+
+function addToDisposables(result: IDisposable, disposables: DisposableStore | IDisposable[] | undefined) {
+	if (disposables instanceof DisposableStore) {
+		disposables.add(result);
+	} else if (Array.isArray(disposables)) {
+		disposables.push(result);
+	}
+}
+
+function disposeAndRemove(result: IDisposable, disposables: DisposableStore | IDisposable[] | undefined) {
+	if (disposables instanceof DisposableStore) {
+		disposables.delete(result);
+	} else if (Array.isArray(disposables)) {
+		const index = disposables.indexOf(result);
+		if (index !== -1) {
+			disposables.splice(index, 1);
+		}
+	}
+	result.dispose();
 }

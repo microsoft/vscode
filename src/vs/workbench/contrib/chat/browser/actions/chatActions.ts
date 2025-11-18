@@ -71,7 +71,7 @@ import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/languageModelToolsConfirmationService.js';
-import { ChatViewId, IChatWidget, IChatWidgetService, showChatView } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -189,8 +189,6 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const chatService = accessor.get(IChatService);
 		const widgetService = accessor.get(IChatWidgetService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
-		const viewsService = accessor.get(IViewsService);
-		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const hostService = accessor.get(IHostService);
 		const chatAgentService = accessor.get(IChatAgentService);
 		const instaService = accessor.get(IInstantiationService);
@@ -204,7 +202,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
 		// Otherwise, open the view.
 		if (!this.mode || !chatWidget || !isAncestorOfActiveElement(chatWidget.domNode)) {
-			chatWidget = await showChatView(viewsService, layoutService);
+			chatWidget = await widgetService.revealWidget();
 		}
 
 		if (!chatWidget) {
@@ -325,7 +323,9 @@ abstract class OpenChatGlobalAction extends Action2 {
 			chatWidget.setInput(opts.query);
 
 			if (!opts.isPartialQuery) {
-				await chatWidget.waitForReady();
+				if (!chatWidget.viewModel) {
+					await Event.toPromise(chatWidget.onDidChangeViewModel);
+				}
 				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
 				resp = chatWidget.acceptInput();
 			}
@@ -471,6 +471,7 @@ export function registerChatActions() {
 			const layoutService = accessor.get(IWorkbenchLayoutService);
 			const viewsService = accessor.get(IViewsService);
 			const viewDescriptorService = accessor.get(IViewDescriptorService);
+			const widgetService = accessor.get(IChatWidgetService);
 
 			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
 
@@ -478,7 +479,7 @@ export function registerChatActions() {
 				this.updatePartVisibility(layoutService, chatLocation, false);
 			} else {
 				this.updatePartVisibility(layoutService, chatLocation, true);
-				(await showChatView(viewsService, layoutService))?.focusInput();
+				(await widgetService.revealWidget())?.focusInput();
 			}
 		}
 
@@ -1147,16 +1148,14 @@ export function registerChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor) {
-			const viewsService = accessor.get(IViewsService);
-			const layoutService = accessor.get(IWorkbenchLayoutService);
+			const widgetService = accessor.get(IChatWidgetService);
 
 			// Open the chat view in the sidebar and get the widget
-			const chatWidget = await showChatView(viewsService, layoutService);
+			const chatWidget = await widgetService.revealWidget();
 
 			if (chatWidget) {
 				// Clear the current chat to start a new one
-				chatWidget.clear();
-				await chatWidget.waitForReady();
+				await chatWidget.clear();
 				chatWidget.attachmentModel.clear(true);
 				chatWidget.input.relatedFiles?.clear();
 
@@ -1233,9 +1232,7 @@ export function registerChatActions() {
 
 			await chatService.clearAllHistoryEntries();
 
-			widgetService.getAllWidgets().forEach(widget => {
-				widget.clear();
-			});
+			await Promise.all(widgetService.getAllWidgets().map(widget => widget.clear()));
 
 			// Clear all chat editors. Have to go this route because the chat editor may be in the background and
 			// not have a ChatEditorInput.

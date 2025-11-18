@@ -206,9 +206,13 @@ export function parseHrefAndDimensions(href: string): { href: string; dimensions
 	return { href, dimensions };
 }
 
-export function markdownCommandLink(command: { title: string; id: string; arguments?: unknown[]; tooltip?: string }, escapeTokens = true): string {
+export function createMarkdownLink(text: string, href: string, title?: string, escapeTokens = true): string {
+	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(text) : text}](${href}${title ? ` "${escapeMarkdownSyntaxTokens(title)}"` : ''})`;
+}
+
+export function createMarkdownCommandLink(command: { title: string; id: string; arguments?: unknown[]; tooltip?: string }, escapeTokens = true): string {
 	const uri = createCommandUri(command.id, ...(command.arguments || [])).toString();
-	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(command.title) : command.title}](${uri}${command.tooltip ? ` "${escapeMarkdownSyntaxTokens(command.tooltip)}"` : ''})`;
+	return createMarkdownLink(command.title, uri, command.tooltip, escapeTokens);
 }
 
 export function createCommandUri(commandId: string, ...commandArgs: unknown[]): URI {

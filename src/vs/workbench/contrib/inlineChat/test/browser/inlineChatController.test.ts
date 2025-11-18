@@ -49,7 +49,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestChatEntitlementService, TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatAccessibilityService, IChatWidget, IChatWidgetService, IQuickChatService } from '../../../chat/browser/chat.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
 import { ChatLayoutService } from '../../../chat/browser/chatLayoutService.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
@@ -224,6 +224,7 @@ suite('InlineChatController', function () {
 			[IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }],
 			[IChatModeService, new SyncDescriptor(MockChatModeService)],
 			[IChatLayoutService, new SyncDescriptor(ChatLayoutService)],
+			[IQuickChatService, new class extends mock<IQuickChatService>() { }],
 			[IChatTodoListService, new class extends mock<IChatTodoListService>() {
 				override onDidUpdateTodos = Event.None;
 				override getTodos(sessionResource: URI): IChatTodo[] { return []; }
