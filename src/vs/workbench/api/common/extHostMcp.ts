@@ -45,6 +45,10 @@ const serverDataValidation = vObj({
 			availability: vNumber(),
 			definition: vObjAny(),
 		}))),
+	})),
+	authentication: vOptionalProp(vObj({
+		providerId: vString(),
+		scopes: vArray(vString()),
 	}))
 });
 
