@@ -42,6 +42,7 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 		private readonly _hoverDelegate: IHoverDelegate | undefined,
 		private readonly _buttonTriggeredEmitter: Emitter<IQuickTreeItemButtonEvent<T>>,
 		private readonly onCheckedEvent: Event<IQuickTreeCheckboxEvent<T>>,
+		private readonly onStickyCheckboxToggle: ((item: T) => void) | undefined,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
@@ -92,6 +93,15 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			store.add(Event.filter(this.onCheckedEvent, e => e.item === quickTreeItem)(e => templateData.checkbox.checked = e.checked));
 			if (quickTreeItem.disabled) {
 				templateData.checkbox.disable();
+			}
+			if (this.onStickyCheckboxToggle) {
+				store.add(dom.addStandardDisposableListener(templateData.checkbox.domNode, dom.EventType.CLICK, e => {
+					if (templateData.entry.closest('.monaco-tree-sticky-row')) {
+						e.preventDefault();
+						e.stopPropagation();
+						this.onStickyCheckboxToggle?.(quickTreeItem);
+					}
+				}));
 			}
 		}
 
