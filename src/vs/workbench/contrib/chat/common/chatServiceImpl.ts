@@ -6,7 +6,7 @@
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
-import { ErrorNoTelemetry } from '../../../../base/common/errors.js';
+import { BugIndicatingError, ErrorNoTelemetry } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
@@ -578,7 +578,7 @@ export class ChatService extends Disposable implements IChatService {
 		for (const message of providedSession.history) {
 			if (message.type === 'request') {
 				if (lastRequest) {
-					model.completeResponse(lastRequest);
+					lastRequest.response?.complete();
 				}
 
 				const requestText = message.prompt;
@@ -652,13 +652,13 @@ export class ChatService extends Disposable implements IChatService {
 
 				// Handle completion
 				if (isComplete) {
-					model?.completeResponse(lastRequest);
+					lastRequest.response?.complete();
 					cancellationListener.clear();
 				}
 			}));
 		} else {
 			if (lastRequest) {
-				model.completeResponse(lastRequest);
+				lastRequest.response?.complete();
 			}
 		}
 
@@ -1037,7 +1037,7 @@ export class ChatService extends Disposable implements IChatService {
 					completeResponseCreated();
 					this.trace('sendRequest', `Provider returned response for session ${model.sessionResource}`);
 
-					model.completeResponse(request);
+					request.response?.complete();
 					if (agentOrCommandFollowups) {
 						agentOrCommandFollowups.then(followups => {
 							model.setFollowups(request, followups);
@@ -1065,7 +1065,7 @@ export class ChatService extends Disposable implements IChatService {
 					const rawResult: IChatAgentResult = { errorDetails: { message: err.message } };
 					model.setResponse(request, rawResult);
 					completeResponseCreated();
-					model.completeResponse(request);
+					request.response?.complete();
 				}
 			} finally {
 				store.dispose();
@@ -1202,7 +1202,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (response.followups !== undefined) {
 			model.setFollowups(request, response.followups);
 		}
-		model.completeResponse(request);
+		request.response?.complete();
 	}
 
 	cancelCurrentRequestForSession(sessionResource: URI): void {
@@ -1266,6 +1266,19 @@ export class ChatService extends Disposable implements IChatService {
 
 	logChatIndex(): void {
 		this._chatSessionStore.logIndex();
+	}
+
+	setTitle(sessionResource: URI, title: string): void {
+		this._sessionModels.get(sessionResource)?.setCustomTitle(title);
+	}
+
+	appendProgress(request: IChatRequestModel, progress: IChatProgress): void {
+		const model = this._sessionModels.get(request.session.sessionResource);
+		if (!(request instanceof ChatRequestModel)) {
+			throw new BugIndicatingError('Can only append progress to requests of type ChatRequestModel');
+		}
+
+		model?.acceptResponseProgress(request, progress);
 	}
 
 	private toLocalSessionId(sessionResource: URI) {

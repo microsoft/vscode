@@ -26,7 +26,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatAgentService, IChatAgent, IChatAgentHistoryEntry } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
+import { ChatModel, IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
 import { chatSessionResourceToId } from '../../common/chatUri.js';
@@ -175,7 +175,8 @@ class CreateRemoteAgentJobAction {
 			if (!widget.viewModel) {
 				return;
 			}
-			const chatModel = widget.viewModel.model;
+			// todo@connor4312: remove 'as' cast
+			const chatModel = widget.viewModel.model as ChatModel;
 			if (!chatModel) {
 				return;
 			}

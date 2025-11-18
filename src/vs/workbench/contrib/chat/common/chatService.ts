@@ -966,6 +966,11 @@ export interface IChatService {
 	 */
 	sendRequest(sessionResource: URI, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
 
+	/**
+	 * Sets a custom title for a chat model.
+	 */
+	setTitle(sessionResource: URI, title: string): void;
+	appendProgress(request: IChatRequestModel, progress: IChatProgress): void;
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;

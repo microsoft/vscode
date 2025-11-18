@@ -306,7 +306,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					IChatToolInvocation.confirmWith(toolInvocation, autoConfirmed);
 				}
 
-				model.acceptResponseProgress(request, toolInvocation);
+				this._chatService.appendProgress(request, toolInvocation);
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
 				if (preparedInvocation?.confirmationMessages?.title) {
