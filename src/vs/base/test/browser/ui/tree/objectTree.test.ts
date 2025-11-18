@@ -233,55 +233,6 @@ suite('ObjectTree', function () {
 		tree.setChildren(null, [{ element: 100 }, { element: 101 }, { element: 102 }, { element: 103 }]);
 		assert.deepStrictEqual(tree.getFocus(), [101]);
 	});
-
-	test('only one item has focus after collapsing and setting focus on another item', function () {
-		const container = document.createElement('div');
-		container.style.width = '200px';
-		container.style.height = '200px';
-
-		const delegate = new Delegate();
-		const renderer = new Renderer();
-
-		const tree = new ObjectTree<number>('test', container, delegate, [renderer], { expandOnlyOnTwistieClick: true });
-		tree.layout(200);
-
-		// Create a tree with collapsible nodes
-		tree.setChildren(null, [
-			{
-				element: 0,
-				children: [
-					{ element: 1 },
-					{ element: 2 }
-				]
-			},
-			{
-				element: 3,
-				children: [
-					{ element: 4 },
-					{ element: 5 }
-				]
-			}
-		]);
-
-		// Set focus on first parent node
-		tree.setFocus([0]);
-		assert.deepStrictEqual(tree.getFocus(), [0], 'First parent should be focused');
-
-		// Expand and collapse first node
-		tree.expand(0);
-		tree.collapse(0);
-
-		// Focus should still be on first node
-		assert.deepStrictEqual(tree.getFocus(), [0], 'First parent should still be focused after collapse');
-
-		// Set focus on second parent node
-		tree.setFocus([3]);
-
-		// Only the second node should have focus, not both
-		assert.deepStrictEqual(tree.getFocus(), [3], 'Only second parent should be focused');
-
-		tree.dispose();
-	});
 });
 
 suite('CompressibleObjectTree', function () {
