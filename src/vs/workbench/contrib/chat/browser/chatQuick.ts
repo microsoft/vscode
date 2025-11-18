@@ -168,11 +168,12 @@ class QuickChat extends Disposable {
 		super();
 	}
 
-	clear() {
+	private clear() {
 		this.model?.dispose();
 		this.model = undefined;
 		this.updateModel();
 		this.widget.inputEditor.setValue('');
+		return Promise.resolve();
 	}
 
 	focus(selection?: Selection): void {
@@ -236,7 +237,8 @@ class QuickChat extends Disposable {
 					renderStyle: 'compact',
 					menus: { inputSideToolbar: MenuId.ChatInputSide, telemetrySource: 'chatQuick' },
 					enableImplicitContext: true,
-					defaultMode: ChatMode.Ask
+					defaultMode: ChatMode.Ask,
+					clear: () => this.clear(),
 				},
 				{
 					listForeground: quickInputForeground,
@@ -294,7 +296,6 @@ class QuickChat extends Disposable {
 		this._register(this.widget.inputEditor.onDidChangeModelContent((e) => {
 			this._currentQuery = this.widget.inputEditor.getValue();
 		}));
-		this._register(this.widget.onDidClear(() => this.clear()));
 		this._register(this.widget.onDidChangeHeight((e) => this.sash.layout()));
 		const width = parent.offsetWidth;
 		this._register(this.sash.onDidStart(() => {

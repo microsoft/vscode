@@ -486,7 +486,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		if (typeof result?.success === 'boolean') {
 			if (result.success) {
 				if (result.dialogSkipped) {
-					widget?.clear(); // make room for the Chat welcome experience
+					await widget?.clear(); // make room for the Chat welcome experience
 				} else if (requestModel) {
 					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService); 	// Replace agent part with the actual Chat agent...
 					newRequest = this.replaceToolInRequestModel(newRequest); 							// ...then replace any tool parts with the actual Chat tools

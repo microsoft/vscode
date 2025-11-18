@@ -57,8 +57,6 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return result;
 	});
 
-	private _restoringEditingSession: Promise<any> | undefined;
-
 	private _chatRelatedFilesProviders = new Map<number, IChatRelatedFilesProvider>();
 
 	constructor(
@@ -139,19 +137,9 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		super.dispose();
 	}
 
-	async startOrContinueGlobalEditingSession(chatModel: ChatModel, waitForRestore = true): Promise<IChatEditingSession> {
-		if (waitForRestore) {
-			await this._restoringEditingSession;
-		}
-
-		const session = this.getEditingSession(chatModel.sessionResource);
-		if (session) {
-			return session;
-		}
-		const result = await this.createEditingSession(chatModel, true);
-		return result;
+	startOrContinueGlobalEditingSession(chatModel: ChatModel): IChatEditingSession {
+		return this.getEditingSession(chatModel.sessionResource) || this.createEditingSession(chatModel, true);
 	}
-
 
 	private _lookupEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
 
@@ -170,20 +158,19 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 			.find(candidate => isEqual(candidate.chatSessionResource, chatSessionResource));
 	}
 
-	async createEditingSession(chatModel: ChatModel, global: boolean = false): Promise<IChatEditingSession> {
+	createEditingSession(chatModel: ChatModel, global: boolean = false): IChatEditingSession {
 		return this._createEditingSession(chatModel, global, undefined);
 	}
 
-	async transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): Promise<IChatEditingSession> {
+	transferEditingSession(chatModel: ChatModel, session: IChatEditingSession): IChatEditingSession {
 		return this._createEditingSession(chatModel, session.isGlobalEditingSession, session);
 	}
 
-	private async _createEditingSession(chatModel: ChatModel, global: boolean, initFrom: IChatEditingSession | undefined): Promise<IChatEditingSession> {
+	private _createEditingSession(chatModel: ChatModel, global: boolean, initFrom: IChatEditingSession | undefined): IChatEditingSession {
 
 		assertType(this.getEditingSession(chatModel.sessionResource) === undefined, 'CANNOT have more than one editing session per chat session');
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionResource, global, this._lookupEntry.bind(this));
-		await session.init(initFrom);
+		const session = this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionResource, global, this._lookupEntry.bind(this), initFrom);
 
 		const list = this._sessionsObs.get();
 		const removeSession = list.unshift(session);

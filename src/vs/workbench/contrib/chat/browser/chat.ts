@@ -155,6 +155,8 @@ export interface IChatWidgetViewOptions {
 	renderInputToolbarBelowInput?: boolean;
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
+	/** Action triggered when 'clear' is called on the widget. */
+	clear?: () => Promise<void>;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		/**
@@ -256,12 +258,7 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
-	clear(): void;
-	/**
-	 * Wait for this widget to have a VM with a fully initialized model and editing session.
-	 * Sort of a hack. See https://github.com/microsoft/vscode/issues/247484
-	 */
-	waitForReady(): Promise<void>;
+	clear(): Promise<void>;
 	getViewState(): IChatViewState;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
 
