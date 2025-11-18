@@ -691,6 +691,7 @@
 	max-width: 100px;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	padding-right: 2px;
 }
 
 .scm-history-view .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie {

@@ -129,12 +129,11 @@ export class InlineChatController implements IEditorContribution {
 		@IConfigurationService configurationService: IConfigurationService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService
 	) {
-		const inlineChat2 = observableConfigValue(InlineChatConfigKeys.EnableV2, false, configurationService);
 		const notebookAgent = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
 
 		this._delegate = derived(r => {
 			const isNotebookCell = !!this._notebookEditorService.getNotebookForPossibleCell(editor);
-			if (isNotebookCell ? notebookAgent.read(r) : inlineChat2.read(r)) {
+			if (!isNotebookCell || notebookAgent.read(r)) {
 				return InlineChatController2.get(editor)!;
 			} else {
 				return InlineChatController1.get(editor)!;
@@ -566,7 +565,7 @@ export class InlineChatController1 implements IEditorContribution {
 		}
 		options.position = await this._strategy.renderChanges();
 
-		if (this._session.chatModel.requestInProgress) {
+		if (this._session.chatModel.requestInProgress.get()) {
 			return State.SHOW_REQUEST;
 		} else {
 			return State.WAIT_FOR_INPUT;
@@ -648,7 +647,7 @@ export class InlineChatController1 implements IEditorContribution {
 	private async [State.SHOW_REQUEST](options: InlineChatRunOptions): Promise<State.WAIT_FOR_INPUT | State.CANCEL | State.PAUSE | State.ACCEPT> {
 		assertType(this._session);
 		assertType(this._strategy);
-		assertType(this._session.chatModel.requestInProgress);
+		assertType(this._session.chatModel.requestInProgress.get());
 
 		this._ctxRequestInProgress.set(true);
 
@@ -1408,6 +1407,19 @@ export class InlineChatController2 implements IEditorContribution {
 
 		this._store.add(autorun(r => {
 			const session = visibleSessionObs.read(r);
+			if (session) {
+				const entries = session.editingSession.entries.read(r);
+				const otherEntries = entries.filter(entry => !isEqual(entry.modifiedURI, session.uri));
+				for (const entry of otherEntries) {
+					// OPEN other modified files in side group. This is a workaround, temp-solution until we have no more backend
+					// that modifies other files
+					this._editorService.openEditor({ resource: entry.modifiedURI }, SIDE_GROUP).catch(onUnexpectedError);
+				}
+			}
+		}));
+
+		this._store.add(autorun(r => {
+			const session = visibleSessionObs.read(r);
 			if (!session) {
 				return;
 			}
@@ -1417,7 +1429,7 @@ export class InlineChatController2 implements IEditorContribution {
 				entry?.enableReviewModeUntilSettled();
 			}
 
-			const inProgress = session.chatModel.requestInProgressObs.read(r);
+			const inProgress = session.chatModel.requestInProgress.read(r);
 			this._zone.value.widget.domNode.classList.toggle('request-in-progress', inProgress);
 			if (!inProgress) {
 				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder', "Edit, refactor, and generate code"));

@@ -2176,6 +2176,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-file-changes-label .monaco-button .codicon,
 .interactive-session .chat-used-context-label .monaco-button .codicon {
 	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-icon-foreground) !important;
 }
 
 .interactive-item-container .progress-container {

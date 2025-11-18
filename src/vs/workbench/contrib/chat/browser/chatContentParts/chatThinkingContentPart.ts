@@ -96,7 +96,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			// override for codicon chevron in the collapsible part
 			this._register(autorun(r => {
 				this.expanded.read(r);
-				if (this._collapseButton) {
+				if (this._collapseButton && this.wrapper) {
 					if (this.wrapper.classList.contains('chat-thinking-streaming')) {
 						this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 					} else {
@@ -278,10 +278,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		} else {
 			super.setTitle(title);
 		}
-	}
-
-	protected override setExpanded(value: boolean): void {
-		super.setExpanded(value);
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
