@@ -811,7 +811,7 @@ export interface IPreparedQueryPiece {
 
 	/**
 	 * In addition to the normalized path, will have
-	 * whitespace and wildcards removed.
+	 * whitespace, wildcards, quotes, ellipsis, and hash characters removed.
 	 */
 	normalized: string;
 	normalizedLowercase: string;
