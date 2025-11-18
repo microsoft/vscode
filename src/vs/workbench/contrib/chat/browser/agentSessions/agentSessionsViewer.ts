@@ -221,7 +221,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	private toDuration(startTime: number, endTime: number): string | undefined {
-		const elapsed = Math.floor((endTime - startTime) / 1000) * 1000;
+		const elapsed = Math.round((endTime - startTime) / 1000) * 1000;
 		if (elapsed < 1000) {
 			return undefined;
 		}

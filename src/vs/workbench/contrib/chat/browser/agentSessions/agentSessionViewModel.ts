@@ -211,6 +211,10 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 				}
 
 				// State + Timings
+				// TODO@bpasero this is a workaround for not having precise timing info in sessions
+				// yet: we only track the time when a transition changes because then we can say with
+				// confidence that the time is correct by assuming `Date.now()`. A better approach would
+				// be to get all this information directly from the session.
 				const status = session.status ?? ChatSessionStatus.Completed;
 				const state = this.mapSessionToState.get(session.resource);
 				let inProgressTime = state?.inProgressTime;
