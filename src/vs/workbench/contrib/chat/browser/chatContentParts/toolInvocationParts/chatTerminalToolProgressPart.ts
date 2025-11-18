@@ -601,6 +601,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}));
 
 			store.add(commandDetection.onCommandFinished(async command => {
+				if (!terminalInstance || this._store.isDisposed) {
+					return;
+				}
 				const finishedId = command.id;
 				const handledById = this._trackedCommandId !== undefined && finishedId !== undefined && finishedId === this._trackedCommandId;
 				if (!handledById) {
