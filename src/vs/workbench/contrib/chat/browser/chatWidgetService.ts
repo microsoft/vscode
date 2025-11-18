@@ -10,7 +10,7 @@ import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../..
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { EditorGroupTarget, IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/constants.js';
@@ -93,8 +93,8 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	 * Reveal the session if already open, otherwise open it.
 	 */
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
-	openSession(sessionResource: URI, target?: EditorGroupTarget, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
-	async openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | EditorGroupTarget, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
+	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
+	async openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
 		// TODO remove this, open the real resource
 		if (isEqual(sessionResource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
 			const chatViewPane = await this.viewsService.openView<ChatViewPane>(ChatViewId, true);

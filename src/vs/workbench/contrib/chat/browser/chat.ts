@@ -13,7 +13,7 @@ import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js'
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { EditorGroupTarget } from '../../../services/editor/common/editorService.js';
+import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
@@ -54,8 +54,8 @@ export interface IChatWidgetService {
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
-	openSession(sessionResource: URI, target?: EditorGroupTarget, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
-	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | EditorGroupTarget, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 
 	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
 
