@@ -639,6 +639,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				isSticky: false,
 			},
 			capabilities: contribution.capabilities,
+			canAccessPreviousChatHistory: true,
 			extensionId: ext.identifier,
 			extensionVersion: ext.version,
 			extensionDisplayName: ext.displayName || ext.name,

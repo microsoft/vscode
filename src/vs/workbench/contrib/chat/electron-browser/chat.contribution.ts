@@ -24,9 +24,8 @@ import { INativeWorkbenchEnvironmentService } from '../../../services/environmen
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { showChatView } from '../browser/chat.js';
+import { IChatWidgetService } from '../browser/chat.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatUrlFetchingConfirmationContribution } from '../common/chatUrlFetchingConfirmation.js';
@@ -70,7 +69,6 @@ class ChatCommandLineHandler extends Disposable {
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IViewsService private readonly viewsService: IViewsService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
@@ -108,8 +106,6 @@ class ChatCommandLineHandler extends Disposable {
 			attachFiles: args['add-file']?.map(file => URI.file(resolve(file))), // use `resolve` to deal with relative paths properly
 		};
 
-		const chatWidget = await showChatView(this.viewsService, this.layoutService);
-
 		if (args.maximize) {
 			const location = this.contextKeyService.getContextKeyValue<ViewContainerLocation>(ChatContextKeys.panelLocation.key);
 			if (location === ViewContainerLocation.AuxiliaryBar) {
@@ -119,7 +115,6 @@ class ChatCommandLineHandler extends Disposable {
 			}
 		}
 
-		await chatWidget?.waitForReady();
 		await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
 	}
@@ -154,10 +149,9 @@ class ChatLifecycleHandler extends Disposable {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IViewsService private readonly viewsService: IViewsService,
+		@IChatWidgetService private readonly widgetService: IChatWidgetService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -185,7 +179,7 @@ class ChatLifecycleHandler extends Disposable {
 
 	private async doShouldVetoShutdown(reason: ShutdownReason): Promise<boolean> {
 
-		showChatView(this.viewsService, this.layoutService);
+		this.widgetService.revealWidget();
 
 		let message: string;
 		let detail: string;
