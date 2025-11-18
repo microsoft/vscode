@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
-import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import type { ICommandDetectionCapability, ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { setupRecreatingStartMarker } from './strategyHelpers.js';
+
+const COMMAND_EXECUTED_TIMEOUT_MS = 1000;
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -39,6 +42,54 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 		try {
+			const trimmedCommandLine = commandLine.replace(/\r?\n$/, '');
+			const previousCommandTimestamp = this._commandDetection.commands.length > 0 ? this._commandDetection.commands[this._commandDetection.commands.length - 1].timestamp : 0;
+			const commandExecuted = new DeferredPromise<void>();
+			let commandExecutedTimedOut = false;
+			let commandExecutedTimeoutHandle: ReturnType<typeof setTimeout> | undefined;
+			const clearCommandExecutedTimeout = () => {
+				if (commandExecutedTimeoutHandle !== undefined) {
+					clearTimeout(commandExecutedTimeoutHandle);
+					commandExecutedTimeoutHandle = undefined;
+				}
+			};
+			const scheduleCommandExecutedTimeout = () => {
+				if (commandExecuted.isSettled || commandExecutedTimeoutHandle !== undefined) {
+					return;
+				}
+				commandExecutedTimeoutHandle = setTimeout(async () => {
+					if (!commandExecuted.isSettled) {
+						this._log(`Command executed event not received within ${COMMAND_EXECUTED_TIMEOUT_MS}ms, proceeding anyway`);
+						commandExecutedTimedOut = true;
+						commandExecuted.complete(undefined);
+						await this._instance.sendText('\x03', false).catch((error: unknown) => {
+							const message = error instanceof Error ? error.message : String(error);
+							this._log(`Failed to send SIGINT after timeout: ${message}`);
+						});
+
+					}
+				}, COMMAND_EXECUTED_TIMEOUT_MS);
+			};
+			store.add({ dispose: clearCommandExecutedTimeout });
+			store.add(this._commandDetection.onCommandExecuted(command => {
+				if (command.timestamp <= previousCommandTimestamp) {
+					return;
+				}
+				if (commandId && command.id) {
+					if (command.id !== commandId) {
+						return;
+					}
+				} else if (command.command && command.command !== trimmedCommandLine) {
+					return;
+				}
+				if (commandExecuted.isSettled) {
+					return;
+				}
+				commandExecuted.complete();
+				clearCommandExecutedTimeout();
+			}));
+			store.add(token.onCancellationRequested(() => commandExecuted.cancel()));
+
 			// Ensure xterm is available
 			this._log('Waiting for xterm');
 			const xterm = await this._instance.xtermReadyPromise;
@@ -76,15 +127,43 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
-			this._instance.runCommand(commandLine, true, commandId);
-
-			// Wait for the terminal to idle
-			this._log('Waiting for done event');
-			const onDoneResult = await onDone;
-			if (onDoneResult && onDoneResult.type === 'disposal') {
-				throw new Error('The terminal was closed');
+			await this._instance.runCommand(commandLine, true, commandId).catch((error: unknown) => {
+				const message = error instanceof Error ? error.message : String(error);
+				this._log(`runCommand rejected: ${message}`);
+				if (!commandExecuted.isSettled) {
+					commandExecuted.error(error);
+				}
+			});
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
 			}
-			const finishedCommand = onDoneResult && onDoneResult.type === 'success' ? onDoneResult.command : undefined;
+
+			this._log('Waiting for command executed event');
+			scheduleCommandExecutedTimeout();
+			let commandExecutedError: unknown;
+			try {
+				await commandExecuted.p;
+			} catch (error) {
+				commandExecutedError = error;
+			} finally {
+				clearCommandExecutedTimeout();
+			}
+			if (commandExecutedError) {
+				throw commandExecutedError;
+			}
+
+			let finishedCommand: ITerminalCommand | undefined;
+			if (commandExecutedTimedOut) {
+				this._log('Skipping done event wait after timeout; waiting for idle prompt');
+				await trackIdleOnPrompt(this._instance, 1000, store);
+			} else {
+				this._log('Waiting for done event');
+				const onDoneResult = await onDone;
+				if (onDoneResult && onDoneResult.type === 'disposal') {
+					throw new Error('The terminal was closed');
+				}
+				finishedCommand = onDoneResult && onDoneResult.type === 'success' ? onDoneResult.command : undefined;
+			}
 
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
@@ -119,11 +198,15 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			if (isNumber(exitCode) && exitCode > 0) {
 				additionalInformationLines.push(`Command exited with code ${exitCode}`);
 			}
+			if (commandExecutedTimedOut) {
+				additionalInformationLines.push('Shell integration did not confirm command execution');
+			}
 
 			return {
 				output,
 				additionalInformation: additionalInformationLines.length > 0 ? additionalInformationLines.join('\n') : undefined,
 				exitCode,
+				error: commandExecutedTimedOut ? 'Command execution timed out before shell confirmation. Output may be incomplete.' : undefined,
 			};
 		} finally {
 			store.dispose();
