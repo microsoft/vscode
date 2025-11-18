@@ -17,6 +17,7 @@ import { ChatAgentLocation } from '../common/constants.js';
 import { ChatEditorGroupType, ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from './chat.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { findExistingChatEditorByUri } from './chatSessions/common.js';
+import { LocalChatSessionsProvider } from './chatSessions/localChatSessionsProvider.js';
 import { ChatViewPane } from './chatViewPane.js';
 
 export class ChatWidgetService extends Disposable implements IChatWidgetService {
@@ -94,6 +95,12 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: ChatEditorGroupType, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	async openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | ChatEditorGroupType, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
+		// TODO remove this, open the real resource
+		if (isEqual(sessionResource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
+			await this.viewsService.openView(ChatViewId);
+			return;
+		}
+
 		const alreadyOpenWidget = await this.revealSessionIfAlreadyOpen(sessionResource);
 		if (alreadyOpenWidget) {
 			return alreadyOpenWidget;
