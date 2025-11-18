@@ -229,11 +229,13 @@ export abstract class BaseTerminalProfileResolverService extends Disposable impl
 	private async _getUnresolvedFallbackDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
 		const executable = await this._context.getDefaultSystemShell(options.remoteAuthority, options.os);
 
-		// Try select an existing profile to fallback to, based on the default system shell, only do
-		// this when the backend OS matches the frontend OS (eg. Windows -> Windows)
+		// Try select an existing profile to fallback to, based on the default system shell.
+		// We now handle local terminal in remote as well by passing in remoteAuthority when getting available profiles.
 		if (options.os === OS) {
 			const availableProfiles = this._terminalProfileService.getAvailableProfiles(options.remoteAuthority);
+			this._logService.trace('[TerminalProfileResolver] availableProfiles:', availableProfiles);
 			let existingProfile = availableProfiles.find(e => path.parse(e.path).name === path.parse(executable).name);
+			this._logService.trace('[TerminalProfileResolver] existingProfiles:', existingProfile);
 			if (existingProfile) {
 				if (options.allowAutomationShell) {
 					existingProfile = deepClone(existingProfile);
