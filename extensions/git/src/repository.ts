@@ -1802,7 +1802,33 @@ export class Repository implements Disposable {
 	}
 
 	async deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
-		await this.run(Operation.DeleteWorktree, () => this.repository.deleteWorktree(path, options));
+		await this.run(Operation.DeleteWorktree, async () => {
+			const worktree = this.repositoryResolver.getRepository(path);
+			if (!worktree || worktree.kind !== 'worktree') {
+				return;
+			}
+
+			const deleteWorktree = async (options?: { force?: boolean }): Promise<void> => {
+				await this.repository.deleteWorktree(path, options);
+				worktree.dispose();
+			};
+
+			try {
+				await deleteWorktree();
+			} catch (err) {
+				if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
+					const forceDelete = l10n.t('Force Delete');
+					const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
+					const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
+					if (choice === forceDelete) {
+						await deleteWorktree({ ...options, force: true });
+					}
+					return;
+				}
+
+				throw err;
+			}
+		});
 	}
 
 	async deleteRemoteRef(remoteName: string, refName: string, options?: { force?: boolean }): Promise<void> {
