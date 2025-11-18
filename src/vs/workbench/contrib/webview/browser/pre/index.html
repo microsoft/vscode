@@ -1053,7 +1053,7 @@
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 
-				const allowRules = ['cross-origin-isolated;', 'autoplay;'];
+				const allowRules = ['cross-origin-isolated;', 'autoplay;', 'local-network-access;'];
 				if (!isFirefox && options.allowScripts) {
 					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}
