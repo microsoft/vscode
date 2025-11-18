@@ -125,4 +125,11 @@ export class MockChatService implements IChatService {
 	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined {
 		throw new Error('Method not implemented.');
 	}
+
+	getLiveSessionItems(): IChatDetail[] {
+		throw new Error('Method not implemented.');
+	}
+	getHistorySessionItems(): Promise<IChatDetail[]> {
+		throw new Error('Method not implemented.');
+	}
 }
