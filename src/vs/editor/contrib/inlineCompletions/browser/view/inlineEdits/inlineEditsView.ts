@@ -32,7 +32,7 @@ import { InlineEditsCustomView } from './inlineEditsViews/inlineEditsCustomView.
 import { InlineEditsDeletionView } from './inlineEditsViews/inlineEditsDeletionView.js';
 import { InlineEditsInsertionView } from './inlineEditsViews/inlineEditsInsertionView.js';
 import { InlineEditsLineReplacementView } from './inlineEditsViews/inlineEditsLineReplacementView.js';
-import { ILongDistanceHint, ILongDistanceViewState, InlineEditsLongDistanceHint } from './inlineEditsViews/inlineEditsLongDistanceHint.js';
+import { ILongDistanceHint, ILongDistanceViewState, InlineEditsLongDistanceHint } from './inlineEditsViews/longDistanceHint/inlineEditsLongDistanceHint.js';
 import { InlineEditsSideBySideView } from './inlineEditsViews/inlineEditsSideBySideView.js';
 import { InlineEditsWordReplacementView } from './inlineEditsViews/inlineEditsWordReplacementView.js';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineEditsViews/originalEditorInlineDiffView.js';
