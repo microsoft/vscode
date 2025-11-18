@@ -27,7 +27,7 @@
 		border-radius: 4px;
 		margin-bottom: 0;
 		position: relative;
-		overflow: visible;
+		overflow: hidden;
 
 		.chat-tool-invocation-part {
 			.chat-used-context {
