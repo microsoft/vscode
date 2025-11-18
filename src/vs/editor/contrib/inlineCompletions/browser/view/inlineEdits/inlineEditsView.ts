@@ -264,6 +264,9 @@ export class InlineEditsView extends Disposable {
 	} | undefined = undefined;
 
 	private _getLongDistanceHintState(model: ModelPerInlineEdit, reader: IReader): ILongDistanceHint | undefined {
+		if (model.inlineEdit.inlineCompletion.identity.jumpedTo.read(reader)) {
+			return undefined;
+		}
 		if (this._currentInlineEditCache?.inlineSuggestionIdentity !== model.inlineEdit.inlineCompletion.identity) {
 			this._currentInlineEditCache = {
 				inlineSuggestionIdentity: model.inlineEdit.inlineCompletion.identity,
