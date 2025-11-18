@@ -128,7 +128,7 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 			return false; // unexpected URL
 		}
 
-		if (url === process.env.DEV_WINDOW_SRC && host === 'localhost') {
+		if (url === process.env.DEV_WINDOW_SRC && (host === 'localhost' || host.startsWith('localhost:'))) {
 			return true;
 		}
 
