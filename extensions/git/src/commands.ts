@@ -246,19 +246,7 @@ class WorktreeDeleteItem extends WorktreeItem {
 			return;
 		}
 
-		try {
-			await mainRepository.deleteWorktree(this.worktree.path);
-		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
-				const forceDelete = l10n.t('Force Delete');
-				const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
-				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
-
-				if (choice === forceDelete) {
-					await mainRepository.deleteWorktree(this.worktree.path, { force: true });
-				}
-			}
-		}
+		await mainRepository.deleteWorktree(this.worktree.path);
 	}
 }
 
@@ -3841,43 +3829,7 @@ export class CommandCenter {
 		return;
 	}
 
-	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['worktree'] })
-	async deleteWorktree(repository: Repository): Promise<void> {
-		if (!repository.dotGit.commonPath) {
-			return;
-		}
-
-		const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
-		if (!mainRepository) {
-			await window.showErrorMessage(l10n.t('You cannot delete the worktree you are currently in. Please switch to the main repository first.'), { modal: true });
-			return;
-		}
-
-		try {
-			await mainRepository.deleteWorktree(repository.root);
-
-			// Dispose worktree repository
-			this.model.disposeRepository(repository);
-		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
-				const forceDelete = l10n.t('Force Delete');
-				const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
-				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
-				if (choice === forceDelete) {
-					await mainRepository.deleteWorktree(repository.root, { force: true });
-
-					// Dispose worktree repository
-					this.model.disposeRepository(repository);
-				}
-
-				return;
-			}
-
-			throw err;
-		}
-	}
-
-	@command('git.deleteWorktreeFromPalette', { repository: true, repositoryFilter: ['repository', 'submodule'] })
+	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
 	async deleteWorktreeFromPalette(repository: Repository): Promise<void> {
 		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
 			const worktrees = await repository.getWorktrees();
@@ -3892,6 +3844,21 @@ export class CommandCenter {
 		if (choice instanceof WorktreeDeleteItem) {
 			await choice.run(repository);
 		}
+	}
+
+	@command('git.deleteWorktree2', { repository: true, repositoryFilter: ['worktree'] })
+	async deleteWorktree(repository: Repository): Promise<void> {
+		if (!repository.dotGit.commonPath) {
+			return;
+		}
+
+		const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
+		if (!mainRepository) {
+			await window.showErrorMessage(l10n.t('You cannot delete the worktree you are currently in. Please switch to the main repository first.'), { modal: true });
+			return;
+		}
+
+		await mainRepository.deleteWorktree(repository.root);
 	}
 
 	@command('git.openWorktree', { repository: true })
