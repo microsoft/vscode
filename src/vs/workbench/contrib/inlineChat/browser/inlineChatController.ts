@@ -257,14 +257,14 @@ export class InlineChatController1 implements IEditorContribution {
 				location.location = ChatAgentLocation.Notebook;
 			}
 
-			const zone = _instaService.createInstance(InlineChatZoneWidget, location, undefined, { editor: this._editor, notebookEditor });
-			this._store.add(zone);
-			this._store.add(zone.widget.chatWidget.onDidClear(async () => {
+			const clear = async () => {
 				const r = this.joinCurrentRun();
 				this.cancelSession();
 				await r;
 				this.run();
-			}));
+			};
+			const zone = _instaService.createInstance(InlineChatZoneWidget, location, undefined, { editor: this._editor, notebookEditor }, clear);
+			this._store.add(zone);
 
 			return zone;
 		});
@@ -1332,6 +1332,7 @@ export class InlineChatController2 implements IEditorContribution {
 					defaultMode: ChatMode.Ask
 				},
 				{ editor: this._editor, notebookEditor },
+				() => Promise.resolve(),
 			);
 
 			result.domNode.classList.add('inline-chat-2');
@@ -1578,8 +1579,6 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 
 	chatModel.startEditingSession(true);
 
-	const editSession = await chatModel.editingSessionObs?.promise;
-
 	const store = new DisposableStore();
 	store.add(chatModel);
 
@@ -1609,7 +1608,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	}
 
 	const isSettled = derived(r => {
-		const entry = editSession?.readEntry(uri, r);
+		const entry = chatModel.editingSession?.readEntry(uri, r);
 		if (!entry) {
 			return false;
 		}
@@ -1630,8 +1629,6 @@ export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, 
 	const chatModel = chatService.startSession(ChatAgentLocation.EditorInline, token, false);
 
 	chatModel.startEditingSession(true);
-
-	const editSession = await chatModel.editingSessionObs?.promise;
 
 	const store = new DisposableStore();
 	store.add(chatModel);
@@ -1667,7 +1664,7 @@ export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, 
 	}
 
 	const isSettled = derived(r => {
-		const entry = editSession?.readEntry(uri, r);
+		const entry = chatModel.editingSession?.readEntry(uri, r);
 		if (!entry) {
 			return false;
 		}

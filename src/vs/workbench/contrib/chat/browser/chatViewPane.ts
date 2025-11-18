@@ -197,6 +197,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				autoScroll: mode => mode !== ChatModeKind.Ask,
 				renderFollowups: this.chatOptions.location === ChatAgentLocation.Chat,
 				supportsFileReferences: true,
+				clear: () => this.clear(),
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
 						return true;
@@ -215,9 +216,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				overlayBackground: locationBasedColors.overlayBackground,
 				inputEditorBackground: locationBasedColors.background,
 				resultEditorBackground: editorBackground,
-
 			}));
-		this._register(this._widget.onDidClear(() => this.clear()));
 		this._widget.render(parent);
 
 		const updateWidgetVisibility = () => {

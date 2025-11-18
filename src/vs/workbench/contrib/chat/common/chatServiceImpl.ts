@@ -1113,9 +1113,9 @@ export class ChatService extends Disposable implements IChatService {
 				continue;
 			}
 
-			if (forAgentId !== request.response.agent?.id && !agent?.isDefault) {
+			if (forAgentId !== request.response.agent?.id && !agent?.isDefault && !agent?.canAccessPreviousChatHistory) {
 				// An agent only gets to see requests that were sent to this agent.
-				// The default agent (the undefined case) gets to see all of them.
+				// The default agent (the undefined case), or agents with 'canAccessPreviousChatHistory', get to see all of them.
 				continue;
 			}
 

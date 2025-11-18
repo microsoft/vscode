@@ -133,8 +133,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	const viewState = widget.getViewState();
 	const resourceToOpen = widget.viewModel.sessionResource;
 
-	widget.clear();
-	await widget.waitForReady();
+	await widget.clear();
 
 	const options: IChatEditorOptions = { pinned: true, viewState, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } };
 	await editorService.openEditor({ resource: resourceToOpen, options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
