@@ -20,12 +20,11 @@ import type { StackDiff, StateStack, diffStateStacksRefEq } from 'vscode-textmat
 import { ICreateGrammarResult } from '../../../common/TMGrammarFactory.js';
 import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { ILineFontChangedEvent } from '../../../../../../editor/common/languages.js';
+import { IFontOption } from '../../../../../../editor/common/languages.js';
 
 export interface TextMateModelTokenizerHost {
 	getOrCreateGrammar(languageId: string, encodedLanguageId: LanguageId): Promise<ICreateGrammarResult | null>;
-	setFontInfo(fontInfo: ILineFontChangedEvent[]): void;
-	setTokensAndStates(versionId: number, tokens: Uint8Array, stateDeltas: StateDeltas[]): void;
+	setTokensAndStates(versionId: number, tokens: Uint8Array, fontInfos: Map<number, IFontOption[]>, stateDeltas: StateDeltas[]): void;
 	reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void;
 }
 
@@ -127,7 +126,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			let tokenizedLines = 0;
 			const tokenBuilder = new ContiguousMultilineTokensBuilder();
 			const stateDeltaBuilder = new StateDeltaBuilder();
-			const lineFontInfos: ILineFontChangedEvent[] = [];
+			const lineFontInfos: Map<number, IFontOption[]> = new Map();
 
 			while (true) {
 				const lineToTokenize = this._tokenizerWithStateStore.getFirstInvalidLine();
@@ -148,7 +147,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 
 				LineTokens.convertToEndOffset(r.tokens, text.length);
 				tokenBuilder.add(lineToTokenize.lineNumber, r.tokens);
-				lineFontInfos.push({ lineNumber: lineToTokenize.lineNumber, options: r.fontInfo });
+				lineFontInfos.set(lineToTokenize.lineNumber, r.fontInfo);
 
 				const deltaMs = new Date().getTime() - startTime;
 				if (deltaMs > 20) {
@@ -162,10 +161,10 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			}
 
 			const stateDeltas = stateDeltaBuilder.getStateDeltas();
-			this._host.setFontInfo(lineFontInfos);
 			this._host.setTokensAndStates(
 				this._versionId,
 				tokenBuilder.serialize(),
+				lineFontInfos,
 				stateDeltas
 			);
 

@@ -27,6 +27,7 @@ import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
 import { EditDeltaInfo } from './textModelEditSource.js';
+import { FontAnnotationsUpdate } from './textModelEvents.js';
 
 /**
  * @internal
@@ -160,7 +161,7 @@ export interface IBackgroundTokenizer extends IDisposable {
 export interface IBackgroundTokenizationStore {
 	setTokens(tokens: ContiguousMultilineTokens[]): void;
 
-	setFontInfo(fontInfo: ILineFontChangedEvent[]): void;
+	setFontInfo(changes: Map<number, FontAnnotationsUpdate>): void;
 
 	setEndState(lineNumber: number, state: IState): void;
 

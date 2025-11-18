@@ -18,7 +18,7 @@ import { TextModel } from '../textModel.js';
 import { TextModelPart } from '../textModelPart.js';
 import { AbstractSyntaxTokenBackend, AttachedViews } from './abstractSyntaxTokenBackend.js';
 import { TreeSitterSyntaxTokenBackend } from './treeSitter/treeSitterSyntaxTokenBackend.js';
-import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from '../../textModelEvents.js';
+import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelTokensFontChangedEvent } from '../../textModelEvents.js';
 import { ITokenizationTextModelPart } from '../../tokenizationTextModelPart.js';
 import { LineTokens } from '../../tokens/lineTokens.js';
 import { SparseMultilineTokens } from '../../tokens/sparseMultilineTokens.js';
@@ -27,7 +27,6 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { TokenizerSyntaxTokenBackend } from './tokenizerSyntaxTokenBackend.js';
 import { ITreeSitterLibraryService } from '../../services/treeSitter/treeSitterLibraryService.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
-import { ILineFontChangedEvent } from '../../languages.js';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore;
@@ -41,8 +40,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent>;
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent>;
 
-	private readonly _onDidChangeFontInfo: Emitter<ILineFontChangedEvent[]> = this._register(new Emitter<ILineFontChangedEvent[]>());
-	public readonly onDidChangeFontInfo: Event<ILineFontChangedEvent[]> = this._onDidChangeFontInfo.event;
+	private readonly _onDidChangeFontInfo: Emitter<IModelTokensFontChangedEvent> = this._register(new Emitter<IModelTokensFontChangedEvent>());
+	public readonly onDidChangeFontInfo: Event<IModelTokensFontChangedEvent> = this._onDidChangeFontInfo.event;
 
 	public readonly tokens: IObservable<AbstractSyntaxTokenBackend>;
 	private readonly _useTreeSitter: IObservable<boolean>;
@@ -113,7 +112,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this.onDidChangeLanguageConfiguration = this._onDidChangeLanguageConfiguration.event;
 		this._onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
 		this.onDidChangeTokens = this._onDidChangeTokens.event;
-		this._onDidChangeFontInfo = this._register(new Emitter<ILineFontChangedEvent[]>());
+		this._onDidChangeFontInfo = this._register(new Emitter<IModelTokensFontChangedEvent>());
 		this.onDidChangeFontInfo = this._onDidChangeFontInfo.event;
 	}
 

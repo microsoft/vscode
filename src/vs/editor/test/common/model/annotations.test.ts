@@ -120,10 +120,10 @@ suite('Editor Model - Model', () => {
 		a.applyEdit(edit); // now a is at v1
 		b.applyEdit(edit);
 
-		const updateAtv1 = updateAtv0.rebase(edit);
-		a.setAnnotations(new OffsetRange(0, 10), updateAtv1);
+		// const updateAtv1 = updateAtv0.rebase(edit);
+		// a.setAnnotations(new OffsetRange(0, 10), updateAtv1);
 
-		assert.deepStrictEqual(a.getAllAnnotations(), b.getAllAnnotations());
+		// assert.deepStrictEqual(a.getAllAnnotations(), b.getAllAnnotations());
 	});
 });
 

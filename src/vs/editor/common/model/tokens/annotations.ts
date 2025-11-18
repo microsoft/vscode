@@ -146,17 +146,17 @@ export class AnnotationsUpdate<T> {
 	/**
 	 * The ranges are sorted and non-overlapping.
 	*/
-	public static create<T>(annotations: readonly IAnnotationUpdate<T>[]): AnnotationsUpdate<T> {
+	public static create<T>(annotations: IAnnotationUpdate<T>[]): AnnotationsUpdate<T> {
 		return new AnnotationsUpdate(annotations);
 	}
 
-	private constructor(
-		public readonly annotations: readonly IAnnotationUpdate<T>[]
-	) {
-		// assert sorted and non-overlapping, and non-empty
+	private _annotatedString: AnnotatedString<T>;
+
+	private constructor(public annotations: IAnnotationUpdate<T>[]) {
+		this._annotatedString = new AnnotatedString<T>(annotations);
 	}
 
-	rebase(edit: StringEdit): AnnotationsUpdate<T> {
-		return AnnotationsUpdate.create([]);
+	applyEdit(offsetStart: number, offsetEnd: number, text: string): void {
+		this._annotatedString.applyEdit(StringEdit.replace(new OffsetRange(offsetStart, offsetEnd), text));
 	}
 }

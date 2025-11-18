@@ -9,10 +9,10 @@ import { IObservable, autorun, keepObserved } from '../../../../../base/common/o
 import { Proxied } from '../../../../../base/common/worker/webWorker.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IBackgroundTokenizationStore, ILanguageIdCodec, ILineFontChangedEvent } from '../../../../../editor/common/languages.js';
+import { IBackgroundTokenizationStore, IFontOption, ILanguageIdCodec } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { TokenizationStateStore } from '../../../../../editor/common/model/textModelTokens.js';
-import { IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { IFontAnnotationUpdate, IFontInfo, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { IModelContentChange } from '../../../../../editor/common/model/mirrorTextModel.js';
 import { ContiguousMultilineTokensBuilder } from '../../../../../editor/common/tokens/contiguousMultilineTokensBuilder.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -21,6 +21,8 @@ import { MonotonousIndexTransformer } from '../indexTransformer.js';
 import type { StateDeltas, TextMateTokenizationWorker } from './worker/textMateTokenizationWorker.worker.js';
 import type { applyStateStackDiff, StateStack } from 'vscode-textmate';
 import { linesLengthEditFromModelContentChange } from '../../../../../editor/common/model/textModelStringEdit.js';
+import { AnnotationsUpdate } from '../../../../../editor/common/model/tokens/annotations.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 
 export class TextMateWorkerTokenizerController extends Disposable {
 	private static _id = 0;
@@ -106,14 +108,10 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		this._worker.$retokenize(this.controllerId, startLineNumber, endLineNumberExclusive);
 	}
 
-	public setFontInfo(fontInfo: ILineFontChangedEvent[]): void {
-		this._backgroundTokenizationStore.setFontInfo(fontInfo);
-	}
-
 	/**
 	 * This method is called from the worker through the worker host.
 	 */
-	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: Uint8Array, stateDeltas: StateDeltas[]): Promise<void> {
+	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: Uint8Array, fontInfo: Map<number, IFontOption[]>, stateDeltas: StateDeltas[]): Promise<void> {
 		if (this.controllerId !== controllerId) {
 			// This event is for an outdated controller (the worker didn't receive the delete/create messages yet), ignore the event.
 			return;
@@ -151,6 +149,8 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			this._states.acceptChanges(change.changes);
 		}
 
+		const annotationsUpdate: Map<number, AnnotationsUpdate<IFontInfo>> = new Map();
+
 		// console.log('this._pendingChanges : ', this._pendingChanges);
 		if (this._pendingChanges.length > 0) {
 			if (this._shouldLog) {
@@ -172,18 +172,42 @@ export class TextMateWorkerTokenizerController extends Disposable {
 					// The webworker will send us new tokens for all the new/touched lines after it received the edits.
 					if (result !== undefined) {
 						b.add(i, t.getLineTokens(i) as Uint32Array);
+						if (fontInfo.has(i)) {
+							// There are special fonts on this line
+							const annotations: IFontAnnotationUpdate[] = [];
+							const fontOptions = fontInfo.get(i)!;
+							for (const option of fontOptions) {
+								const lineStartOffset = this._model.getOffsetAt({ lineNumber: i, column: 1 });
+								const startOffset = lineStartOffset + option.startIndex;
+								const endOffset = lineStartOffset + option.endIndex;
+								annotations.push({
+									range: new OffsetRange(startOffset, endOffset),
+									annotation: {
+										fontFamily: option.fontFamily ?? undefined,
+										fontSize: option.fontSize ?? undefined,
+										lineHeight: option.lineHeight ?? undefined,
+									}
+								});
+							}
+							annotationsUpdate.set(i, AnnotationsUpdate.create(annotations));
+						}
 					}
 				}
 			}
-			tokens = b.finalize();
 
-			// console.log('tokens after filtering: ', tokens);
+			tokens = b.finalize();
 
 			// Apply future changes to tokens
 			for (const change of this._pendingChanges) {
 				for (const innerChanges of change.changes) {
 					for (let j = 0; j < tokens.length; j++) {
 						tokens[j].applyEdit(innerChanges.range, innerChanges.text);
+					}
+					for (const annotationUpdate of annotationsUpdate.values()) {
+						const liftedRange = Range.lift(innerChanges.range);
+						const offsetStart = this._model.getOffsetAt(liftedRange.getStartPosition());
+						const offsetEnd = this._model.getOffsetAt(liftedRange.getEndPosition());
+						annotationUpdate.applyEdit(offsetStart, offsetEnd, innerChanges.text);
 					}
 				}
 			}
@@ -232,6 +256,9 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		}
 		// First set states, then tokens, so that events fired from set tokens don't read invalid states
 		this._backgroundTokenizationStore.setTokens(tokens);
+		if (annotationsUpdate.size > 0) {
+			this._backgroundTokenizationStore.setFontInfo(annotationsUpdate);
+		}
 	}
 
 	private get _shouldLog() { return this._loggingEnabled.get(); }

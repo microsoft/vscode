@@ -9,10 +9,10 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { LineRange } from '../../core/ranges/lineRange.js';
 import { StandardTokenType } from '../../encodedTokenAttributes.js';
-import { ILanguageIdCodec, ILineFontChangedEvent } from '../../languages.js';
+import { ILanguageIdCodec } from '../../languages.js';
 import { IAttachedView } from '../../model.js';
 import { TextModel } from '../textModel.js';
-import { IModelContentChangedEvent, IModelTokensChangedEvent } from '../../textModelEvents.js';
+import { IModelContentChangedEvent, IModelTokensChangedEvent, IModelTokensFontChangedEvent } from '../../textModelEvents.js';
 import { BackgroundTokenizationState } from '../../tokenizationTextModelPart.js';
 import { LineTokens } from '../../tokens/lineTokens.js';
 import { derivedOpts, IObservable, ISettableObservable, observableSignal, observableValueOpts } from '../../../../base/common/observable.js';
@@ -145,9 +145,9 @@ export abstract class AbstractSyntaxTokenBackend extends Disposable {
 	/** @internal, should not be exposed by the text model! */
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
-	protected readonly _onDidChangeFontInfo: Emitter<ILineFontChangedEvent[]> = this._register(new Emitter<ILineFontChangedEvent[]>());
+	protected readonly _onDidChangeFontInfo: Emitter<IModelTokensFontChangedEvent> = this._register(new Emitter<IModelTokensFontChangedEvent>());
 	/** @internal, should not be exposed by the text model! */
-	public readonly onDidChangeFontInfo: Event<ILineFontChangedEvent[]> = this._onDidChangeFontInfo.event;
+	public readonly onDidChangeFontInfo: Event<IModelTokensFontChangedEvent> = this._onDidChangeFontInfo.event;
 
 	constructor(
 		protected readonly _languageIdCodec: ILanguageIdCodec,

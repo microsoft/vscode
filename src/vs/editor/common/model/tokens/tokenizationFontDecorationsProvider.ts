@@ -10,10 +10,10 @@ import { Range } from '../../core/range.js';
 import { DecorationProvider } from '../decorationProvider.js';
 import { TextModel } from '../textModel.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IModelContentChangedEvent, IModelOptionsChangedEvent } from '../../textModelEvents.js';
+import { IFontInfo, IModelContentChangedEvent, IModelOptionsChangedEvent } from '../../textModelEvents.js';
 import { classNameForFont } from '../../languages/supports/tokenization.js';
 import { Position } from '../../core/position.js';
-import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotation } from './annotations.js';
+import { AnnotatedString, IAnnotatedString } from './annotations.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
 import { StringEdit } from '../../core/edits/stringEdit.js';
 
@@ -44,14 +44,6 @@ export class LineFontChangingDecoration {
 	) { }
 }
 
-export interface IFontInfo {
-	fontFamily?: string;
-	fontSize?: string;
-	lineHeight?: number;
-}
-
-export type IFontAnnotation = IAnnotation<IFontInfo>;
-
 export class TokenizationFontDecorationProvider extends Disposable implements DecorationProvider {
 
 	private readonly _onDidChangeLineHeight = new Emitter<Set<LineHeightChangingDecoration>>();
@@ -72,41 +64,28 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			console.log('fontChanges : ', fontChanges);
 			const changedLineNumberHeights = new Map<number, number | null>();
 			const changedLineNumberFonts = new Set<number>();
-			for (const fontChange of fontChanges) {
-				if (!fontChange.options) {
-					changedLineNumberHeights.set(fontChange.lineNumber, null);
-					changedLineNumberFonts.add(fontChange.lineNumber);
+			for (const [lineNumber, annotations] of fontChanges.changes.entries()) {
+				if (!annotations) {
+					changedLineNumberHeights.set(lineNumber, null);
+					changedLineNumberFonts.add(lineNumber);
 					continue;
 				}
 
-				const lineNumber = fontChange.lineNumber;
 				const beginningLineOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
 				const endLineOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
 
-				const fontAnnotations: IFontAnnotation[] = [];
-
-				for (const option of fontChange.options) {
-					const startOffset = beginningLineOffset + option.startIndex;
-					const endOffset = beginningLineOffset + option.endIndex;
-					fontAnnotations.push({
-						range: new OffsetRange(startOffset, endOffset),
-						annotation: {
-							fontFamily: option.fontFamily ?? undefined,
-							fontSize: option.fontSize ?? undefined,
-							lineHeight: option.lineHeight ?? undefined
-						}
-					});
+				for (const annotation of annotations.annotations) {
 					if (changedLineNumberHeights.has(lineNumber)) {
 						const currentLineHeight = changedLineNumberHeights.get(lineNumber);
-						if (!currentLineHeight || (option.lineHeight && option.lineHeight > currentLineHeight)) {
-							changedLineNumberHeights.set(lineNumber, option.lineHeight); // we take the maximum line height
+						if (!currentLineHeight || (annotation.annotation.lineHeight && annotation.annotation.lineHeight > currentLineHeight)) {
+							changedLineNumberHeights.set(lineNumber, annotation.annotation.lineHeight!); // we take the maximum line height
 						}
 					} else {
-						changedLineNumberHeights.set(fontChange.lineNumber, option.lineHeight);
+						changedLineNumberHeights.set(lineNumber, annotation.annotation.lineHeight!);
 					}
 					changedLineNumberFonts.add(lineNumber);
 				}
-				this._fontAnnotations.setAnnotations(new OffsetRange(beginningLineOffset, endLineOffset), AnnotationsUpdate.create(fontAnnotations));
+				this._fontAnnotations.setAnnotations(new OffsetRange(beginningLineOffset, endLineOffset), annotations);
 			}
 			const affectedLineHeights = new Set<LineHeightChangingDecoration>();
 			for (const [lineNumber, lineHeight] of changedLineNumberHeights) {

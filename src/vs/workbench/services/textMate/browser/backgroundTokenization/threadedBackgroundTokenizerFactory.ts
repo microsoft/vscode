@@ -9,7 +9,7 @@ import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } fro
 import { IObservable } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILineFontChangedEvent } from '../../../../../editor/common/languages.js';
+import { IBackgroundTokenizationStore, IBackgroundTokenizer, IFontOption } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -146,22 +146,13 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 				const resource = URI.revive(_resource);
 				return this._extensionResourceLoaderService.readExtensionResource(resource);
 			},
-			$setFontInfo: (controllerId: number, fontInfo: ILineFontChangedEvent[]): void => {
+			$setTokensAndStates: async (controllerId: number, versionId: number, tokens: Uint8Array, fontInfo: Map<number, IFontOption[]>, lineEndStateDeltas: StateDeltas[]): Promise<void> => {
 				const controller = this._workerTokenizerControllers.get(controllerId);
 				// When a model detaches, it is removed synchronously from the map.
 				// However, the worker might still be sending tokens for that model,
 				// so we ignore the event when there is no controller.
 				if (controller) {
-					controller.setFontInfo(fontInfo);
-				}
-			},
-			$setTokensAndStates: async (controllerId: number, versionId: number, tokens: Uint8Array, lineEndStateDeltas: StateDeltas[]): Promise<void> => {
-				const controller = this._workerTokenizerControllers.get(controllerId);
-				// When a model detaches, it is removed synchronously from the map.
-				// However, the worker might still be sending tokens for that model,
-				// so we ignore the event when there is no controller.
-				if (controller) {
-					controller.setTokensAndStates(controllerId, versionId, tokens, lineEndStateDeltas);
+					controller.setTokensAndStates(controllerId, versionId, tokens, fontInfo, lineEndStateDeltas);
 				}
 			},
 			$reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void => {

@@ -10,9 +10,9 @@ import { countEOL } from '../../core/misc/eolCounter.js';
 import { Position } from '../../core/position.js';
 import { LineRange } from '../../core/ranges/lineRange.js';
 import { StandardTokenType } from '../../encodedTokenAttributes.js';
-import { IBackgroundTokenizer, IState, ILanguageIdCodec, TokenizationRegistry, ITokenizationSupport, IBackgroundTokenizationStore, ILineFontChangedEvent } from '../../languages.js';
+import { IBackgroundTokenizer, IState, ILanguageIdCodec, TokenizationRegistry, ITokenizationSupport, IBackgroundTokenizationStore } from '../../languages.js';
 import { IAttachedView } from '../../model.js';
-import { IModelContentChangedEvent } from '../../textModelEvents.js';
+import { FontAnnotationsUpdate, IModelContentChangedEvent } from '../../textModelEvents.js';
 import { BackgroundTokenizationState } from '../../tokenizationTextModelPart.js';
 import { ContiguousMultilineTokens } from '../../tokens/contiguousMultilineTokens.js';
 import { ContiguousMultilineTokensBuilder } from '../../tokens/contiguousMultilineTokensBuilder.js';
@@ -123,8 +123,8 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 				setTokens: (tokens) => {
 					this.setTokens(tokens);
 				},
-				setFontInfo: (fontInfo: ILineFontChangedEvent[]) => {
-					this.setFontInfo(fontInfo);
+				setFontInfo: (changes: Map<number, FontAnnotationsUpdate>) => {
+					this.setFontInfo(changes);
 				},
 				backgroundTokenizationFinished: () => {
 					if (this._backgroundTokenizationState === BackgroundTokenizationState.Completed) {
@@ -162,8 +162,8 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 					setTokens: (tokens) => {
 						this._debugBackgroundTokens?.setMultilineTokens(tokens, this._textModel);
 					},
-					setFontInfo: (fontInfo: ILineFontChangedEvent[]) => {
-						this.setFontInfo(fontInfo);
+					setFontInfo: (changes: Map<number, FontAnnotationsUpdate>) => {
+						this.setFontInfo(changes);
 					},
 					backgroundTokenizationFinished() {
 						// NO OP
@@ -216,8 +216,8 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 		return { changes: changes };
 	}
 
-	private setFontInfo(fontEvents: ILineFontChangedEvent[]): void {
-		this._onDidChangeFontInfo.fire(fontEvents);
+	private setFontInfo(changes: Map<number, FontAnnotationsUpdate>): void {
+		this._onDidChangeFontInfo.fire({ changes });
 	}
 
 	private refreshAllVisibleLineTokens(): void {
