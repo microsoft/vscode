@@ -349,7 +349,8 @@ export class InlineEditsView extends Disposable {
 			|| this._inlineDiffView.isHovered.read(reader)
 			|| this._lineReplacementView.isHovered.read(reader)
 			|| this._insertion.isHovered.read(reader)
-			|| this._customView.isHovered.read(reader);
+			|| this._customView.isHovered.read(reader)
+			|| this._longDistanceHint.map((v, r) => v?.isHovered.read(r) ?? false).read(reader);
 	});
 
 	private readonly _sideBySide;
