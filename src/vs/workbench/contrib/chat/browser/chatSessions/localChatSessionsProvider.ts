@@ -155,24 +155,6 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		});
 
 		const sessionsByResource = new ResourceSet();
-
-		// Add chat view instance
-		// const chatWidget = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)
-		// 	.find(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
-		// if (chatWidget?.viewModel) {
-		// 	const status = chatWidget.viewModel.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
-		// 	const widgetSession: ChatSessionItemWithProvider = {
-		// 		resource: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE,
-		// 		label: chatWidget.viewModel.model.title || nls.localize2('chat.sessions.chatView', "Local Chat").value,
-		// 		iconPath: Codicon.chatSparkle,
-		// 		status,
-		// 		timing: { startTime: chatWidget.viewModel.model.getRequests().at(0)?.timestamp || 0 },
-		// 		provider: this
-		// 	};
-		// 	sessionsByResource.add(chatWidget.viewModel.sessionResource);
-		// 	sessions.push(widgetSession);
-		// }
-
 		this.chatService.getLiveSessionItems().forEach(sessionDetail => {
 			let status: ChatSessionStatus | undefined;
 			let startTime: number | undefined;
@@ -199,7 +181,6 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			sessionsByResource.add(sessionDetail.sessionResource);
 			sessions.push(editorSession);
 		});
-
 		const history = await this.getHistoryItems();
 		sessions.push(...history.filter(h => !sessionsByResource.has(h.resource)));
 
