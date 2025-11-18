@@ -9,8 +9,10 @@ import { localize2 } from '../../../../nls.js';
 import { INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { registerTerminalAction } from '../browser/terminalActions.js';
-import { TerminalCommandId } from '../common/terminal.js';
+import { TerminalCommandId, ITerminalProfileResolverService } from '../common/terminal.js';
+import { ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
+import { OS } from '../../../../base/common/platform.js';
 
 export function registerRemoteContributions() {
 	registerTerminalAction({
@@ -20,6 +22,9 @@ export function registerRemoteContributions() {
 			const historyService = accessor.get(IHistoryService);
 			const remoteAuthorityResolverService = accessor.get(IRemoteAuthorityResolverService);
 			const nativeEnvironmentService = accessor.get(INativeEnvironmentService);
+			const terminalProfileResolverService = accessor.get(ITerminalProfileResolverService);
+			const terminalLogService = accessor.get(ITerminalLogService);
+
 			let cwd: URI | undefined;
 			try {
 				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
@@ -33,7 +38,23 @@ export function registerRemoteContributions() {
 			if (!cwd) {
 				cwd = nativeEnvironmentService.userHome;
 			}
-			const instance = await c.service.createTerminal({ cwd });
+
+			// Make sure to explicitly get the local default profile
+			const localProfile = await terminalProfileResolverService.getDefaultProfile({
+				remoteAuthority: undefined,
+				os: OS
+			});
+			terminalLogService.trace('terminalRemote#newLocal resolved profile', {
+				os: OS,
+				profileName: localProfile?.profileName,
+				isAutoDetected: localProfile?.isAutoDetected ?? false
+			});
+
+			// Create terminal with explicit local profile configuration
+			const instance = await c.service.createTerminal({
+				cwd,
+				config: localProfile
+			});
 			if (!instance) {
 				return Promise.resolve(undefined);
 			}
