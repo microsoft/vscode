@@ -75,7 +75,7 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 		);
 
 		if (diff.files > 0) {
-			elements.filesSpan.textContent = `${diff.files}`;
+			elements.filesSpan.textContent = diff.files === 1 ? localize('diffFile', "1 file") : localize('diffFiles', "{0} files", diff.files);
 			show(elements.filesSpan);
 		} else {
 			hide(elements.filesSpan);

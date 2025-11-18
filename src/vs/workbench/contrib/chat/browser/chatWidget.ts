@@ -2206,7 +2206,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 
-			this.requestInProgress.set(this.viewModel.requestInProgress);
+			this.requestInProgress.set(this.viewModel.model.requestInProgress.get());
 
 			// Update the editor's placeholder text when it changes in the view model
 			if (events?.some(e => e?.kind === 'changePlaceholder')) {
@@ -2432,7 +2432,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
-		if (this.viewModel?.requestInProgress) {
+		if (this.viewModel?.model.requestInProgress.get()) {
 			return;
 		}
 
