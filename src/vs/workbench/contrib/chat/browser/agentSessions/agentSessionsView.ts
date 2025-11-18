@@ -336,7 +336,8 @@ export class AgentSessionsView extends ViewPane {
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter: new AgentSessionsSorter(),
-				paddingBottom: AgentSessionsListDelegate.ITEM_HEIGHT
+				paddingBottom: AgentSessionsListDelegate.ITEM_HEIGHT,
+				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore>;
 	}
