@@ -36,6 +36,7 @@ export const enum TerminalContribSettingId {
 	AutoApprove = TerminalChatAgentToolsSettingId.AutoApprove,
 	EnableAutoApprove = TerminalChatAgentToolsSettingId.EnableAutoApprove,
 	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
+	OutputLocation = TerminalChatAgentToolsSettingId.OutputLocation
 }
 
 // Export configuration schemes from terminalContrib - this is an exception to the eslint rule since

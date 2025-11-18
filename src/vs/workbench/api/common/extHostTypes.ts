@@ -3798,6 +3798,7 @@ export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 	toolResultMessage?: string | MarkdownString;
 	toolResultDetails?: Array<URI | Location>;
 	toolMetadata?: unknown;
+	hasError?: boolean;
 }
 
 export enum LanguageModelChatToolMode {
@@ -3881,6 +3882,7 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 		public headers: Record<string, string> = {},
 		public version?: string,
 		public metadata?: vscode.McpServerMetadata,
+		public authentication?: { providerId: string; scopes: string[] },
 	) { }
 }
 //#endregion

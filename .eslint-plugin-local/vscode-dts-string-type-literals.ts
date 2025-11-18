@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
 
-export = new class ApiTypeDiscrimination implements eslint.Rule.RuleModule {
+export default new class ApiTypeDiscrimination implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		docs: { url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines' },

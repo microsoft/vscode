@@ -8,15 +8,14 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { GroupIdentifier } from '../../../common/editor.js';
+import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
@@ -26,9 +25,8 @@ import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } f
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
+import { IChatEditorOptions } from './chatEditor.js';
 import { ChatInputPart } from './chatInputPart.js';
-import { findExistingChatEditorByUri } from './chatSessions/common.js';
-import { ChatViewPane } from './chatViewPane.js';
 import { ChatWidget, IChatViewState, IChatWidgetContrib } from './chatWidget.js';
 import { ICodeBlockActionContext } from './codeBlockPart.js';
 
@@ -45,37 +43,34 @@ export interface IChatWidgetService {
 
 	readonly onDidAddWidget: Event<IChatWidget>;
 
+	/**
+	 * Reveals the widget, focusing its input unless `preserveFocus` is true.
+	 */
+	reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean>;
+
+	/**
+	 * Reveals the last active widget, or creates a new chat if necessary.
+	 */
+	revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined>;
+
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
+	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: ChatEditorGroupType, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | ChatEditorGroupType, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 
 	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
 
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;
+
+	/**
+	 * An IChatWidget registers itself when created.
+	 */
+	register(newWidget: IChatWidget): IDisposable;
 }
 
-export async function showChatWidgetInViewOrEditor(accessor: ServicesAccessor, widget: IChatWidget) {
-	if (isIChatViewViewContext(widget.viewContext)) {
-		await accessor.get(IViewsService).openView(widget.viewContext.viewId);
-	} else {
-		const sessionResource = widget.viewModel?.sessionResource;
-		if (sessionResource) {
-			const existing = findExistingChatEditorByUri(sessionResource, accessor.get(IEditorGroupsService));
-			if (existing) {
-				existing.group.openEditor(existing.editor);
-			}
-		}
-	}
-}
-
-export async function showChatView(viewsService: IViewsService, layoutService: IWorkbenchLayoutService): Promise<IChatWidget | undefined> {
-
-	// Ensure main window is in front
-	if (layoutService.activeContainer !== layoutService.mainContainer) {
-		layoutService.mainContainer.focus();
-	}
-
-	return (await viewsService.openView<ChatViewPane>(ChatViewId))?.widget;
-}
+export type ChatEditorGroupType = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE;
+export const ChatViewPaneTarget = Symbol('ChatViewPaneTarget');
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
 export interface IQuickChatService {
@@ -83,6 +78,8 @@ export interface IQuickChatService {
 	readonly onDidClose: Event<void>;
 	readonly enabled: boolean;
 	readonly focused: boolean;
+	/** Defined when quick chat is open */
+	readonly sessionResource?: URI;
 	toggle(options?: IQuickChatOpenOptions): void;
 	focus(): void;
 	open(options?: IQuickChatOpenOptions): void;
@@ -155,6 +152,8 @@ export interface IChatWidgetViewOptions {
 	renderInputToolbarBelowInput?: boolean;
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
+	/** Action triggered when 'clear' is called on the widget. */
+	clear?: () => Promise<void>;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		/**
@@ -213,6 +212,7 @@ export interface IChatWidget {
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
+	readonly onDidFocus: Event<void>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;
@@ -256,12 +256,7 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
-	clear(): void;
-	/**
-	 * Wait for this widget to have a VM with a fully initialized model and editing session.
-	 * Sort of a hack. See https://github.com/microsoft/vscode/issues/247484
-	 */
-	waitForReady(): Promise<void>;
+	clear(): Promise<void>;
 	getViewState(): IChatViewState;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
 

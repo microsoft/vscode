@@ -115,7 +115,7 @@ import { ChatSessionsView, ChatSessionsViewContrib } from './chatSessions/view/c
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
 import { ChatVariablesService } from './chatVariables.js';
-import { ChatWidget, ChatWidgetService } from './chatWidget.js';
+import { ChatWidget } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatImplicitContextContribution } from './contrib/chatImplicitContext.js';
@@ -130,6 +130,7 @@ import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import { ChatWidgetService } from './chatWidgetService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -749,13 +750,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
 			default: false,
 			scope: ConfigurationScope.WINDOW
-		},
-		[ChatConfiguration.UseCloudButtonV2]: {
-			type: 'boolean',
-			description: nls.localize('chat.useCloudButtonV2', "Experimental implementation of 'cloud button'"),
-			default: true,
-			tags: ['experimental'],
-
 		},
 		[ChatConfiguration.ShowAgentSessionsViewDescription]: {
 			type: 'boolean',

@@ -6,7 +6,7 @@
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isObject } from '../../../../base/common/types.js';
+import { isNumber, isObject } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ICrossVersionSerializedTerminalState, IPtyHostController, ISerializedTerminalState, ITerminalLogService } from '../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -126,7 +126,7 @@ export abstract class BaseTerminalBackend extends Disposable {
 function isCrossVersionSerializedTerminalState(obj: unknown): obj is ICrossVersionSerializedTerminalState {
 	return (
 		isObject(obj) &&
-		'version' in obj && typeof obj.version === 'number' &&
+		'version' in obj && isNumber(obj.version) &&
 		'state' in obj && Array.isArray(obj.state)
 	);
 }

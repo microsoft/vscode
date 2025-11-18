@@ -18,6 +18,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IToolInvocationContext } from '../../../../chat/common/languageModelToolsService.js';
 import { LocalChatSessionUri } from '../../../../chat/common/chatUri.js';
+import { isNumber } from '../../../../../../base/common/types.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -181,7 +182,7 @@ suite('OutputMonitor', () => {
 			const res = monitor.pollingResult!;
 			assert.strictEqual(res.state, OutputMonitorState.Idle);
 			assert.strictEqual(res.output, 'test output');
-			assert.ok(typeof res.pollDurationMs === 'number');
+			assert.ok(isNumber(res.pollDurationMs));
 		});
 	});
 

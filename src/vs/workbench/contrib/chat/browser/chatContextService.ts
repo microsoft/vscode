@@ -110,11 +110,13 @@ export class ChatContextService extends Disposable {
 		if (!item) {
 			const resolved = await this._contextForResource(context.uri, true);
 			context.value = resolved?.value;
+			context.modelDescription = resolved?.modelDescription;
 			return context;
 		} else if (item.provider.resolveChatContext) {
 			const resolved = await item.provider.resolveChatContext(item.originalItem, CancellationToken.None);
 			if (resolved) {
 				context.value = resolved.value;
+				context.modelDescription = resolved.modelDescription;
 				return context;
 			}
 		}

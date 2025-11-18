@@ -23,7 +23,6 @@
 .quick-input-left-action-bar {
 	display: flex;
 	margin-left: 4px;
-	flex: 1;
 }
 
 /* give some space between input and action bar */
@@ -42,12 +41,12 @@
 	text-align: center;
 	text-overflow: ellipsis;
 	overflow: hidden;
+	flex: 1;
 }
 
 .quick-input-right-action-bar {
 	display: flex;
 	margin-right: 4px;
-	flex: 1;
 }
 
 .quick-input-right-action-bar > .actions-container {

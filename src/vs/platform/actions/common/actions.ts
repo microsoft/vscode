@@ -223,6 +223,8 @@ export class MenuId {
 	static readonly TimelineTitle = new MenuId('TimelineTitle');
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly TimelineFilterSubMenu = new MenuId('TimelineFilterSubMenu');
+	static readonly AgentSessionsTitle = new MenuId('AgentSessionsTitle');
+	static readonly AgentSessionsFilterSubMenu = new MenuId('AgentSessionsFilterSubMenu');
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly SidebarTitle = new MenuId('SidebarTitle');
 	static readonly PanelTitle = new MenuId('PanelTitle');

@@ -29,9 +29,8 @@ import { IWorkbenchEnvironmentService } from '../../services/environment/common/
 import { hasKey } from '../../../base/common/types.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTerminalService)
-export class MainThreadTerminalService implements MainThreadTerminalServiceShape {
+export class MainThreadTerminalService extends Disposable implements MainThreadTerminalServiceShape {
 
-	private readonly _store = new DisposableStore();
 	private readonly _proxy: ExtHostTerminalServiceShape;
 
 	/**
@@ -44,8 +43,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private readonly _profileProviders = new Map<string, IDisposable>();
 	private readonly _completionProviders = new Map<string, IDisposable>();
 	private readonly _quickFixProviders = new Map<string, IDisposable>();
-	private readonly _dataEventTracker = new MutableDisposable<TerminalDataEventTracker>();
-	private readonly _sendCommandEventListener = new MutableDisposable();
+	private readonly _dataEventTracker = this._register(new MutableDisposable<TerminalDataEventTracker>());
+	private readonly _sendCommandEventListener = this._register(new MutableDisposable());
 
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
@@ -53,7 +52,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	 * provided through this, even from multiple ext link providers. Xterm should remove lower
 	 * priority intersecting links itself.
 	 */
-	private readonly _linkProvider = this._store.add(new MutableDisposable());
+	private readonly _linkProvider = this._register(new MutableDisposable());
 
 	private _os: OperatingSystem = OS;
 
@@ -73,24 +72,25 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@ITerminalCompletionService private readonly _terminalCompletionService: ITerminalCompletionService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
+		super();
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
 		// ITerminalService listeners
-		this._store.add(_terminalService.onDidCreateInstance((instance) => {
+		this._register(_terminalService.onDidCreateInstance((instance) => {
 			this._onTerminalOpened(instance);
 			this._onInstanceDimensionsChanged(instance);
 		}));
 
-		this._store.add(_terminalService.onDidDisposeInstance(instance => this._onTerminalDisposed(instance)));
-		this._store.add(_terminalService.onAnyInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
-		this._store.add(_terminalService.onDidChangeInstanceDimensions(instance => this._onInstanceDimensionsChanged(instance)));
-		this._store.add(_terminalService.onAnyInstanceMaximumDimensionsChange(instance => this._onInstanceMaximumDimensionsChanged(instance)));
-		this._store.add(_terminalService.onDidRequestStartExtensionTerminal(e => this._onRequestStartExtensionTerminal(e)));
-		this._store.add(_terminalService.onDidChangeActiveInstance(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
-		this._store.add(_terminalService.onAnyInstanceTitleChange(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
-		this._store.add(_terminalService.onAnyInstanceDataInput(instance => this._proxy.$acceptTerminalInteraction(instance.instanceId)));
-		this._store.add(_terminalService.onAnyInstanceSelectionChange(instance => this._proxy.$acceptTerminalSelection(instance.instanceId, instance.selection)));
-		this._store.add(_terminalService.onAnyInstanceShellTypeChanged(instance => this._onShellTypeChanged(instance.instanceId)));
+		this._register(_terminalService.onDidDisposeInstance(instance => this._onTerminalDisposed(instance)));
+		this._register(_terminalService.onAnyInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
+		this._register(_terminalService.onDidChangeInstanceDimensions(instance => this._onInstanceDimensionsChanged(instance)));
+		this._register(_terminalService.onAnyInstanceMaximumDimensionsChange(instance => this._onInstanceMaximumDimensionsChanged(instance)));
+		this._register(_terminalService.onDidRequestStartExtensionTerminal(e => this._onRequestStartExtensionTerminal(e)));
+		this._register(_terminalService.onDidChangeActiveInstance(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
+		this._register(_terminalService.onAnyInstanceTitleChange(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
+		this._register(_terminalService.onAnyInstanceDataInput(instance => this._proxy.$acceptTerminalInteraction(instance.instanceId)));
+		this._register(_terminalService.onAnyInstanceSelectionChange(instance => this._proxy.$acceptTerminalSelection(instance.instanceId, instance.selection)));
+		this._register(_terminalService.onAnyInstanceShellTypeChanged(instance => this._onShellTypeChanged(instance.instanceId)));
 
 		// Set initial ext host state
 		for (const instance of this._terminalService.instances) {
@@ -124,17 +124,16 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._os = env?.os || OS;
 			this._updateDefaultProfile();
 		});
-		this._store.add(this._terminalProfileService.onDidChangeAvailableProfiles(() => this._updateDefaultProfile()));
-	}
+		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(() => this._updateDefaultProfile()));
 
-	public dispose(): void {
-		this._store.dispose();
-		for (const provider of this._profileProviders.values()) {
-			provider.dispose();
-		}
-		for (const provider of this._quickFixProviders.values()) {
-			provider.dispose();
-		}
+		this._register(toDisposable(() => {
+			for (const provider of this._profileProviders.values()) {
+				provider.dispose();
+			}
+			for (const provider of this._quickFixProviders.values()) {
+				provider.dispose();
+			}
+		}));
 	}
 
 	private async _updateDefaultProfile() {
@@ -185,7 +184,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		});
 		this._extHostTerminals.set(extHostTerminalId, terminal);
 		const terminalInstance = await terminal;
-		this._store.add(terminalInstance.onDisposed(() => {
+		this._register(terminalInstance.onDisposed(() => {
 			this._extHostTerminals.delete(extHostTerminalId);
 		}));
 	}
