@@ -32,7 +32,7 @@ jobs:
       sdl:
         binskim:
           scanOutputDirectoryOnly: true
-          analyzeTargetGlob: '**/*.node'
+          analyzeTargetGlob: '**/.build/**/*.node'
           preReleaseVersion: '4.3.1'
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
