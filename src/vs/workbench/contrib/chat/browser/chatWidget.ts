@@ -2466,6 +2466,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const isUserQuery = !query;
 
+		if (this.viewModel?.editing) {
+			this.finishedEditing(true);
+			this.viewModel.model?.setCheckpoint(undefined);
+		}
+
 		// process the prompt command
 		await this._applyPromptFileIfSet(requestInputs);
 		await this._autoAttachInstructions(requestInputs);
@@ -2554,10 +2559,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.currentRequest = undefined;
 		});
 
-		if (this.viewModel?.editing) {
-			this.finishedEditing(true);
-			this.viewModel.model?.setCheckpoint(undefined);
-		}
 		return result.responseCreatedPromise;
 	}
 
