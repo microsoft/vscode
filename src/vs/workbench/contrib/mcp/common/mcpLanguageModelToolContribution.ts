@@ -84,11 +84,57 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 
 	private _syncTools(server: IMcpServer, collectionData: Lazy<{ toolSet: ToolSet; source: ToolDataSource }>, store: DisposableStore) {
 		const tools = new Map</* tool ID */string, ISyncedToolData>();
+		let currentSource: ToolDataSource | undefined;
+		let currentToolSet: ToolSet | undefined;
+		let currentToolSetStore: DisposableStore | undefined;
 
 		const collectionObservable = this._mcpRegistry.collections.map(collections =>
 			collections.find(c => c.id === server.collection.id));
 
+		const ensureToolSetCreated = () => {
+			// Get the current source data based on latest metadata
+			const sourceData = mcpServerToSourceData(server);
+			
+			// Check if we need to create or recreate the toolset
+			const needsCreation = !currentSource;
+			const needsRecreation = currentSource !== undefined && 
+				(currentSource.type !== sourceData.type ||
+				(sourceData.type === 'mcp' && currentSource.type === 'mcp' &&
+					(currentSource.instructions !== sourceData.instructions ||
+					currentSource.serverLabel !== sourceData.serverLabel)));
+
+			if (needsCreation || needsRecreation) {
+				// Dispose the old toolset if recreating
+				currentToolSetStore?.dispose();
+				currentToolSetStore = new DisposableStore();
+				
+				// Create new toolset with updated source data
+				currentSource = sourceData;
+				currentToolSet = currentToolSetStore.add(this._toolsService.createToolSet(
+					currentSource,
+					server.definition.id, server.definition.label,
+					{
+						icon: Codicon.mcp,
+						description: localize('mcp.toolset', "{0}: All Tools", server.definition.label)
+					}
+				));
+
+				// Re-register all existing tools with the new toolset and source if recreating
+				if (needsRecreation) {
+					for (const [, syncedTool] of tools) {
+						syncedTool.store.clear();
+					}
+				}
+			}
+		};
+
 		store.add(autorun(reader => {
+			// Read serverMetadata to detect when it changes
+			server.serverMetadata.read(reader);
+
+			// Ensure toolset is created or recreated as needed
+			ensureToolSetCreated();
+
 			const toDelete = new Set(tools.keys());
 
 			// toRegister is deferred until deleting tools that moving a tool between
@@ -96,7 +142,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 			const toRegister: (() => void)[] = [];
 			const registerTool = (tool: IMcpTool, toolData: IToolData, store: DisposableStore) => {
 				store.add(this._toolsService.registerTool(toolData, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
-				store.add(collectionData.value.toolSet.addTool(toolData));
+				store.add(currentToolSet!.addTool(toolData));
 			};
 
 			const collection = collectionObservable.read(reader);
@@ -105,7 +151,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 				const icons = tool.icons.getUrl(22);
 				const toolData: IToolData = {
 					id: tool.id,
-					source: collectionData.value.source,
+					source: currentSource!,
 					icon: icons || Codicon.tools,
 					// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
 					displayName: tool.definition.annotations?.title || tool.definition.title || tool.definition.name,
@@ -155,6 +201,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 		}));
 
 		store.add(toDisposable(() => {
+			currentToolSetStore?.dispose();
 			for (const tool of tools.values()) {
 				tool.store.dispose();
 			}
