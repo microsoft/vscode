@@ -105,7 +105,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}));
 		}
 
-		const label = localize('chat.thinking.progress.withHeader', '{0}{1}', this.lastExtractedTitle, this.hasMultipleItems ? '...' : '');
+		const label = localize('chat.thinking.progress.withHeader', '{0}{1}', this.lastExtractedTitle ?? this.currentTitle, this.hasMultipleItems ? '...' : '');
 		this.setTitle(label);
 	}
 
