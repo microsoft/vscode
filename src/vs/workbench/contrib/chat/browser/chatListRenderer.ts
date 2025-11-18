@@ -1313,10 +1313,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}
 
-			if (content.kind === 'references' && this._currentThinkingPart && this._streamingThinking) {
-				this.finalizeCurrentThinkingPart();
-			}
-
 			if (content.kind === 'treeData') {
 				return this.renderTreeData(content, templateData, context);
 			} else if (content.kind === 'multiDiffData') {
