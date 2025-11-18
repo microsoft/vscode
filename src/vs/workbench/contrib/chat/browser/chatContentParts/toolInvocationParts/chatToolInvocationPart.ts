@@ -27,8 +27,6 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
-import { localize } from '../../../../../../nls.js';
-
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -70,9 +68,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		if (toolInvocation.kind === 'toolInvocation') {
 			const initialState = toolInvocation.state.get().type;
-			this._register(
-        
-        (reader => {
+			this._register(autorun(reader => {
 				if (toolInvocation.state.read(reader).type !== initialState) {
 					render();
 				}
