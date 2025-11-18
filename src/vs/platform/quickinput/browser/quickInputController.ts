@@ -750,7 +750,10 @@ export class QuickInputController extends Disposable {
 		if (container) {
 			container.style.display = 'none';
 		}
-		if (!focusChanged) {
+		// Restore focus: prioritize previousFocusElement if available, otherwise use returnFocus().
+		// Always attempt focus restoration if we have previousFocusElement OR if focus was in the container.
+		// This ensures focus is properly restored for both keyboard and mouse click scenarios.
+		if (this.previousFocusElement || !focusChanged) {
 			let currentElement = this.previousFocusElement;
 			while (currentElement && !currentElement.offsetParent) {
 				currentElement = currentElement.parentElement ?? undefined;
@@ -758,7 +761,8 @@ export class QuickInputController extends Disposable {
 			if (currentElement?.offsetParent) {
 				currentElement.focus();
 				this.previousFocusElement = undefined;
-			} else {
+			} else if (!focusChanged) {
+				// Only call returnFocus if focus was in the container and previousFocusElement is not available
 				this.options.returnFocus();
 			}
 		}
