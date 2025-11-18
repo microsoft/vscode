@@ -155,6 +155,29 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		));
 		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
+
+		const outputViewOptions: ChatTerminalToolOutputSectionOptions = {
+			container: elements.output,
+			title: elements.title,
+			displayCommand,
+			terminalData: this._terminalData,
+			accessibleViewService: this._accessibleViewService,
+			onDidChangeHeight: () => this._onDidChangeHeight.fire(),
+			ensureTerminalInstance: () => this._ensureTerminalInstance(),
+			resolveCommand: () => this._getResolvedCommand(),
+			getTerminalTheme: () => this._terminalInstance?.xterm?.getXtermTheme() ?? this._terminalData.terminalTheme,
+			getStoredCommandId: () => this._storedCommandId
+		};
+		this._outputView = this._register(new ChatTerminalToolOutputSection(outputViewOptions));
+		this._register(this._outputView.onDidFocus(() => this._handleOutputFocus()));
+		this._register(this._outputView.onDidBlur(e => this._handleOutputBlur(e)));
+		this._register(toDisposable(() => this._handleDispose()));
+		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
+			this._focusAction.value?.refreshKeybindingTooltip();
+			this._showOutputAction.value?.refreshKeybindingTooltip();
+		}));
+
+
 		const actionBarEl = h('.chat-terminal-action-bar@actionBar');
 		elements.title.append(actionBarEl.root);
 		this._actionBar = this._register(new ActionBar(actionBarEl.actionBar, {}));
@@ -193,27 +216,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		elements.message.append(this.markdownPart.domNode);
-		const outputViewOptions: ChatTerminalToolOutputSectionOptions = {
-			container: elements.output,
-			title: elements.title,
-			displayCommand,
-			terminalData: this._terminalData,
-			accessibleViewService: this._accessibleViewService,
-			onDidChangeHeight: () => this._onDidChangeHeight.fire(),
-			ensureTerminalInstance: () => this._ensureTerminalInstance(),
-			resolveCommand: () => this._getResolvedCommand(),
-			getTerminalTheme: () => this._terminalInstance?.xterm?.getXtermTheme() ?? this._terminalData.terminalTheme,
-			getStoredCommandId: () => this._storedCommandId
-		};
-		this._outputView = this._register(new ChatTerminalToolOutputSection(outputViewOptions));
-		this._register(this._outputView.onDidFocus(() => this._handleOutputFocus()));
-		this._register(this._outputView.onDidBlur(e => this._handleOutputBlur(e)));
-		this._register(toDisposable(() => this._handleDispose()));
-		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
-			this._focusAction.value?.refreshKeybindingTooltip();
-			this._showOutputAction.value?.refreshKeybindingTooltip();
-		}));
-
 		const progressPart = this._register(_instantiationService.createInstance(ChatProgressSubPart, elements.container, this.getIcon(), terminalData.autoApproveInfo));
 		this.domNode = progressPart.domNode;
 

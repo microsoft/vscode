@@ -138,15 +138,15 @@ suite('ChatEditingService', function () {
 	test('create session', async function () {
 		assert.ok(editingService);
 
-		const model = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
-		const session = await editingService.createEditingSession(model, true);
+		const model = chatService.startSession(ChatAgentLocation.EditorInline, CancellationToken.None);
+		const session = editingService.createEditingSession(model, true);
 
 		assert.strictEqual(session.chatSessionResource.toString(), model.sessionResource.toString());
 		assert.strictEqual(session.isGlobalEditingSession, true);
 
 		await assertThrowsAsync(async () => {
 			// DUPE not allowed
-			await editingService.createEditingSession(model);
+			editingService.createEditingSession(model);
 		});
 
 		session.dispose();
@@ -159,7 +159,7 @@ suite('ChatEditingService', function () {
 		const uri = URI.from({ scheme: 'test', path: 'HelloWorld' });
 
 		const model = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
-		const session = await model.editingSessionObs?.promise;
+		const session = model.editingSession;
 		if (!session) {
 			assert.fail('session not created');
 		}
@@ -217,7 +217,7 @@ suite('ChatEditingService', function () {
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
 			const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
-			const session = await model.editingSessionObs?.promise;
+			const session = model.editingSession;
 			assertType(session, 'session not created');
 
 			const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'FarBoo\n' }]);
@@ -250,7 +250,7 @@ suite('ChatEditingService', function () {
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
 			const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
-			const session = await model.editingSessionObs?.promise;
+			const session = model.editingSession;
 			assertType(session, 'session not created');
 
 			const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'FarBoo\n' }]);
@@ -283,7 +283,7 @@ suite('ChatEditingService', function () {
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
 			const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
-			const session = await model.editingSessionObs?.promise;
+			const session = model.editingSession;
 			assertType(session, 'session not created');
 
 			const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'FarBoo\n' }]);
@@ -318,7 +318,7 @@ suite('ChatEditingService', function () {
 			const modified = store.add(await textModelService.createModelReference(uri)).object.textEditorModel;
 
 			const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
-			const session = await model.editingSessionObs?.promise;
+			const session = model.editingSession;
 			assertType(session, 'session not created');
 
 			modified.setValue('');

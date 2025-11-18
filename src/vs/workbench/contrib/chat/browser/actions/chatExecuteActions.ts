@@ -26,10 +26,10 @@ import { IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService, showChatWidgetInViewOrEditor } from '../chat.js';
+import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
-import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
+import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
 import { ContinueChatInSessionAction } from './chatContinueInAction.js';
 
 export interface IVoiceChatExecuteActionContext {
@@ -242,7 +242,6 @@ export class ChatDelegateToEditSessionAction extends Action2 {
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const context = args[0] as IChatExecuteActionContext | undefined;
 		const widgetService = accessor.get(IChatWidgetService);
-		const instantiationService = accessor.get(IInstantiationService);
 		const inlineWidget = context?.widget ?? widgetService.lastFocusedWidget;
 		const locationData = inlineWidget?.locationData;
 
@@ -250,7 +249,7 @@ export class ChatDelegateToEditSessionAction extends Action2 {
 			const sessionWidget = widgetService.getWidgetBySessionResource(locationData.delegateSessionResource);
 
 			if (sessionWidget) {
-				await instantiationService.invokeFunction(showChatWidgetInViewOrEditor, sessionWidget);
+				await widgetService.reveal(sessionWidget);
 				sessionWidget.attachmentModel.addContext({
 					id: 'vscode.delegate.inline',
 					kind: 'file',
@@ -436,6 +435,7 @@ class OpenModelPickerAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const widget = widgetService.lastFocusedWidget;
 		if (widget) {
+			await widgetService.reveal(widget);
 			widget.input.openModelPicker();
 		}
 	}
@@ -696,8 +696,7 @@ class SendToNewChatAction extends Action2 {
 			}
 		}
 
-		widget.clear();
-		await widget.waitForReady();
+		await widget.clear();
 		widget.acceptInput(context?.inputValue);
 	}
 }
