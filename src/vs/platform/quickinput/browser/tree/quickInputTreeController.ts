@@ -20,6 +20,7 @@ import { QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
 import { QuickInputTreeSorter } from './quickInputTreeSorter.js';
 
 const $ = dom.$;
+const flatHierarchyClass = 'quick-input-tree-flat';
 
 export class QuickInputTreeController extends Disposable {
 	private readonly _renderer: QuickInputTreeRenderer<IQuickTreeItem>;
@@ -33,7 +34,7 @@ export class QuickInputTreeController extends Disposable {
 	private readonly _onDidChangeCheckboxState = this._register(new Emitter<IQuickTreeCheckboxEvent<IQuickTreeItem>>());
 	readonly onDidChangeCheckboxState = this._onDidChangeCheckboxState.event;
 
-	private readonly _onDidCheckedLeafItemsChange = this._register(new Emitter<ReadonlyArray<IQuickTreeItem>>);
+	private readonly _onDidCheckedLeafItemsChange = this._register(new Emitter<ReadonlyArray<IQuickTreeItem>>());
 	readonly onDidChangeCheckedLeafItems = this._onDidCheckedLeafItemsChange.event;
 
 	private readonly _onLeave = new Emitter<void>();
@@ -132,9 +133,11 @@ export class QuickInputTreeController extends Disposable {
 	}
 
 	setTreeData(treeData: readonly IQuickTreeItem[]): void {
+		let hasNestedItems = false;
 		const createTreeElement = (item: IQuickTreeItem): IObjectTreeElement<IQuickTreeItem> => {
 			let children: IObjectTreeElement<IQuickTreeItem>[] | undefined;
-			if (item.children) {
+			if (item.children?.length) {
+				hasNestedItems = true;
 				children = item.children.map(child => createTreeElement(child));
 				item.checked = getParentNodeState(children);
 			}
@@ -148,6 +151,7 @@ export class QuickInputTreeController extends Disposable {
 
 		const treeElements = treeData.map(item => createTreeElement(item));
 		this._tree.setChildren(null, treeElements);
+		this._container.classList.toggle(flatHierarchyClass, !hasNestedItems);
 	}
 
 	layout(maxHeight?: number): void {

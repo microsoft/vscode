@@ -388,6 +388,11 @@
 	padding-bottom: 5px;
 }
 
+.quick-input-tree.quick-input-tree-flat .monaco-tl-indent,
+.quick-input-tree.quick-input-tree-flat .monaco-tl-twistie {
+	display: none !important;
+}
+
 .quick-input-tree .quick-input-tree-entry {
 	box-sizing: border-box;
 	overflow: hidden;
