@@ -1,0 +1,5 @@
+<svg width="600" height="100" viewBox="0 0 600 100" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="600" height="100" fill="#1e1e1e"/>
+  <rect x="10" y="30" width="580" height="40" rx="5" ry="5" fill="#2d2d2d" stroke="#555"/>
+  <text x="30" y="55" fill="#aaaaaa" font-family="sans-serif" font-size="16">Type a message...</text>
+</svg>

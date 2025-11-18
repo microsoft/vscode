@@ -117,6 +117,12 @@ import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import './simpleChat.contribution.js';
+import { joinPath } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ISearchService, QueryType, isFileMatch, resultIsMatch, type ITextQuery } from '../../../services/search/common/search.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -659,13 +665,16 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
 	static readonly ID = 'workbench.contrib.chatSlashStaticSlashCommands';
 
-	constructor(
-		@IChatSlashCommandService slashCommandService: IChatSlashCommandService,
-		@ICommandService commandService: ICommandService,
-		@IChatAgentService chatAgentService: IChatAgentService,
-		@IChatWidgetService chatWidgetService: IChatWidgetService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
+        constructor(
+                @IChatSlashCommandService slashCommandService: IChatSlashCommandService,
+                @ICommandService commandService: ICommandService,
+                @IChatAgentService chatAgentService: IChatAgentService,
+                @IChatWidgetService chatWidgetService: IChatWidgetService,
+                @IInstantiationService instantiationService: IInstantiationService,
+                @IFileService private readonly fileService: IFileService,
+                @IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+                @ISearchService private readonly searchService: ISearchService,
+        ) {
 		super();
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'clear',
@@ -740,12 +749,71 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				}
 			}
 
-			// Without this, the response will be done before it renders and so it will not stream. This ensures that if the response starts
-			// rendering during the next 200ms, then it will be streamed. Once it starts streaming, the whole response streams even after
-			// it has received all response data has been received.
-			await timeout(200);
-		}));
-	}
+                        // Without this, the response will be done before it renders and so it will not stream. This ensures that if the response starts
+                        // rendering during the next 200ms, then it will be streamed. Once it starts streaming, the whole response streams even after
+                        // it has received all response data has been received.
+                        await timeout(200);
+                }));
+
+                this._store.add(slashCommandService.registerSlashCommand({
+                        command: 'file',
+                        detail: nls.localize('chat.slash.file', "Insert file contents"),
+                        sortText: 'z4_file',
+                        executeImmediately: true,
+                        locations: [ChatAgentLocation.Panel]
+                }, async (prompt, progress) => {
+                        const path = prompt.trim();
+                        const root = this.workspaceContextService.getWorkspace().folders[0]?.uri;
+                        if (!path || !root) {
+                                progress.report({ content: new MarkdownString(nls.localize('chat.slash.file.error', "No file specified")), kind: 'markdownContent' });
+                                return;
+                        }
+                        const resource = joinPath(root, path);
+                        try {
+                                const data = await this.fileService.readFile(resource);
+                                const text = data.value.toString();
+                                const md = new MarkdownString();
+                                md.appendCodeblock(text);
+                                progress.report({ content: md, kind: 'markdownContent' });
+                        } catch (err) {
+                                progress.report({ content: new MarkdownString(nls.localize('chat.slash.file.readError', "Could not read file: {0}", (err as Error).message)), kind: 'markdownContent' });
+                        }
+                }));
+
+                this._store.add(slashCommandService.registerSlashCommand({
+                        command: 'search',
+                        detail: nls.localize('chat.slash.search', "Search workspace"),
+                        sortText: 'z5_search',
+                        executeImmediately: true,
+                        locations: [ChatAgentLocation.Panel]
+                }, async (prompt, progress, _history, _location, token) => {
+                        const query = prompt.trim();
+                        const folders = this.workspaceContextService.getWorkspace().folders;
+                        if (!query || folders.length === 0) {
+                                progress.report({ content: new MarkdownString(nls.localize('chat.slash.search.error', "No results")), kind: 'markdownContent' });
+                                return;
+                        }
+                        const textQuery: ITextQuery = {
+                                type: QueryType.Text,
+                                contentPattern: { pattern: query },
+                                folderQueries: folders.map(f => ({ folder: f.uri })),
+                                maxResults: 20
+                        };
+                        const lines: string[] = [];
+                        await this.searchService.textSearch(textQuery, token, p => {
+                                if (isFileMatch(p)) {
+                                        for (const r of p.results ?? []) {
+                                                if (resultIsMatch(r)) {
+                                                        lines.push(`${p.resource.path}: ${r.previewText}`);
+                                                }
+                                        }
+                                }
+                        });
+                        const md = new MarkdownString();
+                        md.appendCodeblock(lines.join('\n'));
+                        progress.report({ content: md, kind: 'markdownContent' });
+                }));
+        }
 }
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 

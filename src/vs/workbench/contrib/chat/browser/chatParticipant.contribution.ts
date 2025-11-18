@@ -40,7 +40,9 @@ const chatViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(Vi
 	icon: Codicon.commentDiscussion,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [CHAT_SIDEBAR_PANEL_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: CHAT_SIDEBAR_PANEL_ID,
-	hideIfEmpty: true,
+        // Show the chat container even if no views are registered yet so the
+        // Chat icon is visible on first launch.
+        hideIfEmpty: false,
 	order: 100,
 }, ViewContainerLocation.AuxiliaryBar, { isDefault: true, doNotRegisterOpenCommand: true });
 

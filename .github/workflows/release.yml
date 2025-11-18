@@ -1,0 +1,58 @@
+name: Build Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux-x64
+            artifact: vscode-linux-x64
+          - os: macos-latest
+            platform: darwin
+            artifact: vscode-darwin
+          - os: windows-latest
+            platform: win32-x64
+            artifact: vscode-win32-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'yarn'
+      - name: Install dependencies
+        run: yarn --frozen-lockfile
+      - name: Run tests
+        run: npm test
+      - name: Build
+        run: yarn gulp vscode-${{ matrix.platform }}
+      - name: Sign build
+        run: ./scripts/sign-${{ matrix.platform }}.sh .build/${{ matrix.artifact }}
+        env:
+          SIGNING_CERT: ${{ secrets.SIGNING_CERT }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: .build/${{ matrix.artifact }}/**
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+      - name: Publish artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          files: '**/*'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

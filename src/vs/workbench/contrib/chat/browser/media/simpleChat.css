@@ -1,0 +1,38 @@
+.simple-chat-root {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+}
+
+.simple-chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 6px;
+}
+
+.simple-chat-input {
+        display: flex;
+        padding: 6px;
+}
+
+.simple-chat-input .monaco-inputbox {
+        flex: 1;
+}
+
+.simple-chat-send {
+        margin-left: 4px;
+}
+
+.simple-chat-message {
+        margin-bottom: 8px;
+}
+
+.simple-chat-message.error {
+        color: var(--vscode-errorForeground);
+}
+
+.simple-chat-latency {
+        opacity: 0.7;
+        font-size: 0.9em;
+        margin-top: 4px;
+}
