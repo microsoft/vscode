@@ -11,6 +11,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
@@ -24,13 +25,12 @@ import { editorBackground, inputBackground, quickInputBackground, quickInputFore
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatModel, isCellTextEditOperationArray } from '../common/chatModel.js';
 import { ChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatAgentLocation } from '../common/constants.js';
-import { IQuickChatOpenOptions, IQuickChatService, showChatView } from './chat.js';
+import { IChatWidgetService, IQuickChatOpenOptions, IQuickChatService } from './chat.js';
 import { ChatWidget } from './chatWidget.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
@@ -62,6 +62,10 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 			return false;
 		}
 		return dom.isAncestorOfActiveElement(widget);
+	}
+
+	get sessionResource(): URI | undefined {
+		return this._input && this._currentChat?.sessionResource;
 	}
 
 	toggle(options?: IQuickChatOpenOptions): void {
@@ -156,23 +160,28 @@ class QuickChat extends Disposable {
 	private readonly maintainScrollTimer: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
 	private _deferUpdatingDynamicLayout: boolean = false;
 
+	public get sessionResource() {
+		return this.model?.sessionResource;
+	}
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IViewsService private readonly viewsService: IViewsService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 	}
 
-	clear() {
+	private clear() {
 		this.model?.dispose();
 		this.model = undefined;
 		this.updateModel();
 		this.widget.inputEditor.setValue('');
+		return Promise.resolve();
 	}
 
 	focus(selection?: Selection): void {
@@ -236,7 +245,8 @@ class QuickChat extends Disposable {
 					renderStyle: 'compact',
 					menus: { inputSideToolbar: MenuId.ChatInputSide, telemetrySource: 'chatQuick' },
 					enableImplicitContext: true,
-					defaultMode: ChatMode.Ask
+					defaultMode: ChatMode.Ask,
+					clear: () => this.clear(),
 				},
 				{
 					listForeground: quickInputForeground,
@@ -294,7 +304,6 @@ class QuickChat extends Disposable {
 		this._register(this.widget.inputEditor.onDidChangeModelContent((e) => {
 			this._currentQuery = this.widget.inputEditor.getValue();
 		}));
-		this._register(this.widget.onDidClear(() => this.clear()));
 		this._register(this.widget.onDidChangeHeight((e) => this.sash.layout()));
 		const width = parent.offsetWidth;
 		this._register(this.sash.onDidStart(() => {
@@ -318,7 +327,7 @@ class QuickChat extends Disposable {
 	}
 
 	async openChatView(): Promise<void> {
-		const widget = await showChatView(this.viewsService, this.layoutService);
+		const widget = await this.chatWidgetService.revealWidget();
 		if (!widget?.viewModel || !this.model) {
 			return;
 		}

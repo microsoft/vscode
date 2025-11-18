@@ -12,8 +12,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/cont
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
+import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { basename, relativePath } from '../../../../../base/common/resources.js';
@@ -22,23 +21,22 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
 import { isITextModel } from '../../../../../editor/common/model.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentService, IChatAgent, IChatAgentHistoryEntry } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatModel, IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
+import { IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
-import { IChatService, IChatPullRequestContent } from '../../common/chatService.js';
+import { IChatService } from '../../common/chatService.js';
 import { chatSessionResourceToId } from '../../common/chatUri.js';
 import { ChatRequestVariableSet, isChatRequestFileEntry } from '../../common/chatVariableEntries.js';
-import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { IChatWidgetService } from '../chat.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 
 export class ContinueChatInSessionAction extends Action2 {
 
@@ -58,13 +56,7 @@ export class ContinueChatInSessionAction extends Action2 {
 				id: MenuId.ChatExecute,
 				group: 'navigation',
 				order: 3.4,
-				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(
-						ChatContextKeys.hasRemoteCodingAgent,
-						ChatContextKeys.hasCloudButtonV2
-					),
-					ChatContextKeys.lockedToCodingAgent.negate(),
-				),
+				when: ChatContextKeys.lockedToCodingAgent.negate(),
 			}
 		});
 	}
@@ -97,13 +89,19 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 				// Continue in Background
 				const backgroundContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Background);
 				if (backgroundContrib && backgroundContrib.canDelegate !== false) {
-					actions.push(this.toAction(backgroundContrib, instantiationService));
+					actions.push(this.toAction(AgentSessionProviders.Background, backgroundContrib, instantiationService));
 				}
 
 				// Continue in Cloud
 				const cloudContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Cloud);
 				if (cloudContrib && cloudContrib.canDelegate !== false) {
-					actions.push(this.toAction(cloudContrib, instantiationService));
+					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService));
+				}
+
+				// Offer actions to enter setup if we have no contributions
+				if (actions.length === 0) {
+					actions.push(this.toSetupAction(AgentSessionProviders.Background, instantiationService));
+					actions.push(this.toSetupAction(AgentSessionProviders.Cloud, instantiationService));
 				}
 
 				return actions;
@@ -111,17 +109,31 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		};
 	}
 
-	private static toAction(contrib: IChatSessionsExtensionPoint, instantiationService: IInstantiationService): IActionWidgetDropdownAction {
+	private static toAction(provider: AgentSessionProviders, contrib: IChatSessionsExtensionPoint, instantiationService: IInstantiationService): IActionWidgetDropdownAction {
 		return {
 			id: contrib.type,
 			enabled: true,
-			icon: contrib.type === AgentSessionProviders.Cloud ? Codicon.cloud : Codicon.collection,
+			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
+			description: `@${contrib.name}`,
+			label: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
 			tooltip: contrib.displayName,
-			label: contrib.type === AgentSessionProviders.Cloud ?
-				localize('continueInCloud', "Continue in Cloud") :
-				localize('continueInBackground', "Continue in Background"),
 			run: () => instantiationService.invokeFunction(accessor => new CreateRemoteAgentJobAction().run(accessor, contrib))
+		};
+	}
+
+	private static toSetupAction(provider: AgentSessionProviders, instantiationService: IInstantiationService): IActionWidgetDropdownAction {
+		return {
+			id: provider,
+			enabled: true,
+			icon: getAgentSessionProviderIcon(provider),
+			class: undefined,
+			label: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
+			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
+			run: () => instantiationService.invokeFunction(accessor => {
+				const commandService = accessor.get(ICommandService);
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
+			})
 		};
 	}
 
@@ -143,102 +155,6 @@ class CreateRemoteAgentJobAction {
 
 	constructor() { }
 
-	private async pickCodingAgent<T extends IChatSessionsExtensionPoint | IRemoteCodingAgent>(
-		quickPickService: IQuickInputService,
-		options: T[]
-	): Promise<T | undefined> {
-		if (options.length === 0) {
-			return undefined;
-		}
-		if (options.length === 1) {
-			return options[0];
-		}
-		const pick = await quickPickService.pick(
-			options.map(a => ({
-				label: a.displayName,
-				description: a.description,
-				agent: a,
-			})),
-			{
-				placeHolder: localize('selectBackgroundAgent', "Select Agent to delegate the task to"),
-			}
-		);
-		if (!pick) {
-			return undefined;
-		}
-		return pick.agent;
-	}
-
-	private async createWithChatSessions(
-		targetAgentId: string,
-		chatService: IChatService,
-		sessionResource: URI,
-		attachedContext: ChatRequestVariableSet,
-		userPrompt: string,
-		chatSummary?: {
-			prompt?: string;
-			history?: string;
-		}
-	) {
-		await chatService.sendRequest(sessionResource, userPrompt, {
-			agentIdSilent: targetAgentId,
-			attachedContext: attachedContext.asArray(),
-			chatSummary,
-		});
-	}
-
-	private async createWithLegacy(
-		remoteCodingAgentService: IRemoteCodingAgentsService,
-		commandService: ICommandService,
-		quickPickService: IQuickInputService,
-		chatModel: IChatModel,
-		addedRequest: IChatRequestModel,
-		widget: IChatWidget,
-		userPrompt: string,
-		summary?: string,
-	) {
-		const agents = remoteCodingAgentService.getAvailableAgents();
-		const agent = await this.pickCodingAgent(quickPickService, agents);
-		if (!agent) {
-			chatModel.completeResponse(addedRequest);
-			return;
-		}
-
-		// Execute the remote command
-		const result: Omit<IChatPullRequestContent, 'kind'> | string | undefined = await commandService.executeCommand(agent.command, {
-			userPrompt,
-			summary,
-			_version: 2, // Signal that we support the new response format
-		});
-
-		if (result && typeof result === 'object') { /* _version === 2 */
-			chatModel.acceptResponseProgress(addedRequest, { kind: 'pullRequest', ...result });
-			chatModel.acceptResponseProgress(addedRequest, {
-				kind: 'markdownContent', content: new MarkdownString(
-					localize('remoteAgentResponse2', "Your work will be continued in this pull request."),
-					CreateRemoteAgentJobAction.markdownStringTrustedOptions
-				)
-			});
-		} else if (typeof result === 'string') {
-			chatModel.acceptResponseProgress(addedRequest, {
-				kind: 'markdownContent',
-				content: new MarkdownString(
-					localize('remoteAgentResponse', "Coding agent response: {0}", result),
-					CreateRemoteAgentJobAction.markdownStringTrustedOptions
-				)
-			});
-			// Extension will open up the pull request in another view
-			widget.clear();
-		} else {
-			chatModel.acceptResponseProgress(addedRequest, {
-				kind: 'markdownContent',
-				content: new MarkdownString(
-					localize('remoteAgentError', "Coding agent session cancelled."),
-					CreateRemoteAgentJobAction.markdownStringTrustedOptions
-				)
-			});
-		}
-	}
 	async run(accessor: ServicesAccessor, continuationTarget: IChatSessionsExtensionPoint) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
@@ -246,13 +162,9 @@ class CreateRemoteAgentJobAction {
 		try {
 			remoteJobCreatingKey.set(true);
 
-			const configurationService = accessor.get(IConfigurationService);
 			const widgetService = accessor.get(IChatWidgetService);
 			const chatAgentService = accessor.get(IChatAgentService);
 			const chatService = accessor.get(IChatService);
-			const commandService = accessor.get(ICommandService);
-			const quickPickService = accessor.get(IQuickInputService);
-			const remoteCodingAgentService = accessor.get(IRemoteCodingAgentsService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const editorService = accessor.get(IEditorService);
 
@@ -380,36 +292,15 @@ class CreateRemoteAgentJobAction {
 				summary += `\nTITLE: ${title}\n`;
 			}
 
-
-			const isChatSessionsExperimentEnabled = configurationService.getValue<boolean>(ChatConfiguration.UseCloudButtonV2);
-			if (isChatSessionsExperimentEnabled) {
-				await chatService.removeRequest(sessionResource, addedRequest.id);
-				return await this.createWithChatSessions(
-					continuationTargetType,
-					chatService,
-					sessionResource,
-					attachedContext,
-					userPrompt,
-					{
-						prompt: summarizedUserPrompt,
-						history: summary,
-					},
-				);
-			}
-
-			// -- Below is the legacy implementation
-
-			chatModel.acceptResponseProgress(addedRequest, {
-				kind: 'progressMessage',
-				content: new MarkdownString(
-					localize('creatingRemoteJob', "Delegating to coding agent"),
-					CreateRemoteAgentJobAction.markdownStringTrustedOptions
-				)
+			await chatService.removeRequest(sessionResource, addedRequest.id);
+			await chatService.sendRequest(sessionResource, userPrompt, {
+				agentIdSilent: continuationTargetType,
+				attachedContext: attachedContext.asArray(),
+				chatSummary: {
+					prompt: summarizedUserPrompt,
+					history: summary,
+				},
 			});
-
-			await this.createWithLegacy(remoteCodingAgentService, commandService, quickPickService, chatModel, addedRequest, widget, summarizedUserPrompt || userPrompt, summary);
-			chatModel.setResponse(addedRequest, {});
-			chatModel.completeResponse(addedRequest);
 		} catch (e) {
 			console.error('Error creating remote coding agent job', e);
 			throw e;

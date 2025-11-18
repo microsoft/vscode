@@ -58,7 +58,6 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
@@ -72,7 +71,7 @@ import { IChatRequestToolEntry } from '../common/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from './actions/chatActions.js';
-import { ChatViewId, IChatWidgetService, showChatView } from './chat.js';
+import { ChatViewId, IChatWidgetService } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { chatViewsWelcomeRegistry } from './viewsWelcome/chatViewsWelcome.js';
@@ -86,7 +85,6 @@ import { CodeActionKind } from '../../../../editor/contrib/codeAction/common/typ
 import { ACTION_START as INLINE_CHAT_START } from '../../inlineChat/common/inlineChat.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { IMarker, IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 
@@ -486,7 +484,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		if (typeof result?.success === 'boolean') {
 			if (result.success) {
 				if (result.dialogSkipped) {
-					widget?.clear(); // make room for the Chat welcome experience
+					await widget?.clear(); // make room for the Chat welcome experience
 				} else if (requestModel) {
 					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService); 	// Replace agent part with the actual Chat agent...
 					newRequest = this.replaceToolInRequestModel(newRequest); 							// ...then replace any tool parts with the actual Chat tools
@@ -826,7 +824,7 @@ class ChatSetup {
 		let instance = ChatSetup.instance;
 		if (!instance) {
 			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
-				return new ChatSetup(context, controller, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IWorkspaceTrustRequestService), accessor.get(IMarkdownRendererService));
+				return new ChatSetup(context, controller, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IChatWidgetService), accessor.get(IWorkspaceTrustRequestService), accessor.get(IMarkdownRendererService));
 			});
 		}
 
@@ -846,7 +844,7 @@ class ChatSetup {
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IViewsService private readonly viewsService: IViewsService,
+		@IChatWidgetService private readonly widgetService: IChatWidgetService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) { }
@@ -901,7 +899,7 @@ class ChatSetup {
 		if (setupStrategy !== ChatSetupStrategy.Canceled && !options?.disableChatViewReveal) {
 			// Show the chat view now to better indicate progress
 			// while installing the extension or returning from sign in
-			showChatView(this.viewsService, this.layoutService);
+			this.widgetService.revealWidget();
 		}
 
 		let success: ChatSetupResultValue = undefined;
@@ -1181,8 +1179,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 
 			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<boolean> {
-				const viewsService = accessor.get(IViewsService);
-				const layoutService = accessor.get(IWorkbenchLayoutService);
+				const widgetService = accessor.get(IChatWidgetService);
 				const instantiationService = accessor.get(IInstantiationService);
 				const dialogService = accessor.get(IDialogService);
 				const commandService = accessor.get(ICommandService);
@@ -1193,7 +1190,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, false);
 
 				if (mode) {
-					const chatWidget = await showChatView(viewsService, layoutService);
+					const chatWidget = await widgetService.revealWidget();
 					chatWidget?.input.setChatMode(mode);
 				}
 
@@ -1416,14 +1413,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				CommandsRegistry.registerCommand(coreCommand, async accessor => {
 					const commandService = accessor.get(ICommandService);
-					const editorGroupService = accessor.get(IEditorGroupsService);
 					const codeEditorService = accessor.get(ICodeEditorService);
 					const markerService = accessor.get(IMarkerService);
-
-					if (editorGroupService.activeGroup.activeEditor) {
-						// Pinning the editor helps when the Chat extension welcome kicks in after install to keep context
-						editorGroupService.activeGroup.pinEditor(editorGroupService.activeGroup.activeEditor);
-					}
 
 					switch (coreCommand) {
 						case 'chat.internal.explain':

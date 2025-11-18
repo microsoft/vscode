@@ -10,9 +10,11 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString, createMarkdownLink } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -455,7 +457,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					contentMarkdownString = prefaceText;
 					for (const scope of element.overriddenScopeList) {
 						const scopeDisplayText = this.getInlineScopeDisplayText(scope);
-						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(scope)} "${getAccessibleScopeDisplayText(scope, this.languageService)}")`;
+						contentMarkdownString += '\n- ' + createMarkdownLink(scopeDisplayText, SettingScopeLink.create(scope).toString(), getAccessibleScopeDisplayText(scope, this.languageService));
 					}
 				}
 				if (element.overriddenDefaultsLanguageList.length) {
@@ -466,7 +468,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					contentMarkdownString += prefaceText;
 					for (const language of element.overriddenDefaultsLanguageList) {
 						const scopeDisplayText = this.languageService.getLanguageName(language);
-						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(`default:${language}`)} "${scopeDisplayText}")`;
+						contentMarkdownString += '\n- ' + createMarkdownLink(scopeDisplayText ?? language, SettingScopeLink.create(`default:${language}`).toString());
 					}
 				}
 				const content: IMarkdownString = {
@@ -478,7 +480,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					...this.defaultHoverOptions,
 					content,
 					linkHandler: (url: string) => {
-						const [scope, language] = decodeURIComponent(url).split(':');
+						const [scope, language] = SettingScopeLink.parse(url).split(':');
 						onDidClickOverrideElement.fire({
 							settingKey: element.setting.key,
 							scope: scope as ScopeString,
@@ -634,4 +636,22 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 
 	const ariaLabel = ariaLabelSections.join('. ');
 	return ariaLabel;
+}
+
+/**
+ * Internal links used to open a specific scope in the settings editor
+ */
+namespace SettingScopeLink {
+	export function create(scope: string): URI {
+		return URI.from({
+			scheme: Schemas.internal,
+			path: '/',
+			query: encodeURIComponent(scope)
+		});
+	}
+
+	export function parse(link: string): string {
+		const uri = URI.parse(link);
+		return decodeURIComponent(uri.query);
+	}
 }

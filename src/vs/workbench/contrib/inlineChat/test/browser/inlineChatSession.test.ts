@@ -44,10 +44,10 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { IChatAccessibilityService, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatAccessibilityService, IChatWidgetService, IQuickChatService } from '../../../chat/browser/chat.js';
 import { ChatSessionsService } from '../../../chat/browser/chatSessions.contribution.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
-import { ChatWidget, ChatWidgetService } from '../../../chat/browser/chatWidget.js';
+import { ChatWidget } from '../../../chat/browser/chatWidget.js';
 import { ChatAgentService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 import { IChatRequestModel } from '../../../chat/common/chatModel.js';
@@ -70,6 +70,7 @@ import { HunkState } from '../../browser/inlineChatSession.js';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService.js';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { TestWorkerService } from './testWorkerService.js';
+import { ChatWidgetService } from '../../../chat/browser/chatWidgetService.js';
 
 suite('InlineChatSession', function () {
 
@@ -130,6 +131,7 @@ suite('InlineChatSession', function () {
 					return null;
 				}
 			}],
+			[IQuickChatService, new class extends mock<IQuickChatService>() { }],
 			[IConfigurationService, new TestConfigurationService()],
 			[IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
 				override onDidChangeLocation = Event.None;

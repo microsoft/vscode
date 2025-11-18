@@ -505,7 +505,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		templateData.elementDisposables.add(autorun(reader => {
 			const labelConfig = this._badgesConfig.read(reader);
 
-			templateData.labelContainer.textContent = '';
+			templateData.labelContainer.replaceChildren();
 
 			const references = historyItem.references ?
 				historyItem.references.slice(0) : [];

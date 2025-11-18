@@ -32,7 +32,7 @@ import { InlineEditsCustomView } from './inlineEditsViews/inlineEditsCustomView.
 import { InlineEditsDeletionView } from './inlineEditsViews/inlineEditsDeletionView.js';
 import { InlineEditsInsertionView } from './inlineEditsViews/inlineEditsInsertionView.js';
 import { InlineEditsLineReplacementView } from './inlineEditsViews/inlineEditsLineReplacementView.js';
-import { ILongDistanceHint, ILongDistanceViewState, InlineEditsLongDistanceHint } from './inlineEditsViews/inlineEditsLongDistanceHint.js';
+import { ILongDistanceHint, ILongDistanceViewState, InlineEditsLongDistanceHint } from './inlineEditsViews/longDistanceHint/inlineEditsLongDistanceHint.js';
 import { InlineEditsSideBySideView } from './inlineEditsViews/inlineEditsSideBySideView.js';
 import { InlineEditsWordReplacementView } from './inlineEditsViews/inlineEditsWordReplacementView.js';
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineEditsViews/originalEditorInlineDiffView.js';
@@ -264,6 +264,9 @@ export class InlineEditsView extends Disposable {
 	} | undefined = undefined;
 
 	private _getLongDistanceHintState(model: ModelPerInlineEdit, reader: IReader): ILongDistanceHint | undefined {
+		if (model.inlineEdit.inlineCompletion.identity.jumpedTo.read(reader)) {
+			return undefined;
+		}
 		if (this._currentInlineEditCache?.inlineSuggestionIdentity !== model.inlineEdit.inlineCompletion.identity) {
 			this._currentInlineEditCache = {
 				inlineSuggestionIdentity: model.inlineEdit.inlineCompletion.identity,
@@ -349,7 +352,8 @@ export class InlineEditsView extends Disposable {
 			|| this._inlineDiffView.isHovered.read(reader)
 			|| this._lineReplacementView.isHovered.read(reader)
 			|| this._insertion.isHovered.read(reader)
-			|| this._customView.isHovered.read(reader);
+			|| this._customView.isHovered.read(reader)
+			|| this._longDistanceHint.map((v, r) => v?.isHovered.read(r) ?? false).read(reader);
 	});
 
 	private readonly _sideBySide;
