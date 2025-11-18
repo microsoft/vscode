@@ -34,6 +34,8 @@ jobs:
           scanOutputDirectoryOnly: true
           analyzeTargetGlob: '**/*.node;**/*.so;'
           preReleaseVersion: '4.3.1'
+        tsa:
+          enabled: false
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
         - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
