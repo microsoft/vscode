@@ -854,7 +854,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _streamBuffer: string[] = [];
 	private _lastRawSnapshot: string | undefined;
 	private _xtermElement: HTMLElement | undefined;
-	private _xtermViewport: HTMLElement | undefined;
 
 	private readonly _onDidFocusEmitter = new Emitter<void>();
 	private readonly _onDidBlurEmitter = new Emitter<FocusEvent>();
@@ -1193,7 +1192,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._outputResizeObserver?.disconnect();
 		this._outputResizeObserver = undefined;
 		this._xtermElement = undefined;
-		this._xtermViewport = undefined;
 		dom.clearNode(this._terminalContainer);
 	}
 
@@ -1266,9 +1264,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _scrollOutputToBottom(): void {
-		if (this._xtermViewport) {
-			this._xtermViewport.scrollTop = this._xtermViewport.scrollHeight;
-		}
 		this._scrollable.scanDomNode();
 		const dimensions = this._scrollable.getScrollDimensions();
 		this._scrollable.setScrollPosition({ scrollTop: dimensions.scrollHeight });
@@ -1279,9 +1274,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 		const observer = new ResizeObserver(() => this._layoutOutput());
-		if (this._xtermViewport) {
-			observer.observe(this._xtermViewport);
-		}
 		observer.observe(this._terminalContainer);
 		this._outputResizeObserver = observer;
 		this._register(toDisposable(() => {
@@ -1315,7 +1307,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const existing = this._detachedTerminal.value;
 		if (existing) {
 			if (!this._xtermElement) {
-				this._captureXtermElements(existing);
+				this._captureXtermElement(existing);
 			}
 			return existing;
 		}
@@ -1323,7 +1315,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			const instance = await this._createDetachedTerminal();
 			this._detachedTerminal.value = instance;
 			instance.attachToElement(this._terminalContainer);
-			this._captureXtermElements(instance);
+			this._captureXtermElement(instance);
 			this._scrollable.scanDomNode();
 			return instance;
 		} catch {
@@ -1331,46 +1323,15 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}
 	}
 
-	private _captureXtermElements(instance: IDetachedTerminalInstance): void {
+	private _captureXtermElement(instance: IDetachedTerminalInstance): void {
 		const xterm = instance.xterm as unknown as XtermTerminal | undefined;
 		const rawElement = xterm?.raw.element;
 		if (!rawElement) {
 			this._xtermElement = undefined;
-			this._xtermViewport = undefined;
 			return;
 		}
 
-		// This is needed because xterm is not guaranteed to be created in the constructor,
-		// so we can't create and store the references earlier.
-		const findElementWithClass = (
-			root: Element | undefined,
-			className: string
-		): HTMLElement | undefined => {
-			if (!root) {
-				return;
-			}
-
-			const stack = [root];
-
-			while (stack.length) {
-				const cur = stack.pop()!;
-				if (dom.isHTMLElement(cur) && cur.classList.contains(className)) {
-					return cur;
-				}
-				for (let i = cur.children.length - 1; i >= 0; i--) {
-					stack.push(cur.children[i]);
-				}
-			}
-			return;
-		};
-
-		const xtermElement = rawElement.classList.contains('xterm')
-			? rawElement
-			: findElementWithClass(rawElement, 'xterm');
-
-		this._xtermElement = xtermElement ?? rawElement;
-		const searchRoot = xtermElement ?? rawElement;
-		this._xtermViewport = findElementWithClass(searchRoot, 'xterm-viewport');
+		this._xtermElement = rawElement;
 		if (this._outputResizeObserver) {
 			this._outputResizeObserver.disconnect();
 			this._outputResizeObserver = undefined;
