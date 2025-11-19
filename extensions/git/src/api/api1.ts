@@ -326,6 +326,10 @@ export class ApiRepository implements Repository {
 	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
 		return this.#repository.deleteWorktree(path, options);
 	}
+
+	migrateChanges(sourceRepositoryPath: string, options?: { staged?: boolean; untracked?: boolean; deleteFromSource?: boolean; confirmation?: boolean }): Promise<void> {
+		return this.#repository.migrateChanges(sourceRepositoryPath, options);
+	}
 }
 
 export class ApiGit implements Git {

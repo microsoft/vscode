@@ -3413,7 +3413,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.migrateChanges(Uri.file(worktreeRepository.root), {
+		await repository.migrateChanges(worktreeRepository.root, {
 			confirmation: true,
 			deleteFromSource: false,
 			untracked: true

@@ -2448,7 +2448,7 @@ export class Repository implements Disposable {
 		}
 	}
 
-	async migrateChanges(sourceRepositoryRoot: Uri, options?: { staged?: boolean; untracked?: boolean; deleteFromSource?: boolean; confirmation?: boolean }): Promise<void> {
+	async migrateChanges(sourceRepositoryRoot: string, options?: { staged?: boolean; untracked?: boolean; deleteFromSource?: boolean; confirmation?: boolean }): Promise<void> {
 		const sourceRepository = this.repositoryResolver.getRepository(sourceRepositoryRoot);
 		if (!sourceRepository) {
 			window.showWarningMessage(l10n.t('The source repository could not be found.'));
