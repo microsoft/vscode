@@ -160,7 +160,7 @@ export const USER_LOCAL_AND_REMOTE_SETTINGS = [
 	'http.experimental.networkInterfaceCheckInterval',
 ];
 
-export const systemCertificatesNodeDefault = false;
+export const systemCertificatesNodeDefault = true;
 
 let proxyConfiguration: IConfigurationNode[] = [];
 let previousUseHostProxy: boolean | undefined = undefined;
