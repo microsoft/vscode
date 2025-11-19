@@ -37,6 +37,7 @@
 	display: flex;
 	align-items: center;
 	gap: 0px;
+	align-items: flex-start;
 	flex: 1 1 auto;
 	min-width: 0;
 }
