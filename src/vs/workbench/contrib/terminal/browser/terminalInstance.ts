@@ -1536,11 +1536,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (!trusted) {
 				this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
 			}
-		} else if (this._cwd && this._userHome && this._cwd !== this._userHome) {
+			this._logService.trace(`TerminalInstance#_createProcess - workspace trusted: ${trusted} (instanceId: ${this.instanceId})`);
+		} else if (!this.hasRemoteAuthority && this._cwd && this._userHome && this._cwd !== this._userHome) {
 			// something strange is going on if cwd is not userHome in an empty workspace
+			// Skip this check for remote terminals as the cwd and userHome may be from different filesystems
+			// (e.g., WSL path vs Windows path)
 			this._onProcessExit({
 				message: nls.localize('workspaceNotTrustedCreateTerminalCwd', "Cannot launch a terminal process in an untrusted workspace with cwd {0} and userHome {1}", this._cwd, this._userHome)
 			});
+			this._logService.trace(`TerminalInstance#_createProcess - workspace trusted: false (instanceId: ${this.instanceId})`);
+			this._logService.trace(`TerminalInstance#_createProcess - cwd: ${this._cwd}, userHome: ${this._userHome} (instanceId: ${this.instanceId})`);
 		}
 		// Re-evaluate dimensions if the container has been set since the xterm instance was created
 		if (this._container && this._cols === 0 && this._rows === 0) {
@@ -1557,12 +1562,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			}
 		});
+		this._logService.trace(`TerminalInstance#_createProcess - process created (instanceId: ${this.instanceId})`);
 		if (this.isDisposed) {
+			this._logService.trace(`TerminalInstance#_createProcess - instance disposed (instanceId: ${this.instanceId})`);
 			return;
 		}
 		if (originalIcon !== this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
 			this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;
 			this._onIconChanged.fire({ instance: this, userInitiated: false });
+			this._logService.trace(`TerminalInstance#_createProcess - icon updated (instanceId: ${this.instanceId})`);
 		}
 	}
 
