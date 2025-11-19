@@ -189,7 +189,7 @@ export interface ISearchTreeFolderMatch {
 	parent(): ISearchTreeFolderMatch | ITextSearchHeading;
 	matches(): (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[];
 	allDownstreamFileMatches(): ISearchTreeFileMatch[];
-	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): void;
+	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource | ISearchTreeFolderMatchNoRoot | (ISearchTreeFileMatch | ISearchTreeFolderMatchWithResource)[]): void;
 	addFileMatch(raw: IFileMatch[], silent: boolean, searchInstanceID: string): void;
 	isEmpty(): boolean;
 	clear(clearingAll?: boolean): void;
