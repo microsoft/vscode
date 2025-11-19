@@ -967,7 +967,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// Await the initialization of available profiles as long as this is not a pty terminal or a
 		// local terminal in a remote workspace as profile won't be used in those cases and these
 		// terminals need to be launched before remote connections are established.
-		const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
+		const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.file;
 		this._logService.debug(`#terminalService#createTerminal: Value of isLocalInRemoteTerminal is: ${isLocalInRemoteTerminal}`);
 		this._logService.debug(`#terminalService#createTerminal: options are: ${JSON.stringify(options)}`);
 		this._logService.debug(`terminalService#createTerminal: Value of this._remoteAgentService.getConnection() is: ${this._remoteAgentService.getConnection()}`);
