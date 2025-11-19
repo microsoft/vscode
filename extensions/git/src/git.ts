@@ -2461,20 +2461,14 @@ export class Repository {
 		}
 	}
 
-	async popStash(stashIndex?: number, options?: { index?: boolean }): Promise<void> {
+	async popStash(index?: number): Promise<void> {
 		const args = ['stash', 'pop'];
-		if (options?.index) {
-			args.push('--index');
-		}
-		await this.popOrApplyStash(args, stashIndex);
+		await this.popOrApplyStash(args, index);
 	}
 
-	async applyStash(stashIndex?: number, options?: { index?: boolean }): Promise<void> {
+	async applyStash(index?: number): Promise<void> {
 		const args = ['stash', 'apply'];
-		if (options?.index) {
-			args.push('--index');
-		}
-		await this.popOrApplyStash(args, stashIndex);
+		await this.popOrApplyStash(args, index);
 	}
 
 	private async popOrApplyStash(args: string[], index?: number): Promise<void> {

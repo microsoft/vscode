@@ -2268,16 +2268,16 @@ export class Repository implements Disposable {
 		});
 	}
 
-	async popStash(stashIndex?: number, options?: { index?: boolean }): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.popStash(stashIndex, options));
+	async popStash(index?: number): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.popStash(index));
 	}
 
 	async dropStash(index?: number): Promise<void> {
 		return await this.run(Operation.Stash, () => this.repository.dropStash(index));
 	}
 
-	async applyStash(stashIndex?: number, options?: { index?: boolean }): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.applyStash(stashIndex, options));
+	async applyStash(index?: number): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.applyStash(index));
 	}
 
 	async showStash(index: number): Promise<Change[] | undefined> {
@@ -2505,12 +2505,12 @@ export class Repository implements Disposable {
 		const stashes = await sourceRepository.getStashes();
 
 		try {
-			await this.applyStash(stashes[0].index, { index: true });
+			await this.applyStash(stashes[0].index);
 
 			if (options?.deleteFromSource) {
 				await sourceRepository.dropStash(stashes[0].index);
 			} else {
-				await sourceRepository.popStash(undefined, { index: true });
+				await sourceRepository.popStash(undefined);
 			}
 		} catch (err) {
 			if (err.gitErrorCode === GitErrorCodes.StashConflict) {
@@ -2523,11 +2523,11 @@ export class Repository implements Disposable {
 					await commands.executeCommand('workbench.view.scm');
 				}
 
-				await sourceRepository.popStash(undefined, { index: true });
+				await sourceRepository.popStash(undefined);
 				return;
 			}
 
-			await sourceRepository.popStash(undefined, { index: true });
+			await sourceRepository.popStash(undefined);
 			throw err;
 		}
 	}
