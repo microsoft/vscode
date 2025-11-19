@@ -31,7 +31,7 @@ jobs:
     templateContext:
       sdl:
         binskim:
-          analyzeTargetGlob: '$(Build.ArtifactStagingDirectory)/out/client/**/*.node;$(Build.ArtifactStagingDirectory)/out/server/**/*.node'
+          analyzeTargetGlob: '$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web/**/*.node'
           preReleaseVersion: '4.3.1'
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
