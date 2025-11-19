@@ -777,21 +777,15 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private _resolveCommandMarkers(command: ITerminalCommand): { start: IXtermMarker | undefined; end: IXtermMarker | undefined } {
 		type CommandMarkers = {
-			startMarker?: IXtermMarker;
 			endMarker?: IXtermMarker;
-			commandStartMarker?: IXtermMarker;
 			commandFinishedMarker?: IXtermMarker;
-			marker?: IXtermMarker;
-			promptStartMarker?: IXtermMarker;
 			executedMarker?: IXtermMarker;
 			commandExecutedMarker?: IXtermMarker;
 		};
 
 		const candidate = command as unknown as CommandMarkers;
-		const start =
-			candidate.commandExecutedMarker
-			?? candidate.executedMarker;
-		const end = candidate.commandFinishedMarker ?? candidate.endMarker;
+		const start = candidate.executedMarker ?? candidate.commandExecutedMarker;
+		const end = candidate.endMarker ?? candidate.commandFinishedMarker;
 		return { start, end };
 	}
 
