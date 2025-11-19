@@ -599,7 +599,7 @@ suite('LanguageModelToolsService', () => {
 			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 10, 'Expected 10 tools to be enabled'); // +2 including the vscode, launch toolsets
 
 			const qualifiedNames1 = service.toQualifiedToolNames(result1);
-			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName', 'vscode'];
+			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName', 'vscode', 'launch'];
 			assert.deepStrictEqual(qualifiedNames1.sort(), expectedQualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
 		}
 		// Test with no enabled tools
