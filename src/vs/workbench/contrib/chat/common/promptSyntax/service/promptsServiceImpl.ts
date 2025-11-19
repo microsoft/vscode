@@ -29,7 +29,7 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -421,7 +421,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	// --- Enabled Prompt Files -----------------------------------------------------------
 
-
 	private readonly disabledPromptsStorageKeyPrefix = 'chat.disabledPromptFiles.';
 
 	public getDisabledPromptFiles(type: PromptsType): ResourceSet {
@@ -452,6 +451,35 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (type === PromptsType.agent) {
 			this.cachedCustomAgents.refresh();
 		}
+	}
+
+	// Claude skills
+
+	public async findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined> {
+		const useClaudeSkills = this.configurationService.getValue(PromptsConfig.USE_CLAUDE_SKILLS);
+		if (useClaudeSkills) {
+			const result: IClaudeSkill[] = [];
+			const process = async (uri: URI, type: 'personal' | 'project'): Promise<void> => {
+				try {
+					const parsedFile = await this.parseNew(uri, token);
+					const name = parsedFile.header?.name;
+					if (name) {
+						result.push({ uri, type, name, description: parsedFile.header?.description } satisfies IClaudeSkill);
+					} else {
+						this.logger.error(`[findClaudeSkills] Claude skill file missing name attribute: ${uri}`);
+					}
+				} catch (e) {
+					this.logger.error(`[findClaudeSkills] Failed to parse Claude skill file: ${uri}`, e instanceof Error ? e.message : String(e));
+				}
+			};
+
+			const workspaceSkills = await this.fileLocator.findClaudeSkillsInWorkspace(token);
+			await Promise.all(workspaceSkills.map(uri => process(uri, 'project')));
+			const userSkills = await this.fileLocator.findClaudeSkillsInUserHome(token);
+			await Promise.all(userSkills.map(uri => process(uri, 'personal')));
+			return result;
+		}
+		return undefined;
 	}
 }
 

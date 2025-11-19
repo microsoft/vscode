@@ -40,6 +40,8 @@ import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../commo
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { IPathService } from '../../../../../../services/path/common/pathService.js';
+import { ISearchService } from '../../../../../../services/search/common/search.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -47,6 +49,7 @@ suite('PromptsService', () => {
 	let service: IPromptsService;
 	let instaService: TestInstantiationService;
 	let workspaceContextService: TestContextService;
+	let testConfigService: TestConfigurationService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -55,7 +58,7 @@ suite('PromptsService', () => {
 		workspaceContextService = new TestContextService();
 		instaService.stub(IWorkspaceContextService, workspaceContextService);
 
-		const testConfigService = new TestConfigurationService();
+		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_MD, true);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_NESTED_AGENT_MD, false);
@@ -93,6 +96,15 @@ suite('PromptsService', () => {
 		disposables.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
 
 		instaService.stub(IFilesConfigurationService, { updateReadonly: () => Promise.resolve() });
+
+		const pathService = {
+			userHome: (): URI | Promise<URI> => {
+				return Promise.resolve(URI.file('/home/user'));
+			},
+		} as IPathService;
+		instaService.stub(IPathService, pathService);
+
+		instaService.stub(ISearchService, {});
 
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
@@ -1166,6 +1178,260 @@ suite('PromptsService', () => {
 			assert.strictEqual(actual[0].storage, PromptsStorage.extension);
 			assert.strictEqual(actual[0].type, PromptsType.instructions);
 			registered.dispose();
+		});
+	});
+
+	suite('findClaudeSkills', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+		test('should return undefined when USE_CLAUDE_SKILLS is disabled', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, false);
+
+			const result = await service.findClaudeSkills(CancellationToken.None);
+			assert.strictEqual(result, undefined);
+		});
+
+		test('should find Claude skills in workspace and user home', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+
+			const rootFolderName = 'claude-skills-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create mock filesystem with skills
+			await (instaService.createInstance(MockFilesystem, [
+				{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.claude',
+							children: [
+								{
+									name: 'skills',
+									children: [
+										{
+											name: 'project-skill-1',
+											children: [
+												{
+													name: 'SKILL.md',
+													contents: [
+														'---',
+														'name: "Project Skill 1"',
+														'description: "A project skill for testing"',
+														'---',
+														'This is project skill 1 content',
+													],
+												},
+											],
+										},
+										{
+											name: 'project-skill-2',
+											children: [
+												{
+													name: 'SKILL.md',
+													contents: [
+														'---',
+														'description: "Invalid skill, no name"',
+														'---',
+														'This is project skill 2 content',
+													],
+												},
+											],
+										},
+										{
+											name: 'not-a-skill-dir',
+											children: [
+												{
+													name: 'README.md',
+													contents: ['This is not a skill'],
+												},
+											],
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+				{
+					name: 'home',
+					children: [
+						{
+							name: 'user',
+							children: [
+								{
+									name: '.claude',
+									children: [
+										{
+											name: 'skills',
+											children: [
+												{
+													name: 'personal-skill-1',
+													children: [
+														{
+															name: 'SKILL.md',
+															contents: [
+																'---',
+																'name: "Personal Skill 1"',
+																'description: "A personal skill for testing"',
+																'---',
+																'This is personal skill 1 content',
+															],
+														},
+													],
+												},
+												{
+													name: 'not-a-skill',
+													children: [
+														{
+															name: 'other-file.md',
+															contents: ['Not a skill file'],
+														},
+													],
+												},
+											],
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+			])).mock();
+
+			const result = await service.findClaudeSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results when Claude skills are enabled');
+			assert.strictEqual(result.length, 2, 'Should find 2 skills total');
+
+			// Check project skills
+			const projectSkills = result.filter(skill => skill.type === 'project');
+			assert.strictEqual(projectSkills.length, 1, 'Should find 1 project skill');
+
+			const projectSkill1 = projectSkills.find(skill => skill.name === 'Project Skill 1');
+			assert.ok(projectSkill1, 'Should find project skill 1');
+			assert.strictEqual(projectSkill1.description, 'A project skill for testing');
+			assert.strictEqual(projectSkill1.uri.path, `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`);
+
+			// Check personal skills
+			const personalSkills = result.filter(skill => skill.type === 'personal');
+			assert.strictEqual(personalSkills.length, 1, 'Should find 1 personal skill');
+
+			const personalSkill1 = personalSkills[0];
+			assert.strictEqual(personalSkill1.name, 'Personal Skill 1');
+			assert.strictEqual(personalSkill1.description, 'A personal skill for testing');
+			assert.strictEqual(personalSkill1.uri.path, '/home/user/.claude/skills/personal-skill-1/SKILL.md');
+		});
+
+		test('should handle parsing errors gracefully', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+
+			const rootFolderName = 'claude-skills-error-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create mock filesystem with malformed skill file
+			await (instaService.createInstance(MockFilesystem, [
+				{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.claude',
+							children: [
+								{
+									name: 'skills',
+									children: [
+										{
+											name: 'valid-skill',
+											children: [
+												{
+													name: 'SKILL.md',
+													contents: [
+														'---',
+														'name: "Valid Skill"',
+														'description: "A valid skill"',
+														'---',
+														'Valid skill content',
+													],
+												},
+											],
+										},
+										{
+											name: 'invalid-skill',
+											children: [
+												{
+													name: 'SKILL.md',
+													contents: [
+														'---',
+														'invalid yaml: [unclosed',
+														'---',
+														'Invalid skill content',
+													],
+												},
+											],
+										},
+									],
+								},
+							],
+						},
+					],
+				},
+				{
+					name: 'home',
+					children: [
+						{
+							name: 'user',
+							children: [],
+						},
+					],
+				},
+			])).mock();
+
+			const result = await service.findClaudeSkills(CancellationToken.None);
+
+			// Should still return the valid skill, even if one has parsing errors
+			assert.ok(result, 'Should return results even with parsing errors');
+			assert.strictEqual(result.length, 1, 'Should find 1 valid skill');
+			assert.strictEqual(result[0].name, 'Valid Skill');
+			assert.strictEqual(result[0].type, 'project');
+		});
+
+		test('should return empty array when no skills found', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+
+			const rootFolderName = 'empty-workspace';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create empty mock filesystem
+			await (instaService.createInstance(MockFilesystem, [
+				{
+					name: rootFolderName,
+					children: [],
+				},
+				{
+					name: 'home',
+					children: [
+						{
+							name: 'user',
+							children: [],
+						},
+					],
+				},
+			])).mock();
+
+			const result = await service.findClaudeSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results array');
+			assert.strictEqual(result.length, 0, 'Should find no skills');
 		});
 	});
 });

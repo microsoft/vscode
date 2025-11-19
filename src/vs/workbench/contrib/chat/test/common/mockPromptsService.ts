@@ -11,7 +11,7 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ParsedPromptFile } from '../../common/promptSyntax/promptFileParser.js';
-import { ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IClaudeSkill, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 
 export class MockPromptsService implements IPromptsService {
@@ -53,5 +53,6 @@ export class MockPromptsService implements IPromptsService {
 	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined { throw new Error('Not implemented'); }
 	getDisabledPromptFiles(type: PromptsType): ResourceSet { throw new Error('Method not implemented.'); }
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void { throw new Error('Method not implemented.'); }
+	findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined> { throw new Error('Method not implemented.'); }
 	dispose(): void { }
 }
