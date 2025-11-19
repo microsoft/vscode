@@ -25,6 +25,13 @@ suite('Editor Model - Model', () => {
 			{ range: new OffsetRange(10, 15), annotation: 'text2' },
 			{ range: new OffsetRange(20, 25), annotation: 'text3' }
 		]);
+		annotatedString.setAnnotations(new OffsetRange(8, 9), AnnotationsUpdate.create([{ range: new OffsetRange(8, 9), annotation: 'text5' }]));
+		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
+			{ range: new OffsetRange(0, 7), annotation: 'text4' },
+			{ range: new OffsetRange(8, 9), annotation: 'text5' },
+			{ range: new OffsetRange(10, 15), annotation: 'text2' },
+			{ range: new OffsetRange(20, 25), annotation: 'text3' }
+		]);
 	});
 
 	test('annotations test 2', () => {
@@ -33,10 +40,14 @@ suite('Editor Model - Model', () => {
 			{ range: new OffsetRange(10, 15), annotation: 'text2' },
 			{ range: new OffsetRange(20, 25), annotation: 'text3' }
 		]);
-		annotatedString.setAnnotations(new OffsetRange(0, 12), AnnotationsUpdate.create([{ range: new OffsetRange(0, 6), annotation: 'text4' }]));
+		annotatedString.setAnnotations(new OffsetRange(1, 12), AnnotationsUpdate.create([{ range: new OffsetRange(0, 6), annotation: 'text4' }]));
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
 			{ range: new OffsetRange(0, 6), annotation: 'text4' },
 			{ range: new OffsetRange(20, 25), annotation: 'text3' }
+		]);
+		annotatedString.setAnnotations(new OffsetRange(3, 22), AnnotationsUpdate.create([{ range: new OffsetRange(0, 3), annotation: 'text5' }]));
+		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
+			{ range: new OffsetRange(0, 3), annotation: 'text5' }
 		]);
 	});
 

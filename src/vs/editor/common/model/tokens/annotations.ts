@@ -44,27 +44,59 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 
 	public setAnnotations(range: OffsetRange, annotations: AnnotationsUpdate<T>): void {
-		const startIndexWhereToReplace = binarySearch2(this._annotations.length, (index) => {
-			return this._annotations[index].range.start - range.start;
-		});
-		const endIndexWhereToReplace = binarySearch2(this._annotations.length, (index) => {
-			return this._annotations[index].range.endExclusive - range.endExclusive;
-		});
-		const startIndex = (startIndexWhereToReplace > 0 ? startIndexWhereToReplace : - (startIndexWhereToReplace + 1));
-		const endIndex = (endIndexWhereToReplace > 0 ? endIndexWhereToReplace : - (endIndexWhereToReplace + 1));
-		this._annotations.splice(startIndex, endIndex - startIndex, ...annotations.annotations);
+		const startIndex = this._getStartIndexOfIntersectingAnnotation(range.start);
+		const endIndexExclusive = this._getEndIndexOfIntersectingAnnotation(range.endExclusive);
+		this._annotations.splice(startIndex, endIndexExclusive - startIndex, ...annotations.annotations);
 	}
 
 	public getAnnotationsIntersecting(range: OffsetRange): IAnnotation<T>[] {
-		const _startIndex = binarySearch2(this._annotations.length, (index) => {
-			return this._annotations[index].range.start - range.start;
+		const startIndex = this._getStartIndexOfIntersectingAnnotation(range.start);
+		const endIndexExclusive = this._getEndIndexOfIntersectingAnnotation(range.endExclusive);
+		return this._annotations.slice(startIndex, endIndexExclusive);
+	}
+
+	private _getStartIndexOfIntersectingAnnotation(offset: number): number {
+		const startIndexWhereToReplace = binarySearch2(this._annotations.length, (index) => {
+			return this._annotations[index].range.start - offset;
 		});
-		const _endIndex = binarySearch2(this._annotations.length, (index) => {
-			return this._annotations[index].range.start - range.endExclusive;
+		let startIndex: number;
+		if (startIndexWhereToReplace >= 0) {
+			startIndex = startIndexWhereToReplace;
+		} else {
+			if (startIndexWhereToReplace === -1) {
+				startIndex = 0;
+			} else {
+				const candidate = this._annotations[- (startIndexWhereToReplace + 2)].range;
+				if (offset >= candidate.start && offset <= candidate.endExclusive) {
+					startIndex = - (startIndexWhereToReplace + 2);
+				} else {
+					startIndex = - (startIndexWhereToReplace + 1);
+				}
+			}
+		}
+		return startIndex;
+	}
+
+	private _getEndIndexOfIntersectingAnnotation(offset: number): number {
+		const endIndexWhereToReplace = binarySearch2(this._annotations.length, (index) => {
+			return this._annotations[index].range.endExclusive - offset;
 		});
-		const startIndex = (_startIndex > 0 ? _startIndex : - (_startIndex + 1));
-		const endIndex = (_endIndex > 0 ? _endIndex : - (_endIndex + 1));
-		return this._annotations.slice(startIndex, endIndex);
+		let endIndexExclusive: number;
+		if (endIndexWhereToReplace >= 0) {
+			endIndexExclusive = endIndexWhereToReplace;
+		} else {
+			if (endIndexWhereToReplace === -1) {
+				endIndexExclusive = 0;
+			} else {
+				const candidate = this._annotations[-(endIndexWhereToReplace + 1)]?.range;
+				if (candidate && offset >= candidate.start && offset <= candidate.endExclusive) {
+					endIndexExclusive = - endIndexWhereToReplace;
+				} else {
+					endIndexExclusive = - (endIndexWhereToReplace + 1);
+				}
+			}
+		}
+		return endIndexExclusive;
 	}
 
 	public getAllAnnotations(): IAnnotation<T>[] {
