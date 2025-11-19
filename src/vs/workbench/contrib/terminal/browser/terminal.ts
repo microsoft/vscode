@@ -1422,6 +1422,11 @@ export interface IXtermTerminal extends IDisposable {
 	getContentsAsHtml(): Promise<string>;
 
 	/**
+	 * Gets the contents of the buffer from a start marker to an end marker as VT sequences.
+	 */
+	getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker): Promise<string>;
+
+	/**
 	 * Refreshes the terminal after it has been moved.
 	 */
 	refresh(): void;

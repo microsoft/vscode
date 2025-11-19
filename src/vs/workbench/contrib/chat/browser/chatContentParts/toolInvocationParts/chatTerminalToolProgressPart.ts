@@ -52,6 +52,7 @@ import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js'
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
 const CSI_SEQUENCE_REGEX = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
@@ -224,6 +225,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _commandStreamingListener: MutableDisposable<DisposableStore>;
 	private _streamingCommand: ITerminalCommand | undefined;
 	private _trackedCommandId: string | undefined;
+	private _streamingQueue: Promise<void>;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -284,6 +286,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._commandStreamingListener = this._register(new MutableDisposable<DisposableStore>());
 		this._streamingCommand = undefined;
 		this._trackedCommandId = this._terminalData.terminalCommandId ?? this._storedCommandId;
+		this._streamingQueue = Promise.resolve();
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 		const displayCommand = stripIcons(command);
@@ -551,14 +554,20 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._commandStreamingListener.value = streamingStore;
 				let capturing = true;
 				streamingStore.add(toDisposable(() => { capturing = false; }));
-				streamingStore.add(terminalInstance.onData(data => {
-					if (!capturing || streamingStore.isDisposed || !this._streamingCommand) {
+				this._queueStreaming(terminalInstance, command);
+				streamingStore.add(terminalInstance.onData(() => {
+					if (!capturing || streamingStore.isDisposed) {
 						return;
 					}
-					const reachedLimit = this._outputView.appendStreamingData(data);
-					if (reachedLimit) {
-						capturing = false;
+					const currentCommand = this._streamingCommand;
+					if (!currentCommand) {
+						return;
 					}
+					this._queueStreaming(terminalInstance, currentCommand).then(() => {
+						if (capturing && this._outputView.isOutputTruncated) {
+							capturing = false;
+						}
+					});
 				}));
 			}));
 
@@ -575,6 +584,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					this._terminalData.terminalCommandId = finishedId;
 				}
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
+				await this._queueStreaming(terminalInstance, command);
 				this._outputView.endStreaming();
 				this._commandStreamingListener.clear();
 				this._streamingCommand = undefined;
@@ -717,6 +727,66 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		return commands.find(c => c.id === this._terminalData.terminalCommandId);
 	}
+
+
+	private _queueStreaming(instance: ITerminalInstance, command: ITerminalCommand): Promise<void> {
+		const run = async () => {
+			if (this._store.isDisposed || this._streamingCommand !== command) {
+				return;
+			}
+			await this._syncStreamingSnapshot(instance, command);
+		};
+		// Keep the queue alive even if a prior snapshot rejected (markers can disappear as terminals dispose).
+		// Without catching here, a single rejection would leave the chain permanently rejected and skip future runs.
+		const next = this._streamingQueue.catch(() => undefined).then(() => run());
+		this._streamingQueue = next.catch(() => undefined);
+		return next;
+	}
+
+	private async _syncStreamingSnapshot(instance: ITerminalInstance, command: ITerminalCommand): Promise<void> {
+		if (!instance || this._store.isDisposed || this._streamingCommand !== command) {
+			return;
+		}
+		const xterm = instance.xterm;
+		if (!xterm) {
+			return;
+		}
+		const markers = this._resolveCommandMarkers(command);
+		const startMarker = markers.start;
+		const endMarker = markers.end;
+		if (!startMarker || startMarker.line === -1) {
+			return;
+		}
+		if (endMarker?.line === -1) {
+			return;
+		}
+		const data = await xterm.getRangeAsVT(startMarker, endMarker);
+		if (this._store.isDisposed || this._streamingCommand !== command || data === undefined) {
+			return;
+		}
+		this._outputView.applyStreamingSnapshot(data);
+	}
+
+	private _resolveCommandMarkers(command: ITerminalCommand): { start: IXtermMarker | undefined; end: IXtermMarker | undefined } {
+		type CommandMarkers = {
+			startMarker?: IXtermMarker;
+			endMarker?: IXtermMarker;
+			commandStartMarker?: IXtermMarker;
+			commandFinishedMarker?: IXtermMarker;
+			marker?: IXtermMarker;
+			promptStartMarker?: IXtermMarker;
+			executedMarker?: IXtermMarker;
+			commandExecutedMarker?: IXtermMarker;
+		};
+
+		const candidate = command as unknown as CommandMarkers;
+		const start =
+			candidate.executedMarker
+			?? candidate.commandExecutedMarker
+			?? candidate.marker;
+		const end = candidate.endMarker ?? candidate.commandFinishedMarker;
+		return { start, end };
+	}
 }
 
 interface ChatTerminalToolOutputSectionOptions {
@@ -758,6 +828,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _needsReplay = false;
 	private _isStreaming = false;
 	private _streamBuffer: string[] = [];
+	private _lastRawSnapshot: string | undefined;
 	private _xtermElement: HTMLElement | undefined;
 	private _xtermViewport: HTMLElement | undefined;
 	private _xtermSampleRow: HTMLElement | undefined;
@@ -888,6 +959,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	public appendStreamingData(data: string): boolean {
+		// Streams raw chunks into the preview buffer, enforcing the configured line limit and
+		// mirroring any appended data into the detached xterm when it's live.
 		if (!data || this._lastOutputTruncated) {
 			return this._lastOutputTruncated;
 		}
@@ -899,6 +972,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._lastOutputTruncated = true;
 			this._isStreaming = false;
 			storedOutput.truncated = true;
+			const combined = this._streamBuffer.join('');
+			storedOutput.text = combined;
 			this._setStatusMessages();
 			this._updateTerminalVisibility();
 			return true;
@@ -909,6 +984,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._lastOutputTruncated = true;
 			this._isStreaming = false;
 			storedOutput.truncated = true;
+			const combined = this._streamBuffer.join('');
+			storedOutput.text = combined;
 			this._setStatusMessages();
 			this._updateTerminalVisibility();
 			return true;
@@ -932,23 +1009,104 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._lastOutputTruncated = true;
 			this._isStreaming = false;
 			storedOutput.truncated = true;
+			const combined = this._streamBuffer.join('');
+			storedOutput.text = combined;
 			this._setStatusMessages();
 			this._updateTerminalVisibility();
 			return true;
 		}
 		storedOutput.truncated = false;
 		this._updateTerminalVisibility();
+		const combined = this._streamBuffer.join('');
+		storedOutput.text = combined;
+		storedOutput.truncated = this._lastOutputTruncated;
 		return false;
 	}
 
+	public applyStreamingSnapshot(snapshot: string): void {
+		// Applies a serialized VT snapshot captured from the command markers. We try to diff the
+		// new snapshot against the previously seen content to avoid costly full replays.
+		if (this._lastRawSnapshot === snapshot) {
+			return;
+		}
+		if (!this._lastRawSnapshot) {
+			this._replaceStreamingDataFromRaw(snapshot);
+			this._lastRawSnapshot = snapshot;
+			return;
+		}
+		if (snapshot.startsWith(this._lastRawSnapshot)) {
+			const appended = snapshot.slice(this._lastRawSnapshot.length);
+			if (appended.length) {
+				this.appendStreamingData(appended);
+			}
+			this._lastRawSnapshot = snapshot;
+			return;
+		}
+		if (this._lastRawSnapshot.startsWith(snapshot)) {
+			this._replaceStreamingDataFromRaw(snapshot);
+			this._lastRawSnapshot = snapshot;
+			return;
+		}
+		this._replaceStreamingDataFromRaw(snapshot);
+		this._lastRawSnapshot = snapshot;
+	}
+
+	private _replaceStreamingDataFromRaw(snapshot: string): void {
+		// Rebuilds the preview buffer from scratch using a serialized snapshot. This is used when
+		// the diff path cannot determine an incremental change.
+		const storedOutput = this._terminalData.terminalCommandOutput ?? (this._terminalData.terminalCommandOutput = { text: '', truncated: false });
+		this._streamBuffer = [];
+		this._bufferedLineCount = 0;
+		this._lastOutputTruncated = false;
+		storedOutput.text = '';
+		storedOutput.truncated = false;
+
+		const hasDetached = !!(this._detachedTerminal.value && this.isExpanded);
+		if (hasDetached) {
+			this._clearDetachedTerminal();
+			this._needsReplay = false;
+		} else {
+			this._needsReplay = true;
+		}
+
+		if (!snapshot) {
+			this._setStatusMessages();
+			this._updateTerminalVisibility();
+			return;
+		}
+
+		this.appendStreamingData(snapshot);
+	}
+
+	private _clearDetachedTerminal(): void {
+		// Clears the detached xterm prior to replaying content so the terminal reflects the latest
+		// snapshot exactly.
+		const instance = this._detachedTerminal.value;
+		if (!instance) {
+			return;
+		}
+		const xterm = instance.xterm as unknown as XtermTerminal | undefined;
+		if (!xterm) {
+			return;
+		}
+		try {
+			xterm.raw.clear();
+			xterm.write('\x1b[3J\x1b[2J\x1b[H');
+		} catch {
+			// The detached terminal may be mid-dispose; ignore errors when clearing.
+		}
+	}
+
 	public beginStreaming(): void {
+		// Resets streaming state just before a command starts emitting fresh data.
 		this._isStreaming = true;
 		this._streamBuffer = [];
 		this._bufferedLineCount = 0;
 		this._lastOutputTruncated = false;
+		this._lastRawSnapshot = undefined;
 		this._needsReplay = true;
 		if (this._detachedTerminal.value) {
-			this._detachedTerminal.value.xterm.write('\x1bc');
+			this._clearDetachedTerminal();
 		}
 		this._terminalData.terminalCommandOutput = { text: '', truncated: false };
 		this._setSupplementalMessages([]);
@@ -964,6 +1122,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	public hasRenderableOutput(): boolean {
 		return this._hasRenderableOutput();
+	}
+
+	public get isOutputTruncated(): boolean {
+		return this._lastOutputTruncated;
 	}
 
 	private _hasRenderableOutput(): boolean {
@@ -1037,7 +1199,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (!instance) {
 			return;
 		}
-		instance.xterm.write('\x1bc');
+		this._clearDetachedTerminal();
 		const concatenated = this._streamBuffer.join('');
 		if (concatenated) {
 			instance.xterm.write(concatenated);
@@ -1061,14 +1223,16 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const minHeight = 20;
 		const contentHeight = Math.max(this._calculateVisibleContentHeight(), minHeight);
 		const clampedHeight = Math.min(contentHeight, MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
+		const measuredBodyHeight = Math.max(this._outputBody.scrollHeight, minHeight);
+		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
 		const domNode = this._scrollable?.getDomNode();
 		if (domNode) {
 			domNode.style.maxHeight = `${MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT}px`;
-			domNode.style.height = `${clampedHeight}px`;
+			domNode.style.height = `${appliedHeight}px`;
 			this._scrollable?.scanDomNode();
 		}
-		if (this._renderedOutputHeight !== contentHeight) {
-			this._renderedOutputHeight = contentHeight;
+		if (this._renderedOutputHeight !== appliedHeight) {
+			this._renderedOutputHeight = appliedHeight;
 			this._onDidChangeHeight();
 		}
 	}
