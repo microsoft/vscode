@@ -150,8 +150,7 @@ class TerminalCommandDecoration extends Disposable {
 			};
 			storedState = terminalData.terminalCommandState;
 		} else if (!storedState) {
-			const now = Date.now();
-			terminalData.terminalCommandState = { exitCode: undefined, timestamp: now };
+			terminalData.terminalCommandState = { exitCode: undefined, timestamp: Date.now() };
 			storedState = terminalData.terminalCommandState;
 		}
 
