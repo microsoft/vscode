@@ -7,4 +7,6 @@ ThirdPartyNotices.txt eol=crlf
 *.sh eol=lf
 *.rtf -text
 **/*.json linguist-language=jsonc
+
+# Icon binaries under resources/ are large and need to be versioned with Git LFS
 resources/*.png filter=lfs diff=lfs merge=lfs -text
