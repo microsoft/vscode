@@ -258,7 +258,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 							}
 						})()
 					}
-				}))
+				}), { groupId: 'agent.sessions' })
 			);
 		}
 	}
