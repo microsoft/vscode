@@ -31,8 +31,7 @@ jobs:
     templateContext:
       sdl:
         binskim:
-          scanOutputDirectoryOnly: true
-          analyzeTargetGlob: '**/.build/**/*.node'
+          analyzeTargetGlob: '$(Build.ArtifactStagingDirectory)/out/client/**/*.node;$(Build.ArtifactStagingDirectory)/out/server/**/*.node'
           preReleaseVersion: '4.3.1'
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
