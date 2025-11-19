@@ -105,7 +105,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}));
 		}
 
-		const label = localize('chat.thinking.progress.withHeader', '{0}{1}', this.lastExtractedTitle ?? this.currentTitle, this.hasMultipleItems ? '...' : '');
+		const label = (this.lastExtractedTitle ?? '') + (this.hasMultipleItems ? '...' : '');
 		this.setTitle(label);
 	}
 
@@ -217,7 +217,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.lastExtractedTitle = extractedTitle;
 
-		const label = localize('chat.thinking.progress.withHeader', '{0}{1}', this.lastExtractedTitle, this.hasMultipleItems ? '...' : '');
+		const label = (this.lastExtractedTitle ?? '') + (this.hasMultipleItems ? '...' : '');
 		this.setTitle(label);
 		this.currentTitle = label;
 
