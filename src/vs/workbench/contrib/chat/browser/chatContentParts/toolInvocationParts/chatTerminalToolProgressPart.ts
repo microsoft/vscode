@@ -54,6 +54,7 @@ import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
+const CSI_SEQUENCE_REGEX = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
 
 /**
  * Remembers whether a tool invocation was last expanded so state survives virtualization re-renders.
@@ -951,7 +952,11 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _hasRenderableOutput(): boolean {
-		return this._streamBuffer.some(chunk => this._isRenderableOutputChunk(chunk));
+		return this._streamBuffer.some(chunk => {
+			const withoutCsi = chunk.replace(CSI_SEQUENCE_REGEX, '');
+			const withoutAnsi = removeAnsiEscapeCodes(withoutCsi);
+			return withoutAnsi.replace(/\r/g, '').trim().length > 0;
+		});
 	}
 
 	private _shouldRenderTerminal(): boolean {
@@ -1167,20 +1172,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._outputResizeObserver = undefined;
 		}
 		this._ensureOutputResizeObserver();
-	}
-
-	private _isRenderableOutputChunk(chunk: string): boolean {
-		const sanitized = this._sanitizeTerminalChunk(chunk);
-		return sanitized.trim().length > 0;
-	}
-
-	private _sanitizeTerminalChunk(chunk: string): string {
-		// Strip CSI (Control Sequence Introducer) sequences that move the cursor but don't render text.
-		const withoutCsi = chunk.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '');
-		// Strip remaining ANSI color/style sequences and other escape codes.
-		const withoutAnsi = removeAnsiEscapeCodes(withoutCsi);
-		// Remove carriage returns to avoid them surviving trim().
-		return withoutAnsi.replace(/\r/g, '');
 	}
 
 	private _setStatusMessages(): void {
