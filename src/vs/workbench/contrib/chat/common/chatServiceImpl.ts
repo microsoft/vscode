@@ -404,7 +404,7 @@ export class ChatService extends Disposable implements IChatService {
 			});
 	}
 
-	shouldBeInHistory(entry: Partial<ChatModel>) {
+	private shouldBeInHistory(entry: Partial<ChatModel>) {
 		if (entry.sessionResource) {
 			return !entry.isImported && LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation !== ChatAgentLocation.EditorInline;
 		}
@@ -908,7 +908,6 @@ export class ChatService extends Disposable implements IChatService {
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
 							editedFileEvents: request.editedFileEvents,
-							chatSummary: options?.chatSummary
 						};
 
 						let isInitialTools = true;
@@ -937,6 +936,7 @@ export class ChatService extends Disposable implements IChatService {
 						!commandPart &&
 						!agentSlashCommandPart &&
 						enableCommandDetection &&
+						location !== ChatAgentLocation.EditorInline &&
 						options?.modeInfo?.kind !== ChatModeKind.Agent &&
 						options?.modeInfo?.kind !== ChatModeKind.Edit &&
 						!options?.agentIdSilent

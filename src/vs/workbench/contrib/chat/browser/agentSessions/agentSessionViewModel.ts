@@ -11,11 +11,12 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionsViewFilter } from './agentSessionsViewFilter.js';
 
@@ -35,7 +36,7 @@ export interface IAgentSessionsViewModel {
 
 export interface IAgentSessionViewModel {
 
-	readonly provider: IChatSessionItemProvider;
+	readonly providerType: string;
 	readonly providerLabel: string;
 
 	readonly resource: URI;
@@ -65,7 +66,7 @@ export interface IAgentSessionViewModel {
 }
 
 export function isLocalAgentSessionItem(session: IAgentSessionViewModel): boolean {
-	return session.provider.chatSessionType === localChatSessionType;
+	return session.providerType === localChatSessionType;
 }
 
 export function isAgentSession(obj: IAgentSessionsViewModel | IAgentSessionViewModel): obj is IAgentSessionViewModel {
@@ -114,20 +115,25 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	}>();
 
 	private readonly filter: AgentSessionsViewFilter;
+	private readonly cache: AgentSessionsCache;
 
 	constructor(
 		options: IAgentSessionsViewModelOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 
 		this.filter = this._register(this.instantiationService.createInstance(AgentSessionsViewFilter, { filterMenuId: options.filterMenuId }));
 
-		this.registerListeners();
+		this.cache = this.instantiationService.createInstance(AgentSessionsCache);
+		this._sessions = this.cache.loadCachedSessions();
 
 		this.resolve(undefined);
+
+		this.registerListeners();
 	}
 
 	private registerListeners(): void {
@@ -135,6 +141,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
 		this._register(this.chatSessionsService.onDidChangeSessionItems(provider => this.resolve(provider)));
 		this._register(this.filter.onDidChange(() => this._onDidChangeSessions.fire()));
+		this._register(this.storageService.onWillSaveState(() => this.cache.saveCachedSessions(this._sessions)));
 	}
 
 	async resolve(provider: string | string[] | undefined): Promise<void> {
@@ -169,19 +176,16 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			mapSessionContributionToType.set(contribution.type, contribution);
 		}
 
+		const resolvedProviders = new Set<string>();
 		const sessions = new ResourceMap<IAgentSessionViewModel>();
 		for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
 			if (!providersToResolve.includes(undefined) && !providersToResolve.includes(provider.chatSessionType)) {
-				for (const session of this._sessions) {
-					if (session.provider.chatSessionType === provider.chatSessionType) {
-						sessions.set(session.resource, session);
-					}
-				}
-
-				continue; // skipped for resolving, preserve existing ones
+				continue; // skip: not considered for resolving
 			}
 
 			const providerSessions = await provider.provideChatSessionItems(token);
+			resolvedProviders.add(provider.chatSessionType);
+
 			if (token.isCancellationRequested) {
 				return;
 			}
@@ -240,7 +244,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 				}
 
 				sessions.set(session.resource, {
-					provider,
+					providerType: provider.chatSessionType,
 					providerLabel,
 					resource: session.resource,
 					label: session.label,
@@ -260,6 +264,12 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			}
 		}
 
+		for (const session of this._sessions) {
+			if (!resolvedProviders.has(session.providerType)) {
+				sessions.set(session.resource, session); // fill in existing sessions for providers that did not resolve
+			}
+		}
+
 		this._sessions.length = 0;
 		this._sessions.push(...sessions.values());
 
@@ -272,3 +282,111 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		this._onDidChangeSessions.fire();
 	}
 }
+
+//#region Sessions Cache
+
+interface ISerializedAgentSessionViewModel {
+
+	readonly providerType: string;
+	readonly providerLabel: string;
+
+	readonly resource: UriComponents;
+
+	readonly icon: string;
+
+	readonly label: string;
+
+	readonly description?: string | IMarkdownString;
+	readonly tooltip?: string | IMarkdownString;
+
+	readonly status: ChatSessionStatus;
+	readonly archived: boolean;
+
+	readonly timing: {
+		readonly startTime: number;
+		readonly endTime?: number;
+	};
+
+	readonly statistics?: {
+		readonly files: number;
+		readonly insertions: number;
+		readonly deletions: number;
+	};
+}
+
+class AgentSessionsCache {
+
+	private static readonly STORAGE_KEY = 'agentSessions.cache';
+
+	constructor(@IStorageService private readonly storageService: IStorageService) { }
+
+	saveCachedSessions(sessions: IAgentSessionViewModel[]): void {
+		const serialized: ISerializedAgentSessionViewModel[] = sessions
+			.filter(session =>
+				// Only consider providers that we own where we know that
+				// we can also invalidate the data after startup
+				// Other providers are bound to a different lifecycle (extensions)
+				session.providerType === AgentSessionProviders.Local ||
+				session.providerType === AgentSessionProviders.Background ||
+				session.providerType === AgentSessionProviders.Cloud
+			)
+			.map(session => ({
+				providerType: session.providerType,
+				providerLabel: session.providerLabel,
+
+				resource: session.resource.toJSON(),
+
+				icon: session.icon.id,
+				label: session.label,
+				description: session.description,
+				tooltip: session.tooltip,
+
+				status: session.status,
+				archived: session.archived,
+
+				timing: {
+					startTime: session.timing.startTime,
+					endTime: session.timing.endTime,
+				},
+
+				statistics: session.statistics,
+			}));
+		this.storageService.store(AgentSessionsCache.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	loadCachedSessions(): IAgentSessionViewModel[] {
+		const sessionsCache = this.storageService.get(AgentSessionsCache.STORAGE_KEY, StorageScope.WORKSPACE);
+		if (!sessionsCache) {
+			return [];
+		}
+
+		try {
+			const cached = JSON.parse(sessionsCache) as ISerializedAgentSessionViewModel[];
+			return cached.map(session => ({
+				providerType: session.providerType,
+				providerLabel: session.providerLabel,
+
+				resource: URI.revive(session.resource),
+
+				icon: ThemeIcon.fromId(session.icon),
+				label: session.label,
+				description: session.description,
+				tooltip: session.tooltip,
+
+				status: session.status,
+				archived: session.archived,
+
+				timing: {
+					startTime: session.timing.startTime,
+					endTime: session.timing.endTime,
+				},
+
+				statistics: session.statistics,
+			}));
+		} catch {
+			return []; // invalid data in storage, fallback to empty sessions list
+		}
+	}
+}
+
+//#endregion

@@ -1329,8 +1329,9 @@ export interface ExtHostChatContextShape {
 }
 
 export interface MainThreadChatContextShape extends IDisposable {
-	$registerChatContextProvider(handle: number, id: string, selector: IDocumentFilterDto[], options: {}, support: IChatContextSupport): void;
+	$registerChatContextProvider(handle: number, id: string, selector: IDocumentFilterDto[] | undefined, options: {}, support: IChatContextSupport): void;
 	$unregisterChatContextProvider(handle: number): void;
+	$updateWorkspaceContextItems(handle: number, items: IChatContextItem[]): void;
 }
 
 export interface MainThreadEmbeddingsShape extends IDisposable {
@@ -1420,7 +1421,7 @@ export interface IChatSessionContextDto {
 }
 
 export interface ExtHostChatAgentsShape2 {
-	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto; chatSummary?: { prompt?: string; history?: string } }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
+	$invokeAgent(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$provideFollowups(request: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, result: IChatAgentResult, voteAction: IChatVoteAction): void;
 	$acceptAction(handle: number, result: IChatAgentResult, action: IChatUserActionEvent): void;

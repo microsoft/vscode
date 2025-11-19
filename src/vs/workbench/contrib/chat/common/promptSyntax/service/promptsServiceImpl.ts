@@ -246,8 +246,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private asChatPromptSlashCommand(parsedPromptFile: ParsedPromptFile, promptPath: IPromptPath): IChatPromptSlashCommand {
+		let name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
+		name = name.replace(/[^\p{L}\d_\-\.]+/gu, '-'); // replace spaces with dashes
 		return {
-			name: parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri),
+			name: name,
 			description: parsedPromptFile?.header?.description ?? promptPath.description,
 			argumentHint: parsedPromptFile?.header?.argumentHint,
 			parsedPromptFile,
@@ -359,7 +361,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		bucket.set(uri, entryPromise);
 
 		const flushCachesIfRequired = () => {
-			this.cachedFileLocations[PromptsType.agent] = undefined;
+			this.cachedFileLocations[type] = undefined;
 			switch (type) {
 				case PromptsType.agent:
 					this.cachedCustomAgents.refresh();

@@ -7,22 +7,19 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { IObservable } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { ChatSessionItemWithProvider } from './common.js';
 
 export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.localChatSessionsProvider';
 	static readonly CHAT_WIDGET_VIEW_ID = 'workbench.panel.chat.view.copilot';
-	static readonly CHAT_WIDGET_VIEW_RESOURCE = URI.parse(`${Schemas.vscodeLocalChatSession}://widget`);
 	readonly chatSessionType = localChatSessionType;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -59,8 +56,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		this._register(this.chatWidgetService.onDidAddWidget(widget => {
 			// Only fire for chat view instance
 			if (widget.location === ChatAgentLocation.Chat &&
-				typeof widget.viewContext === 'object' &&
-				'viewId' in widget.viewContext &&
+				isIChatViewViewContext(widget.viewContext) &&
 				widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
 				this._onDidChange.fire();
 				this._registerWidgetModelListeners(widget);
@@ -69,7 +65,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 
 		// Check for existing chat widgets and register listeners
 		const existingWidgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)
-			.filter(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
+			.filter(widget => isIChatViewViewContext(widget.viewContext) && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
 
 		existingWidgets.forEach(widget => {
 			this._registerWidgetModelListeners(widget);

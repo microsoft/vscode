@@ -33,6 +33,7 @@ import { IME } from '../../../../../base/common/ime.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { inputLatency } from '../../../../../base/browser/performance.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -125,12 +126,16 @@ export class NativeEditContext extends AbstractEditContext {
 			this.logService.trace('NativeEditContext#cut (before viewController.cut)');
 			this._viewController.cut();
 		}));
+		this._register(addDisposableListener(this.domNode.domNode, 'selectionchange', () => {
+			inputLatency.onSelectionChange();
+		}));
 
 		this._register(addDisposableListener(this.domNode.domNode, 'keyup', (e) => this._onKeyUp(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'keydown', async (e) => this._onKeyDown(e)));
 		this._register(addDisposableListener(this._imeTextArea.domNode, 'keyup', (e) => this._onKeyUp(e)));
 		this._register(addDisposableListener(this._imeTextArea.domNode, 'keydown', async (e) => this._onKeyDown(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
+			inputLatency.onBeforeInput();
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 				this._onType(this._viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
@@ -166,6 +171,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds(e)));
 		let highSurrogateCharacter: string | undefined;
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
+			inputLatency.onInput();
 			const text = e.text;
 			if (text.length === 1) {
 				const charCode = text.charCodeAt(0);
@@ -355,10 +361,12 @@ export class NativeEditContext extends AbstractEditContext {
 	// --- Private methods ---
 
 	private _onKeyUp(e: KeyboardEvent) {
+		inputLatency.onKeyUp();
 		this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
 	}
 
 	private _onKeyDown(e: KeyboardEvent) {
+		inputLatency.onKeyDown();
 		const standardKeyboardEvent = new StandardKeyboardEvent(e);
 		// When the IME is visible, the keys, like arrow-left and arrow-right, should be used to navigate in the IME, and should not be propagated further
 		if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION) {

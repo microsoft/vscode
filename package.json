@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.107.20251119",
-  "distro": "3ee33b7862b5e018538b730ae631f35747f57a2c",
+  "distro": "70b452e51d85528e38164c11d783791ead374f43",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -69,7 +69,7 @@
     "extensions-ci": "node ./node_modules/gulp/bin/gulp.js extensions-ci",
     "extensions-ci-pr": "node ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
-    "update-build-ts-version": "npm install -D typescript@next @typescript/native-preview && (cd build && npm run compile)"
+    "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run compile)"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
@@ -142,7 +142,7 @@
     "@types/yauzl": "^2.10.0",
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.45.0",
-    "@typescript/native-preview": "^7.0.0-dev.20251117",
+    "@typescript/native-preview": "^7.0.0-dev.20250812.1",
     "@vscode/gulp-electron": "^1.38.2",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.10.2",
@@ -214,7 +214,7 @@
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^6.0.0-dev.20251117",
+    "typescript": "^6.0.0-dev.20251110",
     "typescript-eslint": "^8.45.0",
     "util": "^0.12.4",
     "webpack": "^5.94.0",

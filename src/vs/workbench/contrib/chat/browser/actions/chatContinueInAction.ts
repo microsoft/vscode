@@ -130,7 +130,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		const icon = this.contextKeyService.contextMatchesRules(ChatContextKeys.remoteJobCreating) ? Codicon.sync : Codicon.indent;
+		const icon = this.contextKeyService.contextMatchesRules(ChatContextKeys.remoteJobCreating) ? Codicon.sync : Codicon.forward;
 		element.classList.add(...ThemeIcon.asClassNameArray(icon));
 
 		return super.renderLabel(element);
