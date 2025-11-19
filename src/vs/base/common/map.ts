@@ -862,7 +862,8 @@ export function mapsStrictEqualIgnoreOrder(a: Map<unknown, unknown>, b: Map<unkn
 	}
 
 	for (const [key, value] of a) {
-		if (!b.has(key) || b.get(key) !== value) {
+		const bValue = b.get(key);
+		if (bValue === undefined || bValue !== value) {
 			return false;
 		}
 	}
@@ -894,10 +895,12 @@ export class NKeyMap<TValue, TKeys extends (string | boolean | number)[]> {
 	public set(value: TValue, ...keys: [...TKeys]): void {
 		let currentMap = this._data;
 		for (let i = 0; i < keys.length - 1; i++) {
-			if (!currentMap.has(keys[i])) {
-				currentMap.set(keys[i], new Map());
+			let nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
+				nextMap = new Map();
+				currentMap.set(keys[i], nextMap);
 			}
-			currentMap = currentMap.get(keys[i]);
+			currentMap = nextMap;
 		}
 		currentMap.set(keys[keys.length - 1], value);
 	}
@@ -905,10 +908,11 @@ export class NKeyMap<TValue, TKeys extends (string | boolean | number)[]> {
 	public get(...keys: [...TKeys]): TValue | undefined {
 		let currentMap = this._data;
 		for (let i = 0; i < keys.length - 1; i++) {
-			if (!currentMap.has(keys[i])) {
+			const nextMap = currentMap.get(keys[i]);
+			if (nextMap === undefined) {
 				return undefined;
 			}
-			currentMap = currentMap.get(keys[i]);
+			currentMap = nextMap;
 		}
 		return currentMap.get(keys[keys.length - 1]);
 	}
