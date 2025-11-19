@@ -30,7 +30,7 @@ jobs:
 
       - template: ../common/update-package-version.yml@self
         parameters:
-          quality: ${{ parameters.VSCODE_QUALITY }}
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
 
       - template: ../distro/download-distro.yml@self
 
