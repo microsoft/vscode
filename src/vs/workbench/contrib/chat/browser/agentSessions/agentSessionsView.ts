@@ -50,6 +50,7 @@ import { IChatWidgetService } from '../chat.js';
 import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID, AgentSessionProviders } from './agentSessions.js';
 import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -160,7 +161,7 @@ export class AgentSessionsView extends ViewPane {
 			this.editorGroupsService
 		)));
 
-		const marshalledSession = { session, $mid: MarshalledId.ChatSessionContext };
+		const marshalledSession: IMarshalledChatSessionContext = { session, $mid: MarshalledId.ChatSessionContext };
 		const { secondary } = getActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }), 'inline'); this.contextMenuService.showContextMenu({
 			getActions: () => secondary,
 			getAnchor: () => anchor,
