@@ -3383,30 +3383,27 @@ export class CommandCenter {
 	}
 
 	@command('git.migrateWorktreeChanges', { repository: true, repositoryFilter: ['repository', 'submodule'] })
-	async migrateWorktreeChanges(repository: Repository, worktreeUri?: Uri): Promise<void> {
+	async migrateWorktreeChanges(repository: Repository): Promise<void> {
 		let worktreeRepository: Repository | undefined;
-		if (worktreeUri !== undefined) {
-			worktreeRepository = this.model.getRepository(worktreeUri);
+
+		const worktrees = await repository.getWorktrees();
+		if (worktrees.length === 1) {
+			worktreeRepository = this.model.getRepository(worktrees[0].path);
 		} else {
-			const worktrees = await repository.getWorktrees();
-			if (worktrees.length === 1) {
-				worktreeRepository = this.model.getRepository(worktrees[0].path);
-			} else {
-				const worktreePicks = async (): Promise<WorktreeItem[] | QuickPickItem[]> => {
-					return worktrees.length === 0
-						? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
-						: worktrees.map(worktree => new WorktreeItem(worktree));
-				};
+			const worktreePicks = async (): Promise<WorktreeItem[] | QuickPickItem[]> => {
+				return worktrees.length === 0
+					? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
+					: worktrees.map(worktree => new WorktreeItem(worktree));
+			};
 
-				const placeHolder = l10n.t('Select a worktree to migrate changes from');
-				const choice = await this.pickRef<WorktreeItem | QuickPickItem>(worktreePicks(), placeHolder);
+			const placeHolder = l10n.t('Select a worktree to migrate changes from');
+			const choice = await this.pickRef<WorktreeItem | QuickPickItem>(worktreePicks(), placeHolder);
 
-				if (!choice || !(choice instanceof WorktreeItem)) {
-					return;
-				}
-
-				worktreeRepository = this.model.getRepository(choice.worktree.path);
+			if (!choice || !(choice instanceof WorktreeItem)) {
+				return;
 			}
+
+			worktreeRepository = this.model.getRepository(choice.worktree.path);
 		}
 
 		if (!worktreeRepository || worktreeRepository.kind !== 'worktree') {
