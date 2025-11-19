@@ -161,6 +161,10 @@
 .chat-terminal-output-container > .chat-terminal-output-scroll-host {
 	width: 100%;
 }
+.chat-terminal-output-container:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
 .chat-terminal-output-scroll-host {
 	display: block;
 	outline: none;

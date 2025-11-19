@@ -778,6 +778,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._outputAriaLabelBase = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', this._displayCommand);
 
 		this._container.classList.add('collapsed');
+		this._container.tabIndex = -1;
 		const elements = h('.chat-terminal-output-body@body', [
 			h('.chat-terminal-output-terminal@terminal')
 		]);
@@ -844,6 +845,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	public focus(): void {
+		if (this._shouldRenderTerminal()) {
+			this._container.focus();
+			return;
+		}
 		this._scrollable.getDomNode().focus();
 	}
 
@@ -852,11 +857,21 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	public updateAriaLabel(): void {
-		const scrollableDomNode = this._scrollable.getDomNode();
-		scrollableDomNode.setAttribute('role', 'region');
+		const shouldRender = this._shouldRenderTerminal();
 		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.TerminalChatOutput);
 		const label = accessibleViewHint ? `${this._outputAriaLabelBase}, ${accessibleViewHint}` : this._outputAriaLabelBase;
-		scrollableDomNode.setAttribute('aria-label', label);
+		const scrollableDomNode = this._scrollable.getDomNode();
+		if (shouldRender) {
+			this._container.setAttribute('role', 'region');
+			this._container.setAttribute('aria-label', label);
+			scrollableDomNode.removeAttribute('role');
+			scrollableDomNode.removeAttribute('aria-label');
+		} else {
+			scrollableDomNode.setAttribute('role', 'region');
+			scrollableDomNode.setAttribute('aria-label', label);
+			this._container.removeAttribute('role');
+			this._container.removeAttribute('aria-label');
+		}
 	}
 
 	public getCommandAndOutputAsText(): string | undefined {
@@ -965,12 +980,16 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private _updateTerminalVisibility(): void {
 		const shouldRender = this._shouldRenderTerminal();
+		const scrollableDomNode = this._scrollable.getDomNode();
 		this._terminalContainer.classList.toggle('chat-terminal-output-terminal-no-output', !shouldRender);
+		this._container.tabIndex = shouldRender ? 0 : -1;
+		scrollableDomNode.tabIndex = shouldRender ? -1 : 0;
 		if (!shouldRender) {
 			this._disposeDetachedTerminal();
 		} else {
 			this._ensureOutputResizeObserver();
 		}
+		this.updateAriaLabel();
 	}
 
 	private _disposeDetachedTerminal(): void {
