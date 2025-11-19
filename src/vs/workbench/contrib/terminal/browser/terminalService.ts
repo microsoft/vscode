@@ -967,19 +967,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// Await the initialization of available profiles as long as this is not a pty terminal or a
 		// local terminal in a remote workspace as profile won't be used in those cases and these
 		// terminals need to be launched before remote connections are established.
-		const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
-		this._logService.debug(`#terminalService#createTerminal: Value of isLocalInRemoteTerminal is: ${isLocalInRemoteTerminal}`);
-		this._logService.debug(`#terminalService#createTerminal: options are: ${JSON.stringify(options)}`);
-		this._logService.debug(`terminalService#createTerminal: Value of this._remoteAgentService.getConnection() is: ${this._remoteAgentService.getConnection()}`);
-		this._logService.debug(`#terminalService#createTerminal: Value of options?.cwd is: ${options?.cwd}`);
-		this._logService.debug(`#terminalService#createTerminal: Value of URI.isUri:: ${URI.isUri(options?.cwd)} and scheme is: ${options?.cwd && URI.isUri(options.cwd) ? options.cwd.scheme : 'N/A'}`);
-		this._logService.debug(`#terminalService#createTerminal: options?.cwd.scheme === Schemas.vscodeFileResource is: ${options?.cwd && URI.isUri(options.cwd) ? options.cwd.scheme === Schemas.vscodeFileResource : 'N/A'}`);
-		this._logService.debug(`#terminalService#createTerminal: available profile length is: ${this._terminalProfileService.availableProfiles.length}`);
+		const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.file;
 		if (this._terminalProfileService.availableProfiles.length === 0) {
-			this._logService.debug(`#terminalService#createTerminal: available profile length is zero`);
 			const isPtyTerminal = options?.config && 'customPtyImplementation' in options.config;
 			if (!isPtyTerminal && !isLocalInRemoteTerminal) {
-				this._logService.debug(`#terminalService#createTerminal: !isPtyTerminal and !isLocalInRemoteTerminal`);
 				if (this._connectionState === TerminalConnectionState.Connecting) {
 					mark(`code/terminal/willGetProfiles`);
 				}
@@ -991,25 +982,20 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 
 		let config = options?.config;
-		this._logService.debug(`#terminalService#createTerminal: config ${JSON.stringify(config)}`);
 		if (!config && isLocalInRemoteTerminal) {
-			this._logService.debug(`#terminalService#createTerminal: !config and isLocalInRemoteTerminal`);
 			const backend = await this._terminalInstanceService.getBackend(undefined);
 			const executable = await backend?.getDefaultSystemShell();
-			this._logService.debug(`#terminalService#createTerminal: backend is: ${backend} and executable is: ${executable}`);
 			if (executable) {
 				config = { executable };
-				this._logService.debug(`#terminalService#createTerminal: setting current config ${JSON.stringify(config)} to ${executable}`);
 			}
 		}
 
 		if (!config) {
 			config = this._terminalProfileService.getDefaultProfile();
-			this._logService.debug(`#terminalService#createTerminal: !config, so set it to new value: ${JSON.stringify(config)}`);
 		}
 
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
-		this._logService.debug(`#terminalService#createTerminal: shellLaunchConfig is ${JSON.stringify(shellLaunchConfig)}`);
+
 		// Get the contributed profile if it was provided
 		const contributedProfile = options?.skipContributedProfileCheck ? undefined : await this._getContributedProfile(shellLaunchConfig, options);
 
