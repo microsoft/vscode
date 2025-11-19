@@ -3,7 +3,7 @@ parameters:
   type: string
 
 steps:
-  - ${{ if and(ne(parameters.VSCODE_QUALITY, 'stable')) }}:
+  - ${{ if ne(parameters.VSCODE_QUALITY, 'stable') }}:
     - script: |
         set -e
         BUILD_NAME="$(Build.BuildNumber)" # example "20251114.34 (insider)"
