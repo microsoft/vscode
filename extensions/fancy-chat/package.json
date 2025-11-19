@@ -19,6 +19,16 @@
         "title": "Fancy Chat: Open Panel",
         "category": "Fancy Chat"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Fancy Chat",
+      "properties": {
+        "chat.autoExecuteCommands": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically prompt to run commands returned by the Fancy Chat assistant."
+        }
+      }
+    }
   }
 }
