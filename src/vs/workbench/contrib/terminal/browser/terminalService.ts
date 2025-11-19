@@ -969,7 +969,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// terminals need to be launched before remote connections are established.
 		const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
 		this._logService.debug(`#terminalService#createTerminal: Value of isLocalInRemoteTerminal is: ${isLocalInRemoteTerminal}`);
-		this._logService.debug(`$terminalService#createTerminal: options are: ${JSON.stringify(options)}`);
+		this._logService.debug(`#terminalService#createTerminal: options are: ${JSON.stringify(options)}`);
+		this._logService.debug(`terminalService#createTerminal: Value of this._remoteAgentService.getConnection() is: ${this._remoteAgentService.getConnection()}`);
+		this._logService.debug(`#terminalService#createTerminal: Value of options?.cwd is: ${options?.cwd}`);
+		this._logService.debug(`#terminalService#createTerminal: Value of URI.isUri:: ${URI.isUri(options?.cwd)} and scheme is: ${options?.cwd && URI.isUri(options.cwd) ? options.cwd.scheme : 'N/A'}`);
+		this._logService.debug(`#terminalService#createTerminal: options?.cwd.scheme === Schemas.vscodeFileResource is: ${options?.cwd && URI.isUri(options.cwd) ? options.cwd.scheme === Schemas.vscodeFileResource : 'N/A'}`);
 		this._logService.debug(`#terminalService#createTerminal: available profile length is: ${this._terminalProfileService.availableProfiles.length}`);
 		if (this._terminalProfileService.availableProfiles.length === 0) {
 			this._logService.debug(`#terminalService#createTerminal: available profile length is zero`);
