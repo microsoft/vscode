@@ -258,7 +258,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 							}
 						})()
 					}
-				}))
+				}), { groupId: 'agent.sessions' })
 			);
 		}
 	}
@@ -336,13 +336,13 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 export class AgentSessionsSorter implements ITreeSorter<IAgentSessionViewModel> {
 
 	compare(sessionA: IAgentSessionViewModel, sessionB: IAgentSessionViewModel): number {
-		const aHasEndTime = !!sessionA.timing.endTime;
-		const bHasEndTime = !!sessionB.timing.endTime;
+		const aInProgress = sessionA.status === ChatSessionStatus.InProgress;
+		const bInProgress = sessionB.status === ChatSessionStatus.InProgress;
 
-		if (!aHasEndTime && bHasEndTime) {
+		if (aInProgress && !bInProgress) {
 			return -1; // a (in-progress) comes before b (finished)
 		}
-		if (aHasEndTime && !bHasEndTime) {
+		if (!aInProgress && bInProgress) {
 			return 1; // a (finished) comes after b (in-progress)
 		}
 

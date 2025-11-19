@@ -9,7 +9,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChatContextPicker, IChatContextPickerItem, IChatContextPickService } from './chatContextPickService.js';
 import { IChatContextItem, IChatContextProvider } from '../common/chatContext.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IGenericChatRequestVariableEntry, StringChatContextValue } from '../common/chatVariableEntries.js';
+import { IChatRequestWorkspaceVariableEntry, IGenericChatRequestVariableEntry, StringChatContextValue } from '../common/chatVariableEntries.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -22,7 +22,7 @@ export interface IChatContextService extends ChatContextService { }
 interface IChatContextProviderEntry {
 	picker?: { title: string; icon: ThemeIcon };
 	chatContextProvider?: {
-		selector: LanguageSelector;
+		selector: LanguageSelector | undefined;
 		provider: IChatContextProvider;
 	};
 }
@@ -31,6 +31,7 @@ export class ChatContextService extends Disposable {
 	_serviceBrand: undefined;
 
 	private readonly _providers = new Map<string, IChatContextProviderEntry>();
+	private readonly _workspaceContext = new Map<string, IChatContextItem[]>();
 	private readonly _registeredPickers = this._register(new DisposableMap<string, IDisposable>());
 	private _lastResourceContext: Map<StringChatContextValue, { originalItem: IChatContextItem; provider: IChatContextProvider }> = new Map();
 
@@ -56,7 +57,7 @@ export class ChatContextService extends Disposable {
 		this._registeredPickers.set(id, this._contextPickService.registerChatContextItem(this._asPicker(providerEntry.picker.title, providerEntry.picker.icon, id)));
 	}
 
-	registerChatContextProvider(id: string, selector: LanguageSelector, provider: IChatContextProvider): void {
+	registerChatContextProvider(id: string, selector: LanguageSelector | undefined, provider: IChatContextProvider): void {
 		const providerEntry = this._providers.get(id) ?? { picker: undefined };
 		providerEntry.chatContextProvider = { selector, provider };
 		this._providers.set(id, providerEntry);
@@ -68,6 +69,29 @@ export class ChatContextService extends Disposable {
 		this._registeredPickers.deleteAndDispose(id);
 	}
 
+	updateWorkspaceContextItems(id: string, items: IChatContextItem[]): void {
+		this._workspaceContext.set(id, items);
+	}
+
+	getWorkspaceContextItems(): IChatRequestWorkspaceVariableEntry[] {
+		const items: IChatRequestWorkspaceVariableEntry[] = [];
+		for (const workspaceContexts of this._workspaceContext.values()) {
+			for (const item of workspaceContexts) {
+				if (!item.value) {
+					continue;
+				}
+				items.push({
+					value: item.value,
+					name: item.label,
+					modelDescription: item.modelDescription,
+					id: item.label,
+					kind: 'workspace'
+				});
+			}
+		}
+		return items;
+	}
+
 	async contextForResource(uri: URI): Promise<StringChatContextValue | undefined> {
 		return this._contextForResource(uri, false);
 	}
@@ -75,7 +99,7 @@ export class ChatContextService extends Disposable {
 	private async _contextForResource(uri: URI, withValue: boolean): Promise<StringChatContextValue | undefined> {
 		const scoredProviders: Array<{ score: number; provider: IChatContextProvider }> = [];
 		for (const providerEntry of this._providers.values()) {
-			if (!providerEntry.chatContextProvider?.provider.provideChatContextForResource) {
+			if (!providerEntry.chatContextProvider?.provider.provideChatContextForResource || (providerEntry.chatContextProvider.selector === undefined)) {
 				continue;
 			}
 			const matchScore = score(providerEntry.chatContextProvider.selector, uri, '', true, undefined, undefined);

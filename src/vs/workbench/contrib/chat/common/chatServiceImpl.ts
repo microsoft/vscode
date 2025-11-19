@@ -221,7 +221,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		this.requestInProgressObs = derived(reader => {
 			const models = this._sessionModels.observable.read(reader).values();
-			return Array.from(models).some(model => model.requestInProgressObs.read(reader));
+			return Iterable.some(models, model => model.requestInProgress.read(reader));
 		});
 	}
 
@@ -364,7 +364,17 @@ export class ChatService extends Disposable implements IChatService {
 	 * Imported chat sessions are also excluded from the result.
 	 */
 	async getLocalSessionHistory(): Promise<IChatDetail[]> {
-		const liveSessionItems = Array.from(this._sessionModels.values())
+		const liveSessionItems = this.getLiveSessionItems();
+		const historySessionItems = await this.getHistorySessionItems();
+
+		return [...liveSessionItems, ...historySessionItems];
+	}
+
+	/**
+	 * Returns an array of chat details for all local live chat sessions.
+	 */
+	getLiveSessionItems(): IChatDetail[] {
+		return Array.from(this._sessionModels.values())
 			.filter(session => this.shouldBeInHistory(session))
 			.map((session): IChatDetail => {
 				const title = session.title || localize('newChat', "New Chat");
@@ -375,9 +385,14 @@ export class ChatService extends Disposable implements IChatService {
 					isActive: true,
 				};
 			});
+	}
 
+	/**
+	 * Returns an array of chat details for all local chat sessions in history (not currently loaded).
+	 */
+	async getHistorySessionItems(): Promise<IChatDetail[]> {
 		const index = await this._chatSessionStore.getIndex();
-		const entries = Object.values(index)
+		return Object.values(index)
 			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && this.shouldBeInHistory(entry) && !entry.isEmpty)
 			.map((entry): IChatDetail => {
 				const sessionResource = LocalChatSessionUri.forSession(entry.sessionId);
@@ -387,10 +402,9 @@ export class ChatService extends Disposable implements IChatService {
 					isActive: this._sessionModels.has(sessionResource),
 				});
 			});
-		return [...liveSessionItems, ...entries];
 	}
 
-	shouldBeInHistory(entry: Partial<ChatModel>) {
+	private shouldBeInHistory(entry: Partial<ChatModel>) {
 		if (entry.sessionResource) {
 			return !entry.isImported && LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation !== ChatAgentLocation.EditorInline;
 		}
@@ -894,7 +908,6 @@ export class ChatService extends Disposable implements IChatService {
 							userSelectedTools: options?.userSelectedTools?.get(),
 							modeInstructions: options?.modeInfo?.modeInstructions,
 							editedFileEvents: request.editedFileEvents,
-							chatSummary: options?.chatSummary
 						};
 
 						let isInitialTools = true;
@@ -923,6 +936,7 @@ export class ChatService extends Disposable implements IChatService {
 						!commandPart &&
 						!agentSlashCommandPart &&
 						enableCommandDetection &&
+						location !== ChatAgentLocation.EditorInline &&
 						options?.modeInfo?.kind !== ChatModeKind.Agent &&
 						options?.modeInfo?.kind !== ChatModeKind.Edit &&
 						!options?.agentIdSilent

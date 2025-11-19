@@ -209,7 +209,7 @@ export class InlineChatWidget {
 
 			viewModelStore.add(viewModel.onDidChange(() => {
 
-				this._requestInProgress.set(viewModel.requestInProgress, undefined);
+				this._requestInProgress.set(viewModel.model.requestInProgress.get(), undefined);
 
 				const last = viewModel.getItems().at(-1);
 				toolbar2.context = last;

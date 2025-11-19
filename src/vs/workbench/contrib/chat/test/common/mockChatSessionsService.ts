@@ -73,8 +73,8 @@ export class MockChatSessionsService implements IChatSessionsService {
 		this.contributions = contributions;
 	}
 
-	async hasChatSessionItemProvider(chatSessionType: string): Promise<boolean> {
-		return this.sessionItemProviders.has(chatSessionType);
+	async activateChatSessionItemProvider(chatSessionType: string): Promise<IChatSessionItemProvider | undefined> {
+		return this.sessionItemProviders.get(chatSessionType);
 	}
 
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[] {

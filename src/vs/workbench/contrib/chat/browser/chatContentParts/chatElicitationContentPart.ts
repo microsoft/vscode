@@ -12,7 +12,7 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatElicitationRequest } from '../../common/chatService.js';
+import { ElicitationState, IChatElicitationRequest, IChatElicitationRequestSerialized } from '../../common/chatService.js';
 import { IChatAccessibilityService } from '../chat.js';
 import { AcceptElicitationRequestActionId } from '../actions/chatElicitationActions.js';
 import { ChatConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
@@ -36,7 +36,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 	}
 
 	constructor(
-		elicitation: IChatElicitationRequest,
+		private readonly elicitation: IChatElicitationRequest | IChatElicitationRequestSerialized,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatAccessibilityService private readonly chatAccessibilityService: IChatAccessibilityService,
@@ -45,17 +45,12 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 	) {
 		super();
 
-		const hasElicitationKey = ChatContextKeys.Editing.hasElicitationRequest.bindTo(this.contextKeyService);
-		if (elicitation.state === 'pending') {
-			hasElicitationKey.set(true);
-		}
-		this._register(toDisposable(() => hasElicitationKey.reset()));
+		const buttons: IChatConfirmationButton<unknown>[] = [];
+		if (elicitation.kind === 'elicitation2') {
+			const acceptKeybinding = this.keybindingService.lookupKeybinding(AcceptElicitationRequestActionId);
+			const acceptTooltip = acceptKeybinding ? `${elicitation.acceptButtonLabel} (${acceptKeybinding.getLabel()})` : elicitation.acceptButtonLabel;
 
-		const acceptKeybinding = this.keybindingService.lookupKeybinding(AcceptElicitationRequestActionId);
-		const acceptTooltip = acceptKeybinding ? `${elicitation.acceptButtonLabel} (${acceptKeybinding.getLabel()})` : elicitation.acceptButtonLabel;
-
-		const buttons: IChatConfirmationButton<unknown>[] = [
-			{
+			buttons.push({
 				label: elicitation.acceptButtonLabel,
 				tooltip: acceptTooltip,
 				data: true,
@@ -64,11 +59,26 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 					data: action,
 					run: action.run
 				}))
-			},
-		];
-		if (elicitation.rejectButtonLabel && elicitation.reject) {
-			buttons.push({ label: elicitation.rejectButtonLabel, data: false, isSecondary: true });
+			});
+			if (elicitation.rejectButtonLabel && elicitation.reject) {
+				buttons.push({ label: elicitation.rejectButtonLabel, data: false, isSecondary: true });
+			}
+
+			this._register(autorun(reader => {
+				if (elicitation.isHidden?.read(reader)) {
+					this.domNode.remove();
+				}
+			}));
+
+			const hasElicitationKey = ChatContextKeys.Editing.hasElicitationRequest.bindTo(this.contextKeyService);
+			this._register(autorun(reader => {
+				hasElicitationKey.set(elicitation.state.read(reader) === ElicitationState.Pending);
+			}));
+			this._register(toDisposable(() => hasElicitationKey.reset()));
+
+			this.chatAccessibilityService.acceptElicitation(elicitation);
 		}
+
 		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context, {
 			title: elicitation.title,
 			subtitle: elicitation.subtitle,
@@ -77,19 +87,15 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation },
 		}));
 		this._confirmWidget = confirmationWidget;
-		confirmationWidget.setShowButtons(elicitation.state === 'pending');
-
-		if (elicitation.isHidden) {
-			this._register(autorun(reader => {
-				if (elicitation.isHidden?.read(reader)) {
-					this.domNode.remove();
-				}
-			}));
-		}
+		confirmationWidget.setShowButtons(elicitation.kind === 'elicitation2' && elicitation.state.get() === ElicitationState.Pending);
 
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		this._register(confirmationWidget.onDidClick(async e => {
+			if (elicitation.kind !== 'elicitation2') {
+				return;
+			}
+
 			let result: boolean | IAction | undefined;
 			if (typeof e.data === 'boolean' && e.data === true) {
 				result = e.data;
@@ -110,14 +116,13 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			this._onDidChangeHeight.fire();
 		}));
 
-		this.chatAccessibilityService.acceptElicitation(elicitation);
 		this.domNode = confirmationWidget.domNode;
 		this.domNode.tabIndex = 0;
 		const messageToRender = this.getMessageToRender(elicitation);
 		this.domNode.ariaLabel = elicitation.title + ' ' + (typeof messageToRender === 'string' ? messageToRender : messageToRender.value || '');
 	}
 
-	private getMessageToRender(elicitation: IChatElicitationRequest): IMarkdownString | string {
+	private getMessageToRender(elicitation: IChatElicitationRequest | IChatElicitationRequestSerialized): IMarkdownString | string {
 		if (!elicitation.acceptedResult) {
 			return elicitation.message;
 		}
@@ -129,7 +134,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
 		// No other change allowed for this content type
-		return other.kind === 'elicitation';
+		return other === this.elicitation;
 	}
 
 	addDisposable(disposable: IDisposable): void {

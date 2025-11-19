@@ -472,27 +472,11 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers[0].message, `The 'name' attribute must be a string.`);
 			}
 
-			// Invalid characters in name
-			{
-				const content = [
-					'---',
-					'name: "My@Agent!"',
-					'description: "Test agent"',
-					'target: vscode',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'name' attribute can only consist of letters, digits, underscores, hyphens, and periods.`);
-			}
-
 			// Valid name with allowed characters
 			{
 				const content = [
 					'---',
-					'name: "My_Agent-2.0"',
+					'name: "My_Agent-2.0 with spaces"',
 					'description: "Test agent"',
 					'target: vscode',
 					'---',
@@ -632,22 +616,6 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 				assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
 			}
-
-			// Invalid characters in name
-			{
-				const content = [
-					'---',
-					'name: "My Instructions#"',
-					'description: "Test instructions"',
-					'applyTo: "**/*.ts"',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.instructions);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'name' attribute can only consist of letters, digits, underscores, hyphens, and periods.`);
-			}
 		});
 	});
 
@@ -785,21 +753,6 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 				assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
-			}
-
-			// Invalid characters in name
-			{
-				const content = [
-					'---',
-					'name: "My Prompt!"',
-					'description: "Test prompt"',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.prompt);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'name' attribute can only consist of letters, digits, underscores, hyphens, and periods.`);
 			}
 		});
 	});

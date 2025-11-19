@@ -16,7 +16,7 @@ import { ExtensionIdentifier } from '../../../../../../../platform/extensions/co
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/browser/chatElicitationRequestPart.js';
 import { ChatModel } from '../../../../../chat/common/chatModel.js';
-import { IChatService } from '../../../../../chat/common/chatService.js';
+import { ElicitationState, IChatService } from '../../../../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/languageModelToolsService.js';
@@ -650,7 +650,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				acceptLabel,
 				rejectLabel,
 				async (value: IAction | true) => {
-					thePart.state = 'accepted';
 					thePart.hide();
 					this._promptPart = undefined;
 					try {
@@ -659,9 +658,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					} catch {
 						resolve(undefined);
 					}
+
+					return ElicitationState.Accepted;
 				},
 				async () => {
-					thePart.state = 'rejected';
 					thePart.hide();
 					this._promptPart = undefined;
 					try {
@@ -670,6 +670,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					} catch {
 						resolve(undefined);
 					}
+
+					return ElicitationState.Rejected;
 				},
 				undefined, // source
 				moreActions,

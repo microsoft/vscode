@@ -392,7 +392,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					&& !entry.isCurrentlyBeingModifiedBy.read(r);
 			});
 
-			if (allSettled && !chatModel.requestInProgress) {
+			if (allSettled && !chatModel.requestInProgress.read(undefined)) {
 				// self terminate
 				store.dispose();
 			}
@@ -543,15 +543,15 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				let result: { confirmed: boolean; checkboxChecked?: boolean };
 				if (dontAskAgain !== undefined) {
-					// Use previously stored user preference: true = 'Continue in Chat', false = 'Rephrase' (Cancel)
+					// Use previously stored user preference: true = 'Continue in Chat view', false = 'Rephrase' (Cancel)
 					result = { confirmed: dontAskAgain, checkboxChecked: false };
 				} else {
 					result = await dialogService.confirm({
 						type: 'question',
-						title: localize('confirm.title', "Continue in Panel Chat?"),
-						message: localize('confirm', "Do you want to continue in panel chat or rephrase your prompt?"),
-						detail: localize('confirm.detail', "Inline Chat is designed for single file code changes. This task is either too complex or requires a text response. You can rephrase your prompt or continue in panel chat."),
-						primaryButton: localize('confirm.yes', "Continue in Chat"),
+						title: localize('confirm.title', "Do you want to continue in Chat view?"),
+						message: localize('confirm', "Do you want to continue in Chat view?"),
+						detail: localize('confirm.detail', "Inline chat is designed for making single-file code changes. Continue your request in the Chat view or rephrase it for inline chat."),
+						primaryButton: localize('confirm.yes', "Continue in Chat view"),
 						cancelButton: localize('confirm.cancel', "Cancel"),
 						checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
 					});

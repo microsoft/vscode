@@ -105,6 +105,7 @@ import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
+import { IChatContextService } from './chatContextService.js';
 
 const $ = dom.$;
 
@@ -179,7 +180,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public getAttachedContext(sessionResource: URI) {
 		const contextArr = new ChatRequestVariableSet();
-		contextArr.add(...this.attachmentModel.attachments);
+		contextArr.add(...this.attachmentModel.attachments, ...this.chatContextService.getWorkspaceContextItems());
 		return contextArr;
 	}
 
@@ -411,6 +412,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@ILanguageModelToolsService private readonly toolService: ILanguageModelToolsService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatContextService private readonly chatContextService: IChatContextService,
 	) {
 		super();
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));

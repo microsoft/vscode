@@ -10,11 +10,9 @@ import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/act
 import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
-import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
 import { truncate } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
@@ -42,6 +40,7 @@ import { IChatService } from '../../../common/chatService.js';
 import { IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
+import { IMarshalledChatSessionContext } from '../../actions/chatSessionActions.js';
 import { IChatWidgetService } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
@@ -303,11 +302,7 @@ export class SessionsViewPane extends ViewPane {
 		const renderer = this.instantiationService.createInstance(SessionsRenderer, this.viewDescriptorService.getViewLocationById(this.viewId));
 		this._register(renderer);
 
-		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
-			if (isEqual(element.resource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
-				return null;
-			}
-
+		const getResourceForElement = (element: ChatSessionItemWithProvider): URI => {
 			return element.resource;
 		};
 
@@ -323,14 +318,14 @@ export class SessionsViewPane extends ViewPane {
 					onDragStart: (data, originalEvent) => {
 						try {
 							const elements = data.getData() as ChatSessionItemWithProvider[];
-							const uris = coalesce(elements.map(getResourceForElement));
+							const uris = elements.map(getResourceForElement);
 							this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, uris, originalEvent));
 						} catch {
 							// noop
 						}
 					},
 					getDragURI: (element: ChatSessionItemWithProvider) => {
-						return getResourceForElement(element)?.toString() ?? null;
+						return getResourceForElement(element).toString();
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {
 						if (elements.length === 1) {
@@ -503,7 +498,7 @@ export class SessionsViewPane extends ViewPane {
 		const contextKeyService = this.contextKeyService.createOverlay(contextOverlay);
 
 		// Create marshalled context for command execution
-		const marshalledSession = {
+		const marshalledSession: IMarshalledChatSessionContext = {
 			session: session,
 			$mid: MarshalledId.ChatSessionContext
 		};
