@@ -34,6 +34,7 @@ const compilations = [
 'extensions/curated-sample/tsconfig.json',
 'extensions/debug-auto-launch/tsconfig.json',
 'extensions/debug-server-ready/tsconfig.json',
+	'extensions/fancy-chat/tsconfig.json',
 	'extensions/emmet/tsconfig.json',
 	'extensions/extension-editing/tsconfig.json',
 	'extensions/git/tsconfig.json',
@@ -74,6 +75,10 @@ const compilations = [
 	'.vscode/extensions/vscode-selfhost-import-aid/tsconfig.json',
 ];
 
+const extensionSourceOverrides = new Map([
+	['extensions/fancy-chat/tsconfig.json', 'src/chat']
+]);
+
 const getBaseUrl = out => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;
 
 const tasks = compilations.map(function (tsconfigFile) {
@@ -86,7 +91,8 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const name = relativeDirname.replace(/\//g, '-');
 
 	const srcRoot = path.dirname(tsconfigFile);
-	const srcBase = path.join(srcRoot, 'src');
+	const srcBaseOverride = extensionSourceOverrides.get(tsconfigFile);
+	const srcBase = srcBaseOverride ? path.join(root, srcBaseOverride) : path.join(srcRoot, 'src');
 	const src = path.join(srcBase, '**');
 	const srcOpts = { cwd: root, base: srcBase, dot: true };
 

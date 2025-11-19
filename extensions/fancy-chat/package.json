@@ -8,7 +8,7 @@
   "engines": {
     "vscode": "^1.96.0"
   },
-  "main": "../../out/vs/chat/extension.js",
+  "main": "./out/chat/extension.js",
   "activationEvents": [
     "onCommand:fancyChat.openPanel"
   ],

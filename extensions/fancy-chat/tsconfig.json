@@ -1,0 +1,22 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./out",
+    "rootDir": "../../src",
+    "resolveJsonModule": true,
+    "lib": [
+      "ES2024",
+      "DOM"
+    ],
+    "typeRoots": [
+      "../../node_modules/@types"
+    ]
+  },
+  "include": [
+    "../../src/chat/**/*.ts",
+    "../../src/vscode-dts/vscode.d.ts"
+  ],
+  "exclude": [
+    "../../src/chat/test/**/*"
+  ]
+}
