@@ -781,9 +781,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const candidate = command as unknown as CommandMarkers;
 		const start =
-			candidate.executedMarker
-			?? candidate.commandExecutedMarker;
-		const end = candidate.endMarker ?? candidate.commandFinishedMarker;
+			candidate.commandExecutedMarker
+			?? candidate.executedMarker;
+		const end = candidate.commandFinishedMarker ?? candidate.endMarker;
 		return { start, end };
 	}
 }
