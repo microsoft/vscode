@@ -969,6 +969,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 		// terminals need to be launched before remote connections are established.
 		const isLocalInRemoteTerminal = this._remoteAgentService.getConnection() && URI.isUri(options?.cwd) && options?.cwd.scheme === Schemas.vscodeFileResource;
 		this._logService.debug(`#terminalService#createTerminal: Value of isLocalInRemoteTerminal is: ${isLocalInRemoteTerminal}`);
+		this._logService.debug(`$terminalService#createTerminal: options are: ${JSON.stringify(options)}`);
+		this._logService.debug(`#terminalService#createTerminal: available profile length is: ${this._terminalProfileService.availableProfiles.length}`);
 		if (this._terminalProfileService.availableProfiles.length === 0) {
 			this._logService.debug(`#terminalService#createTerminal: available profile length is zero`);
 			const isPtyTerminal = options?.config && 'customPtyImplementation' in options.config;
@@ -985,7 +987,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 
 		let config = options?.config;
-		this._logService.debug(`#terminalService#createTerminal: config ${config}`);
+		this._logService.debug(`#terminalService#createTerminal: config ${JSON.stringify(config)}`);
 		if (!config && isLocalInRemoteTerminal) {
 			this._logService.debug(`#terminalService#createTerminal: !config and isLocalInRemoteTerminal`);
 			const backend = await this._terminalInstanceService.getBackend(undefined);
@@ -993,17 +995,17 @@ export class TerminalService extends Disposable implements ITerminalService {
 			this._logService.debug(`#terminalService#createTerminal: backend is: ${backend} and executable is: ${executable}`);
 			if (executable) {
 				config = { executable };
-				this._logService.debug(`#terminalService#createTerminal: setting current config ${config} to ${executable}`);
+				this._logService.debug(`#terminalService#createTerminal: setting current config ${JSON.stringify(config)} to ${executable}`);
 			}
 		}
 
 		if (!config) {
 			config = this._terminalProfileService.getDefaultProfile();
-			this._logService.debug(`#terminalService#createTerminal: !config, so set it to new value: ${config}`);
+			this._logService.debug(`#terminalService#createTerminal: !config, so set it to new value: ${JSON.stringify(config)}`);
 		}
 
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
-		this._logService.debug(`#terminalService#createTerminal: shellLaunchConfig is ${shellLaunchConfig}`);
+		this._logService.debug(`#terminalService#createTerminal: shellLaunchConfig is ${JSON.stringify(shellLaunchConfig)}`);
 		// Get the contributed profile if it was provided
 		const contributedProfile = options?.skipContributedProfileCheck ? undefined : await this._getContributedProfile(shellLaunchConfig, options);
 
