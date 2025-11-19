@@ -7,7 +7,7 @@ import { $, getWindow } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -229,14 +229,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}));
 		this._widget.render(parent);
 
-		const updateWidgetVisibility = () => {
-			this._widget.setVisible(this.isBodyVisible() && !welcomeController.isShowingWelcome.get());
+		const updateWidgetVisibility = (r?: IReader) => {
+			this._widget.setVisible(this.isBodyVisible() && !welcomeController.isShowingWelcome.read(r));
 		};
 		this._register(this.onDidChangeBodyVisibility(() => {
 			updateWidgetVisibility();
 		}));
 		this._register(autorun(r => {
-			updateWidgetVisibility();
+			updateWidgetVisibility(r);
 		}));
 
 		const info = this.getTransferredOrPersistedSessionInfo();
