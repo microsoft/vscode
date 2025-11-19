@@ -29,7 +29,7 @@ suite('ChatEditingCheckpointTimeline', function () {
 	const DEFAULT_TELEMETRY_INFO: IModifiedEntryTelemetryInfo = upcastPartial({
 		agentId: 'testAgent',
 		command: undefined,
-		sessionId: 'test-session',
+		sessionResource: URI.parse('chat://test-session'),
 		requestId: 'test-request',
 		result: undefined,
 		modelId: undefined,
@@ -105,7 +105,7 @@ suite('ChatEditingCheckpointTimeline', function () {
 		collection.set(INotebookService, new SyncDescriptor(TestNotebookService));
 		const insta = store.add(workbenchInstantiationService(undefined, store).createChild(collection));
 
-		timeline = insta.createInstance(ChatEditingCheckpointTimelineImpl, 'test-session', fileDelegate);
+		timeline = insta.createInstance(ChatEditingCheckpointTimelineImpl, URI.parse('chat://test-session'), fileDelegate);
 	});
 
 	teardown(() => {
@@ -507,7 +507,7 @@ suite('ChatEditingCheckpointTimeline', function () {
 
 		const newTimeline = insta.createInstance(
 			ChatEditingCheckpointTimelineImpl,
-			'test-session-2',
+			URI.parse('chat://test-session-2'),
 			fileDelegate
 		);
 

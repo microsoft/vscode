@@ -25,7 +25,7 @@
         endLineNumber: 1,
         endColumn: 12
       },
-      slashPromptCommand: { command: "prompt" },
+      name: "prompt",
       kind: "prompt"
     }
   ],

@@ -585,8 +585,8 @@
         "enablement": "!operationInProgress"
       },
       {
-        "command": "git.deleteWorktreeFromPalette",
-        "title": "%command.deleteWorktreeFromPalette%",
+        "command": "git.deleteWorktree2",
+        "title": "%command.deleteWorktree2%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1438,10 +1438,6 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
-          "command": "git.deleteWorktree",
-          "when": "false"
-        },
-        {
           "command": "git.openWorktree",
           "when": "false"
         },
@@ -1450,8 +1446,12 @@
           "when": "false"
         },
         {
-          "command": "git.deleteWorktreeFromPalette",
+          "command": "git.deleteWorktree",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.deleteWorktree2",
+          "when": "false"
         },
         {
           "command": "git.deleteRemoteTag",
@@ -1937,7 +1937,7 @@
           "when": "scmProvider == git && scmProviderContext == worktree"
         },
         {
-          "command": "git.deleteWorktree",
+          "command": "git.deleteWorktree2",
           "group": "2_worktree@1",
           "when": "scmProvider == git && scmProviderContext == worktree"
         }
@@ -2954,7 +2954,7 @@
         },
         {
           "when": "scmProviderContext == worktree",
-          "command": "git.deleteWorktree",
+          "command": "git.deleteWorktree2",
           "group": "worktrees@2"
         }
       ]

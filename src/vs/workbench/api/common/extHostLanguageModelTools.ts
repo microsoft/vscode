@@ -171,7 +171,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			});
 	}
 
-	async $invokeTool(dto: IToolInvocation, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
+	async $invokeTool(dto: Dto<IToolInvocation>, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
 		const item = this._registeredTools.get(dto.toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${dto.toolId}`);
@@ -179,7 +179,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 		const options: vscode.LanguageModelToolInvocationOptions<Object> = {
 			input: dto.parameters,
-			toolInvocationToken: dto.context as vscode.ChatParticipantToolToken | undefined,
+			toolInvocationToken: revive(dto.context) as unknown as vscode.ChatParticipantToolToken | undefined,
 		};
 		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate')) {
 			options.chatRequestId = dto.chatRequestId;

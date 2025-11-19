@@ -25,6 +25,8 @@ import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
 import { NativeEditContextRegistry } from '../../../../../editor/browser/controller/editContext/native/nativeEditContextRegistry.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { ThrottledDelayer } from '../../../../../base/common/async.js';
 
 const decorationDescription = 'chat';
 const placeholderDecorationType = 'chat-session-detail';
@@ -39,13 +41,37 @@ function isWhitespaceOrPromptPart(p: IParsedChatRequestPart): boolean {
 	return (p instanceof ChatRequestTextPart && !p.text.trim().length) || (p instanceof ChatRequestSlashPromptPart);
 }
 
+function exactlyOneSpaceAfterPart(parsedRequest: readonly IParsedChatRequestPart[], part: IParsedChatRequestPart): boolean {
+	const partIdx = parsedRequest.indexOf(part);
+	if (parsedRequest.length > partIdx + 2) {
+		return false;
+	}
+
+	const nextPart = parsedRequest[partIdx + 1];
+	return nextPart && nextPart instanceof ChatRequestTextPart && nextPart.text === ' ';
+}
+
+function getRangeForPlaceholder(part: IParsedChatRequestPart) {
+	return {
+		startLineNumber: part.editorRange.startLineNumber,
+		endLineNumber: part.editorRange.endLineNumber,
+		startColumn: part.editorRange.endColumn + 1,
+		endColumn: 1000
+	};
+}
+
 class InputEditorDecorations extends Disposable {
+
+	private static readonly UPDATE_DELAY = 200;
 
 	public readonly id = 'inputEditorDecorations';
 
 	private readonly previouslyUsedAgents = new Set<string>();
 
 	private readonly viewModelDisposables = this._register(new MutableDisposable());
+
+
+	private readonly updateThrottle = this._register(new ThrottledDelayer<void>(InputEditorDecorations.UPDATE_DELAY));
 
 	constructor(
 		private readonly widget: IChatWidget,
@@ -61,19 +87,19 @@ class InputEditorDecorations extends Disposable {
 
 		this.registeredDecorationTypes();
 
-		this.updateInputEditorDecorations();
-		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.updateInputEditorDecorations()));
-		this._register(this.widget.onDidChangeParsedInput(() => this.updateInputEditorDecorations()));
+		this.triggerInputEditorDecorationsUpdate();
+		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.triggerInputEditorDecorationsUpdate()));
+		this._register(this.widget.onDidChangeParsedInput(() => this.triggerInputEditorDecorationsUpdate()));
 		this._register(this.widget.onDidChangeViewModel(() => {
 			this.registerViewModelListeners();
 			this.previouslyUsedAgents.clear();
-			this.updateInputEditorDecorations();
+			this.triggerInputEditorDecorationsUpdate();
 		}));
 		this._register(this.widget.onDidSubmitAgent((e) => {
 			this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent, e.slashCommand?.name));
 		}));
-		this._register(this.chatAgentService.onDidChangeAgents(() => this.updateInputEditorDecorations()));
-		this._register(this.promptsService.onDidChangeParsedPromptFilesCache(() => this.updateInputEditorDecorations()));
+		this._register(this.chatAgentService.onDidChangeAgents(() => this.triggerInputEditorDecorationsUpdate()));
+		this._register(this.promptsService.onDidChangeSlashCommands(() => this.triggerInputEditorDecorationsUpdate()));
 		this._register(autorun(reader => {
 			// Watch for changes to the current mode and its properties
 			const currentMode = this.widget.input.currentModeObs.read(reader);
@@ -82,7 +108,7 @@ class InputEditorDecorations extends Disposable {
 				currentMode.description.read(reader);
 			}
 			// Trigger decoration update when mode or its properties change
-			this.updateInputEditorDecorations();
+			this.triggerInputEditorDecorationsUpdate();
 		}));
 
 		this.registerViewModelListeners();
@@ -91,7 +117,7 @@ class InputEditorDecorations extends Disposable {
 	private registerViewModelListeners(): void {
 		this.viewModelDisposables.value = this.widget.viewModel?.onDidChange(e => {
 			if (e?.kind === 'changePlaceholder' || e?.kind === 'initialize') {
-				this.updateInputEditorDecorations();
+				this.triggerInputEditorDecorationsUpdate();
 			}
 		});
 	}
@@ -128,9 +154,15 @@ class InputEditorDecorations extends Disposable {
 		return transparentForeground?.toString();
 	}
 
+	private triggerInputEditorDecorationsUpdate(): void {
+		// update placeholder decorations immediately, in sync
+		this.updateInputPlaceholderDecoration();
 
+		// with a delay, update the rest of the decorations
+		this.updateThrottle.trigger(token => this.updateAsyncInputEditorDecorations(token));
+	}
 
-	private async updateInputEditorDecorations() {
+	private updateInputPlaceholderDecoration(): void {
 		const inputValue = this.widget.inputEditor.getValue();
 
 		const viewModel = this.widget.viewModel;
@@ -172,32 +204,13 @@ class InputEditorDecorations extends Disposable {
 		let placeholderDecoration: IDecorationOptions[] | undefined;
 		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
 		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
-		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
-		const slashPromptPart = parsedRequest.find((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
-
-		const exactlyOneSpaceAfterPart = (part: IParsedChatRequestPart): boolean => {
-			const partIdx = parsedRequest.indexOf(part);
-			if (parsedRequest.length > partIdx + 2) {
-				return false;
-			}
-
-			const nextPart = parsedRequest[partIdx + 1];
-			return nextPart && nextPart instanceof ChatRequestTextPart && nextPart.text === ' ';
-		};
-
-		const getRangeForPlaceholder = (part: IParsedChatRequestPart) => ({
-			startLineNumber: part.editorRange.startLineNumber,
-			endLineNumber: part.editorRange.endLineNumber,
-			startColumn: part.editorRange.endColumn + 1,
-			endColumn: 1000
-		});
 
 		const onlyAgentAndWhitespace = agentPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart);
 		if (onlyAgentAndWhitespace) {
 			// Agent reference with no other text - show the placeholder
 			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent, undefined));
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentPart.agent.metadata.followupPlaceholder;
-			if (agentPart.agent.description && exactlyOneSpaceAfterPart(agentPart)) {
+			if (agentPart.agent.description && exactlyOneSpaceAfterPart(parsedRequest, agentPart)) {
 				placeholderDecoration = [{
 					range: getRangeForPlaceholder(agentPart),
 					renderOptions: {
@@ -215,7 +228,7 @@ class InputEditorDecorations extends Disposable {
 			// Agent reference and subcommand with no other text - show the placeholder
 			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent, agentSubcommandPart.command.name));
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentSubcommandPart.command.followupPlaceholder;
-			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(agentSubcommandPart)) {
+			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(parsedRequest, agentSubcommandPart)) {
 				placeholderDecoration = [{
 					range: getRangeForPlaceholder(agentSubcommandPart),
 					renderOptions: {
@@ -231,7 +244,7 @@ class InputEditorDecorations extends Disposable {
 		const onlyAgentCommandAndWhitespace = agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentSubcommandPart);
 		if (onlyAgentCommandAndWhitespace) {
 			// Agent subcommand with no other text - show the placeholder
-			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(agentSubcommandPart)) {
+			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(parsedRequest, agentSubcommandPart)) {
 				placeholderDecoration = [{
 					range: getRangeForPlaceholder(agentSubcommandPart),
 					renderOptions: {
@@ -243,28 +256,42 @@ class InputEditorDecorations extends Disposable {
 				}];
 			}
 		}
+		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
+	}
 
-		const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
-		if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(slashPromptPart)) {
-			// Prompt slash command with no other text - show the placeholder
-			// Resolve the prompt file (this will use cache if available)
-			const promptFile = this.promptsService.resolvePromptSlashCommandFromCache(slashPromptPart.slashPromptCommand.command);
+	private async updateAsyncInputEditorDecorations(token: CancellationToken): Promise<void> {
 
-			const description = promptFile?.header?.argumentHint ?? promptFile?.header?.description;
-			if (description) {
-				placeholderDecoration = [{
-					range: getRangeForPlaceholder(slashPromptPart),
-					renderOptions: {
-						after: {
-							contentText: description,
-							color: this.getPlaceholderColor(),
-						}
-					}
-				}];
-			}
+		const parsedRequest = this.widget.parsedInput.parts;
+
+		const agentPart = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		const agentSubcommandPart = parsedRequest.find((p): p is ChatRequestAgentSubcommandPart => p instanceof ChatRequestAgentSubcommandPart);
+		const slashCommandPart = parsedRequest.find((p): p is ChatRequestSlashCommandPart => p instanceof ChatRequestSlashCommandPart);
+		const slashPromptPart = parsedRequest.find((p): p is ChatRequestSlashPromptPart => p instanceof ChatRequestSlashPromptPart);
+
+		// first, fetch all async context
+		const promptSlashCommand = slashPromptPart ? await this.promptsService.resolvePromptSlashCommand(slashPromptPart.name, token) : undefined;
+		if (token.isCancellationRequested) {
+			// a new update came in while we were waiting
+			return;
 		}
 
-		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
+		if (slashPromptPart && promptSlashCommand) {
+			const onlyPromptCommandAndWhitespace = slashPromptPart && parsedRequest.every(isWhitespaceOrPromptPart);
+			if (onlyPromptCommandAndWhitespace && exactlyOneSpaceAfterPart(parsedRequest, slashPromptPart) && promptSlashCommand) {
+				const description = promptSlashCommand.argumentHint ?? promptSlashCommand.description;
+				if (description) {
+					this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, [{
+						range: getRangeForPlaceholder(slashPromptPart),
+						renderOptions: {
+							after: {
+								contentText: description,
+								color: this.getPlaceholderColor(),
+							}
+						}
+					}]);
+				}
+			}
+		}
 
 		const textDecorations: IDecorationOptions[] | undefined = [];
 		if (agentPart) {
@@ -278,7 +305,7 @@ class InputEditorDecorations extends Disposable {
 			textDecorations.push({ range: slashCommandPart.editorRange });
 		}
 
-		if (slashPromptPart) {
+		if (slashPromptPart && promptSlashCommand) {
 			textDecorations.push({ range: slashPromptPart.editorRange });
 		}
 

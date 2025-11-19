@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
-import { IChatContextItem, IChatContextSupport } from '../../services/chat/common/chatContext.js';
+import { IChatContextItem, IChatContextSupport } from '../../contrib/chat/common/chatContext.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostChatContextShape, ExtHostContext, IDocumentFilterDto, MainContext, MainThreadChatContextShape } from '../common/extHost.protocol.js';
 import { IChatContextService } from '../../contrib/chat/browser/chatContextService.js';
@@ -34,8 +34,8 @@ export class MainThreadChatContext extends Disposable implements MainThreadChatC
 			resolveChatContext: support.supportsResolve ? (context: IChatContextItem, token: CancellationToken) => {
 				return this._proxy.$resolveChatContext(handle, context, token);
 			} : undefined,
-			provideChatContextForResource: support.supportsResource ? (resource: URI, token: CancellationToken) => {
-				return this._proxy.$provideChatContextForResource(handle, { resource }, token);
+			provideChatContextForResource: support.supportsResource ? (resource: URI, withValue: boolean, token: CancellationToken) => {
+				return this._proxy.$provideChatContextForResource(handle, { resource, withValue }, token);
 			} : undefined
 		});
 	}

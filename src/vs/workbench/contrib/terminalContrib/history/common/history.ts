@@ -9,6 +9,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { join } from '../../../../../base/common/path.js';
 import { isWindows, OperatingSystem } from '../../../../../base/common/platform.js';
 import { env } from '../../../../../base/common/process.js';
+import { isNumber } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../../../platform/files/common/files.js';
@@ -177,7 +178,7 @@ export class TerminalPersistedHistory<T> extends Disposable implements ITerminal
 
 	private _getHistoryLimit() {
 		const historyLimit = this._configurationService.getValue(TerminalHistorySettingId.ShellIntegrationCommandHistory);
-		return typeof historyLimit === 'number' ? historyLimit : Constants.DefaultHistoryLimit;
+		return isNumber(historyLimit) ? historyLimit : Constants.DefaultHistoryLimit;
 	}
 
 	private _getTimestampStorageKey() {
