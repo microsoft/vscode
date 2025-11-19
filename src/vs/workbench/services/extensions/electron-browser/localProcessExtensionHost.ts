@@ -59,7 +59,7 @@ export class ExtensionHostProcess {
 		return this._extensionHostStarter.onDynamicStderr(this._id);
 	}
 
-	public get onMessage(): Event<any> {
+	public get onMessage(): Event<unknown> {
 		return this._extensionHostStarter.onDynamicMessage(this._id);
 	}
 
@@ -269,7 +269,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				const [, host, port, auth] = inspectorUrlMatch;
 				const devtoolsUrl = `devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${host}:${port}/${auth}`;
 				if (!this._environmentService.isBuilt && !this._isExtensionDevTestFromCli) {
-					console.log(`%c[Extension Host] %cdebugger inspector at ${devtoolsUrl}`, 'color: blue', 'color:');
+					console.debug(`%c[Extension Host] %cdebugger inspector at ${devtoolsUrl}`, 'color: blue', 'color:');
 				}
 				if (!this._inspectListener || !this._inspectListener.devtoolsUrl) {
 					this._inspectListener = { host, port: Number(port), devtoolsUrl };
@@ -349,7 +349,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				if (this._isExtensionDevDebugBrk) {
 					console.warn(`%c[Extension Host] %cSTOPPED on first line for debugging on port ${port}`, 'color: blue', 'color:');
 				} else {
-					console.info(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color:');
+					console.debug(`%c[Extension Host] %cdebugger listening on port ${port}`, 'color: blue', 'color:');
 				}
 			}
 		}

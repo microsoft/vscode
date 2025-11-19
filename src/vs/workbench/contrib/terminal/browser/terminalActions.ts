@@ -14,7 +14,7 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
 import { dirname } from '../../../../base/common/resources.js';
-import { isObject, isString } from '../../../../base/common/types.js';
+import { hasKey, isObject, isString } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
@@ -63,8 +63,8 @@ import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { TerminalTabList } from './terminalTabsList.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 
-export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
 
 const category = terminalStrings.actionCategory;
@@ -316,7 +316,10 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.CreateTerminalEditor,
 		title: localize2('workbench.action.terminal.createTerminalEditor', 'Create New Terminal in Editor Area'),
 		run: async (c, _, args) => {
-			const options = (isObject(args) && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
+			function isCreateTerminalOptions(obj: unknown): obj is ICreateTerminalOptions {
+				return isObject(obj) && 'location' in obj;
+			}
+			const options = isCreateTerminalOptions(args) ? args : { location: TerminalLocation.Editor };
 			const instance = await c.service.createTerminal(options);
 			await instance.focusWhenReady();
 		}
@@ -998,7 +1001,7 @@ export function registerTerminalActions() {
 			}]
 		},
 		run: async (c, _, args) => {
-			const cwd = isObject(args) && 'cwd' in args ? toOptionalString(args.cwd) : undefined;
+			const cwd = args ? toOptionalString((<{ cwd?: string }>args).cwd) : undefined;
 			const instance = await c.service.createTerminal({ cwd });
 			if (!instance) {
 				return;
@@ -1032,7 +1035,7 @@ export function registerTerminalActions() {
 		f1: false,
 		run: async (activeInstance, c, accessor, args) => {
 			const notificationService = accessor.get(INotificationService);
-			const name = isObject(args) && 'name' in args ? toOptionalString(args.name) : undefined;
+			const name = args ? toOptionalString((<{ name?: string }>args).name) : undefined;
 			if (!name) {
 				notificationService.warn(localize('workbench.action.terminal.renameWithArg.noName', "No name argument provided"));
 				return;
@@ -1406,7 +1409,7 @@ export function registerTerminalActions() {
 			if (!item) {
 				return;
 			}
-			if (item === switchTerminalActionViewItemSeparator) {
+			if (item === SeparatorSelectOption.text) {
 				c.service.refreshActiveGroup();
 				return;
 			}
@@ -1511,9 +1514,13 @@ export function validateTerminalName(name: string): { content: string; severity:
 	return null;
 }
 
+function isTerminalProfile(obj: unknown): obj is ITerminalProfile {
+	return isObject(obj) && 'profileName' in obj;
+}
+
 function convertOptionsOrProfileToOptions(optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile): ICreateTerminalOptions | undefined {
-	if (isObject(optionsOrProfile) && 'profileName' in optionsOrProfile) {
-		return { config: optionsOrProfile as ITerminalProfile, location: (optionsOrProfile as ICreateTerminalOptions).location };
+	if (isTerminalProfile(optionsOrProfile)) {
+		return { config: optionsOrProfile, location: (optionsOrProfile as ICreateTerminalOptions).location };
 	}
 	return optionsOrProfile;
 }
@@ -1574,13 +1581,16 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]): ID
 			let instance: ITerminalInstance | undefined;
 			let cwd: string | URI | undefined;
 
-			if (isObject(eventOrOptionsOrProfile) && eventOrOptionsOrProfile && 'profileName' in eventOrOptionsOrProfile) {
+			if (isObject(eventOrOptionsOrProfile) && eventOrOptionsOrProfile && hasKey(eventOrOptionsOrProfile, { profileName: true })) {
 				const config = c.profileService.availableProfiles.find(profile => profile.profileName === eventOrOptionsOrProfile.profileName);
 				if (!config) {
 					throw new Error(`Could not find terminal profile "${eventOrOptionsOrProfile.profileName}"`);
 				}
 				options = { config };
-				if ('location' in eventOrOptionsOrProfile) {
+				function isSimpleArgs(obj: unknown): obj is { profileName: string; location?: 'view' | 'editor' | unknown } {
+					return isObject(obj) && 'location' in obj;
+				}
+				if (isSimpleArgs(eventOrOptionsOrProfile)) {
 					switch (eventOrOptionsOrProfile.location) {
 						case 'editor': options.location = TerminalLocation.Editor; break;
 						case 'view': options.location = TerminalLocation.Panel; break;

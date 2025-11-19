@@ -220,7 +220,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	let outElement: HTMLElement;
 	if (target) {
 		outElement = target;
-		DOM.reset(target, ...renderedContent.children);
+		DOM.reset(target, ...renderedContent.childNodes);
 	} else {
 		outElement = renderedContent;
 	}
@@ -435,6 +435,7 @@ function activateLink(mdStr: IMarkdownString, options: MarkdownRenderOptions, ev
 		onUnexpectedError(err);
 	} finally {
 		event.preventDefault();
+		event.stopPropagation();
 	}
 }
 
@@ -598,7 +599,9 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 		Schemas.vscodeFileResource,
 		Schemas.vscodeRemote,
 		Schemas.vscodeRemoteResource,
-		Schemas.vscodeNotebookCell
+		Schemas.vscodeNotebookCell,
+		// For links that are handled entirely by the action handler
+		Schemas.internal,
 	];
 
 	if (isTrusted) {

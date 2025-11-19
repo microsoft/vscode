@@ -356,7 +356,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.repositories.selectionMode.single', "Only one repository can be selected at a time.")
 			],
 			description: localize('scm.repositories.selectionMode', "Controls the selection mode of the repositories in the Source Control Repositories view."),
-			default: 'single'
+			default: 'multiple'
 		},
 		'scm.repositories.explorer': {
 			type: 'boolean',

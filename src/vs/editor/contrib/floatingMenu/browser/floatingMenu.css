@@ -39,6 +39,6 @@
 	}
 
 	.action-item .action-label.separator {
-		background-color: var(--vscode-menu-separatorBackground);
+		background-color: var(--vscode-button-separator);
 	}
 }

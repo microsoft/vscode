@@ -19,6 +19,7 @@ import { Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { ByteSize } from '../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { UserSelectedTools } from './chatAgents.js';
@@ -124,7 +125,7 @@ export namespace ToolDataSource {
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
-	parameters: Object;
+	parameters: Record<string, any>;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
 	chatRequestId?: string;
@@ -139,11 +140,13 @@ export interface IToolInvocation {
 }
 
 export interface IToolInvocationContext {
-	sessionId: string;
+	/** @deprecated Use {@link sessionResource} instead */
+	readonly sessionId: string;
+	readonly sessionResource: URI;
 }
 
 export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
-	return typeof obj === 'object' && typeof obj.sessionId === 'string';
+	return typeof obj === 'object' && typeof obj.sessionId === 'string' && URI.isUri(obj.sessionResource);
 }
 
 export interface IToolInvocationPreparationContext {
@@ -199,6 +202,19 @@ export interface IToolResult {
 	toolMetadata?: unknown;
 	/** Whether to ask the user to confirm these tool results. Overrides {@link IToolConfirmationMessages.confirmResults}. */
 	confirmResults?: boolean;
+}
+
+export function toolContentToA11yString(part: IToolResult['content']) {
+	return part.map(p => {
+		switch (p.kind) {
+			case 'promptTsx':
+				return stringifyPromptTsxPart(p);
+			case 'text':
+				return p.value;
+			case 'data':
+				return localize('toolResultDataPartA11y', "{0} of {1} binary data", ByteSize.formatSize(p.value.data.byteLength), p.value.mimeType || 'unknown');
+		}
+	}).join(', ');
 }
 
 export function toolResultHasBuffers(result: IToolResult): boolean {
@@ -338,6 +354,8 @@ export interface ILanguageModelToolsService {
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
 	invokeTool(invocation: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult>;
 	cancelToolCallsForRequest(requestId: string): void;
+	/** Flush any pending tool updates to the extension hosts. */
+	flushToolUpdates(): void;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;
@@ -350,17 +368,15 @@ export interface ILanguageModelToolsService {
 	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined;
 	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
 	getDeprecatedQualifiedToolNames(): Map<string, string>;
+	mapGithubToolName(githubToolName: string): string;
 
-	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap;
+	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
 	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 
-export function createToolInputUri(toolOrId: IToolData | string): URI {
-	if (typeof toolOrId !== 'string') {
-		toolOrId = toolOrId.id;
-	}
-	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolOrId}/tool_input.json` });
+export function createToolInputUri(toolCallId: string): URI {
+	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolCallId}/tool_input.json` });
 }
 
 export function createToolSchemaUri(toolOrId: IToolData | string): URI {
@@ -368,4 +384,16 @@ export function createToolSchemaUri(toolOrId: IToolData | string): URI {
 		toolOrId = toolOrId.id;
 	}
 	return URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolOrId}` });
+}
+
+export namespace GithubCopilotToolReference {
+	export const shell = 'shell';
+	export const edit = 'edit';
+	export const search = 'search';
+	export const customAgent = 'custom-agent';
+}
+
+export namespace VSCodeToolReference {
+	export const runCommands = 'runCommands';
+	export const runSubagent = 'runSubagent';
 }

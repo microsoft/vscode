@@ -5,6 +5,7 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
+import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -15,6 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { LanguageModelPartAudience } from '../../common/languageModels.js';
@@ -23,7 +25,6 @@ import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeB
 import { IDisposableReference } from './chatCollections.js';
 import { ChatQueryTitlePart } from './chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
-import { EditorPool } from './chatMarkdownContentPart.js';
 import { ChatToolOutputContentSubPart } from './chatToolOutputContentSubPart.js';
 
 export interface IChatCollapsibleIOCodePart {
@@ -85,18 +86,18 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 	constructor(
 		title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
+		progressTooltip: IMarkdownString | string | undefined,
 		private readonly context: IChatContentPartRenderContext,
-		private readonly editorPool: EditorPool,
 		private readonly input: IChatCollapsibleInputData,
 		private readonly output: IChatCollapsibleOutputData | undefined,
 		isError: boolean,
 		initiallyExpanded: boolean,
-		width: number,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
-		this._currentWidth = width;
+		this._currentWidth = context.currentWidth();
 
 		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
@@ -127,6 +128,12 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 				: ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin'))
 		);
 		iconEl.root.appendChild(check.root);
+		if (progressTooltip) {
+			this._register(hoverService.setupDelayedHover(check.root, {
+				content: progressTooltip,
+				style: HoverStyle.Pointer,
+			}));
+		}
 
 		const expanded = this._expanded = observableValue(this, initiallyExpanded);
 		this._register(autorun(r => {
@@ -157,9 +164,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			const resourceSubPart = this._register(this._instantiationService.createInstance(
 				ChatToolOutputContentSubPart,
 				this.context,
-				this.editorPool,
 				topLevelResources,
-				this._currentWidth
 			));
 			const group = resourceSubPart.domNode;
 			group.classList.add('chat-collapsible-top-level-resource-group');
@@ -191,9 +196,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			const outputSubPart = this._register(this._instantiationService.createInstance(
 				ChatToolOutputContentSubPart,
 				this.context,
-				this.editorPool,
 				output.parts,
-				this._currentWidth
 			));
 			this._outputSubPart = outputSubPart;
 			this._register(outputSubPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -214,7 +217,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			renderOptions: part.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
-		const editorReference = this._register(this.editorPool.get());
+		const editorReference = this._register(this.context.editorPool.get());
 		editorReference.object.render(data, this._currentWidth || 300);
 		this._register(editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 		container.appendChild(editorReference.object.element);

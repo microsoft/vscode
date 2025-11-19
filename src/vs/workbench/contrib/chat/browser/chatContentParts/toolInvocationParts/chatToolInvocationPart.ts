@@ -6,15 +6,16 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
+import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../common/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
+import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
-import { EditorPool } from '../chatMarkdownContentPart.js';
 import { CollapsibleListPool } from '../chatReferencesContentPart.js';
 import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInstallToolSubPart.js';
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
@@ -26,9 +27,6 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolPostExecuteConfirmationPart } from './chatToolPostExecuteConfirmationPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
-import { autorun } from '../../../../../../base/common/observable.js';
-import { localize } from '../../../../../../nls.js';
-import { markdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -94,63 +92,9 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			partStore.add(this.subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 			partStore.add(this.subPart.onNeedsRerender(render));
 
-			// todo@connor4312: Move MCP spinner to left to get consistent auto approval presentation
-			if (this.subPart instanceof ChatInputOutputMarkdownProgressPart) {
-				const approval = this.createApprovalMessage();
-				if (approval) {
-					this.domNode.appendChild(approval);
-				}
-			}
-
 			this._onDidChangeHeight.fire();
 		};
 		render();
-	}
-
-	/** @deprecated Approval should be centrally managed by passing tool invocation ChatProgressContentPart */
-	private get autoApproveMessageContent() {
-		const reason = IChatToolInvocation.executionConfirmedOrDenied(this.toolInvocation);
-		if (!reason || typeof reason === 'boolean') {
-			return;
-		}
-
-		let md: string;
-		switch (reason.type) {
-			case ToolConfirmKind.Setting:
-				md = localize('chat.autoapprove.setting', 'Auto approved by {0}', markdownCommandLink({ title: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id] }, false));
-				break;
-			case ToolConfirmKind.LmServicePerTool:
-				md = reason.scope === 'session'
-					? localize('chat.autoapprove.lmServicePerTool.session', 'Auto approved for this session')
-					: reason.scope === 'workspace'
-						? localize('chat.autoapprove.lmServicePerTool.workspace', 'Auto approved for this workspace')
-						: localize('chat.autoapprove.lmServicePerTool.profile', 'Auto approved for this profile');
-				md += ' (' + markdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope] }) + ')';
-				break;
-			case ToolConfirmKind.UserAction:
-			case ToolConfirmKind.Denied:
-			case ToolConfirmKind.ConfirmationNotNeeded:
-			default:
-				return;
-		}
-
-
-		return md;
-	}
-
-	/** @deprecated Approval should be centrally managed by passing tool invocation ChatProgressContentPart */
-	private createApprovalMessage(): HTMLElement | undefined {
-		const md = this.autoApproveMessageContent;
-		if (!md) {
-			return undefined;
-		}
-
-		const markdownString = new MarkdownString('_' + md + '_', { isTrusted: true });
-		const result = this.renderer.render(markdownString);
-		this._register(result);
-		result.element.classList.add('chat-tool-approval-message');
-
-		return result.element;
 	}
 
 	private createToolInvocationSubPart(): BaseChatToolInvocationSubPart {
@@ -167,7 +111,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				}
 			}
 			if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-				return this.instantiationService.createInstance(ChatToolPostExecuteConfirmationPart, this.toolInvocation, this.context, this.editorPool, this.currentWidthDelegate);
+				return this.instantiationService.createInstance(ChatToolPostExecuteConfirmationPart, this.toolInvocation, this.context);
 			}
 		}
 
@@ -189,14 +133,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				ChatInputOutputMarkdownProgressPart,
 				this.toolInvocation,
 				this.context,
-				this.editorPool,
 				this.codeBlockStartIndex,
 				this.toolInvocation.pastTenseMessage ?? this.toolInvocation.invocationMessage,
 				this.toolInvocation.originMessage,
 				resultDetails.input,
 				resultDetails.output,
 				!!resultDetails.isError,
-				this.currentWidthDelegate
 			);
 		}
 
@@ -205,14 +147,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				ChatInputOutputMarkdownProgressPart,
 				this.toolInvocation,
 				this.context,
-				this.editorPool,
 				this.codeBlockStartIndex,
 				this.toolInvocation.invocationMessage,
 				this.toolInvocation.originMessage,
 				typeof this.toolInvocation.toolSpecificData.rawInput === 'string' ? this.toolInvocation.toolSpecificData.rawInput : JSON.stringify(this.toolInvocation.toolSpecificData.rawInput, null, 2),
 				undefined,
 				false,
-				this.currentWidthDelegate
 			);
 		}
 

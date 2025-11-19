@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray } from '../../../../base/common/arrays.js';
+import { softAssertNever } from '../../../../base/common/assert.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -12,7 +13,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { IObservable, ObservablePromise, autorunSelfDisposable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { IObservable, autorunSelfDisposable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
@@ -28,7 +29,7 @@ import { migrateLegacyTerminalToolSpecificData } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { LocalChatSessionUri } from './chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
@@ -53,9 +54,7 @@ export interface IChatRequestVariableData {
 export interface IChatRequestModel {
 	readonly id: string;
 	readonly timestamp: number;
-	readonly username: string;
 	readonly modeInfo?: IChatRequestModeInfo;
-	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
 	readonly message: IParsedChatRequest;
 	readonly attempt: number;
@@ -146,6 +145,7 @@ export type IChatProgressResponseContent =
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
 	| IChatElicitationRequest
+	| IChatElicitationRequestSerialized
 	| IChatClearToPreviousToolInvocation
 	| IChatMcpServersStarting;
 
@@ -277,14 +277,6 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this._session;
 	}
 
-	public get username(): string {
-		return this.session.requesterUsername;
-	}
-
-	public get avatarIconUri(): URI | undefined {
-		return this.session.requesterAvatarIconUri;
-	}
-
 	public get attempt(): number {
 		return this._attempt;
 	}
@@ -404,7 +396,8 @@ class AbstractResponse implements IResponse {
 				case 'pullRequest':
 				case 'undoStop':
 				case 'prepareToolInvocation':
-				case 'elicitation':
+				case 'elicitation2':
+				case 'elicitationSerialized':
 				case 'thinking':
 				case 'multiDiffData':
 				case 'mcpServersStarting':
@@ -434,9 +427,17 @@ class AbstractResponse implements IResponse {
 					}
 					segment = { text: `${part.title}\n${part.message}`, isBlock: true };
 					break;
-				default:
+				case 'markdownContent':
+				case 'markdownVuln':
+				case 'progressTask':
+				case 'progressTaskSerialized':
+				case 'warning':
 					segment = { text: part.content.value };
 					break;
+				default:
+					// Ignore any unknown/obsolete parts, but assert that all are handled:
+					softAssertNever(part);
+					continue;
 			}
 
 			if (segment.isBlock) {
@@ -924,6 +925,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			return this._response.value.some(part =>
 				part.kind === 'toolInvocation' && part.state.read(r).type === IChatToolInvocation.StateKind.WaitingForConfirmation
 				|| part.kind === 'confirmation' && part.isUsed === false
+				|| part.kind === 'elicitation2' && part.state.read(r) === ElicitationState.Pending
 			);
 		});
 
@@ -1074,10 +1076,11 @@ export interface IChatModel extends IDisposable {
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
 	readonly hasCustomTitle: boolean;
-	readonly requestInProgress: boolean;
-	readonly requestInProgressObs: IObservable<boolean>;
+	/** True whenever a request is currently running */
+	readonly requestInProgress: IObservable<boolean>;
+	/** True whenever a request needs user interaction to continue */
+	readonly requestNeedsInput: IObservable<boolean>;
 	readonly inputPlaceholder?: string;
-	readonly editingSessionObs?: ObservablePromise<IChatEditingSession> | undefined;
 	readonly editingSession?: IChatEditingSession | undefined;
 	/**
 	 * Sets requests as 'disabled', removing them from the UI. If a request ID
@@ -1144,9 +1147,7 @@ export interface ISerializableMarkdownInfo {
 export interface IExportableChatData {
 	initialLocation: ChatAgentLocation | undefined;
 	requests: ISerializableChatRequestData[];
-	requesterUsername: string;
 	responderUsername: string;
-	requesterAvatarIconUri: UriComponents | undefined;
 	responderAvatarIconUri: ThemeIcon | UriComponents | undefined; // Keeping Uri name for backcompat
 }
 
@@ -1242,8 +1243,7 @@ function getLastYearDate(): number {
 
 export function isExportableSessionData(obj: unknown): obj is IExportableChatData {
 	const data = obj as IExportableChatData;
-	return typeof data === 'object' &&
-		typeof data.requesterUsername === 'string';
+	return typeof data === 'object';
 }
 
 export function isSerializableSessionData(obj: unknown): obj is ISerializableChatData {
@@ -1382,12 +1382,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._sessionResource;
 	}
 
-	get requestInProgress(): boolean {
-		return this.requestInProgressObs.get();
-	}
-
-	readonly requestInProgressObs: IObservable<boolean>;
-
+	readonly requestInProgress: IObservable<boolean>;
+	readonly requestNeedsInput: IObservable<boolean>;
 
 	get hasRequests(): boolean {
 		return this._requests.length > 0;
@@ -1411,22 +1407,10 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, ChatModeKind.Ask);
 	}
 
-	private readonly _initialRequesterUsername: string | undefined;
-	get requesterUsername(): string {
-		return this._defaultAgent?.metadata.requester?.name ??
-			this._initialRequesterUsername ?? '';
-	}
-
 	private readonly _initialResponderUsername: string | undefined;
 	get responderUsername(): string {
 		return this._defaultAgent?.fullName ??
 			this._initialResponderUsername ?? '';
-	}
-
-	private readonly _initialRequesterAvatarIconUri: URI | undefined;
-	get requesterAvatarIconUri(): URI | undefined {
-		return this._defaultAgent?.metadata.requester?.icon ??
-			this._initialRequesterAvatarIconUri;
 	}
 
 	private readonly _initialResponderAvatarIconUri: ThemeIcon | URI | undefined;
@@ -1453,13 +1437,10 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._customTitle !== undefined;
 	}
 
-	private _editingSession: ObservablePromise<IChatEditingSession> | undefined;
-	get editingSessionObs(): ObservablePromise<IChatEditingSession> | undefined {
-		return this._editingSession;
-	}
+	private _editingSession: IChatEditingSession | undefined;
 
 	get editingSession(): IChatEditingSession | undefined {
-		return this._editingSession?.promiseResult.get()?.data;
+		return this._editingSession;
 	}
 
 	private readonly _initialLocation: ChatAgentLocation;
@@ -1495,9 +1476,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._lastMessageDate = (isValid && initialData.lastMessageDate) || this._creationDate;
 		this._customTitle = isValid ? initialData.customTitle : undefined;
 
-		this._initialRequesterUsername = initialData?.requesterUsername;
 		this._initialResponderUsername = initialData?.responderUsername;
-		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
 
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
@@ -1505,21 +1484,23 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		const lastResponse = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1)?.response);
 
-		this.requestInProgressObs = lastResponse.map((response, r) => {
+		this.requestInProgress = lastResponse.map((response, r) => {
 			return response?.isInProgress.read(r) ?? false;
+		});
+
+		this.requestNeedsInput = lastResponse.map((response, r) => {
+			return response?.isPendingConfirmation.read(r) ?? false;
 		});
 	}
 
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void {
-		const editingSessionPromise = transferFromSession
-			? this.chatEditingService.transferEditingSession(this, transferFromSession)
-			: isGlobalEditingSession ?
-				this.chatEditingService.startOrContinueGlobalEditingSession(this) :
-				this.chatEditingService.createEditingSession(this);
-		this._editingSession = new ObservablePromise(editingSessionPromise);
-		this._editingSession.promise.then(editingSession => {
-			this._store.isDisposed ? editingSession.dispose() : this._register(editingSession);
-		});
+		this._editingSession ??= this._register(
+			transferFromSession
+				? this.chatEditingService.transferEditingSession(this, transferFromSession)
+				: isGlobalEditingSession
+					? this.chatEditingService.startOrContinueGlobalEditingSession(this)
+					: this.chatEditingService.createEditingSession(this)
+		);
 	}
 
 	private currentEditedFileEvents = new ResourceMap<IChatAgentEditedFileEvent>();
@@ -1862,8 +1843,6 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	toExport(): IExportableChatData {
 		return {
-			requesterUsername: this.requesterUsername,
-			requesterAvatarIconUri: this.requesterAvatarIconUri,
 			responderUsername: this.responderUsername,
 			responderAvatarIconUri: this.responderAvatarIcon,
 			initialLocation: this.initialLocation,

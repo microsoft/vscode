@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../base/common/arrays.js';
-import { assertNever } from '../../../../base/common/assert.js';
+import { assertNever, softAssertNever } from '../../../../base/common/assert.js';
 import { DeferredPromise, IntervalTimer } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
@@ -83,6 +83,9 @@ export class McpServerRequestHandler extends Disposable {
 	private readonly _onDidReceiveProgressNotification = this._register(new Emitter<MCP.ProgressNotification>());
 	readonly onDidReceiveProgressNotification = this._onDidReceiveProgressNotification.event;
 
+	private readonly _onDidReceiveElicitationCompleteNotification = this._register(new Emitter<MCP.ElicitationCompleteNotification>());
+	readonly onDidReceiveElicitationCompleteNotification = this._onDidReceiveElicitationCompleteNotification.event;
+
 	private readonly _onDidChangeResourceList = this._register(new Emitter<void>());
 	readonly onDidChangeResourceList = this._onDidChangeResourceList.event;
 
@@ -117,7 +120,7 @@ export class McpServerRequestHandler extends Disposable {
 						capabilities: {
 							roots: { listChanged: true },
 							sampling: opts.createMessageRequestHandler ? {} : undefined,
-							elicitation: opts.elicitationRequestHandler ? {} : undefined,
+							elicitation: opts.elicitationRequestHandler ? { form: {}, url: {} } : undefined,
 						},
 						clientInfo: {
 							name: productService.nameLong,
@@ -374,6 +377,11 @@ export class McpServerRequestHandler extends Disposable {
 			case 'notifications/prompts/list_changed':
 				this._onDidChangePromptList.fire();
 				return;
+			case 'notifications/elicitation/complete':
+				this._onDidReceiveElicitationCompleteNotification.fire(request);
+				return;
+			default:
+				softAssertNever(request);
 		}
 	}
 

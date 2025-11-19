@@ -46,7 +46,7 @@ const vinyl_fs_1 = __importDefault(require("vinyl-fs"));
 const util = __importStar(require("../lib/util"));
 const dependencies_1 = require("../lib/dependencies");
 const identity_1 = require("@azure/identity");
-const azure = require('gulp-azure-storage');
+const gulp_azure_storage_1 = __importDefault(require("gulp-azure-storage"));
 const root = path_1.default.dirname(path_1.default.dirname(__dirname));
 const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new identity_1.ClientAssertionCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], () => Promise.resolve(process.env['AZURE_ID_TOKEN']));
@@ -84,7 +84,7 @@ function main() {
             console.log('Uploading Sourcemap', data.relative); // debug
             this.emit('data', data);
         }))
-            .pipe(azure.upload({
+            .pipe(gulp_azure_storage_1.default.upload({
             account: process.env.AZURE_STORAGE_ACCOUNT,
             credential,
             container: '$web',

@@ -180,6 +180,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 							},
 						}
 					}
+				},
+				canDelegate: {
+					description: localize('chatSessionsExtPoint.canDelegate', 'Whether delegation is supported. Defaults to true.'),
+					type: 'boolean',
+					default: true
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -340,7 +345,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private registerContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): IDisposable {
 		if (this._contributions.has(contribution.type)) {
-			this._logService.warn(`Chat session contribution with id '${contribution.type}' is already registered.`);
 			return { dispose: () => { } };
 		}
 
@@ -453,7 +457,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (primaryType) {
 			const altContribution = this._contributions.get(primaryType)?.contribution;
 			if (altContribution && this._isContributionAvailable(altContribution)) {
-				this._logService.info(`Resolving chat session type '${sessionType}' to alternative type '${primaryType}'`);
+				this._logService.trace(`Resolving chat session type '${sessionType}' to alternative type '${primaryType}'`);
 				return primaryType;
 			}
 		}
@@ -635,6 +639,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				isSticky: false,
 			},
 			capabilities: contribution.capabilities,
+			canAccessPreviousChatHistory: true,
 			extensionId: ext.identifier,
 			extensionVersion: ext.version,
 			extensionDisplayName: ext.displayName || ext.name,
@@ -657,7 +662,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		});
 	}
 
-	async hasChatSessionItemProvider(chatViewType: string): Promise<boolean> {
+	async activateChatSessionItemProvider(chatViewType: string): Promise<IChatSessionItemProvider | undefined> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		const resolvedType = this._resolveToPrimaryType(chatViewType);
 		if (resolvedType) {
@@ -666,16 +671,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		const contribution = this._contributions.get(chatViewType)?.contribution;
 		if (contribution && !this._isContributionAvailable(contribution)) {
-			return false;
+			return undefined;
 		}
 
 		if (this._itemsProviders.has(chatViewType)) {
-			return true;
+			return this._itemsProviders.get(chatViewType);
 		}
 
 		await this._extensionService.activateByEvent(`onChatSession:${chatViewType}`);
 
-		return this._itemsProviders.has(chatViewType);
+		return this._itemsProviders.get(chatViewType);
 	}
 
 	async canResolveChatSession(chatSessionResource: URI) {
@@ -704,7 +709,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private async getChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
-		if (!(await this.hasChatSessionItemProvider(chatSessionType))) {
+		if (!(await this.activateChatSessionItemProvider(chatSessionType))) {
 			return [];
 		}
 
@@ -785,7 +790,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		request: IChatAgentRequest;
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem> {
-		if (!(await this.hasChatSessionItemProvider(chatSessionType))) {
+		if (!(await this.activateChatSessionItemProvider(chatSessionType))) {
 			throw Error(`Cannot find provider for ${chatSessionType}`);
 		}
 

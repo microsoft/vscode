@@ -98,7 +98,10 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 			}
 
 			// Add sign-in / upgrade option if entitlement is anonymous / free / new user
-			const isNewOrAnonymousUser = !chatEntitlementService.sentiment.installed || chatEntitlementService.entitlement === ChatEntitlement.Available || chatEntitlementService.anonymous;
+			const isNewOrAnonymousUser = !chatEntitlementService.sentiment.installed ||
+				chatEntitlementService.entitlement === ChatEntitlement.Available ||
+				chatEntitlementService.anonymous ||
+				chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			if (isNewOrAnonymousUser || chatEntitlementService.entitlement === ChatEntitlement.Free) {
 				additionalActions.push({
 					id: 'moreModels',

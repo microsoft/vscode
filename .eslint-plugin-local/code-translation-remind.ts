@@ -6,10 +6,10 @@
 import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/utils';
 import { readFileSync } from 'fs';
-import { createImportRuleListener } from './utils';
+import { createImportRuleListener } from './utils.ts';
 
 
-export = new class TranslationRemind implements eslint.Rule.RuleModule {
+export default new class TranslationRemind implements eslint.Rule.RuleModule {
 
 	private static NLS_MODULE = 'vs/nls';
 

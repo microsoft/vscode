@@ -146,9 +146,10 @@ export interface IChatContentInlineReference {
 }
 
 export interface IChatMarkdownContent {
+	kind: 'markdownContent';
 	content: IMarkdownString;
 	inlineReferences?: Record<string, IChatContentInlineReference>;
-	kind: 'markdownContent';
+	fromSubagent?: boolean;
 }
 
 export interface IChatTreeData {
@@ -278,21 +279,38 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+export const enum ElicitationState {
+	Pending = 'pending',
+	Accepted = 'accepted',
+	Rejected = 'rejected',
+}
+
 export interface IChatElicitationRequest {
-	kind: 'elicitation';
+	kind: 'elicitation2'; // '2' because initially serialized data used the same kind
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
 	acceptButtonLabel: string;
 	rejectButtonLabel: string | undefined;
 	subtitle?: string | IMarkdownString;
 	source?: ToolDataSource;
-	state: 'pending' | 'accepted' | 'rejected';
+	state: IObservable<ElicitationState>;
 	acceptedResult?: Record<string, unknown>;
 	moreActions?: IAction[];
 	accept(value: IAction | true): Promise<void>;
 	reject?: () => Promise<void>;
 	isHidden?: IObservable<boolean>;
 	hide?(): void;
+}
+
+export interface IChatElicitationRequestSerialized {
+	kind: 'elicitationSerialized';
+	title: string | IMarkdownString;
+	message: string | IMarkdownString;
+	subtitle: string | IMarkdownString | undefined;
+	source: ToolDataSource | undefined;
+	state: ElicitationState.Accepted | ElicitationState.Rejected;
+	isHidden: boolean;
+	acceptedResult?: Record<string, unknown>;
 }
 
 export interface IChatThinkingPart {
@@ -315,6 +333,24 @@ export interface IChatTerminalToolInvocationData {
 	terminalToolSessionId?: string;
 	/** The predefined command ID that will be used for this terminal command */
 	terminalCommandId?: string;
+	/** Serialized URI for the command that was executed in the terminal */
+	terminalCommandUri?: UriComponents;
+	/** Serialized output of the executed command */
+	terminalCommandOutput?: {
+		text: string;
+		truncated?: boolean;
+	};
+	/** Stored theme colors at execution time to style detached output */
+	terminalTheme?: {
+		background?: string;
+		foreground?: string;
+	};
+	/** Stored command state to restore decorations after reload */
+	terminalCommandState?: {
+		exitCode?: number;
+		timestamp?: number;
+		duration?: number;
+	};
 	autoApproveInfo?: IMarkdownString;
 }
 
@@ -660,6 +696,7 @@ export type IChatProgress =
 	| IChatThinkingPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest
+	| IChatElicitationRequestSerialized
 	| IChatMcpServersStarting;
 
 export interface IChatFollowup {
@@ -669,6 +706,15 @@ export interface IChatFollowup {
 	subCommand?: string;
 	title?: string;
 	tooltip?: string;
+}
+
+export function isChatFollowup(obj: unknown): obj is IChatFollowup {
+	return (
+		!!obj &&
+		(obj as IChatFollowup).kind === 'reply' &&
+		typeof (obj as IChatFollowup).message === 'string' &&
+		typeof (obj as IChatFollowup).agentId === 'string'
+	);
 }
 
 export enum ChatAgentVoteDirection {
@@ -886,13 +932,6 @@ export interface IChatSendRequestOptions {
 	 */
 	confirmation?: string;
 
-	/**
-	 * Summary data for chat sessions context
-	 */
-	chatSummary?: {
-		prompt?: string;
-		history?: string;
-	};
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
@@ -932,6 +971,8 @@ export interface IChatService {
 	removeHistoryEntry(sessionResource: URI): Promise<void>;
 	getChatStorageFolder(): URI;
 	logChatIndex(): void;
+	getLiveSessionItems(): IChatDetail[];
+	getHistorySessionItems(): Promise<IChatDetail[]>;
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;

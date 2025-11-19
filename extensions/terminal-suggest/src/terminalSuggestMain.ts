@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ExecOptionsWithStringEncoding } from 'child_process';
+import * as fs from 'fs';
+import { basename, delimiter } from 'path';
 import * as vscode from 'vscode';
 import azdSpec from './completions/azd';
 import cdSpec from './completions/cd';
@@ -17,7 +19,7 @@ import ghCompletionSpec from './completions/gh';
 import npxCompletionSpec from './completions/npx';
 import setLocationSpec from './completions/set-location';
 import { upstreamSpecs } from './constants';
-import { ITerminalEnvironment, PathExecutableCache, watchPathDirectories } from './env/pathExecutableCache';
+import { ITerminalEnvironment, PathExecutableCache } from './env/pathExecutableCache';
 import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
 import { getFigSuggestions } from './fig/figInterface';
 import { createCompletionItem } from './helpers/completionItem';
@@ -30,8 +32,6 @@ import { getPwshGlobals } from './shell/pwsh';
 import { getZshGlobals } from './shell/zsh';
 import { defaultShellTypeResetChars, getTokenType, shellTypeResetChars, TokenType } from './tokens';
 import type { ICompletionResource } from './types';
-import { basename } from 'path';
-
 export const enum TerminalShellType {
 	Bash = 'bash',
 	Fish = 'fish',
@@ -321,11 +321,61 @@ export async function activate(context: vscode.ExtensionContext) {
 			return result.items;
 		}
 	}, '/', '\\'));
-	await watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
+	watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
 
 	context.subscriptions.push(vscode.commands.registerCommand('terminal.integrated.suggest.clearCachedGlobals', () => {
 		cachedGlobals.clear();
 	}));
+}
+
+async function watchPathDirectories(context: vscode.ExtensionContext, env: ITerminalEnvironment, pathExecutableCache: PathExecutableCache | undefined): Promise<void> {
+	const pathDirectories = new Set<string>();
+
+	const envPath = env.PATH;
+	if (envPath) {
+		envPath.split(delimiter).forEach(p => pathDirectories.add(p));
+	}
+
+	const activeWatchers = new Set<string>();
+
+	let debounceTimer: NodeJS.Timeout | undefined; // debounce in case many file events fire at once
+	function handleChange() {
+		if (debounceTimer) {
+			clearTimeout(debounceTimer);
+		}
+		debounceTimer = setTimeout(() => {
+			pathExecutableCache?.refresh();
+			debounceTimer = undefined;
+		}, 300);
+	}
+
+	// Watch each directory
+	for (const dir of pathDirectories) {
+		if (activeWatchers.has(dir)) {
+			// Skip if already watching this directory
+			continue;
+		}
+
+		try {
+			const stat = await fs.promises.stat(dir);
+			if (!stat.isDirectory()) {
+				continue;
+			}
+		} catch {
+			// File not found
+			continue;
+		}
+
+		const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(dir), '*'));
+		context.subscriptions.push(
+			watcher,
+			watcher.onDidCreate(() => handleChange()),
+			watcher.onDidChange(() => handleChange()),
+			watcher.onDidDelete(() => handleChange())
+		);
+
+		activeWatchers.add(dir);
+	}
 }
 
 /**

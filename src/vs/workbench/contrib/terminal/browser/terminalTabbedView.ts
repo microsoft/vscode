@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LayoutPriority, Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
-import { Disposable, DisposableStore, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, dispose, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -106,7 +106,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabsListMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, contextKeyService));
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
-		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement, this._register(new DisposableStore())));
+		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement));
 		this._tabListDomElement = this._tabList.getHTMLElement();
 		this._chatEntry = this._register(this._instantiationService.createInstance(TerminalTabsChatEntry, tabListContainer, this._tabContainer));
 
@@ -173,27 +173,28 @@ export class TerminalTabbedView extends Disposable {
 	private _shouldShowTabs(): boolean {
 		const enabled = this._terminalConfigurationService.config.tabs.enabled;
 		const hide = this._terminalConfigurationService.config.tabs.hideCondition;
-		const hasChatTerminals = this._terminalChatService.getToolSessionTerminalInstances().length > 0;
+		const hiddenChatTerminals = this._terminalChatService.getToolSessionTerminalInstances(true);
 		if (!enabled) {
 			return false;
 		}
-
-		if (hide === 'never') {
+		if (hiddenChatTerminals.length > 0) {
 			return true;
 		}
 
-		if (this._terminalGroupService.instances.length && hasChatTerminals) {
-			return true;
+		switch (hide) {
+			case 'never':
+				return true;
+			case 'singleTerminal':
+				if (this._terminalGroupService.instances.length > 1) {
+					return true;
+				}
+				break;
+			case 'singleGroup':
+				if (this._terminalGroupService.groups.length > 1) {
+					return true;
+				}
+				break;
 		}
-
-		if (hide === 'singleTerminal' && this._terminalGroupService.instances.length > 1) {
-			return true;
-		}
-
-		if (hide === 'singleGroup' && this._terminalGroupService.groups.length > 1) {
-			return true;
-		}
-
 		return false;
 	}
 

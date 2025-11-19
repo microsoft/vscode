@@ -109,7 +109,7 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	}
 	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
 	if (combinedString !== undefined) {
-		detailedAdditions.push(`Prompt input: \`${combinedString}\``);
+		detailedAdditions.push(`Prompt input: \`\`\`${combinedString}\`\`\``);
 	}
 	const detailedAdditionsString = detailedAdditions.length > 0
 		? '\n\n' + detailedAdditions.map(e => `- ${e}`).join('\n')
