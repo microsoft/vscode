@@ -181,6 +181,9 @@
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
 }
+.chat-terminal-output-terminal .xterm-decoration-overview-ruler {
+	display: none !important;
+}
 .chat-terminal-output-terminal .xterm {
 	font-size: 12px;
 }
