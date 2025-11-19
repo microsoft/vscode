@@ -64,10 +64,9 @@ function createPowerShellModelDescription(shell: string): string {
 		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
 		'',
 		'Command Execution:',
-		// TODO: Even for pwsh 7+ we want to use `;` to chain commands since the tree sitter grammar
-		// doesn't parse `&&`. We want to change this to avoid `&&` only in Windows PowerShell when
-		// the grammar supports it https://github.com/airbus-cert/tree-sitter-powershell/issues/27
-		'- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly',
+		// IMPORTANT: PowerShell 5 does not support `&&` so always re-write them to `;`. Note that
+		// the behavior of `&&` differs a little from `;` but in general it's fine
+		isWinPwsh ? '- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly' : '- Prefer ; when chaining commands on one line',
 		'- Prefer pipelines | for object-based data flow',
 		'- Never create a sub-shell (eg. powershell -c "command") unless explicitly asked',
 		'',
