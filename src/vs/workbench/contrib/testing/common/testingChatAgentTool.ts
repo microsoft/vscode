@@ -106,7 +106,7 @@ class RunTestTool implements IToolImpl {
 				}
 			},
 		},
-		userDescription: localize('runTestTool.userDescription', 'Runs unit tests (optionally with coverage)'),
+		userDescription: localize('runTestTool.userDescription', 'Run unit tests (optionally with coverage)'),
 		source: ToolDataSource.Internal,
 		tags: [
 			'vscode_editing_with_tests',

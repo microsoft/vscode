@@ -69,7 +69,7 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 
 		const shellToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'shell', VSCodeToolReference.shell, {
 			icon: ThemeIcon.fromId(Codicon.terminal.id),
-			description: localize('toolset.shell', 'Runs commands in the terminal'),
+			description: localize('toolset.shell', 'Run commands in the terminal'),
 			legacyFullNames: ['runCommands']
 		}));
 		this._register(shellToolSet.addTool(GetTerminalOutputToolData));

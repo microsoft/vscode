@@ -197,7 +197,7 @@ export async function createRunInTerminalToolData(
 		legacyToolReferenceFullNames: ['runCommands/runInTerminal'],
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
 		modelDescription,
-		userDescription: localize('runInTerminalTool.userDescription', 'Tool for running commands in the terminal'),
+		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
 		icon: Codicon.terminal,
 		inputSchema: {
