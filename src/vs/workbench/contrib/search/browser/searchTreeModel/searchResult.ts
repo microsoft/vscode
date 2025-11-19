@@ -13,7 +13,7 @@ import { IProgress, IProgressStep } from '../../../../../platform/progress/commo
 import { NotebookEditorWidget } from '../../../notebook/browser/notebookEditorWidget.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { IAITextQuery, IFileMatch, ISearchComplete, ITextQuery, QueryType } from '../../../../services/search/common/search.js';
-import { arrayContainsElementOrParent, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isSearchTreeMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, RenderableMatch, SEARCH_RESULT_PREFIX } from './searchTreeCommon.js';
+import { arrayContainsElementOrParent, IChangeEvent, ISearchTreeFileMatch, ISearchTreeFolderMatch, IPlainTextSearchHeading, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchWithResource, isSearchTreeMatch, isTextSearchHeading, ITextSearchHeading, mergeSearchResultEvents, RenderableMatch, SEARCH_RESULT_PREFIX, isSearchTreeFolderMatchNoRoot } from './searchTreeCommon.js';
 
 import { RangeHighlightDecorations } from './rangeDecorations.js';
 import { PlainTextSearchHeadingImpl } from './textSearchHeading.js';
@@ -113,12 +113,14 @@ export class SearchResultImpl extends Disposable implements ISearchResult {
 				if (!arrayContainsElementOrParent(currentElement, removedElems)) {
 					if (isTextSearchHeading(currentElement)) {
 						currentElement.hide();
-					} else if (!isSearchTreeFolderMatch(currentElement) || isSearchTreeFolderMatchWithResource(currentElement)) {
+					} else if (!isSearchTreeFolderMatch(currentElement) || isSearchTreeFolderMatchWithResource(currentElement) || isSearchTreeFolderMatchNoRoot(currentElement)) {
 						if (isSearchTreeFileMatch(currentElement)) {
 							currentElement.parent().remove(currentElement);
 						} else if (isSearchTreeMatch(currentElement)) {
 							currentElement.parent().remove(currentElement);
 						} else if (isSearchTreeFolderMatchWithResource(currentElement)) {
+							currentElement.parent().remove(currentElement);
+						} else if (isSearchTreeFolderMatchNoRoot(currentElement)) {
 							currentElement.parent().remove(currentElement);
 						}
 						removedElems.push(currentElement);
