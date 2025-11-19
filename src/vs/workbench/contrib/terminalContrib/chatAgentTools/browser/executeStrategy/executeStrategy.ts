@@ -165,13 +165,14 @@ export async function trackIdleOnPrompt(
 	const scheduler = store.add(new RunOnceScheduler(() => {
 		idleOnPrompt.complete();
 	}, idleDurationMs));
+	let state: TerminalState = TerminalState.Initial;
+
 	// Fallback in case prompt sequences are not seen but the terminal goes idle.
 	const promptFallbackScheduler = store.add(new RunOnceScheduler(() => {
-		if (hasSeenExecuteSequenceSinceLastPrompt) {
+		if (state === TerminalState.Executing || state === TerminalState.PromptAfterExecuting) {
 			promptFallbackScheduler.cancel();
 			return;
 		}
-		hasSeenExecuteSequenceSinceLastPrompt = false;
 		state = TerminalState.PromptAfterExecuting;
 		scheduler.schedule();
 	}, 1000));
@@ -187,8 +188,6 @@ export async function trackIdleOnPrompt(
 		Executing,
 		PromptAfterExecuting,
 	}
-	let state: TerminalState = TerminalState.Initial;
-	let hasSeenExecuteSequenceSinceLastPrompt = false;
 	store.add(onData(e => {
 		// Update state
 		// p10k fires C as `133;C;`
@@ -196,15 +195,12 @@ export async function trackIdleOnPrompt(
 		for (const match of matches) {
 			if (match.groups?.type === 'A') {
 				if (state === TerminalState.Initial) {
-					hasSeenExecuteSequenceSinceLastPrompt = false;
 					state = TerminalState.Prompt;
 				} else if (state === TerminalState.Executing) {
-					hasSeenExecuteSequenceSinceLastPrompt = false;
 					state = TerminalState.PromptAfterExecuting;
 				}
 			} else if (match.groups?.type === 'C' || match.groups?.type === 'D') {
 				state = TerminalState.Executing;
-				hasSeenExecuteSequenceSinceLastPrompt = true;
 			}
 		}
 		// Re-schedule on every data event as we're tracking data idle
@@ -213,7 +209,7 @@ export async function trackIdleOnPrompt(
 			scheduler.schedule();
 		} else {
 			scheduler.cancel();
-			if (!hasSeenExecuteSequenceSinceLastPrompt) {
+			if (state === TerminalState.Initial || state === TerminalState.Prompt) {
 				promptFallbackScheduler.schedule();
 			} else {
 				promptFallbackScheduler.cancel();
