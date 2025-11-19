@@ -255,7 +255,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 	) {
@@ -308,17 +307,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._decoration.update();
 			this._onDidChangeHeight.fire();
 		}));
-		const outputViewOptions: ChatTerminalToolOutputSectionOptions = {
-			rowHeightPx: this._terminalConfigurationService.config.fontSize,
-			container: elements.output,
-			title: elements.title,
-			displayCommand,
-			terminalData: this._terminalData,
-			accessibleViewService: this._accessibleViewService,
-			onDidChangeHeight: () => this._onDidChangeHeight.fire(),
-			createDetachedTerminal: () => this._createDetachedTerminal()
-		};
-		this._outputView = this._register(new ChatTerminalToolOutputSection(outputViewOptions));
+
+		this._outputView = this._register(this._instantiationService.createInstance(ChatTerminalToolOutputSection, elements.output, this._terminalConfigurationService.config.fontSize, elements.title, displayCommand, this._terminalData, () => this._onDidChangeHeight.fire(), () => this._createDetachedTerminal()));
 		this._register(this._outputView.onDidFocus(() => this._handleOutputFocus()));
 		this._register(this._outputView.onDidBlur(e => this._handleOutputBlur(e)));
 		this._register(toDisposable(() => this._handleDispose()));
@@ -811,17 +801,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 }
 
-interface ChatTerminalToolOutputSectionOptions {
-	rowHeightPx: number;
-	container: HTMLElement;
-	title: HTMLElement;
-	displayCommand: string;
-	terminalData: IChatTerminalToolInvocationData;
-	accessibleViewService: IAccessibleViewService;
-	onDidChangeHeight: () => void;
-	createDetachedTerminal: () => Promise<IDetachedTerminalInstance>;
-}
-
 class ChatTerminalToolOutputSection extends Disposable {
 	public readonly onDidFocus: Event<void>;
 	public readonly onDidBlur: Event<FocusEvent>;
@@ -830,13 +809,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		return this._container.classList.contains('expanded');
 	}
 
-	private readonly _container: HTMLElement;
-	private readonly _title: HTMLElement;
-	private readonly _displayCommand: string;
-	private readonly _terminalData: IChatTerminalToolInvocationData;
-	private readonly _accessibleViewService: IAccessibleViewService;
-	private readonly _onDidChangeHeight: () => void;
-	private readonly _createDetachedTerminal: () => Promise<IDetachedTerminalInstance>;
 
 	private readonly _outputBody: HTMLElement;
 	private readonly _scrollable: DomScrollableElement;
@@ -858,16 +830,18 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _onDidFocusEmitter = new Emitter<void>();
 	private readonly _onDidBlurEmitter = new Emitter<FocusEvent>();
 
-	constructor(private readonly _options: ChatTerminalToolOutputSectionOptions) {
+	constructor(
+		private readonly _container: HTMLElement,
+		private readonly _rowHeightPx: number,
+		private readonly _title: HTMLElement,
+		private readonly _displayCommand: string,
+		private readonly _terminalData: IChatTerminalToolInvocationData,
+		private readonly _onDidChangeHeight: () => void,
+		private readonly _createDetachedTerminal: () => Promise<IDetachedTerminalInstance>,
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService) {
 		super();
 		this._detachedTerminal = this._register(new MutableDisposable<IDetachedTerminalInstance>());
-		this._container = _options.container;
-		this._title = _options.title;
-		this._displayCommand = _options.displayCommand;
-		this._terminalData = _options.terminalData;
-		this._accessibleViewService = _options.accessibleViewService;
-		this._onDidChangeHeight = _options.onDidChangeHeight;
-		this._createDetachedTerminal = _options.createDetachedTerminal;
+
 		this._outputAriaLabelBase = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', this._displayCommand);
 
 		this._container.classList.add('collapsed');
@@ -1290,7 +1264,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (this._infoElement?.textContent.includes('No output was produced by the command.')) {
 			return infoHeight;
 		}
-		return Math.max(effectiveLines * this._options.rowHeightPx + infoHeight, this._options.rowHeightPx);
+		return Math.max(effectiveLines * this._rowHeightPx + infoHeight, this._rowHeightPx);
 	}
 
 	private _countNonEmptyStreamLines(): number {
