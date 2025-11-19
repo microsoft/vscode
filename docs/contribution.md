@@ -1,12 +1,5 @@
----
-title: Contribution Guide
----
-
 # Contribution Guide
 
-Follow the existing workflow for issues and pull requests. In addition:
+See the repository's [CONTRIBUTING.md](../CONTRIBUTING.md) for detailed information about contributing code.
 
-- Every feature pull request must create or update relevant documentation in this `docs/` directory.
-- Documentation completeness is reviewed at each project milestone.
-
-Keeping the documentation accurate ensures the project remains approachable to new contributors.
+Every feature pull request must update or create relevant documentation in this `docs/` directory. Documentation should also be reviewed for completeness at each project milestone.
