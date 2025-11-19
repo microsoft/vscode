@@ -246,19 +246,7 @@ class WorktreeDeleteItem extends WorktreeItem {
 			return;
 		}
 
-		try {
-			await mainRepository.deleteWorktree(this.worktree.path);
-		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
-				const forceDelete = l10n.t('Force Delete');
-				const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
-				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
-
-				if (choice === forceDelete) {
-					await mainRepository.deleteWorktree(this.worktree.path, { force: true });
-				}
-			}
-		}
+		await mainRepository.deleteWorktree(this.worktree.path);
 	}
 }
 
@@ -773,8 +761,6 @@ export class CommandCenter {
 
 	private disposables: Disposable[];
 	private commandErrors = new CommandErrorOutputTextDocumentContentProvider();
-
-	private static readonly WORKTREE_ROOT_KEY = 'worktreeRoot';
 
 	constructor(
 		private git: Git,
@@ -3397,103 +3383,38 @@ export class CommandCenter {
 	}
 
 	@command('git.migrateWorktreeChanges', { repository: true, repositoryFilter: ['repository', 'submodule'] })
-	async migrateWorktreeChanges(repository: Repository, worktreeUri?: Uri): Promise<void> {
+	async migrateWorktreeChanges(repository: Repository): Promise<void> {
 		let worktreeRepository: Repository | undefined;
-		if (worktreeUri !== undefined) {
-			worktreeRepository = this.model.getRepository(worktreeUri);
+
+		const worktrees = await repository.getWorktrees();
+		if (worktrees.length === 1) {
+			worktreeRepository = this.model.getRepository(worktrees[0].path);
 		} else {
-			const worktrees = await repository.getWorktrees();
-			if (worktrees.length === 1) {
-				worktreeRepository = this.model.getRepository(worktrees[0].path);
-			} else {
-				const worktreePicks = async (): Promise<WorktreeItem[] | QuickPickItem[]> => {
-					return worktrees.length === 0
-						? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
-						: worktrees.map(worktree => new WorktreeItem(worktree));
-				};
+			const worktreePicks = async (): Promise<WorktreeItem[] | QuickPickItem[]> => {
+				return worktrees.length === 0
+					? [{ label: l10n.t('$(info) This repository has no worktrees.') }]
+					: worktrees.map(worktree => new WorktreeItem(worktree));
+			};
 
-				const placeHolder = l10n.t('Select a worktree to migrate changes from');
-				const choice = await this.pickRef<WorktreeItem | QuickPickItem>(worktreePicks(), placeHolder);
+			const placeHolder = l10n.t('Select a worktree to migrate changes from');
+			const choice = await this.pickRef<WorktreeItem | QuickPickItem>(worktreePicks(), placeHolder);
 
-				if (!choice || !(choice instanceof WorktreeItem)) {
-					return;
-				}
-
-				worktreeRepository = this.model.getRepository(choice.worktree.path);
+			if (!choice || !(choice instanceof WorktreeItem)) {
+				return;
 			}
+
+			worktreeRepository = this.model.getRepository(choice.worktree.path);
 		}
 
 		if (!worktreeRepository || worktreeRepository.kind !== 'worktree') {
 			return;
 		}
 
-		if (worktreeRepository.indexGroup.resourceStates.length === 0 &&
-			worktreeRepository.workingTreeGroup.resourceStates.length === 0 &&
-			worktreeRepository.untrackedGroup.resourceStates.length === 0) {
-			await window.showInformationMessage(l10n.t('There are no changes in the selected worktree to migrate.'));
-			return;
-		}
-
-		const worktreeChangedFilePaths = [
-			...worktreeRepository.indexGroup.resourceStates,
-			...worktreeRepository.workingTreeGroup.resourceStates,
-			...worktreeRepository.untrackedGroup.resourceStates
-		].map(resource => path.relative(worktreeRepository.root, resource.resourceUri.fsPath));
-
-		const targetChangedFilePaths = [
-			...repository.workingTreeGroup.resourceStates,
-			...repository.untrackedGroup.resourceStates
-		].map(resource => path.relative(repository.root, resource.resourceUri.fsPath));
-
-		// Detect overlapping unstaged files in worktree stash and target repository
-		const conflicts = worktreeChangedFilePaths.filter(path => targetChangedFilePaths.includes(path));
-
-		// Check for 'LocalChangesOverwritten' error
-		if (conflicts.length > 0) {
-			const maxFilesShown = 5;
-			const filesToShow = conflicts.slice(0, maxFilesShown);
-			const remainingCount = conflicts.length - maxFilesShown;
-
-			const fileList = filesToShow.join('\n ') +
-				(remainingCount > 0 ? l10n.t('\n and {0} more file{1}...', remainingCount, remainingCount > 1 ? 's' : '') : '');
-
-			const message = l10n.t('Your local changes to the following files would be overwritten by merge:\n {0}\n\nPlease stage, commit, or stash your changes in the repository before migrating changes.', fileList);
-			await window.showErrorMessage(message, { modal: true });
-			return;
-		}
-
-		if (worktreeUri === undefined) {
-			// Non-interactive migration, do not show confirmation dialog
-			const message = l10n.t('Proceed with migrating changes to the current repository?');
-			const detail = l10n.t('This will apply the worktree\'s changes to this repository and discard changes in the worktree.\nThis is IRREVERSIBLE!');
-			const proceed = l10n.t('Proceed');
-			const pick = await window.showWarningMessage(message, { modal: true, detail }, proceed);
-			if (pick !== proceed) {
-				return;
-			}
-		}
-
-		await worktreeRepository.createStash(undefined, true);
-		const stashes = await worktreeRepository.getStashes();
-
-		try {
-			await repository.applyStash(stashes[0].index);
-			worktreeRepository.dropStash(stashes[0].index);
-		} catch (err) {
-			if (err.gitErrorCode !== GitErrorCodes.StashConflict) {
-				await worktreeRepository.popStash();
-				throw err;
-			}
-			repository.isWorktreeMigrating = true;
-
-			const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
-			const show = l10n.t('Show Changes');
-			const choice = await window.showWarningMessage(message, show);
-			if (choice === show) {
-				await commands.executeCommand('workbench.view.scm');
-			}
-			worktreeRepository.dropStash(stashes[0].index);
-		}
+		await repository.migrateChanges(worktreeRepository.root, {
+			confirmation: true,
+			deleteFromSource: false,
+			untracked: true
+		});
 	}
 
 	@command('git.openWorktreeMergeEditor')
@@ -3512,119 +3433,47 @@ export class CommandCenter {
 		});
 	}
 
-	@command('git.createWorktreeWithDefaults', { repository: true, repositoryFilter: ['repository'] })
-	async createWorktreeWithDefaults(
-		repository: Repository,
-		commitish: string = 'HEAD'
-	): Promise<string | undefined> {
-		const config = workspace.getConfiguration('git');
-		const branchPrefix = config.get<string>('branchPrefix', '');
-
-		// Generate branch name if not provided
-		let branch = await this.generateRandomBranchName(repository, '-');
-		if (!branch) {
-			// Fallback to timestamp-based name if random generation fails
-			const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-			branch = `${branchPrefix}worktree-${timestamp}`;
-		}
-
-		// Ensure branch name starts with prefix if configured
-		if (branchPrefix && !branch.startsWith(branchPrefix)) {
-			branch = branchPrefix + branch;
-		}
-
-		// Create worktree name from branch name
-		const worktreeName = branch.startsWith(branchPrefix)
-			? branch.substring(branchPrefix.length).replace(/\//g, '-')
-			: branch.replace(/\//g, '-');
-
-		// Determine default worktree path
-		const defaultWorktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
-		const defaultWorktreePath = defaultWorktreeRoot
-			? path.join(defaultWorktreeRoot, worktreeName)
-			: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
-
-		// Check if worktree already exists at this path
-		const existingWorktree = repository.worktrees.find(worktree =>
-			pathEquals(path.normalize(worktree.path), path.normalize(defaultWorktreePath))
-		);
-
-		if (existingWorktree) {
-			// Generate unique path by appending a number
-			let counter = 1;
-			let uniquePath = `${defaultWorktreePath}-${counter}`;
-			while (repository.worktrees.some(wt => pathEquals(path.normalize(wt.path), path.normalize(uniquePath)))) {
-				counter++;
-				uniquePath = `${defaultWorktreePath}-${counter}`;
-			}
-			const finalWorktreePath = uniquePath;
-
-			try {
-				await repository.addWorktree({ path: finalWorktreePath, branch, commitish });
-
-				// Update worktree root in global state
-				const worktreeRoot = path.dirname(finalWorktreePath);
-				if (worktreeRoot !== defaultWorktreeRoot) {
-					this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
-				}
-
-				return finalWorktreePath;
-			} catch (err) {
-				// Return undefined on failure
-				return undefined;
-			}
-		}
-
-		try {
-			await repository.addWorktree({ path: defaultWorktreePath, branch, commitish });
-
-			// Update worktree root in global state
-			const worktreeRoot = path.dirname(defaultWorktreePath);
-			if (worktreeRoot !== defaultWorktreeRoot) {
-				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
-			}
-
-			return defaultWorktreePath;
-		} catch (err) {
-			// Return undefined on failure
-			return undefined;
-		}
-	}
-
-	@command('git.createWorktree', { repository: true })
+	@command('git.createWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
 	async createWorktree(repository?: Repository): Promise<void> {
-		if (!repository) {
-			// Single repository/submodule/worktree
-			if (this.model.repositories.length === 1) {
-				repository = this.model.repositories[0];
-			}
-		}
-
-		if (!repository) {
-			// Single repository/submodule
-			const repositories = this.model.repositories
-				.filter(r => r.kind === 'repository' || r.kind === 'submodule');
-
-			if (repositories.length === 1) {
-				repository = repositories[0];
-			}
-		}
-
-		if (!repository) {
-			// Multiple repositories/submodules
-			repository = await this.model.pickRepository(['repository', 'submodule']);
-		}
-
 		if (!repository) {
 			return;
 		}
 
-		await this._createWorktree(repository);
-	}
-
-	private async _createWorktree(repository: Repository): Promise<void> {
 		const config = workspace.getConfiguration('git');
 		const branchPrefix = config.get<string>('branchPrefix')!;
+
+		// Get commitish and branch for the new worktree
+		const worktreeDetails = await this.getWorktreeCommitishAndBranch(repository);
+		if (!worktreeDetails) {
+			return;
+		}
+
+		const { commitish, branch } = worktreeDetails;
+		const worktreeName = ((branch ?? commitish).startsWith(branchPrefix)
+			? (branch ?? commitish).substring(branchPrefix.length).replace(/\//g, '-')
+			: (branch ?? commitish).replace(/\//g, '-'));
+
+		// Get path for the new worktree
+		const worktreePath = await this.getWorktreePath(repository, worktreeName);
+		if (!worktreePath) {
+			return;
+		}
+
+		try {
+			await repository.createWorktree({ path: worktreePath, branch, commitish: commitish });
+		} catch (err) {
+			if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
+				await this.handleWorktreeAlreadyExists(err);
+			} else if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
+				await this.handleWorktreeBranchAlreadyUsed(err);
+			} else {
+				throw err;
+			}
+		}
+	}
+
+	private async getWorktreeCommitishAndBranch(repository: Repository): Promise<{ commitish: string; branch: string | undefined } | undefined> {
+		const config = workspace.getConfiguration('git', Uri.file(repository.root));
 		const showRefDetails = config.get<boolean>('showReferenceDetails') === true;
 
 		const createBranch = new CreateBranchItem();
@@ -3643,23 +3492,21 @@ export class CommandCenter {
 		const choice = await this.pickRef(getBranchPicks(), placeHolder);
 
 		if (!choice) {
-			return;
+			return undefined;
 		}
 
-		let branch: string | undefined = undefined;
-		let commitish: string;
-
 		if (choice === createBranch) {
-			branch = await this.promptForBranchName(repository);
-
+			// Create new branch
+			const branch = await this.promptForBranchName(repository);
 			if (!branch) {
-				return;
+				return undefined;
 			}
 
-			commitish = 'HEAD';
+			return { commitish: 'HEAD', branch };
 		} else {
+			// Existing reference
 			if (!(choice instanceof RefItem) || !choice.refName) {
-				return;
+				return undefined;
 			}
 
 			if (choice.refName === repository.HEAD?.name) {
@@ -3668,15 +3515,14 @@ export class CommandCenter {
 				const pick = await window.showWarningMessage(message, { modal: true }, createBranch);
 
 				if (pick === createBranch) {
-					branch = await this.promptForBranchName(repository);
-
+					const branch = await this.promptForBranchName(repository);
 					if (!branch) {
-						return;
+						return undefined;
 					}
 
-					commitish = 'HEAD';
+					return { commitish: 'HEAD', branch };
 				} else {
-					return;
+					return undefined;
 				}
 			} else {
 				// Check whether the selected branch is checked out in an existing worktree
@@ -3686,17 +3532,14 @@ export class CommandCenter {
 					await this.handleWorktreeConflict(worktree.path, message);
 					return;
 				}
-				commitish = choice.refName;
+				return { commitish: choice.refName, branch: undefined };
 			}
 		}
+	}
 
-		const worktreeName = ((branch ?? commitish).startsWith(branchPrefix)
-			? (branch ?? commitish).substring(branchPrefix.length).replace(/\//g, '-')
-			: (branch ?? commitish).replace(/\//g, '-'));
-
-		// If user selects folder button, they manually select the worktree path through folder picker
+	private async getWorktreePath(repository: Repository, worktreeName: string): Promise<string | undefined> {
 		const getWorktreePath = async (): Promise<string | undefined> => {
-			const worktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
+			const worktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${repository.root}`);
 			const defaultUri = worktreeRoot ? Uri.file(worktreeRoot) : Uri.file(path.dirname(repository.root));
 
 			const uris = await window.showOpenDialog({
@@ -3732,7 +3575,7 @@ export class CommandCenter {
 		};
 
 		// Default worktree path is based on the last worktree location or a worktree folder for the repository
-		const defaultWorktreeRoot = this.globalState.get<string>(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`);
+		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${repository.root}`);
 		const defaultWorktreePath = defaultWorktreeRoot
 			? path.join(defaultWorktreeRoot, worktreeName)
 			: path.join(path.dirname(repository.root), `${path.basename(repository.root)}.worktrees`, worktreeName);
@@ -3771,29 +3614,7 @@ export class CommandCenter {
 
 		dispose(disposables);
 
-		if (!worktreePath) {
-			return;
-		}
-
-		try {
-			await repository.addWorktree({ path: worktreePath, branch, commitish: commitish });
-
-			// Update worktree root in global state
-			const worktreeRoot = path.dirname(worktreePath);
-			if (worktreeRoot !== defaultWorktreeRoot) {
-				this.globalState.update(`${CommandCenter.WORKTREE_ROOT_KEY}:${repository.root}`, worktreeRoot);
-			}
-		} catch (err) {
-			if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeAlreadyExists) {
-				await this.handleWorktreeAlreadyExists(err);
-			} else if (err instanceof GitError && err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
-				await this.handleWorktreeBranchAlreadyUsed(err);
-			} else {
-				throw err;
-			}
-
-			return;
-		}
+		return worktreePath;
 	}
 
 	private async handleWorktreeBranchAlreadyUsed(err: GitError): Promise<void> {
@@ -3841,43 +3662,7 @@ export class CommandCenter {
 		return;
 	}
 
-	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['worktree'] })
-	async deleteWorktree(repository: Repository): Promise<void> {
-		if (!repository.dotGit.commonPath) {
-			return;
-		}
-
-		const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
-		if (!mainRepository) {
-			await window.showErrorMessage(l10n.t('You cannot delete the worktree you are currently in. Please switch to the main repository first.'), { modal: true });
-			return;
-		}
-
-		try {
-			await mainRepository.deleteWorktree(repository.root);
-
-			// Dispose worktree repository
-			this.model.disposeRepository(repository);
-		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.WorktreeContainsChanges) {
-				const forceDelete = l10n.t('Force Delete');
-				const message = l10n.t('The worktree contains modified or untracked files. Do you want to force delete?');
-				const choice = await window.showWarningMessage(message, { modal: true }, forceDelete);
-				if (choice === forceDelete) {
-					await mainRepository.deleteWorktree(repository.root, { force: true });
-
-					// Dispose worktree repository
-					this.model.disposeRepository(repository);
-				}
-
-				return;
-			}
-
-			throw err;
-		}
-	}
-
-	@command('git.deleteWorktreeFromPalette', { repository: true, repositoryFilter: ['repository', 'submodule'] })
+	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['repository', 'submodule'] })
 	async deleteWorktreeFromPalette(repository: Repository): Promise<void> {
 		const worktreePicks = async (): Promise<WorktreeDeleteItem[] | QuickPickItem[]> => {
 			const worktrees = await repository.getWorktrees();
@@ -3892,6 +3677,21 @@ export class CommandCenter {
 		if (choice instanceof WorktreeDeleteItem) {
 			await choice.run(repository);
 		}
+	}
+
+	@command('git.deleteWorktree2', { repository: true, repositoryFilter: ['worktree'] })
+	async deleteWorktree(repository: Repository): Promise<void> {
+		if (!repository.dotGit.commonPath) {
+			return;
+		}
+
+		const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
+		if (!mainRepository) {
+			await window.showErrorMessage(l10n.t('You cannot delete the worktree you are currently in. Please switch to the main repository first.'), { modal: true });
+			return;
+		}
+
+		await mainRepository.deleteWorktree(repository.root);
 	}
 
 	@command('git.openWorktree', { repository: true })

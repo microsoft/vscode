@@ -478,6 +478,9 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				((e: IAsyncDataTreeNode<TInput, T>) => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)) as ((e: unknown) => boolean)
 			)
 		),
+		twistieAdditionalCssClass: typeof options.twistieAdditionalCssClass === 'undefined' ? undefined : (
+			((e: IAsyncDataTreeNode<TInput, T>) => (options.twistieAdditionalCssClass as ((e: T) => string | undefined))(e.element as T)) as ((e: unknown) => string | undefined)
+		),
 		defaultFindVisibility: (e: IAsyncDataTreeNode<TInput, T>) => {
 			if (e.hasChildren && e.stale) {
 				return TreeVisibility.Visible;

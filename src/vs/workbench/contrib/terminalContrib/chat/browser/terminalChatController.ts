@@ -8,15 +8,13 @@ import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatCodeBlockContextProviderService, showChatView } from '../../../chat/browser/chat.js';
+import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { isDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { TerminalChatWidget } from './terminalChatWidget.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import type { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import type { IChatModel } from '../../../chat/common/chatModel.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.chat';
@@ -154,11 +152,10 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 }
 
 async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined) {
-	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
-	const layoutService = accessor.get(IWorkbenchLayoutService);
+	const chatWidgetService = accessor.get(IChatWidgetService);
 
-	const widget = await showChatView(viewsService, layoutService);
+	const widget = await chatWidgetService.revealWidget();
 
 	if (widget && widget.viewModel && model) {
 		for (const request of model.getRequests().slice()) {

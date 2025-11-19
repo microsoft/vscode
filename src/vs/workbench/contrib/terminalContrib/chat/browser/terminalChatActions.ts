@@ -25,6 +25,7 @@ import { IInstantiationService, ServicesAccessor } from '../../../../../platform
 import { getIconId } from '../../../terminal/browser/terminalIcon.js';
 import { TerminalChatController } from './terminalChatController.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { isString } from '../../../../../base/common/types.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
@@ -60,9 +61,9 @@ registerActiveXtermAction({
 
 		if (opts) {
 			function isValidOptionsObject(obj: unknown): obj is { query: string; isPartialQuery?: boolean } {
-				return typeof obj === 'object' && obj !== null && 'query' in obj && typeof obj.query === 'string';
+				return typeof obj === 'object' && obj !== null && 'query' in obj && isString(obj.query);
 			}
-			opts = typeof opts === 'string' ? { query: opts } : opts;
+			opts = isString(opts) ? { query: opts } : opts;
 			if (isValidOptionsObject(opts)) {
 				contr.updateInput(opts.query, false);
 				if (!opts.isPartialQuery) {

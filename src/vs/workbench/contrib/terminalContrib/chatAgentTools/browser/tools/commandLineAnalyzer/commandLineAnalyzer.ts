@@ -21,6 +21,7 @@ export interface ICommandLineAnalyzerOptions {
 	os: OperatingSystem;
 	treeSitterLanguage: TreeSitterCommandParserLanguage;
 	terminalToolSessionId: string;
+	chatSessionId: string | undefined;
 }
 
 export interface ICommandLineAnalyzerResult {

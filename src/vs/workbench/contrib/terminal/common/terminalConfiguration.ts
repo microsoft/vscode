@@ -7,6 +7,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import type { IStringDictionary } from '../../../../base/common/collections.js';
 import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { isMacintosh, isWindows } from '../../../../base/common/platform.js';
+import { isString } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationScope, Extensions, IConfigurationRegistry, type IConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import product from '../../../../platform/product/common/product.js';
@@ -680,7 +681,7 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 		migrateFn: (enableBell, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
 			let announcement = accessor('accessibility.signals.terminalBell')?.announcement ?? accessor('accessibility.alert.terminalBell');
-			if (announcement !== undefined && typeof announcement !== 'string') {
+			if (announcement !== undefined && !isString(announcement)) {
 				announcement = announcement ? 'auto' : 'off';
 			}
 			configurationKeyValuePairs.push(['accessibility.signals.terminalBell', { value: { sound: enableBell ? 'on' : 'off', announcement } }]);

@@ -26,6 +26,7 @@ import { IEditorGroup } from '../../../services/editor/common/editorGroupsServic
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
+import { IChatService } from '../common/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { clearChatEditor } from './actions/chatClear.js';
@@ -65,6 +66,7 @@ export class ChatEditor extends EditorPane {
 		@IStorageService private readonly storageService: IStorageService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super(ChatEditorInput.EditorID, group, telemetryService, themeService, storageService);
 	}
@@ -92,6 +94,7 @@ export class ChatEditor extends EditorPane {
 					autoScroll: mode => mode !== ChatModeKind.Ask,
 					renderFollowups: true,
 					supportsFileReferences: true,
+					clear: () => this.clear(),
 					rendererOptions: {
 						renderTextEditsAsSummary: (uri) => {
 							return true;
@@ -110,7 +113,6 @@ export class ChatEditor extends EditorPane {
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));
-		this._register(this.widget.onDidClear(() => this.clear()));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
 	}
@@ -232,8 +234,8 @@ export class ChatEditor extends EditorPane {
 			const viewState = options?.viewState ?? input.options.viewState;
 			this.updateModel(editorModel.model, viewState);
 
-			if (isContributedChatSession && options?.title?.preferred) {
-				editorModel.model.setCustomTitle(options.title.preferred);
+			if (isContributedChatSession && options?.title?.preferred && input.sessionResource) {
+				this.chatService.setChatSessionTitle(input.sessionResource, options.title.preferred);
 			}
 		} catch (error) {
 			this.hideLoadingInChatWidget();

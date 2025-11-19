@@ -148,6 +148,13 @@ export interface IChatPromptSlashCommand {
 	readonly parsedPromptFile: ParsedPromptFile;
 }
 
+export interface IClaudeSkill {
+	readonly uri: URI;
+	readonly type: 'personal' | 'project';
+	readonly name: string;
+	readonly description: string | undefined;
+}
+
 /**
  * Provides prompt services.
  */
@@ -257,4 +264,9 @@ export interface IPromptsService extends IDisposable {
 	 * Persists the set of disabled prompt file URIs for the given type.
 	 */
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
+
+	/**
+	 * Gets list of claude skills files.
+	 */
+	findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined>;
 }

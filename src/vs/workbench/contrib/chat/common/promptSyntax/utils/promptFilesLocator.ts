@@ -23,6 +23,7 @@ import { IUserDataProfileService } from '../../../../../services/userDataProfile
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 
 /**
  * Utility class to locate prompt files.
@@ -36,7 +37,8 @@ export class PromptFilesLocator {
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IPathService private readonly pathService: IPathService,
 	) {
 	}
 
@@ -358,7 +360,52 @@ export class PromptFilesLocator {
 		}
 		return undefined;
 	}
+
+	private async findClaudeSkillsInFolder(uri: URI, token: CancellationToken): Promise<URI[]> {
+		const result = [];
+		try {
+			const stat = await this.fileService.resolve(joinPath(uri, '.claude/skills'));
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			if (stat.isDirectory && stat.children) {
+				for (const skillDir of stat.children) {
+					if (skillDir.isDirectory) {
+						const skillFile = joinPath(skillDir.resource, 'SKILL.md');
+						if (await this.fileService.exists(skillFile)) {
+							result.push(skillFile);
+						}
+					}
+				}
+			}
+		} catch (error) {
+			// no such folder, return empty list
+			return [];
+		}
+
+		return result;
+	}
+
+	/**
+	 * Searches for skills in `.claude/skills/` directories in the workspace.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	public async findClaudeSkillsInWorkspace(token: CancellationToken): Promise<URI[]> {
+		const workspace = this.workspaceService.getWorkspace();
+		const results = await Promise.all(workspace.folders.map(f => this.findClaudeSkillsInFolder(f.uri, token)));
+		return results.flat();
+	}
+
+	/**
+	 * Searches for skills in `.claude/skills/` directories  in the home folder.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	public async findClaudeSkillsInUserHome(token: CancellationToken): Promise<URI[]> {
+		const userHome = await this.pathService.userHome();
+		return this.findClaudeSkillsInFolder(userHome, token);
+	}
 }
+
 
 /**
  * Checks if the provided `pattern` could be a valid glob pattern.

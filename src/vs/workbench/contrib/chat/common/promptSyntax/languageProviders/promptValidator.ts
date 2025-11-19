@@ -16,7 +16,7 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, IStringValue, ParsedPromptFile, PROMPT_NAME_REGEXP, PromptHeaderAttributes, Target } from '../promptFileParser.js';
+import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, IStringValue, ParsedPromptFile, PromptHeaderAttributes, Target } from '../promptFileParser.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -196,9 +196,6 @@ export class PromptValidator {
 		if (nameAttribute.value.value.trim().length === 0) {
 			report(toMarker(localize('promptValidator.nameShouldNotBeEmpty', "The 'name' attribute must not be empty."), nameAttribute.value.range, MarkerSeverity.Error));
 			return;
-		}
-		if (!PROMPT_NAME_REGEXP.test(nameAttribute.value.value)) {
-			report(toMarker(localize('promptValidator.nameInvalidCharacters', "The 'name' attribute can only consist of letters, digits, underscores, hyphens, and periods."), nameAttribute.value.range, MarkerSeverity.Error));
 		}
 	}
 

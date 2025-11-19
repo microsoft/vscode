@@ -14,7 +14,7 @@ export { type IDerivedReader } from './observables/derivedImpl.js';
 export { ObservableLazy, ObservableLazyPromise, ObservablePromise, PromiseResult, } from './utils/promise.js';
 export { derivedWithCancellationToken, waitForState } from './utils/utilsCancellation.js';
 export {
-	debouncedObservableDeprecated, debouncedObservable, derivedObservableWithCache,
+	debouncedObservable, debouncedObservable2, derivedObservableWithCache,
 	derivedObservableWithWritableCache, keepObserved, mapObservableArrayCached, observableFromPromise,
 	recomputeInitiallyAndOnChange,
 	signalFromObservable, wasEventTriggeredRecently,

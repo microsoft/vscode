@@ -18,7 +18,7 @@ import { IChatWidget, IChatWidgetService } from '../chat.js';
 export class ChatRelatedFilesContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'chat.relatedFilesWorkingSet';
 
-	private readonly chatEditingSessionDisposables = new Map<string, DisposableStore>();
+	private readonly chatEditingSessionDisposables = new ResourceMap<DisposableStore>();
 	private _currentRelatedFilesRetrievalOperation: Promise<void> | undefined;
 
 	constructor(
@@ -31,7 +31,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 			const sessions = this.chatEditingService.editingSessionsObs.read(reader);
 			sessions.forEach(session => {
 				const widget = this.chatWidgetService.getWidgetBySessionResource(session.chatSessionResource);
-				if (widget && !this.chatEditingSessionDisposables.has(session.chatSessionId)) {
+				if (widget && !this.chatEditingSessionDisposables.has(session.chatSessionResource)) {
 					this._handleNewEditingSession(session, widget);
 				}
 			});
@@ -108,7 +108,7 @@ export class ChatRelatedFilesContribution extends Disposable implements IWorkben
 			widget.input.relatedFiles?.clear();
 			this._updateRelatedFileSuggestions(currentEditingSession, widget);
 		}));
-		this.chatEditingSessionDisposables.set(currentEditingSession.chatSessionId, disposableStore);
+		this.chatEditingSessionDisposables.set(currentEditingSession.chatSessionResource, disposableStore);
 	}
 
 	override dispose() {

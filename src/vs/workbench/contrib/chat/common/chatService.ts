@@ -279,21 +279,38 @@ export interface IChatConfirmation {
 	kind: 'confirmation';
 }
 
+export const enum ElicitationState {
+	Pending = 'pending',
+	Accepted = 'accepted',
+	Rejected = 'rejected',
+}
+
 export interface IChatElicitationRequest {
-	kind: 'elicitation';
+	kind: 'elicitation2'; // '2' because initially serialized data used the same kind
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
 	acceptButtonLabel: string;
 	rejectButtonLabel: string | undefined;
 	subtitle?: string | IMarkdownString;
 	source?: ToolDataSource;
-	state: 'pending' | 'accepted' | 'rejected';
+	state: IObservable<ElicitationState>;
 	acceptedResult?: Record<string, unknown>;
 	moreActions?: IAction[];
 	accept(value: IAction | true): Promise<void>;
 	reject?: () => Promise<void>;
 	isHidden?: IObservable<boolean>;
 	hide?(): void;
+}
+
+export interface IChatElicitationRequestSerialized {
+	kind: 'elicitationSerialized';
+	title: string | IMarkdownString;
+	message: string | IMarkdownString;
+	subtitle: string | IMarkdownString | undefined;
+	source: ToolDataSource | undefined;
+	state: ElicitationState.Accepted | ElicitationState.Rejected;
+	isHidden: boolean;
+	acceptedResult?: Record<string, unknown>;
 }
 
 export interface IChatThinkingPart {
@@ -327,6 +344,12 @@ export interface IChatTerminalToolInvocationData {
 	terminalTheme?: {
 		background?: string;
 		foreground?: string;
+	};
+	/** Stored command state to restore decorations after reload */
+	terminalCommandState?: {
+		exitCode?: number;
+		timestamp?: number;
+		duration?: number;
 	};
 	autoApproveInfo?: IMarkdownString;
 }
@@ -673,6 +696,7 @@ export type IChatProgress =
 	| IChatThinkingPart
 	| IChatTaskSerialized
 	| IChatElicitationRequest
+	| IChatElicitationRequestSerialized
 	| IChatMcpServersStarting;
 
 export interface IChatFollowup {
@@ -908,13 +932,6 @@ export interface IChatSendRequestOptions {
 	 */
 	confirmation?: string;
 
-	/**
-	 * Summary data for chat sessions context
-	 */
-	chatSummary?: {
-		prompt?: string;
-		history?: string;
-	};
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
@@ -942,6 +959,11 @@ export interface IChatService {
 	 */
 	sendRequest(sessionResource: URI, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
 
+	/**
+	 * Sets a custom title for a chat model.
+	 */
+	setTitle(sessionResource: URI, title: string): void;
+	appendProgress(request: IChatRequestModel, progress: IChatProgress): void;
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
@@ -954,6 +976,8 @@ export interface IChatService {
 	removeHistoryEntry(sessionResource: URI): Promise<void>;
 	getChatStorageFolder(): URI;
 	logChatIndex(): void;
+	getLiveSessionItems(): IChatDetail[];
+	getHistorySessionItems(): Promise<IChatDetail[]>;
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;

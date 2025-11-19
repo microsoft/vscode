@@ -478,6 +478,17 @@ export interface McpServerTransportStdio {
 	readonly envFile: string | undefined;
 }
 
+export interface McpServerTransportHTTPAuthentication {
+	/**
+	 * Authentication provider ID to use to get a session for the initial MCP server connection.
+	 */
+	readonly providerId: string;
+	/**
+	 * Scopes to use to get a session for the initial MCP server connection.
+	 */
+	readonly scopes: string[];
+}
+
 /**
  * MCP server launched on the command line which communicated over SSE or Streamable HTTP.
  * https://spec.modelcontextprotocol.io/specification/2024-11-05/basic/transports/#http-with-sse
@@ -487,6 +498,7 @@ export interface McpServerTransportHTTP {
 	readonly type: McpServerTransportType.HTTP;
 	readonly uri: URI;
 	readonly headers: [string, string][];
+	readonly authentication?: McpServerTransportHTTPAuthentication;
 }
 
 export type McpServerLaunch =
@@ -495,7 +507,7 @@ export type McpServerLaunch =
 
 export namespace McpServerLaunch {
 	export type Serialized =
-		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][] }
+		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; authentication?: McpServerTransportHTTPAuthentication }
 		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
@@ -505,7 +517,7 @@ export namespace McpServerLaunch {
 	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
 		switch (launch.type) {
 			case McpServerTransportType.HTTP:
-				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers };
+				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers, authentication: launch.authentication };
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,

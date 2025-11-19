@@ -155,7 +155,7 @@ export interface IChatSessionsService {
 	readonly onDidChangeInProgress: Event<void>;
 
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
-	hasChatSessionItemProvider(chatSessionType: string): Promise<boolean>;
+	activateChatSessionItemProvider(chatSessionType: string): Promise<IChatSessionItemProvider | undefined>;
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
 
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];

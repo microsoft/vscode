@@ -10,11 +10,15 @@ import { localize } from '../../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
-import { type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
+import { TreeSitterCommandParserLanguage, type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
 import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
 import { OperatingSystem } from '../../../../../../../base/common/platform.js';
 import { isString } from '../../../../../../../base/common/types.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
+
+const nullDevice = Symbol('null device');
+
+type FileWrite = URI | string | typeof nullDevice;
 
 export class CommandLineFileWriteAnalyzer extends Disposable implements ICommandLineAnalyzer {
 	constructor(
@@ -28,7 +32,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 	}
 
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
-		let fileWrites: URI[] | string[];
+		let fileWrites: FileWrite[];
 		try {
 			fileWrites = await this._getFileWrites(options);
 		} catch (e) {
@@ -41,14 +45,18 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		return this._getResult(options, fileWrites);
 	}
 
-	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<URI[] | string[]> {
-		let fileWrites: URI[] | string[] = [];
-		const capturedFileWrites = await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine);
+	private async _getFileWrites(options: ICommandLineAnalyzerOptions): Promise<FileWrite[]> {
+		let fileWrites: FileWrite[] = [];
+		const capturedFileWrites = (await this._treeSitterCommandParser.getFileWrites(options.treeSitterLanguage, options.commandLine))
+			.map(this._mapNullDevice.bind(this, options));
 		if (capturedFileWrites.length) {
 			const cwd = options.cwd;
 			if (cwd) {
 				this._log('Detected cwd', cwd.toString());
 				fileWrites = capturedFileWrites.map(e => {
+					if (e === nullDevice) {
+						return e;
+					}
 					const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(e) : posix.isAbsolute(e);
 					if (isAbsolute) {
 						return URI.file(e);
@@ -65,7 +73,18 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 		return fileWrites;
 	}
 
-	private _getResult(options: ICommandLineAnalyzerOptions, fileWrites: URI[] | string[]): ICommandLineAnalyzerResult {
+	private _mapNullDevice(options: ICommandLineAnalyzerOptions, rawFileWrite: string): string | typeof nullDevice {
+		if (options.treeSitterLanguage === TreeSitterCommandParserLanguage.PowerShell) {
+			return rawFileWrite === '$null'
+				? nullDevice
+				: rawFileWrite;
+		}
+		return rawFileWrite === '/dev/null'
+			? nullDevice
+			: rawFileWrite;
+	}
+
+	private _getResult(options: ICommandLineAnalyzerOptions, fileWrites: FileWrite[]): ICommandLineAnalyzerResult {
 		let isAutoApproveAllowed = true;
 		if (fileWrites.length > 0) {
 			const blockDetectedFileWrites = this._configurationService.getValue<string>(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites);
@@ -79,6 +98,11 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 					const workspaceFolders = this._workspaceContextService.getWorkspace().folders;
 					if (workspaceFolders.length > 0) {
 						for (const fileWrite of fileWrites) {
+							if (fileWrite === nullDevice) {
+								this._log('File write to null device allowed', URI.isUri(fileWrite) ? fileWrite.toString() : fileWrite);
+								continue;
+							}
+
 							if (isString(fileWrite)) {
 								const isAbsolute = options.os === OperatingSystem.Windows ? win32.isAbsolute(fileWrite) : posix.isAbsolute(fileWrite);
 								if (!isAbsolute) {
@@ -106,9 +130,12 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 							}
 						}
 					} else {
-						// No workspace folders, consider all writes as outside workspace
-						isAutoApproveAllowed = false;
-						this._log('File writes blocked - no workspace folders');
+						// No workspace folders, allow safe null device paths even without workspace
+						const hasOnlyNullDevices = fileWrites.every(fw => fw === nullDevice);
+						if (!hasOnlyNullDevices) {
+							isAutoApproveAllowed = false;
+							this._log('File writes blocked - no workspace folders');
+						}
 					}
 					break;
 				}
@@ -121,7 +148,7 @@ export class CommandLineFileWriteAnalyzer extends Disposable implements ICommand
 
 		const disclaimers: string[] = [];
 		if (fileWrites.length > 0) {
-			const fileWritesList = fileWrites.map(fw => `\`${URI.isUri(fw) ? this._labelService.getUriLabel(fw) : fw}\``).join(', ');
+			const fileWritesList = fileWrites.map(fw => `\`${URI.isUri(fw) ? this._labelService.getUriLabel(fw) : fw === nullDevice ? '/dev/null' : fw.toString()}\``).join(', ');
 			if (!isAutoApproveAllowed) {
 				disclaimers.push(localize('runInTerminal.fileWriteBlockedDisclaimer', 'File write operations detected that cannot be auto approved: {0}', fileWritesList));
 			} else {

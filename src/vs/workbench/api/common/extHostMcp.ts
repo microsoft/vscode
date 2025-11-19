@@ -20,7 +20,7 @@ import product from '../../../platform/product/common/product.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails, IStartMcpOptions, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -45,6 +45,10 @@ const serverDataValidation = vObj({
 			availability: vNumber(),
 			definition: vObjAny(),
 		}))),
+	})),
+	authentication: vOptionalProp(vObj({
+		providerId: vString(),
+		scopes: vArray(vString()),
 	}))
 });
 
@@ -165,6 +169,9 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 				}
 
 				serverDataValidation.validateOrThrow(item);
+				if ((item as vscode.McpHttpServerDefinition2).authentication) {
+					checkProposedApiEnabled(extension, 'mcpToolDefinitions');
+				}
 
 				let staticMetadata: McpServerStaticMetadata | undefined;
 				const castAs2 = item as McpStdioServerDefinition | McpHttpServerDefinition;
@@ -708,6 +715,30 @@ export class McpHTTPHandle extends Disposable {
 					throw new CancellationError();
 				}
 				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
+			}
+		}
+		if (this._launch.authentication) {
+			try {
+				this._log(LogLevel.Debug, `Using provided authentication config: providerId=${this._launch.authentication.providerId}, scopes=${this._launch.authentication.scopes.join(', ')}`);
+				const token = await this._proxy.$getTokenForProviderId(
+					this._id,
+					this._launch.authentication.providerId,
+					this._launch.authentication.scopes,
+					{
+						errorOnUserInteraction: this._errorOnUserInteraction,
+						forceNewRegistration
+					}
+				);
+				if (token) {
+					headers['Authorization'] = `Bearer ${token}`;
+					this._log(LogLevel.Info, 'Successfully obtained token from provided authentication config');
+				}
+			} catch (e) {
+				if (UserInteractionRequiredError.is(e)) {
+					this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Stopped, reason: 'needs-user-interaction' });
+					throw new CancellationError();
+				}
+				this._log(LogLevel.Warning, `Error getting token from provided authentication config: ${String(e)}`);
 			}
 		}
 		return headers;
