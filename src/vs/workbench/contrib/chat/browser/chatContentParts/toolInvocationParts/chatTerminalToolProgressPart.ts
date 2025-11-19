@@ -62,6 +62,10 @@ const CSI_SEQUENCE_REGEX = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
  */
 const expandedStateByInvocation = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
 
+const DEFAULT_ROW_HEIGHT_PX = 16;
+
+const MIN_OUTPUT_HEIGHT = 20;
+
 /**
  * Options for configuring a terminal command decoration.
  */
@@ -306,9 +310,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._decoration.update();
 			this._onDidChangeHeight.fire();
 		}));
-
-
+		const font = this._terminalInstance?.xterm?.getFont();
+		const rowHeightPx = font?.charHeight && font?.lineHeight ? font.charHeight * font.lineHeight : DEFAULT_ROW_HEIGHT_PX;
 		const outputViewOptions: ChatTerminalToolOutputSectionOptions = {
+			rowHeightPx,
 			container: elements.output,
 			title: elements.title,
 			displayCommand,
@@ -789,6 +794,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 }
 
 interface ChatTerminalToolOutputSectionOptions {
+	rowHeightPx: number;
 	container: HTMLElement;
 	title: HTMLElement;
 	displayCommand: string;
@@ -835,16 +841,16 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _onDidFocusEmitter = new Emitter<void>();
 	private readonly _onDidBlurEmitter = new Emitter<FocusEvent>();
 
-	constructor(options: ChatTerminalToolOutputSectionOptions) {
+	constructor(private readonly _options: ChatTerminalToolOutputSectionOptions) {
 		super();
 		this._detachedTerminal = this._register(new MutableDisposable<IDetachedTerminalInstance>());
-		this._container = options.container;
-		this._title = options.title;
-		this._displayCommand = options.displayCommand;
-		this._terminalData = options.terminalData;
-		this._accessibleViewService = options.accessibleViewService;
-		this._onDidChangeHeight = options.onDidChangeHeight;
-		this._createDetachedTerminal = options.createDetachedTerminal;
+		this._container = _options.container;
+		this._title = _options.title;
+		this._displayCommand = _options.displayCommand;
+		this._terminalData = _options.terminalData;
+		this._accessibleViewService = _options.accessibleViewService;
+		this._onDidChangeHeight = _options.onDidChangeHeight;
+		this._createDetachedTerminal = _options.createDetachedTerminal;
 		this._outputAriaLabelBase = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', this._displayCommand);
 
 		this._container.classList.add('collapsed');
@@ -1209,10 +1215,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (!this._terminalContainer || !this.isExpanded) {
 			return;
 		}
-		const minHeight = 20;
-		const contentHeight = Math.max(this._calculateVisibleContentHeight(), minHeight);
+		const contentHeight = Math.max(this._calculateVisibleContentHeight(), MIN_OUTPUT_HEIGHT);
 		const clampedHeight = Math.min(contentHeight, MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
-		const measuredBodyHeight = Math.max(this._outputBody.scrollHeight, minHeight);
+		const measuredBodyHeight = Math.max(this._outputBody.scrollHeight, MIN_OUTPUT_HEIGHT);
 		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
 		const domNode = this._scrollable?.getDomNode();
 		if (domNode) {
@@ -1252,8 +1257,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _calculateVisibleContentHeight(): number {
-		// TODO@meganrogge: do I need to use line height here? 16 seems okay for now.
-		const rowHeight = 16;
 		const nonEmptyLines = this._countNonEmptyStreamLines();
 		const effectiveLines = Math.max(nonEmptyLines, 1);
 		const infoHeight = this._infoElement?.offsetHeight ?? 0;
@@ -1261,7 +1264,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (this._infoElement?.textContent.includes('No output was produced by the command.')) {
 			return infoHeight;
 		}
-		return Math.max(effectiveLines * rowHeight + infoHeight, rowHeight);
+		return Math.max(effectiveLines * this._options.rowHeightPx + infoHeight, this._options.rowHeightPx);
 	}
 
 	private _countNonEmptyStreamLines(): number {
