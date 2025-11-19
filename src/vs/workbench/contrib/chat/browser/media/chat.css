@@ -2493,7 +2493,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		display: none;
 	}
 
-	.interactive-request .header.header.partially-disabled .detail-container {
+	.interactive-request .header.partially-disabled .detail-container {
 		margin-left: 4px;
 	}
 
