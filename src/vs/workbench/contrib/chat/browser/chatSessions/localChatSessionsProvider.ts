@@ -7,9 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { IObservable } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel } from '../../common/chatModel.js';
@@ -22,7 +20,6 @@ import { ChatSessionItemWithProvider } from './common.js';
 export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.localChatSessionsProvider';
 	static readonly CHAT_WIDGET_VIEW_ID = 'workbench.panel.chat.view.copilot';
-	static readonly CHAT_WIDGET_VIEW_RESOURCE = URI.parse(`${Schemas.vscodeLocalChatSession}://widget`);
 	readonly chatSessionType = localChatSessionType;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
