@@ -1190,10 +1190,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (this._detachedTerminal.value) {
 			this._detachedTerminal.clear();
 		}
-		if (this._outputResizeObserver) {
-			this._outputResizeObserver.disconnect();
-			this._outputResizeObserver = undefined;
-		}
+		this._outputResizeObserver?.disconnect();
+		this._outputResizeObserver = undefined;
 		this._xtermElement = undefined;
 		this._xtermViewport = undefined;
 		dom.clearNode(this._terminalContainer);
