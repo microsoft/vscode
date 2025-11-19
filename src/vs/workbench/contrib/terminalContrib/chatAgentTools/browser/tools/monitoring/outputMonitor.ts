@@ -254,7 +254,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				try { continuePollingPart?.hide(); } catch { /* noop */ }
 				continuePollingPart = undefined;
 				continuePollingDecisionP = undefined;
-				this._promptPart = undefined;
 
 				return false;
 			}

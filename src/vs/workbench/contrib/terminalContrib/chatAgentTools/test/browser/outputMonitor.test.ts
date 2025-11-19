@@ -150,17 +150,9 @@ suite('OutputMonitor', () => {
 	test('timeout prompt unanswered → continues polling and completes when idle', async () => {
 		return runWithFakedTimers({}, async () => {
 			// Fake a ChatModel enough to pass instanceof and the two methods used
-			let promptPartHidden = false;
 			const fakeChatModel: any = {
 				getRequests: () => [{}],
-				acceptResponseProgress: (_request: any, part: any) => {
-					// Hook into the hide method to track when it's called
-					const originalHide = part.hide.bind(part);
-					part.hide = () => {
-						promptPartHidden = true;
-						originalHide();
-					};
-				}
+				acceptResponseProgress: () => { }
 			};
 			Object.setPrototypeOf(fakeChatModel, ChatModel.prototype);
 			instantiationService.stub(IChatService, { getSession: () => fakeChatModel });
@@ -191,8 +183,6 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(res.state, OutputMonitorState.Idle);
 			assert.strictEqual(res.output, 'test output');
 			assert.ok(isNumber(res.pollDurationMs));
-			// Verify the prompt part was hidden when polling completed
-			assert.strictEqual(promptPartHidden, true, 'Prompt part should be hidden when polling completes automatically');
 		});
 	});
 
