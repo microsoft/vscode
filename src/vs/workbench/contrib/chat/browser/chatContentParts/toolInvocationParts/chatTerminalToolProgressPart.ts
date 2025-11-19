@@ -1238,9 +1238,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _scrollOutputToBottom(): void {
-		if (this._isStreaming) {
-			return;
-		}
 		if (this._xtermViewport) {
 			this._xtermViewport.scrollTop = this._xtermViewport.scrollHeight;
 		}
