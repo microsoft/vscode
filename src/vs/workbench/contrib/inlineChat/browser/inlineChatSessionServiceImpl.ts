@@ -41,7 +41,7 @@ import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js'
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService, ToolDataSource, IToolData } from '../../chat/common/languageModelToolsService.js';
-import { CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
 import { askInPanelChat, IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService.js';
 
@@ -349,14 +349,13 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		const chatModel = this._chatService.startSession(ChatAgentLocation.Chat, token, false);
 
-		const editingSession = await chatModel.editingSessionObs?.promise!;
 		const widget = this._chatWidgetService.getWidgetBySessionResource(chatModel.sessionResource);
 		await widget?.attachmentModel.addFile(uri);
 
 		const store = new DisposableStore();
 		store.add(toDisposable(() => {
 			this._chatService.cancelCurrentRequestForSession(chatModel.sessionResource);
-			editingSession.reject();
+			chatModel.editingSession?.reject();
 			this._sessions2.delete(uri);
 			this._onDidChangeSessions.fire(this);
 		}));
@@ -364,9 +363,27 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		store.add(autorun(r => {
 
-			const entries = editingSession.entries.read(r);
-			if (entries.length === 0) {
+			const entries = chatModel.editingSession?.entries.read(r);
+			if (!entries?.length) {
 				return;
+			}
+
+			const state = entries.find(entry => isEqual(entry.modifiedURI, uri))?.state.read(r);
+			if (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected) {
+				const response = chatModel.getRequests().at(-1)?.response;
+				if (response) {
+					this._chatService.notifyUserAction({
+						sessionResource: response.session.sessionResource,
+						requestId: response.requestId,
+						agentId: response.agent?.id,
+						command: response.slashCommand?.name,
+						result: response.result,
+						action: {
+							kind: 'inlineChat',
+							action: state === ModifiedFileEntryState.Accepted ? 'accepted' : 'discarded'
+						}
+					});
+				}
 			}
 
 			const allSettled = entries.every(entry => {
@@ -375,7 +392,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					&& !entry.isCurrentlyBeingModifiedBy.read(r);
 			});
 
-			if (allSettled && !chatModel.requestInProgress) {
+			if (allSettled && !chatModel.requestInProgress.read(undefined)) {
 				// self terminate
 				store.dispose();
 			}
@@ -385,7 +402,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			uri,
 			initialPosition: editor.getSelection().getStartPosition().delta(-1), /* one line above selection start */
 			chatModel,
-			editingSession,
+			editingSession: chatModel.editingSession!,
 			dispose: store.dispose.bind(store)
 		};
 		this._sessions2.set(uri, result);
@@ -423,7 +440,6 @@ export class InlineChatEnabler {
 
 	static Id = 'inlineChat.enabler';
 
-	private readonly _ctxHasProvider: IContextKey<boolean>;
 	private readonly _ctxHasProvider2: IContextKey<boolean>;
 	private readonly _ctxHasNotebookInline: IContextKey<boolean>;
 	private readonly _ctxHasNotebookProvider: IContextKey<boolean>;
@@ -437,29 +453,21 @@ export class InlineChatEnabler {
 		@IEditorService editorService: IEditorService,
 		@IConfigurationService configService: IConfigurationService,
 	) {
-		this._ctxHasProvider = CTX_INLINE_CHAT_HAS_AGENT.bindTo(contextKeyService);
 		this._ctxHasProvider2 = CTX_INLINE_CHAT_HAS_AGENT2.bindTo(contextKeyService);
 		this._ctxHasNotebookInline = CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE.bindTo(contextKeyService);
 		this._ctxHasNotebookProvider = CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT.bindTo(contextKeyService);
 		this._ctxPossible = CTX_INLINE_CHAT_POSSIBLE.bindTo(contextKeyService);
 
 		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
-		const inlineChat2Obs = observableConfigValue(InlineChatConfigKeys.EnableV2, false, configService);
 		const notebookAgentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.Notebook));
 		const notebookAgentConfigObs = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configService);
 
 		this._store.add(autorun(r => {
-			const v2 = inlineChat2Obs.read(r);
 			const agent = agentObs.read(r);
 			if (!agent) {
-				this._ctxHasProvider.reset();
 				this._ctxHasProvider2.reset();
-			} else if (v2) {
-				this._ctxHasProvider.reset();
-				this._ctxHasProvider2.set(true);
 			} else {
-				this._ctxHasProvider.set(true);
-				this._ctxHasProvider2.reset();
+				this._ctxHasProvider2.set(true);
 			}
 		}));
 
@@ -480,7 +488,7 @@ export class InlineChatEnabler {
 
 	dispose() {
 		this._ctxPossible.reset();
-		this._ctxHasProvider.reset();
+		this._ctxHasProvider2.reset();
 		this._store.dispose();
 	}
 }

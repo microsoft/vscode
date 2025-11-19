@@ -115,7 +115,7 @@ import { ChatSessionsView, ChatSessionsViewContrib } from './chatSessions/view/c
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
 import { ChatVariablesService } from './chatVariables.js';
-import { ChatWidget, ChatWidgetService } from './chatWidget.js';
+import { ChatWidget } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatImplicitContextContribution } from './contrib/chatImplicitContext.js';
@@ -130,6 +130,7 @@ import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import { ChatWidgetService } from './chatWidgetService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -295,7 +296,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EligibleForAutoApproval]: {
 			default: {},
-			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval.  Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve.  The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.'),
+			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval. Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.'),
 			type: 'object',
 			additionalProperties: {
 				type: 'boolean',
@@ -306,7 +307,18 @@ configurationRegistry.registerConfiguration({
 					'fetch': false,
 					'runTests': false
 				}
-			]
+			],
+			policy: {
+				name: 'ChatToolsEligibleForAutoApproval',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.107',
+				localization: {
+					description: {
+						key: 'chat.tools.eligibleForAutoApproval',
+						value: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval. Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.')
+					}
+				},
+			}
 		},
 		'chat.sendElementsToChat.enabled': {
 			default: true,
@@ -499,6 +511,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
 			default: true,
 			tags: ['preview'],
+		},
+		[ChatConfiguration.ShowCodeBlockProgressAnimation]: {
+			type: 'boolean',
+			description: nls.localize('chat.codeBlock.showProgressAnimation.description', "When applying edits, show a progress animation in the code block pill. If disabled, shows the progress percentage instead."),
+			default: true,
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
@@ -732,13 +750,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
 			default: false,
 			scope: ConfigurationScope.WINDOW
-		},
-		[ChatConfiguration.UseCloudButtonV2]: {
-			type: 'boolean',
-			description: nls.localize('chat.useCloudButtonV2', "Experimental implementation of 'cloud button'"),
-			default: true,
-			tags: ['experimental'],
-
 		},
 		[ChatConfiguration.ShowAgentSessionsViewDescription]: {
 			type: 'boolean',

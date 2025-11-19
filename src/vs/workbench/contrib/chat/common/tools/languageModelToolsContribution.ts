@@ -86,6 +86,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					description: localize('toolUserDescription', "A description of this tool that may be shown to the user."),
 					type: 'string'
 				},
+				// eslint-disable-next-line local/code-no-localized-model-description
 				modelDescription: {
 					description: localize('toolModelDescription', "A description of this tool that may be used by a language model to select it."),
 					type: 'string'

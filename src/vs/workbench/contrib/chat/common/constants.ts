@@ -22,11 +22,11 @@ export enum ChatConfiguration {
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
-	UseCloudButtonV2 = 'chat.useCloudButtonV2',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
+	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 }
 
 /**

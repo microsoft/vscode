@@ -32,7 +32,7 @@ export class ChatContextService extends Disposable {
 
 	private readonly _providers = new Map<string, IChatContextProviderEntry>();
 	private readonly _registeredPickers = this._register(new DisposableMap<string, IDisposable>());
-	private _lastResourceCountext: Map<StringChatContextValue, { originalItem: IChatContextItem; provider: IChatContextProvider }> = new Map();
+	private _lastResourceContext: Map<StringChatContextValue, { originalItem: IChatContextItem; provider: IChatContextProvider }> = new Map();
 
 	constructor(
 		@IChatContextPickService private readonly _contextPickService: IChatContextPickService,
@@ -96,8 +96,8 @@ export class ChatContextService extends Disposable {
 			uri: uri,
 			modelDescription: context.modelDescription
 		};
-		this._lastResourceCountext.clear();
-		this._lastResourceCountext.set(contextValue, { originalItem: context, provider: scoredProviders[0].provider });
+		this._lastResourceContext.clear();
+		this._lastResourceContext.set(contextValue, { originalItem: context, provider: scoredProviders[0].provider });
 		return contextValue;
 	}
 
@@ -106,15 +106,17 @@ export class ChatContextService extends Disposable {
 			return context;
 		}
 
-		const item = this._lastResourceCountext.get(context);
+		const item = this._lastResourceContext.get(context);
 		if (!item) {
 			const resolved = await this._contextForResource(context.uri, true);
 			context.value = resolved?.value;
+			context.modelDescription = resolved?.modelDescription;
 			return context;
 		} else if (item.provider.resolveChatContext) {
 			const resolved = await item.provider.resolveChatContext(item.originalItem, CancellationToken.None);
 			if (resolved) {
 				context.value = resolved.value;
+				context.modelDescription = resolved.modelDescription;
 				return context;
 			}
 		}

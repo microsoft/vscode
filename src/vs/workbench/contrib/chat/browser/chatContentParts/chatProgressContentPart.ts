@@ -6,7 +6,7 @@
 import { $, append } from '../../../../../base/browser/dom.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { markdownCommandLink, MarkdownString, type IMarkdownString } from '../../../../../base/common/htmlContent.js';
+import { createMarkdownCommandLink, MarkdownString, type IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -116,7 +116,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		let md: string;
 		switch (reason.type) {
 			case ToolConfirmKind.Setting:
-				md = localize('chat.autoapprove.setting', 'Auto approved by {0}', markdownCommandLink({ title: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id] }, false));
+				md = localize('chat.autoapprove.setting', 'Auto approved by {0}', createMarkdownCommandLink({ title: '`' + reason.id + '`', id: 'workbench.action.openSettings', arguments: [reason.id] }, false));
 				break;
 			case ToolConfirmKind.LmServicePerTool:
 				md = reason.scope === 'session'
@@ -124,7 +124,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 					: reason.scope === 'workspace'
 						? localize('chat.autoapprove.lmServicePerTool.workspace', 'Auto approved for this workspace')
 						: localize('chat.autoapprove.lmServicePerTool.profile', 'Auto approved for this profile');
-				md += ' (' + markdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope] }) + ')';
+				md += ' (' + createMarkdownCommandLink({ title: localize('edit', 'Edit'), id: 'workbench.action.chat.editToolApproval', arguments: [reason.scope] }) + ')';
 				break;
 			case ToolConfirmKind.UserAction:
 			case ToolConfirmKind.Denied:

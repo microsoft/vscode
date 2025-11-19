@@ -58,7 +58,6 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
@@ -72,7 +71,7 @@ import { IChatRequestToolEntry } from '../common/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from './actions/chatActions.js';
-import { ChatViewId, IChatWidgetService, showChatView } from './chat.js';
+import { ChatViewId, IChatWidgetService } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { chatViewsWelcomeRegistry } from './viewsWelcome/chatViewsWelcome.js';
@@ -86,7 +85,6 @@ import { CodeActionKind } from '../../../../editor/contrib/codeAction/common/typ
 import { ACTION_START as INLINE_CHAT_START } from '../../inlineChat/common/inlineChat.js';
 import { IPosition } from '../../../../editor/common/core/position.js';
 import { IMarker, IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 
@@ -178,7 +176,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				source: ToolDataSource.Internal,
 				icon: Codicon.newFolder,
 				displayName: localize('setupToolDisplayName', "New Workspace"),
-				modelDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
+				modelDescription: 'Scaffold a new workspace in VS Code',
 				userDescription: localize('setupToolsDescription', "Scaffold a new workspace in VS Code"),
 				canBeReferencedInPrompt: true,
 				toolReferenceName: 'new',
@@ -271,7 +269,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvokeWithoutSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
-		const requestModel = chatWidgetService.getWidgetBySessionId(request.sessionId)?.viewModel?.model.getRequests().at(-1);
+		const requestModel = chatWidgetService.getWidgetBySessionResource(request.sessionResource)?.viewModel?.model.getRequests().at(-1);
 		if (!requestModel) {
 			this.logService.error('[chat setup] Request model not found, cannot redispatch request.');
 			return {}; // this should not happen
@@ -450,7 +448,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private async doInvokeWithSetup(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'chat' });
 
-		const widget = chatWidgetService.getWidgetBySessionId(request.sessionId);
+		const widget = chatWidgetService.getWidgetBySessionResource(request.sessionResource);
 		const requestModel = widget?.viewModel?.model.getRequests().at(-1);
 
 		const setupListener = Event.runAndSubscribe(this.controller.value.onDidChange, (() => {
@@ -486,7 +484,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		if (typeof result?.success === 'boolean') {
 			if (result.success) {
 				if (result.dialogSkipped) {
-					widget?.clear(); // make room for the Chat welcome experience
+					await widget?.clear(); // make room for the Chat welcome experience
 				} else if (requestModel) {
 					let newRequest = this.replaceAgentInRequestModel(requestModel, chatAgentService); 	// Replace agent part with the actual Chat agent...
 					newRequest = this.replaceToolInRequestModel(newRequest); 							// ...then replace any tool parts with the actual Chat tools
@@ -678,31 +676,50 @@ class ChatCodeActionsProvider {
 	async provideCodeActions(model: ITextModel, range: Range | Selection): Promise<CodeActionList | undefined> {
 		const actions: CodeAction[] = [];
 
+		// "Generate" if the line is whitespace only
 		// "Modify" if there is a selection
-		if (!range.isEmpty()) {
+		let generateOrModifyTitle: string | undefined;
+		let generateOrModifyCommand: Command | undefined;
+		if (range.isEmpty()) {
+			const textAtLine = model.getLineContent(range.startLineNumber);
+			if (/^\s*$/.test(textAtLine)) {
+				generateOrModifyTitle = localize('generate', "Generate");
+				generateOrModifyCommand = AICodeActionsHelper.generate(range);
+			}
+		} else {
+			const textInSelection = model.getValueInRange(range);
+			if (!/^\s*$/.test(textInSelection)) {
+				generateOrModifyTitle = localize('modify', "Modify");
+				generateOrModifyCommand = AICodeActionsHelper.modify(range);
+			}
+		}
+
+		if (generateOrModifyTitle && generateOrModifyCommand) {
 			actions.push({
-				kind: CodeActionKind.RefactorRewrite.value,
+				kind: CodeActionKind.RefactorRewrite.append('copilot').value,
 				isAI: true,
-				title: localize('modify', "Modify"),
-				command: AICodeActionsHelper.modify(range),
+				title: generateOrModifyTitle,
+				command: generateOrModifyCommand,
 			});
 		}
 
-		const markers = AICodeActionsHelper.markersAtRange(this.markerService, model.uri, range);
+		const markers = AICodeActionsHelper.warningOrErrorMarkersAtRange(this.markerService, model.uri, range);
 		if (markers.length > 0) {
 
 			// "Fix" if there are diagnostics in the range
 			actions.push({
-				kind: CodeActionKind.QuickFix.value,
+				kind: CodeActionKind.QuickFix.append('copilot').value,
 				isAI: true,
+				diagnostics: markers,
 				title: localize('fix', "Fix"),
 				command: AICodeActionsHelper.fixMarkers(markers, range)
 			});
 
 			// "Explain" if there are diagnostics in the range
 			actions.push({
-				kind: CodeActionKind.QuickFix.value,
+				kind: CodeActionKind.QuickFix.append('explain').append('copilot').value,
 				isAI: true,
+				diagnostics: markers,
 				title: localize('explain', "Explain"),
 				command: AICodeActionsHelper.explainMarkers(markers)
 			});
@@ -717,10 +734,10 @@ class ChatCodeActionsProvider {
 
 class AICodeActionsHelper {
 
-	static markersAtRange(markerService: IMarkerService, resource: URI, range: Range | Selection): IMarker[] {
+	static warningOrErrorMarkersAtRange(markerService: IMarkerService, resource: URI, range: Range | Selection): IMarker[] {
 		return markerService
 			.read({ resource, severities: MarkerSeverity.Error | MarkerSeverity.Warning })
-			.filter(marker => Range.areIntersecting(range, marker));
+			.filter(marker => range.startLineNumber <= marker.endLineNumber && range.endLineNumber >= marker.startLineNumber);
 	}
 
 	static modify(range: Range): Command {
@@ -737,18 +754,31 @@ class AICodeActionsHelper {
 		};
 	}
 
+	static generate(range: Range): Command {
+		return {
+			id: INLINE_CHAT_START,
+			title: localize('generate', "Generate"),
+			arguments: [
+				{
+					initialSelection: this.rangeToSelection(range),
+					initialRange: range,
+					position: range.getStartPosition()
+				} satisfies { initialSelection: ISelection; initialRange: IRange; position: IPosition }
+			]
+		};
+	}
+
 	private static rangeToSelection(range: Range): ISelection {
 		return new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 	}
 
 	static explainMarkers(markers: IMarker[]): Command {
-
 		return {
 			id: CHAT_OPEN_ACTION_ID,
 			title: localize('explain', "Explain"),
 			arguments: [
 				{
-					query: `/explain ${markers.map(marker => marker.message).join(', ')}`
+					query: `@workspace /explain ${markers.map(marker => marker.message).join(', ')}`
 				} satisfies { query: string }
 			]
 		};
@@ -794,7 +824,7 @@ class ChatSetup {
 		let instance = ChatSetup.instance;
 		if (!instance) {
 			instance = ChatSetup.instance = instantiationService.invokeFunction(accessor => {
-				return new ChatSetup(context, controller, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IViewsService), accessor.get(IWorkspaceTrustRequestService), accessor.get(IMarkdownRendererService));
+				return new ChatSetup(context, controller, accessor.get(ITelemetryService), accessor.get(IWorkbenchLayoutService), accessor.get(IKeybindingService), accessor.get(IChatEntitlementService) as ChatEntitlementService, accessor.get(ILogService), accessor.get(IConfigurationService), accessor.get(IChatWidgetService), accessor.get(IWorkspaceTrustRequestService), accessor.get(IMarkdownRendererService));
 			});
 		}
 
@@ -814,7 +844,7 @@ class ChatSetup {
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IViewsService private readonly viewsService: IViewsService,
+		@IChatWidgetService private readonly widgetService: IChatWidgetService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) { }
@@ -869,7 +899,7 @@ class ChatSetup {
 		if (setupStrategy !== ChatSetupStrategy.Canceled && !options?.disableChatViewReveal) {
 			// Show the chat view now to better indicate progress
 			// while installing the extension or returning from sign in
-			showChatView(this.viewsService, this.layoutService);
+			this.widgetService.revealWidget();
 		}
 
 		let success: ChatSetupResultValue = undefined;
@@ -1149,8 +1179,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 
 			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<boolean> {
-				const viewsService = accessor.get(IViewsService);
-				const layoutService = accessor.get(IWorkbenchLayoutService);
+				const widgetService = accessor.get(IChatWidgetService);
 				const instantiationService = accessor.get(IInstantiationService);
 				const dialogService = accessor.get(IDialogService);
 				const commandService = accessor.get(ICommandService);
@@ -1161,7 +1190,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, false);
 
 				if (mode) {
-					const chatWidget = await showChatView(viewsService, layoutService);
+					const chatWidget = await widgetService.revealWidget();
 					chatWidget?.input.setChatMode(mode);
 				}
 
@@ -1384,14 +1413,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 				CommandsRegistry.registerCommand(coreCommand, async accessor => {
 					const commandService = accessor.get(ICommandService);
-					const editorGroupService = accessor.get(IEditorGroupsService);
 					const codeEditorService = accessor.get(ICodeEditorService);
 					const markerService = accessor.get(IMarkerService);
-
-					if (editorGroupService.activeGroup.activeEditor) {
-						// Pinning the editor helps when the Chat extension welcome kicks in after install to keep context
-						editorGroupService.activeGroup.pinEditor(editorGroupService.activeGroup.activeEditor);
-					}
 
 					switch (coreCommand) {
 						case 'chat.internal.explain':
@@ -1403,7 +1426,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 								return;
 							}
 
-							const markers = AICodeActionsHelper.markersAtRange(markerService, uri, range);
+							const markers = AICodeActionsHelper.warningOrErrorMarkersAtRange(markerService, uri, range);
 
 							const actualCommand = coreCommand === 'chat.internal.explain'
 								? AICodeActionsHelper.explainMarkers(markers)

@@ -37,12 +37,11 @@ export class MockPromptsService implements IPromptsService {
 	listPromptFiles(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
 	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> { throw new Error('Not implemented'); }
 	getSourceFolders(_type: any): readonly any[] { throw new Error('Not implemented'); }
-	asPromptSlashCommand(_command: string): any { return undefined; }
-	resolvePromptSlashCommand(_data: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
-	resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined { throw new Error('Not implemented'); }
-	get onDidChangeParsedPromptFilesCache(): Event<void> { throw new Error('Not implemented'); }
-	findPromptSlashCommands(): Promise<any[]> { throw new Error('Not implemented'); }
-	getPromptCommandName(uri: URI): Promise<string> { throw new Error('Not implemented'); }
+	isValidSlashCommandName(_command: string): boolean { return false; }
+	resolvePromptSlashCommand(command: string, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
+	get onDidChangeSlashCommands(): Event<void> { throw new Error('Not implemented'); }
+	getPromptSlashCommands(_token: CancellationToken): Promise<any[]> { throw new Error('Not implemented'); }
+	getPromptSlashCommandName(uri: URI, _token: CancellationToken): Promise<string> { throw new Error('Not implemented'); }
 	parse(_uri: URI, _type: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	parseNew(_uri: URI, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	getParsedPromptFile(textModel: ITextModel): ParsedPromptFile { throw new Error('Not implemented'); }

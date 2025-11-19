@@ -146,8 +146,8 @@ suite('ChatService', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/path/to/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
-			override startOrContinueGlobalEditingSession(): Promise<IChatEditingSession> {
-				return Promise.resolve(Disposable.None as IChatEditingSession);
+			override startOrContinueGlobalEditingSession(): IChatEditingSession {
+				return Disposable.None as IChatEditingSession;
 			}
 		});
 
@@ -167,7 +167,7 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, getAgentData(chatAgentWithUsedContextId)));
 		testDisposables.add(chatAgentService.registerAgent(chatAgentWithMarkdownId, getAgentData(chatAgentWithMarkdownId)));
 		testDisposables.add(chatAgentService.registerAgentImplementation('testAgent', agent));
-		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' } });
+		chatAgentService.updateAgent('testAgent', {});
 	});
 
 	test('retrieveSession', async () => {
@@ -270,7 +270,7 @@ suite('ChatService', () => {
 
 	test('can serialize', async () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithUsedContextId, chatAgentWithUsedContext));
-		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' } });
+		chatAgentService.updateAgent(chatAgentWithUsedContextId, {});
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 
 		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Chat, CancellationToken.None));

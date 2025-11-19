@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
 
 /**
@@ -17,7 +17,7 @@ import { TSESTree } from '@typescript-eslint/utils';
  * Exception: Type predicate functions are allowed to use the `in` operator
  * since they are the standard way to perform runtime type checking.
  */
-export = new class NoInOperator implements eslint.Rule.RuleModule {
+export default new class NoInOperator implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
