@@ -1145,21 +1145,26 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 		// This is needed because xterm is not guaranteed to be created in the constructor,
 		// so we can't create and store the references earlier.
-		const findElementWithClass = (root: Element | undefined, className: string): HTMLElement | undefined => {
+		const findElementWithClass = (
+			root: Element | undefined,
+			className: string
+		): HTMLElement | undefined => {
 			if (!root) {
-				return undefined;
+				return;
 			}
-			const queue: Element[] = [root];
-			while (queue.length > 0) {
-				const current = queue.shift()!;
-				if (dom.isHTMLElement(current) && current.classList.contains(className)) {
-					return current;
+
+			const stack = [root];
+
+			while (stack.length) {
+				const cur = stack.pop()!;
+				if (dom.isHTMLElement(cur) && cur.classList.contains(className)) {
+					return cur;
 				}
-				for (let i = 0; i < current.children.length; i++) {
-					queue.push(current.children[i]);
+				for (let i = cur.children.length - 1; i >= 0; i--) {
+					stack.push(cur.children[i]);
 				}
 			}
-			return undefined;
+			return;
 		};
 
 		const xtermElement = rawElement.classList.contains('xterm')
