@@ -21,7 +21,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
-import { IChatModel } from '../../common/chatModel.js';
+import { ChatModel, IChatModel } from '../../common/chatModel.js';
 import { IChatService, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { GithubCopilotToolReference, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet, VSCodeToolReference } from '../../common/languageModelToolsService.js';
@@ -89,9 +89,12 @@ function stubGetSession(chatService: MockChatService, sessionId: string, options
 		sessionId,
 		sessionResource: LocalChatSessionUri.forSession(sessionId),
 		getRequests: () => [{ id: requestId, modelId: 'test-model' }],
-		acceptResponseProgress: (_req: any, progress: any) => { if (capture) { capture.invocation = progress; } },
-	} as IChatModel;
+	} as ChatModel;
 	chatService.addSession(fakeModel);
+	chatService.appendProgress = (request, progress) => {
+		if (capture) { capture.invocation = progress; }
+	};
+
 	return fakeModel;
 }
 
