@@ -215,7 +215,6 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		let addOtherSeparator = false;
 		let addSuggestedSeparator = true;
 		let addCommonlyUsedSeparator = !!this.options.suggestedCommandIds;
-		let isRecentlyUsedSection = false;
 		for (let i = 0; i < filteredCommandPicks.length; i++) {
 			const commandPick = filteredCommandPicks[i];
 			const isInHistory = !!this.commandsHistory.peek(commandPick.commandId);
@@ -224,13 +223,11 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			if (i === 0 && isInHistory) {
 				commandPicks.push({ type: 'separator', label: localize('recentlyUsed', "recently used") });
 				addOtherSeparator = true;
-				isRecentlyUsedSection = true;
 			}
 
 			if (addSuggestedSeparator && commandPick.tfIdfScore !== undefined) {
 				commandPicks.push({ type: 'separator', label: localize('suggested', "similar commands") });
 				addSuggestedSeparator = false;
-				isRecentlyUsedSection = false;
 			}
 
 			// Separator: commonly used
@@ -238,18 +235,16 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				commandPicks.push({ type: 'separator', label: localize('commonlyUsed', "commonly used") });
 				addOtherSeparator = true;
 				addCommonlyUsedSeparator = false;
-				isRecentlyUsedSection = false;
 			}
 
 			// Separator: other commands
 			if (addOtherSeparator && commandPick.tfIdfScore === undefined && !isInHistory && !this.options.suggestedCommandIds?.has(commandPick.commandId)) {
 				commandPicks.push({ type: 'separator', label: localize('morecCommands', "other commands") });
 				addOtherSeparator = false;
-				isRecentlyUsedSection = false;
 			}
 
 			// Command
-			commandPicks.push(this.toCommandPick(commandPick, runOptions, isRecentlyUsedSection && isInHistory));
+			commandPicks.push(this.toCommandPick(commandPick, runOptions, isInHistory));
 		}
 
 		if (!this.hasAdditionalCommandPicks(filter, token)) {
