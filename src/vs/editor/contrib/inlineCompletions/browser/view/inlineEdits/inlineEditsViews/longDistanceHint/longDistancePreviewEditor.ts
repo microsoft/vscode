@@ -61,6 +61,16 @@ export class LongDistancePreviewEditor extends Disposable {
 			return (state?.mode === 'original' ? decorations?.originalDecorations : decorations?.modifiedDecorations) ?? [];
 		})));
 
+		this._register(autorun(reader => {
+			const state = this._properties.read(reader);
+			if (!state) {
+				return;
+			}
+			// Ensure there is enough space to the left of the line number for the gutter indicator to fits.
+			const lineNumberDigets = state.diff[0].modified.startLineNumber.toString().length;
+			this.previewEditor.updateOptions({ lineNumbersMinChars: lineNumberDigets + 1 });
+		}));
+
 		this._register(this._instantiationService.createInstance(
 			InlineEditsGutterIndicator,
 			this._previewEditorObs,
@@ -273,7 +283,7 @@ export class LongDistancePreviewEditor extends Disposable {
 								shouldFillLineOnLineBreak: false,
 								className: classNames(
 									'inlineCompletions-char-delete',
-									i.originalRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline',
+									// i.originalRange.isSingleLine() && diff.mode === 'insertionInline' && 'single-line-inline',
 									i.originalRange.isEmpty() && 'empty',
 								),
 								zIndex: 1

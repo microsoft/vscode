@@ -17,7 +17,7 @@ import { IAgentSessionViewModel, IAgentSessionsViewModel, isAgentSession, isAgen
 import { IconLabel } from '../../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { fromNow } from '../../../../../base/common/date.js';
+import { fromNow, getDurationString } from '../../../../../base/common/date.js';
 import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { allowedChatMarkdownHtmlTags } from '../chatContentMarkdownRenderer.js';
@@ -119,6 +119,8 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	renderElement(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, index: number, template: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
+
+		// Clear old state
 		template.elementDisposable.clear();
 		template.toolbar.clear();
 		template.description.textContent = '';
@@ -131,34 +133,108 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Diff if provided and finished
 		const { statistics: diff } = session.element;
-		if (session.element.status === ChatSessionStatus.Completed && diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
+		if (session.element.status !== ChatSessionStatus.InProgress && diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
 			const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
 			template.toolbar.push([diffAction], { icon: false, label: true });
 		}
 
 		// Description otherwise
 		else {
-			if (typeof session.element.description === 'string') {
-				template.description.textContent = session.element.description;
-			} else {
-				template.elementDisposable.add(this.markdownRendererService.render(session.element.description, {
-					sanitizerConfig: {
-						replaceWithPlaintext: true,
-						allowedTags: {
-							override: allowedChatMarkdownHtmlTags,
-						},
-						allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
+			this.renderDescription(session, template);
+		}
+
+		// Status
+		this.renderStatus(session, template);
+
+		// Hover
+		this.renderHover(session, template);
+	}
+
+	private getIcon(session: IAgentSessionViewModel): ThemeIcon {
+		if (session.status === ChatSessionStatus.InProgress) {
+			return ThemeIcon.modify(Codicon.loading, 'spin');
+		}
+
+		if (session.status === ChatSessionStatus.Failed) {
+			return Codicon.error;
+		}
+
+		return session.icon;
+	}
+
+	private renderDescription(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+
+		// In progress: show duration
+		if (session.element.status === ChatSessionStatus.InProgress) {
+			template.description.textContent = this.getInProgressDescription(session.element);
+			const timer = template.elementDisposable.add(new IntervalTimer());
+			timer.cancelAndSet(() => template.description.textContent = this.getInProgressDescription(session.element), 1000 /* every second */);
+		}
+
+		// Otherwise support description as string
+		else if (typeof session.element.description === 'string') {
+			template.description.textContent = session.element.description;
+		}
+
+		// or as markdown
+		else if (session.element.description) {
+			template.elementDisposable.add(this.markdownRendererService.render(session.element.description, {
+				sanitizerConfig: {
+					replaceWithPlaintext: true,
+					allowedTags: {
+						override: allowedChatMarkdownHtmlTags,
 					},
-				}, template.description));
+					allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
+				},
+			}, template.description));
+		}
+
+		// Fallback to state label
+		else {
+			if (
+				session.element.timing.finishedOrFailedTime &&
+				session.element.timing.inProgressTime &&
+				session.element.timing.finishedOrFailedTime > session.element.timing.inProgressTime
+			) {
+				const duration = this.toDuration(session.element.timing.inProgressTime, session.element.timing.finishedOrFailedTime);
+
+				template.description.textContent = session.element.status === ChatSessionStatus.Failed ?
+					localize('chat.session.status.failedAfter', "Failed after {0}.", duration ?? '1s') :
+					localize('chat.session.status.completedAfter', "Finished in {0}.", duration ?? '1s');
+			} else {
+				template.description.textContent = session.element.status === ChatSessionStatus.Failed ?
+					localize('chat.session.status.failed', "Failed") :
+					localize('chat.session.status.completed', "Finished");
+			}
+		}
+	}
+
+	private getInProgressDescription(session: IAgentSessionViewModel): string {
+		if (session.timing.inProgressTime) {
+			const inProgressDuration = this.toDuration(session.timing.inProgressTime, Date.now());
+			if (inProgressDuration) {
+				return localize('chat.session.status.inProgressWithDuration', "Working... ({0})", inProgressDuration);
 			}
 		}
 
-		// Status (updated every minute)
-		template.status.textContent = this.getStatus(session.element);
-		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.status.textContent = this.getStatus(session.element), 60 * 1000);
+		return localize('chat.session.status.inProgress', "Working...");
+	}
 
-		this.renderHover(session, template);
+	private toDuration(startTime: number, endTime: number): string | undefined {
+		const elapsed = Math.round((endTime - startTime) / 1000) * 1000;
+		if (elapsed < 1000) {
+			return undefined;
+		}
+
+		return getDurationString(elapsed);
+	}
+
+	private renderStatus(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		const getStatus = (session: IAgentSessionViewModel) => `${session.providerLabel} • ${fromNow(session.timing.startTime)}`;
+
+		template.status.textContent = getStatus(session.element);
+		const timer = template.elementDisposable.add(new IntervalTimer());
+		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), 60 * 1000 /* every minute */);
 	}
 
 	private renderHover(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -185,22 +261,6 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				}))
 			);
 		}
-	}
-
-	private getIcon(session: IAgentSessionViewModel): ThemeIcon {
-		if (session.status === ChatSessionStatus.InProgress) {
-			return ThemeIcon.modify(Codicon.loading, 'spin');
-		}
-
-		if (session.status === ChatSessionStatus.Failed) {
-			return Codicon.error;
-		}
-
-		return session.icon;
-	}
-
-	private getStatus(session: IAgentSessionViewModel): string {
-		return `${session.providerLabel} • ${fromNow(session.timing.startTime)}`;
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IAgentSessionViewModel>, FuzzyScore>, index: number, templateData: IAgentSessionItemTemplate, details?: ITreeElementRenderDetails): void {
@@ -276,13 +336,13 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 export class AgentSessionsSorter implements ITreeSorter<IAgentSessionViewModel> {
 
 	compare(sessionA: IAgentSessionViewModel, sessionB: IAgentSessionViewModel): number {
-		const aHasEndTime = !!sessionA.timing.endTime;
-		const bHasEndTime = !!sessionB.timing.endTime;
+		const aInProgress = sessionA.status === ChatSessionStatus.InProgress;
+		const bInProgress = sessionB.status === ChatSessionStatus.InProgress;
 
-		if (!aHasEndTime && bHasEndTime) {
+		if (aInProgress && !bInProgress) {
 			return -1; // a (in-progress) comes before b (finished)
 		}
-		if (aHasEndTime && !bHasEndTime) {
+		if (!aInProgress && bInProgress) {
 			return 1; // a (finished) comes after b (in-progress)
 		}
 

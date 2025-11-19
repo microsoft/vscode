@@ -27,17 +27,18 @@ import { IWorkbenchExtensionManagementService } from '../../../../services/exten
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { AGENT_SESSIONS_VIEWLET_ID, ChatConfiguration } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri } from '../chatSessions/common.js';
+import { findExistingChatEditorByUri } from '../chatSessions/common.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 
-interface IMarshalledChatSessionContext {
-	$mid: MarshalledId.ChatSessionContext;
-	session: ChatSessionItemWithProvider;
+export interface IMarshalledChatSessionContext {
+	readonly $mid: MarshalledId.ChatSessionContext;
+	readonly session: IChatSessionItem;
 }
 
 export class RenameChatSessionAction extends Action2 {
@@ -177,26 +178,26 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
-		if (context.session.provider?.chatSessionType) {
-			const uri = context.session.resource;
 
-			// Check if this session is already open in another editor
-			const existingEditor = findExistingChatEditorByUri(uri, editorGroupsService);
-			if (existingEditor) {
-				await editorService.openEditor(existingEditor.editor, existingEditor.group);
-				return;
-			} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
-				return;
-			} else {
-				const options: IChatEditorOptions = {
-					ignoreInView: true,
-				};
-				await editorService.openEditor({
-					resource: uri,
-					options,
-				}, AUX_WINDOW_GROUP);
-			}
+		const uri = context.session.resource;
+
+		// Check if this session is already open in another editor
+		const existingEditor = findExistingChatEditorByUri(uri, editorGroupsService);
+		if (existingEditor) {
+			await editorService.openEditor(existingEditor.editor, existingEditor.group);
+			return;
+		} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
+			return;
+		} else {
+			const options: IChatEditorOptions = {
+				ignoreInView: true,
+			};
+			await editorService.openEditor({
+				resource: uri,
+				options,
+			}, AUX_WINDOW_GROUP);
 		}
+
 	}
 }
 
@@ -223,25 +224,25 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
-		if (context.session.provider?.chatSessionType) {
-			const uri = context.session.resource;
-			// Check if this session is already open in another editor
-			const existingEditor = findExistingChatEditorByUri(uri, editorGroupsService);
-			if (existingEditor) {
-				await editorService.openEditor(existingEditor.editor, existingEditor.group);
-				return;
-			} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
-				// Already opened in chat widget
-				return;
-			} else {
-				const options: IChatEditorOptions = {
-					ignoreInView: true,
-				};
-				await editorService.openEditor({
-					resource: uri,
-					options,
-				}, SIDE_GROUP);
-			}
+
+		const uri = context.session.resource;
+
+		// Check if this session is already open in another editor
+		const existingEditor = findExistingChatEditorByUri(uri, editorGroupsService);
+		if (existingEditor) {
+			await editorService.openEditor(existingEditor.editor, existingEditor.group);
+			return;
+		} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
+			// Already opened in chat widget
+			return;
+		} else {
+			const options: IChatEditorOptions = {
+				ignoreInView: true,
+			};
+			await editorService.openEditor({
+				resource: uri,
+				options,
+			}, SIDE_GROUP);
 		}
 	}
 }
@@ -271,7 +272,7 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 			return;
 		}
 
-		if (context.session.provider.chatSessionType !== localChatSessionType) {
+		if (!LocalChatSessionUri.parseLocalSessionId(context.session.resource)) {
 			// We only allow local sessions to be opened in the side bar
 			return;
 		}
