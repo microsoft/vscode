@@ -103,7 +103,7 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 
 		const session = this.action.getSession();
 
-		this.commandService.executeCommand(`agentSession.${session.provider.chatSessionType}.openChanges`, this.action.getSession().resource);
+		this.commandService.executeCommand(`agentSession.${session.providerType}.openChanges`, this.action.getSession().resource);
 	}
 }
 
