@@ -153,13 +153,6 @@ export interface IChatAgentRequest {
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	isSubagent?: boolean;
 
-	/**
-	 * Summary data for chat sessions context
-	 */
-	chatSummary?: {
-		prompt?: string;
-		history?: string;
-	};
 }
 
 export interface IChatQuestion {

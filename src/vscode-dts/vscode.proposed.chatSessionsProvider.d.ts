@@ -245,10 +245,6 @@ declare module 'vscode' {
 
 	export interface ChatContext {
 		readonly chatSessionContext?: ChatSessionContext;
-		readonly chatSummary?: {
-			readonly prompt?: string;
-			readonly history?: string;
-		};
 	}
 
 	export interface ChatSessionContext {

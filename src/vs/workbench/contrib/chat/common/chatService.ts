@@ -932,13 +932,6 @@ export interface IChatSendRequestOptions {
 	 */
 	confirmation?: string;
 
-	/**
-	 * Summary data for chat sessions context
-	 */
-	chatSummary?: {
-		prompt?: string;
-		history?: string;
-	};
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

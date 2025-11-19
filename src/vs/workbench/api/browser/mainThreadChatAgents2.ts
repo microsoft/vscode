@@ -180,8 +180,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				try {
 					return await this._proxy.$invokeAgent(handle, request, {
 						history,
-						chatSessionContext: chatSession?.contributedChatSession,
-						chatSummary: request.chatSummary
+						chatSessionContext: chatSession?.contributedChatSession
 					}, token) ?? {};
 				} finally {
 					this._pendingProgress.delete(request.requestId);
