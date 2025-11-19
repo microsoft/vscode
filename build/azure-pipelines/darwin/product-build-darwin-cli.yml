@@ -35,9 +35,6 @@ jobs:
         versionSource: fromFile
         versionFilePath: .nvmrc
 
-    - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-      - template: ../common/bump-insiders-version.yml@self
-
     - template: ../cli/cli-apply-patches.yml@self
 
     - task: Npm@1
