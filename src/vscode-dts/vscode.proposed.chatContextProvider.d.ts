@@ -27,33 +27,44 @@ declare module 'vscode' {
 	}
 
 	export interface ChatContextItem {
+		/**
+		 * Icon for the context item.
+		 */
 		icon: ThemeIcon;
+		/**
+		 * Human readable label for the context item.
+		 */
 		label: string;
+		/**
+		 * An optional description of the context item, e.g. to describe the item to the language model.
+		 */
 		modelDescription?: string;
+		/**
+		 * The value of the context item. Can be omitted when returned from one of the `provide` methods if the provider supports `resolveChatContext`.
+		 */
 		value?: string;
 	}
 
 	export interface ChatContextProvider<T extends ChatContextItem = ChatContextItem> {
 
 		/**
-		 * An optional event that should be fired when the background chat context has changed.
+		 * An optional event that should be fired when the workspace chat context has changed.
 		 */
-		onDidChangeBackgroundContext?: Event<void>;
+		onDidChangeWorkspaceChatContext?: Event<void>;
 
 		/**
-		 * Provide a list of chat context items to be included as background context for all chat sessions.
+		 * Provide a list of chat context items to be included as workspace context for all chat sessions.
 		 *
-		 * @param token
+		 * @param token A cancellation token.
 		 */
-		provideBackgroundChatContext?(token: CancellationToken): ProviderResult<T[]>;
+		provideWorkspaceChatContext?(token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Provide a list of chat context items that a user can choose from. These context items are shown as options when the user explicitly attaches context.
 		 * Chat context items can be provided without a `value`, as the `value` can be resolved later using `resolveChatContext`.
 		 * `resolveChatContext` is only called for items that do not have a `value`.
 		 *
-		 * @param options
-		 * @param token
+		 * @param token A cancellation token.
 		 */
 		provideChatContextExplicit?(token: CancellationToken): ProviderResult<T[]>;
 
@@ -62,17 +73,16 @@ declare module 'vscode' {
 		 * Chat context items can be provided without a `value`, as the `value` can be resolved later using `resolveChatContext`.
 		 * `resolveChatContext` is only called for items that do not have a `value`.
 		 *
-		 * @param resource
-		 * @param options
-		 * @param token
+		 * @param options Options include the resource for which to provide context.
+		 * @param token A cancellation token.
 		 */
 		provideChatContextForResource?(options: { resource: Uri }, token: CancellationToken): ProviderResult<T | undefined>;
 
 		/**
 		 * If a chat context item is provided without a `value`, from either of the `provide` methods, this method is called to resolve the `value` for the item.
 		 *
-		 * @param context
-		 * @param token
+		 * @param context The context item to resolve.
+		 * @param token A cancellation token.
 		 */
 		resolveChatContext(context: T, token: CancellationToken): ProviderResult<ChatContextItem>;
 	}
