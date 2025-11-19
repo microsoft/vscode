@@ -163,7 +163,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			return;
 		}
 
-		this.registerSignInAction(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes);
+		this.registerSignInAction(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes[0]);
 		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes));
 
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
@@ -205,11 +205,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		return result;
 	}
 
-	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, scopes: string[]): Promise<IDefaultAccount | null> {
+	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, scopes: string[][]): Promise<IDefaultAccount | null> {
 		try {
 			this.logService.debug('[DefaultAccount] Getting Default Account from authenticated sessions for provider:', authProviderId);
-			const sessions = await this.authenticationService.getSessions(authProviderId, undefined, undefined, true);
-			const session = sessions.find(s => this.scopesMatch(s.scopes, scopes));
+			const session = await this.findMatchingProviderSession(authProviderId, scopes);
 
 			if (!session) {
 				this.logService.debug('[DefaultAccount] No matching session found for provider:', authProviderId);
@@ -237,6 +236,18 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			this.logService.error('[DefaultAccount] Failed to create default account for provider:', authProviderId, getErrorMessage(error));
 			return null;
 		}
+	}
+
+	private async findMatchingProviderSession(authProviderId: string, allScopes: string[][]): Promise<AuthenticationSession | undefined> {
+		const sessions = await this.authenticationService.getSessions(authProviderId, undefined, undefined, true);
+		for (const session of sessions) {
+			for (const scopes of allScopes) {
+				if (this.scopesMatch(session.scopes, scopes)) {
+					return session;
+				}
+			}
+		}
+		return undefined;
 	}
 
 	private scopesMatch(scopes: ReadonlyArray<string>, expectedScopes: string[]): boolean {
