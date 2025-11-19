@@ -10,6 +10,7 @@ steps:
         $buildName = "$(Build.BuildNumber)" # example "20251114.34 (insider)"
         $buildParts = ($buildName -split ' ')[0] -split '\.'
         $prerelease = "{0}{1:000}" -f $buildParts[0], [int]$buildParts[1]
+        Write-Host "VSCODE_PRERELEASE=$prerelease"
         Write-Host "##vso[task.setvariable variable=VSCODE_PRERELEASE]$prerelease"
       displayName: Compute prerelease version
 
@@ -18,5 +19,6 @@ steps:
         set -e
         BUILD_NAME="$(Build.BuildNumber)" # example "20251114.34 (insider)"
         VSCODE_PRERELEASE="$(echo $BUILD_NAME | cut -d' ' -f1 | awk -F. '{printf "%s%03d", $1, $2}')"
+        echo "VSCODE_PRERELEASE=$VSCODE_PRERELEASE"
         echo "##vso[task.setvariable variable=VSCODE_PRERELEASE]$VSCODE_PRERELEASE"
       displayName: Compute prerelease version
