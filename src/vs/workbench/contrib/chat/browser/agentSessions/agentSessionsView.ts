@@ -84,7 +84,9 @@ export class AgentSessionsView extends ViewPane {
 		container.classList.add('agent-sessions-view');
 
 		// New Session
-		this.createNewSessionButton(container);
+		if (!this.configurationService.getValue('chat.hideNewButtonInAgentSessionsView')) {
+			this.createNewSessionButton(container);
+		}
 
 		// Sessions List
 		this.createList(container);
