@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { analyzePrompt, enhancePrompt } from '../promptProcessor';
 import { collectContext } from '../services/contextCollector';
 import { sendChat, ChatMessage } from '../services/openaiClient';
+import { extractRunnableCommand } from '../commandParser';
 
 export class ChatPanel {
     private static current?: ChatPanel;
@@ -95,6 +96,7 @@ export class ChatPanel {
                 this.assistantBuffer += chunk;
                 this.panel.webview.postMessage({ type: 'response', text: this.assistantBuffer });
             }
+            await this.handleRunnableCommand();
         } catch (err: any) {
             this.panel.webview.postMessage({ type: 'response', text: `Error: ${err.message}` });
         }
@@ -109,6 +111,24 @@ export class ChatPanel {
                 d.dispose();
             }
         }
+    }
+
+    private async handleRunnableCommand() {
+        const command = extractRunnableCommand(this.assistantBuffer);
+        const autoExecuteEnabled = vscode.workspace.getConfiguration('chat').get<boolean>('autoExecuteCommands', true);
+        await vscode.commands.executeCommand('setContext', 'chat.autoExecuteCommands', autoExecuteEnabled);
+        if (!command || !autoExecuteEnabled) {
+            return;
+        }
+
+        const response = await vscode.window.showWarningMessage(`Run the suggested command?\n${command}`, 'Run', 'Cancel');
+        if (response !== 'Run') {
+            return;
+        }
+
+        const terminal = vscode.window.activeTerminal ?? vscode.window.createTerminal('Chat Assistant');
+        terminal.show(true);
+        terminal.sendText(command, true);
     }
 }
 
