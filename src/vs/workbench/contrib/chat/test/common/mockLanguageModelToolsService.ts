@@ -16,7 +16,8 @@ import { CountTokensCallback, ILanguageModelToolsService, IToolAndToolSetEnablem
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
-	vscodeToolSet: ToolSet = new ToolSet('vscode', 'VS Code Tools', ThemeIcon.fromId(Codicon.code.id), ToolDataSource.Internal);
+	vscodeToolSet: ToolSet = new ToolSet('vscode', 'vscode', ThemeIcon.fromId(Codicon.code.id), ToolDataSource.Internal);
+	launchToolSet: ToolSet = new ToolSet('launch', 'launch', ThemeIcon.fromId(Codicon.rocket.id), ToolDataSource.Internal);
 
 	constructor() { }
 

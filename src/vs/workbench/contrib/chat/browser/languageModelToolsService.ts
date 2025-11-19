@@ -77,6 +77,7 @@ export const globalAutoApproveDescription = localize2(
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	vscodeToolSet: ToolSet;
+	launchToolSet: ToolSet;
 
 	private _onDidChangeTools = this._register(new Emitter<void>());
 	readonly onDidChangeTools = this._onDidChangeTools.event;
@@ -140,6 +141,17 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			{
 				icon: ThemeIcon.fromId(Codicon.code.id),
 				description: localize('copilot.toolSet.vscode.description', 'Use VS Code features'),
+			}
+		));
+
+		// Create the internal Launch tool set
+		this.launchToolSet = this._register(this.createToolSet(
+			ToolDataSource.Internal,
+			'launch',
+			VSCodeToolReference.launch,
+			{
+				icon: ThemeIcon.fromId(Codicon.rocket.id),
+				description: localize('copilot.toolSet.launch.description', 'Launch and run code, binaries or tests in the workspace'),
 			}
 		));
 	}
