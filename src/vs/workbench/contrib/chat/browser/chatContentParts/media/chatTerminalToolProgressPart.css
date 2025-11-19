@@ -178,6 +178,9 @@
 .chat-terminal-output-terminal {
 	min-height: 40px;
 }
+.chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
+	display: none;
+}
 .chat-terminal-output-terminal .xterm {
 	font-size: 12px;
 }

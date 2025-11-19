@@ -748,7 +748,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _scrollable: DomScrollableElement;
 	private _terminalContainer: HTMLElement;
 	private _infoElement: HTMLElement | undefined;
-	private _detachedTerminal: IDetachedTerminalInstance | undefined;
+	private readonly _detachedTerminal: MutableDisposable<IDetachedTerminalInstance>;
 	private _outputResizeObserver: ResizeObserver | undefined;
 	private _renderedOutputHeight: number | undefined;
 	private _lastOutputTruncated = false;
@@ -766,6 +766,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	constructor(options: ChatTerminalToolOutputSectionOptions) {
 		super();
+		this._detachedTerminal = this._register(new MutableDisposable<IDetachedTerminalInstance>());
 		this._container = options.container;
 		this._title = options.title;
 		this._displayCommand = options.displayCommand;
@@ -806,8 +807,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._bufferedLineCount = this._countNewLines(storedOutput.text);
 			this._lastOutputTruncated = storedOutput.truncated ?? false;
 			this._needsReplay = true;
-			this._setStatusMessages();
 		}
+		this._setStatusMessages();
+		this._updateTerminalVisibility();
 	}
 
 	public async toggle(expanded: boolean): Promise<boolean> {
@@ -882,6 +884,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._isStreaming = false;
 			storedOutput.truncated = true;
 			this._setStatusMessages();
+			this._updateTerminalVisibility();
 			return true;
 		}
 		const trimmed = this._trimToRemainingLines(data, remainingLines);
@@ -891,14 +894,15 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._isStreaming = false;
 			storedOutput.truncated = true;
 			this._setStatusMessages();
+			this._updateTerminalVisibility();
 			return true;
 		}
 		this._streamBuffer.push(trimmed);
 		this._bufferedLineCount += this._countNewLines(trimmed);
 		storedOutput.text += trimmed;
 
-		if (this.isExpanded && this._detachedTerminal) {
-			this._detachedTerminal.xterm.write(trimmed);
+		if (this.isExpanded && this._detachedTerminal.value) {
+			this._detachedTerminal.value.xterm.write(trimmed);
 			this._scrollOutputToBottom();
 		} else {
 			this._needsReplay = true;
@@ -906,15 +910,18 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (this.isExpanded) {
 			this._scheduleOutputRelayout();
 		}
+		this._updateTerminalVisibility();
 
 		if (wasTrimmed || this._bufferedLineCount >= maxLines) {
 			this._lastOutputTruncated = true;
 			this._isStreaming = false;
 			storedOutput.truncated = true;
 			this._setStatusMessages();
+			this._updateTerminalVisibility();
 			return true;
 		}
 		storedOutput.truncated = false;
+		this._updateTerminalVisibility();
 		return false;
 	}
 
@@ -924,21 +931,55 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._bufferedLineCount = 0;
 		this._lastOutputTruncated = false;
 		this._needsReplay = true;
-		if (this._detachedTerminal) {
-			this._detachedTerminal.xterm.write('\x1bc');
+		if (this._detachedTerminal.value) {
+			this._detachedTerminal.value.xterm.write('\x1bc');
 		}
 		this._terminalData.terminalCommandOutput = { text: '', truncated: false };
 		this._setSupplementalMessages([]);
 		this._scrollable.scanDomNode();
+		this._updateTerminalVisibility();
 	}
 
 	public endStreaming(): void {
 		this._isStreaming = false;
 		this._setStatusMessages();
+		this._updateTerminalVisibility();
 	}
 
 	public hasRenderableOutput(): boolean {
-		return this._streamBuffer.length > 0;
+		return this._hasRenderableOutput();
+	}
+
+	private _hasRenderableOutput(): boolean {
+		return this._streamBuffer.some(chunk => this._isRenderableOutputChunk(chunk));
+	}
+
+	private _shouldRenderTerminal(): boolean {
+		return this._isStreaming || this._hasRenderableOutput();
+	}
+
+	private _updateTerminalVisibility(): void {
+		const shouldRender = this._shouldRenderTerminal();
+		this._terminalContainer.classList.toggle('chat-terminal-output-terminal-no-output', !shouldRender);
+		if (!shouldRender) {
+			this._disposeDetachedTerminal();
+		} else {
+			this._ensureOutputResizeObserver();
+		}
+	}
+
+	private _disposeDetachedTerminal(): void {
+		if (this._detachedTerminal.value) {
+			this._detachedTerminal.clear();
+		}
+		if (this._outputResizeObserver) {
+			this._outputResizeObserver.disconnect();
+			this._outputResizeObserver = undefined;
+		}
+		this._xtermElement = undefined;
+		this._xtermViewport = undefined;
+		this._xtermSampleRow = undefined;
+		dom.clearNode(this._terminalContainer);
 	}
 
 	private _setExpanded(expanded: boolean): void {
@@ -953,10 +994,17 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private async _ensureUiAndReplay(): Promise<void> {
+		if (!this._shouldRenderTerminal()) {
+			this._updateTerminalVisibility();
+			this.updateAriaLabel();
+			return;
+		}
+
 		await this._ensureDetachedTerminalInstance();
 		if (this._needsReplay) {
 			await this._replayBuffer();
 		}
+		this._updateTerminalVisibility();
 		this.updateAriaLabel();
 	}
 
@@ -1055,16 +1103,19 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private async _ensureDetachedTerminalInstance(): Promise<IDetachedTerminalInstance | undefined> {
-		if (this._detachedTerminal) {
+		if (!this._shouldRenderTerminal()) {
+			return undefined;
+		}
+		const existing = this._detachedTerminal.value;
+		if (existing) {
 			if (!this._xtermElement) {
-				this._captureXtermElements(this._detachedTerminal);
+				this._captureXtermElements(existing);
 			}
-			return this._detachedTerminal;
+			return existing;
 		}
 		try {
 			const instance = await this._createDetachedTerminal();
-			this._register(instance);
-			this._detachedTerminal = instance;
+			this._detachedTerminal.value = instance;
 			instance.attachToElement(this._terminalContainer);
 			this._captureXtermElements(instance);
 			this._scrollable.scanDomNode();
@@ -1118,9 +1169,23 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._ensureOutputResizeObserver();
 	}
 
+	private _isRenderableOutputChunk(chunk: string): boolean {
+		const sanitized = this._sanitizeTerminalChunk(chunk);
+		return sanitized.trim().length > 0;
+	}
+
+	private _sanitizeTerminalChunk(chunk: string): string {
+		// Strip CSI (Control Sequence Introducer) sequences that move the cursor but don't render text.
+		const withoutCsi = chunk.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '');
+		// Strip remaining ANSI color/style sequences and other escape codes.
+		const withoutAnsi = removeAnsiEscapeCodes(withoutCsi);
+		// Remove carriage returns to avoid them surviving trim().
+		return withoutAnsi.replace(/\r/g, '');
+	}
+
 	private _setStatusMessages(): void {
 		const messages: string[] = [];
-		const hasOutput = this._streamBuffer.some(chunk => removeAnsiEscapeCodes(chunk).trim().length > 0);
+		const hasOutput = this._hasRenderableOutput();
 		if (!hasOutput && !this._isStreaming) {
 			messages.push(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
 		}
