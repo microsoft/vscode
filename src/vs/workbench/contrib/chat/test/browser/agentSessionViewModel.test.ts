@@ -419,7 +419,6 @@ suite('AgentSessionsViewModel', () => {
 			await viewModel.resolve(undefined);
 
 			assert.strictEqual(viewModel.sessions.length, 1);
-			assert.strictEqual(viewModel.sessions[0].provider, provider);
 			assert.strictEqual(viewModel.sessions[0].providerType, 'test-type');
 		});
 	});
@@ -725,11 +724,6 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 
 	test('isLocalAgentSessionItem should identify local sessions', () => {
 		const localSession: IAgentSessionViewModel = {
-			provider: {
-				chatSessionType: localChatSessionType,
-				onDidChangeChatSessionItems: Event.None,
-				provideChatSessionItems: async () => []
-			},
 			providerType: localChatSessionType,
 			providerLabel: 'Local',
 			icon: Codicon.chatSparkle,
@@ -742,11 +736,6 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 		};
 
 		const remoteSession: IAgentSessionViewModel = {
-			provider: {
-				chatSessionType: 'remote',
-				onDidChangeChatSessionItems: Event.None,
-				provideChatSessionItems: async () => []
-			},
 			providerType: 'remote',
 			providerLabel: 'Remote',
 			icon: Codicon.chatSparkle,
@@ -764,11 +753,6 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 
 	test('isAgentSession should identify session view models', () => {
 		const session: IAgentSessionViewModel = {
-			provider: {
-				chatSessionType: 'test',
-				onDidChangeChatSessionItems: Event.None,
-				provideChatSessionItems: async () => []
-			},
 			providerType: 'test',
 			providerLabel: 'Local',
 			icon: Codicon.chatSparkle,
@@ -790,11 +774,6 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 
 	test('isAgentSessionsViewModel should identify sessions view models', () => {
 		const session: IAgentSessionViewModel = {
-			provider: {
-				chatSessionType: 'test',
-				onDidChangeChatSessionItems: Event.None,
-				provideChatSessionItems: async () => []
-			},
 			providerType: 'test',
 			providerLabel: 'Local',
 			icon: Codicon.chatSparkle,

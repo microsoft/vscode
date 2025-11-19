@@ -16,7 +16,7 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionsViewFilter } from './agentSessionsViewFilter.js';
 
@@ -35,8 +35,6 @@ export interface IAgentSessionsViewModel {
 }
 
 export interface IAgentSessionViewModel {
-
-	readonly provider?: IChatSessionItemProvider;
 
 	readonly providerType: string;
 	readonly providerLabel: string;
@@ -246,7 +244,6 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 				}
 
 				sessions.set(session.resource, {
-					provider,
 					providerType: provider.chatSessionType,
 					providerLabel,
 					resource: session.resource,

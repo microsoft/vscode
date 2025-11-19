@@ -144,18 +144,22 @@ export class AgentSessionsView extends ViewPane {
 			...e.editorOptions,
 		};
 
+		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
+
 		const group = e.sideBySide ? SIDE_GROUP : undefined;
 		await this.chatWidgetService.openSession(session.resource, group, options);
 	}
 
-	private showContextMenu({ element: session, anchor }: ITreeContextMenuEvent<IAgentSessionViewModel>): void {
+	private async showContextMenu({ element: session, anchor }: ITreeContextMenuEvent<IAgentSessionViewModel>): Promise<void> {
 		if (!session) {
 			return;
 		}
 
+		const provider = await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
+
 		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(getSessionItemContextOverlay(
 			session,
-			session.provider,
+			provider,
 			this.chatWidgetService,
 			this.chatService,
 			this.editorGroupsService
