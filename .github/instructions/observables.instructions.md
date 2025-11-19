@@ -62,11 +62,7 @@ Most important symbols:
 * Check src\vs\base\common\observableInternal\index.ts for a list of all observable utitilies
 
 
-* Important learnings:
-	* [1] Avoid glitches
-	* [2] **Choose the right observable value type:**
-		* Use `observableValue(owner, initialValue)` for regular values
-		* Use `disposableObservableValue(owner, initialValue)` when storing disposable values - it automatically disposes the previous value when a new one is set, and disposes the current value when the observable itself is disposed (similar to `MutableDisposable` behavior)
-	* [3] **Choose the right event observable pattern:**
-		* Use `observableFromEvent(owner, event, valueComputer)` when you need to track a computed value that changes with the event, and you want updates only when the computed value actually changes
-		* Use `observableSignalFromEvent(owner, event)` when you need to force re-computation every time the event fires, regardless of value stability. This is important when the computed value might not change but dependent computations need fresh context (e.g., workspace folder changes where the folder array reference might be the same but file path calculations need to be refreshed)
+## Learnings
+* Avoid glitches (1)
+* **Choose the right observable value type:** Use `observableValue(owner, initialValue)` for regular values. Use `disposableObservableValue(owner, initialValue)` when storing disposable values - it automatically disposes the previous value when a new one is set, and disposes the current value when the observable itself is disposed (similar to `MutableDisposable` behavior). (1)
+* **Choose the right event observable pattern:** Use `observableFromEvent(owner, event, valueComputer)` when you need to track a computed value that changes with the event, and you want updates only when the computed value actually changes. Use `observableSignalFromEvent(owner, event)` when you need to force re-computation every time the event fires, regardless of value stability. This is important when the computed value might not change but dependent computations need fresh context (e.g., workspace folder changes where the folder array reference might be the same but file path calculations need to be refreshed). (1)

@@ -111,3 +111,8 @@ this.telemetryService.publicLogError2<ErrorEvent, ErrorClassification>('myFeatur
 - Minimize data collection to essential insights only
 - Use hashes/categories instead of raw values when possible
 - Document clear purpose for each data point
+
+## Learnings
+* Always include the `owner` field in classification metadata to track responsibility for telemetry events (1)
+* Use `isMeasurement: true` for all numeric values that will be used in calculations or metrics aggregation (1)
+* Never include PII (usernames, emails, file paths, user content) in telemetry events to comply with privacy requirements (1)
