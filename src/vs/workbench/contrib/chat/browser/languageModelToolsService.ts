@@ -487,8 +487,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			};
 		}
 
-		if (!isEligibleForAutoApproval && prepared?.confirmationMessages?.title && !prepared.confirmationMessages.disclaimer) {
-			prepared.confirmationMessages.disclaimer = localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted via {1}.', getToolReferenceFullName(tool.data), ChatConfiguration.EligibleForAutoApproval);
+		if (!isEligibleForAutoApproval && prepared?.confirmationMessages?.title) {
+			// Always overwrite the disclaimer if not eligible for auto-approval
+			prepared.confirmationMessages.disclaimer = new MarkdownString(localize('defaultToolConfirmation.disclaimer', 'Auto approval for \'{0}\' is restricted via {1}.', getToolReferenceFullName(tool.data), createMarkdownCommandLink({ title: '`' + ChatConfiguration.EligibleForAutoApproval + '`', id: 'workbench.action.openSettings', arguments: [ChatConfiguration.EligibleForAutoApproval] }, false)), { isTrusted: true });
 		}
 
 		if (prepared?.confirmationMessages?.title) {
