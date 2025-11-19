@@ -1329,8 +1329,9 @@ export interface ExtHostChatContextShape {
 }
 
 export interface MainThreadChatContextShape extends IDisposable {
-	$registerChatContextProvider(handle: number, id: string, selector: IDocumentFilterDto[], options: {}, support: IChatContextSupport): void;
+	$registerChatContextProvider(handle: number, id: string, selector: IDocumentFilterDto[] | undefined, options: {}, support: IChatContextSupport): void;
 	$unregisterChatContextProvider(handle: number): void;
+	$updateWorkspaceContextItems(handle: number, items: IChatContextItem[]): void;
 }
 
 export interface MainThreadEmbeddingsShape extends IDisposable {
