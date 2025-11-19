@@ -86,7 +86,7 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 	private async updateViewRegistration(): Promise<void> {
 		// prepare all chat session providers
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
-		await Promise.all(contributions.map(contrib => this.chatSessionsService.hasChatSessionItemProvider(contrib.type)));
+		await Promise.all(contributions.map(contrib => this.chatSessionsService.activateChatSessionItemProvider(contrib.type)));
 		const currentProviders = this.getAllChatSessionItemProviders();
 		const currentProviderIds = new Set(currentProviders.map(p => p.chatSessionType));
 

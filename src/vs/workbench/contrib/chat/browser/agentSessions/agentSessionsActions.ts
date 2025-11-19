@@ -8,15 +8,17 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IAgentSessionViewModel } from './agentSessionViewModel.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { EventHelper, h, hide, show } from '../../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IChatService } from '../../common/chatService.js';
 
 //#region Diff Statistics Action
 
@@ -103,9 +105,16 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 
 		const session = this.action.getSession();
 
-		this.commandService.executeCommand(`agentSession.${session.provider.chatSessionType}.openChanges`, this.action.getSession().resource);
+		this.commandService.executeCommand(`agentSession.${session.providerType}.openChanges`, this.action.getSession().resource);
 	}
 }
+
+CommandsRegistry.registerCommand(`agentSession.${AgentSessionProviders.Local}.openChanges`, async (accessor: ServicesAccessor, resource: URI) => {
+	const chatService = accessor.get(IChatService);
+
+	const session = chatService.getSession(resource);
+	session?.editingSession?.show();
+});
 
 //#endregion
 
