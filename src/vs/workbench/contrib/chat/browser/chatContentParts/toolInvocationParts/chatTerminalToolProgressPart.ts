@@ -589,7 +589,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					this._terminalData.terminalCommandId = finishedId;
 				}
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				await this._queueStreaming(terminalInstance, command);
+				const appliedEmptyOutput = this._tryApplyEmptyOutput(command);
+				if (!appliedEmptyOutput) {
+					await this._queueStreaming(terminalInstance, command);
+				}
 				this._outputView.endStreaming();
 				this._commandStreamingListener.clear();
 				this._streamingCommand = undefined;
@@ -790,6 +793,31 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			?? candidate.executedMarker;
 		const end = candidate.commandFinishedMarker ?? candidate.endMarker;
 		return { start, end };
+	}
+
+	private _tryApplyEmptyOutput(command: ITerminalCommand): boolean {
+		// When a command produces no output, the serialize addon can still capture the prompt,
+		// which visually leaks the prompt. Detect the narrow marker range and explicitly treat it
+		// as empty so we render the "no output" message instead of the prompt itself.
+		// We only call getOutput if the marker range is small to avoid performance issues.
+		const markers = this._resolveCommandMarkers(command);
+		const startLine = command.marker?.line ?? markers.start?.line;
+		const endLine = markers.end?.line ?? command.endMarker?.line;
+		if (
+			startLine === undefined || endLine === undefined ||
+			startLine === -1 || endLine === -1 ||
+			endLine - startLine > 2
+		) {
+			return false;
+		}
+
+		const output = command.getOutput();
+		if (output && output.trim().length > 0) {
+			return false;
+		}
+
+		this._outputView.applyEmptyOutput();
+		return true;
 	}
 }
 
@@ -1045,6 +1073,24 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}
 		this._replaceStreamingDataFromRaw(snapshot);
 		this._lastRawSnapshot = snapshot;
+	}
+
+	public applyEmptyOutput(): void {
+		// Resets the preview state when the command produced no output so that prompts are not
+		// surfaced as command output.
+		this._isStreaming = false;
+		this._streamBuffer = [];
+		this._resetLineState();
+		this._lastOutputTruncated = false;
+		this._lastRawSnapshot = undefined;
+		this._needsReplay = false;
+		this._disposeDetachedTerminal();
+		const storedOutput = this._terminalData.terminalCommandOutput ?? (this._terminalData.terminalCommandOutput = { text: '', truncated: false });
+		storedOutput.text = '';
+		storedOutput.truncated = false;
+		this._setStatusMessages();
+		this._updateTerminalVisibility();
+		this._scrollable.scanDomNode();
 	}
 
 	private _replaceStreamingDataFromRaw(snapshot: string): void {
