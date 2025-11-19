@@ -92,6 +92,7 @@ steps:
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: true
           VSCODE_CLI_COMMIT: $(Build.SourceVersion)
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
           ${{ each pair in parameters.VSCODE_CLI_ENV }}:
             ${{ pair.key }}: ${{ pair.value }}
@@ -103,6 +104,7 @@ steps:
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: true
           VSCODE_CLI_COMMIT: $(Build.SourceVersion)
+          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           ${{ each pair in parameters.VSCODE_CLI_ENV }}:
             ${{ pair.key }}: ${{ pair.value }}
 

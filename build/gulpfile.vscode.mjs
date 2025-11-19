@@ -254,11 +254,16 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const sources = es.merge(src, extensions)
 			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
 
-		const version = packageJson.version;
+		let version = packageJson.version;
 		const quality = product.quality;
 
+		if (quality && quality !== 'stable') {
+			const prerelease = process.env['VSCODE_PRERELEASE'];
+			version += `-${prerelease}-${quality}`;
+		}
+
 		const name = product.nameShort;
-		const packageJsonUpdates = { name };
+		const packageJsonUpdates = { name, version };
 
 		if (platform === 'linux') {
 			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;
@@ -413,9 +418,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			if (quality === 'stable' || quality === 'insider') {
 				result = es.merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
 				const rawVersion = version.replace(/-\w+$/, '').split('.');
-
-				// AppX doesn't support versions like `1.0.107.20251114039`, so we bring that last number back down to zero
-				const appxVersion = `${rawVersion[0]}.0.${rawVersion[1]}.${quality === 'insider' ? '0' : rawVersion[2]}`;
+				const appxVersion = `${rawVersion[0]}.0.${rawVersion[1]}.${rawVersion[2]}`;
 				result = es.merge(result, gulp.src('resources/win32/appx/AppxManifest.xml', { base: '.' })
 					.pipe(replace('@@AppxPackageName@@', product.win32AppUserModelId))
 					.pipe(replace('@@AppxPackageVersion@@', appxVersion))

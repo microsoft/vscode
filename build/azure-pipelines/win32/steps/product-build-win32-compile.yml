@@ -23,10 +23,6 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
 
-  - template: ../../common/update-package-version.yml@self
-    parameters:
-      VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-
   - task: UsePythonVersion@0
     inputs:
       versionSpec: "3.x"

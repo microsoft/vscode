@@ -57,10 +57,6 @@ jobs:
           versionSource: fromFile
           versionFilePath: .nvmrc
 
-      - template: ../common/update-package-version.yml@self
-        parameters:
-          VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
-
       - template: ../distro/download-distro.yml@self
 
       - task: AzureKeyVault@2
