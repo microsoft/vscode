@@ -633,8 +633,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const targetRef = this._terminalInstance?.targetRef ?? new ImmortalReference<TerminalLocation | undefined>(undefined);
 		const colorProvider = this._instantiationService.createInstance(TerminalInstanceColorProvider, targetRef);
 		return this._terminalService.createDetachedTerminal({
-			cols: 80,
-			rows: 20,
+			cols: this._terminalInstance?.cols ?? 80,
+			rows: 10,
 			readonly: true,
 			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
 			colorProvider
