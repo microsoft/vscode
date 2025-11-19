@@ -941,13 +941,13 @@ class ToolReferenceNamesContribution extends Disposable implements IWorkbenchCon
 				.sort((a, b) => a.toolReferenceName.localeCompare(b.toolReferenceName));
 		toolReferenceNameEnumValues.length = 0;
 		toolReferenceNameEnumDescriptions.length = 0;
-		for (const name of tools) {
-			toolReferenceNameEnumValues.push(name.toolReferenceName);
+		for (const tool of tools) {
+			toolReferenceNameEnumValues.push(tool.toolReferenceName);
 			toolReferenceNameEnumDescriptions.push(nls.localize(
 				'chat.toolReferenceName.description',
 				"{0} - {1}",
-				name.toolReferenceName,
-				name.userDescription || name.displayName
+				tool.toolReferenceName,
+				tool.userDescription || tool.displayName
 			));
 		}
 		configurationRegistry.notifyConfigurationSchemaUpdated({
