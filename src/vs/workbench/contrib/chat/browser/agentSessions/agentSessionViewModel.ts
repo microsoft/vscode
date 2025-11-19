@@ -360,28 +360,32 @@ class AgentSessionsCache {
 			return [];
 		}
 
-		const cached = JSON.parse(sessionsCache) as ISerializedAgentSessionViewModel[];
-		return cached.map(session => ({
-			providerType: session.providerType,
-			providerLabel: session.providerLabel,
+		try {
+			const cached = JSON.parse(sessionsCache) as ISerializedAgentSessionViewModel[];
+			return cached.map(session => ({
+				providerType: session.providerType,
+				providerLabel: session.providerLabel,
 
-			resource: URI.revive(session.resource),
+				resource: URI.revive(session.resource),
 
-			icon: ThemeIcon.fromId(session.icon),
-			label: session.label,
-			description: session.description,
-			tooltip: session.tooltip,
+				icon: ThemeIcon.fromId(session.icon),
+				label: session.label,
+				description: session.description,
+				tooltip: session.tooltip,
 
-			status: session.status,
-			archived: session.archived,
+				status: session.status,
+				archived: session.archived,
 
-			timing: {
-				startTime: session.timing.startTime,
-				endTime: session.timing.endTime,
-			},
+				timing: {
+					startTime: session.timing.startTime,
+					endTime: session.timing.endTime,
+				},
 
-			statistics: session.statistics,
-		}));
+				statistics: session.statistics,
+			}));
+		} catch {
+			return []; // invalid data in storage, fallback to empty sessions list
+		}
 	}
 }
 

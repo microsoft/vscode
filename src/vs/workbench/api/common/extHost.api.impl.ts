@@ -1537,9 +1537,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatOutputRenderer');
 				return extHostChatOutputRenderer.registerChatOutputRenderer(extension, viewType, renderer);
 			},
-			registerChatContextProvider(selector: vscode.DocumentSelector, id: string, provider: vscode.ChatContextProvider): vscode.Disposable {
+			registerChatContextProvider(selector: vscode.DocumentSelector | undefined, id: string, provider: vscode.ChatContextProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatContextProvider');
-				return extHostChatContext.registerChatContextProvider(checkSelector(selector), `${extension.id}-${id}`, provider);
+				return extHostChatContext.registerChatContextProvider(selector ? checkSelector(selector) : undefined, `${extension.id}-${id}`, provider);
 			},
 		};
 
