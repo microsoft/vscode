@@ -51,7 +51,7 @@ import { ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService } f
 import { ILanguageModelsService, LanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelStatsService, LanguageModelStatsService } from '../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolDataSource } from '../common/languageModelToolsService.js';
 import { ChatPromptFilesExtensionPointHandler } from '../common/promptSyntax/chatPromptFilesContribution.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, INSTRUCTION_FILE_EXTENSION, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../common/promptSyntax/config/promptFileLocations.js';
@@ -936,6 +936,7 @@ class ToolReferenceNamesContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private _updateToolReferenceNames(): void {
+		// Get all qualified tool names
 		const qualifiedNames = Array.from(this._languageModelToolsService.getQualifiedToolNames());
 		
 		// Clear existing arrays
@@ -943,9 +944,26 @@ class ToolReferenceNamesContribution extends Disposable implements IWorkbenchCon
 		toolReferenceNameEnumDescriptions.length = 0;
 
 		// Populate with current tool reference names
+		// Sort names for better UX
+		qualifiedNames.sort((a, b) => a.localeCompare(b));
+		
 		for (const name of qualifiedNames) {
 			toolReferenceNameEnumValues.push(name);
-			toolReferenceNameEnumDescriptions.push(name);
+			// Try to get the tool to provide a better description
+			const tool = this._languageModelToolsService.getToolByQualifiedName(name);
+			if (tool && 'displayName' in tool) {
+				// It's a tool
+				const description = tool.userDescription ?? tool.modelDescription;
+				const sourceLabel = ToolDataSource.classify(tool.source).label;
+				toolReferenceNameEnumDescriptions.push(nls.localize('tool.eligibility.description', "{1} ({0})\n\n{2}", sourceLabel, name, description));
+			} else if (tool && 'referenceName' in tool) {
+				// It's a toolset
+				const sourceLabel = ToolDataSource.classify(tool.source).label;
+				toolReferenceNameEnumDescriptions.push(nls.localize('toolset.eligibility.description', "{1} ({0})\n\n{2}", sourceLabel, name, tool.description ?? ''));
+			} else {
+				// Fallback if tool not found
+				toolReferenceNameEnumDescriptions.push(name);
+			}
 		}
 
 		// Notify configuration registry about the schema update
