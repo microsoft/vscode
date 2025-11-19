@@ -420,7 +420,7 @@ suite('AgentSessionsViewModel', () => {
 
 			assert.strictEqual(viewModel.sessions.length, 1);
 			assert.strictEqual(viewModel.sessions[0].provider, provider);
-			assert.strictEqual(viewModel.sessions[0].provider.chatSessionType, 'test-type');
+			assert.strictEqual(viewModel.sessions[0].providerType, 'test-type');
 		});
 	});
 
@@ -536,7 +536,7 @@ suite('AgentSessionsViewModel', () => {
 			await viewModel.resolve(undefined);
 
 			assert.strictEqual(viewModel.sessions.length, 1);
-			assert.strictEqual(viewModel.sessions[0].provider.chatSessionType, localChatSessionType);
+			assert.strictEqual(viewModel.sessions[0].providerType, localChatSessionType);
 		});
 	});
 
@@ -730,6 +730,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
+			providerType: localChatSessionType,
 			providerLabel: 'Local',
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://local-1'),
@@ -746,7 +747,8 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
-			providerLabel: 'Local',
+			providerType: 'remote',
+			providerLabel: 'Remote',
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://remote-1'),
 			label: 'Remote',
@@ -767,6 +769,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
+			providerType: 'test',
 			providerLabel: 'Local',
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://test-1'),
@@ -792,6 +795,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => []
 			},
+			providerType: 'test',
 			providerLabel: 'Local',
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://test-1'),
@@ -855,7 +859,7 @@ suite('AgentSessionsViewFilter', () => {
 		};
 
 		const session1: IAgentSessionViewModel = {
-			provider: provider1,
+			providerType: provider1.chatSessionType,
 			providerLabel: 'Provider 1',
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://session-1'),
@@ -866,7 +870,7 @@ suite('AgentSessionsViewFilter', () => {
 		};
 
 		const session2: IAgentSessionViewModel = {
-			provider: provider2,
+			providerType: provider2.chatSessionType,
 			providerLabel: 'Provider 2',
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://session-2'),
@@ -907,7 +911,7 @@ suite('AgentSessionsViewFilter', () => {
 		};
 
 		const archivedSession: IAgentSessionViewModel = {
-			provider,
+			providerType: provider.chatSessionType,
 			providerLabel: 'Test Provider',
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://archived-session'),
@@ -918,7 +922,7 @@ suite('AgentSessionsViewFilter', () => {
 		};
 
 		const activeSession: IAgentSessionViewModel = {
-			provider,
+			providerType: provider.chatSessionType,
 			providerLabel: 'Test Provider',
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://active-session'),
@@ -959,7 +963,7 @@ suite('AgentSessionsViewFilter', () => {
 		};
 
 		const failedSession: IAgentSessionViewModel = {
-			provider,
+			providerType: provider.chatSessionType,
 			providerLabel: 'Test Provider',
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://failed-session'),
@@ -970,7 +974,7 @@ suite('AgentSessionsViewFilter', () => {
 		};
 
 		const completedSession: IAgentSessionViewModel = {
-			provider,
+			providerType: provider.chatSessionType,
 			providerLabel: 'Test Provider',
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://completed-session'),
@@ -981,7 +985,7 @@ suite('AgentSessionsViewFilter', () => {
 		};
 
 		const inProgressSession: IAgentSessionViewModel = {
-			provider,
+			providerType: provider.chatSessionType,
 			providerLabel: 'Test Provider',
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://inprogress-session'),
