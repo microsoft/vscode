@@ -5,6 +5,8 @@
 
 import { h } from '../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
+import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
+import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -39,6 +41,7 @@ import { localize } from '../../../../../../nls.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
 import { DomSanitizerConfig } from '../../../../../../base/browser/domSanitize.js';
@@ -78,6 +81,11 @@ interface ITerminalCommandDecorationOptions {
 	readonly terminalData: IChatTerminalToolInvocationData;
 
 	/**
+	 * Hover service used to render the decoration tooltip.
+	 */
+	readonly hoverService: IHoverService;
+
+	/**
 	 * Returns the HTML element representing the command block in the terminal output.
 	 * May return `undefined` if the command block is not currently rendered.
 	 * Called when attaching the decoration to the command block container.
@@ -104,6 +112,8 @@ class TerminalCommandDecoration extends Disposable {
 	private readonly _hoverListener: MutableDisposable<IDisposable>;
 	private readonly _focusListener: MutableDisposable<IDisposable>;
 	private _interactionElement: HTMLElement | undefined;
+	private readonly _hover: MutableDisposable<IManagedHover>;
+	private _currentHoverText: string | undefined;
 
 	constructor(private readonly _options: ITerminalCommandDecorationOptions) {
 		super();
@@ -111,6 +121,7 @@ class TerminalCommandDecoration extends Disposable {
 		this._element = decorationElements.decoration;
 		this._hoverListener = this._register(new MutableDisposable<IDisposable>());
 		this._focusListener = this._register(new MutableDisposable<IDisposable>());
+		this._hover = this._register(new MutableDisposable<IManagedHover>());
 		this._attachElementToContainer();
 	}
 
@@ -128,6 +139,12 @@ class TerminalCommandDecoration extends Disposable {
 			} else {
 				container.insertBefore(decoration, container.firstElementChild ?? null);
 			}
+		}
+
+		if (!this._hover.value) {
+			this._hover.value = this._options.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), decoration, this._currentHoverText);
+		} else {
+			this._hover.value.update(this._currentHoverText);
 		}
 
 		this._attachInteractionHandlers(decoration);
@@ -179,11 +196,13 @@ class TerminalCommandDecoration extends Disposable {
 		}
 		const hoverText = tooltip || decorationState.hoverMessage;
 		if (hoverText) {
-			decoration.setAttribute('title', hoverText);
+			this._currentHoverText = hoverText;
 			decoration.setAttribute('aria-label', hoverText);
+			this._hover.value?.update(hoverText);
 		} else {
-			decoration.removeAttribute('title');
+			this._currentHoverText = undefined;
 			decoration.removeAttribute('aria-label');
+			this._hover.value?.update(undefined);
 		}
 	}
 
@@ -259,6 +278,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super(toolInvocation);
 
@@ -282,6 +302,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		this._decoration = this._register(new TerminalCommandDecoration({
 			terminalData: this._terminalData,
+			hoverService: this._hoverService,
 			getCommandBlock: () => elements.commandBlock,
 			getIconElement: () => undefined,
 			getResolvedCommand: () => this._getResolvedCommand()
