@@ -31,6 +31,10 @@ jobs:
           versionSource: fromFile
           versionFilePath: .nvmrc
 
+      - template: ./common/update-package-version.yml@self
+        parameters:
+          quality: ${{ parameters.VSCODE_QUALITY }}
+
       - task: AzureKeyVault@2
         displayName: "Azure Key Vault: Get Secrets"
         inputs:

@@ -1,4 +1,6 @@
 parameters:
+  - name: VSCODE_QUALITY
+    type: string
   - name: VSCODE_ARCH
     type: string
   - name: VSCODE_CIBUILD
@@ -20,6 +22,10 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
+
+  - template: ../../common/update-package-version.yml@self
+    parameters:
+      quality: ${{ parameters.VSCODE_QUALITY }}
 
   - template: ../../distro/download-distro.yml@self
 

@@ -35,6 +35,10 @@ jobs:
         versionSource: fromFile
         versionFilePath: .nvmrc
 
+    - template: ../common/update-package-version.yml@self
+      parameters:
+        quality: ${{ parameters.VSCODE_QUALITY }}
+
     - template: ../cli/cli-apply-patches.yml@self
 
     - task: Npm@1
