@@ -1268,6 +1268,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const nonEmptyLines = this._countNonEmptyStreamLines();
 		const effectiveLines = Math.max(nonEmptyLines, 1);
 		const infoHeight = this._infoElement?.offsetHeight ?? 0;
+		// TODO: handle this better, call some function that tells us if there's any output instead of checking text content
 		if (this._infoElement?.textContent.includes('No output was produced by the command.')) {
 			return infoHeight;
 		}
