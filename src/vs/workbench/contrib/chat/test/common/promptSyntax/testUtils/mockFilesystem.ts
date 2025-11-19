@@ -39,6 +39,15 @@ export interface IMockFileEntry {
 }
 
 /**
+ * Creates mock filesystem from provided file entries.
+ * @param fileService File service instance
+ * @param files Array of file entries with path and contents
+ */
+export function mockFiles(fileService: IFileService, files: IMockFileEntry[], parentFolder?: URI): Promise<void> {
+	return new MockFilesystem(files, fileService).mock(parentFolder);
+}
+
+/**
  * Utility to recursively creates provided filesystem structure.
  */
 export class MockFilesystem {
@@ -52,15 +61,7 @@ export class MockFilesystem {
 		@IFileService private readonly fileService: IFileService,
 	) { }
 
-	/**
-	 * Creates mock filesystem from provided file entries.
-	 * @param files Array of file entries with path and contents
-	 * @param fileService File service instance
-	 * @returns MockFilesystem instance
-	 */
-	public static mockFiles(fileService: IFileService, files: IMockFileEntry[], parentFolder?: URI): Promise<void> {
-		return new MockFilesystem(files, fileService).mock(parentFolder);
-	}
+
 
 	/**
 	 * Starts the mock process.

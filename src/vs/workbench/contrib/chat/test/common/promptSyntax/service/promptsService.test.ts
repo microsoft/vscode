@@ -38,7 +38,7 @@ import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
-import { MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { ISearchService } from '../../../../../../services/search/common/search.js';
@@ -124,7 +124,7 @@ suite('PromptsService', () => {
 
 			const rootFileUri = URI.joinPath(rootFolderUri, rootFileName);
 
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/file1.prompt.md`,
 					contents: [
@@ -320,7 +320,7 @@ suite('PromptsService', () => {
 				]));
 
 			// mock current workspace file structure
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/file1.prompt.md`,
 					contents: [
@@ -387,7 +387,7 @@ suite('PromptsService', () => {
 			]);
 
 			// mock user data instructions
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${userPromptsFolderName}/file10.instructions.md`,
 					contents: [
@@ -491,7 +491,7 @@ suite('PromptsService', () => {
 				]));
 
 			// mock current workspace file structure
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/file1.prompt.md`,
 					contents: [
@@ -558,7 +558,7 @@ suite('PromptsService', () => {
 			]);
 
 			// mock user data instructions
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${userPromptsFolderName}/file10.instructions.md`,
 					contents: [
@@ -625,7 +625,7 @@ suite('PromptsService', () => {
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			// mock current workspace file structure
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/codestyle.md`,
 					contents: [
@@ -697,7 +697,7 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.github/agents/agent1.agent.md`,
 					contents: [
@@ -744,7 +744,7 @@ suite('PromptsService', () => {
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			// mock current workspace file structure
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.github/agents/agent1.agent.md`,
 					contents: [
@@ -810,7 +810,7 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.github/agents/agent1.agent.md`,
 					contents: [
@@ -884,7 +884,7 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.github/agents/github-agent.agent.md`,
 					contents: [
@@ -984,7 +984,7 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.github/agents/demonstrate.md`,
 					contents: [
@@ -1085,7 +1085,7 @@ suite('PromptsService', () => {
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			// Create mock filesystem with skills
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`,
 					contents: [
@@ -1159,7 +1159,7 @@ suite('PromptsService', () => {
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			// Create mock filesystem with malformed skill file
-			await MockFilesystem.mockFiles(fileService, [
+			await mockFiles(fileService, [
 				{
 					path: `${rootFolder}/.claude/skills/valid-skill/SKILL.md`,
 					contents: [
@@ -1200,7 +1200,7 @@ suite('PromptsService', () => {
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			// Create empty mock filesystem
-			await MockFilesystem.mockFiles(fileService, []);
+			await mockFiles(fileService, []);
 
 			const result = await service.findClaudeSkills(CancellationToken.None);
 

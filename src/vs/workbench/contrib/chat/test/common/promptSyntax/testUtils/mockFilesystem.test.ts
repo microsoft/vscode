@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { MockFilesystem } from './mockFilesystem.js';
+import { mockFiles, MockFilesystem } from './mockFilesystem.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
@@ -278,7 +278,7 @@ suite('MockFilesystem', () => {
 	});
 
 	test('can be created using static factory method', async () => {
-		await MockFilesystem.mockFiles(fileService, [
+		await mockFiles(fileService, [
 			{
 				path: '/simple/test.txt',
 				contents: ['line 1', 'line 2', 'line 3']
