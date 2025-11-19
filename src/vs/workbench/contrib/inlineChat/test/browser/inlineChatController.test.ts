@@ -85,6 +85,7 @@ import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponse
 import { TestWorkerService } from './testWorkerService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatWidgetService } from '../../../chat/browser/chatWidgetService.js';
+import { IChatContextService } from '../../../chat/browser/chatContextService.js';
 
 suite('InlineChatController', function () {
 
@@ -225,6 +226,7 @@ suite('InlineChatController', function () {
 			[IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }],
 			[IChatModeService, new SyncDescriptor(MockChatModeService)],
 			[IChatLayoutService, new SyncDescriptor(ChatLayoutService)],
+			[IChatContextService, new class extends mock<IChatContextService>() { }],
 			[IQuickChatService, new class extends mock<IQuickChatService>() { }],
 			[IChatTodoListService, new class extends mock<IChatTodoListService>() {
 				override onDidUpdateTodos = Event.None;
