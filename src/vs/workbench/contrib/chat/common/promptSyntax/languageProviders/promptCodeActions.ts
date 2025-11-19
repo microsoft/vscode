@@ -129,7 +129,7 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 					}
 				} else {
 					// Multiple new names - expand to include all of them
-					const newNamesArray = Array.from(newNames);
+					const newNamesArray = Array.from(newNames).sort((a, b) => a.localeCompare(b));
 					const separator = model.getValueInRange(new Range(item.range.startLineNumber, item.range.endColumn, item.range.endLineNumber, item.range.endColumn + 2));
 					const useCommaSpace = separator.includes(',');
 					const delimiterText = useCommaSpace ? ', ' : ',';

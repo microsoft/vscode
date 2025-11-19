@@ -105,8 +105,8 @@ export class PromptValidator {
 								const newName = Array.from(currentNames)[0];
 								report(toMarker(localize('promptValidator.deprecatedVariableReference', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", variable.name, newName), variable.range, MarkerSeverity.Info));
 							} else {
-								const newNames = '\n' + Array.from(currentNames).sort((a, b) => a.localeCompare(b)).map((s) => `- ${s}`).join('\n');
-								report(toMarker(localize('promptValidator.deprecatedVariableReferenceMultipleNames', "Tool or toolset '{0}' has been renamed, use the following names instead:{1}", variable.name, newNames), variable.range, MarkerSeverity.Info));
+								const newNames = Array.from(currentNames).sort((a, b) => a.localeCompare(b)).join(', ');
+								report(toMarker(localize('promptValidator.deprecatedVariableReferenceMultipleNames', "Tool or toolset '{0}' has been renamed, use the following tools instead: {1}", variable.name, newNames), variable.range, MarkerSeverity.Info));
 							}
 						}
 					} else {
@@ -358,8 +358,8 @@ export class PromptValidator {
 								const newName = Array.from(currentNames)[0];
 								report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", toolName, newName), item.range, MarkerSeverity.Info));
 							} else {
-								const newNames = '\n' + Array.from(currentNames).sort((a, b) => a.localeCompare(b)).map((s) => `- ${s}`).join('\n');
-								report(toMarker(localize('promptValidator.toolDeprecatedMultipleNames', "Tool or toolset '{0}' has been renamed, use the following tools instead:{1}", toolName, newNames), item.range, MarkerSeverity.Info));
+								const newNames = Array.from(currentNames).sort((a, b) => a.localeCompare(b)).join(', ');
+								report(toMarker(localize('promptValidator.toolDeprecatedMultipleNames', "Tool or toolset '{0}' has been renamed, use the following tools instead: {1}", toolName, newNames), item.range, MarkerSeverity.Info));
 							}
 						} else {
 							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", toolName), item.range, MarkerSeverity.Warning));
