@@ -782,8 +782,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const candidate = command as unknown as CommandMarkers;
 		const start =
 			candidate.executedMarker
-			?? candidate.commandExecutedMarker
-			?? candidate.marker;
+			?? candidate.commandExecutedMarker;
 		const end = candidate.endMarker ?? candidate.commandFinishedMarker;
 		return { start, end };
 	}
@@ -824,6 +823,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _renderedOutputHeight: number | undefined;
 	private _lastOutputTruncated = false;
 	private _bufferedLineCount = 0;
+	private _currentLineCounted = false;
 	private readonly _outputAriaLabelBase: string;
 	private _needsReplay = false;
 	private _isStreaming = false;
@@ -831,7 +831,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _lastRawSnapshot: string | undefined;
 	private _xtermElement: HTMLElement | undefined;
 	private _xtermViewport: HTMLElement | undefined;
-	private _xtermSampleRow: HTMLElement | undefined;
 
 	private readonly _onDidFocusEmitter = new Emitter<void>();
 	private readonly _onDidBlurEmitter = new Emitter<FocusEvent>();
@@ -877,7 +876,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const storedOutput = this._terminalData.terminalCommandOutput;
 		if (storedOutput?.text) {
 			this._streamBuffer = [storedOutput.text];
-			this._bufferedLineCount = this._countNewLines(storedOutput.text);
+			this._resetLineState();
+			this._updateLineState(storedOutput.text);
 			this._lastOutputTruncated = storedOutput.truncated ?? false;
 			this._needsReplay = true;
 		}
@@ -968,16 +968,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const storedOutput = this._terminalData.terminalCommandOutput ?? (this._terminalData.terminalCommandOutput = { text: '', truncated: false });
 		const maxLines = CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES;
 		const remainingLines = Math.max(0, maxLines - this._bufferedLineCount);
-		if (remainingLines <= 0) {
-			this._lastOutputTruncated = true;
-			this._isStreaming = false;
-			storedOutput.truncated = true;
-			const combined = this._streamBuffer.join('');
-			storedOutput.text = combined;
-			this._setStatusMessages();
-			this._updateTerminalVisibility();
-			return true;
-		}
 		const trimmed = this._trimToRemainingLines(data, remainingLines);
 		const wasTrimmed = trimmed.length < data.length;
 		if (!trimmed) {
@@ -991,7 +981,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return true;
 		}
 		this._streamBuffer.push(trimmed);
-		this._bufferedLineCount += this._countNewLines(trimmed);
+		this._updateLineState(trimmed);
 		storedOutput.text += trimmed;
 
 		if (this.isExpanded && this._detachedTerminal.value) {
@@ -1056,7 +1046,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		// the diff path cannot determine an incremental change.
 		const storedOutput = this._terminalData.terminalCommandOutput ?? (this._terminalData.terminalCommandOutput = { text: '', truncated: false });
 		this._streamBuffer = [];
-		this._bufferedLineCount = 0;
+		this._resetLineState();
 		this._lastOutputTruncated = false;
 		storedOutput.text = '';
 		storedOutput.truncated = false;
@@ -1101,7 +1091,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		// Resets streaming state just before a command starts emitting fresh data.
 		this._isStreaming = true;
 		this._streamBuffer = [];
-		this._bufferedLineCount = 0;
+		this._resetLineState();
 		this._lastOutputTruncated = false;
 		this._lastRawSnapshot = undefined;
 		this._needsReplay = true;
@@ -1164,7 +1154,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}
 		this._xtermElement = undefined;
 		this._xtermViewport = undefined;
-		this._xtermSampleRow = undefined;
 		dom.clearNode(this._terminalContainer);
 	}
 
@@ -1264,7 +1253,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private _calculateVisibleContentHeight(): number {
 		// TODO@meganrogge: do I need to use line height here? 16 seems okay for now.
-		const rowHeight = this._xtermSampleRow ? this._xtermSampleRow.getBoundingClientRect().height : 16;
+		const rowHeight = 16;
 		const nonEmptyLines = this._countNonEmptyStreamLines();
 		const effectiveLines = Math.max(nonEmptyLines, 1);
 		const infoHeight = this._infoElement?.offsetHeight ?? 0;
@@ -1279,16 +1268,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (!this._streamBuffer.length) {
 			return 0;
 		}
-		let count = 0;
-		for (const segment of this._streamBuffer) {
-			const lines = segment.split('\n');
-			for (const line of lines) {
-				if (line.trim().length > 0) {
-					count++;
-				}
-			}
-		}
-		return Math.min(count, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
+		return Math.min(this._bufferedLineCount, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
 	}
 
 	private async _ensureDetachedTerminalInstance(): Promise<IDetachedTerminalInstance | undefined> {
@@ -1320,7 +1300,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (!rawElement) {
 			this._xtermElement = undefined;
 			this._xtermViewport = undefined;
-			this._xtermSampleRow = undefined;
 			return;
 		}
 
@@ -1355,7 +1334,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._xtermElement = xtermElement ?? rawElement;
 		const searchRoot = xtermElement ?? rawElement;
 		this._xtermViewport = findElementWithClass(searchRoot, 'xterm-viewport');
-		this._xtermSampleRow = findElementWithClass(searchRoot, 'xterm-row');
 		if (this._outputResizeObserver) {
 			this._outputResizeObserver.disconnect();
 			this._outputResizeObserver = undefined;
@@ -1376,7 +1354,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _setSupplementalMessages(messages: string[]): void {
-		if (messages.length === 0) {
+		const hasContent = messages.some(message => message.trim().length > 0);
+		if (!hasContent) {
 			if (this._infoElement) {
 				this._infoElement.remove();
 				this._infoElement = undefined;
@@ -1392,30 +1371,64 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._scrollable.scanDomNode();
 	}
 
+	private _resetLineState(): void {
+		this._bufferedLineCount = 0;
+		this._currentLineCounted = false;
+	}
+
+	private _updateLineState(chunk: string): void {
+		if (!chunk) {
+			return;
+		}
+		const { lineCount, lineHasContent } = this._processLineState(chunk);
+		this._bufferedLineCount = lineCount;
+		this._currentLineCounted = lineHasContent;
+	}
+
 	private _trimToRemainingLines(data: string, remainingLines: number): string {
-		if (remainingLines <= 0) {
+		if (!data) {
 			return '';
 		}
-		let linesSeen = 0;
-		for (let i = 0; i < data.length; i++) {
-			if (data.charCodeAt(i) === 10 /* \n */) {
-				linesSeen++;
-				if (linesSeen >= remainingLines) {
-					return data.slice(0, i + 1);
+		const { processedLength } = this._processLineState(data, remainingLines);
+		return data.slice(0, processedLength);
+	}
+
+	private _processLineState(chunk: string, maxAdditionalLines?: number): { processedLength: number; lineCount: number; lineHasContent: boolean } {
+		let lineCount = this._bufferedLineCount;
+		let lineHasContent = this._currentLineCounted;
+		const enforceLimit = typeof maxAdditionalLines === 'number';
+		let linesRemaining = enforceLimit ? maxAdditionalLines! : Number.POSITIVE_INFINITY;
+		for (let i = 0; i < chunk.length; i++) {
+			const code = chunk.charCodeAt(i);
+			if (code === 10 /* \n */) {
+				if (enforceLimit && !lineHasContent && linesRemaining <= 0) {
+					return { processedLength: i, lineCount, lineHasContent, };
+				}
+				lineHasContent = false;
+				continue;
+			}
+			if (code === 13 /* \r */) {
+				continue;
+			}
+			const char = chunk.charAt(i);
+			if (!lineHasContent && char.trim().length === 0) {
+				if (enforceLimit && linesRemaining <= 0) {
+					return { processedLength: i, lineCount, lineHasContent };
+				}
+				continue;
+			}
+			if (!lineHasContent) {
+				if (enforceLimit && linesRemaining <= 0) {
+					return { processedLength: i, lineCount, lineHasContent };
+				}
+				lineHasContent = true;
+				lineCount++;
+				if (enforceLimit) {
+					linesRemaining--;
 				}
 			}
 		}
-		return data;
-	}
-
-	private _countNewLines(data: string): number {
-		let count = 0;
-		for (let i = 0; i < data.length; i++) {
-			if (data.charCodeAt(i) === 10 /* \n */) {
-				count++;
-			}
-		}
-		return count;
+		return { processedLength: chunk.length, lineCount, lineHasContent };
 	}
 }
 
