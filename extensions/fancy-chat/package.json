@@ -1,0 +1,24 @@
+{
+  "name": "fancy-chat",
+  "displayName": "Fancy Chat",
+  "description": "Opens the Fancy Chat panel.",
+  "version": "0.0.1",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "main": "../../out/vs/chat/extension.js",
+  "activationEvents": [
+    "onCommand:fancyChat.openPanel"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "fancyChat.openPanel",
+        "title": "Fancy Chat: Open Panel",
+        "category": "Fancy Chat"
+      }
+    ]
+  }
+}
