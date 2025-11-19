@@ -2510,7 +2510,7 @@ export class Repository implements Disposable {
 			if (options?.deleteFromSource) {
 				await sourceRepository.dropStash(stashes[0].index);
 			} else {
-				await sourceRepository.popStash(undefined);
+				await sourceRepository.popStash();
 			}
 		} catch (err) {
 			if (err.gitErrorCode === GitErrorCodes.StashConflict) {
@@ -2523,11 +2523,11 @@ export class Repository implements Disposable {
 					await commands.executeCommand('workbench.view.scm');
 				}
 
-				await sourceRepository.popStash(undefined);
+				await sourceRepository.popStash();
 				return;
 			}
 
-			await sourceRepository.popStash(undefined);
+			await sourceRepository.popStash();
 			throw err;
 		}
 	}
