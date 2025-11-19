@@ -466,7 +466,7 @@ function asExtensionIdOrVSIX(inputs: string[] | undefined) {
 	return inputs?.map(input => /\.vsix$/i.test(input) ? pathToURI(input).href : input);
 }
 
-function fatal(message: string, err: any): void {
+function fatal(message: string, err: unknown): void {
 	console.error('Unable to connect to VS Code server: ' + message);
 	console.error(err);
 	process.exit(1);

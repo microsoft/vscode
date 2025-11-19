@@ -12,7 +12,7 @@ import { resolveTerminalEncoding } from '../../../base/node/terminalEncoding.js'
 export function hasStdinWithoutTty() {
 	try {
 		return !process.stdin.isTTY; // Via https://twitter.com/MylesBorins/status/782009479382626304
-	} catch (error) {
+	} catch {
 		// Windows workaround for https://github.com/nodejs/node/issues/11656
 	}
 	return false;

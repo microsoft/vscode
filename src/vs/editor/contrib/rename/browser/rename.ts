@@ -295,7 +295,7 @@ class RenameController implements IEditorContribution {
 				code: 'undoredo.rename',
 				quotableLabel: nls.localize('quotableLabel', "Renaming {0} to {1}", loc?.text, inputFieldResult.newName),
 				respectAutoSaveConfig: true,
-				reason: EditSources.rename(),
+				reason: EditSources.rename(loc?.text, inputFieldResult.newName),
 			}).then(result => {
 				trace('edits applied');
 				if (result.ariaSummary) {
@@ -358,7 +358,8 @@ export class RenameAction extends EditorAction {
 			contextMenuOpts: {
 				group: '1_modification',
 				order: 1.1
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 

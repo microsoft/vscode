@@ -6,7 +6,7 @@
 import * as dom from '../../../../../base/browser/dom.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatTask, IChatTaskSerialized } from '../../common/chatService.js';
@@ -23,7 +23,7 @@ export class ChatTaskContentPart extends Disposable implements IChatContentPart 
 	constructor(
 		private readonly task: IChatTask | IChatTaskSerialized,
 		contentReferencesListPool: CollapsibleListPool,
-		renderer: MarkdownRenderer,
+		chatContentMarkdownRenderer: IMarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -41,7 +41,7 @@ export class ChatTaskContentPart extends Disposable implements IChatContentPart 
 				true;
 			this.isSettled = isSettled;
 			const showSpinner = !isSettled && !context.element.isComplete;
-			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, task, renderer, context, showSpinner, true, undefined));
+			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, task, chatContentMarkdownRenderer, context, showSpinner, true, undefined, undefined));
 			this.domNode = progressPart.domNode;
 			this.onDidChangeHeight = Event.None;
 		}

@@ -7,6 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
+import { IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -17,12 +18,35 @@ import { getParentNodeState, IQuickTreeFilterData } from './quickInputTree.js';
 import { QuickTreeAccessibilityProvider } from './quickInputTreeAccessibilityProvider.js';
 import { QuickInputTreeFilter } from './quickInputTreeFilter.js';
 import { QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
+import { QuickInputTreeSorter } from './quickInputTreeSorter.js';
 
 const $ = dom.$;
+
+class QuickInputTreeIdentityProvider implements IIdentityProvider<IQuickTreeItem> {
+	private readonly _elementIds = new WeakMap<IQuickTreeItem, string>();
+	private _counter = 0;
+
+	getId(element: IQuickTreeItem): { toString(): string } {
+		let id = element.id;
+		if (id !== undefined) {
+			return id;
+		}
+
+		id = this._elementIds.get(element);
+		if (id !== undefined) {
+			return id;
+		}
+
+		id = `__generated_${this._counter++}`;
+		this._elementIds.set(element, id);
+		return id;
+	}
+}
 
 export class QuickInputTreeController extends Disposable {
 	private readonly _renderer: QuickInputTreeRenderer<IQuickTreeItem>;
 	private readonly _filter: QuickInputTreeFilter;
+	private readonly _sorter: QuickInputTreeSorter;
 	private readonly _tree: WorkbenchObjectTree<IQuickTreeItem, IQuickTreeFilterData>;
 
 	private readonly _onDidTriggerButton = this._register(new Emitter<IQuickTreeItemButtonEvent<IQuickTreeItem>>());
@@ -57,6 +81,7 @@ export class QuickInputTreeController extends Disposable {
 		this._container = dom.append(container, $('.quick-input-tree'));
 		this._renderer = this._register(this.instantiationService.createInstance(QuickInputTreeRenderer, hoverDelegate, this._onDidTriggerButton, this.onDidChangeCheckboxState));
 		this._filter = this.instantiationService.createInstance(QuickInputTreeFilter);
+		this._sorter = this._register(new QuickInputTreeSorter());
 		this._tree = this._register(this.instantiationService.createInstance(
 			WorkbenchObjectTree<IQuickTreeItem, IQuickTreeFilterData>,
 			'QuickInputTree',
@@ -74,29 +99,9 @@ export class QuickInputTreeController extends Disposable {
 				expandOnDoubleClick: true,
 				expandOnlyOnTwistieClick: true,
 				disableExpandOnSpacebar: true,
-				sorter: {
-					compare: (a: IQuickTreeItem, b: IQuickTreeItem): number => {
-						if (a.label < b.label) {
-							return -1;
-						} else if (a.label > b.label) {
-							return 1;
-						}
-						// use description to break ties
-						if (a.description && b.description) {
-							if (a.description < b.description) {
-								return -1;
-							} else if (a.description > b.description) {
-								return 1;
-							}
-						} else if (a.description) {
-							return -1;
-						} else if (b.description) {
-							return 1;
-						}
-						return 0;
-					}
-				},
-				filter: this._filter
+				sorter: this._sorter,
+				filter: this._filter,
+				identityProvider: new QuickInputTreeIdentityProvider()
 			}
 		));
 		this.registerOnOpenListener();
@@ -116,6 +121,15 @@ export class QuickInputTreeController extends Disposable {
 
 	set displayed(value: boolean) {
 		this._container.style.display = value ? '' : 'none';
+	}
+
+	get sortByLabel() {
+		return this._sorter.sortByLabel;
+	}
+
+	set sortByLabel(value: boolean) {
+		this._sorter.sortByLabel = value;
+		this._tree.resort(null, true);
 	}
 
 	getActiveDescendant() {
@@ -151,7 +165,9 @@ export class QuickInputTreeController extends Disposable {
 				element: item,
 				children,
 				collapsible: !!children,
-				collapsed: item.collapsed ?? ObjectTreeElementCollapseState.PreserveOrExpanded
+				collapsed: item.collapsed ?
+					ObjectTreeElementCollapseState.PreserveOrCollapsed :
+					ObjectTreeElementCollapseState.PreserveOrExpanded
 			};
 		};
 
@@ -322,7 +338,7 @@ export class QuickInputTreeController extends Disposable {
 		return this._tree.getFocus().filter((item): item is IQuickTreeItem => item !== null);
 	}
 
-	check(element: IQuickTreeItem, checked: boolean | 'partial') {
+	check(element: IQuickTreeItem, checked: boolean | 'mixed') {
 		if (element.checked === checked) {
 			return;
 		}
@@ -330,7 +346,7 @@ export class QuickInputTreeController extends Disposable {
 		this._onDidCheckedLeafItemsChange.fire(this.getCheckedLeafItems());
 	}
 
-	checkAll(checked: boolean | 'partial') {
+	checkAll(checked: boolean | 'mixed') {
 		const updated = new Set<IQuickTreeItem>();
 		const toUpdate = [...this._tree.getNode().children];
 		let fireCheckedChangeEvent = false;
@@ -345,6 +361,10 @@ export class QuickInputTreeController extends Disposable {
 				toUpdate.push(...update.children);
 				updated.add(update.element);
 				this._tree.rerender(update.element);
+				this._onDidChangeCheckboxState.fire({
+					item: update.element,
+					checked: update.element.checked
+				});
 			}
 		}
 		if (fireCheckedChangeEvent) {

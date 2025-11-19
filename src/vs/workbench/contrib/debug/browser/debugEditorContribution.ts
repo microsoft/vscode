@@ -52,7 +52,9 @@ import { ExceptionWidget } from './exceptionWidget.js';
 import { CONTEXT_EXCEPTION_WIDGET_VISIBLE, IDebugConfiguration, IDebugEditorContribution, IDebugService, IDebugSession, IExceptionInfo, IExpression, IStackFrame, State } from '../common/debug.js';
 import { Expression } from '../common/debugModel.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { InsertLineAfterAction } from '../../../../editor/contrib/linesOperations/browser/linesOperations.js';
 
 const MAX_NUM_INLINE_VALUES = 100; // JS Global scope can have 700+ entries. We want to limit ourselves for perf reasons
 const MAX_INLINE_DECORATOR_LENGTH = 150; // Max string length of each inline decorator when debugging. If exceeded ... is added
@@ -265,6 +267,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private readonly displayedStore = new DisposableStore();
 	private editorHoverOptions: IEditorHoverOptions | undefined;
 	private readonly debounceInfo: IFeatureDebounceInformation;
+	private allowScrollToExceptionWidget = true;
+	private shouldScrollToExceptionWidget = () => this.allowScrollToExceptionWidget;
 
 	// Holds a Disposable that prevents the default editor hover behavior while it exists.
 	private readonly defaultHoverLockout = new MutableDisposable();
@@ -279,7 +283,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
-		@ILanguageFeatureDebounceService featureDebounceService: ILanguageFeatureDebounceService
+		@ILanguageFeatureDebounceService featureDebounceService: ILanguageFeatureDebounceService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		this.oldDecorations = this.editor.createDecorationsCollection();
 		this.debounceInfo = featureDebounceService.for(languageFeaturesService.inlineValuesProvider, 'InlineValues', { min: DEAFULT_INLINE_DEBOUNCE_DELAY });
@@ -424,18 +429,18 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	}
 
 	private preventDefaultEditorHover() {
-		if (this.defaultHoverLockout.value || this.editorHoverOptions?.enabled === false) {
+		if (this.defaultHoverLockout.value || this.editorHoverOptions?.enabled === 'off') {
 			return;
 		}
 
 		const hoverController = this.editor.getContribution<ContentHoverController>(ContentHoverController.ID);
 		hoverController?.hideContentHover();
 
-		this.editor.updateOptions({ hover: { enabled: false } });
+		this.editor.updateOptions({ hover: { enabled: 'off' } });
 		this.defaultHoverLockout.value = {
 			dispose: () => {
 				this.editor.updateOptions({
-					hover: { enabled: this.editorHoverOptions?.enabled ?? true }
+					hover: { enabled: this.editorHoverOptions?.enabled ?? 'on' }
 				});
 			}
 		};
@@ -584,9 +589,19 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		if (this.exceptionWidget && !sameUri) {
 			this.closeExceptionWidget();
 		} else if (sameUri) {
+			// Show exception widget in all editors with the same file, but only scroll in the active editor
+			const activeControl = this.editorService.activeTextEditorControl;
+			const isActiveEditor = activeControl === this.editor;
 			const exceptionInfo = await focusedSf.thread.exceptionInfo;
+
 			if (exceptionInfo) {
-				this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+				if (isActiveEditor) {
+					// Active editor: show widget and scroll to it
+					this.showExceptionWidget(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+				} else {
+					// Inactive editor: show widget without scrolling
+					this.showExceptionWidgetWithoutScroll(exceptionInfo, this.debugService.getViewModel().focusedSession, exceptionSf.range.startLineNumber, exceptionSf.range.startColumn);
+				}
 			}
 		}
 	}
@@ -596,7 +611,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.exceptionWidget.dispose();
 		}
 
-		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession);
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
 		this.exceptionWidget.show({ lineNumber, column }, 0);
 		this.exceptionWidget.focus();
 		this.editor.revealRangeInCenter({
@@ -606,6 +621,46 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			endColumn: column,
 		});
 		this.exceptionWidgetVisible.set(true);
+	}
+
+	private showExceptionWidgetWithoutScroll(exceptionInfo: IExceptionInfo, debugSession: IDebugSession | undefined, lineNumber: number, column: number): void {
+		if (this.exceptionWidget) {
+			this.exceptionWidget.dispose();
+		}
+
+		// Disable scrolling to exception widget
+		this.allowScrollToExceptionWidget = false;
+
+		const currentScrollTop = this.editor.getScrollTop();
+		const visibleRanges = this.editor.getVisibleRanges();
+		if (visibleRanges.length === 0) {
+			// Editor not fully initialized or not visible; skip scroll adjustment
+			this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
+			this.exceptionWidget.show({ lineNumber, column }, 0);
+			this.exceptionWidgetVisible.set(true);
+			this.allowScrollToExceptionWidget = true;
+			return;
+		}
+
+		const firstVisibleLine = visibleRanges[0].startLineNumber;
+
+		// Create widget - this may add a zone that pushes content down
+		this.exceptionWidget = this.instantiationService.createInstance(ExceptionWidget, this.editor, exceptionInfo, debugSession, this.shouldScrollToExceptionWidget);
+		this.exceptionWidget.show({ lineNumber, column }, 0);
+		this.exceptionWidgetVisible.set(true);
+
+		// only adjust scroll if the exception widget is above the first visible line
+		if (lineNumber < firstVisibleLine) {
+			// Get the actual height of the widget that was just added from the whitespace
+			// The whitespace height is more accurate than the container height
+			const scrollAdjustment = this.exceptionWidget.getWhitespaceHeight();
+
+			// Scroll down by the actual widget height to keep the first visible line the same
+			this.editor.setScrollTop(currentScrollTop + scrollAdjustment, ScrollType.Immediate);
+		}
+
+		// Re-enable scrolling to exception widget
+		this.allowScrollToExceptionWidget = true;
 	}
 
 	closeExceptionWidget(): void {
@@ -678,7 +733,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				});
 			}
 			this.editor.setPosition(position);
-			return this.commandService.executeCommand('editor.action.insertLineAfter');
+			return this.commandService.executeCommand(InsertLineAfterAction.ID);
 		};
 
 		await insertLine(configurationsArrayPosition);

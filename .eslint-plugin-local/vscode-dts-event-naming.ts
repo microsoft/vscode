@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import type * as ESTree from 'estree';
 import { TSESTree, AST_NODE_TYPES } from '@typescript-eslint/utils';
 
-export = new class ApiEventNaming implements eslint.Rule.RuleModule {
+export default new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 	private static _nameRegExp = /on(Did|Will)([A-Z][a-z]+)([A-Z][a-z]+)?/;
 
@@ -25,14 +26,14 @@ export = new class ApiEventNaming implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		const config = <{ allowed: string[]; verbs: string[] }>context.options[0];
+		const config = context.options[0] as { allowed: string[]; verbs: string[] };
 		const allowed = new Set(config.allowed);
 		const verbs = new Set(config.verbs);
 
 		return {
-			['TSTypeAnnotation TSTypeReference Identifier[name="Event"]']: (node: any) => {
+			['TSTypeAnnotation TSTypeReference Identifier[name="Event"]']: (node: ESTree.Identifier) => {
 
-				const def = (<TSESTree.Identifier>node).parent?.parent?.parent;
+				const def = (node as TSESTree.Identifier).parent?.parent?.parent;
 				const ident = this.getIdent(def);
 
 				if (!ident) {

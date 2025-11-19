@@ -44,7 +44,7 @@ const chatViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(Vi
 	order: 1,
 }, ViewContainerLocation.AuxiliaryBar, { isDefault: true, doNotRegisterOpenCommand: true });
 
-const chatViewDescriptor: IViewDescriptor[] = [{
+const chatViewDescriptor: IViewDescriptor = {
 	id: ChatViewId,
 	containerIcon: chatViewContainer.icon,
 	containerTitle: chatViewContainer.title.value,
@@ -73,8 +73,8 @@ const chatViewDescriptor: IViewDescriptor[] = [{
 		ChatContextKeys.panelParticipantRegistered,
 		ChatContextKeys.extensionInvalid
 	)
-}];
-Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews(chatViewDescriptor, chatViewContainer);
+};
+Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([chatViewDescriptor], chatViewContainer);
 
 const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawChatParticipantContribution[]>({
 	extensionPoint: 'chatParticipants',
@@ -150,7 +150,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 						required: ['name'],
 						properties: {
 							name: {
-								description: localize('chatCommand', "A short name by which this command is referred to in the UI, e.g. `fix` or * `explain` for commands that fix an issue or explain code. The name should be unique among the commands provided by this participant."),
+								description: localize('chatCommand', "A short name by which this command is referred to in the UI, e.g. `fix` or `explain` for commands that fix an issue or explain code. The name should be unique among the commands provided by this participant."),
 								type: 'string'
 							},
 							description: {
@@ -329,7 +329,7 @@ export class ChatCompatibilityNotifier extends Disposable implements IWorkbenchC
 		super();
 
 		// It may be better to have some generic UI for this, for any extension that is incompatible,
-		// but this is only enabled for Copilot Chat now and it needs to be obvious.
+		// but this is only enabled for Chat now and it needs to be obvious.
 		const isInvalid = ChatContextKeys.extensionInvalid.bindTo(contextKeyService);
 		this._register(Event.runAndSubscribe(
 			extensionsWorkbenchService.onDidChangeExtensionsNotification,

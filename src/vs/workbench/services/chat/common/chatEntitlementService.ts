@@ -26,7 +26,7 @@ import { URI } from '../../../../base/common/uri.js';
 import Severity from '../../../../base/common/severity.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
-import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
@@ -216,6 +216,16 @@ function isAnonymous(configurationService: IConfigurationService, entitlement: C
 	return true;
 }
 
+function logChatEntitlements(state: IChatEntitlementContextState, configurationService: IConfigurationService, telemetryService: ITelemetryService): void {
+	telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chatEntitlements', {
+		chatHidden: Boolean(state.hidden),
+		chatDisabled: Boolean(state.disabled),
+		chatEntitlement: state.entitlement,
+		chatRegistered: Boolean(state.registered),
+		chatAnonymous: isAnonymous(configurationService, state.entitlement, state)
+	});
+}
+
 export class ChatEntitlementService extends Disposable implements IChatEntitlementService {
 
 	declare _serviceBrand: undefined;
@@ -228,7 +238,9 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		@IProductService productService: IProductService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -236,6 +248,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this.completionsQuotaExceededContextKey = ChatEntitlementContextKeys.completionsQuotaExceeded.bindTo(this.contextKeyService);
 
 		this.anonymousContextKey = ChatEntitlementContextKeys.chatAnonymous.bindTo(this.contextKeyService);
+		this.anonymousContextKey.set(this.anonymous);
 
 		this.onDidChangeEntitlement = Event.map(
 			Event.filter(
@@ -372,6 +385,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 				anonymousUsage = newAnonymousUsage;
 				this.anonymousContextKey.set(newAnonymousUsage);
 
+				if (this.context?.hasValue) {
+					logChatEntitlements(this.context.value.state, this.configurationService, this.telemetryService);
+				}
+
 				this._onDidChangeAnonymous.fire();
 			}
 		};
@@ -384,6 +401,13 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 		this._register(this.onDidChangeEntitlement(() => updateAnonymousUsage()));
 		this._register(this.onDidChangeSentiment(() => updateAnonymousUsage()));
+
+		// TODO@bpasero workaround for https://github.com/microsoft/vscode-internalbacklog/issues/6275
+		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
+			if (this.context?.hasValue) {
+				logChatEntitlements(this.context.value.state, this.configurationService, this.telemetryService);
+			}
+		});
 	}
 
 	acceptQuotas(quotas: IQuotas): void {
@@ -469,9 +493,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 type EntitlementClassification = {
 	tid: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; comment: 'The anonymized analytics id returned by the service'; endpoint: 'GoogleAnalyticsId' };
 	entitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating the chat entitlement state' };
+	sku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SKU of the chat entitlement' };
 	quotaChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of chat requests available to the user' };
 	quotaPremiumChat: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of premium chat requests available to the user' };
-	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of code completions available to the user' };
+	quotaCompletions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inline suggestions available to the user' };
 	quotaResetDate: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The date the quota will reset' };
 	owner: 'bpasero';
 	comment: 'Reporting chat entitlements';
@@ -480,6 +505,7 @@ type EntitlementClassification = {
 type EntitlementEvent = {
 	entitlement: ChatEntitlement;
 	tid: string;
+	sku: string | undefined;
 	quotaChat: number | undefined;
 	quotaPremiumChat: number | undefined;
 	quotaCompletions: number | undefined;
@@ -533,6 +559,8 @@ interface IEntitlements {
 
 export interface IQuotaSnapshot {
 	readonly total: number;
+
+	readonly remaining: number;
 	readonly percentRemaining: number;
 
 	readonly overageEnabled: boolean;
@@ -782,10 +810,11 @@ export class ChatEntitlementRequests extends Disposable {
 		this.telemetryService.publicLog2<EntitlementEvent, EntitlementClassification>('chatInstallEntitlement', {
 			entitlement: entitlements.entitlement,
 			tid: entitlementsResponse.analytics_tracking_id,
-			quotaChat: entitlementsResponse?.quota_snapshots?.chat?.remaining,
-			quotaPremiumChat: entitlementsResponse?.quota_snapshots?.premium_interactions?.remaining,
-			quotaCompletions: entitlementsResponse?.quota_snapshots?.completions?.remaining,
-			quotaResetDate: entitlementsResponse.quota_reset_date_utc ?? entitlementsResponse.quota_reset_date ?? entitlementsResponse.limited_user_reset_date
+			sku: entitlements.sku,
+			quotaChat: entitlements.quotas?.chat?.remaining,
+			quotaPremiumChat: entitlements.quotas?.premiumChat?.remaining,
+			quotaCompletions: entitlements.quotas?.completions?.remaining,
+			quotaResetDate: entitlements.quotas?.resetDate
 		});
 
 		return entitlements;
@@ -814,6 +843,7 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.monthly_quotas?.chat && typeof response.limited_user_quotas?.chat === 'number') {
 			quotas.chat = {
 				total: response.monthly_quotas.chat,
+				remaining: response.limited_user_quotas.chat,
 				percentRemaining: Math.min(100, Math.max(0, (response.limited_user_quotas.chat / response.monthly_quotas.chat) * 100)),
 				overageEnabled: false,
 				overageCount: 0,
@@ -824,6 +854,7 @@ export class ChatEntitlementRequests extends Disposable {
 		if (response.monthly_quotas?.completions && typeof response.limited_user_quotas?.completions === 'number') {
 			quotas.completions = {
 				total: response.monthly_quotas.completions,
+				remaining: response.limited_user_quotas.completions,
 				percentRemaining: Math.min(100, Math.max(0, (response.limited_user_quotas.completions / response.monthly_quotas.completions) * 100)),
 				overageEnabled: false,
 				overageCount: 0,
@@ -840,6 +871,7 @@ export class ChatEntitlementRequests extends Disposable {
 				}
 				const quotaSnapshot: IQuotaSnapshot = {
 					total: rawQuotaSnapshot.entitlement,
+					remaining: rawQuotaSnapshot.remaining,
 					percentRemaining: Math.min(100, Math.max(0, rawQuotaSnapshot.percent_remaining)),
 					overageEnabled: rawQuotaSnapshot.overage_permitted,
 					overageCount: rawQuotaSnapshot.overage_count,
@@ -1024,7 +1056,14 @@ export class ChatEntitlementRequests extends Disposable {
 	async signIn(options?: { useSocialProvider?: string; additionalScopes?: readonly string[] }) {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
 
-		const scopes = options?.additionalScopes ? distinct([...defaultChat.providerScopes[0], ...options.additionalScopes]) : defaultChat.providerScopes[0];
+		let defaultProviderScopes: string[];
+		if (this.configurationService.getValue<unknown>('chat.signInWithAlternateScopes') === true) {
+			defaultProviderScopes = defaultChat.providerScopes.at(-1) ?? [];
+		} else {
+			defaultProviderScopes = defaultChat.providerScopes.at(0) ?? [];
+		}
+
+		const scopes = options?.additionalScopes ? distinct([...defaultProviderScopes, ...options.additionalScopes]) : defaultProviderScopes;
 		const session = await this.authenticationService.createSession(
 			providerId,
 			scopes,
@@ -1263,13 +1302,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.registeredContext.set(!!state.registered);
 
 		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
-		this.telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chatEntitlements', {
-			chatHidden: Boolean(state.hidden),
-			chatDisabled: Boolean(state.disabled),
-			chatEntitlement: state.entitlement,
-			chatRegistered: Boolean(state.registered),
-			chatAnonymous: isAnonymous(this.configurationService, state.entitlement, state)
-		});
+		logChatEntitlements(state, this.configurationService, this.telemetryService);
 
 		this._onDidChange.fire();
 	}

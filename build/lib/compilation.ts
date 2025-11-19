@@ -18,8 +18,9 @@ import File from 'vinyl';
 import * as task from './task';
 import { Mangler } from './mangle/index';
 import { RawSourceMap } from 'source-map';
-import ts = require('typescript');
-const watch = require('./watch');
+import ts from 'typescript';
+import watch from './watch';
+import bom from 'gulp-bom';
 
 
 // --- gulp-tsb: compile and transpile --------------------------------
@@ -66,7 +67,6 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 	}, err => reporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {
-		const bom = require('gulp-bom') as typeof import('gulp-bom');
 
 		const tsFilter = util.filter(data => /\.ts$/.test(data.path));
 		const isUtf8Test = (f: File) => /(\/|\\)test(\/|\\).*utf8/.test(f.path);
@@ -134,7 +134,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 		// mangle: TypeScript to TypeScript
 		let mangleStream = es.through();
 		if (build && !options.disableMangle) {
-			let ts2tsMangler = new Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data), { mangleExports: true, manglePrivateFields: true });
+			let ts2tsMangler: Mangler | undefined = new Mangler(compile.projectPath, (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data), { mangleExports: true, manglePrivateFields: true });
 			const newContentsByFileName = ts2tsMangler.computeNewFileContents(new Set(['saveState']));
 			mangleStream = es.through(async function write(data: File & { sourceMap?: RawSourceMap }) {
 				type TypeScriptExt = typeof ts & { normalizePath(path: string): string };
@@ -150,7 +150,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 				(await newContentsByFileName).clear();
 
 				this.push(null);
-				(<any>ts2tsMangler) = undefined;
+				ts2tsMangler = undefined;
 			});
 		}
 
@@ -249,7 +249,7 @@ class MonacoGenerator {
 		return r;
 	}
 
-	private _log(message: any, ...rest: any[]): void {
+	private _log(message: any, ...rest: unknown[]): void {
 		fancyLog(ansiColors.cyan('[monaco.d.ts]'), message, ...rest);
 	}
 

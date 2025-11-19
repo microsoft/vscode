@@ -98,7 +98,6 @@ import { IDiagnosticsService, NullDiagnosticsService } from '../platform/diagnos
 import { ILanguagePackService } from '../platform/languagePacks/common/languagePacks.js';
 import { WebLanguagePacksService } from '../platform/languagePacks/browser/languagePacks.js';
 import { IWebContentExtractorService, NullWebContentExtractorService, ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../platform/webContentExtractor/common/webContentExtractor.js';
-import { IDefaultAccountService, NullDefaultAccountService } from './services/accounts/common/defaultAccount.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -118,7 +117,6 @@ registerSingleton(IDiagnosticsService, NullDiagnosticsService, InstantiationType
 registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationType.Delayed);
 registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
-registerSingleton(IDefaultAccountService, NullDefaultAccountService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -195,6 +193,7 @@ import { UserDataSyncResourceProviderService } from '../platform/userDataSync/co
 import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode } from '../platform/remote/common/remoteAuthorityResolver.js';
 
 // TODO@esm remove me once we stop supporting our web-esm-bridge
+// eslint-disable-next-line local/code-no-any-casts
 if ((globalThis as any).__VSCODE_WEB_ESM_PROMISE) {
 	const exports = {
 
@@ -219,7 +218,9 @@ if ((globalThis as any).__VSCODE_WEB_ESM_PROMISE) {
 		logger: logger,
 		Menu: Menu
 	};
+	// eslint-disable-next-line local/code-no-any-casts
 	(globalThis as any).__VSCODE_WEB_ESM_PROMISE(exports);
+	// eslint-disable-next-line local/code-no-any-casts
 	delete (globalThis as any).__VSCODE_WEB_ESM_PROMISE;
 }
 

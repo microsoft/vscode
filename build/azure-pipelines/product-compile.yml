@@ -1,3 +1,7 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+
 jobs:
   - job: Compile
     timeoutInMinutes: 60
@@ -19,6 +23,9 @@ jobs:
         inputs:
           versionSource: fromFile
           versionFilePath: .nvmrc
+
+      - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
+        - template: ./common/bump-insiders-version.yml@self
 
       - template: ./distro/download-distro.yml@self
 
@@ -98,7 +105,7 @@ jobs:
 
       - template: common/install-builtin-extensions.yml@self
 
-      - script: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check
+      - script: npm exec -- npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Compile & Hygiene

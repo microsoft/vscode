@@ -413,9 +413,36 @@ class YamlParser {
 				continue;
 			}
 
+			// Handle comments - comments should terminate the array parsing
+			if (this.lexer.getCurrentChar() === '#') {
+				// Skip the rest of the line (comment)
+				this.lexer.skipToEndOfLine();
+				this.lexer.advanceLine();
+				continue;
+			}
+
+			// Save position before parsing to detect if we're making progress
+			const positionBefore = this.lexer.savePosition();
+
 			// Parse array item
 			const item = this.parseValue();
-			items.push(item);
+			// Skip implicit empty items that arise from a leading comma at the beginning of a new line
+			// (e.g. a line starting with ",foo" after a comment). A legitimate empty string element
+			// would have quotes and thus a non-zero span. We only filter zero-length spans.
+			if (!(item.type === 'string' && item.value === '' && item.start.line === item.end.line && item.start.character === item.end.character)) {
+				items.push(item);
+			}
+
+			// Check if we made progress - if not, we're likely stuck
+			const positionAfter = this.lexer.savePosition();
+			if (positionBefore.line === positionAfter.line && positionBefore.char === positionAfter.char) {
+				// No progress made, advance at least one character to prevent infinite loop
+				if (!this.lexer.isAtEnd() && this.lexer.getCurrentChar() !== '') {
+					this.lexer.advance();
+				} else {
+					break;
+				}
+			}
 
 			this.lexer.skipWhitespace();
 
@@ -445,6 +472,17 @@ class YamlParser {
 				this.lexer.advance();
 				break;
 			}
+
+			// Handle comments - comments should terminate the object parsing
+			if (this.lexer.getCurrentChar() === '#') {
+				// Skip the rest of the line (comment)
+				this.lexer.skipToEndOfLine();
+				this.lexer.advanceLine();
+				continue;
+			}
+
+			// Save position before parsing to detect if we're making progress
+			const positionBefore = this.lexer.savePosition();
 
 			// Parse key - read until colon
 			const keyStart = this.lexer.getCurrentPosition();
@@ -486,6 +524,17 @@ class YamlParser {
 			const value = this.parseValue();
 
 			properties.push({ key, value });
+
+			// Check if we made progress - if not, we're likely stuck
+			const positionAfter = this.lexer.savePosition();
+			if (positionBefore.line === positionAfter.line && positionBefore.char === positionAfter.char) {
+				// No progress made, advance at least one character to prevent infinite loop
+				if (!this.lexer.isAtEnd() && this.lexer.getCurrentChar() !== '') {
+					this.lexer.advance();
+				} else {
+					break;
+				}
+			}
 
 			this.lexer.skipWhitespace();
 
@@ -697,13 +746,24 @@ class YamlParser {
 					const nextIndent = this.lexer.getIndentation();
 
 					if (nextIndent > currentIndent) {
-						// Nested content - determine if it's an object or array
+						// Nested content - determine if it's an object, array, or just a scalar value
 						this.lexer.skipWhitespace();
 
 						if (this.lexer.getCurrentChar() === '-') {
 							value = this.parseBlockArray(nextIndent);
 						} else {
-							value = this.parseBlockObject(nextIndent);
+							// Check if this looks like an object property (has a colon)
+							const currentLine = this.lexer.getCurrentLineText();
+							const currentPos = this.lexer.getCurrentCharNumber();
+							const remainingLine = currentLine.substring(currentPos);
+
+							if (remainingLine.includes(':') && !remainingLine.trim().startsWith('#')) {
+								// It's a nested object
+								value = this.parseBlockObject(nextIndent);
+							} else {
+								// It's just a scalar value on the next line
+								value = this.parseValue();
+							}
 						}
 					} else if (!fromCurrentPosition && nextIndent === currentIndent) {
 						// Same indentation level - check if it's an array item

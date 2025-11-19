@@ -71,42 +71,46 @@ class TerminalMouseWheelZoomContribution extends Disposable implements ITerminal
 		let gestureHasZoomModifiers = false;
 		let gestureAccumulatedDelta = 0;
 
-		raw.attachCustomWheelEventHandler((e: WheelEvent) => {
-			const browserEvent = e as any as IMouseWheelEvent;
-			if (classifier.isPhysicalMouseWheel()) {
-				if (this._hasMouseWheelZoomModifiers(browserEvent)) {
-					const delta = browserEvent.deltaY > 0 ? -1 : 1;
-					const newFontSize = this._clampFontSize(this._getConfigFontSize() + delta);
-					this._configurationService.updateValue(TerminalSettingId.FontSize, newFontSize);
-					// EditorZoom.setZoomLevel(zoomLevel + delta);
-					browserEvent.preventDefault();
-					browserEvent.stopPropagation();
-					return false;
-				}
-			} else {
-				// we consider mousewheel events that occur within 50ms of each other to be part of the same gesture
-				// we don't want to consider mouse wheel events where ctrl/cmd is pressed during the inertia phase
-				// we also want to accumulate deltaY values from the same gesture and use that to set the zoom level
-				if (Date.now() - prevMouseWheelTime > 50) {
-					// reset if more than 50ms have passed
-					gestureStartFontSize = this._getConfigFontSize();
-					gestureHasZoomModifiers = this._hasMouseWheelZoomModifiers(browserEvent);
-					gestureAccumulatedDelta = 0;
-				}
+		raw.attachCustomWheelEventHandler((browserEvent: WheelEvent) => {
+			function isWheelEvent(e: MouseEvent): e is IMouseWheelEvent {
+				return 'wheelDelta' in e && 'wheelDeltaX' in e && 'wheelDeltaY' in e;
+			}
+			if (isWheelEvent(browserEvent)) {
+				if (classifier.isPhysicalMouseWheel()) {
+					if (this._hasMouseWheelZoomModifiers(browserEvent)) {
+						const delta = browserEvent.deltaY > 0 ? -1 : 1;
+						const newFontSize = this._clampFontSize(this._getConfigFontSize() + delta);
+						this._configurationService.updateValue(TerminalSettingId.FontSize, newFontSize);
+						// EditorZoom.setZoomLevel(zoomLevel + delta);
+						browserEvent.preventDefault();
+						browserEvent.stopPropagation();
+						return false;
+					}
+				} else {
+					// we consider mousewheel events that occur within 50ms of each other to be part of the same gesture
+					// we don't want to consider mouse wheel events where ctrl/cmd is pressed during the inertia phase
+					// we also want to accumulate deltaY values from the same gesture and use that to set the zoom level
+					if (Date.now() - prevMouseWheelTime > 50) {
+						// reset if more than 50ms have passed
+						gestureStartFontSize = this._getConfigFontSize();
+						gestureHasZoomModifiers = this._hasMouseWheelZoomModifiers(browserEvent);
+						gestureAccumulatedDelta = 0;
+					}
 
-				prevMouseWheelTime = Date.now();
-				gestureAccumulatedDelta += browserEvent.deltaY;
-
-				if (gestureHasZoomModifiers) {
-					const deltaAbs = Math.ceil(Math.abs(gestureAccumulatedDelta / 5));
-					const deltaDirection = gestureAccumulatedDelta > 0 ? -1 : 1;
-					const delta = deltaAbs * deltaDirection;
-					const newFontSize = this._clampFontSize(gestureStartFontSize + delta);
-					this._configurationService.updateValue(TerminalSettingId.FontSize, newFontSize);
+					prevMouseWheelTime = Date.now();
 					gestureAccumulatedDelta += browserEvent.deltaY;
-					browserEvent.preventDefault();
-					browserEvent.stopPropagation();
-					return false;
+
+					if (gestureHasZoomModifiers) {
+						const deltaAbs = Math.ceil(Math.abs(gestureAccumulatedDelta / 5));
+						const deltaDirection = gestureAccumulatedDelta > 0 ? -1 : 1;
+						const delta = deltaAbs * deltaDirection;
+						const newFontSize = this._clampFontSize(gestureStartFontSize + delta);
+						this._configurationService.updateValue(TerminalSettingId.FontSize, newFontSize);
+						gestureAccumulatedDelta += browserEvent.deltaY;
+						browserEvent.preventDefault();
+						browserEvent.stopPropagation();
+						return false;
+					}
 				}
 			}
 			return true;

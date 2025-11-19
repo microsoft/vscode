@@ -1,4 +1,8 @@
 "use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -33,10 +37,6 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 const ts = __importStar(require("typescript"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
@@ -229,13 +229,13 @@ function* findAllReferencesInClass(node) {
         }
     }
 }
-// NOTE: The following uses TypeScript internals and are subject to change from version to version.
 function findAllReferences(node) {
     const sourceFile = node.getSourceFile();
     const position = node.getStart();
-    const name = ts.getTouchingPropertyName(sourceFile, position);
-    const options = { use: ts.FindAllReferences.FindReferencesUse.References };
-    return ts.FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
+    const tsInternal = ts;
+    const name = tsInternal.getTouchingPropertyName(sourceFile, position);
+    const options = { use: tsInternal.FindAllReferences.FindReferencesUse.References };
+    return tsInternal.FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
 }
 var DefinitionKind;
 (function (DefinitionKind) {

@@ -29,6 +29,7 @@ export interface ICommandApprovalResultWithReason {
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
 
 const neverMatchRegex = /(?!.*)/;
+const transientEnvVarRegex = /^[A-Z_][A-Z0-9_]*=/i;
 
 export class CommandLineAutoApprover extends Disposable {
 	private _denyListRules: IAutoApproveRule[] = [];
@@ -44,6 +45,7 @@ export class CommandLineAutoApprover extends Disposable {
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AutoApprove) ||
+				e.affectsConfiguration(TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules) ||
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAutoApproveCompatible)
 			) {
 				this.updateConfiguration();
@@ -75,6 +77,15 @@ export class CommandLineAutoApprover extends Disposable {
 	}
 
 	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): ICommandApprovalResultWithReason {
+		// Check if the command has a transient environment variable assignment prefix which we
+		// always deny for now as it can easily lead to execute other commands
+		if (transientEnvVarRegex.test(command)) {
+			return {
+				result: 'denied',
+				reason: `Command '${command}' is denied because it contains transient environment variables`
+			};
+		}
+
 		// Check the deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
@@ -170,17 +181,19 @@ export class CommandLineAutoApprover extends Disposable {
 		const allowListCommandLineRules: IAutoApproveRule[] = [];
 		const denyListCommandLineRules: IAutoApproveRule[] = [];
 
-		Object.entries(config).forEach(([key, value]) => {
+		const ignoreDefaults = this._configurationService.getValue(TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules) === true;
+
+		for (const [key, value] of Object.entries(config)) {
 			const defaultValue = configInspectValue?.default?.value;
 			const isDefaultRule = !!(
 				isObject(defaultValue) &&
-				key in defaultValue &&
+				Object.prototype.hasOwnProperty.call(defaultValue, key) &&
 				structuralEquals((defaultValue as Record<string, unknown>)[key], value)
 			);
 			function checkTarget(inspectValue: Readonly<unknown> | undefined): boolean {
 				return (
 					isObject(inspectValue) &&
-					key in inspectValue &&
+					Object.prototype.hasOwnProperty.call(inspectValue, key) &&
 					structuralEquals((inspectValue as Record<string, unknown>)[key], value)
 				);
 			}
@@ -193,6 +206,12 @@ export class CommandLineAutoApprover extends Disposable {
 									: checkTarget(configInspectValue.applicationValue) ? ConfigurationTarget.APPLICATION
 										: ConfigurationTarget.DEFAULT
 			);
+
+			// If default rules are disabled, ignore entries that come from the default config
+			if (ignoreDefaults && isDefaultRule && sourceTarget === ConfigurationTarget.DEFAULT) {
+				continue;
+			}
+
 			if (typeof value === 'boolean') {
 				const { regex, regexCaseInsensitive } = this._convertAutoApproveEntryToRegex(key);
 				// IMPORTANT: Only true and false are used, null entries need to be ignored
@@ -221,7 +240,7 @@ export class CommandLineAutoApprover extends Disposable {
 					}
 				}
 			}
-		});
+		}
 
 		return {
 			denyListRules,

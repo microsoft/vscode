@@ -43,7 +43,7 @@ import { DraggedEditorIdentifier, fillEditorsDragData } from '../../dnd.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../labels.js';
 import { BreadcrumbsConfig, IBreadcrumbsService } from './breadcrumbs.js';
 import { BreadcrumbsModel, FileElement, OutlineElement2 } from './breadcrumbsModel.js';
-import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker, BreadcrumbsPicker } from './breadcrumbsPicker.js';
+import { BreadcrumbsFilePicker, BreadcrumbsOutlinePicker } from './breadcrumbsPicker.js';
 import { IEditorGroupView } from './editor.js';
 import './media/breadcrumbscontrol.css';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -102,6 +102,10 @@ class OutlineItem extends BreadcrumbsItem {
 			visible: true,
 			filterData: undefined
 		}, 0, template, undefined);
+
+		if (!this.options.showSymbolIcons) {
+			dom.hide(template.iconClass);
+		}
 
 		this._disposables.add(toDisposable(() => { renderer.disposeTemplate(template); }));
 
@@ -185,7 +189,7 @@ function createBreadcrumbDndObserver(accessor: ServicesAccessor, container: HTML
 					}], event);
 				}
 
-				if (dragEditor && model.editor && model.editor?.input) {
+				if (dragEditor && model.editor?.input) {
 					const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 					editorTransfer.setData([new DraggedEditorIdentifier({ editor: model.editor.input, groupId: model.editor.group.id })], DraggedEditorIdentifier.prototype);
 				}
@@ -313,6 +317,8 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsActive.reset();
 		this._cfUseQuickPick.dispose();
 		this._cfShowIcons.dispose();
+		this._cfTitleScrollbarSizing.dispose();
+		this._cfTitleScrollbarVisibility.dispose();
 		this._widget.dispose();
 		this._labels.dispose();
 		this.domNode.remove();
@@ -494,7 +500,7 @@ export class BreadcrumbsControl {
 		}
 
 		// show picker
-		let picker: BreadcrumbsPicker;
+		let picker: BreadcrumbsFilePicker | BreadcrumbsOutlinePicker;
 		let pickerAnchor: { x: number; y: number };
 
 		interface IHideData { didPick?: boolean; source?: BreadcrumbsControl }
@@ -701,8 +707,10 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		const config = accessor.get(IConfigurationService);
-		const value = BreadcrumbsConfig.IsEnabled.bindTo(config).getValue();
-		BreadcrumbsConfig.IsEnabled.bindTo(config).updateValue(!value);
+		const breadCrumbsConfig = BreadcrumbsConfig.IsEnabled.bindTo(config);
+		const value = breadCrumbsConfig.getValue();
+		breadCrumbsConfig.updateValue(!value);
+		breadCrumbsConfig.dispose();
 	}
 
 });
@@ -735,7 +743,7 @@ registerAction2(class FocusAndSelectBreadcrumbs extends Action2 {
 			f1: true
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		focusAndSelectHandler(accessor, true);
 	}
 });
@@ -754,7 +762,7 @@ registerAction2(class FocusBreadcrumbs extends Action2 {
 			f1: true
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]): void {
+	run(accessor: ServicesAccessor, ...args: unknown[]): void {
 		focusAndSelectHandler(accessor, false);
 	}
 });
@@ -775,6 +783,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			await isEnabled.updateValue(true);
 			await timeout(50); // hacky - the widget might not be ready yet...
 		}
+		isEnabled.dispose();
 		return instant.invokeFunction(focusAndSelectHandler, true);
 	}
 });
@@ -931,8 +940,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 		// IOutline: check if this the outline and iff so reveal element
 		const input = tree.getInput();
-		if (input && typeof (<IOutline<any>>input).outlineKind === 'string') {
-			return (<IOutline<any>>input).reveal(element, {
+		if (input && typeof (<IOutline<unknown>>input).outlineKind === 'string') {
+			return (<IOutline<unknown>>input).reveal(element, {
 				pinned: true,
 				preserveFocus: false
 			}, true, false);

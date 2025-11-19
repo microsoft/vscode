@@ -9,7 +9,7 @@ import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys
 import { RemoteNameContext } from '../../../common/contextkeys.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
-import { ChatAgentLocation, ChatModeKind } from './constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
 
 export namespace ChatContextKeys {
 	export const responseVote = new RawContextKey<string>('chatSessionResponseVote', '', { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
@@ -33,9 +33,9 @@ export namespace ChatContextKeys {
 	export const inChatInput = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
 	export const inChatSession = new RawContextKey<boolean>('inChat', false, { type: 'boolean', description: localize('inChat', "True when focus is in the chat widget, false otherwise.") });
 	export const inChatEditor = new RawContextKey<boolean>('inChatEditor', false, { type: 'boolean', description: localize('inChatEditor', "Whether focus is in a chat editor.") });
-	export const hasPromptFile = new RawContextKey<boolean>('chatPromptFileAttached', false, { type: 'boolean', description: localize('chatPromptFileAttachedContextDescription', "True when the chat has a prompt file attached.") });
-	export const chatModeKind = new RawContextKey<ChatModeKind>('chatMode', ChatModeKind.Ask, { type: 'string', description: localize('chatMode', "The 'kind' of the current chat mode- Agent for custom modes.") });
-	export const chatToolCount = new RawContextKey<number>('chatToolCount', 0, { type: 'number', description: localize('chatToolCount', "The number of tools available in the current chat mode.") });
+	export const inChatTerminalToolOutput = new RawContextKey<boolean>('inChatTerminalToolOutput', false, { type: 'boolean', description: localize('inChatTerminalToolOutput', "True when focus is in the chat terminal output region.") });
+	export const chatModeKind = new RawContextKey<ChatModeKind>('chatAgentKind', ChatModeKind.Ask, { type: 'string', description: localize('agentKind', "The 'kind' of the current agent.") });
+	export const chatToolCount = new RawContextKey<number>('chatToolCount', 0, { type: 'number', description: localize('chatToolCount', "The number of tools available in the current agent.") });
 	export const chatToolGroupingThreshold = new RawContextKey<number>('chat.toolGroupingThreshold', 0, { type: 'number', description: localize('chatToolGroupingThreshold', "The number of tools at which we start doing virtual grouping.") });
 
 	export const supported = ContextKeyExpr.or(IsWebContext.negate(), RemoteNameContext.notEqualsTo(''), ContextKeyExpr.has('config.chat.experimental.serverlessWebEnabled'));
@@ -45,6 +45,7 @@ export namespace ChatContextKeys {
 	 * True when the chat widget is locked to the coding agent session.
 	 */
 	export const lockedToCodingAgent = new RawContextKey<boolean>('lockedToCodingAgent', false, { type: 'boolean', description: localize('lockedToCodingAgent', "True when the chat widget is locked to the coding agent session.") });
+	export const agentSupportsAttachments = new RawContextKey<boolean>('agentSupportsAttachments', false, { type: 'boolean', description: localize('agentSupportsAttachments', "True when the chat agent supports attachments.") });
 	export const withinEditSessionDiff = new RawContextKey<boolean>('withinEditSessionDiff', false, { type: 'boolean', description: localize('withinEditSessionDiff', "True when the chat widget dispatches to the edit session chat.") });
 	export const filePartOfEditSession = new RawContextKey<boolean>('filePartOfEditSession', false, { type: 'boolean', description: localize('filePartOfEditSession', "True when the chat widget is within a file with an edit session.") });
 
@@ -53,6 +54,7 @@ export namespace ChatContextKeys {
 	export const chatEditingCanUndo = new RawContextKey<boolean>('chatEditingCanUndo', false, { type: 'boolean', description: localize('chatEditingCanUndo', "True when it is possible to undo an interaction in the editing panel.") });
 	export const chatEditingCanRedo = new RawContextKey<boolean>('chatEditingCanRedo', false, { type: 'boolean', description: localize('chatEditingCanRedo', "True when it is possible to redo an interaction in the editing panel.") });
 	export const languageModelsAreUserSelectable = new RawContextKey<boolean>('chatModelsAreUserSelectable', false, { type: 'boolean', description: localize('chatModelsAreUserSelectable', "True when the chat model can be selected manually by the user.") });
+	export const chatSessionHasModels = new RawContextKey<boolean>('chatSessionHasModels', false, { type: 'boolean', description: localize('chatSessionHasModels', "True when the chat is in a contributed chat session that has available 'models' to display.") });
 	export const extensionInvalid = new RawContextKey<boolean>('chatExtensionInvalid', false, { type: 'boolean', description: localize('chatExtensionInvalid', "True when the installed chat extension is invalid and needs to be updated.") });
 	export const inputCursorAtTop = new RawContextKey<boolean>('chatCursorAtTop', false);
 	export const inputHasAgent = new RawContextKey<boolean>('chatInputHasAgent', false);
@@ -74,6 +76,7 @@ export namespace ChatContextKeys {
 
 	export const Editing = {
 		hasToolConfirmation: new RawContextKey<boolean>('chatHasToolConfirmation', false, { type: 'boolean', description: localize('chatEditingHasToolConfirmation', "True when a tool confirmation is present.") }),
+		hasElicitationRequest: new RawContextKey<boolean>('chatHasElicitationRequest', false, { type: 'boolean', description: localize('chatEditingHasElicitationRequest', "True when a chat elicitation request is pending.") }),
 	};
 
 	export const Tools = {
@@ -81,7 +84,7 @@ export namespace ChatContextKeys {
 	};
 
 	export const Modes = {
-		hasCustomChatModes: new RawContextKey<boolean>('chatHasCustomChatModes', false, { type: 'boolean', description: localize('chatHasCustomChatModes', "True when the chat has custom chat modes available.") }),
+		hasCustomChatModes: new RawContextKey<boolean>('chatHasCustomAgents', false, { type: 'boolean', description: localize('chatHasAgents', "True when the chat has custom agents available.") }),
 	};
 
 	export const panelLocation = new RawContextKey<ViewContainerLocation>('chatPanelLocation', undefined, { type: 'number', description: localize('chatPanelLocation', "The location of the chat panel.") });
@@ -89,8 +92,9 @@ export namespace ChatContextKeys {
 	export const inEmptyStateWithHistoryEnabled = new RawContextKey<boolean>('chatInEmptyStateWithHistoryEnabled', false, { type: 'boolean', description: localize('chatInEmptyStateWithHistoryEnabled', "True when chat empty state history is enabled AND chat is in empty state.") });
 
 	export const sessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('chatSessionType', "The type of the current chat session item.") });
-	export const isHistoryItem = new RawContextKey<boolean>('chatIsHistoryItem', false, { type: 'boolean', description: localize('chatIsHistoryItem', "True when the chat session item is from history.") });
+	export const isArchivedItem = new RawContextKey<boolean>('chatIsArchivedItem', false, { type: 'boolean', description: localize('chatIsArchivedItem', "True when the chat session item is archived.") });
 	export const isActiveSession = new RawContextKey<boolean>('chatIsActiveSession', false, { type: 'boolean', description: localize('chatIsActiveSession', "True when the chat session is currently active (not deletable).") });
+	export const isKatexMathElement = new RawContextKey<boolean>('chatIsKatexMathElement', false, { type: 'boolean', description: localize('chatIsKatexMathElement', "True when focusing a KaTeX math element.") });
 }
 
 export namespace ChatContextKeyExprs {
@@ -106,4 +110,9 @@ export namespace ChatContextKeyExprs {
 		ChatContextKeys.Setup.installed.negate(),
 		ChatContextKeys.Entitlement.canSignUp
 	);
+
+	export const agentViewWhen = ContextKeyExpr.and(
+		ChatEntitlementContextKeys.Setup.hidden.negate(),
+		ChatEntitlementContextKeys.Setup.disabled.negate(),
+		ContextKeyExpr.equals(`config.${ChatConfiguration.AgentSessionsViewLocation}`, 'view'));
 }

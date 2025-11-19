@@ -30,19 +30,19 @@ suite('WindowsFinder', () => {
 	};
 
 	const testWorkspaceFolders = toWorkspaceFolders([{ path: join(fixturesFolder, 'vscode_workspace_1_folder') }, { path: join(fixturesFolder, 'vscode_workspace_2_folder') }], testWorkspace.configPath, extUriBiasedIgnorePathCase);
-	const localWorkspaceResolver = async (workspace: any) => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : undefined; };
+	const localWorkspaceResolver = async (workspace: IWorkspaceIdentifier) => { return workspace === testWorkspace ? { id: testWorkspace.id, configPath: workspace.configPath, folders: testWorkspaceFolders } : undefined; };
 
 	function createTestCodeWindow(options: { lastFocusTime: number; openedFolderUri?: URI; openedWorkspace?: IWorkspaceIdentifier }): ICodeWindow {
 		return new class implements ICodeWindow {
-			onWillLoad: Event<ILoadEvent> = Event.None;
+			readonly onWillLoad: Event<ILoadEvent> = Event.None;
 			onDidMaximize = Event.None;
 			onDidUnmaximize = Event.None;
-			onDidTriggerSystemContextMenu: Event<{ x: number; y: number }> = Event.None;
-			onDidSignalReady: Event<void> = Event.None;
-			onDidClose: Event<void> = Event.None;
-			onDidDestroy: Event<void> = Event.None;
-			onDidEnterFullScreen: Event<void> = Event.None;
-			onDidLeaveFullScreen: Event<void> = Event.None;
+			readonly onDidTriggerSystemContextMenu: Event<{ x: number; y: number }> = Event.None;
+			readonly onDidSignalReady: Event<void> = Event.None;
+			readonly onDidClose: Event<void> = Event.None;
+			readonly onDidDestroy: Event<void> = Event.None;
+			readonly onDidEnterFullScreen: Event<void> = Event.None;
+			readonly onDidLeaveFullScreen: Event<void> = Event.None;
 			whenClosedOrLoaded: Promise<void> = Promise.resolve();
 			id: number = -1;
 			win: Electron.BrowserWindow = null!;
@@ -64,8 +64,8 @@ suite('WindowsFinder', () => {
 			focus(options?: { mode: FocusMode }): void { throw new Error('Method not implemented.'); }
 			close(): void { throw new Error('Method not implemented.'); }
 			getBounds(): Electron.Rectangle { throw new Error('Method not implemented.'); }
-			send(channel: string, ...args: any[]): void { throw new Error('Method not implemented.'); }
-			sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void { throw new Error('Method not implemented.'); }
+			send(channel: string, ...args: unknown[]): void { throw new Error('Method not implemented.'); }
+			sendWhenReady(channel: string, token: CancellationToken, ...args: unknown[]): void { throw new Error('Method not implemented.'); }
 			toggleFullScreen(): void { throw new Error('Method not implemented.'); }
 			setRepresentedFilename(name: string): void { throw new Error('Method not implemented.'); }
 			getRepresentedFilename(): string | undefined { throw new Error('Method not implemented.'); }
@@ -75,7 +75,7 @@ suite('WindowsFinder', () => {
 			serializeWindowState(): IWindowState { throw new Error('Method not implemented'); }
 			updateWindowControls(options: { height?: number | undefined; backgroundColor?: string | undefined; foregroundColor?: string | undefined }): void { throw new Error('Method not implemented.'); }
 			notifyZoomLevel(level: number): void { throw new Error('Method not implemented.'); }
-			matches(webContents: any): boolean { throw new Error('Method not implemented.'); }
+			matches(webContents: Electron.WebContents): boolean { throw new Error('Method not implemented.'); }
 			dispose(): void { }
 		};
 	}

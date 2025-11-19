@@ -286,7 +286,7 @@ suite('Inline Completions', () => {
 					assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
 
 					context.keyboardType('b');
-					assert.deepStrictEqual(context.getAndClearViewStates(), (["foob[ar]"]));
+					assert.deepStrictEqual(context.getAndClearViewStates(), (['foob[ar]']));
 					await timeout(1000);
 					assert.deepStrictEqual(provider.getAndClearCallHistory(), [
 						{ position: '(1,5)', text: 'foob', triggerKind: 0, }
@@ -294,7 +294,7 @@ suite('Inline Completions', () => {
 					assert.deepStrictEqual(context.getAndClearViewStates(), []);
 
 					context.keyboardType('a');
-					assert.deepStrictEqual(context.getAndClearViewStates(), (["fooba[r]"]));
+					assert.deepStrictEqual(context.getAndClearViewStates(), (['fooba[r]']));
 					await timeout(1000);
 					assert.deepStrictEqual(provider.getAndClearCallHistory(), [
 						{ position: '(1,6)', text: 'fooba', triggerKind: 0, }
@@ -310,8 +310,8 @@ suite('Inline Completions', () => {
 			context.keyboardType('f');
 			model.triggerExplicitly();
 			await timeout(10000);
-			assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(1,2)", triggerKind: 1, text: "f" }]));
-			assert.deepStrictEqual(context.getAndClearViewStates(), (["f[oo bar]"]));
+			assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: '(1,2)', triggerKind: 1, text: 'f' }]));
+			assert.deepStrictEqual(context.getAndClearViewStates(), (['f[oo bar]']));
 
 			provider.setReturnValue({ insertText: 'foo baz' });
 			await timeout(10000);
@@ -349,10 +349,10 @@ suite('Inline Completions', () => {
 					await setupScenario(ctx, provider);
 
 					await ctx.model.acceptNextWord();
-					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (["foo[ bar]"]));
+					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (['foo[ bar]']));
 
 					await timeout(10000);
-					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(1,4)", triggerKind: 0, text: "foo" }]));
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: '(1,4)', triggerKind: 0, text: 'foo' }]));
 					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), ([]));
 
 					await ctx.model.triggerExplicitly(); // reset to provider truth
@@ -372,21 +372,21 @@ suite('Inline Completions', () => {
 					await setupScenario(ctx, provider);
 
 					await ctx.model.acceptNextWord();
-					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (["foo[ bar]"]));
+					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (['foo[ bar]']));
 
 					await timeout(10000);
 					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), ([]));
-					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(1,4)", triggerKind: 0, text: "foo" }]));
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: '(1,4)', triggerKind: 0, text: 'foo' }]));
 
 					await ctx.editor.getModel().undo();
 					await timeout(10000);
-					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (["f[oo bar]"]));
-					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(1,2)", triggerKind: 0, text: "f" }]));
+					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (['f[oo bar]']));
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: '(1,2)', triggerKind: 0, text: 'f' }]));
 
 					await ctx.editor.getModel().redo();
 					await timeout(10000);
-					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (["foo[ bar]"]));
-					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(1,4)", triggerKind: 0, text: "foo" }]));
+					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (['foo[ bar]']));
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: '(1,4)', triggerKind: 0, text: 'foo' }]));
 				}
 			);
 		});
@@ -433,15 +433,15 @@ suite('Inline Completions', () => {
 
 					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([
 						{
-							position: "(1,4)",
+							position: '(1,4)',
 							triggerKind: 0,
-							text: "foo"
+							text: 'foo'
 						}
 					]));
 					assert.deepStrictEqual(context.getAndClearViewStates(),
 						([
-							"",
-							"foo[bar]"
+							'',
+							'foo[bar]'
 						])
 					);
 
@@ -452,9 +452,9 @@ suite('Inline Completions', () => {
 
 					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([
 						{
-							position: "(1,4)",
+							position: '(1,4)',
 							triggerKind: 1,
-							text: "foo"
+							text: 'foo'
 						}
 					]));
 					assert.deepStrictEqual(context.getAndClearViewStates(),
@@ -556,7 +556,7 @@ suite('Inline Completions', () => {
 
 				model.accept(editor);
 
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(2,4)", triggerKind: 1, text: "buzz\nbaz" }]));
+				assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: '(2,4)', triggerKind: 1, text: 'buzz\nbaz' }]));
 
 				assert.deepStrictEqual(context.getAndClearViewStates(), [
 					'',

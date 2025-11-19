@@ -29,16 +29,6 @@ export class ChatAnonymousRateLimitedPart extends Disposable implements IChatCon
 	) {
 		super();
 
-		let messageValue: string;
-		let buttonLabel: string;
-		if (chatEntitlementService.sentiment.registered) {
-			messageValue = localize('anonymousRegisteredRateLimited', "Sign in to keep the conversation going and to get access to more models and AI tools.");
-			buttonLabel = localize('signIn', "Sign in to continue");
-		} else {
-			messageValue = localize('anonymousRateLimited', "Continue the conversation by signing in. Your free account gets 50 premium requests a month plus access to more models and AI tools.");
-			buttonLabel = localize('enableMoreAIFeatures', "Enable more AI features");
-		}
-
 		this.domNode = $('.chat-rate-limited-widget');
 
 		const icon = append(this.domNode, $('span'));
@@ -47,10 +37,10 @@ export class ChatAnonymousRateLimitedPart extends Disposable implements IChatCon
 		const messageContainer = append(this.domNode, $('.chat-rate-limited-message'));
 
 		const message = append(messageContainer, $('div'));
-		message.textContent = messageValue;
+		message.textContent = localize('anonymousRateLimited', "Continue the conversation by signing in. Your free account gets 50 premium requests a month plus access to more models and AI features.");
 
 		const signInButton = this._register(new Button(messageContainer, { ...defaultButtonStyles, supportIcons: true }));
-		signInButton.label = buttonLabel;
+		signInButton.label = localize('enableMoreAIFeatures', "Enable more AI features");
 		signInButton.element.classList.add('chat-rate-limited-button');
 
 		this._register(signInButton.onDidClick(async () => {

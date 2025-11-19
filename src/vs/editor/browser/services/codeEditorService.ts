@@ -49,12 +49,12 @@ export interface ICodeEditorService {
 	resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions;
 	resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null;
 
-	setModelProperty(resource: URI, key: string, value: any): void;
-	getModelProperty(resource: URI, key: string): any;
+	setModelProperty(resource: URI, key: string, value: unknown): void;
+	getModelProperty(resource: URI, key: string): unknown;
 
-	setTransientModelProperty(model: ITextModel, key: string, value: any): void;
-	getTransientModelProperty(model: ITextModel, key: string): any;
-	getTransientModelProperties(model: ITextModel): [string, any][] | undefined;
+	setTransientModelProperty(model: ITextModel, key: string, value: unknown): void;
+	getTransientModelProperty(model: ITextModel, key: string): unknown;
+	getTransientModelProperties(model: ITextModel): [string, unknown][] | undefined;
 
 	getActiveCodeEditor(): ICodeEditor | null;
 	openCodeEditor(input: ITextResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;

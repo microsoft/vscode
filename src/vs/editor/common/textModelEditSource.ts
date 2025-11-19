@@ -56,6 +56,7 @@ export class TextModelEditSource {
 	}
 
 	public get props(): Record<ITextModelEditSourceMetadataKeys, string | undefined> {
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		return this.metadata as any;
 	}
 }
@@ -64,7 +65,9 @@ type TextModelEditSourceT<T> = TextModelEditSource & {
 	metadataT: T;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createEditSource<T extends Record<string, any>>(metadata: T): TextModelEditSourceT<T> {
+	// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 	return new TextModelEditSource(metadata as any, privateSymbol) as any;
 }
 
@@ -95,7 +98,7 @@ export const EditSources = {
 		} as const);
 	},
 
-	rename: () => createEditSource({ source: 'rename' } as const),
+	rename: (oldName: string | undefined, newName: string) => createEditSource({ source: 'rename', $$$oldName: oldName, $$$newName: newName } as const),
 
 	chatApplyEdits(data: {
 		modelId: string | undefined;
@@ -143,12 +146,13 @@ export const EditSources = {
 		} as const);
 	},
 
-	inlineChatApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
+	inlineChatApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
 		return createEditSource({
 			source: 'inlineChat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
+			$$sessionId: data.sessionId,
 			$$requestId: data.requestId,
 			$$languageId: data.languageId,
 		} as const);
@@ -205,6 +209,7 @@ export class EditDeltaInfo {
 		return new EditDeltaInfo(linesAdded, 0, charsAdded, 0);
 	}
 
+	/** @internal */
 	public static fromEdit(edit: BaseStringEdit, originalString: StringText): EditDeltaInfo {
 		const lineEdit = LineEdit.fromStringEdit(edit, originalString);
 		const linesAdded = sumBy(lineEdit.replacements, r => r.newLines.length);
@@ -246,8 +251,8 @@ export namespace EditSuggestionId {
 	/**
 	 * Use AiEditTelemetryServiceImpl to create a new id!
 	*/
-	export function newId(): EditSuggestionId {
-		const id = prefixedUuid('sgt');
+	export function newId(genPrefixedUuid?: (ns: string) => string): EditSuggestionId {
+		const id = genPrefixedUuid ? genPrefixedUuid('sgt') : prefixedUuid('sgt');
 		return toEditIdentity(id);
 	}
 }

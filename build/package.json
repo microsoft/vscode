@@ -32,7 +32,7 @@
     "@types/mime": "0.0.29",
     "@types/minimatch": "^3.0.3",
     "@types/minimist": "^1.2.1",
-    "@types/node": "22.x",
+    "@types/node": "^22.18.10",
     "@types/p-all": "^1.0.0",
     "@types/pump": "^1.0.1",
     "@types/rimraf": "^2.0.4",
@@ -41,7 +41,7 @@
     "@types/vinyl": "^2.0.12",
     "@types/workerpool": "^6.4.0",
     "@types/xml2js": "0.0.33",
-    "@vscode/iconv-lite-umd": "0.7.0",
+    "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/ripgrep": "^1.15.13",
     "@vscode/vsce": "3.6.1",
     "ansi-colors": "^3.2.3",
@@ -64,9 +64,13 @@
   },
   "type": "commonjs",
   "scripts": {
-    "compile": "cd .. && npx tsgo --project build/tsconfig.build.json",
-    "watch": "cd .. && npx tsgo --project build/tsconfig.build.json --watch",
-    "npmCheckJs": "cd .. && npx tsgo --project build/tsconfig.build.json --noEmit"
+    "copy-policy-dto": "node lib/policies/copyPolicyDto.js",
+    "prebuild-ts": "npm run copy-policy-dto",
+    "build-ts": "cd .. && npx tsgo --project build/tsconfig.build.json",
+    "compile": "npm run build-ts",
+    "watch": "npm run build-ts -- --watch",
+    "npmCheckJs": "npm run build-ts -- --noEmit",
+    "test": "npx mocha --ui tdd 'lib/**/*.test.js'"
   },
   "optionalDependencies": {
     "tree-sitter-typescript": "^0.23.2",

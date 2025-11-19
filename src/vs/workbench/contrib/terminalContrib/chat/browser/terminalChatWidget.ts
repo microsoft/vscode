@@ -16,11 +16,11 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { IChatAcceptInputOptions, showChatView } from '../../../chat/browser/chat.js';
+import { IChatAcceptInputOptions, IChatWidgetService } from '../../../chat/browser/chat.js';
 import type { IChatViewState } from '../../../chat/browser/chatWidget.js';
 import { IChatAgentService } from '../../../chat/common/chatAgents.js';
-import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../../chat/common/chatModel.js';
+import { ChatModel, IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/chatModel.js';
+import { ChatMode } from '../../../chat/common/chatModes.js';
 import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
@@ -99,9 +99,9 @@ export class TerminalChatWidget extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -141,7 +141,8 @@ export class TerminalChatWidget extends Disposable {
 						telemetrySource: 'terminal-inline-chat',
 						executeToolbar: MenuId.ChatExecute,
 						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR,
-					}
+					},
+					defaultMode: ChatMode.Ask
 				}
 			},
 		);
@@ -421,14 +422,14 @@ export class TerminalChatWidget extends Disposable {
 		this._activeRequestCts?.cancel();
 		this._requestActiveContextKey.set(false);
 		const model = this._inlineChatWidget.getChatModel();
-		if (!model?.sessionId) {
+		if (!model?.sessionResource) {
 			return;
 		}
-		this._chatService.cancelCurrentRequestForSession(model?.sessionId);
+		this._chatService.cancelCurrentRequestForSession(model?.sessionResource);
 	}
 
 	async viewInChat(): Promise<void> {
-		const widget = await showChatView(this._viewsService);
+		const widget = await this._chatWidgetService.revealWidget();
 		const currentRequest = this._inlineChatWidget.chatWidget.viewModel?.model.getRequests().find(r => r.id === this._currentRequestId);
 		if (!widget || !currentRequest?.response) {
 			return;
@@ -446,16 +447,16 @@ export class TerminalChatWidget extends Disposable {
 				}
 			} else if (item.kind === 'notebookEditGroup') {
 				for (const group of item.edits) {
-					if (isCellTextEditOperation(group)) {
+					if (isCellTextEditOperationArray(group)) {
 						message.push({
 							kind: 'textEdit',
-							edits: [group.edit],
-							uri: group.uri
+							edits: group.map(e => e.edit),
+							uri: group[0].uri
 						});
 					} else {
 						message.push({
 							kind: 'notebookEdit',
-							edits: [group],
+							edits: group,
 							uri: item.uri
 						});
 					}
@@ -465,7 +466,7 @@ export class TerminalChatWidget extends Disposable {
 			}
 		}
 
-		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
+		this._chatService.addCompleteRequest(widget!.viewModel!.sessionResource,
 			`@${this._terminalAgentName} ${currentRequest.message.text}`,
 			currentRequest.variableData,
 			currentRequest.attempt,

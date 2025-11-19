@@ -199,6 +199,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (targetDocument === this.mainContainer.ownerDocument) {
 			return this.mainContainer; // main window
 		} else {
+			// eslint-disable-next-line no-restricted-syntax
 			return targetDocument.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement; // auxiliary window
 		}
 	}
@@ -425,8 +426,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(this.hostService.onDidChangeActiveWindow(() => this.onActiveWindowChanged()));
 
 		// WCO changes
-		if (isWeb && typeof (navigator as any).windowControlsOverlay === 'object') {
-			this._register(addDisposableListener((navigator as any).windowControlsOverlay, 'geometrychange', () => this.onDidChangeWCO()));
+		if (isWeb && typeof (navigator as { windowControlsOverlay?: EventTarget }).windowControlsOverlay === 'object') {
+			this._register(addDisposableListener((navigator as unknown as { windowControlsOverlay: EventTarget }).windowControlsOverlay, 'geometrychange', () => this.onDidChangeWCO()));
 		}
 
 		// Auxiliary windows
@@ -632,7 +633,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private initLayoutState(lifecycleService: ILifecycleService, fileService: IFileService): void {
 		this._mainContainerDimension = getClientArea(this.parent, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? DEFAULT_EMPTY_WINDOW_DIMENSIONS : DEFAULT_WORKSPACE_WINDOW_DIMENSIONS); // running with fallback to ensure no error is thrown (https://github.com/microsoft/vscode/issues/240242)
 
-		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService);
+		this.stateModel = new LayoutStateModel(this.storageService, this.configurationService, this.contextService, this.environmentService);
 		this.stateModel.load({
 			mainContainerDimension: this._mainContainerDimension,
 			resetLayout: Boolean(this.layoutOptions?.resetLayout)
@@ -2506,7 +2507,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private createGridDescriptor(): ISerializedGrid {
-		const { width, height } = this._mainContainerDimension!;
+		const { width, height } = this._mainContainerDimension;
 		const sideBarSize = this.stateModel.getInitializationValue(LayoutStateKeys.SIDEBAR_SIZE);
 		const auxiliaryBarSize = this.stateModel.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE);
 		const panelSize = this.stateModel.getInitializationValue(LayoutStateKeys.PANEL_SIZE);
@@ -2789,6 +2790,7 @@ class LayoutStateModel extends Disposable {
 		private readonly storageService: IStorageService,
 		private readonly configurationService: IConfigurationService,
 		private readonly contextService: IWorkspaceContextService,
+		private readonly environmentService: IBrowserWorkbenchEnvironmentService,
 	) {
 		super();
 
@@ -2857,6 +2859,10 @@ class LayoutStateModel extends Disposable {
 		LayoutStateKeys.SIDEBAR_HIDDEN.defaultValue = workbenchState === WorkbenchState.EMPTY;
 		LayoutStateKeys.AUXILIARYBAR_SIZE.defaultValue = Math.min(300, mainContainerDimension.width / 4);
 		LayoutStateKeys.AUXILIARYBAR_HIDDEN.defaultValue = (() => {
+			if (isWeb && !this.environmentService.remoteAuthority) {
+				return true; // TODO@bpasero remove this condition once Chat web support lands
+			}
+
 			const configuration = this.configurationService.inspect(WorkbenchLayoutSettings.AUXILIARYBAR_DEFAULT_VISIBILITY);
 
 			// Unless auxiliary bar visibility is explicitly configured, make
@@ -3044,7 +3050,18 @@ class LayoutStateModel extends Disposable {
 	}
 
 	private loadKeyFromStorage<T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>): T | undefined {
-		const value = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, key.scope);
+		let value = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, key.scope);
+
+		// TODO@bpasero remove this code in 1y when "pre-AI" workspaces have migrated
+		// Refs: https://github.com/microsoft/vscode-internalbacklog/issues/6168
+		if (
+			key.scope === StorageScope.WORKSPACE &&
+			key.name === LayoutStateKeys.AUXILIARYBAR_HIDDEN.name &&
+			this.configurationService.getValue('workbench.secondarySideBar.enableDefaultVisibilityInOldWorkspace') === true &&
+			this.storageService.get('workbench.panel.chat.numberOfVisibleViews', StorageScope.WORKSPACE) === undefined
+		) {
+			value = undefined;
+		}
 
 		if (value !== undefined) {
 			this.isNew[key.scope] = false; // remember that we had previous state for this scope

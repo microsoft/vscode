@@ -6,33 +6,33 @@
 import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../../base/common/arrays.js';
 import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
-import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
+import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange, autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ISCMRepository, ISCMService } from '../../../scm/common/scm.js';
-import { AnnotatedDocuments, AnnotatedDocument } from '../helpers/annotatedDocuments.js';
-import { AiEditTelemetryAdapter, ChatArcTelemetrySender, InlineEditArcTelemetrySender } from './arcTelemetrySender.js';
+import { AnnotatedDocument, IAnnotatedDocuments } from '../helpers/annotatedDocuments.js';
+import { CreateSuggestionIdForChatOrInlineChatCaller, EditTelemetryReportEditArcForChatOrInlineChatSender, EditTelemetryReportInlineEditArcSender } from './arcTelemetrySender.js';
 import { createDocWithJustReason, EditSource } from '../helpers/documentWithAnnotatedEdits.js';
 import { DocumentEditSourceTracker, TrackedEdit } from './editTracker.js';
 import { sumByCategory } from '../helpers/utils.js';
+import { ScmAdapter, ScmRepoAdapter } from './scmAdapter.js';
+import { IRandomService } from '../randomService.js';
 
 export class EditSourceTrackingImpl extends Disposable {
 	public readonly docsState;
+	private readonly _states;
 
 	constructor(
 		private readonly _statsEnabled: IObservable<boolean>,
-		private readonly _annotatedDocuments: AnnotatedDocuments,
+		private readonly _annotatedDocuments: IAnnotatedDocuments,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
-		const scmBridge = this._instantiationService.createInstance(ScmBridge);
-		const states = mapObservableArrayCached(this, this._annotatedDocuments.documents, (doc, store) => {
+		const scmBridge = this._instantiationService.createInstance(ScmAdapter);
+		this._states = mapObservableArrayCached(this, this._annotatedDocuments.documents, (doc, store) => {
 			return [doc.document, store.add(this._instantiationService.createInstance(TrackedDocumentInfo, doc, scmBridge, this._statsEnabled))] as const;
 		});
-		this.docsState = states.map((entries) => new Map(entries));
+		this.docsState = this._states.map((entries) => new Map(entries));
 
 		this.docsState.recomputeInitiallyAndOnChange(this._store);
 	}
@@ -42,16 +42,19 @@ class TrackedDocumentInfo extends Disposable {
 	public readonly longtermTracker: IObservable<DocumentEditSourceTracker<undefined> | undefined>;
 	public readonly windowedTracker: IObservable<DocumentEditSourceTracker<undefined> | undefined>;
 
-	private readonly _repo: Promise<ScmRepoBridge | undefined>;
+	private readonly _repo: IObservable<ScmRepoAdapter | undefined>;
 
 	constructor(
 		private readonly _doc: AnnotatedDocument,
-		private readonly _scm: ScmBridge,
+		private readonly _scm: ScmAdapter,
 		private readonly _statsEnabled: IObservable<boolean>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IRandomService private readonly _randomService: IRandomService,
 	) {
 		super();
+
+		this._repo = derived(this, reader => this._scm.getRepo(_doc.document.uri, reader));
 
 		const docWithJustReason = createDocWithJustReason(_doc.documentWithAnnotations, this._store);
 
@@ -80,29 +83,26 @@ class TrackedDocumentInfo extends Disposable {
 			longtermReason = 'closed';
 		}, 10 * 60 * 60 * 1000);
 
-		(async () => {
-			const repo = await this._scm.getRepo(_doc.document.uri);
-			if (this._store.isDisposed) {
-				return;
-			}
-			// Reset on branch change or commit
+		// Reset on branch change or commit
+		this._store.add(autorun(reader => {
+			const repo = this._repo.read(reader);
 			if (repo) {
-				this._store.add(runOnChange(repo.headCommitHashObs, () => {
+				reader.store.add(runOnChange(repo.headCommitHashObs, () => {
 					longtermReason = 'hashChange';
 					longtermResetSignal.trigger(undefined);
 					longtermReason = 'closed';
 				}));
-				this._store.add(runOnChange(repo.headBranchNameObs, () => {
+				reader.store.add(runOnChange(repo.headBranchNameObs, () => {
 					longtermReason = 'branchChange';
 					longtermResetSignal.trigger(undefined);
 					longtermReason = 'closed';
 				}));
 			}
+		}));
 
-			this._store.add(this._instantiationService.createInstance(InlineEditArcTelemetrySender, _doc.documentWithAnnotations, repo));
-			this._store.add(this._instantiationService.createInstance(ChatArcTelemetrySender, _doc.documentWithAnnotations, repo));
-			this._store.add(this._instantiationService.createInstance(AiEditTelemetryAdapter, _doc.documentWithAnnotations));
-		})();
+		this._store.add(this._instantiationService.createInstance(EditTelemetryReportInlineEditArcSender, _doc.documentWithAnnotations, this._repo));
+		this._store.add(this._instantiationService.createInstance(EditTelemetryReportEditArcForChatOrInlineChatSender, _doc.documentWithAnnotations, this._repo));
+		this._store.add(this._instantiationService.createInstance(CreateSuggestionIdForChatOrInlineChatCaller, _doc.documentWithAnnotations));
 
 		const resetSignal = observableSignal('resetSignal');
 
@@ -129,7 +129,6 @@ class TrackedDocumentInfo extends Disposable {
 			return t;
 		}).recomputeInitiallyAndOnChange(this._store);
 
-		this._repo = this._scm.getRepo(_doc.document.uri);
 	}
 
 	async sendTelemetry(mode: 'longterm' | '5minWindow', trigger: string, t: DocumentEditSourceTracker) {
@@ -141,7 +140,7 @@ class TrackedDocumentInfo extends Disposable {
 
 		const data = this.getTelemetryData(ranges);
 
-		const statsUuid = generateUuid();
+		const statsUuid = this._randomService.generateUuid();
 
 		const sums = sumByCategory(ranges, r => r.range.length, r => r.sourceKey);
 		const entries = Object.entries(sums).filter(([key, value]) => value !== undefined);
@@ -179,9 +178,9 @@ class TrackedDocumentInfo extends Disposable {
 				totalModifiedCount: number;
 			}, {
 				owner: 'hediet';
-				comment: 'Reports distribution of various edit sources per session.';
+				comment: 'Provides detailed character count breakdown for individual edit sources (typing, paste, inline completions, NES, etc.) within a session. Reports the top 10-30 sources per session with granular metadata including extension IDs and model IDs for AI edits. Sessions are scoped to either 5-minute windows for visible documents or longer periods ending on branch changes, commits, or 10-hour intervals. This event complements editSources.stats by providing source-specific details. @sentToGitHub';
 
-				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Describes the session mode. Is either longterm or 5minWindow.' };
+				mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Describes the session mode. Is either \'longterm\' or \'5minWindow\'.' };
 				sourceKey: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A description of the source of the edit.' };
 
 				sourceKeyCleaned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The source of the edit with some properties (such as extensionId, extensionVersion and modelId) removed.' };
@@ -234,7 +233,7 @@ class TrackedDocumentInfo extends Disposable {
 			isTrackedByGit: number;
 		}, {
 			owner: 'hediet';
-			comment: 'Reports distribution of AI vs user edited characters.';
+			comment: 'Aggregates character counts by edit source category (user typing, AI completions, NES, IDE actions, external changes) for each editing session. Sessions represent units of work and end when documents close, branches change, commits occur, or time limits are reached (5 minutes for visible documents, 10 hours otherwise). Tracks both total characters inserted and characters remaining at session end to measure retention. This high-level summary complements editSources.details which provides granular per-source breakdowns. @sentToGitHub';
 
 			mode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'longterm or 5minWindow' };
 			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
@@ -299,35 +298,7 @@ class TrackedDocumentInfo extends Disposable {
 			externalModifiedCount: sums.external ?? 0,
 			totalModifiedCharactersInFinalState,
 			languageId: this._doc.document.languageId.get(),
-			isTrackedByGit: this._repo.then(async (repo) => !!repo && !await repo.isIgnored(this._doc.document.uri)),
+			isTrackedByGit: this._repo.get()?.isIgnored(this._doc.document.uri),
 		};
-	}
-}
-
-class ScmBridge {
-	constructor(
-		@ISCMService private readonly _scmService: ISCMService
-	) { }
-
-	public async getRepo(uri: URI): Promise<ScmRepoBridge | undefined> {
-		const repo = this._scmService.getRepository(uri);
-		if (!repo) {
-			return undefined;
-		}
-		return new ScmRepoBridge(repo);
-	}
-}
-
-export class ScmRepoBridge {
-	public readonly headBranchNameObs: IObservable<string | undefined> = derived(reader => this._repo.provider.historyProvider.read(reader)?.historyItemRef.read(reader)?.name);
-	public readonly headCommitHashObs: IObservable<string | undefined> = derived(reader => this._repo.provider.historyProvider.read(reader)?.historyItemRef.read(reader)?.revision);
-
-	constructor(
-		private readonly _repo: ISCMRepository,
-	) {
-	}
-
-	async isIgnored(uri: URI): Promise<boolean> {
-		return false;
 	}
 }

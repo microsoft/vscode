@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/utils';
-import * as ESTree from 'estree';
+import * as eslint from 'eslint';
 import * as visitorKeys from 'eslint-visitor-keys';
+import type * as ESTree from 'estree';
 
-export = new class NoObservableGetInReactiveContext implements eslint.Rule.RuleModule {
+export default new class NoObservableGetInReactiveContext implements eslint.Rule.RuleModule {
 	meta: eslint.Rule.RuleMetaData = {
 		type: 'problem',
 		docs: {
@@ -19,7 +19,7 @@ export = new class NoObservableGetInReactiveContext implements eslint.Rule.RuleM
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		return {
-			'CallExpression': (node: any) => {
+			'CallExpression': (node: ESTree.CallExpression) => {
 				const callExpression = node as TSESTree.CallExpression;
 
 				if (!isReactiveFunctionWithReader(callExpression.callee)) {
@@ -61,11 +61,11 @@ function checkFunctionForObservableGetCalls(
 		if (node.type === 'CallExpression' && isObservableGetCall(node)) {
 			// Flag .get() calls since we're always in a reactive context here
 			context.report({
-				node: node as any as ESTree.Node,
+				node: node,
 				message: `Observable '.get()' should not be used in reactive context. Use '.read(${readerName})' instead to properly track dependencies or '.read(undefined)' to be explicit about an untracked read.`,
 				fix: (fixer) => {
 					const memberExpression = node.callee as TSESTree.MemberExpression;
-					return fixer.replaceText(node as any, `${context.getSourceCode().getText(memberExpression.object as any)}.read(undefined)`);
+					return fixer.replaceText(node, `${context.getSourceCode().getText(memberExpression.object as ESTree.Node)}.read(undefined)`);
 				}
 			});
 		}
@@ -131,7 +131,7 @@ function isReactiveFunctionWithReader(callee: TSESTree.Node): boolean {
 function walkChildren(node: TSESTree.Node, cb: (child: TSESTree.Node) => void) {
 	const keys = visitorKeys.KEYS[node.type] || [];
 	for (const key of keys) {
-		const child = (node as any)[key];
+		const child = (node as Record<string, any>)[key];
 		if (Array.isArray(child)) {
 			for (const item of child) {
 				if (item && typeof item === 'object' && item.type) {
