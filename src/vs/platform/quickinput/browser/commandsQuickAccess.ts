@@ -24,7 +24,7 @@ import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ILogService } from '../../log/common/log.js';
 import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider, Picks, TriggerAction } from './pickerQuickAccess.js';
 import { IQuickAccessProviderRunOptions } from '../common/quickAccess.js';
-import { IQuickPickSeparator } from '../common/quickInput.js';
+import { IKeyMods, IQuickPickSeparator } from '../common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { Categories } from '../../action/common/actionCommonCategories.js';
@@ -285,13 +285,14 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :
 			commandPick.label;
 
-		// Add remove button for recently used items
+		// Add remove button for recently used items (as the last button, to the right)
+		const existingButtons = commandPick.buttons || [];
 		const buttons = isRecentlyUsed ? [
+			...existingButtons,
 			{
 				iconClass: ThemeIcon.asClassName(Codicon.close),
 				tooltip: localize('removeFromRecentlyUsed', "Remove from Recently Used")
-			},
-			...(commandPick.buttons || [])
+			}
 		] : commandPick.buttons;
 
 		return {
@@ -322,14 +323,16 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 					}
 				}
 			},
-			trigger: isRecentlyUsed ? (buttonIndex: number): TriggerAction => {
-				if (buttonIndex === 0) { // first button is the remove button
+			trigger: isRecentlyUsed ? (buttonIndex: number, keyMods: IKeyMods): TriggerAction | Promise<TriggerAction> => {
+				// The remove button is now the last button
+				const removeButtonIndex = existingButtons.length;
+				if (buttonIndex === removeButtonIndex) {
 					this.commandsHistory.remove(commandPick.commandId);
 					return TriggerAction.REMOVE_ITEM;
 				}
 				// Handle other buttons (e.g., configure keybinding button)
 				if (commandPick.trigger) {
-					return commandPick.trigger(buttonIndex - 1);
+					return commandPick.trigger(buttonIndex, keyMods);
 				}
 				return TriggerAction.NO_ACTION;
 			} : commandPick.trigger
