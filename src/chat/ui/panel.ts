@@ -91,14 +91,19 @@ export class ChatPanel {
         const enhanced = enhancePrompt(meta, context);
         const msgs: ChatMessage[] = [{ role: 'user', content: enhanced }];
         this.assistantBuffer = '';
+        let streamCompleted = false;
         try {
             for await (const chunk of sendChat(msgs)) {
                 this.assistantBuffer += chunk;
                 this.panel.webview.postMessage({ type: 'response', text: this.assistantBuffer });
             }
-            await this.handleRunnableCommand();
+            streamCompleted = true;
         } catch (err: any) {
             this.panel.webview.postMessage({ type: 'response', text: `Error: ${err.message}` });
+        }
+
+        if (streamCompleted) {
+            await this.handleRunnableCommand();
         }
     }
 
@@ -115,7 +120,8 @@ export class ChatPanel {
 
     private async handleRunnableCommand() {
         const command = extractRunnableCommand(this.assistantBuffer);
-        const autoExecuteEnabled = vscode.workspace.getConfiguration('chat').get<boolean>('autoExecuteCommands', true);
+        const configuration = vscode.workspace.getConfiguration('chat');
+        const autoExecuteEnabled = configuration.get<boolean>('autoExecuteCommands', false);
         await vscode.commands.executeCommand('setContext', 'chat.autoExecuteCommands', autoExecuteEnabled);
         if (!command || !autoExecuteEnabled) {
             return;
