@@ -143,9 +143,8 @@ export class WeakCachedFunction<TArg, TComputed> {
 
 	public get(arg: TArg): TComputed {
 		const key = this._computeKey(arg) as WeakKey;
-		const cached = this._map.get(key);
-		if (cached !== undefined) {
-			return cached;
+		if (this._map.has(key)) {
+			return this._map.get(key)!;
 		}
 
 		const value = this._fn(arg);

@@ -168,9 +168,8 @@ const alternateCharsCache: Map<number, ArrayLike<number> | undefined> = new Map(
  * @param code The character code to check.
  */
 function getAlternateCodes(code: number): ArrayLike<number> | undefined {
-	const cached = alternateCharsCache.get(code);
-	if (cached !== undefined) {
-		return cached;
+	if (alternateCharsCache.has(code)) {
+		return alternateCharsCache.get(code);
 	}
 
 	// NOTE: This function is written in such a way that it can be extended in

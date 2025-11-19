@@ -862,8 +862,7 @@ export function mapsStrictEqualIgnoreOrder(a: Map<unknown, unknown>, b: Map<unkn
 	}
 
 	for (const [key, value] of a) {
-		const bValue = b.get(key);
-		if (bValue === undefined || bValue !== value) {
+		if (!b.has(key) || b.get(key) !== value) {
 			return false;
 		}
 	}

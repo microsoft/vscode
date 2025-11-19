@@ -1190,9 +1190,8 @@ export namespace ProxyChannel {
 				if (typeof propKey === 'string') {
 
 					// Check for predefined values
-					const predefinedValue = options?.properties?.get(propKey);
-					if (predefinedValue !== undefined) {
-						return predefinedValue;
+					if (options?.properties?.has(propKey)) {
+						return options.properties.get(propKey);
 					}
 
 					// Dynamic Event
