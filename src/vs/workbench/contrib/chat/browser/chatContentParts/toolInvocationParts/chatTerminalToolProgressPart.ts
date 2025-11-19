@@ -26,7 +26,7 @@ import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfiguration, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, type IDetachedTerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, type IDetachedTerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { DetachedProcessInfo } from '../../../../terminal/browser/detachedTerminal.js';
 import { TerminalInstanceColorProvider } from '../../../../terminal/browser/terminalInstance.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
@@ -61,8 +61,6 @@ const CSI_SEQUENCE_REGEX = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
  * Remembers whether a tool invocation was last expanded so state survives virtualization re-renders.
  */
 const expandedStateByInvocation = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
-
-const DEFAULT_ROW_HEIGHT_PX = 16;
 
 const MIN_OUTPUT_HEIGHT = 20;
 
@@ -260,6 +258,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 	) {
 		super(toolInvocation);
 
@@ -310,10 +309,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._decoration.update();
 			this._onDidChangeHeight.fire();
 		}));
-		const font = this._terminalInstance?.xterm?.getFont();
-		const rowHeightPx = font?.charHeight && font?.lineHeight ? font.charHeight * font.lineHeight : DEFAULT_ROW_HEIGHT_PX;
 		const outputViewOptions: ChatTerminalToolOutputSectionOptions = {
-			rowHeightPx,
+			rowHeightPx: this._terminalConfigurationService.config.fontSize,
 			container: elements.output,
 			title: elements.title,
 			displayCommand,
