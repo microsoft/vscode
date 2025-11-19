@@ -74,6 +74,37 @@ declare module 'vscode' {
 		 * MCP server info as it would appear on the `initialize` result in the protocol.
 		 */
 		serverInfo?: unknown;
+
+		/**
+		 * Optional icons for the MCP server as they would appear on the `initialize` result in the protocol.
+		 * Icons provided by the server during initialization take precedence over these statically declared icons.
+		 */
+		icons?: {
+			/**
+			 * A standard URI pointing to an icon resource. May be an HTTP/HTTPS URL or a
+			 * `data:` URI with Base64-encoded image data.
+			 */
+			src: string;
+
+			/**
+			 * Optional MIME type override if the source MIME type is missing or generic.
+			 * For example: `"image/png"`, `"image/jpeg"`, or `"image/svg+xml"`.
+			 */
+			mimeType?: string;
+
+			/**
+			 * Optional string that specifies one or more sizes at which the icon can be used.
+			 * For example: `"48x48"`, `"48x48 96x96"`, or `"any"` for scalable formats like SVG.
+			 */
+			sizes?: string;
+
+			/**
+			 * Optional specifier for the theme this icon is designed for.
+			 * `light` indicates the icon is designed to be used with a light background,
+			 * and `dark` indicates the icon is designed to be used with a dark background.
+			 */
+			theme?: 'light' | 'dark';
+		}[];
 	}
 
 

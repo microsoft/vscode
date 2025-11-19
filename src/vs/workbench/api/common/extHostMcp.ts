@@ -41,6 +41,7 @@ const serverDataValidation = vObj({
 	metadata: vOptionalProp(vObj({
 		capabilities: vOptionalProp(vObjAny()),
 		serverInfo: vOptionalProp(vObjAny()),
+		icons: vOptionalProp(vArray(vObjAny())),
 		tools: vOptionalProp(vArray(vObj({
 			availability: vNumber(),
 			definition: vObjAny(),
@@ -176,10 +177,16 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 				let staticMetadata: McpServerStaticMetadata | undefined;
 				const castAs2 = item as McpStdioServerDefinition | McpHttpServerDefinition;
 				if (isProposedApiEnabled(extension, 'mcpToolDefinitions') && castAs2.metadata) {
+					const serverInfo = castAs2.metadata.serverInfo as MCP.Implementation | undefined;
+					const icons = castAs2.metadata.icons as MCP.Icon[] | undefined;
+
 					staticMetadata = {
 						capabilities: castAs2.metadata.capabilities as MCP.ServerCapabilities,
 						instructions: castAs2.metadata.instructions,
-						serverInfo: castAs2.metadata.serverInfo as MCP.Implementation,
+						serverInfo: serverInfo || icons ? {
+							...serverInfo,
+							icons: icons || serverInfo?.icons,
+						} as MCP.Implementation : undefined,
 						tools: castAs2.metadata.tools?.map(t => ({
 							availability: t.availability === McpToolAvailability.Dynamic ? McpServerStaticToolAvailability.Dynamic : McpServerStaticToolAvailability.Initial,
 							definition: t.definition as MCP.Tool,
