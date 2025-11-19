@@ -3,39 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action2, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { isITextModel } from '../../../../../editor/common/model.js';
+import { localize, localize2 } from '../../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
+import { Action2, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
-import { localize, localize2 } from '../../../../../nls.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { basename, relativePath } from '../../../../../base/common/resources.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
-import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { isLocation } from '../../../../../editor/common/languages.js';
-import { isITextModel } from '../../../../../editor/common/model.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IChatAgentService, IChatAgent, IChatAgentHistoryEntry } from '../../common/chatAgents.js';
+import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ChatModel, IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
+import { ChatModel } from '../../common/chatModel.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
-import { chatSessionResourceToId } from '../../common/chatUri.js';
-import { ChatRequestVariableSet, isChatRequestFileEntry } from '../../common/chatVariableEntries.js';
+import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IChatWidgetService } from '../chat.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 
 export class ContinueChatInSessionAction extends Action2 {
@@ -138,7 +131,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		const icon = this.contextKeyService.contextMatchesRules(ChatContextKeys.remoteJobCreating) ? Codicon.sync : Codicon.indent;
+		const icon = this.contextKeyService.contextMatchesRules(ChatContextKeys.remoteJobCreating) ? Codicon.sync : Codicon.forward;
 		element.classList.add(...ThemeIcon.asClassNameArray(icon));
 
 		return super.renderLabel(element);
@@ -146,13 +139,6 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 }
 
 class CreateRemoteAgentJobAction {
-
-	private static readonly markdownStringTrustedOptions = {
-		isTrusted: {
-			enabledCommands: [] as string[],
-		},
-	};
-
 	constructor() { }
 
 	async run(accessor: ServicesAccessor, continuationTarget: IChatSessionsExtensionPoint) {
@@ -165,7 +151,6 @@ class CreateRemoteAgentJobAction {
 			const widgetService = accessor.get(IChatWidgetService);
 			const chatAgentService = accessor.get(IChatAgentService);
 			const chatService = accessor.get(IChatService);
-			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const editorService = accessor.get(IEditorService);
 
 			const widget = widgetService.lastFocusedWidget;
@@ -234,73 +219,10 @@ class CreateRemoteAgentJobAction {
 				defaultAgent
 			);
 
-			let title: string | undefined = undefined;
-
-			// -- summarize userPrompt if necessary
-			let summarizedUserPrompt: string | undefined = undefined;
-			if (defaultAgent && userPrompt.length > 10_000) {
-				chatModel.acceptResponseProgress(addedRequest, {
-					kind: 'progressMessage',
-					content: new MarkdownString(
-						localize('summarizeUserPromptCreateRemoteJob', "Summarizing user prompt"),
-						CreateRemoteAgentJobAction.markdownStringTrustedOptions,
-					)
-				});
-
-				({ title, summarizedUserPrompt } = await this.generateSummarizedUserPrompt(sessionResource, userPrompt, attachedContext, title, chatAgentService, defaultAgent, summarizedUserPrompt));
-			}
-
-			let summary: string = '';
-
-			// Add selection or cursor information to the summary
-			attachedContext.asArray().forEach(ctx => {
-				if (isChatRequestFileEntry(ctx) && ctx.value && isLocation(ctx.value)) {
-					const range = ctx.value.range;
-					const isSelection = range.startLineNumber !== range.endLineNumber || range.startColumn !== range.endColumn;
-
-					// Get relative path for the file
-					let filePath = ctx.name;
-					const workspaceFolder = workspaceContextService.getWorkspaceFolder(ctx.value.uri);
-
-					if (workspaceFolder && ctx.value.uri) {
-						const relativePathResult = relativePath(workspaceFolder.uri, ctx.value.uri);
-						if (relativePathResult) {
-							filePath = relativePathResult;
-						}
-					}
-
-					if (isSelection) {
-						summary += `User has selected text in file ${filePath} from ${range.startLineNumber}:${range.startColumn} to ${range.endLineNumber}:${range.endColumn}\n`;
-					} else {
-						summary += `User is on file ${filePath} at position ${range.startLineNumber}:${range.startColumn}\n`;
-					}
-				}
-			});
-
-			// -- summarize context if necessary
-			if (defaultAgent && chatRequests.length > 1) {
-				chatModel.acceptResponseProgress(addedRequest, {
-					kind: 'progressMessage',
-					content: new MarkdownString(
-						localize('analyzingChatHistory', "Analyzing chat history"),
-						CreateRemoteAgentJobAction.markdownStringTrustedOptions
-					)
-				});
-				({ title, summary } = await this.generateSummarizedChatHistory(chatRequests, sessionResource, title, chatAgentService, defaultAgent, summary));
-			}
-
-			if (title) {
-				summary += `\nTITLE: ${title}\n`;
-			}
-
 			await chatService.removeRequest(sessionResource, addedRequest.id);
 			await chatService.sendRequest(sessionResource, userPrompt, {
 				agentIdSilent: continuationTargetType,
 				attachedContext: attachedContext.asArray(),
-				chatSummary: {
-					prompt: summarizedUserPrompt,
-					history: summary,
-				},
 			});
 		} catch (e) {
 			console.error('Error creating remote coding agent job', e);
@@ -308,53 +230,5 @@ class CreateRemoteAgentJobAction {
 		} finally {
 			remoteJobCreatingKey.set(false);
 		}
-	}
-
-	private async generateSummarizedChatHistory(chatRequests: IChatRequestModel[], sessionResource: URI, title: string | undefined, chatAgentService: IChatAgentService, defaultAgent: IChatAgent, summary: string) {
-		const historyEntries: IChatAgentHistoryEntry[] = chatRequests
-			.map((req): IChatAgentHistoryEntry => ({
-				request: {
-					sessionId: chatSessionResourceToId(sessionResource),
-					sessionResource,
-					requestId: req.id,
-					agentId: req.response?.agent?.id ?? '',
-					message: req.message.text,
-					command: req.response?.slashCommand?.name,
-					variables: req.variableData,
-					location: ChatAgentLocation.Chat,
-					editedFileEvents: req.editedFileEvents,
-				},
-				response: toChatHistoryContent(req.response!.response.value),
-				result: req.response?.result ?? {}
-			}));
-
-		// TODO: Determine a cutoff point where we stop including earlier history
-		//      For example, if the user has already delegated to a coding agent once,
-		// 		 prefer the conversation afterwards.
-		title ??= await chatAgentService.getChatTitle(defaultAgent.id, historyEntries, CancellationToken.None);
-		summary += await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
-		return { title, summary };
-	}
-
-	private async generateSummarizedUserPrompt(sessionResource: URI, userPrompt: string, attachedContext: ChatRequestVariableSet, title: string | undefined, chatAgentService: IChatAgentService, defaultAgent: IChatAgent, summarizedUserPrompt: string | undefined) {
-		const userPromptEntry: IChatAgentHistoryEntry = {
-			request: {
-				sessionId: chatSessionResourceToId(sessionResource),
-				sessionResource,
-				requestId: generateUuid(),
-				agentId: '',
-				message: userPrompt,
-				command: undefined,
-				variables: { variables: attachedContext.asArray() },
-				location: ChatAgentLocation.Chat,
-				editedFileEvents: [],
-			},
-			response: [],
-			result: {}
-		};
-		const historyEntries = [userPromptEntry];
-		title = await chatAgentService.getChatTitle(defaultAgent.id, historyEntries, CancellationToken.None);
-		summarizedUserPrompt = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
-		return { title, summarizedUserPrompt };
 	}
 }

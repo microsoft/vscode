@@ -932,13 +932,6 @@ export interface IChatSendRequestOptions {
 	 */
 	confirmation?: string;
 
-	/**
-	 * Summary data for chat sessions context
-	 */
-	chatSummary?: {
-		prompt?: string;
-		history?: string;
-	};
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');
@@ -983,6 +976,8 @@ export interface IChatService {
 	removeHistoryEntry(sessionResource: URI): Promise<void>;
 	getChatStorageFolder(): URI;
 	logChatIndex(): void;
+	getLiveSessionItems(): IChatDetail[];
+	getHistorySessionItems(): Promise<IChatDetail[]>;
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;

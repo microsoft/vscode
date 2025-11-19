@@ -373,9 +373,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
+		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine());
 		this._ptyHeuristics.value.handleCommandExecuted(options);
 		this._currentCommand.markExecutedTime();
-		this._ensureCurrentCommandId(this._currentCommand.command ?? this._currentCommand.extractCommandLine());
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {

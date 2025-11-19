@@ -7,6 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
+import { IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -20,6 +21,28 @@ import { QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
 import { QuickInputTreeSorter } from './quickInputTreeSorter.js';
 
 const $ = dom.$;
+const flatHierarchyClass = 'quick-input-tree-flat';
+
+class QuickInputTreeIdentityProvider implements IIdentityProvider<IQuickTreeItem> {
+	private readonly _elementIds = new WeakMap<IQuickTreeItem, string>();
+	private _counter = 0;
+
+	getId(element: IQuickTreeItem): { toString(): string } {
+		let id = element.id;
+		if (id !== undefined) {
+			return id;
+		}
+
+		id = this._elementIds.get(element);
+		if (id !== undefined) {
+			return id;
+		}
+
+		id = `__generated_${this._counter++}`;
+		this._elementIds.set(element, id);
+		return id;
+	}
+}
 
 export class QuickInputTreeController extends Disposable {
 	private readonly _renderer: QuickInputTreeRenderer<IQuickTreeItem>;
@@ -33,7 +56,7 @@ export class QuickInputTreeController extends Disposable {
 	private readonly _onDidChangeCheckboxState = this._register(new Emitter<IQuickTreeCheckboxEvent<IQuickTreeItem>>());
 	readonly onDidChangeCheckboxState = this._onDidChangeCheckboxState.event;
 
-	private readonly _onDidCheckedLeafItemsChange = this._register(new Emitter<ReadonlyArray<IQuickTreeItem>>);
+	private readonly _onDidCheckedLeafItemsChange = this._register(new Emitter<ReadonlyArray<IQuickTreeItem>>());
 	readonly onDidChangeCheckedLeafItems = this._onDidCheckedLeafItemsChange.event;
 
 	private readonly _onLeave = new Emitter<void>();
@@ -78,7 +101,8 @@ export class QuickInputTreeController extends Disposable {
 				expandOnlyOnTwistieClick: true,
 				disableExpandOnSpacebar: true,
 				sorter: this._sorter,
-				filter: this._filter
+				filter: this._filter,
+				identityProvider: new QuickInputTreeIdentityProvider()
 			}
 		));
 		this.registerOnOpenListener();
@@ -132,9 +156,11 @@ export class QuickInputTreeController extends Disposable {
 	}
 
 	setTreeData(treeData: readonly IQuickTreeItem[]): void {
+		let hasNestedItems = false;
 		const createTreeElement = (item: IQuickTreeItem): IObjectTreeElement<IQuickTreeItem> => {
 			let children: IObjectTreeElement<IQuickTreeItem>[] | undefined;
-			if (item.children) {
+			if (item.children && item.children.length > 0) {
+				hasNestedItems = true;
 				children = item.children.map(child => createTreeElement(child));
 				item.checked = getParentNodeState(children);
 			}
@@ -142,12 +168,15 @@ export class QuickInputTreeController extends Disposable {
 				element: item,
 				children,
 				collapsible: !!children,
-				collapsed: item.collapsed ?? ObjectTreeElementCollapseState.PreserveOrExpanded
+				collapsed: item.collapsed ?
+					ObjectTreeElementCollapseState.PreserveOrCollapsed :
+					ObjectTreeElementCollapseState.PreserveOrExpanded
 			};
 		};
 
 		const treeElements = treeData.map(item => createTreeElement(item));
 		this._tree.setChildren(null, treeElements);
+		this._container.classList.toggle(flatHierarchyClass, !hasNestedItems);
 	}
 
 	layout(maxHeight?: number): void {

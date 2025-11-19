@@ -1061,7 +1061,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						} else {
 							alreadyRenderedPart.domNode.remove();
 						}
-					} else if (newPart.domNode) {
+					} else if (newPart.domNode && !newPart.domNode.parentElement) {
+						// Only append if not already attached somewhere else (e.g. inside a thinking wrapper)
 						templateData.value.appendChild(newPart.domNode);
 					}
 
