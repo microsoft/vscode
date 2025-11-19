@@ -319,6 +319,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 				) {
 					hideAfterTimeout();
 				} else {
+					item.close();							// ensures promise return of 'undefined' for purged notifications
 					this.removeToast(item);
 				}
 			}, NotificationsToasts.PURGE_TIMEOUT[item.severity]);
