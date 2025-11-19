@@ -23,7 +23,7 @@ import '../media/chatTerminalToolProgressPart.css';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
-import { ChatConfiguration, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../common/constants.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, type IDetachedTerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -223,7 +223,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
 	private readonly _decoration: TerminalCommandDecoration;
-	private readonly _commandStreamingListener: MutableDisposable<DisposableStore>;
+	private readonly _commandStreamingListener: MutableDisposable<IDisposable>;
 	private _streamingCommand: ITerminalCommand | undefined;
 	private _trackedCommandId: string | undefined;
 	private _streamingQueue: Promise<void>;
@@ -284,7 +284,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			getIconElement: () => undefined,
 			getResolvedCommand: () => this._getResolvedCommand()
 		}));
-		this._commandStreamingListener = this._register(new MutableDisposable<DisposableStore>());
+		this._commandStreamingListener = this._register(new MutableDisposable<IDisposable>());
 		this._streamingCommand = undefined;
 		this._trackedCommandId = this._terminalData.terminalCommandId ?? this._storedCommandId;
 		this._streamingQueue = Promise.resolve();
@@ -554,11 +554,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					if (!currentCommand) {
 						return;
 					}
-					this._queueStreaming(terminalInstance, currentCommand).then(() => {
-						if (capturing && this._outputView.isOutputTruncated) {
-							capturing = false;
-						}
-					});
+					this._queueStreaming(terminalInstance, currentCommand);
 				}));
 			}));
 
@@ -817,9 +813,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _detachedTerminal: MutableDisposable<IDetachedTerminalInstance>;
 	private _outputResizeObserver: ResizeObserver | undefined;
 	private _renderedOutputHeight: number | undefined;
-	private _lastOutputTruncated = false;
-	private _bufferedLineCount = 0;
-	private _currentLineCounted = false;
 	private readonly _outputAriaLabelBase: string;
 	private _needsReplay = false;
 	private _isStreaming = false;
@@ -873,9 +866,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const storedOutput = this._terminalData.terminalCommandOutput;
 		if (storedOutput?.text) {
 			this._streamBuffer = [storedOutput.text];
-			this._resetLineState();
-			this._updateLineState(storedOutput.text);
-			this._lastOutputTruncated = storedOutput.truncated ?? false;
 			this._needsReplay = true;
 		}
 		this._setStatusMessages();
@@ -948,41 +938,21 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (!bufferText) {
 			return `${commandHeader}\n${localize('chat.terminalOutputEmpty', 'No output was produced by the command.')}`;
 		}
-		let result = `${commandHeader}\n${bufferText}`;
-		if (this._lastOutputTruncated) {
-			result += `\n\n${localize('chat.terminalOutputTruncated', 'Output truncated to first {0} lines.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES)}`;
-		}
-		return result;
+		return `${commandHeader}\n${bufferText}`;
 	}
 
 	public appendStreamingData(data: string): boolean {
-		// Streams raw chunks into the preview buffer, enforcing the configured line limit and
-		// mirroring any appended data into the detached xterm when it's live.
-		if (!data || this._lastOutputTruncated) {
-			return this._lastOutputTruncated;
+		// Streams raw chunks into the preview buffer and mirrors any appended data into the detached xterm when it's live.
+		if (!data) {
+			return false;
 		}
 		this._isStreaming = true;
-		const storedOutput = this._terminalData.terminalCommandOutput ?? (this._terminalData.terminalCommandOutput = { text: '', truncated: false });
-		const maxLines = CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES;
-		const remainingLines = Math.max(0, maxLines - this._bufferedLineCount);
-		const trimmed = this._trimToRemainingLines(data, remainingLines);
-		const wasTrimmed = trimmed.length < data.length;
-		if (!trimmed) {
-			this._lastOutputTruncated = true;
-			this._isStreaming = false;
-			storedOutput.truncated = true;
-			const combined = this._streamBuffer.join('');
-			storedOutput.text = combined;
-			this._setStatusMessages();
-			this._updateTerminalVisibility();
-			return true;
-		}
-		this._streamBuffer.push(trimmed);
-		this._updateLineState(trimmed);
-		storedOutput.text += trimmed;
+		const storedOutput = this._terminalData.terminalCommandOutput ?? (this._terminalData.terminalCommandOutput = { text: '' });
+		this._streamBuffer.push(data);
+		storedOutput.text += data;
 
 		if (this.isExpanded && this._detachedTerminal.value) {
-			this._detachedTerminal.value.xterm.write(trimmed);
+			this._detachedTerminal.value.xterm.write(data);
 			this._scrollOutputToBottom();
 		} else {
 			this._needsReplay = true;
@@ -991,22 +961,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._scheduleOutputRelayout();
 		}
 		this._updateTerminalVisibility();
-
-		if (wasTrimmed || this._bufferedLineCount >= maxLines) {
-			this._lastOutputTruncated = true;
-			this._isStreaming = false;
-			storedOutput.truncated = true;
-			const combined = this._streamBuffer.join('');
-			storedOutput.text = combined;
-			this._setStatusMessages();
-			this._updateTerminalVisibility();
-			return true;
-		}
-		storedOutput.truncated = false;
-		this._updateTerminalVisibility();
-		const combined = this._streamBuffer.join('');
-		storedOutput.text = combined;
-		storedOutput.truncated = this._lastOutputTruncated;
 		return false;
 	}
 
@@ -1043,14 +997,11 @@ class ChatTerminalToolOutputSection extends Disposable {
 		// surfaced as command output.
 		this._isStreaming = false;
 		this._streamBuffer = [];
-		this._resetLineState();
-		this._lastOutputTruncated = false;
 		this._lastRawSnapshot = undefined;
 		this._needsReplay = false;
 		this._disposeDetachedTerminal();
-		const storedOutput = this._terminalData.terminalCommandOutput ?? (this._terminalData.terminalCommandOutput = { text: '', truncated: false });
+		const storedOutput = this._terminalData.terminalCommandOutput ?? (this._terminalData.terminalCommandOutput = { text: '' });
 		storedOutput.text = '';
-		storedOutput.truncated = false;
 		this._setStatusMessages();
 		this._updateTerminalVisibility();
 		this._scrollable.scanDomNode();
@@ -1059,12 +1010,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _replaceStreamingDataFromRaw(snapshot: string): void {
 		// Rebuilds the preview buffer from scratch using a serialized snapshot. This is used when
 		// the diff path cannot determine an incremental change.
-		const storedOutput = this._terminalData.terminalCommandOutput ?? (this._terminalData.terminalCommandOutput = { text: '', truncated: false });
+		const storedOutput = this._terminalData.terminalCommandOutput ?? (this._terminalData.terminalCommandOutput = { text: '' });
 		this._streamBuffer = [];
-		this._resetLineState();
-		this._lastOutputTruncated = false;
 		storedOutput.text = '';
-		storedOutput.truncated = false;
 
 		const hasDetached = !!(this._detachedTerminal.value && this.isExpanded);
 		if (hasDetached) {
@@ -1106,14 +1054,12 @@ class ChatTerminalToolOutputSection extends Disposable {
 		// Resets streaming state just before a command starts emitting fresh data.
 		this._isStreaming = true;
 		this._streamBuffer = [];
-		this._resetLineState();
-		this._lastOutputTruncated = false;
 		this._lastRawSnapshot = undefined;
 		this._needsReplay = true;
 		if (this._detachedTerminal.value) {
 			this._clearDetachedTerminal();
 		}
-		this._terminalData.terminalCommandOutput = { text: '', truncated: false };
+		this._terminalData.terminalCommandOutput = { text: '' };
 		this._setSupplementalMessages([]);
 		this._scrollable.scanDomNode();
 		this._updateTerminalVisibility();
@@ -1127,10 +1073,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	public hasRenderableOutput(): boolean {
 		return this._hasRenderableOutput();
-	}
-
-	public get isOutputTruncated(): boolean {
-		return this._lastOutputTruncated;
 	}
 
 	private _hasRenderableOutput(): boolean {
@@ -1265,12 +1207,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		return Math.max(effectiveLines * this._rowHeightPx + infoHeight, this._rowHeightPx);
 	}
 
-	private _countNonEmptyStreamLines(): number {
-		if (!this._streamBuffer.length) {
-			return 0;
-		}
-		return Math.min(this._bufferedLineCount, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES);
-	}
 
 	private async _ensureDetachedTerminalInstance(): Promise<IDetachedTerminalInstance | undefined> {
 		if (!this._shouldRenderTerminal()) {
@@ -1317,9 +1253,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (!hasOutput && !this._isStreaming) {
 			messages.push(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
 		}
-		if (this._lastOutputTruncated) {
-			messages.push(localize('chat.terminalOutputTruncated', 'Output truncated to first {0} lines.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES));
-		}
 		this._setSupplementalMessages(messages);
 	}
 
@@ -1341,64 +1274,24 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._scrollable.scanDomNode();
 	}
 
-	private _resetLineState(): void {
-		this._bufferedLineCount = 0;
-		this._currentLineCounted = false;
-	}
-
-	private _updateLineState(chunk: string): void {
-		if (!chunk) {
-			return;
+	private _countNonEmptyStreamLines(): number {
+		if (!this._streamBuffer.length) {
+			return 0;
 		}
-		const { lineCount, lineHasContent } = this._processLineState(chunk);
-		this._bufferedLineCount = lineCount;
-		this._currentLineCounted = lineHasContent;
-	}
-
-	private _trimToRemainingLines(data: string, remainingLines: number): string {
-		if (!data) {
-			return '';
+		const concatenated = this._streamBuffer.join('');
+		const withoutCsi = concatenated.replace(CSI_SEQUENCE_REGEX, '');
+		const withoutAnsi = removeAnsiEscapeCodes(withoutCsi);
+		const sanitized = withoutAnsi.replace(/\r/g, '');
+		if (!sanitized) {
+			return 0;
 		}
-		const { processedLength } = this._processLineState(data, remainingLines);
-		return data.slice(0, processedLength);
-	}
-
-	private _processLineState(chunk: string, maxAdditionalLines?: number): { processedLength: number; lineCount: number; lineHasContent: boolean } {
-		let lineCount = this._bufferedLineCount;
-		let lineHasContent = this._currentLineCounted;
-		const enforceLimit = typeof maxAdditionalLines === 'number';
-		let linesRemaining = enforceLimit ? maxAdditionalLines! : Number.POSITIVE_INFINITY;
-		for (let i = 0; i < chunk.length; i++) {
-			const code = chunk.charCodeAt(i);
-			if (code === 10 /* \n */) {
-				if (enforceLimit && !lineHasContent && linesRemaining <= 0) {
-					return { processedLength: i, lineCount, lineHasContent, };
-				}
-				lineHasContent = false;
-				continue;
-			}
-			if (code === 13 /* \r */) {
-				continue;
-			}
-			const char = chunk.charAt(i);
-			if (!lineHasContent && char.trim().length === 0) {
-				if (enforceLimit && linesRemaining <= 0) {
-					return { processedLength: i, lineCount, lineHasContent };
-				}
-				continue;
-			}
-			if (!lineHasContent) {
-				if (enforceLimit && linesRemaining <= 0) {
-					return { processedLength: i, lineCount, lineHasContent };
-				}
-				lineHasContent = true;
-				lineCount++;
-				if (enforceLimit) {
-					linesRemaining--;
-				}
+		let count = 0;
+		for (const line of sanitized.split('\n')) {
+			if (line.trim().length > 0) {
+				count++;
 			}
 		}
-		return { processedLength: chunk.length, lineCount, lineHasContent };
+		return count;
 	}
 }
 
