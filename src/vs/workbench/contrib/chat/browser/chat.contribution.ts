@@ -913,7 +913,6 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 	static readonly ID = 'workbench.contrib.chatAgentActions';
 
 	private readonly _modeActionDisposables = new DisposableMap<string>();
-	private _previousCustomModeIds = new Set<string>();
 
 	constructor(
 		@IChatModeService private readonly chatModeService: IChatModeService,
@@ -924,7 +923,6 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 		const { custom } = this.chatModeService.getModes();
 		for (const mode of custom) {
 			this._registerModeAction(mode);
-			this._previousCustomModeIds.add(mode.id);
 		}
 
 		// Listen for custom mode changes by tracking snapshots
@@ -935,19 +933,17 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 			// Register new modes
 			for (const mode of custom) {
 				currentModeIds.add(mode.id);
-				if (!this._previousCustomModeIds.has(mode.id)) {
+				if (!this._modeActionDisposables.has(mode.id)) {
 					this._registerModeAction(mode);
 				}
 			}
 
 			// Remove modes that no longer exist
-			for (const modeId of this._previousCustomModeIds) {
+			for (const modeId of this._modeActionDisposables.keys()) {
 				if (!currentModeIds.has(modeId)) {
 					this._modeActionDisposables.deleteAndDispose(modeId);
 				}
 			}
-
-			this._previousCustomModeIds = currentModeIds;
 		}));
 	}
 
