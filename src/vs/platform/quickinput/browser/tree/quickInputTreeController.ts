@@ -7,6 +7,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { RenderIndentGuides } from '../../../../base/browser/ui/tree/abstractTree.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../base/browser/ui/tree/tree.js';
+import { IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
@@ -20,6 +21,27 @@ import { QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
 import { QuickInputTreeSorter } from './quickInputTreeSorter.js';
 
 const $ = dom.$;
+
+class QuickInputTreeIdentityProvider implements IIdentityProvider<IQuickTreeItem> {
+	private readonly _elementIds = new WeakMap<IQuickTreeItem, string>();
+	private _counter = 0;
+
+	getId(element: IQuickTreeItem): { toString(): string } {
+		let id = element.id;
+		if (id !== undefined) {
+			return id;
+		}
+
+		id = this._elementIds.get(element);
+		if (id !== undefined) {
+			return id;
+		}
+
+		id = `__generated_${this._counter++}`;
+		this._elementIds.set(element, id);
+		return id;
+	}
+}
 
 export class QuickInputTreeController extends Disposable {
 	private readonly _renderer: QuickInputTreeRenderer<IQuickTreeItem>;
@@ -78,7 +100,8 @@ export class QuickInputTreeController extends Disposable {
 				expandOnlyOnTwistieClick: true,
 				disableExpandOnSpacebar: true,
 				sorter: this._sorter,
-				filter: this._filter
+				filter: this._filter,
+				identityProvider: new QuickInputTreeIdentityProvider()
 			}
 		));
 		this.registerOnOpenListener();
@@ -142,7 +165,9 @@ export class QuickInputTreeController extends Disposable {
 				element: item,
 				children,
 				collapsible: !!children,
-				collapsed: item.collapsed ?? ObjectTreeElementCollapseState.PreserveOrExpanded
+				collapsed: item.collapsed ?
+					ObjectTreeElementCollapseState.PreserveOrCollapsed :
+					ObjectTreeElementCollapseState.PreserveOrExpanded
 			};
 		};
 
