@@ -660,23 +660,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	private _githubToVSCodeToolMap: Record<string, string> = {
 		[GithubCopilotToolReference.shell]: VSCodeToolReference.runCommands,
 		[GithubCopilotToolReference.customAgent]: VSCodeToolReference.runSubagent,
-		'github/*': 'github/github-mcp-server/*',
-		'playwright/*': 'microsoft/playwright-mcp/*',
 	};
-	private _githubPrefixToVSCodePrefix = [['github', 'github/github-mcp-server'], ['playwright', 'microsoft/playwright-mcp']] as const;
 
 	mapGithubToolName(name: string): string {
 		const mapped = this._githubToVSCodeToolMap[name];
 		if (mapped) {
 			return mapped;
 		}
-		for (const [fromPrefix, toPrefix] of this._githubPrefixToVSCodePrefix) {
-			const regexp = new RegExp(`^${fromPrefix}(/[^/]+)$`);
-			const m = name.match(regexp);
-			if (m) {
-				return toPrefix + m[1];
-			}
-		}
+		// MCP tools from GitHub already use the correct format (e.g., "github/issue_read")
+		// where the prefix matches the server definition label, so no additional mapping is needed
 		return name;
 	}
 
