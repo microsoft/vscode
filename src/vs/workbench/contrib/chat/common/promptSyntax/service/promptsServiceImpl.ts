@@ -359,7 +359,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		bucket.set(uri, entryPromise);
 
 		const flushCachesIfRequired = () => {
-			this.cachedFileLocations[PromptsType.agent] = undefined;
+			this.cachedFileLocations[type] = undefined;
 			switch (type) {
 				case PromptsType.agent:
 					this.cachedCustomAgents.refresh();
