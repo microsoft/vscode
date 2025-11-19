@@ -42,6 +42,7 @@ import { IChatService } from '../../../common/chatService.js';
 import { IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
+import { IMarshalledChatSessionContext } from '../../actions/chatSessionActions.js';
 import { IChatWidgetService } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
@@ -503,7 +504,7 @@ export class SessionsViewPane extends ViewPane {
 		const contextKeyService = this.contextKeyService.createOverlay(contextOverlay);
 
 		// Create marshalled context for command execution
-		const marshalledSession = {
+		const marshalledSession: IMarshalledChatSessionContext = {
 			session: session,
 			$mid: MarshalledId.ChatSessionContext
 		};

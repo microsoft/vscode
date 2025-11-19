@@ -232,7 +232,7 @@ export class AgentSessionsViewFilter extends Disposable {
 			return true;
 		}
 
-		if (this.excludes.providers.includes(session.provider.chatSessionType)) {
+		if (this.excludes.providers.includes(session.providerType)) {
 			return true;
 		}
 

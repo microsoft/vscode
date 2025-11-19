@@ -13,9 +13,7 @@ import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js'
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { GroupIdentifier } from '../../../common/editor.js';
-import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
+import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
@@ -56,8 +54,8 @@ export interface IChatWidgetService {
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
-	openSession(sessionResource: URI, target?: ChatEditorGroupType, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
-	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | ChatEditorGroupType, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 
 	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
 
@@ -69,7 +67,6 @@ export interface IChatWidgetService {
 	register(newWidget: IChatWidget): IDisposable;
 }
 
-export type ChatEditorGroupType = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE;
 export const ChatViewPaneTarget = Symbol('ChatViewPaneTarget');
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
