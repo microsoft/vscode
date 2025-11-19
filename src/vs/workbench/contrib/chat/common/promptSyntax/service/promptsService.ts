@@ -89,9 +89,14 @@ export interface ICustomAgent {
 	readonly uri: URI;
 
 	/**
-	 * Name of the custom agent as used in prompt files or contexts
+	 * Name of the custom agent as used in prompt files or contexts (ID derived from filename)
 	 */
 	readonly name: string;
+
+	/**
+	 * Display name of the custom agent (from YAML header)
+	 */
+	readonly displayName?: string;
 
 	/**
 	 * Description of the agent

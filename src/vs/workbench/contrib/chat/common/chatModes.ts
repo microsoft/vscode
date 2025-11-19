@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
@@ -264,6 +264,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 
 export class CustomChatMode implements IChatMode {
 	private readonly _nameObservable: ISettableObservable<string>;
+	private readonly _displayNameObservable: ISettableObservable<string | undefined>;
 	private readonly _descriptionObservable: ISettableObservable<string | undefined>;
 	private readonly _customToolsObservable: ISettableObservable<readonly string[] | undefined>;
 	private readonly _modeInstructions: ISettableObservable<IChatModeInstructions>;
@@ -309,7 +310,7 @@ export class CustomChatMode implements IChatMode {
 	}
 
 	get label(): IObservable<string> {
-		return this.name;
+		return derived(reader => this._displayNameObservable.read(reader) ?? this._nameObservable.read(reader));
 	}
 
 	get handOffs(): IObservable<readonly IHandOff[] | undefined> {
@@ -331,6 +332,7 @@ export class CustomChatMode implements IChatMode {
 	) {
 		this.id = customChatMode.uri.toString();
 		this._nameObservable = observableValue('name', customChatMode.name);
+		this._displayNameObservable = observableValue('displayName', customChatMode.displayName);
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);
 		this._modelObservable = observableValue('model', customChatMode.model);
@@ -348,6 +350,7 @@ export class CustomChatMode implements IChatMode {
 	updateData(newData: ICustomAgent): void {
 		transaction(tx => {
 			this._nameObservable.set(newData.name, tx);
+			this._displayNameObservable.set(newData.displayName, tx);
 			this._descriptionObservable.set(newData.description, tx);
 			this._customToolsObservable.set(newData.tools, tx);
 			this._modelObservable.set(newData.model, tx);

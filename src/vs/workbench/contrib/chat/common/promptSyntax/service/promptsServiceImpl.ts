@@ -247,7 +247,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	private asChatPromptSlashCommand(parsedPromptFile: ParsedPromptFile, promptPath: IPromptPath): IChatPromptSlashCommand {
 		return {
-			name: parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri),
+			name: getCleanPromptName(promptPath.uri),
 			description: parsedPromptFile?.header?.description ?? promptPath.description,
 			argumentHint: parsedPromptFile?.header?.argumentHint,
 			parsedPromptFile,
@@ -315,14 +315,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 					metadata,
 				} satisfies IAgentInstructions;
 
-				const name = ast.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
+				// ID is always based on the filename
+				const name = getCleanPromptName(uri);
+
+				// Display name comes from header's displayName or name field
+				const displayName = ast.header?.displayName ?? ast.header?.name;
 
 				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
 				if (!ast.header) {
-					return { uri, name, agentInstructions, source };
+					return { uri, name, displayName, agentInstructions, source };
 				}
 				const { description, model, tools, handOffs, argumentHint, target } = ast.header;
-				return { uri, name, description, model, tools, handOffs, argumentHint, target, agentInstructions, source };
+				return { uri, name, displayName, description, model, tools, handOffs, argumentHint, target, agentInstructions, source };
 			})
 		);
 		return customAgents;
