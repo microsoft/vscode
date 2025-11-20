@@ -234,6 +234,7 @@ class ChatTerminalStreamingModel {
 	private _lastSnapshotPrefixLength = 0;
 	private _snapshotPrefixSample: string | undefined;
 	private _needsReplay = false;
+	private _hasRenderableOutput = false;
 
 	constructor(
 		private readonly _terminalData: IChatTerminalToolInvocationData,
@@ -248,6 +249,7 @@ class ChatTerminalStreamingModel {
 		storedOutput.text = text;
 		this._streamBuffer = [text];
 		this._needsReplay = true;
+		this._hasRenderableOutput = text.length > 0;
 		this._logService.trace('chatTerminalStreaming.hydrate', { length: text.length });
 	}
 
@@ -258,6 +260,7 @@ class ChatTerminalStreamingModel {
 		this._lastSnapshotPrefixLength = 0;
 		this._snapshotPrefixSample = undefined;
 		this._needsReplay = true;
+		this._hasRenderableOutput = false;
 		this._terminalData.terminalCommandOutput = { text: '' };
 		this._logService.trace('chatTerminalStreaming.begin');
 	}
@@ -376,15 +379,12 @@ class ChatTerminalStreamingModel {
 		this._needsReplay = false;
 		const storedOutput = this._terminalData.terminalCommandOutput ?? (this._terminalData.terminalCommandOutput = { text: '' });
 		storedOutput.text = '';
+		this._hasRenderableOutput = false;
 		this._logService.trace('chatTerminalStreaming.applyEmptyOutput');
 	}
 
 	public hasRenderableOutput(): boolean {
-		return this._streamBuffer.some(chunk => {
-			const withoutCsi = chunk.replace(CSI_SEQUENCE_REGEX, '');
-			const withoutAnsi = removeAnsiEscapeCodes(withoutCsi);
-			return withoutAnsi.replace(/\r/g, '').trim().length > 0;
-		});
+		return this._hasRenderableOutput;
 	}
 
 	public countRenderableLines(): number {
@@ -443,6 +443,7 @@ class ChatTerminalStreamingModel {
 			this._streamBuffer.push(snapshot);
 			storedOutput.text = snapshot;
 		}
+		this._hasRenderableOutput = storedOutput.text.length > 0;
 		this._needsReplay = true;
 		this._logService.trace('chatTerminalStreaming.replace', { snapshotLength: snapshot.length });
 	}
@@ -453,6 +454,7 @@ class ChatTerminalStreamingModel {
 		}
 		const storedOutput = this._terminalData.terminalCommandOutput ?? (this._terminalData.terminalCommandOutput = { text: '' });
 		if (!storedOutput.text) {
+			this._hasRenderableOutput = false;
 			return;
 		}
 		if (chars >= storedOutput.text.length) {
@@ -472,8 +474,13 @@ class ChatTerminalStreamingModel {
 				}
 			}
 		}
+		this._hasRenderableOutput = storedOutput.text.length > 0;
 		this._needsReplay = true;
 		this._logService.trace('chatTerminalStreaming.truncate', { chars, bufferChunks: this._streamBuffer.length });
+	}
+
+	public markRenderableOutput(): void {
+		this._hasRenderableOutput = true;
 	}
 
 	private _computeSnapshotOverlap(previous: string, snapshot: string): number {
@@ -653,7 +660,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._focusAction.value?.refreshKeybindingTooltip();
 			this._showOutputAction.value?.refreshKeybindingTooltip();
 		}));
-
 
 		const actionBarEl = h('.chat-terminal-action-bar@actionBar');
 		elements.title.append(actionBarEl.root);
@@ -904,6 +910,29 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					}
 					this._queueStreaming(terminalInstance, currentCommand);
 				}));
+				streamingStore.add(terminalInstance.onLineData(() => {
+					if (!capturing || streamingStore.isDisposed) {
+						return;
+					}
+					const latestCommand = this._streamingCommand;
+					if (!latestCommand || latestCommand !== command) {
+						return;
+					}
+					this._outputView.handleCompletedTerminalLine(terminalInstance, latestCommand);
+				}));
+				const xterm = terminalInstance.xterm as unknown as XtermTerminal | undefined;
+				if (xterm) {
+					streamingStore.add(xterm.raw.onCursorMove(() => {
+						if (!capturing || streamingStore.isDisposed) {
+							return;
+						}
+						const latestCommand = this._streamingCommand;
+						if (!latestCommand || latestCommand !== command) {
+							return;
+						}
+						this._outputView.handleCursorRenderableCheck(terminalInstance, latestCommand);
+					}));
+				}
 			}));
 
 			store.add(commandDetection.onCommandFinished(async command => {
@@ -1176,9 +1205,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 		const endMarkerForRange = this._getStreamingRangeEndMarker(startMarker, endMarker, force);
 		let data = await xterm.getRangeAsVT(startMarker, endMarkerForRange);
-		if (force) {
-			data = this._stripTrailingPrompt(data);
-		}
+		data = this._stripTrailingPrompt(data);
 		if (this._store.isDisposed || (!force && this._streamingCommand !== command) || !data || data.length === 0) {
 			if (!data || data.length === 0) {
 				this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.waitForData', { commandId: command.id, force });
@@ -1317,6 +1344,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _renderedOutputHeight: number | undefined;
 	private readonly _outputAriaLabelBase: string;
 	private readonly _streaming: ChatTerminalStreamingModel;
+	private _encounteredRenderableOutput = false;
 	private _xtermElement: HTMLElement | undefined;
 
 	private readonly _onDidFocusEmitter = new Emitter<void>();
@@ -1365,6 +1393,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 		this._streaming = new ChatTerminalStreamingModel(this._terminalData, this._logService);
 		this._streaming.hydrateFromStoredOutput(this._terminalData.terminalCommandOutput?.text);
+		this._encounteredRenderableOutput = this._streaming.hasRenderableOutput();
 		this._setStatusMessages();
 		this._updateTerminalVisibility();
 	}
@@ -1444,6 +1473,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return false;
 		}
 		this._mirrorAppendedData(data);
+		this._ensureRenderableFlagFromStream();
 		return true;
 	}
 
@@ -1451,18 +1481,25 @@ class ChatTerminalToolOutputSection extends Disposable {
 		// Applies a serialized VT snapshot captured from the command markers. We try to diff the
 		// new snapshot against the previously seen content to avoid costly full replays.
 		const result = this._streaming.applySnapshot(snapshot);
+		let contentMutated = false;
 		switch (result.kind) {
 			case 'noop':
 				return;
 			case 'append':
 				this._mirrorAppendedData(result.appended);
-				return;
+				contentMutated = true;
+				break;
 			case 'truncate':
 				this._handleTruncatedStreamingSnapshot();
-				return;
+				contentMutated = true;
+				break;
 			case 'replace':
 				this._handleReplacedStreamingSnapshot();
-				return;
+				contentMutated = true;
+				break;
+		}
+		if (contentMutated) {
+			this._ensureRenderableFlagFromStream();
 		}
 	}
 
@@ -1470,10 +1507,31 @@ class ChatTerminalToolOutputSection extends Disposable {
 		// Resets the preview state when the command produced no output so that prompts are not
 		// surfaced as command output.
 		this._streaming.applyEmptyOutput();
+		this._encounteredRenderableOutput = false;
 		this._disposeDetachedTerminal();
 		this._setStatusMessages();
 		this._updateTerminalVisibility();
 		this._scrollable.scanDomNode();
+	}
+
+	public handleCompletedTerminalLine(instance: ITerminalInstance, command: ITerminalCommand): void {
+		if (this._encounteredRenderableOutput) {
+			return;
+		}
+		if (!this._cursorLineHasRenderableContent(instance, command, -1)) {
+			return;
+		}
+		this._markRenderableOutput();
+	}
+
+	public handleCursorRenderableCheck(instance: ITerminalInstance, command: ITerminalCommand): void {
+		if (this._encounteredRenderableOutput) {
+			return;
+		}
+		if (!this._cursorLineHasRenderableContent(instance, command)) {
+			return;
+		}
+		this._markRenderableOutput();
 	}
 
 	private _mirrorAppendedData(data: string): void {
@@ -1558,6 +1616,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	public beginStreaming(): void {
 		// Resets streaming state just before a command starts emitting fresh data.
 		this._streaming.beginStreaming();
+		this._encounteredRenderableOutput = false;
 		if (this._detachedTerminal.value) {
 			this._clearDetachedTerminal();
 		}
@@ -1573,11 +1632,11 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	public hasRenderableOutput(): boolean {
-		return this._streaming.hasRenderableOutput();
+		return this._encounteredRenderableOutput || this._streaming.hasRenderableOutput();
 	}
 
 	private _shouldRenderTerminal(): boolean {
-		return this._streaming.shouldRender();
+		return this._encounteredRenderableOutput || this._streaming.shouldRender();
 	}
 
 	private _updateTerminalVisibility(): void {
@@ -1748,7 +1807,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const messages: string[] = [];
 		const storedOutput = this._terminalData.terminalCommandOutput?.text ?? '';
 		const storedHasContent = removeAnsiEscapeCodes(storedOutput).replace(/\r/g, '').trim().length > 0;
-		const hasOutput = storedHasContent || this._streaming.hasRenderableOutput();
+		const hasOutput = storedHasContent || this._encounteredRenderableOutput || this._streaming.hasRenderableOutput();
 		const showEmptyMessage = !hasOutput && !this._streaming.isStreaming;
 		if (showEmptyMessage) {
 			this._logService.trace('chatTerminalOutput.statusMessage.emptyOutput');
@@ -1795,6 +1854,74 @@ class ChatTerminalToolOutputSection extends Disposable {
 			}
 		}
 		return count;
+	}
+
+	private _markRenderableOutput(): void {
+		if (this._encounteredRenderableOutput) {
+			return;
+		}
+		this._streaming.markRenderableOutput();
+		this._encounteredRenderableOutput = true;
+		this._setStatusMessages();
+		this._updateTerminalVisibility();
+	}
+
+	private _cursorLineHasRenderableContent(instance: ITerminalInstance, command: ITerminalCommand, relativeLineOffset = 0): boolean {
+		const xterm = instance.xterm as unknown as XtermTerminal | undefined;
+		if (!xterm) {
+			return false;
+		}
+		const startMarker = this._resolveCommandStartMarker(command);
+		if (!startMarker || startMarker.line === -1) {
+			return false;
+		}
+		const buffer = xterm.raw.buffer.active;
+		const cursorLine = buffer.baseY + buffer.cursorY;
+		const targetLine = cursorLine + relativeLineOffset;
+		if (targetLine < 0 || targetLine < startMarker.line) {
+			return false;
+		}
+		const line = buffer.getLine(targetLine);
+		if (!line) {
+			return false;
+		}
+		let segment = line.translateToString(true);
+		if (!segment) {
+			return false;
+		}
+		if (targetLine === startMarker.line) {
+			const executedColumn = command.executedX ?? 0;
+			segment = executedColumn < segment.length ? segment.slice(executedColumn) : '';
+		}
+		if (!segment) {
+			return false;
+		}
+		if (relativeLineOffset === 0) {
+			const cursorX = buffer.cursorX;
+			segment = cursorX < segment.length ? segment.slice(0, cursorX) : segment;
+		}
+		return segment.replace(/\r/g, '').trim().length > 0;
+	}
+
+	private _ensureRenderableFlagFromStream(): void {
+		if (this._encounteredRenderableOutput) {
+			return;
+		}
+		if (this._streaming.hasRenderableOutput()) {
+			this._markRenderableOutput();
+		}
+	}
+
+	private _resolveCommandStartMarker(command: ITerminalCommand): IXtermMarker | undefined {
+		type CommandMarkers = {
+			executedMarker?: IXtermMarker;
+			commandExecutedMarker?: IXtermMarker;
+			marker?: IXtermMarker;
+		};
+		const candidate = command as unknown as CommandMarkers;
+		return candidate.executedMarker
+			?? candidate.commandExecutedMarker
+			?? (command.marker as unknown as IXtermMarker | undefined);
 	}
 }
 
