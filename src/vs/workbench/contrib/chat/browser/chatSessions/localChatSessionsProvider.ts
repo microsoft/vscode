@@ -154,7 +154,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				status,
 				provider: this,
 				timing: {
-					startTime: startTime ?? 0
+					startTime: startTime ?? Date.now(), // TODO@osortega this is not so good
+					endTime
 				},
 				statistics
 			};
