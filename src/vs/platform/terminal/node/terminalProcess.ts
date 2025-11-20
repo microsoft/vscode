@@ -243,6 +243,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			}
 		}
 
+		if (this.shellLaunchConfig.hideFromUser) {
+			this.shellLaunchConfig.executable = 'srt';
+		}
+
 		try {
 			const injectionConfig: IShellIntegrationConfigInjection | undefined = injection.type === 'injection' ? injection : undefined;
 			await this.setupPtyProcess(this.shellLaunchConfig, this._ptyOptions, injectionConfig);

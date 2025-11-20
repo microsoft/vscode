@@ -139,6 +139,10 @@ export async function getShellIntegrationInjection(
 			if (!newArgs) {
 				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
 			}
+
+			if (shellLaunchConfig.hideFromUser) {
+				newArgs = ['bash', ...newArgs]; // Shallow clone the array to avoid setting the default array
+			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
@@ -160,6 +164,9 @@ export async function getShellIntegrationInjection(
 			}
 			if (!newArgs) {
 				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
+			}
+			if (shellLaunchConfig.hideFromUser) {
+				newArgs = ['bash', ...newArgs]; // Shallow clone the array to avoid setting the default array
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);

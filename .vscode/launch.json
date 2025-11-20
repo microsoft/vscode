@@ -331,6 +331,10 @@
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code-server.bat",
 			},
+			"args": [
+				"--inspect-ptyhost=5877",
+			],
+			"outputCapture": "std",
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
