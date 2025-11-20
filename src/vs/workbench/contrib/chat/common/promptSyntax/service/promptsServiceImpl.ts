@@ -213,7 +213,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const cachedFiles = await this.fileService.resolve(customAgentsFolder);
 				if (cachedFiles.children) {
 					allUris = cachedFiles.children
-						.filter(child => !child.isDirectory && child.name.endsWith('.prompt.md'))
+						.filter(child => !child.isDirectory && child.name.endsWith('.agent.md'))
 						.map(child => child.resource);
 				}
 			}
@@ -231,7 +231,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					}
 
 					for (const agent of agents) {
-						const agentUri = joinPath(customAgentsFolder, `${agent.name}.prompt.md`);
+						const agentUri = joinPath(customAgentsFolder, `${agent.name}.agent.md`);
 						const promptContent = this.generatePromptContentFromCustomAgent(agent);
 
 						try {
