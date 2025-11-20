@@ -30,9 +30,8 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../common/v
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
-import { IChatService } from '../common/chatService.js';
+import { IChatModelReference, IChatService } from '../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
@@ -104,7 +103,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				if (!this._widget?.viewModel && !this._restoringSession) {
 					const info = this.getTransferredOrPersistedSessionInfo();
 					this._restoringSession =
-						(info.sessionId ? this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(info.sessionId)) : Promise.resolve(undefined)).then(async model => {
+						(info.sessionId ? this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(info.sessionId)) : Promise.resolve(undefined)).then(async modelRef => {
 							if (!this._widget) {
 								// renderBody has not been called yet
 								return;
@@ -116,7 +115,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 							const wasVisible = this._widget.visible;
 							try {
 								this._widget.setVisible(false);
-								await this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
+								await this.updateModel(modelRef, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
 							} finally {
 								this.widget.setVisible(wasVisible);
 							}
@@ -139,15 +138,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		} : undefined;
 	}
 
-	private async updateModel(model?: IChatModel | undefined, viewState?: IChatViewState): Promise<void> {
+	private async updateModel(modelRef?: IChatModelReference | undefined, viewState?: IChatViewState): Promise<void> {
 		this.modelDisposables.clear();
 
-		model = model ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === this.chatOptions.location
+		const ref = modelRef ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === this.chatOptions.location
 			? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(this.chatService.transferredSessionData.sessionId))
 			: this.chatService.startSession(this.chatOptions.location, CancellationToken.None));
-		if (!model) {
+		if (!ref) {
 			throw new Error('Could not start chat session');
 		}
+		this.modelDisposables.add(ref);
+		const model = ref.object;
 
 		if (viewState) {
 			this.updateViewState(viewState);
@@ -240,9 +241,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 
 		const info = this.getTransferredOrPersistedSessionInfo();
-		const model = info.sessionId ? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(info.sessionId)) : undefined;
+		const modelRef = info.sessionId ? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(info.sessionId)) : undefined;
 
-		await this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
+		await this.updateModel(modelRef, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
 	}
 
 	acceptInput(query?: string): void {
@@ -251,7 +252,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private async clear(): Promise<void> {
 		if (this.widget.viewModel) {
-			await this.chatService.clearSession(this.widget.viewModel.sessionResource);
+			// await this.chatService.clearSession(this.widget.viewModel.sessionResource);
 		}
 
 		// Grab the widget's latest view state because it will be loaded back into the widget
@@ -264,7 +265,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	async loadSession(sessionId: URI, viewState?: IChatViewState): Promise<void> {
 		if (this.widget.viewModel) {
-			await this.chatService.clearSession(this.widget.viewModel.sessionResource);
+			// await this.chatService.clearSession(this.widget.viewModel.sessionResource);
 		}
 
 		// Handle locking for contributed chat sessions
@@ -279,8 +280,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}
 
-		const newModel = await this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None);
-		await this.updateModel(newModel, viewState);
+		const newModelRef = await this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None);
+		await this.updateModel(newModelRef, viewState);
 	}
 
 	focusInput(): void {
