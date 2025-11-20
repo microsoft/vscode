@@ -3,18 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
-import { dirname, isEqual } from '../../../../../../base/common/resources.js';
+import { dirname, isEqual, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isProposedApiEnabled } from '../../../../../services/extensions/common/extensions.js';
@@ -91,6 +93,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -156,7 +159,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath))),
 			this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath))),
 			this.getExtensionContributions(type),
-			type === PromptsType.agent ? this.getCustomAgentsFromProvider(token) : []
+			type === PromptsType.agent ? this.listCustomAgentsFromProvider(token) : []
 		]);
 
 		return [...prompts.flat()];
@@ -169,11 +172,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		extension: IExtensionDescription;
 		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
 	}> = [];
-
-	/**
-	 * Maps virtual URIs to custom agent content from providers.
-	 */
-	private readonly customAgentContentCache = new ResourceMap<string>();
 
 	/**
 	 * Registers a CustomAgentsProvider. This will be called by the extension host bridge when
@@ -204,43 +202,75 @@ export class PromptsService extends Disposable implements IPromptsService {
 		};
 	}
 
-	private async getCustomAgentsFromProvider(token: CancellationToken): Promise<IPromptPath[]> {
-		if (this.customAgentsProviders.length === 0) {
+	private async listCustomAgentsFromProvider(token: CancellationToken): Promise<IPromptPath[]> {
+		const customAgentsFolder = joinPath(this.environmentService.workspaceStorageHome, 'custom-agents-provider');
+
+		// First, load existing cached files from the folder
+		let allUris: URI[] = [];
+		try {
+			const folderExists = await this.fileService.exists(customAgentsFolder);
+			if (folderExists) {
+				const cachedFiles = await this.fileService.resolve(customAgentsFolder);
+				if (cachedFiles.children) {
+					allUris = cachedFiles.children
+						.filter(child => !child.isDirectory && child.name.endsWith('.prompt.md'))
+						.map(child => child.resource);
+				}
+			}
+		} catch (e) {
+			this.logger.error(`[listCustomAgentsFromProvider] Failed to load cached custom agents from disk`, e instanceof Error ? e.message : String(e));
+		}
+
+		// Refresh from providers and write to disk
+		if (this.customAgentsProviders.length > 0) {
+			for (const providerEntry of this.customAgentsProviders) {
+				try {
+					const agents = await providerEntry.provideCustomAgents({}, token);
+					if (!agents || token.isCancellationRequested) {
+						continue;
+					}
+
+					for (const agent of agents) {
+						const agentUri = joinPath(customAgentsFolder, `${agent.name}.prompt.md`);
+						const promptContent = this.generatePromptContentFromCustomAgent(agent);
+
+						try {
+							await this.fileService.createFolder(customAgentsFolder);
+							await this.fileService.writeFile(agentUri, VSBuffer.fromString(promptContent), { unlock: false });
+							allUris.push(agentUri);
+						} catch (e) {
+							this.logger.error(`[listCustomAgentsFromProvider] Failed to write custom agent content to file: ${agentUri}`, e instanceof Error ? e.message : String(e));
+						}
+					}
+				} catch (e) {
+					this.logger.error(`[listCustomAgentsFromProvider] Failed to get custom agents from provider`, e instanceof Error ? e.message : String(e));
+				}
+			}
+		}
+
+		// Deduplicate URIs
+		const uniqueUris = Array.from(new Set(allUris.map(uri => uri.toString()))).map(uriStr => URI.parse(uriStr));
+
+		// Map URIs to IPromptPath
+		const providerExtension = this.customAgentsProviders.length > 0 ? this.customAgentsProviders[0].extension : undefined;
+		if (!providerExtension) {
 			return [];
 		}
 
 		const result: IPromptPath[] = [];
-		for (const providerEntry of this.customAgentsProviders) {
+		for (const uri of uniqueUris) {
 			try {
-				const agents = await providerEntry.provideCustomAgents({}, token);
-				if (!agents || token.isCancellationRequested) {
-					continue;
-				}
-
-				for (const agent of agents) {
-					const virtualUri = URI.from({
-						scheme: 'vscode-chat-agent',
-						authority: 'custom-agents-provider',
-						path: `/${agent.name}`,
-					});
-
-					// Generate prompt content from agent metadata
-					const promptContent = this.generatePromptContentFromCustomAgent(agent);
-
-					// Cache the content for later retrieval
-					this.customAgentContentCache.set(virtualUri, promptContent);
-
-					result.push({
-						uri: virtualUri,
-						name: agent.displayName,
-						description: agent.description,
-						storage: PromptsStorage.extension,
-						type: PromptsType.agent,
-						extension: providerEntry.extension
-					} satisfies IExtensionPromptPath);
-				}
+				const parsed = await this.parseNew(uri, token);
+				result.push({
+					uri,
+					name: parsed.header?.name ?? getCleanPromptName(uri),
+					description: parsed.header?.description ?? '',
+					storage: PromptsStorage.extension,
+					type: PromptsType.agent,
+					extension: providerExtension
+				} satisfies IExtensionPromptPath);
 			} catch (e) {
-				this.logger.error(`[getCustomAgentsFromProvider] Failed to get custom agents from provider`, e instanceof Error ? e.message : String(e));
+				this.logger.error(`[listCustomAgentsFromProvider] Failed to parse custom agent file: ${uri}`, e instanceof Error ? e.message : String(e));
 			}
 		}
 
