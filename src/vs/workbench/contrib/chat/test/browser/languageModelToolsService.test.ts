@@ -1986,7 +1986,8 @@ suite('LanguageModelToolsService', () => {
 			'internalToolSetRefName',
 			'internalToolSetRefName/internalToolSetTool1RefName',
 			'vscode',
-			'launch'
+			'launch',
+			'read'
 		].sort();
 
 		assert.deepStrictEqual(qualifiedNames, expectedNames, 'getQualifiedToolNames should return correct qualified names');
