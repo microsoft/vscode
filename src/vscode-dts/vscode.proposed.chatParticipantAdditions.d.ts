@@ -81,8 +81,11 @@ declare module 'vscode' {
 
 	export class ChatPrepareToolInvocationPart {
 		toolName: string;
-		invocationMessage?: string | MarkdownString;
-		constructor(toolName: string, invocationMessage?: string | MarkdownString);
+		/**
+		 * Partial arguments that have streamed in for the tool invocation.
+		 */
+		streamData?: ChatToolInvocationStreamData;
+		constructor(toolName: string, streamData?: ChatToolInvocationStreamData);
 	}
 
 	export interface ChatToolInvocationStreamData {
@@ -357,10 +360,10 @@ declare module 'vscode' {
 		codeCitation(value: Uri, license: string, snippet: string): void;
 
 		/**
-		 * Notifies the UI that a tool invocation is being prepared. Optional invocation message can be
-		 * provided to render a custom message while the invocation input is still being generated.
+		 * Notifies the UI that a tool invocation is being prepared. Optional streaming data can be
+		 * provided to render partial arguments while the invocation input is still being generated.
 		 */
-		prepareToolInvocation(toolName: string, invocationMessage?: string | MarkdownString): void;
+		prepareToolInvocation(toolName: string, streamData?: ChatToolInvocationStreamData): void;
 
 		push(part: ExtendedChatResponsePart): void;
 

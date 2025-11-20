@@ -296,11 +296,11 @@ export class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				prepareToolInvocation(toolName, invocationMessage) {
+				prepareToolInvocation(toolName, streamData) {
 					throwIfDone(this.prepareToolInvocation);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
-					const part = new extHostTypes.ChatPrepareToolInvocationPart(toolName, invocationMessage);
+					const part = new extHostTypes.ChatPrepareToolInvocationPart(toolName, streamData);
 					const dto = typeConvert.ChatPrepareToolInvocationPart.from(part);
 					_report(dto);
 					return this;
