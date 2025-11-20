@@ -11,7 +11,7 @@ import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentP
 import { ChatProgressContentPart } from '../chatProgressContentPart.js';
 import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IChatRendererContent } from '../../../common/chatViewModel.js';
+import { IChatRendererContent, isResponseVM } from '../../../common/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 
 export class ChatPrepareToolInvocationPart extends ChatProgressContentPart implements IChatContentPart {
@@ -49,7 +49,8 @@ export class ChatPrepareToolInvocationPart extends ChatProgressContentPart imple
 	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 		// Hide prepareToolInvocation when other content (except progressMessage and working) shows up
 		// This includes toolInvocation, toolInvocationSerialized, markdownContent, etc.
-		if (followingContent.some(part => part.kind !== 'progressMessage' && part.kind !== 'working')) {
+		// Also hide when the response is complete (e.g., when stopped) - similar to how progress messages behave
+		if (followingContent.some(part => part.kind !== 'progressMessage' && part.kind !== 'working') || (isResponseVM(element) && element.isComplete)) {
 			return false;
 		}
 
