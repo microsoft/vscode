@@ -1321,6 +1321,11 @@ export interface IXtermTerminal extends IDisposable {
 	 */
 	attachToElement(container: HTMLElement, options?: Partial<IXtermAttachToElementOptions>): void;
 
+	/**
+	 * Gets the DOM element of the terminal.
+	 */
+	getElement(): HTMLElement | undefined;
+
 	findResult?: { resultIndex: number; resultCount: number };
 
 	/**

@@ -169,6 +169,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return dom.isAncestorOfActiveElement(this.raw.element);
 	}
 
+	public getElement(): HTMLElement | undefined {
+		return this.raw.element;
+	}
+
 	/**
 	 * @param xtermCtor The xterm.js constructor, this is passed in so it can be fetched lazily
 	 * outside of this class such that {@link raw} is not nullable.

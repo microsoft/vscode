@@ -1788,8 +1788,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _captureXtermElement(instance: IDetachedTerminalInstance): void {
-		const xterm = instance.xterm as unknown as XtermTerminal | undefined;
-		const rawElement = xterm?.raw.element;
+		const rawElement = instance.xterm.getElement();
 		if (!rawElement) {
 			this._xtermElement = undefined;
 			return;
