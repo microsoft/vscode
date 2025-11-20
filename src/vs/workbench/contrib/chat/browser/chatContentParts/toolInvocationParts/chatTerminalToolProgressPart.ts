@@ -95,20 +95,6 @@ interface ITerminalCommandDecorationOptions {
 	getResolvedCommand(): ITerminalCommand | undefined;
 }
 
-interface IStreamingSnapshotRequest {
-	readonly instance: ITerminalInstance;
-	readonly command: ITerminalCommand;
-	readonly force: boolean;
-	readonly resolve: () => void;
-	readonly reject: (error: unknown) => void;
-}
-
-type StreamingSnapshotMutation =
-	| { readonly kind: 'noop' }
-	| { readonly kind: 'append'; readonly appended: string }
-	| { readonly kind: 'replace'; readonly snapshot: string }
-	| { readonly kind: 'truncate'; readonly truncated: number; readonly appended: string };
-
 class TerminalCommandDecoration extends Disposable {
 	private readonly _element: HTMLElement;
 	private readonly _hoverListener: MutableDisposable<IDisposable>;
@@ -213,6 +199,21 @@ class TerminalCommandDecoration extends Disposable {
 		});
 	}
 }
+
+
+interface IStreamingSnapshotRequest {
+	readonly instance: ITerminalInstance;
+	readonly command: ITerminalCommand;
+	readonly force: boolean;
+	readonly resolve: () => void;
+	readonly reject: (error: unknown) => void;
+}
+
+type StreamingSnapshotMutation =
+	| { readonly kind: 'noop' }
+	| { readonly kind: 'append'; readonly appended: string }
+	| { readonly kind: 'replace'; readonly snapshot: string }
+	| { readonly kind: 'truncate'; readonly truncated: number; readonly appended: string };
 
 // Encapsulates the rolling buffer of serialized terminal output so the UI only needs to worry
 // about mirroring data into the preview. The heavy lifting happens here, including diffing the
