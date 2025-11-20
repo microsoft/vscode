@@ -393,16 +393,10 @@ class ChatTerminalStreamingModel {
 		const concatenated = this._streamBuffer.join('');
 		const withoutAnsi = removeAnsiEscapeCodes(concatenated);
 		const sanitized = withoutAnsi.replace(/\r/g, '');
-		if (!sanitized) {
+		if (!sanitized.length) {
 			return 0;
 		}
-		let count = 0;
-		for (const line of sanitized.split('\n')) {
-			if (line.trim().length > 0) {
-				count++;
-			}
-		}
-		return count;
+		return sanitized.split('\n').length;
 	}
 
 	public get isStreaming(): boolean {
@@ -650,13 +644,17 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._onDidChangeHeight.fire();
 		}));
 
-		this._outputView = this._register(this._instantiationService.createInstance(ChatTerminalToolOutputSection, elements.output, this._terminalConfigurationService.config.fontSize, elements.title, displayCommand, this._terminalData, () => this._onDidChangeHeight.fire(), () => this._createDetachedTerminal()));
+		const initialRowHeight = this._computeRowHeightPx();
+		this._outputView = this._register(this._instantiationService.createInstance(ChatTerminalToolOutputSection, elements.output, initialRowHeight, elements.title, displayCommand, this._terminalData, () => this._onDidChangeHeight.fire(), () => this._createDetachedTerminal()));
 		this._register(this._outputView.onDidFocus(() => this._handleOutputFocus()));
 		this._register(this._outputView.onDidBlur(e => this._handleOutputBlur(e)));
 		this._register(toDisposable(() => this._handleDispose()));
 		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
 			this._focusAction.value?.refreshKeybindingTooltip();
 			this._showOutputAction.value?.refreshKeybindingTooltip();
+		}));
+		this._register(this._terminalConfigurationService.onConfigChanged(() => {
+			this._outputView.updateRowHeight(this._computeRowHeightPx());
 		}));
 
 		const actionBarEl = h('.chat-terminal-action-bar@actionBar');
@@ -988,6 +986,22 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		return didChange;
 	}
 
+	private _computeRowHeightPx(): number {
+		const configLineHeight = this._terminalConfigurationService.config.lineHeight && this._terminalConfigurationService.config.lineHeight > 0
+			? this._terminalConfigurationService.config.lineHeight
+			: 1;
+		try {
+			const window = dom.getActiveWindow();
+			const font = this._terminalConfigurationService.getFont(window);
+			const charHeight = font.charHeight && font.charHeight > 0 ? font.charHeight : font.fontSize;
+			const rowHeight = charHeight * font.lineHeight;
+			return Math.max(Math.ceil(rowHeight), MIN_OUTPUT_HEIGHT);
+		} catch {
+			const fallback = this._terminalConfigurationService.config.fontSize * configLineHeight;
+			return Math.max(Math.ceil(fallback), MIN_OUTPUT_HEIGHT);
+		}
+	}
+
 	private async _createDetachedTerminal(): Promise<IDetachedTerminalInstance> {
 		const targetRef = this._terminalInstance?.targetRef ?? new ImmortalReference<TerminalLocation | undefined>(undefined);
 		const colorProvider = this._instantiationService.createInstance(TerminalInstanceColorProvider, targetRef);
@@ -1309,6 +1323,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _scrollable: DomScrollableElement;
 	private _terminalContainer: HTMLElement;
 	private _infoElement: HTMLElement | undefined;
+	private _rowHeightPx: number;
 	private readonly _detachedTerminal: MutableDisposable<IDetachedTerminalInstance>;
 	private _outputResizeObserver: ResizeObserver | undefined;
 	private _renderedOutputHeight: number | undefined;
@@ -1322,15 +1337,17 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	constructor(
 		private readonly _container: HTMLElement,
-		private readonly _rowHeightPx: number,
+		rowHeightPx: number,
 		private readonly _title: HTMLElement,
 		private readonly _displayCommand: string,
 		private readonly _terminalData: IChatTerminalToolInvocationData,
 		private readonly _onDidChangeHeight: () => void,
 		private readonly _createDetachedTerminal: () => Promise<IDetachedTerminalInstance | undefined>,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@ILogService private readonly _logService: ILogService) {
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
+		this._rowHeightPx = rowHeightPx;
 		this._detachedTerminal = this._register(new MutableDisposable<IDetachedTerminalInstance>());
 
 		this._outputAriaLabelBase = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', this._displayCommand);
@@ -1366,6 +1383,18 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._encounteredRenderableOutput = this._streaming.hasRenderableOutput();
 		this._setStatusMessages();
 		this._updateTerminalVisibility();
+	}
+
+	public updateRowHeight(rowHeight: number): void {
+		if (!Number.isFinite(rowHeight) || rowHeight <= 0 || rowHeight === this._rowHeightPx) {
+			return;
+		}
+		this._rowHeightPx = rowHeight;
+		if (this.isExpanded) {
+			this._layoutOutput();
+			this._scrollOutputToBottom();
+			this._scheduleOutputRelayout();
+		}
 	}
 
 	public async toggle(expanded: boolean): Promise<boolean> {
@@ -1720,9 +1749,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _calculateVisibleContentHeight(): number {
-		const nonEmptyLines = this._countNonEmptyStreamLines();
-		const isStreaming = this._streaming.isStreaming;
-		const effectiveLines = Math.max(nonEmptyLines + (isStreaming ? 2 : 0), 1);
+		const lineCount = this._countStreamLines();
+		const effectiveLines = Math.max(lineCount, 1);
 		const infoHeight = this._infoElement?.offsetHeight ?? 0;
 		const hasOutput = this._streaming.hasRenderableOutput();
 		if (!hasOutput && !this._streaming.isStreaming) {
@@ -1804,7 +1832,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._scrollable.scanDomNode();
 	}
 
-	private _countNonEmptyStreamLines(): number {
+	private _countStreamLines(): number {
 		const fromStreaming = this._streaming.countRenderableLines();
 		if (fromStreaming > 0) {
 			return fromStreaming;
@@ -1814,16 +1842,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return 0;
 		}
 		const sanitized = removeAnsiEscapeCodes(storedOutput).replace(/\r/g, '');
-		if (!sanitized.trim()) {
+		if (!sanitized.length) {
 			return 0;
 		}
-		let count = 0;
-		for (const line of sanitized.split('\n')) {
-			if (line.trim().length > 0) {
-				count++;
-			}
-		}
-		return count;
+		return sanitized.split('\n').length;
 	}
 
 	private _markRenderableOutput(): void {
