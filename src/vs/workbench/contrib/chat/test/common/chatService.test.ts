@@ -377,6 +377,10 @@ function toSnapshotExportData(model: IChatModel) {
 		requests: exp.requests.map(r => {
 			return {
 				...r,
+				modelState: {
+					...r.modelState,
+					completedAt: undefined
+				},
 				timestamp: undefined,
 				requestId: undefined, // id contains a random part
 				responseId: undefined, // id contains a random part
