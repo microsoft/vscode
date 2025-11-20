@@ -2164,9 +2164,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 
-	setModel(model: IChatModel, viewState: IChatViewState): void {
+	setModel(model: IChatModel | undefined, viewState: IChatViewState): void {
 		if (!this.container) {
 			throw new Error('Call render() before setModel()');
+		}
+
+		if (!model) {
+			this.viewModel = undefined;
+			return;
 		}
 
 		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
