@@ -1733,7 +1733,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private _calculateVisibleContentHeight(): number {
 		const nonEmptyLines = this._countNonEmptyStreamLines();
-		const effectiveLines = Math.max(nonEmptyLines, 1);
+		const isStreaming = this._streaming.isStreaming;
+		const effectiveLines = Math.max(nonEmptyLines + (isStreaming ? 2 : 0), 1);
 		const infoHeight = this._infoElement?.offsetHeight ?? 0;
 		const hasOutput = this._streaming.hasRenderableOutput();
 		if (!hasOutput && !this._streaming.isStreaming) {
