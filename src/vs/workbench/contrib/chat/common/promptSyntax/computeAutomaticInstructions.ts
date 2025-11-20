@@ -16,13 +16,14 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind } from '../chatVariableEntries.js';
-import { IToolData } from '../languageModelToolsService.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind, IPromptTextVariableEntry, ChatRequestToolReferenceEntry, toToolVariableEntry } from '../chatVariableEntries.js';
+import { ILanguageModelToolsService, IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
 import { ParsedPromptFile } from './promptFileParser.js';
 import { IPromptPath, IPromptsService } from './service/promptsService.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -58,6 +59,7 @@ export class ComputeAutomaticInstructions {
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 	) {
 	}
 
@@ -94,10 +96,9 @@ export class ComputeAutomaticInstructions {
 		// get copilot instructions
 		await this._addAgentInstructions(variables, telemetryEvent, token);
 
-		const instructionsWithPatternsList = await this._getInstructionsWithPatternsList(instructionFiles, variables, token);
-		if (instructionsWithPatternsList.length > 0) {
-			const text = instructionsWithPatternsList.join('\n');
-			variables.add(toPromptTextVariableEntry(text, true));
+		const instructionsListVariable = await this._getInstructionsWithPatternsList(instructionFiles, variables, token);
+		if (instructionsListVariable) {
+			variables.add(instructionsListVariable);
 			telemetryEvent.listedInstructionsCount++;
 		}
 
@@ -234,31 +235,38 @@ export class ComputeAutomaticInstructions {
 		return undefined;
 	}
 
-	private async _getInstructionsWithPatternsList(instructionFiles: readonly IPromptPath[], _existingVariables: ChatRequestVariableSet, token: CancellationToken): Promise<string[]> {
+	private async _getInstructionsWithPatternsList(instructionFiles: readonly IPromptPath[], _existingVariables: ChatRequestVariableSet, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
 		if (!this._readFileTool) {
 			this._logService.trace('[InstructionsContextComputer] No readFile tool available, skipping instructions with patterns list.');
-			return [];
+			return undefined;
 		}
 		const searchNestedAgentMd = this._configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD);
 		const agentsMdPromise = searchNestedAgentMd ? this._promptsService.findAgentMDsInWorkspace(token) : Promise.resolve([]);
 
-		const toolName = 'read_file'; // workaround https://github.com/microsoft/vscode/issues/252167
-		const entries: string[] = [
-			'Here is a list of instruction files that contain rules for modifying or creating new code.',
-			'These files are important for ensuring that the code is modified or created correctly.',
-			'Please make sure to follow the rules specified in these files when working with the codebase.',
-			`If the file is not already available as attachment, use the \`${toolName}\` tool to acquire it.`,
-			'Make sure to acquire the instructions before making any changes to the code.',
-			'| File | Applies To | Description |',
-			'| ------- | --------- | ----------- |',
-		];
+		const toolName = `#tool:${this._languageModelToolsService.getQualifiedToolName(this._readFileTool)}`;
+		const entries: string[] = [];
+		entries.push('<instructions>');
+		entries.push('Here is a list of instruction files that contain rules for modifying or creating new code.');
+		entries.push('These files are important for ensuring that the code is modified or created correctly.');
+		entries.push('Please make sure to follow the rules specified in these files when working with the codebase.');
+		entries.push(`If the file is not already available as attachment, use the ${toolName} tool to acquire it.`);
+		entries.push('Make sure to acquire the instructions before making any changes to the code.');
 		let hasContent = false;
 		for (const { uri } of instructionFiles) {
 			const parsedFile = await this._parseInstructionsFile(uri, token);
 			if (parsedFile) {
-				const applyTo = parsedFile.header?.applyTo ?? '';
-				const description = parsedFile.header?.description ?? '';
-				entries.push(`| '${getFilePath(uri)}' | ${applyTo} | ${description} |`);
+				entries.push('<instruction>');
+				if (parsedFile.header) {
+					const { description, applyTo } = parsedFile.header;
+					if (description) {
+						entries.push(`<description>${description}</description>`);
+					}
+					entries.push(`<file>${getFilePath(uri)}</file>`);
+					if (applyTo) {
+						entries.push(`<applyTo>${applyTo}</applyTo>`);
+					}
+				}
+				entries.push('</instruction>');
 				hasContent = true;
 			}
 		}
@@ -268,7 +276,10 @@ export class ComputeAutomaticInstructions {
 			if (uri) {
 				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
 				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
-				entries.push(`| '${getFilePath(uri)}' |    | ${description} |`);
+				entries.push('<instruction>');
+				entries.push(`<description>${description}</description>`);
+				entries.push(`<file>${getFilePath(uri)}</file>`);
+				entries.push('</instruction>');
 				hasContent = true;
 			}
 		}
@@ -276,23 +287,37 @@ export class ComputeAutomaticInstructions {
 		if (!hasContent) {
 			entries.length = 0; // clear entries
 		} else {
-			entries.push('', ''); // add trailing newline
+			entries.push('</instructions>', '', ''); // add trailing newline
 		}
 
 		const claudeSkills = await this._promptsService.findClaudeSkills(token);
 		if (claudeSkills && claudeSkills.length > 0) {
-			entries.push(
-				'Here is a list of skills that contain domain specific knowledge on a variety of topics.',
-				'Each skill comes with a description of the topic and a file path that contains the detailed instructions.',
-				'When a user asks you to perform a task that falls within the domain of a skill, use the \`${toolName}\` tool to acquire the full instructions from the file URI.',
-				'| Name | Description | File',
-				'| ------- | --------- | ----------- |',
-			);
+			entries.push('<skills>');
+			entries.push('Here is a list of skills that contain domain specific knowledge on a variety of topics.');
+			entries.push('Each skill comes with a description of the topic and a file path that contains the detailed instructions.');
+			entries.push(`When a user asks you to perform a task that falls within the domain of a skill, use the ${toolName} tool to acquire the full instructions from the file URI.`);
 			for (const skill of claudeSkills) {
-				entries.push(`| ${skill.name} | ${skill.description} | '${getFilePath(skill.uri)}' |`);
+				entries.push('<skill>');
+				entries.push(`<name>${skill.name}</name>`);
+				if (skill.description) {
+					entries.push(`<description>${skill.description}</description>`);
+				}
+				entries.push(`<file>${getFilePath(skill.uri)}</file>`);
+				entries.push('</skill>');
 			}
+			entries.push('</skills>', '', ''); // add trailing newline
 		}
-		return entries;
+		if (entries.length === 0) {
+			return undefined;
+		}
+		const content = entries.join('\n');
+		const toolReferences: ChatRequestToolReferenceEntry[] = [];
+		let offset = content.indexOf(toolName);
+		while (offset >= 0) {
+			toolReferences.push(toToolVariableEntry(this._readFileTool, new OffsetRange(offset, offset + toolName.length)));
+			offset = content.indexOf(toolName, offset + 1);
+		}
+		return toPromptTextVariableEntry(entries.join('\n'), true, toolReferences);
 	}
 
 	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
