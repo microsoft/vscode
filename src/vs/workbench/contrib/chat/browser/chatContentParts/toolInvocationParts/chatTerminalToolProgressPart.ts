@@ -1174,8 +1174,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}, 0);
 			return;
 		}
-		const endMarkerForRange = endMarker && endMarker.line !== -1 ? endMarker : undefined;
-		const data = await xterm.getRangeAsVT(startMarker, endMarkerForRange);
+		const endMarkerForRange = this._getStreamingRangeEndMarker(startMarker, endMarker, force);
+		let data = await xterm.getRangeAsVT(startMarker, endMarkerForRange);
+		if (force) {
+			data = this._stripTrailingPrompt(data);
+		}
 		if (this._store.isDisposed || (!force && this._streamingCommand !== command) || !data || data.length === 0) {
 			if (!data || data.length === 0) {
 				this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.waitForData', { commandId: command.id, force });
@@ -1234,6 +1237,41 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			?? (command.marker as unknown as IXtermMarker | undefined);
 		const end = candidate.endMarker ?? candidate.commandFinishedMarker;
 		return { start, end };
+	}
+
+	private _getStreamingRangeEndMarker(start: IXtermMarker | undefined, end: IXtermMarker | undefined, force: boolean): IXtermMarker | undefined {
+		if (!end || end.line === -1) {
+			return undefined;
+		}
+		if (!force || !start || start.line === -1) {
+			return end;
+		}
+		const trimmedLine = end.line - 1;
+		if (trimmedLine < start.line) {
+			return end;
+		}
+		return this._createStaticMarker(trimmedLine);
+	}
+
+	private _createStaticMarker(line: number): IXtermMarker {
+		return {
+			id: -1,
+			line,
+			isDisposed: false,
+			onDispose: Event.None,
+			dispose: () => { /* no-op */ }
+		};
+	}
+
+	private _stripTrailingPrompt(snapshot: string): string {
+		if (!snapshot) {
+			return snapshot;
+		}
+		const promptStart = snapshot.lastIndexOf('\u001b]633;A');
+		if (promptStart === -1) {
+			return snapshot;
+		}
+		return snapshot.slice(0, promptStart);
 	}
 
 	private _tryApplyEmptyOutput(command: ITerminalCommand): boolean {
