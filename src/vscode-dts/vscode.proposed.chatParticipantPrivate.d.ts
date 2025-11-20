@@ -387,7 +387,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @returns An array of custom agents or a promise that resolves to such.
 		 */
-		provideCustomAgents(repoOwner: string, repoName: string, options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgent[]>;
+		provideCustomAgents(options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgent[]>;
 	}
 
 	export namespace chat {

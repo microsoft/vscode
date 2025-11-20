@@ -15,7 +15,7 @@ import { type ITextModel } from '../../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from '../../../../../../platform/extensions/common/extensions.js';
+import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { isProposedApiEnabled } from '../../../../../services/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -166,7 +166,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Registry of CustomAgentsProvider instances. Extensions can register providers via the proposed API.
 	 */
 	private readonly customAgentsProviders: Array<{
-		provideCustomAgents: (repoOwner: string, repoName: string, options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+		extension: IExtensionDescription;
+		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
 	}> = [];
 
 	/**
@@ -179,13 +180,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * an extension registers a provider via vscode.chat.registerCustomAgentsProvider().
 	 */
 	public registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
-		provideCustomAgents: (repoOwner: string, repoName: string, options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
 	}): IDisposable {
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
 			throw new Error(`Extension '${extension.identifier.value}' CANNOT register CustomAgentsProvider. The 'chatParticipantPrivate' proposal must be enabled.`);
 		}
 
-		this.customAgentsProviders.push(provider);
+		this.customAgentsProviders.push({ extension, ...provider });
 
 		// Invalidate agent cache when providers change
 		this.cachedFileLocations[PromptsType.agent] = undefined;
@@ -193,7 +194,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		return {
 			dispose: () => {
-				const index = this.customAgentsProviders.indexOf(provider);
+				const index = this.customAgentsProviders.findIndex((p) => p === provider);
 				if (index >= 0) {
 					this.customAgentsProviders.splice(index, 1);
 					this.cachedFileLocations[PromptsType.agent] = undefined;
@@ -209,14 +210,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const result: IPromptPath[] = [];
-		const repoInfo = await this.getWorkspaceRepositoryInfo(token);
-		if (!repoInfo) {
-			return [];
-		}
-
-		for (const provider of this.customAgentsProviders) {
+		for (const providerEntry of this.customAgentsProviders) {
 			try {
-				const agents = await provider.provideCustomAgents(repoInfo.owner, repoInfo.name, {}, token);
+				const agents = await providerEntry.provideCustomAgents({}, token);
 				if (!agents || token.isCancellationRequested) {
 					continue;
 				}
@@ -225,7 +221,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					const virtualUri = URI.from({
 						scheme: 'vscode-chat-agent',
 						authority: 'custom-agents-provider',
-						path: `/${repoInfo.owner}/${repoInfo.name}/${agent.name}`,
+						path: `/${agent.name}`,
 					});
 
 					// Generate prompt content from agent metadata
@@ -234,32 +230,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 					// Cache the content for later retrieval
 					this.customAgentContentCache.set(virtualUri, promptContent);
 
-					// Create a synthetic extension description for the provider
-					const extensionId = `custom-agent-provider.${repoInfo.owner}.${repoInfo.name}`;
-					const syntheticExtension: IExtensionDescription = {
-						identifier: new ExtensionIdentifier(extensionId),
-						id: extensionId,
-						name: 'Custom Agents Provider',
-						displayName: `Custom Agents (${repoInfo.owner}/${repoInfo.name})`,
-						publisher: repoInfo.owner,
-						version: '1.0.0',
-						engines: { vscode: '*' },
-						extensionLocation: virtualUri,
-						isBuiltin: false,
-						isUserBuiltin: false,
-						isUnderDevelopment: false,
-						enabledApiProposals: undefined,
-						targetPlatform: TargetPlatform.UNIVERSAL,
-						preRelease: false
-					};
-
 					result.push({
 						uri: virtualUri,
-						name: agent.displayName || agent.name,
-						description: agent.description || `Custom agent from ${repoInfo.owner}/${repoInfo.name}`,
+						name: agent.displayName,
+						description: agent.description,
 						storage: PromptsStorage.extension,
 						type: PromptsType.agent,
-						extension: syntheticExtension
+						extension: providerEntry.extension
 					} satisfies IExtensionPromptPath);
 				}
 			} catch (e) {
@@ -268,28 +245,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		return result;
-	}
-
-	private async getWorkspaceRepositoryInfo(token: CancellationToken): Promise<{ owner: string; name: string } | undefined> {
-		// // Get the first workspace folder
-		// const workspaceFolders = this.workspaceContextService.getWorkspace().folders;
-		// if (workspaceFolders.length === 0) {
-		// 	return undefined;
-		// }
-
-		// // Check if the git extension is available
-		// const gitExtension = await this.extensionService.getExtension('vscode.git');
-		// if (!gitExtension) {
-		// 	return undefined;
-		// }
-
-		// TODO: For now, hard-code to microsoft/vscode for testing purposes.
-		// In a production implementation, this should query the actual git repository
-		// information from the workspace using one of these approaches:
-		// 1. Use the SCM service (ISCMService) which provides repository information
-		// 2. Create a dedicated main thread<->extension host bridge service
-		// 3. Use VS Code commands to query git extension state
-		return { owner: 'microsoft', name: 'vscode' };
 	}
 
 	private generatePromptContentFromCustomAgent(agent: any): string {

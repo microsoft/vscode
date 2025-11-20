@@ -440,9 +440,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}
 
 		const disposable = this._promptsService.registerCustomAgentsProvider(extension, {
-			provideCustomAgents: async (repoOwner: string, repoName: string, options: ICustomAgentQueryOptions, token: CancellationToken) => {
-				const result = await this._proxy.$provideCustomAgents(handle, repoOwner, repoName, options, token);
-				return result ?? [];
+			provideCustomAgents: async (options: ICustomAgentQueryOptions, token: CancellationToken) => {
+				return await this._proxy.$provideCustomAgents(handle, options, token);
 			}
 		});
 

@@ -341,7 +341,7 @@ export interface IPromptsService extends IDisposable {
 	 * @returns A disposable that unregisters the provider when disposed.
 	 */
 	registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
-		provideCustomAgents: (repoOwner: string, repoName: string, options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
 	}): IDisposable;
 
 	/**

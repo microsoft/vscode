@@ -495,13 +495,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
 	}
 
-	async $provideCustomAgents(handle: number, repoOwner: string, repoName: string, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<IExternalCustomAgent[] | undefined> {
+	async $provideCustomAgents(handle: number, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<IExternalCustomAgent[] | undefined> {
 		const providerData = this._customAgentsProviders.get(handle);
 		if (!providerData) {
-			return Promise.resolve([]);
+			return Promise.resolve(undefined);
 		}
 
-		return await providerData.provider.provideCustomAgents(repoOwner, repoName, options, token) ?? undefined;
+		return await providerData.provider.provideCustomAgents(options, token) ?? undefined;
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {

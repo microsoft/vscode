@@ -1460,7 +1460,7 @@ export interface ExtHostChatAgentsShape2 {
 	$releaseSession(sessionId: string): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$provideRelatedFiles(handle: number, request: Dto<IChatRequestDraft>, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined>;
-	$provideCustomAgents(handle: number, repoOwner: string, repoName: string, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<IExternalCustomAgent[] | undefined>;
+	$provideCustomAgents(handle: number, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<IExternalCustomAgent[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 }
 export interface IChatParticipantMetadata {
