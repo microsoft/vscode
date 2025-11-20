@@ -13,7 +13,7 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { IObservable, autorun, autorunSelfDisposable, derived, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, autorun, autorunSelfDisposable, derived, observableFromEvent, observableSignalFromEvent, observableValue, observableValueOpts } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { WithDefinedProps } from '../../../../base/common/types.js';
@@ -21,6 +21,7 @@ import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/co
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
+import { ISelection } from '../../../../editor/common/core/selection.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../nls.js';
@@ -34,6 +35,7 @@ import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPre
 import { LocalChatSessionUri } from './chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from './languageModels.js';
 
 
 export const CHAT_ATTACHABLE_IMAGE_MIME_TYPES: Record<string, string> = {
@@ -1161,6 +1163,8 @@ export interface IChatModel extends IDisposable {
 	readonly inputPlaceholder?: string;
 	readonly editingSession?: IChatEditingSession | undefined;
 	readonly checkpoint: IChatRequestModel | undefined;
+	/** Input model for managing input state */
+	readonly inputModel: IInputModel;
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
 
@@ -1246,6 +1250,79 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
 	version: 3;
 	customTitle: string | undefined;
+	/** Current draft input state (added later, fully backwards compatible) */
+	inputState?: ISerializableChatModelInputState;
+}
+
+/**
+ * Input model for managing chat input state independently from the chat model.
+ * This keeps display logic separated from the core chat model.
+ *
+ * The input model:
+ * - Manages the current draft state (text, attachments, mode, model selection, cursor/selection)
+ * - Provides an observable interface for reactive UI updates
+ * - Automatically persists through the chat model's serialization
+ * - Enables bidirectional sync between the UI (ChatInputPart) and the model
+ * - Uses `undefined` state to indicate no persisted state (new/empty chat)
+ *
+ * This architecture ensures that:
+ * - Input state is preserved when moving chats between editor/sidebar/window
+ * - No manual state transfer is needed when switching contexts
+ * - The UI stays in sync with the persisted state
+ * - New chats use UI defaults (persisted preferences) instead of hardcoded values
+ */
+export interface IInputModel {
+	/** Observable for current input state (undefined for new/uninitialized chats) */
+	readonly state: IObservable<IChatModelInputState | undefined>;
+
+	/** Update the input state (partial update) */
+	setState(state: Partial<IChatModelInputState>): void;
+
+	/** Clear input state (after sending or clearing) */
+	clearState(): void;
+}
+
+/**
+ * Represents the current state of the chat input that hasn't been sent yet.
+ * This is the "draft" state that should be preserved across sessions.
+ */
+export interface IChatModelInputState {
+	/** Current attachments in the input */
+	attachments: readonly IChatRequestVariableEntry[];
+
+	/** Currently selected chat mode */
+	mode: {
+		/** Mode ID (e.g., 'ask', 'edit', 'agent', or custom mode ID) */
+		id: string;
+		/** Mode kind for builtin modes */
+		kind: ChatModeKind | undefined;
+	};
+
+	/** Currently selected language model, if any */
+	selectedModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+
+	/** Current input text */
+	inputText: string;
+
+	/** Current selection ranges */
+	selections: ISelection[];
+}
+
+/**
+ * Serializable version of IChatModelInputState
+ */
+export interface ISerializableChatModelInputState {
+	attachments: readonly IChatRequestVariableEntry[];
+	mode: {
+		id: string;
+		kind: ChatModeKind | undefined;
+	};
+	selectedModel: {
+		identifier: string;
+		metadata: ILanguageModelChatMetadata;
+	} | undefined;
+	inputText: string;
+	selections: ISelection[];
 }
 
 /**
@@ -1416,6 +1493,37 @@ export interface IChatInitEvent {
 	kind: 'initialize';
 }
 
+/**
+ * Internal implementation of IInputModel
+ */
+class InputModel implements IInputModel {
+	private readonly _state: ReturnType<typeof observableValue<IChatModelInputState | undefined>>;
+	readonly state: IObservable<IChatModelInputState | undefined>;
+
+	constructor(initialState: IChatModelInputState | undefined) {
+		this._state = observableValueOpts({debugName: 'inputModelState', equalsFn: equals }, initialState);
+		this.state = this._state;
+	}
+
+	setState(state: Partial<IChatModelInputState>): void {
+		const current = this._state.get();
+		this._state.set({
+			// If current is undefined, provide defaults for required fields
+			attachments: [],
+			mode: { id: 'ask', kind: ChatModeKind.Ask },
+			selectedModel: undefined,
+			inputText: '',
+			selections: [],
+			...current,
+			...state
+		}, undefined);
+	}
+
+	clearState(): void {
+		this._state.set(undefined, undefined);
+	}
+}
+
 export class ChatModel extends Disposable implements IChatModel {
 	static getDefaultTitle(requests: (ISerializableChatRequestData | IChatRequestModel)[]): string {
 		const firstRequestMessage = requests.at(0)?.message ?? '';
@@ -1456,6 +1564,9 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	readonly requestInProgress: IObservable<boolean>;
 	readonly requestNeedsInput: IObservable<boolean>;
+
+	/** Input model for managing input state */
+	readonly inputModel: InputModel;
 
 	get hasRequests(): boolean {
 		return this._requests.length > 0;
@@ -1547,6 +1658,19 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._timestamp = (isValid && initialData.creationDate) || Date.now();
 		this._lastMessageDate = (isValid && initialData.lastMessageDate) || this._timestamp;
 		this._customTitle = isValid ? initialData.customTitle : undefined;
+
+		// Initialize input model from serialized data (undefined for new chats)
+		const serializedInputState = isValid && initialData.inputState ? initialData.inputState : undefined;
+		this.inputModel = new InputModel(serializedInputState && {
+			attachments: serializedInputState.attachments,
+			mode: serializedInputState.mode,
+			selectedModel: serializedInputState.selectedModel && {
+				identifier: serializedInputState.selectedModel.identifier,
+				metadata: serializedInputState.selectedModel.metadata
+			},
+			inputText: serializedInputState.inputText,
+			selections: serializedInputState.selections
+		});
 
 		this._initialResponderUsername = initialData?.responderUsername;
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
@@ -1970,6 +2094,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	toJSON(): ISerializableChatData {
+		const inputState = this.inputModel.state.get();
 		return {
 			version: 3,
 			...this.toExport(),
@@ -1977,7 +2102,20 @@ export class ChatModel extends Disposable implements IChatModel {
 			creationDate: this._timestamp,
 			isImported: this._isImported,
 			lastMessageDate: this._lastMessageDate,
-			customTitle: this._customTitle
+			customTitle: this._customTitle,
+			// Only include inputState if it has been set
+			...(inputState ? {
+				inputState: {
+					attachments: inputState.attachments,
+					mode: inputState.mode,
+					selectedModel: inputState.selectedModel ? {
+						identifier: inputState.selectedModel.identifier,
+						metadata: inputState.selectedModel.metadata
+					} : undefined,
+					inputText: inputState.inputText,
+					selections: inputState.selections
+				}
+			} : {})
 		};
 	}
 

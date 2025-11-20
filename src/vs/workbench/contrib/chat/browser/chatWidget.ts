@@ -2188,6 +2188,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
 
+		// Pass input model reference to input part for state syncing
+		this.inputPart.setInputModel(model.inputModel);
+
 		if (this._lockedAgent) {
 			let placeholder = this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgent.id);
 			if (!placeholder) {

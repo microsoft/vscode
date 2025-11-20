@@ -129,13 +129,13 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 		return;
 	}
 
-	// Save off the state before clearing
-	const viewState = widget.getViewState();
+	// Save off the session resource before clearing
 	const resourceToOpen = widget.viewModel.sessionResource;
 
 	await widget.clear();
 
-	const options: IChatEditorOptions = { pinned: true, viewState, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } };
+	// Input state is now automatically serialized in the model, no need to pass viewState
+	const options: IChatEditorOptions = { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } };
 	await editorService.openEditor({ resource: resourceToOpen, options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 }
 
@@ -150,7 +150,8 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionResource) {
 		await editorService.closeEditor({ editor: chatEditor.input, groupId: editorGroupService.activeGroup.id });
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
-		await view.loadSession(chatEditorInput.sessionResource, chatEditor.getViewState());
+		// Input state is now automatically restored from the model
+		await view.loadSession(chatEditorInput.sessionResource);
 	} else {
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
 	}

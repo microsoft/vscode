@@ -15,7 +15,7 @@ import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../..
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { equals as arraysEqual } from '../../../../base/common/arrays.js';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -75,7 +75,7 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../common/chatEditingService.js';
-import { IChatRequestModeInfo } from '../common/chatModel.js';
+import { IChatModelInputState, IInputModel, IChatRequestModeInfo } from '../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup, IChatService } from '../common/chatService.js';
 import { IChatSessionProviderOptionItem, IChatSessionsService } from '../common/chatSessionsService.js';
@@ -138,8 +138,6 @@ export interface IChatInputPartOptions {
 export interface IWorkingSetEntry {
 	uri: URI;
 }
-
-const GlobalLastChatModeKey = 'chat.lastChatMode';
 
 export class ChatInputPart extends Disposable implements IHistoryNavigationWidget {
 	private static _counter = 0;
@@ -260,6 +258,18 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private _inputEditor!: CodeEditorWidget;
 	private _inputEditorElement!: HTMLElement;
+
+	// Reference to the input model for syncing input state
+	private _inputModel: IInputModel | undefined;
+
+	// Disposables for model observation
+	private readonly _modelSyncDisposables = this._register(new DisposableStore());
+
+	// Flag to prevent circular updates between view and model
+	private _isSyncingToOrFromInputModel = false;
+
+	// Debounced scheduler for syncing text changes
+	private readonly _syncTextDebounced: RunOnceScheduler;
 
 	private executeToolbar!: MenuWorkbenchToolBar;
 	private inputActionsToolbar!: MenuWorkbenchToolBar;
@@ -415,6 +425,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatContextService private readonly chatContextService: IChatContextService,
 	) {
 		super();
+
+		// Initialize debounced text sync scheduler
+		this._syncTextDebounced = this._register(new RunOnceScheduler(() => this._syncInputStateToModel(), 150));
+
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
 		this._register(this.editorService.onDidActiveEditorChange(() => {
@@ -423,6 +437,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
+		this._register(this._attachmentModel.onDidChange(() => this._syncInputStateToModel()));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, this._attachmentModel, styles));
 
@@ -704,6 +719,91 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return widgets;
 	}
 
+	/**
+	 * Set the input model reference for syncing input state
+	 */
+	setInputModel(model: IInputModel | undefined): void {
+		this._inputModel = model;
+		this._modelSyncDisposables.clear();
+
+		if (!model) {
+			return;
+		}
+
+		// Observe changes from model and sync to view
+		this._modelSyncDisposables.add(autorun(reader => {
+			const state = model.state.read(reader);
+			this._syncFromModel(state);
+		}));
+	}
+
+	/**
+	 * Sync from model to view (when model state changes)
+	 */
+	private _syncFromModel(state: IChatModelInputState | undefined): void {
+		// Prevent circular updates
+		if (this._isSyncingToOrFromInputModel || !state) {
+			return;
+		}
+
+		try {
+			this._isSyncingToOrFromInputModel = true;
+
+			// Sync mode
+			const currentMode = this._currentModeObservable.get();
+			if (currentMode.id !== state.mode.id) {
+				this.setChatMode(state.mode.id, false);
+			}
+
+			// Sync selected model
+			if (state.selectedModel) {
+				if (!this._currentLanguageModel || this._currentLanguageModel.identifier !== state.selectedModel.identifier) {
+					this.setCurrentLanguageModel(state.selectedModel);
+				}
+			}
+
+			// Sync attachments
+			const currentAttachments = this._attachmentModel.attachments;
+			if (!arraysEqual(currentAttachments, state.attachments)) {
+				this._attachmentModel.clearAndSetContext(...state.attachments);
+			}
+
+			// Sync input text
+			if (this._inputEditor) {
+				this._inputEditor.setValue(state.inputText);
+				if (state.selections.length) {
+					this._inputEditor.setSelections(state.selections);
+				}
+			}
+		} finally {
+			this._isSyncingToOrFromInputModel = false;
+		}
+	}
+
+	/**
+	 * Sync current input state to the input model
+	 */
+	private _syncInputStateToModel(): void {
+		if (!this._inputModel || this._isSyncingToOrFromInputModel) {
+			return;
+		}
+
+		const mode = this._currentModeObservable.get();
+
+		this._isSyncingToOrFromInputModel = true;
+		this._inputModel.setState({
+			attachments: this._attachmentModel.attachments,
+			mode: {
+				id: mode.id,
+				kind: mode.kind
+			},
+			selectedModel: this._currentLanguageModel,
+			inputText: this._inputEditor?.getValue() ?? '',
+			selections: this._inputEditor.getSelections() || []
+		});
+		this._isSyncingToOrFromInputModel = false;
+	}
+
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
 		this._currentLanguageModel = model;
 
@@ -712,10 +812,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
 		}
 
+		// Store as global user preference (session-specific state is in the model's inputModel)
 		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
 		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefault, StorageScope.APPLICATION, StorageTarget.USER);
 
 		this._onDidChangeCurrentLanguageModel.fire(model);
+
+		// Sync to model
+		this._syncInputStateToModel();
 	}
 
 	private checkModelSupported(): void {
@@ -747,9 +851,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatModeKindKey.set(mode.kind);
 		this._onDidChangeCurrentChatMode.fire();
 
-		if (storeSelection) {
-			this.storageService.store(GlobalLastChatModeKey, mode.kind, StorageScope.APPLICATION, StorageTarget.USER);
-		}
+		// Sync to model (mode is now persisted in the model's input state)
+		this._syncInputStateToModel();
 	}
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
@@ -841,32 +944,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	initForNewChatModel(state: IChatViewState, chatSessionIsEmpty: boolean): void {
 		this.history = this.loadHistory();
+
+		// Note: With the new input model architecture, the state is synced automatically
+		// from the model via _syncFromModel when setInputModel is called.
+		// We only need to handle history here.
 		this.history.add({
 			text: state.inputValue ?? this.history.current().text,
 			state: state.inputState ?? this.getInputState()
 		});
-		const attachments = state.inputState?.chatContextAttachments ?? [];
-		this._attachmentModel.clearAndSetContext(...attachments);
 
 		this.selectedToolsModel.resetSessionEnablementState();
-
-		if (state.inputValue) {
-			this.setValue(state.inputValue, false);
-		}
-
-		if (state.inputState?.chatMode) {
-			if (typeof state.inputState.chatMode === 'string') {
-				this.setChatMode(state.inputState.chatMode);
-			} else {
-				// This path is deprecated, but handle old state
-				this.setChatMode(state.inputState.chatMode.id);
-			}
-		} else {
-			const persistedMode = this.storageService.get(GlobalLastChatModeKey, StorageScope.APPLICATION);
-			if (persistedMode) {
-				this.setChatMode(persistedMode);
-			}
-		}
 
 		// TODO@roblourens This is for an experiment which will be obsolete in a month or two and can then be removed.
 		if (chatSessionIsEmpty) {
@@ -1379,6 +1466,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = this._inputEditor.getModel();
 			const inputHasText = !!model && model.getValue().trim().length > 0;
 			this.inputEditorHasText.set(inputHasText);
+
+			// Debounced sync to model for text changes
+			this._syncTextDebounced.schedule();
 		}));
 		this._register(this._inputEditor.onDidContentSizeChange(e => {
 			if (e.contentHeightChanged) {
@@ -1531,6 +1621,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			this.historyNavigationBackwardsEnablement.set(atTop);
 			this.historyNavigationForewardsEnablement.set(position.equals(getLastPosition(model)));
+
+			// Sync cursor and selection to model
+			this._syncInputStateToModel();
 		};
 		this._register(this._inputEditor.onDidChangeCursorPosition(e => onDidChangeCursorPosition()));
 		onDidChangeCursorPosition();
@@ -2173,6 +2266,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		};
 	}
 
+	/**
+	 * Get current view state for history and backward compatibility.
+	 * Note: Input state is also automatically synced to the model's inputModel.
+	 */
 	getViewState(): IChatInputState {
 		return this.getInputState();
 	}
