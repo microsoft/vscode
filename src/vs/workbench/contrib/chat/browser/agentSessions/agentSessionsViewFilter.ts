@@ -29,9 +29,21 @@ const DEFAULT_EXCLUDES: IAgentSessionsViewExcludes = Object.freeze({
 	archived: true as const,
 });
 
+const FILTER_STORAGE_KEY = 'agentSessions.filterExcludes';
+
+export function resetFilter(storageService: IStorageService): void {
+	const excludes = {
+		providers: [...DEFAULT_EXCLUDES.providers],
+		states: [...DEFAULT_EXCLUDES.states],
+		archived: DEFAULT_EXCLUDES.archived,
+	};
+
+	storageService.store(FILTER_STORAGE_KEY, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+}
+
 export class AgentSessionsViewFilter extends Disposable {
 
-	private static readonly STORAGE_KEY = 'agentSessions.filterExcludes';
+	private static readonly STORAGE_KEY = FILTER_STORAGE_KEY;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -67,11 +79,17 @@ export class AgentSessionsViewFilter extends Disposable {
 			archived: DEFAULT_EXCLUDES.archived,
 		};
 
-		if (fromEvent) {
-			this.updateFilterActions();
+		this.updateFilterActions();
 
+		if (fromEvent) {
 			this._onDidChange.fire();
 		}
+	}
+
+	private storeExcludes(excludes: IAgentSessionsViewExcludes): void {
+		this.excludes = excludes;
+
+		this.storageService.store(AgentSessionsViewFilter.STORAGE_KEY, JSON.stringify(this.excludes), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	private updateFilterActions(): void {
@@ -80,7 +98,6 @@ export class AgentSessionsViewFilter extends Disposable {
 		this.registerProviderActions(this.actionDisposables);
 		this.registerStateActions(this.actionDisposables);
 		this.registerArchivedActions(this.actionDisposables);
-		this.registerResetAction(this.actionDisposables);
 	}
 
 	private registerProviderActions(disposables: DisposableStore): void {
@@ -122,12 +139,7 @@ export class AgentSessionsViewFilter extends Disposable {
 						providerExcludes.add(provider.id);
 					}
 
-					that.excludes = {
-						...that.excludes,
-						providers: Array.from(providerExcludes),
-					};
-
-					that.storageService.store(AgentSessionsViewFilter.STORAGE_KEY, JSON.stringify(that.excludes), StorageScope.PROFILE, StorageTarget.USER);
+					that.storeExcludes({ ...that.excludes, providers: Array.from(providerExcludes) });
 				}
 			}));
 		}
@@ -164,12 +176,7 @@ export class AgentSessionsViewFilter extends Disposable {
 						stateExcludes.add(state.id);
 					}
 
-					that.excludes = {
-						...that.excludes,
-						states: Array.from(stateExcludes),
-					};
-
-					that.storageService.store(AgentSessionsViewFilter.STORAGE_KEY, JSON.stringify(that.excludes), StorageScope.PROFILE, StorageTarget.USER);
+					that.storeExcludes({ ...that.excludes, states: Array.from(stateExcludes) });
 				}
 			}));
 		}
@@ -191,38 +198,7 @@ export class AgentSessionsViewFilter extends Disposable {
 				});
 			}
 			run(): void {
-				that.excludes = {
-					...that.excludes,
-					archived: !that.excludes.archived,
-				};
-
-				that.storageService.store(AgentSessionsViewFilter.STORAGE_KEY, JSON.stringify(that.excludes), StorageScope.PROFILE, StorageTarget.USER);
-			}
-		}));
-	}
-
-	private registerResetAction(disposables: DisposableStore): void {
-		const that = this;
-		disposables.add(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'agentSessions.filter.resetExcludes',
-					title: localize('agentSessions.filter.reset', 'Reset'),
-					menu: {
-						id: that.options.filterMenuId,
-						group: '4_reset',
-						order: 0,
-					},
-				});
-			}
-			run(): void {
-				that.excludes = {
-					providers: [...DEFAULT_EXCLUDES.providers],
-					states: [...DEFAULT_EXCLUDES.states],
-					archived: DEFAULT_EXCLUDES.archived,
-				};
-
-				that.storageService.store(AgentSessionsViewFilter.STORAGE_KEY, JSON.stringify(that.excludes), StorageScope.PROFILE, StorageTarget.USER);
+				that.storeExcludes({ ...that.excludes, archived: !that.excludes.archived });
 			}
 		}));
 	}
