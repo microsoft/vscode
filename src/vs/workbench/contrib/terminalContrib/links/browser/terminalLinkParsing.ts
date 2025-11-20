@@ -167,9 +167,9 @@ export function detectLinkSuffixes(line: string): ILinkSuffix[] {
 	const results: ILinkSuffix[] = [];
 	linkSuffixRegex.value.lastIndex = 0;
 	while ((match = linkSuffixRegex.value.exec(line)) !== null) {
-		const suffix = toLinkSuffix(match);
+		const suffix = toLinkSuffix(match, line);
 		if (suffix === null) {
-			break;
+			continue;
 		}
 		results.push(suffix);
 	}
@@ -181,14 +181,67 @@ export function detectLinkSuffixes(line: string): ILinkSuffix[] {
  * @param link The link to parse.
  */
 export function getLinkSuffix(link: string): ILinkSuffix | null {
-	return toLinkSuffix(linkSuffixRegexEol.value.exec(link));
+	return toLinkSuffix(linkSuffixRegexEol.value.exec(link), link);
 }
 
-export function toLinkSuffix(match: RegExpExecArray | null): ILinkSuffix | null {
+export function toLinkSuffix(match: RegExpExecArray | null, line?: string): ILinkSuffix | null {
 	const groups = match?.groups;
 	if (!groups || match.length < 1) {
 		return null;
 	}
+	
+	// Filter out false positives that are part of ISO 8601 timestamps or similar patterns
+	// ISO 8601 format: YYYY-MM-DDTHH:MM:SS±HH:MM
+	// Examples: 2025-04-28T11:03:09+02:00, 2025-04-28T11:03:09Z
+	if (line && match.index !== undefined) {
+		const matchText = match[0];
+		
+		// Check if this suffix appears to be part of an ISO 8601 timestamp
+		// Look for patterns like T##:##:## or ±##:## before/around the match
+		const beforeMatch = line.substring(Math.max(0, match.index - 20), match.index);
+		const afterMatch = line.substring(match.index + matchText.length, Math.min(line.length, match.index + matchText.length + 20));
+		
+		// Pattern 1: Check if preceded by T and single/double digit
+		// e.g., "T11:03:09" - the :03 should not be treated as line number
+		// But "test.log:100:5" should still work (100 is 3 digits)
+		if (/T\d{1,2}$/.test(beforeMatch)) {
+			// Only reject if the row number is small (likely part of time HH:MM:SS)
+			const row = parseIntOptional(groups.row0 || groups.row1 || groups.row2);
+			if (row !== undefined && row < 60) {
+				return null;
+			}
+		}
+		
+		// Pattern 2: Check if this looks like the middle of a time component T##:##:##
+		// The pattern would be: before has T##:##, and after continues with :## or more time
+		if (/T\d{1,2}:\d{1,2}$/.test(beforeMatch) && /^:\d{2}/.test(afterMatch)) {
+			return null;
+		}
+		
+		// Pattern 3: Check if this is a timezone offset like +02:00 or -05:00
+		// If before has [+-]## and this match is :## (exactly 2 digits), it's likely a timezone
+		if (/[+-]\d{1,2}$/.test(beforeMatch) && matchText.match(/^:\d{2}$/)) {
+			return null;
+		}
+		
+		// Pattern 4: Check if the colon is part of a date-time pattern
+		// If we see patterns like YYYY-MM-DDTHH right before
+		if (/\d{4}-\d{2}-\d{2}T\d{1,2}$/.test(beforeMatch)) {
+			const row = parseIntOptional(groups.row0 || groups.row1 || groups.row2);
+			if (row !== undefined && row < 60) {
+				return null;
+			}
+		}
+		
+		// Pattern 5: Check if after the match we have more timestamp-like patterns
+		// e.g., +##:##.log or Z.log which indicate this is a filename with timestamp
+		// But only if the suffix itself looks time-like (small numbers)
+		const row = parseIntOptional(groups.row0 || groups.row1 || groups.row2);
+		if (row !== undefined && row < 60 && (/^[+-]\d{2}:\d{2}[^\s:]*/.test(afterMatch) || /^Z[^\s:]*/.test(afterMatch))) {
+			return null;
+		}
+	}
+	
 	return {
 		row: parseIntOptional(groups.row0 || groups.row1 || groups.row2),
 		col: parseIntOptional(groups.col0 || groups.col1 || groups.col2),
@@ -340,15 +393,17 @@ function detectLinksViaSuffix(line: string): IParsedLink[] {
 enum RegexPathConstants {
 	PathPrefix = '(?:\\.\\.?|\\~|file:\/\/)',
 	PathSeparatorClause = '\\/',
-	// '":; are allowed in paths but they are often separators so ignore them
-	// Also disallow \\ to prevent a catastropic backtracking case #24795
-	ExcludedPathCharactersClause = '[^\\0<>\\?\\s!`&*()\'":;\\\\]',
-	ExcludedStartPathCharactersClause = '[^\\0<>\\?\\s!`&*()\\[\\]\'":;\\\\]',
+	// ":; are allowed in paths in certain contexts (e.g., ISO 8601 timestamps in filenames)
+	// but they can also be separators. Colons are now allowed as the suffix detection
+	// has been improved to handle false positives.
+	// Also disallow \\ to prevent a catastrophic backtracking case #24795
+	ExcludedPathCharactersClause = '[^\\0<>\\?\\s!`&*()\'";\\\\]',
+	ExcludedStartPathCharactersClause = '[^\\0<>\\?\\s!`&*()\\[\\]\'";\\\\]',
 
 	WinOtherPathPrefix = '\\.\\.?|\\~',
 	WinPathSeparatorClause = '(?:\\\\|\\/)',
-	WinExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\'":;]',
-	WinExcludedStartPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'":;]',
+	WinExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\'";]',
+	WinExcludedStartPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!`&*()\\[\\]\'";]',
 }
 
 /**

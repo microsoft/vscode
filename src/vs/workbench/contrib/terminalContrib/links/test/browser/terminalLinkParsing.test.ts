@@ -759,5 +759,143 @@ suite('TerminalLinkParsing', () => {
 				[] as IParsedLink[]
 			);
 		});
+
+		suite('should handle filenames with colons (ISO 8601 timestamps)', () => {
+			test('should detect filename with ISO 8601 timestamp with ./ prefix', () => {
+				// Test case from issue: ./test-2025-04-28T11:03:09+02:00.log
+				const filename = './test-2025-04-28T11:03:09+02:00.log';
+				deepStrictEqual(
+					detectLinks(filename, OperatingSystem.Linux),
+					[
+						{
+							path: {
+								index: 0,
+								text: filename
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+
+			test('should detect filename with ISO 8601 timestamp in full path', () => {
+				const filename = '/tmp/logs/test-2025-04-28T11:03:09+02:00.log';
+				deepStrictEqual(
+					detectLinks(filename, OperatingSystem.Linux),
+					[
+						{
+							path: {
+								index: 0,
+								text: filename
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+
+			test('should detect multiple filenames with ISO 8601 timestamps on same line', () => {
+				const line = './test-2025-04-28T11:03:09+02:00.log /tmp/test-2025-04-28T11:19:24+02:00.log';
+				const links = detectLinks(line, OperatingSystem.Linux);
+				strictEqual(links.length, 2);
+				strictEqual(links[0].path.text, './test-2025-04-28T11:03:09+02:00.log');
+				strictEqual(links[1].path.text, '/tmp/test-2025-04-28T11:19:24+02:00.log');
+			});
+
+			test('should handle ISO 8601 with Z timezone', () => {
+				const filename = './test-2025-04-28T11:03:09Z.log';
+				deepStrictEqual(
+					detectLinks(filename, OperatingSystem.Linux),
+					[
+						{
+							path: {
+								index: 0,
+								text: filename
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+
+			test('should handle ISO 8601 without seconds', () => {
+				const filename = './test-2025-04-28T11:03+02:00.log';
+				deepStrictEqual(
+					detectLinks(filename, OperatingSystem.Linux),
+					[
+						{
+							path: {
+								index: 0,
+								text: filename
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+
+			test('should detect real line:col suffix after ISO 8601 filename', () => {
+				// This is the critical case: a real suffix after a timestamp filename
+				const line = 'test-2025-04-28T11:03:09+02:00.log:100:5';
+				const links = detectLinks(line, OperatingSystem.Linux);
+				strictEqual(links.length, 1);
+				strictEqual(links[0].path.text, 'test-2025-04-28T11:03:09+02:00.log');
+				ok(links[0].suffix);
+				strictEqual(links[0].suffix!.row, 100);
+				strictEqual(links[0].suffix!.col, 5);
+			});
+
+			test('should detect real line:col suffix after ISO 8601 filename with path', () => {
+				const line = './test-2025-04-28T11:03:09+02:00.log:100:5';
+				const links = detectLinks(line, OperatingSystem.Linux);
+				strictEqual(links.length, 1);
+				strictEqual(links[0].path.text, './test-2025-04-28T11:03:09+02:00.log');
+				ok(links[0].suffix);
+				strictEqual(links[0].suffix!.row, 100);
+				strictEqual(links[0].suffix!.col, 5);
+			});
+
+			test('should handle ISO 8601 in Windows path', () => {
+				const filename = 'C:\\logs\\test-2025-04-28T11:03:09+02:00.log';
+				deepStrictEqual(
+					detectLinks(filename, OperatingSystem.Windows),
+					[
+						{
+							path: {
+								index: 0,
+								text: filename
+							},
+							prefix: undefined,
+							suffix: undefined
+						}
+					] as IParsedLink[]
+				);
+			});
+
+			test('should not treat ISO 8601 time components as line:col suffixes', () => {
+				// Verify that :03:09 in the timestamp is not treated as line 3, col 9
+				const line = './test-2025-04-28T11:03:09+02:00.log';
+				const links = detectLinks(line, OperatingSystem.Linux);
+				strictEqual(links.length, 1);
+				// The path should include the full filename, not stop at T11
+				ok(links[0].path.text.includes('03:09'));
+				// There should be no suffix detected
+				strictEqual(links[0].suffix, undefined);
+			});
+
+			test('should not treat ISO 8601 timezone offset as line number', () => {
+				// Verify that +02:00 is not treated as a suffix
+				const line = './test-2025-04-28T11:03:09+02:00.log';
+				const links = detectLinks(line, OperatingSystem.Linux);
+				strictEqual(links.length, 1);
+				// The path should include +02:00
+				ok(links[0].path.text.includes('+02:00'));
+				strictEqual(links[0].suffix, undefined);
+			});
+		});
 	});
 });
