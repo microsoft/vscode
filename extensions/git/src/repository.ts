@@ -1801,42 +1801,48 @@ export class Repository implements Disposable {
 
 	async createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
 		const defaultWorktreeRoot = this.globalState.get<string>(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`);
-		let { path: worktreePath, commitish, branch } = options || {};
-		let worktreeName: string | undefined;
+		const config = workspace.getConfiguration('git', Uri.file(this.root));
+		const branchPrefix = config.get<string>('branchPrefix', '');
 
 		return await this.run(Operation.Worktree, async () => {
-			// Generate branch name if not provided
-			if (branch === undefined) {
-				const config = workspace.getConfiguration('git', Uri.file(this.root));
-				const branchPrefix = config.get<string>('branchPrefix', '');
+			let worktreeName: string | undefined;
+			let { path: worktreePath, commitish, branch } = options || {};
 
-				let worktreeName = await this.getRandomBranchName();
+			if (branch === undefined) {
+				// Generate branch name if not provided
+				worktreeName = await this.getRandomBranchName();
 				if (!worktreeName) {
 					// Fallback to timestamp-based name if random generation fails
 					const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 					worktreeName = `worktree-${timestamp}`;
 				}
-
 				branch = `${branchPrefix}${worktreeName}`;
+
+				// Append worktree name to provided path
+				if (worktreePath !== undefined) {
+					worktreePath = path.join(worktreePath, worktreeName);
+				}
+			} else {
+				// Extract worktree name from branch
+				worktreeName = branch.startsWith(branchPrefix)
+					? branch.substring(branchPrefix.length).replace(/\//g, '-')
+					: branch.replace(/\//g, '-');
 			}
 
-			// Generate path if not provided
 			if (worktreePath === undefined) {
 				worktreePath = defaultWorktreeRoot
-					? path.join(defaultWorktreeRoot, worktreeName!)
-					: path.join(path.dirname(this.root), `${path.basename(this.root)}.worktrees`, worktreeName!);
+					? path.join(defaultWorktreeRoot, worktreeName)
+					: path.join(path.dirname(this.root), `${path.basename(this.root)}.worktrees`, worktreeName);
+			}
 
-				// Ensure that the worktree path is unique
-				if (this.worktrees.some(worktree => pathEquals(path.normalize(worktree.path), path.normalize(worktreePath!)))) {
-					let counter = 1;
-					let uniqueWorktreePath = `${worktreePath}-${counter}`;
-					while (this.worktrees.some(wt => pathEquals(path.normalize(wt.path), path.normalize(uniqueWorktreePath)))) {
-						counter++;
-						uniqueWorktreePath = `${worktreePath}-${counter}`;
-					}
+			// Ensure that the worktree path is unique
+			if (this.worktrees.some(worktree => pathEquals(path.normalize(worktree.path), path.normalize(worktreePath!)))) {
+				let counter = 0, uniqueWorktreePath: string;
+				do {
+					uniqueWorktreePath = `${worktreePath}-${++counter}`;
+				} while (this.worktrees.some(wt => pathEquals(path.normalize(wt.path), path.normalize(uniqueWorktreePath))));
 
-					worktreePath = uniqueWorktreePath;
-				}
+				worktreePath = uniqueWorktreePath;
 			}
 
 			// Create the worktree
@@ -2262,16 +2268,16 @@ export class Repository implements Disposable {
 		});
 	}
 
-	async popStash(index?: number): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.popStash(index));
+	async popStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.popStash(index, options));
 	}
 
 	async dropStash(index?: number): Promise<void> {
 		return await this.run(Operation.Stash, () => this.repository.dropStash(index));
 	}
 
-	async applyStash(index?: number): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.applyStash(index));
+	async applyStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.applyStash(index, options));
 	}
 
 	async showStash(index: number): Promise<Change[] | undefined> {
@@ -2439,6 +2445,89 @@ export class Repository implements Disposable {
 		} finally {
 			this._operations.end(operation);
 			this._onDidRunOperation.fire({ operation: operation, error });
+		}
+	}
+
+	async migrateChanges(sourceRepositoryRoot: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void> {
+		const sourceRepository = this.repositoryResolver.getRepository(sourceRepositoryRoot);
+		if (!sourceRepository) {
+			window.showWarningMessage(l10n.t('The source repository could not be found.'));
+			return;
+		}
+
+		if (sourceRepository.indexGroup.resourceStates.length === 0 &&
+			sourceRepository.workingTreeGroup.resourceStates.length === 0 &&
+			sourceRepository.untrackedGroup.resourceStates.length === 0) {
+			await window.showInformationMessage(l10n.t('There are no changes in the selected worktree to migrate.'));
+			return;
+		}
+
+		const sourceFilePaths = [
+			...sourceRepository.indexGroup.resourceStates,
+			...sourceRepository.workingTreeGroup.resourceStates,
+			...sourceRepository.untrackedGroup.resourceStates
+		].map(resource => path.relative(sourceRepository.root, resource.resourceUri.fsPath));
+
+		const targetFilePaths = [
+			...this.workingTreeGroup.resourceStates,
+			...this.untrackedGroup.resourceStates
+		].map(resource => path.relative(this.root, resource.resourceUri.fsPath));
+
+		// Detect overlapping unstaged files in worktree stash and target repository
+		const conflicts = sourceFilePaths.filter(path => targetFilePaths.includes(path));
+
+		if (conflicts.length > 0) {
+			const maxFilesShown = 5;
+			const filesToShow = conflicts.slice(0, maxFilesShown);
+			const remainingCount = conflicts.length - maxFilesShown;
+
+			const fileList = filesToShow.join('\n ') +
+				(remainingCount > 0 ? l10n.t('\n and {0} more file{1}...', remainingCount, remainingCount > 1 ? 's' : '') : '');
+
+			const message = l10n.t('Your local changes to the following files would be overwritten by merge:\n {0}\n\nPlease stage, commit, or stash your changes in the repository before migrating changes.', fileList);
+			await window.showErrorMessage(message, { modal: true });
+			return;
+		}
+
+		if (options?.confirmation) {
+			// Non-interactive migration, do not show confirmation dialog
+			const message = l10n.t('Proceed with migrating changes to the current repository?');
+			const detail = l10n.t('This will apply the worktree\'s changes to this repository and discard changes in the worktree.\nThis is IRREVERSIBLE!');
+			const proceed = l10n.t('Proceed');
+			const pick = await window.showWarningMessage(message, { modal: true, detail }, proceed);
+			if (pick !== proceed) {
+				return;
+			}
+		}
+
+		const stashName = `migration:${sourceRepository.HEAD?.name ?? sourceRepository.HEAD?.commit}-${this.HEAD?.name ?? this.HEAD?.commit}`;
+		await sourceRepository.createStash(stashName, options?.untracked);
+		const stashes = await sourceRepository.getStashes();
+
+		try {
+			if (options?.deleteFromSource) {
+				await this.popStash(stashes[0].index);
+			} else {
+				await this.applyStash(stashes[0].index);
+				await sourceRepository.popStash(stashes[0].index, { reinstateStagedChanges: true });
+			}
+		} catch (err) {
+			if (err.gitErrorCode === GitErrorCodes.StashConflict) {
+				this.isWorktreeMigrating = true;
+
+				const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
+				const show = l10n.t('Show Changes');
+				const choice = await window.showWarningMessage(message, show);
+				if (choice === show) {
+					await commands.executeCommand('workbench.view.scm');
+				}
+
+				await sourceRepository.popStash(stashes[0].index, { reinstateStagedChanges: true });
+				return;
+			}
+
+			await sourceRepository.popStash(stashes[0].index, { reinstateStagedChanges: true });
+			throw err;
 		}
 	}
 
@@ -2782,7 +2871,7 @@ export class Repository implements Disposable {
 			const result = await runOperation();
 			return result;
 		} finally {
-			await this.repository.popStash();
+			await this.repository.popStash(undefined, { reinstateStagedChanges: true });
 		}
 	}
 
@@ -3047,6 +3136,7 @@ export class Repository implements Disposable {
 		}
 
 		const dictionaries: string[][] = [];
+		const branchPrefix = config.get<string>('branchPrefix', '');
 		const branchWhitespaceChar = config.get<string>('branchWhitespaceChar', '-');
 		const branchRandomNameDictionary = config.get<string[]>('branchRandomName.dictionary', ['adjectives', 'animals']);
 
@@ -3075,7 +3165,7 @@ export class Repository implements Disposable {
 			});
 
 			// Check for local ref conflict
-			const refs = await this.getRefs({ pattern: `refs/heads/${randomName}` });
+			const refs = await this.getRefs({ pattern: `refs/heads/${branchPrefix}${randomName}` });
 			if (refs.length === 0) {
 				return randomName;
 			}

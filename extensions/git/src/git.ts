@@ -2461,13 +2461,19 @@ export class Repository {
 		}
 	}
 
-	async popStash(index?: number): Promise<void> {
+	async popStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
 		const args = ['stash', 'pop'];
+		if (options?.reinstateStagedChanges) {
+			args.push('--index');
+		}
 		await this.popOrApplyStash(args, index);
 	}
 
-	async applyStash(index?: number): Promise<void> {
+	async applyStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
 		const args = ['stash', 'apply'];
+		if (options?.reinstateStagedChanges) {
+			args.push('--index');
+		}
 		await this.popOrApplyStash(args, index);
 	}
 

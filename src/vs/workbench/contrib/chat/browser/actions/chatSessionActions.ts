@@ -27,17 +27,19 @@ import { IWorkbenchExtensionManagementService } from '../../../../services/exten
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { AGENT_SESSIONS_VIEWLET_ID, ChatConfiguration } from '../../common/constants.js';
+import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
+import { LEGACY_AGENT_SESSIONS_VIEW_ID, ChatConfiguration } from '../../common/constants.js';
+import { AGENT_SESSIONS_VIEW_CONTAINER_ID, AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri } from '../chatSessions/common.js';
+import { findExistingChatEditorByUri } from '../chatSessions/common.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 
-interface IMarshalledChatSessionContext {
-	$mid: MarshalledId.ChatSessionContext;
-	session: ChatSessionItemWithProvider;
+export interface IMarshalledChatSessionContext {
+	readonly $mid: MarshalledId.ChatSessionContext;
+	readonly session: IChatSessionItem;
 }
 
 export class RenameChatSessionAction extends Action2 {
@@ -177,25 +179,25 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
-		if (context.session.provider?.chatSessionType) {
-			const uri = context.session.resource;
 
-			// Check if this session is already open in another editor
-			const existingEditor = findExistingChatEditorByUri(uri, editorGroupsService);
-			if (existingEditor) {
-				await editorService.openEditor(existingEditor.editor, existingEditor.group);
-				return;
-			} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
-				return;
-			} else {
-				const options: IChatEditorOptions = {
-					ignoreInView: true,
-				};
-				await editorService.openEditor({
-					resource: uri,
-					options,
-				}, AUX_WINDOW_GROUP);
-			}
+		const uri = context.session.resource;
+
+		// Check if this session is already open in another editor
+		const existingEditor = findExistingChatEditorByUri(uri, editorGroupsService);
+		if (existingEditor) {
+			await editorService.openEditor(existingEditor.editor, existingEditor.group);
+			return;
+		} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
+			return;
+		} else {
+			const options: IChatEditorOptions = {
+				ignoreInView: true,
+				auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
+			};
+			await editorService.openEditor({
+				resource: uri,
+				options,
+			}, AUX_WINDOW_GROUP);
 		}
 	}
 }
@@ -223,25 +225,25 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
-		if (context.session.provider?.chatSessionType) {
-			const uri = context.session.resource;
-			// Check if this session is already open in another editor
-			const existingEditor = findExistingChatEditorByUri(uri, editorGroupsService);
-			if (existingEditor) {
-				await editorService.openEditor(existingEditor.editor, existingEditor.group);
-				return;
-			} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
-				// Already opened in chat widget
-				return;
-			} else {
-				const options: IChatEditorOptions = {
-					ignoreInView: true,
-				};
-				await editorService.openEditor({
-					resource: uri,
-					options,
-				}, SIDE_GROUP);
-			}
+
+		const uri = context.session.resource;
+
+		// Check if this session is already open in another editor
+		const existingEditor = findExistingChatEditorByUri(uri, editorGroupsService);
+		if (existingEditor) {
+			await editorService.openEditor(existingEditor.editor, existingEditor.group);
+			return;
+		} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
+			// Already opened in chat widget
+			return;
+		} else {
+			const options: IChatEditorOptions = {
+				ignoreInView: true,
+			};
+			await editorService.openEditor({
+				resource: uri,
+				options,
+			}, SIDE_GROUP);
 		}
 	}
 }
@@ -271,7 +273,7 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 			return;
 		}
 
-		if (context.session.provider.chatSessionType !== localChatSessionType) {
+		if (!LocalChatSessionUri.parseLocalSessionId(context.session.resource)) {
 			// We only allow local sessions to be opened in the side bar
 			return;
 		}
@@ -330,25 +332,25 @@ export class ToggleChatSessionsDescriptionDisplayAction extends Action2 {
  */
 export class ToggleAgentSessionsViewLocationAction extends Action2 {
 
-	static readonly id = 'workbench.action.chatSessions.toggleNewSingleView';
+	static readonly id = 'workbench.action.chatSessions.toggleNewCombinedView';
 
 	constructor() {
 		super({
 			id: ToggleAgentSessionsViewLocationAction.id,
-			title: localize('chatSessions.toggleViewLocation.label', "Enable New Single View"),
+			title: localize('chatSessions.toggleViewLocation.label', "Combined Sessions View"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.AgentSessionsViewLocation}`, 'single-view'),
 			menu: [
 				{
 					id: MenuId.ViewContainerTitle,
-					when: ContextKeyExpr.equals('viewContainer', AGENT_SESSIONS_VIEWLET_ID),
+					when: ContextKeyExpr.equals('viewContainer', LEGACY_AGENT_SESSIONS_VIEW_ID),
 					group: '2_togglenew',
 					order: 1
 				},
 				{
-					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', 'workbench.view.agentSessions'),
+					id: MenuId.ViewContainerTitle,
+					when: ContextKeyExpr.equals('viewContainer', AGENT_SESSIONS_VIEW_CONTAINER_ID),
 					group: '2_togglenew',
 					order: 1
 				}
@@ -366,7 +368,7 @@ export class ToggleAgentSessionsViewLocationAction extends Action2 {
 
 		await configurationService.updateValue(ChatConfiguration.AgentSessionsViewLocation, newValue);
 
-		const viewId = newValue === 'single-view' ? 'workbench.view.agentSessions' : `${AGENT_SESSIONS_VIEWLET_ID}.local`;
+		const viewId = newValue === 'single-view' ? AGENT_SESSIONS_VIEW_ID : `${LEGACY_AGENT_SESSIONS_VIEW_ID}.local`;
 		await viewsService.openView(viewId, true);
 	}
 }
@@ -494,7 +496,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 	},
 	group: '1_config',
 	order: 1,
-	when: ContextKeyExpr.equals('viewContainer', AGENT_SESSIONS_VIEWLET_ID),
+	when: ContextKeyExpr.equals('viewContainer', LEGACY_AGENT_SESSIONS_VIEW_ID),
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
@@ -505,5 +507,5 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	},
 	group: 'navigation',
 	order: 1,
-	when: ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.local`),
+	when: ContextKeyExpr.equals('view', `${LEGACY_AGENT_SESSIONS_VIEW_ID}.local`),
 });

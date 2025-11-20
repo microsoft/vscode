@@ -292,6 +292,8 @@ export interface Repository {
 
 	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string>;
 	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void>;
+
+	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void>;
 }
 
 export interface RemoteSource {

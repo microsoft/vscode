@@ -46,7 +46,8 @@ import { IInlineCompletionsService } from '../../../../editor/browser/services/i
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { AGENT_SESSIONS_VIEWLET_ID } from '../common/constants.js';
+import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../common/constants.js';
+import { AGENT_SESSIONS_VIEW_ID } from './agentSessions/agentSessions.js';
 
 const gaugeForeground = registerColor('gauge.foreground', {
 	dark: inputValidationInfoBorder,
@@ -449,9 +450,9 @@ class ChatStatusDashboard extends Disposable {
 						run: () => {
 							// TODO@bpasero remove this check once settled
 							if (this.configurationService.getValue('chat.agentSessionsViewLocation') === 'single-view') {
-								this.runCommandAndClose('workbench.view.agentSessions');
+								this.runCommandAndClose(AGENT_SESSIONS_VIEW_ID);
 							} else {
-								this.runCommandAndClose(AGENT_SESSIONS_VIEWLET_ID);
+								this.runCommandAndClose(LEGACY_AGENT_SESSIONS_VIEW_ID);
 							}
 						}
 					}));
