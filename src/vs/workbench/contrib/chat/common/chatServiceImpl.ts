@@ -406,9 +406,9 @@ export class ChatService extends Disposable implements IChatService {
 
 	private shouldBeInHistory(entry: Partial<ChatModel>) {
 		if (entry.sessionResource) {
-			return !entry.isImported && LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation !== ChatAgentLocation.EditorInline;
+			return !entry.isImported && LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
 		}
-		return !entry.isImported && entry.initialLocation !== ChatAgentLocation.EditorInline;
+		return !entry.isImported && entry.initialLocation === ChatAgentLocation.Chat;
 	}
 
 	async removeHistoryEntry(sessionResource: URI): Promise<void> {
@@ -419,15 +419,15 @@ export class ChatService extends Disposable implements IChatService {
 		await this._chatSessionStore.clearAllSessions();
 	}
 
-	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession: boolean = true, options?: { canUseTools?: boolean }): ChatModel {
+	startSession(location: ChatAgentLocation, token: CancellationToken, options?: { canUseTools?: boolean }): ChatModel {
 		this.trace('startSession');
-		return this._startSession(undefined, location, isGlobalEditingSession, token, options);
+		return this._startSession(undefined, location, token, options);
 	}
 
-	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken, options?: { sessionResource?: URI; canUseTools?: boolean }, transferEditingSession?: IChatEditingSession): ChatModel {
+	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, token: CancellationToken, options?: { sessionResource?: URI; canUseTools?: boolean }, transferEditingSession?: IChatEditingSession): ChatModel {
 		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, { initialLocation: location, canUseTools: options?.canUseTools ?? true, resource: options?.sessionResource });
 		if (location === ChatAgentLocation.Chat) {
-			model.startEditingSession(isGlobalEditingSession, transferEditingSession);
+			model.startEditingSession(true, transferEditingSession);
 		}
 
 		this._sessionModels.set(model.sessionResource, model);
@@ -496,7 +496,7 @@ export class ChatService extends Disposable implements IChatService {
 			return undefined;
 		}
 
-		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None, { canUseTools: true, sessionResource });
+		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Chat, CancellationToken.None, { canUseTools: true, sessionResource });
 
 		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
 		if (isTransferred) {
@@ -554,7 +554,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {
-		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None);
+		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Chat, CancellationToken.None);
 	}
 
 	async loadSessionForResource(chatSessionResource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
@@ -573,7 +573,7 @@ export class ChatService extends Disposable implements IChatService {
 		const chatSessionType = chatSessionResource.scheme;
 
 		// Contributed sessions do not use UI tools
-		const model = this._startSession(undefined, location, true, CancellationToken.None, { sessionResource: chatSessionResource, canUseTools: false }, providedSession.initialEditingSession);
+		const model = this._startSession(undefined, location, CancellationToken.None, { sessionResource: chatSessionResource, canUseTools: false }, providedSession.initialEditingSession);
 		model.setContributedChatSession({
 			chatSessionResource,
 			chatSessionType,
