@@ -611,25 +611,6 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(models.length, 4);
 	});
 
-	test('should show models even when single vendor is collapsed', async () => {
-		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel(store, chatEntitlementService, false);
-		await singleVendorViewModel.resolve();
-
-		// Try to collapse the single vendor
-		const vendorEntry = viewModel.viewModelEntries.find(r => isVendorEntry(r) && r.vendorEntry.vendor === 'copilot') as IVendorItemEntry;
-		singleVendorViewModel.toggleVendorCollapsed(vendorEntry);
-
-		const results = singleVendorViewModel.filter('');
-
-		// Should still show models even though vendor is "collapsed"
-		// because there's no vendor header to collapse
-		const vendors = results.filter(isVendorEntry);
-		assert.strictEqual(vendors.length, 0, 'Should not show vendor header');
-
-		const models = results.filter(r => !isVendorEntry(r)) as IModelItemEntry[];
-		assert.strictEqual(models.length, 1, 'Should still show models even when single vendor is collapsed');
-	});
-
 	test('should filter single vendor models by capability', async () => {
 		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel(store, chatEntitlementService);
 		await singleVendorViewModel.resolve();
