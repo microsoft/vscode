@@ -944,7 +944,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean, options?: { canUseTools?: boolean }): ChatModel;
+	startSession(location: ChatAgentLocation, token: CancellationToken, options?: { canUseTools?: boolean }): ChatModel;
 	getSession(sessionResource: URI): IChatModel | undefined;
 	getOrRestoreSession(sessionResource: URI): Promise<IChatModel | undefined>;
 	getPersistedSessionTitle(sessionResource: URI): string | undefined;
