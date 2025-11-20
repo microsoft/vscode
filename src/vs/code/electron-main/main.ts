@@ -496,7 +496,7 @@ class CodeMain {
 	}
 
 	private async checkInnoSetupMutex(productService: IProductService): Promise<boolean> {
-		if (!isWindows || !productService.win32MutexName) {
+		if (!isWindows || !productService.win32MutexName || productService.quality !== 'insider') {
 			return false;
 		}
 

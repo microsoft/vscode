@@ -100,18 +100,19 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			} catch { }
 		}
 
-		if (this.productService.target === 'user') {
-			if (await this.nativeHostMainService.isAdmin(undefined)) {
-				this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
-				this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
-				return;
-			}
+		if (this.productService.target === 'user' && await this.nativeHostMainService.isAdmin(undefined)) {
+			this.setState(State.Disabled(DisablementReason.RunningAsAdmin));
+			this.logService.info('update#ctor - updates are disabled due to running as Admin in user setup');
+			return;
 		}
 
 		await super.initialize();
 	}
 
 	protected override async postInitialize(): Promise<void> {
+		if (this.productService.quality !== 'insider') {
+			return;
+		}
 		// Check for pending update from previous session
 		// This can happen if the app is quit right after the update has been
 		// downloaded and before the update has been applied.
