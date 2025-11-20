@@ -105,6 +105,8 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		this.setState(State.Idle(this.getUpdateType()));
 
+		await this.postInitialize();
+
 		if (updateMode === 'manual') {
 			this.logService.info('update#ctor - manual checks only; automatic updates are disabled by user preference');
 			return;
@@ -218,7 +220,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 	}
 
-	async _applySpecificUpdate(packagePath: string, version?: string): Promise<void> {
+	async _applySpecificUpdate(packagePath: string): Promise<void> {
 		// noop
 	}
 
@@ -227,6 +229,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	protected doQuitAndInstall(): void {
+		// noop
+	}
+
+	protected async postInitialize(): Promise<void> {
 		// noop
 	}
 

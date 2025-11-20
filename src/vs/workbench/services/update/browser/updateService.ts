@@ -94,7 +94,7 @@ export class BrowserUpdateService extends Disposable implements IUpdateService {
 		this.hostService.reload();
 	}
 
-	async _applySpecificUpdate(packagePath: string, version?: string): Promise<void> {
+	async _applySpecificUpdate(packagePath: string): Promise<void> {
 		// noop
 	}
 }
