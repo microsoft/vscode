@@ -24,17 +24,15 @@ export class ChatPrepareToolInvocationPart extends ChatProgressContentPart imple
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		let messageContent: MarkdownString;
-		if (prepareToolPart.streamData?.partialInput !== undefined) {
-			// Show partial input if available
-			const partialInputStr = typeof prepareToolPart.streamData.partialInput === 'string'
-				? prepareToolPart.streamData.partialInput
-				: JSON.stringify(prepareToolPart.streamData.partialInput, null, 2);
-			messageContent = new MarkdownString().appendText(`Preparing to call ${prepareToolPart.toolName}...`);
-			if (partialInputStr && partialInputStr.length > 0 && partialInputStr !== '{}') {
-				messageContent.appendMarkdown(`\n\n\`\`\`json\n${partialInputStr}\n\`\`\``);
+		if (prepareToolPart.invocationMessage) {
+			// Use custom invocation message if provided
+			if (typeof prepareToolPart.invocationMessage === 'string') {
+				messageContent = new MarkdownString().appendText(prepareToolPart.invocationMessage);
+			} else {
+				messageContent = new MarkdownString(prepareToolPart.invocationMessage.value, prepareToolPart.invocationMessage);
 			}
 		} else {
-			// No streaming data yet, just show that we're preparing
+			// Default message if no custom message provided
 			messageContent = new MarkdownString().appendText(`Preparing to call ${prepareToolPart.toolName}...`);
 		}
 
