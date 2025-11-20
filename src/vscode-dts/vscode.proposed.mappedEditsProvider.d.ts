@@ -76,7 +76,7 @@ declare module 'vscode' {
 		readonly location?: string;
 		readonly chatRequestId?: string;
 		readonly chatRequestModel?: string;
-		readonly chatSessionId?: string;
+		readonly chatSessionResource?: Uri;
 	}
 
 	export interface MappedEditsResponseStream {
