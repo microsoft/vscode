@@ -8,15 +8,17 @@ import { timeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatMode, ChatModeService } from '../../common/chatModes.js';
-import { ChatModeKind } from '../../common/constants.js';
+import { ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from './mockPromptsService.js';
 
@@ -47,6 +49,7 @@ suite('ChatModeService', () => {
 	let promptsService: MockPromptsService;
 	let chatAgentService: TestChatAgentService;
 	let storageService: TestStorageService;
+	let configurationService: TestConfigurationService;
 	let chatModeService: ChatModeService;
 
 	setup(async () => {
@@ -54,12 +57,14 @@ suite('ChatModeService', () => {
 		promptsService = new MockPromptsService();
 		chatAgentService = new TestChatAgentService();
 		storageService = testDisposables.add(new TestStorageService());
+		configurationService = new TestConfigurationService();
 
 		instantiationService.stub(IPromptsService, promptsService);
 		instantiationService.stub(IChatAgentService, chatAgentService);
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IConfigurationService, configurationService);
 
 		chatModeService = testDisposables.add(instantiationService.createInstance(ChatModeService));
 	});
@@ -79,17 +84,17 @@ suite('ChatModeService', () => {
 	});
 
 	test('should adjust builtin modes based on tools agent availability', () => {
-		// With tools agent
+		// Agent mode should always be present regardless of tools agent availability
 		chatAgentService.setHasToolsAgent(true);
 		let agents = chatModeService.getModes();
 		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Agent));
 
-		// Without tools agent - Agent mode should not be present
+		// Without tools agent - Agent mode should still be present (but will be disabled in UI)
 		chatAgentService.setHasToolsAgent(false);
 		agents = chatModeService.getModes();
-		assert.strictEqual(agents.builtin.find(agent => agent.id === ChatModeKind.Agent), undefined);
+		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Agent), 'Agent mode should be present even when hasToolsAgent is false');
 
-		// But Ask and Edit modes should always be present
+		// Ask and Edit modes should always be present
 		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Ask));
 		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Edit));
 	});
@@ -260,5 +265,22 @@ suite('ChatModeService', () => {
 		modes = chatModeService.getModes();
 		assert.strictEqual(modes.custom.length, 1);
 		assert.strictEqual(modes.custom[0].id, mode1.uri.toString());
+	});
+
+	test('should detect when agent mode is disabled by policy', () => {
+		// By default, agent mode should not be disabled by policy
+		assert.strictEqual(chatModeService.isAgentModeDisabledByPolicy(), false);
+
+		// Set policy value to false
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false, { policyValue: false });
+		assert.strictEqual(chatModeService.isAgentModeDisabledByPolicy(), true);
+
+		// Set policy value to true
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, true, { policyValue: true });
+		assert.strictEqual(chatModeService.isAgentModeDisabledByPolicy(), false);
+
+		// Clear policy value
+		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, true, { policyValue: undefined });
+		assert.strictEqual(chatModeService.isAgentModeDisabledByPolicy(), false);
 	});
 });
