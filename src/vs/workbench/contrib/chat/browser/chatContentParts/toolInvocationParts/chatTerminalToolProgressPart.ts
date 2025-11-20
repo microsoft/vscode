@@ -227,7 +227,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _streamingCommand: ITerminalCommand | undefined;
 	private _trackedCommandId: string | undefined;
 	private _streamingQueue: IStreamingSnapshotRequest[];
-	private readonly _streamingSnapshotRetryCounts = new WeakMap<ITerminalCommand, number>();
+	private _streamingEmptySnapshotRetries = 0;
 	private _isDrainingStreamingQueue = false;
 	private _streamingDrainScheduled = false;
 
@@ -508,6 +508,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._decoration.update();
 		this._commandStreamingListener.clear();
 		this._clearStreamingQueue();
+		this._streamingEmptySnapshotRetries = 0;
 		this._streamingCommand = undefined;
 		this._trackedCommandId = undefined;
 	}
@@ -577,6 +578,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 		this._outputView.endStreaming();
 		this._commandStreamingListener.clear();
+		this._streamingEmptySnapshotRetries = 0;
 		this._streamingCommand = undefined;
 		this._trackedCommandId = undefined;
 		commandDetectionListener.clear();
@@ -593,6 +595,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 		this._streamingCommand = command;
+		this._streamingEmptySnapshotRetries = 0;
 		this._trackedCommandId = commandId ?? expectedId;
 		if (commandId && this._terminalData.terminalCommandId !== commandId) {
 			this._terminalData.terminalCommandId = commandId;
@@ -883,11 +886,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 		const stored = this._terminalData.terminalCommandOutput?.text ?? '';
 		if (data === stored) {
-			if (force && stored.length === 0) {
-				const retryAttempt = (this._streamingSnapshotRetryCounts.get(command) ?? 0) + 1;
-				this._streamingSnapshotRetryCounts.set(command, retryAttempt);
-				if (command.hasOutput() && retryAttempt <= 60) {
-					this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.retryPendingOutput', { commandId: command.id, attempt: retryAttempt });
+			const shouldRetryEmptySnapshot = force && stored.length === 0 && command.hasOutput();
+			if (shouldRetryEmptySnapshot) {
+				this._streamingEmptySnapshotRetries++;
+				if (this._streamingEmptySnapshotRetries <= 60) {
+					const attempt = this._streamingEmptySnapshotRetries;
+					this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.retryPendingOutput', { commandId: command.id, attempt });
 					setTimeout(() => {
 						if (this._store.isDisposed || (!force && this._streamingCommand !== command)) {
 							return;
@@ -896,15 +900,17 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					}, 0);
 					return;
 				}
-				if (command.hasOutput() && retryAttempt > 60) {
-					this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.retryPendingOutput.maxAttempts', { commandId: command.id, attempt: retryAttempt });
+				if (this._streamingEmptySnapshotRetries > 60) {
+					this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.retryPendingOutput.maxAttempts', { commandId: command.id, attempt: this._streamingEmptySnapshotRetries });
+					this._streamingEmptySnapshotRetries = 0;
 				}
+			} else {
+				this._streamingEmptySnapshotRetries = 0;
 			}
-			this._streamingSnapshotRetryCounts.delete(command);
 			this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.noChange', { commandId: command.id, length: data.length });
 			return;
 		}
-		this._streamingSnapshotRetryCounts.delete(command);
+		this._streamingEmptySnapshotRetries = 0;
 		this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.apply', {
 			commandId: command.id,
 			length: data.length,
