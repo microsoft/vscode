@@ -937,28 +937,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._commandStreamingListener.value = streamingStore;
 		let capturing = true;
 		streamingStore.add(toDisposable(() => { capturing = false; }));
-		if (!this._streamingCommand) {
-			return;
-		}
-		this._queueStreaming(terminalInstance, command);
-		streamingStore.add(terminalInstance.onData(() => {
-			if (!capturing || streamingStore.isDisposed) {
-				return;
-			}
-			const currentCommand = this._streamingCommand;
-			if (!currentCommand) {
-				return;
-			}
-			if (!capturing || streamingStore.isDisposed) {
-				return;
-			}
-			const latestCommand = this._streamingCommand;
-			if (!latestCommand || latestCommand !== currentCommand) {
-				return;
-			}
-			this._queueStreaming(terminalInstance, currentCommand);
-		}));
-		streamingStore.add(terminalInstance.onLineData(() => {
+
+		const runIfStreaming = (callback: (currentCommand: ITerminalCommand) => void): void => {
 			if (!capturing || streamingStore.isDisposed) {
 				return;
 			}
@@ -966,19 +946,20 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			if (!latestCommand || latestCommand !== command) {
 				return;
 			}
-			this._outputView.handleCompletedTerminalLine(terminalInstance, latestCommand);
+			callback(latestCommand);
+		};
+
+		this._queueStreaming(terminalInstance, command);
+		streamingStore.add(terminalInstance.onData(() => {
+			runIfStreaming(currentCommand => this._queueStreaming(terminalInstance, currentCommand));
+		}));
+		streamingStore.add(terminalInstance.onLineData(() => {
+			runIfStreaming(currentCommand => this._outputView.handleCompletedTerminalLine(terminalInstance, currentCommand));
 		}));
 		const xterm = terminalInstance.xterm as unknown as XtermTerminal | undefined;
 		if (xterm) {
 			streamingStore.add(xterm.raw.onCursorMove(() => {
-				if (!capturing || streamingStore.isDisposed) {
-					return;
-				}
-				const latestCommand = this._streamingCommand;
-				if (!latestCommand || latestCommand !== command) {
-					return;
-				}
-				this._outputView.handleCursorRenderableCheck(terminalInstance, latestCommand);
+				runIfStreaming(currentCommand => this._outputView.handleCursorRenderableCheck(terminalInstance, currentCommand));
 			}));
 		}
 	}
