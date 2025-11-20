@@ -5,13 +5,14 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { autorunSelfDisposable, IObservable } from '../../../../../base/common/observable.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatService, IChatToolInvocation } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
@@ -77,6 +78,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			this.registerModelTitleListener(widget);
 			if (widget.viewModel) {
 				this.registerProgressListener(widget.viewModel.model.requestInProgress);
+				this.registerResponseChangeListener(widget.viewModel.model);
 			}
 		};
 		// Listen for view model changes on this widget
@@ -91,6 +93,55 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		const progressEvent = Event.fromObservableLight(observable);
 		this._register(progressEvent(() => {
 			this._onDidChangeChatSessionItems.fire();
+		}));
+	}
+
+	private registerResponseChangeListener(model: IChatModel): void {
+		// Listen for response changes on all requests
+		const requests = model.getRequests();
+		requests.forEach(request => {
+			if (request.response) {
+				this._register(request.response.onDidChange(() => {
+					this._onDidChangeChatSessionItems.fire();
+				}));
+
+				// Track tool invocation state changes
+				const responseParts = request.response.response.value;
+				responseParts.forEach(part => {
+					if (part.kind === 'toolInvocation') {
+						const toolInvocation = part as IChatToolInvocation;
+						// Use autorun to listen for state changes
+						this._register(autorunSelfDisposable(reader => {
+							toolInvocation.state.read(reader);
+							this._onDidChangeChatSessionItems.fire();
+						}));
+					}
+				});
+			}
+		});
+
+		// Listen for new requests being added
+		this._register(model.onDidChange(() => {
+			const currentRequests = model.getRequests();
+			currentRequests.forEach(request => {
+				if (request.response) {
+					this._register(request.response.onDidChange(() => {
+						this._onDidChangeChatSessionItems.fire();
+					}));
+
+					// Track tool invocation state changes for new requests
+					const responseParts = request.response.response.value;
+					responseParts.forEach(part => {
+						if (part.kind === 'toolInvocation') {
+							const toolInvocation = part as IChatToolInvocation;
+							this._register(autorunSelfDisposable(reader => {
+								toolInvocation.state.read(reader);
+								this._onDidChangeChatSessionItems.fire();
+							}));
+						}
+					});
+				}
+			});
 		}));
 	}
 
@@ -146,11 +197,13 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				}
 			}
 			const statistics = model ? this.getSessionStatistics(model) : undefined;
+			const description = model ? this.getSessionDescription(model) : undefined;
 			const editorSession: ChatSessionItemWithProvider = {
 				resource: sessionDetail.sessionResource,
 				label: sessionDetail.title,
 				iconPath: Codicon.chatSparkle,
 				status,
+				description,
 				provider: this,
 				timing: {
 					startTime: startTime ?? 0
@@ -209,5 +262,85 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			insertions: linesAdded,
 			deletions: linesRemoved,
 		};
+	}
+
+	private getSessionDescription(chatModel: IChatModel): string | undefined {
+		const requests = chatModel.getRequests();
+		if (requests.length === 0) {
+			return undefined;
+		}
+
+		// Get the last request to check its response status
+		const lastRequest = requests[requests.length - 1];
+		const response = lastRequest?.response;
+		if (!response) {
+			return undefined;
+		}
+
+		// If the response is complete, don't show a description
+		if (response.isComplete) {
+			return undefined;
+		}
+
+		// Get the response parts to find tool invocations and progress messages
+		const responseParts = response.response.value;
+		const descriptions: string[] = [];
+
+		// Find the currently executing or most recent tool invocation
+		let currentTool: IChatToolInvocation | undefined;
+		for (let i = responseParts.length - 1; i >= 0; i--) {
+			const part = responseParts[i];
+			if (part.kind === 'toolInvocation') {
+				const toolInvocation = part as IChatToolInvocation;
+				const state = toolInvocation.state.get();
+				
+				// Check if this tool is currently executing
+				if (state.type === IChatToolInvocation.StateKind.Executing) {
+					currentTool = toolInvocation;
+					break;
+				}
+				
+				// Check if waiting for confirmation
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+					currentTool = toolInvocation;
+					break;
+				}
+				
+				// Check if waiting for post approval
+				if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+					currentTool = toolInvocation;
+					break;
+				}
+			}
+		}
+
+		// Build description from current tool
+		if (currentTool) {
+			const state = currentTool.state.get();
+			const toolName = currentTool.presentation?.tool?.displayName || currentTool.toolId;
+			
+			if (state.type === IChatToolInvocation.StateKind.Executing) {
+				const progressInfo = state.progress.get();
+				if (progressInfo.message) {
+					const messageStr = typeof progressInfo.message === 'string' 
+						? progressInfo.message 
+						: progressInfo.message.value;
+					descriptions.push(`${toolName}: ${messageStr}`);
+				} else if (progressInfo.progress !== undefined) {
+					descriptions.push(`${toolName}: ${Math.round(progressInfo.progress * 100)}%`);
+				} else {
+					descriptions.push(`Executing: ${toolName}`);
+				}
+			} else if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+				descriptions.push(`Waiting for confirmation: ${toolName}`);
+			} else if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				descriptions.push(`Waiting for approval: ${toolName}`);
+			}
+		} else if (chatModel.requestInProgress.get()) {
+			// If we're in progress but no active tool, show a generic message
+			descriptions.push('Thinking...');
+		}
+
+		return descriptions.length > 0 ? descriptions.join(' • ') : undefined;
 	}
 }
