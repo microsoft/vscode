@@ -404,8 +404,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.content.value
-			|| this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```'));
+		const thisCodeblockUris = this.codeblocks.map(cb => cb.codemapperUri);
+		return other.kind === 'markdownContent'
+			&& other.content.value === this.markdown.content.value
+			&& (thisCodeblockUris.length === 0 || thisCodeblockUris.every((uri) => uri !== undefined));
 	}
 
 	layout(width: number): void {
