@@ -160,7 +160,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this.readToolSet = this._register(this.createToolSet(
 			ToolDataSource.Internal,
 			'read',
-			VSCodeToolReference.launch,
+			VSCodeToolReference.read,
 			{
 				icon: ThemeIcon.fromId(Codicon.eye.id),
 				description: localize('copilot.toolSet.read.description', 'Read files in your workspace'),
