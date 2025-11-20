@@ -348,7 +348,7 @@
 
 .quick-input-list .monaco-list-row.focused .monaco-keybinding-key {
 	background: none;
-	border-color: unset;
+	border-color: inherit;
 	opacity: 0.8;
 }
 
