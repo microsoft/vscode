@@ -696,8 +696,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	private _githubToVSCodeToolMap: Record<string, string> = {
 		[GithubCopilotToolReference.shell]: VSCodeToolReference.shell,
-		[GithubCopilotToolReference.customAgent]: VSCodeToolReference.runSubagent,
-		'github/*': 'github/github-mcp-server/*',
+		[GithubCopilotToolReference.customAgent]: VSCodeToolReference.customAgent,
 		'playwright/*': 'microsoft/playwright-mcp/*',
 	};
 	private _githubPrefixToVSCodePrefix = [['github', 'github/github-mcp-server'], ['playwright', 'microsoft/playwright-mcp']] as const;
