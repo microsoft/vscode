@@ -111,6 +111,46 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		await super.initialize();
 	}
 
+	protected override async postInitialize(): Promise<void> {
+		// Check for pending update from previous session
+		// This can happen if the app is quit right after the update has been
+		// downloaded and before the update has been applied.
+		const exePath = app.getPath('exe');
+		const exeDir = path.dirname(exePath);
+		const updatingVersionPath = path.join(exeDir, 'updating_version');
+		if (await pfs.Promises.exists(updatingVersionPath)) {
+			try {
+				const updatingVersion = (await readFile(updatingVersionPath, 'utf8')).trim();
+				this.logService.info(`update#doCheckForUpdates - application was updating to version ${updatingVersion}`);
+				const updatePackagePath = await this.getUpdatePackagePath(updatingVersion);
+				if (await pfs.Promises.exists(updatePackagePath)) {
+					await this._applySpecificUpdate(updatePackagePath);
+					this.logService.info(`update#doCheckForUpdates - successfully applied update to version ${updatingVersion}`);
+				}
+			} catch (e) {
+				this.logService.error(`update#doCheckForUpdates - could not read ${updatingVersionPath}`, e);
+			} finally {
+				try {
+					await unlink(updatingVersionPath);
+				} catch { }
+			}
+		} else {
+			const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
+			if (fastUpdatesEnabled && this.productService.target === 'user' && this.productService.commit) {
+				const versionedResourcesFolder = this.productService.commit.substring(0, 10);
+				const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
+				await new Promise<void>(resolve => {
+					const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder], {
+						stdio: ['ignore', 'ignore', 'ignore'],
+						windowsHide: true,
+						timeout: 2 * 60 * 1000
+					});
+					child.once('exit', () => resolve());
+				});
+			}
+		}
+	}
+
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
 		let platform = `win32-${process.arch}`;
 
@@ -125,38 +165,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 	protected doCheckForUpdates(explicit: boolean): void {
 		if (!this.url || this.state.type === StateType.Updating) {
-			return;
-		}
-
-		// Check for pending update from previous session
-		// This can happen if the app is quit right after the update has been
-		// downloaded and before the update has been applied.
-		const exePath = app.getPath('exe');
-		const exeDir = path.dirname(exePath);
-		const updatingVersionPath = path.join(exeDir, 'updating_version');
-		if (existsSync(updatingVersionPath)) {
-			readFile(updatingVersionPath, 'utf8').then(updatingVersion => {
-				updatingVersion = updatingVersion.trim();
-				this.logService.info(`update#doCheckForUpdates - application was updating to version ${updatingVersion}`);
-				// NB: the following promises are not connected to the parent since
-				// we don't care about the result of update from this path and unlink the updating_version
-				// to only run this path once. Any error in the update flow will be fixed in the next update check.
-				this.getUpdatePackagePath(updatingVersion).then(updatePackagePath => {
-					pfs.Promises.exists(updatePackagePath).then(exists => {
-						if (exists) {
-							this._applySpecificUpdate(updatePackagePath, updatingVersion).then(async _ => {
-								this.logService.info(`update#doCheckForUpdates - successfully applied update to version ${updatingVersion}`);
-							});
-						}
-					});
-				});
-			}).catch(e => {
-				this.logService.error(`update#doCheckForUpdates - could not read ${updatingVersionPath}`, e);
-			}).finally(async () => {
-				try {
-					await unlink(updatingVersionPath);
-				} catch { }
-			});
 			return;
 		}
 
@@ -246,21 +254,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			}
 		});
 
-		if (this.productService.target === 'user' && this.productService.commit) {
-			const exePath = app.getPath('exe');
-			const exeDir = path.dirname(exePath);
-			const versionedResourcesFolder = this.productService.commit.substring(0, 10);
-			const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
-			promises.push(new Promise<void>(resolve => {
-				const child = spawn(innoUpdater, ['--gc', exePath, versionedResourcesFolder], {
-					stdio: ['ignore', 'ignore', 'ignore'],
-					windowsHide: true,
-					timeout: 2 * 60 * 1000
-				});
-				child.once('exit', () => resolve());
-			}));
-		}
-
 		await Promise.all(promises);
 	}
 
@@ -322,45 +315,21 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		return getUpdateType();
 	}
 
-	override async _applySpecificUpdate(packagePath: string, version?: string): Promise<void> {
+	override async _applySpecificUpdate(packagePath: string): Promise<void> {
 		if (this.state.type !== StateType.Idle) {
 			return;
 		}
 
-		if (version && this.productService.commit && version === this.productService.commit) {
-			this.logService.info(`update#_applySpecificUpdate - same version ${version} update is not supported.`);
-			return;
-		}
-
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-		const updateVersion = version || 'unknown';
-		const update: IUpdate = { version: updateVersion, productVersion: 'unknown' };
+		const update: IUpdate = { version: 'unknown', productVersion: 'unknown' };
 
 		this.setState(State.Downloading);
-
-		let targetPackagePath = packagePath;
-		if (version) {
-			targetPackagePath = await this.getUpdatePackagePath(version);
-			const exists = await pfs.Promises.exists(targetPackagePath);
-			if (!exists) {
-				try {
-					await pfs.Promises.copy(packagePath, targetPackagePath, { preserveSymlinks: false });
-					this.logService.info(`update#_applySpecificUpdate - copied package from ${packagePath} to ${targetPackagePath}`);
-				} catch (error) {
-					this.logService.error(`update#_applySpecificUpdate - failed to copy package: ${error}`);
-					throw error;
-				}
-			}
-		}
-
-		this.availableUpdate = { packagePath: targetPackagePath };
+		this.availableUpdate = { packagePath };
 		this.setState(State.Downloaded(update));
 
 		if (fastUpdatesEnabled) {
 			if (this.productService.target === 'user') {
-				this.cleanup(update.version).then(() => {
-					this.doApplyUpdate();
-				});
+				this.doApplyUpdate();
 			}
 		} else {
 			this.setState(State.Ready(update));

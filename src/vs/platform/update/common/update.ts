@@ -106,5 +106,5 @@ export interface IUpdateService {
 	quitAndInstall(): Promise<void>;
 
 	isLatestVersion(): Promise<boolean | undefined>;
-	_applySpecificUpdate(packagePath: string, version?: string): Promise<void>;
+	_applySpecificUpdate(packagePath: string): Promise<void>;
 }
