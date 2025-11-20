@@ -1574,6 +1574,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			return request?.response?.isInProgress.read(r) ?? false;
 		});
 
+		// Retain a reference to itself when a request is in progress, so the ChatModel stays alive in the background
+		// only while running a request. TODO also keep it alive for 5min or so so we don't have to dispose/restore too often
 		const selfRef = this._register(new MutableDisposable<IChatModelReference>());
 		this._register(autorun(r => {
 			const inProgress = this.requestInProgress.read(r);
