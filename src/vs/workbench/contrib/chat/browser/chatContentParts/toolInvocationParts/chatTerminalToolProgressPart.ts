@@ -867,7 +867,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			commandDetectionListener.value = store;
 
 			store.add(commandDetection.onCommandExecuted(command => this._startStreaming(terminalInstance, command)));
-
 			store.add(commandDetection.onCommandFinished(async command => await this._handleCommandFinished(terminalInstance, command, commandDetectionListener)));
 
 			await tryResolveCommand();
