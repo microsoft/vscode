@@ -7,21 +7,19 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { IObservable } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { ChatSessionItemWithProvider } from './common.js';
 
 export class LocalChatSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.localChatSessionsProvider';
 	static readonly CHAT_WIDGET_VIEW_ID = 'workbench.panel.chat.view.copilot';
-	static readonly CHAT_WIDGET_VIEW_RESOURCE = URI.parse(`${Schemas.vscodeLocalChatSession}://widget`);
 	readonly chatSessionType = localChatSessionType;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -58,8 +56,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		this._register(this.chatWidgetService.onDidAddWidget(widget => {
 			// Only fire for chat view instance
 			if (widget.location === ChatAgentLocation.Chat &&
-				typeof widget.viewContext === 'object' &&
-				'viewId' in widget.viewContext &&
+				isIChatViewViewContext(widget.viewContext) &&
 				widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
 				this._onDidChange.fire();
 				this._registerWidgetModelListeners(widget);
@@ -68,7 +65,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 
 		// Check for existing chat widgets and register listeners
 		const existingWidgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)
-			.filter(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
+			.filter(widget => isIChatViewViewContext(widget.viewContext) && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
 
 		existingWidgets.forEach(widget => {
 			this._registerWidgetModelListeners(widget);
@@ -138,16 +135,18 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		this.chatService.getLiveSessionItems().forEach(sessionDetail => {
 			let status: ChatSessionStatus | undefined;
 			let startTime: number | undefined;
+			let endTime: number | undefined;
 			const model = this.chatService.getSession(sessionDetail.sessionResource);
 			if (model) {
 				status = this.modelToStatus(model);
-				const requests = model.getRequests();
-				if (requests.length > 0) {
-					startTime = requests.at(0)?.timestamp;
-				} else {
-					startTime = Date.now();
+				startTime = model.timestamp;
+
+				const lastResponse = model.getRequests().at(-1)?.response;
+				if (lastResponse) {
+					endTime = lastResponse.completedAt ?? lastResponse.timestamp;
 				}
 			}
+			const statistics = model ? this.getSessionStatistics(model) : undefined;
 			const editorSession: ChatSessionItemWithProvider = {
 				resource: sessionDetail.sessionResource,
 				label: sessionDetail.title,
@@ -155,8 +154,10 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				status,
 				provider: this,
 				timing: {
-					startTime: startTime ?? 0
-				}
+					startTime: startTime ?? Date.now(), // TODO@osortega this is not so good
+					endTime
+				},
+				statistics
 			};
 			sessionsByResource.add(sessionDetail.sessionResource);
 			sessions.push(editorSession);
@@ -170,21 +171,45 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
 		try {
 			const allHistory = await this.chatService.getHistorySessionItems();
-			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => ({
-				resource: historyDetail.sessionResource,
-				label: historyDetail.title,
-				iconPath: Codicon.chatSparkle,
-				provider: this,
-				timing: {
-					startTime: historyDetail.lastMessageDate ?? Date.now()
-				},
-				archived: true,
-			}));
-
+			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => {
+				const model = this.chatService.getSession(historyDetail.sessionResource);
+				const statistics = model ? this.getSessionStatistics(model) : undefined;
+				return {
+					resource: historyDetail.sessionResource,
+					label: historyDetail.title,
+					iconPath: Codicon.chatSparkle,
+					provider: this,
+					timing: {
+						startTime: historyDetail.lastMessageDate ?? Date.now()
+					},
+					archived: true,
+					statistics
+				};
+			});
 			return historyItems;
 
 		} catch (error) {
 			return [];
 		}
+	}
+
+	private getSessionStatistics(chatModel: IChatModel) {
+		let linesAdded = 0;
+		let linesRemoved = 0;
+		const modifiedFiles = new ResourceSet();
+		const currentEdits = chatModel.editingSession?.entries.get();
+		if (currentEdits) {
+			const uncommittedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+			uncommittedEdits.forEach(edit => {
+				linesAdded += edit.linesAdded?.get() ?? 0;
+				linesRemoved += edit.linesRemoved?.get() ?? 0;
+				modifiedFiles.add(edit.modifiedURI);
+			});
+		}
+		return {
+			files: modifiedFiles.size,
+			insertions: linesAdded,
+			deletions: linesRemoved,
+		};
 	}
 }

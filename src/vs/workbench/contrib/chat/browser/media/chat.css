@@ -78,7 +78,6 @@
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
-	margin-left: 4px;
 }
 
 .interactive-item-container .detail-container .detail .agentOrSlashCommandDetected A {
@@ -2492,6 +2491,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.interactive-request .header.partially-disabled .avatar-container,
 	.interactive-request .header.partially-disabled .username {
 		display: none;
+	}
+
+	.interactive-request .header.partially-disabled .detail-container {
+		margin-left: 4px;
 	}
 
 	.interactive-item-container .header .detail .codicon-check {
