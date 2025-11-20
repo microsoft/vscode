@@ -41,13 +41,14 @@ const openSettings: WatermarkEntry = { text: localize('watermark.openSettings', 
 
 const showChat = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabled', false));
 const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: showChat, web: showChat } };
+const editCodeInline: WatermarkEntry = { text: localize('watermark.editCodeInline', "Edit Code Inline with Chat"), id: 'inlineChat.start', when: { native: showChat, web: showChat } };
 
 const emptyWindowEntries: WatermarkEntry[] = coalesce([
+	openChat,
 	showCommands,
 	...(isMacintosh && !isWeb ? [openFileOrFolder] : [openFile, openFolder]),
 	openRecent,
 	isMacintosh && !isWeb ? newUntitledFile : undefined, // fill in one more on macOS to get to 5 entries
-	openChat
 ]);
 
 const randomEmptyWindowEntries: WatermarkEntry[] = [
@@ -55,9 +56,9 @@ const randomEmptyWindowEntries: WatermarkEntry[] = [
 ];
 
 const workspaceEntries: WatermarkEntry[] = [
-	showCommands,
-	gotoFile,
-	openChat
+	openChat,
+	editCodeInline,
+	// showCommands,
 ];
 
 const randomWorkspaceEntries: WatermarkEntry[] = [
@@ -65,6 +66,8 @@ const randomWorkspaceEntries: WatermarkEntry[] = [
 	startDebugging,
 	toggleTerminal,
 	openSettings,
+	gotoFile,
+	showCommands,
 ];
 
 export class EditorGroupWatermark extends Disposable {
@@ -94,8 +97,10 @@ export class EditorGroupWatermark extends Disposable {
 		this.workbenchState = this.contextService.getWorkbenchState();
 
 		const elements = h('.editor-group-watermark', [
-			h('.letterpress'),
-			h('.shortcuts@shortcuts'),
+			h('.watermark-container', [
+				h('.letterpress'),
+				h('.shortcuts@shortcuts'),
+			])
 		]);
 
 		append(container, elements.root);
@@ -155,13 +160,18 @@ export class EditorGroupWatermark extends Disposable {
 			clearNode(box);
 			this.keybindingLabels.clear();
 
-			for (const entry of entries) {
+			for (let i = 0; i < entries.length; i++) {
+				const entry = entries[i];
 				const keys = this.keybindingService.lookupKeybinding(entry.id);
 				if (!keys) {
 					continue;
 				}
 
 				const dl = append(box, $('dl'));
+				if (i < fixedEntries.length) {
+					dl.classList.add('watermark-fixed-entry');
+				}
+
 				const dt = append(dl, $('dt'));
 				dt.textContent = entry.text;
 
