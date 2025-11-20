@@ -5,7 +5,7 @@
 
 import { $, getWindow } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -48,7 +48,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
 
-	private readonly modelDisposables = this._register(new DisposableStore());
+	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
 	private memento: Memento<IViewPaneState>;
 	private readonly viewState: IViewPaneState;
 
@@ -139,7 +139,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async updateModel(modelRef?: IChatModelReference | undefined, viewState?: IChatViewState): Promise<void> {
-		this.modelDisposables.clear();
+		this.modelRef.value = undefined;
 
 		const ref = modelRef ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === this.chatOptions.location
 			? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(this.chatService.transferredSessionData.sessionId))
@@ -147,7 +147,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (!ref) {
 			throw new Error('Could not start chat session');
 		}
-		this.modelDisposables.add(ref);
+		this.modelRef.value = ref;
 		const model = ref.object;
 
 		if (viewState) {
