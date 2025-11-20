@@ -259,7 +259,8 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			iconTheme = session.iconPath;
 		}
 
-		const renderDescriptionOnSecondRow = this.configurationService.getValue<boolean>(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== localChatSessionType;
+		const renderDescriptionOnSecondRow = (this.configurationService.getValue<boolean>(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== localChatSessionType) ||
+			(session.provider.chatSessionType === localChatSessionType && session.description && session.status === ChatSessionStatus.InProgress);
 
 		if (renderDescriptionOnSecondRow && session.description) {
 			templateData.container.classList.toggle('multiline', true);
