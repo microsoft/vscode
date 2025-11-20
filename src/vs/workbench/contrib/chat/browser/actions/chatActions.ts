@@ -789,14 +789,15 @@ export function registerChatActions() {
 									label: 'Chat Sessions',
 								});
 
-								const maxToShow = showAllAgents ? Number.MAX_SAFE_INTEGER : 5;
+								const defaultMaxToShow = 5;
+								const maxToShow = showAllAgents ? Number.MAX_SAFE_INTEGER : defaultMaxToShow;
 								currentPicks.push(
 									...agentPicks
 										.toSorted((a, b) => (b.session.timing.endTime ?? b.session.timing.startTime) - (a.session.timing.endTime ?? a.session.timing.startTime))
 										.slice(0, maxToShow));
 
 								// Add "Show more..." if needed and not showing all agents
-								if (!showAllAgents && agentPicks.length > 5) {
+								if (!showAllAgents && agentPicks.length > defaultMaxToShow) {
 									currentPicks.push(showMoreAgentsPick);
 								}
 							}
