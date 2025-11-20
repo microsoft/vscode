@@ -45,6 +45,7 @@ const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
+const versionedResourcesFolder = (product.quality && product.quality === 'insider') ? commit.substring(0, 10) : '';
 
 // Build
 const vscodeEntryPoints = [
@@ -329,7 +330,6 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		);
 
 		let customElectronConfig = {};
-		const versionedResourcesFolder = (quality && quality === 'insider') ? commit.substring(0, 10) : '';
 		if (platform === 'win32') {
 			all = es.merge(all, gulp.src([
 				'resources/win32/bower.ico',
