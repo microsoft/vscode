@@ -31,6 +31,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	private readonly showSpinner: boolean;
 	private readonly isHidden: boolean;
 	private readonly renderedMessage = this._register(new MutableDisposable<IRenderedMarkdown>());
+	private currentContent: IMarkdownString;
 
 	constructor(
 		progress: IChatProgressMessage | IChatTask | IChatTaskSerialized,
@@ -45,6 +46,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
+		this.currentContent = progress.content;
 
 		const followingContent = context.content.slice(context.contentIndex + 1);
 		this.showSpinner = forceShowSpinner ?? shouldShowSpinner(followingContent, context.element);
@@ -100,6 +102,12 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 
 		// Needs rerender when spinner state changes
 		const showSpinner = shouldShowSpinner(followingContent, element);
+
+		// Needs rerender when content changes
+		if (other.kind === 'progressMessage' && other.content.value !== this.currentContent.value) {
+			return false;
+		}
+
 		return other.kind === 'progressMessage' && this.showSpinner === showSpinner;
 	}
 
