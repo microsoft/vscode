@@ -406,9 +406,9 @@ export class ChatService extends Disposable implements IChatService {
 
 	private shouldBeInHistory(entry: Partial<ChatModel>) {
 		if (entry.sessionResource) {
-			return !entry.isImported && LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation !== ChatAgentLocation.EditorInline;
+			return !entry.isImported && LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
 		}
-		return !entry.isImported && entry.initialLocation !== ChatAgentLocation.EditorInline;
+		return !entry.isImported && entry.initialLocation === ChatAgentLocation.Chat;
 	}
 
 	async removeHistoryEntry(sessionResource: URI): Promise<void> {
