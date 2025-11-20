@@ -53,7 +53,8 @@ import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollba
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { ChatTerminalStreamingModel, IStreamingSnapshotRequest } from '../../chatTerminalStreamingModel.js';
+import { ChatTerminalStreamingModel } from '../../chatTerminalStreamingModel.js';
+import { ChatTerminalCommandStreamer } from '../../chatTerminalCommandStreamer.js';
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
 
@@ -223,13 +224,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _terminalInstance: ITerminalInstance | undefined;
 	private readonly _decoration: TerminalCommandDecoration;
 
-	private readonly _commandStreamingListener: MutableDisposable<IDisposable>;
-	private _streamingCommand: ITerminalCommand | undefined;
-	private _trackedCommandId: string | undefined;
-	private _streamingQueue: IStreamingSnapshotRequest[];
-	private _streamingEmptySnapshotRetries = 0;
-	private _isDrainingStreamingQueue = false;
-	private _streamingDrainScheduled = false;
+	private readonly _streamingController: ChatTerminalCommandStreamer;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -288,10 +283,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			getIconElement: () => undefined,
 			getResolvedCommand: () => this._getResolvedCommand()
 		}));
-		this._commandStreamingListener = this._register(new MutableDisposable<IDisposable>());
-		this._streamingCommand = undefined;
-		this._trackedCommandId = this._terminalData.terminalCommandId ?? this._storedCommandId;
-		this._streamingQueue = [];
+		this._streamingController = this._register(new ChatTerminalCommandStreamer(
+			this._logService,
+			() => this._store.isDisposed,
+			(instance, command, force) => this._syncStreamingSnapshot(instance, command, force)
+		));
+		this._streamingController.trackedCommandId = this._terminalData.terminalCommandId ?? this._storedCommandId;
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 		const displayCommand = stripIcons(command);
@@ -465,7 +462,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			resolvedCommand = this._getResolvedCommand();
 		}
 		const hasRenderableOutput = this._outputView.hasRenderableOutput();
-		if (!resolvedCommand && !hasRenderableOutput && !this._streamingCommand) {
+		if (!resolvedCommand && !hasRenderableOutput && !this._streamingController.streamingCommand) {
 			return;
 		}
 		let showOutputAction = this._showOutputAction.value;
@@ -506,11 +503,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			delete this._terminalData.terminalToolSessionId;
 		}
 		this._decoration.update();
-		this._commandStreamingListener.clear();
-		this._clearStreamingQueue();
-		this._streamingEmptySnapshotRetries = 0;
-		this._streamingCommand = undefined;
-		this._trackedCommandId = undefined;
+		this._streamingController.clearAllCommandState();
 	}
 
 	private _registerInstanceListener(terminalInstance: ITerminalInstance): void {
@@ -523,9 +516,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const attachCommandDetection = async (commandDetection: ICommandDetectionCapability | undefined) => {
 			commandDetectionListener.clear();
-			this._commandStreamingListener.clear();
-			this._streamingCommand = undefined;
-			this._trackedCommandId = this._terminalData.terminalCommandId ?? this._storedCommandId;
+			this._streamingController.resetForCommandDetection(this._terminalData.terminalCommandId ?? this._storedCommandId);
 			if (!commandDetection) {
 				await tryResolveCommand();
 				return;
@@ -564,7 +555,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 		const finishedId = command.id;
-		const handledById = this._trackedCommandId !== undefined && finishedId !== undefined && finishedId === this._trackedCommandId;
+		const handledById = this._streamingController.isTrackedCommand(finishedId);
 		if (!handledById) {
 			return;
 		}
@@ -574,36 +565,29 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 		const appliedEmptyOutput = this._tryApplyEmptyOutput(command);
 		if (!appliedEmptyOutput) {
-			await this._queueStreaming(terminalInstance, command, true);
+			await this._streamingController.queueStreaming(terminalInstance, command, true);
 		}
 		this._outputView.endStreaming();
-		this._commandStreamingListener.clear();
-		this._streamingEmptySnapshotRetries = 0;
-		this._streamingCommand = undefined;
-		this._trackedCommandId = undefined;
+		this._streamingController.endStreaming();
 		commandDetectionListener.clear();
 	}
 
 	private _startStreaming(terminalInstance: ITerminalInstance, command: ITerminalCommand): void {
-		if (this._streamingCommand) {
+		if (this._streamingController.streamingCommand) {
 			return;
 		}
 		const commandId = command.id;
-		const expectedId = this._trackedCommandId ?? this._terminalData.terminalCommandId ?? this._storedCommandId;
+		const expectedId = this._streamingController.trackedCommandId ?? this._terminalData.terminalCommandId ?? this._storedCommandId;
 		const commandMatchesExpected = expectedId !== undefined && commandId !== undefined && commandId === expectedId;
 		if (!commandMatchesExpected) {
 			return;
 		}
-		this._streamingCommand = command;
-		this._streamingEmptySnapshotRetries = 0;
-		this._trackedCommandId = commandId ?? expectedId;
+		const streamingStore = this._streamingController.beginStreaming(command, expectedId);
 		if (commandId && this._terminalData.terminalCommandId !== commandId) {
 			this._terminalData.terminalCommandId = commandId;
 		}
 		this._outputView.beginStreaming();
 		this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-		const streamingStore = new DisposableStore();
-		this._commandStreamingListener.value = streamingStore;
 		let capturing = true;
 		streamingStore.add(toDisposable(() => { capturing = false; }));
 
@@ -611,16 +595,16 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			if (!capturing || streamingStore.isDisposed) {
 				return;
 			}
-			const latestCommand = this._streamingCommand;
+			const latestCommand = this._streamingController.streamingCommand;
 			if (!latestCommand || latestCommand !== command) {
 				return;
 			}
 			callback(latestCommand);
 		};
 
-		this._queueStreaming(terminalInstance, command);
+		this._streamingController.queueStreaming(terminalInstance, command);
 		streamingStore.add(terminalInstance.onData(() => {
-			runIfStreaming(currentCommand => this._queueStreaming(terminalInstance, currentCommand));
+			runIfStreaming(currentCommand => this._streamingController.queueStreaming(terminalInstance, currentCommand));
 		}));
 		streamingStore.add(terminalInstance.onLineData(() => {
 			runIfStreaming(currentCommand => this._outputView.handleCompletedTerminalLine(terminalInstance, currentCommand));
@@ -703,7 +687,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _handleDispose(): void {
 		this._terminalOutputContextKey.reset();
 		this._terminalChatService.clearFocusedProgressPart(this);
-		this._clearStreamingQueue();
+		this._streamingController.clearAllCommandState();
 	}
 
 	public getCommandAndOutputAsText(): string | undefined {
@@ -764,93 +748,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 
-	private _queueStreaming(instance: ITerminalInstance, command: ITerminalCommand, force = false): Promise<void> {
-		if (this._store.isDisposed || (!force && this._streamingCommand !== command)) {
-			return Promise.resolve();
-		}
-
-		const executedMarker = (command as unknown as { executedMarker?: IXtermMarker; commandExecutedMarker?: IXtermMarker }).executedMarker
-			?? (command as unknown as { executedMarker?: IXtermMarker; commandExecutedMarker?: IXtermMarker }).commandExecutedMarker;
-		if (!executedMarker) {
-			const commandId = command.id ?? 'unknown';
-			this._logService.trace('chatTerminalToolProgressPart.queueStreaming.waitForExecutedMarker', { commandId, force });
-			this._queueStreaming(instance, command, force);
-			return Promise.resolve();
-		}
-
-		// Enqueue snapshot work so we never build an ever-growing promise chain.
-		const commandId = command.id ?? 'unknown';
-		this._logService.trace('chatTerminalToolProgressPart.queueStreaming', { commandId, pending: this._streamingQueue.length + 1, force });
-
-		return new Promise<void>((resolve, reject) => {
-			this._streamingQueue.push({ instance, command, force, resolve, reject });
-			if (!this._isDrainingStreamingQueue) {
-				this._scheduleStreamingFlush();
-			}
-		});
-	}
-
-	private _scheduleStreamingFlush(): void {
-		if (this._streamingDrainScheduled || this._isDrainingStreamingQueue || this._streamingQueue.length === 0) {
-			return;
-		}
-		this._streamingDrainScheduled = true;
-		this._logService.trace('chatTerminalToolProgressPart.scheduleStreamingFlush', { commandId: this._streamingCommand?.id, queued: this._streamingQueue.length });
-		void this._drainStreamingQueue();
-	}
-
-	private async _drainStreamingQueue(): Promise<void> {
-		this._streamingDrainScheduled = false;
-		if (this._isDrainingStreamingQueue || this._streamingQueue.length === 0) {
-			return;
-		}
-
-		this._isDrainingStreamingQueue = true;
-		this._logService.trace('chatTerminalToolProgressPart.drainStreamingQueue-start', { queued: this._streamingQueue.length, commandId: this._streamingCommand?.id });
-		try {
-			while (this._streamingQueue.length) {
-				const job = this._streamingQueue.shift()!;
-				if (this._store.isDisposed || (!job.force && this._streamingCommand !== job.command)) {
-					job.resolve();
-					this._logService.trace('chatTerminalToolProgressPart.drainStreamingQueue-skip', { commandId: job.command.id, force: job.force });
-					continue;
-				}
-				try {
-					await this._syncStreamingSnapshot(job.instance, job.command, job.force);
-					job.resolve();
-					this._logService.trace('chatTerminalToolProgressPart.drainStreamingQueue-run', { commandId: job.command.id, force: job.force });
-				} catch (error) {
-					job.reject(error);
-					this._logService.trace('chatTerminalToolProgressPart.drainStreamingQueue-error', { commandId: job.command.id, force: job.force, message: error instanceof Error ? error.message : String(error) });
-				}
-			}
-		} finally {
-			this._isDrainingStreamingQueue = false;
-			this._logService.trace('chatTerminalToolProgressPart.drainStreamingQueue-end', { remaining: this._streamingQueue.length, commandId: this._streamingCommand?.id });
-			if (this._streamingQueue.length) {
-				this._scheduleStreamingFlush();
-			}
-		}
-	}
-
-	private _clearStreamingQueue(error?: unknown): void {
-		this._streamingDrainScheduled = false;
-		if (!this._streamingQueue.length) {
-			return;
-		}
-		this._logService.trace('chatTerminalToolProgressPart.clearStreamingQueue', { pending: this._streamingQueue.length, hasError: error !== undefined });
-		const pending = this._streamingQueue.splice(0, this._streamingQueue.length);
-		for (const job of pending) {
-			if (error !== undefined) {
-				job.reject(error);
-			} else {
-				job.resolve();
-			}
-		}
-	}
-
 	private async _syncStreamingSnapshot(instance: ITerminalInstance, command: ITerminalCommand, force: boolean): Promise<void> {
-		if (!instance || this._store.isDisposed || (!force && this._streamingCommand !== command)) {
+		if (!instance || this._store.isDisposed || (!force && this._streamingController.streamingCommand !== command)) {
 			return;
 		}
 		const xterm = instance.xterm;
@@ -863,54 +762,44 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (!startMarker || startMarker.line === -1) {
 			this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.waitForStartMarker', { commandId: command.id, force });
 			setTimeout(() => {
-				if (this._store.isDisposed || (!force && this._streamingCommand !== command)) {
+				if (this._store.isDisposed || (!force && this._streamingController.streamingCommand !== command)) {
 					return;
 				}
-				this._queueStreaming(instance, command, force);
+				this._streamingController.queueStreaming(instance, command, force);
 			}, 0);
 			return;
 		}
 		const endMarkerForRange = this._getStreamingRangeEndMarker(startMarker, endMarker, force);
 		const data = await xterm.getRangeAsVT(startMarker, endMarkerForRange);
-		if (this._store.isDisposed || (!force && this._streamingCommand !== command) || !data || data.length === 0) {
+		if (this._store.isDisposed || (!force && this._streamingController.streamingCommand !== command) || !data || data.length === 0) {
 			if (!data || data.length === 0) {
 				this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.waitForData', { commandId: command.id, force });
 				setTimeout(() => {
-					if (this._store.isDisposed || (!force && this._streamingCommand !== command)) {
+					if (this._store.isDisposed || (!force && this._streamingController.streamingCommand !== command)) {
 						return;
 					}
-					this._queueStreaming(instance, command, force);
+					this._streamingController.queueStreaming(instance, command, force);
 				}, 0);
 			}
 			return;
 		}
 		const stored = this._terminalData.terminalCommandOutput?.text ?? '';
 		if (data === stored) {
-			const shouldRetryEmptySnapshot = force && stored.length === 0 && command.hasOutput();
-			if (shouldRetryEmptySnapshot) {
-				this._streamingEmptySnapshotRetries++;
-				if (this._streamingEmptySnapshotRetries <= 60) {
-					const attempt = this._streamingEmptySnapshotRetries;
-					this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.retryPendingOutput', { commandId: command.id, attempt });
-					setTimeout(() => {
-						if (this._store.isDisposed || (!force && this._streamingCommand !== command)) {
-							return;
-						}
-						this._queueStreaming(instance, command, force);
-					}, 0);
-					return;
-				}
-				if (this._streamingEmptySnapshotRetries > 60) {
-					this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.retryPendingOutput.maxAttempts', { commandId: command.id, attempt: this._streamingEmptySnapshotRetries });
-					this._streamingEmptySnapshotRetries = 0;
-				}
-			} else {
-				this._streamingEmptySnapshotRetries = 0;
+			const handled = this._streamingController.handleEmptySnapshotNoChange(force, stored.length, command.hasOutput(), command, () => {
+				setTimeout(() => {
+					if (this._store.isDisposed || (!force && this._streamingController.streamingCommand !== command)) {
+						return;
+					}
+					this._streamingController.queueStreaming(instance, command, force);
+				}, 0);
+			});
+			if (handled) {
+				return;
 			}
 			this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.noChange', { commandId: command.id, length: data.length });
 			return;
 		}
-		this._streamingEmptySnapshotRetries = 0;
+		this._streamingController.resetEmptySnapshotRetries();
 		this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.apply', {
 			commandId: command.id,
 			length: data.length,
