@@ -33,6 +33,7 @@ export interface IToolData {
 	id: string;
 	source: ToolDataSource;
 	toolReferenceName?: string;
+	legacyToolReferenceFullNames?: string[];
 	icon?: { dark: URI; light?: URI } | ThemeIcon;
 	when?: ContextKeyExpression;
 	tags?: string[];
@@ -304,6 +305,7 @@ export class ToolSet {
 		readonly icon: ThemeIcon,
 		readonly source: ToolDataSource,
 		readonly description?: string,
+		readonly legacyFullNames?: string[],
 	) {
 
 		this.isHomogenous = derived(r => {
@@ -344,6 +346,8 @@ export type CountTokensCallback = (input: string, token: CancellationToken) => P
 
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
+	readonly vscodeToolSet: ToolSet;
+	readonly launchToolSet: ToolSet;
 	readonly onDidChangeTools: Event<void>;
 	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionId: string; readonly toolData: IToolData }>;
 	registerToolData(toolData: IToolData): IDisposable;
@@ -360,14 +364,14 @@ export interface ILanguageModelToolsService {
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;
 	getToolSetByName(name: string): ToolSet | undefined;
-	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string }): ToolSet & IDisposable;
+	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyFullNames?: string[] }): ToolSet & IDisposable;
 
 	// tool names in prompt files handling ('qualified names')
 
 	getQualifiedToolNames(): Iterable<string>;
 	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined;
 	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
-	getDeprecatedQualifiedToolNames(): Map<string, string>;
+	getDeprecatedQualifiedToolNames(): Map<string, Set<string>>;
 	mapGithubToolName(githubToolName: string): string;
 
 	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
@@ -394,6 +398,9 @@ export namespace GithubCopilotToolReference {
 }
 
 export namespace VSCodeToolReference {
-	export const runCommands = 'runCommands';
+	export const customAgent = 'agents';
+	export const shell = 'shell';
 	export const runSubagent = 'runSubagent';
+	export const vscode = 'vscode';
+	export const launch = 'launch';
 }

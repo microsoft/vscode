@@ -55,8 +55,8 @@ suite('PromptHoverProvider', () => {
 		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(testTool2));
 
-		const runCommandsTool = { id: 'runCommands', displayName: 'runCommands', canBeReferencedInPrompt: true, toolReferenceName: 'runCommands', modelDescription: 'Run Commands Tool', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
-		disposables.add(toolService.registerToolData(runCommandsTool));
+		const shellTool = { id: 'shell', displayName: 'shell', canBeReferencedInPrompt: true, toolReferenceName: 'shell', modelDescription: 'Runs commands in the terminal', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(shellTool));
 
 		instaService.set(ILanguageModelToolsService, toolService);
 
@@ -220,7 +220,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			// Hover on 'shell' tool
 			const hoverShell = await getHover(content, 4, 10, PromptsType.agent);
-			assert.strictEqual(hoverShell, 'Run Commands Tool');
+			assert.strictEqual(hoverShell, 'Runs commands in the terminal');
 
 			// Hover on 'edit' tool
 			const hoverEdit = await getHover(content, 4, 20, PromptsType.agent);
