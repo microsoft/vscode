@@ -13,9 +13,10 @@ import { ResourceMap } from '../../../../base/common/map.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
-import { IObservable, autorunSelfDisposable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { IObservable, autorun, autorunSelfDisposable, derived, observableFromEvent, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { WithDefinedProps } from '../../../../base/common/types.js';
 import { URI, UriComponents, UriDto, isUriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -185,9 +186,20 @@ export interface IChatResponseModel {
 	readonly response: IResponse;
 	/** Entire response from the model. */
 	readonly entireResponse: IResponse;
+	/** Milliseconds timestamp when this chat response was created. */
+	readonly timestamp: number;
+	/** Milliseconds timestamp when this chat response was completed or cancelled. */
+	readonly completedAt?: number;
+	/**
+	 * Adjusted millisecond timestamp that excludes the duration during which
+	 * the model was pending user confirmation. `Date.now() - confirmationAdjustedTimestamp`
+	 * will return the amount of time the response was busy generating content.
+	 * This is updated only when `isPendingConfirmation` changes state.
+	 */
+	readonly confirmationAdjustedTimestamp: IObservable<number>;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
-	readonly isPendingConfirmation: IObservable<boolean>;
+	readonly isPendingConfirmation: IObservable<{ startedWaitingAt: number } | undefined>;
 	readonly isInProgress: IObservable<boolean>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	shouldBeBlocked: boolean;
@@ -216,9 +228,10 @@ export interface IChatResponseModel {
 
 export type ChatResponseModelChangeReason =
 	| { reason: 'other' }
+	| { reason: 'completedRequest' }
 	| { reason: 'undoStop'; id: string };
 
-const defaultChatResponseModelChangeReason: ChatResponseModelChangeReason = { reason: 'other' };
+export const defaultChatResponseModelChangeReason: ChatResponseModelChangeReason = { reason: 'other' };
 
 export interface IChatRequestModeInfo {
 	kind: ChatModeKind | undefined; // is undefined in case of modeId == 'apply'
@@ -736,8 +749,7 @@ export interface IChatResponseModelParameters {
 	agent?: IChatAgentData;
 	slashCommand?: IChatAgentCommand;
 	requestId: string;
-	isComplete?: boolean;
-	isCanceled?: boolean;
+	timestamp?: number;
 	vote?: ChatAgentVoteDirection;
 	voteDownReason?: ChatAgentVoteDownReason;
 	result?: IChatAgentResult;
@@ -746,11 +758,23 @@ export interface IChatResponseModelParameters {
 	shouldBeRemovedOnSend?: IChatRequestDisablement;
 	shouldBeBlocked?: boolean;
 	restoredId?: string;
+	modelState?: ResponseModelStateT;
+	timeSpentWaiting?: number;
 	/**
 	 * undefined means it will be set later.
 	*/
 	codeBlockInfos: ICodeBlockInfo[] | undefined;
 }
+
+const enum ResponseModelState {
+	Pending,
+	Complete,
+	Cancelled,
+}
+
+type ResponseModelStateT =
+	| { value: ResponseModelState.Pending }
+	| { value: ResponseModelState.Complete | ResponseModelState.Cancelled; completedAt: number };
 
 export class ChatResponseModel extends Disposable implements IChatResponseModel {
 	private readonly _onDidChange = this._register(new Emitter<ChatResponseModelChangeReason>());
@@ -761,14 +785,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _session: ChatModel;
 	private _agent: IChatAgentData | undefined;
 	private _slashCommand: IChatAgentCommand | undefined;
-	private _isComplete: boolean;
-	private _isCanceled: boolean;
+	private _modelState = observableValue<ResponseModelStateT>(this, { value: ResponseModelState.Pending });
 	private _vote?: ChatAgentVoteDirection;
 	private _voteDownReason?: ChatAgentVoteDownReason;
 	private _result?: IChatAgentResult;
 	private _shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	public readonly isCompleteAddedRequest: boolean;
 	private _shouldBeBlocked: boolean = false;
+	private readonly _timestamp: number;
+	private _timeSpentWaitingAccumulator: number;
+
+	public confirmationAdjustedTimestamp: IObservable<number>;
 
 	public get shouldBeBlocked() {
 		return this._shouldBeBlocked;
@@ -787,7 +814,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public get isComplete(): boolean {
-		return this._isComplete;
+		return this._modelState.get().value !== ResponseModelState.Pending;
+	}
+
+	public get timestamp(): number {
+		return this._timestamp;
 	}
 
 	public set shouldBeRemovedOnSend(disablement: IChatRequestDisablement | undefined) {
@@ -796,7 +827,15 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public get isCanceled(): boolean {
-		return this._isCanceled;
+		return this._modelState.get().value === ResponseModelState.Cancelled;
+	}
+
+	public get completedAt(): number | undefined {
+		const state = this._modelState.get();
+		if (state.value === ResponseModelState.Complete || state.value === ResponseModelState.Cancelled) {
+			return state.completedAt;
+		}
+		return undefined;
 	}
 
 	public get vote(): ChatAgentVoteDirection | undefined {
@@ -870,7 +909,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 
-	readonly isPendingConfirmation: IObservable<boolean>;
+	readonly isPendingConfirmation: IObservable<{ startedWaitingAt: number } | undefined>;
 
 	readonly isInProgress: IObservable<boolean>;
 
@@ -900,8 +939,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._agent = params.agent;
 		this._slashCommand = params.slashCommand;
 		this.requestId = params.requestId;
-		this._isComplete = params.isComplete ?? false;
-		this._isCanceled = params.isCanceled ?? false;
+		this._timestamp = params.timestamp || Date.now();
+		if (params.modelState) {
+			this._modelState.set(params.modelState, undefined);
+		}
+		this._timeSpentWaitingAccumulator = params.timeSpentWaiting || 0;
 		this._vote = params.vote;
 		this._voteDownReason = params.voteDownReason;
 		this._result = params.result;
@@ -918,7 +960,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 		const signal = observableSignalFromEvent(this, this.onDidChange);
 
-		this.isPendingConfirmation = signal.map((_value, r) => {
+		const _isPendingBool = signal.map((_value, r) => {
 
 			signal.read(r);
 
@@ -929,13 +971,15 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			);
 		});
 
+		this.isPendingConfirmation = _isPendingBool.map(pending => pending ? { startedWaitingAt: Date.now() } : undefined);
+
 		this.isInProgress = signal.map((_value, r) => {
 
 			signal.read(r);
 
-			return !this.isPendingConfirmation.read(r)
+			return !_isPendingBool.read(r)
 				&& !this.shouldBeRemovedOnSend
-				&& !this._isComplete;
+				&& this._modelState.read(r).value === ResponseModelState.Pending;
 		});
 
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
@@ -951,6 +995,19 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 				}
 			}
 		}));
+
+		let lastStartedWaitingAt: number | undefined = undefined;
+		this.confirmationAdjustedTimestamp = derived(reader => {
+			const pending = this.isPendingConfirmation.read(reader);
+			if (pending && !lastStartedWaitingAt) {
+				lastStartedWaitingAt = pending.startedWaitingAt;
+			} else if (!pending && lastStartedWaitingAt) {
+				this._timeSpentWaitingAccumulator += Date.now() - lastStartedWaitingAt;
+				lastStartedWaitingAt = undefined;
+			}
+
+			return this._timestamp + this._timeSpentWaitingAccumulator;
+		}).recomputeInitiallyAndOnChange(this._store);
 	}
 
 	initializeCodeBlockInfos(codeBlockInfo: ICodeBlockInfo[]): void {
@@ -1010,14 +1067,13 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			this._response.clear();
 		}
 
-		this._isComplete = true;
-		this._onDidChange.fire(defaultChatResponseModelChangeReason);
+		this._modelState.set({ value: ResponseModelState.Complete, completedAt: Date.now() }, undefined);
+		this._onDidChange.fire({ reason: 'completedRequest' });
 	}
 
 	cancel(): void {
-		this._isComplete = true;
-		this._isCanceled = true;
-		this._onDidChange.fire(defaultChatResponseModelChangeReason);
+		this._modelState.set({ value: ResponseModelState.Cancelled, completedAt: Date.now() }, undefined);
+		this._onDidChange.fire({ reason: 'completedRequest' });
 	}
 
 	setFollowups(followups: IChatFollowup[] | undefined): void {
@@ -1059,6 +1115,26 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._shouldBeRemovedOnSend = undefined;
 	}
 
+	toJSON(): ISerializableChatResponseData {
+		const modelState = this._modelState.get();
+		const pendingConfirmation = this.isPendingConfirmation.get();
+
+		return {
+			responseId: this.id,
+			result: this.result,
+			responseMarkdownInfo: this.codeBlockInfos?.map<ISerializableMarkdownInfo>(info => ({ suggestionId: info.suggestionId })),
+			followups: this.followups,
+			modelState: modelState.value === ResponseModelState.Pending ? { value: ResponseModelState.Cancelled, completedAt: Date.now() } : modelState,
+			vote: this.vote,
+			voteDownReason: this.voteDownReason,
+			slashCommand: this.slashCommand,
+			usedContext: this.usedContext,
+			contentReferences: this.contentReferences,
+			codeCitations: this.codeCitations,
+			timestamp: this._timestamp,
+			timeSpentWaiting: (pendingConfirmation ? Date.now() - pendingConfirmation.startedWaitingAt : 0) + this._timeSpentWaitingAccumulator,
+		} satisfies WithDefinedProps<ISerializableChatResponseData>;
+	}
 }
 
 
@@ -1072,6 +1148,8 @@ export interface IChatModel extends IDisposable {
 	readonly onDidChange: Event<IChatChangeEvent>;
 	/** @deprecated Use {@link sessionResource} instead */
 	readonly sessionId: string;
+	/** Milliseconds timestamp this chat model was created. */
+	readonly timestamp: number;
 	readonly sessionResource: URI;
 	readonly initialLocation: ChatAgentLocation;
 	readonly title: string;
@@ -1082,24 +1160,13 @@ export interface IChatModel extends IDisposable {
 	readonly requestNeedsInput: IObservable<boolean>;
 	readonly inputPlaceholder?: string;
 	readonly editingSession?: IChatEditingSession | undefined;
-	/**
-	 * Sets requests as 'disabled', removing them from the UI. If a request ID
-	 * is given without undo stops, it's removed entirely. If an undo stop
-	 * is given, all content after that stop is removed.
-	 */
-	setDisabledRequests(requestIds: IChatRequestDisablement[]): void;
+	readonly checkpoint: IChatRequestModel | undefined;
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
-	readonly checkpoint: IChatRequestModel | undefined;
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools): IChatRequestModel;
-	acceptResponseProgress(request: IChatRequestModel, progress: IChatProgress, quiet?: boolean): void;
-	setResponse(request: IChatRequestModel, result: IChatAgentResult): void;
-	completeResponse(request: IChatRequestModel): void;
-	setCustomTitle(title: string): void;
+
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
 	readonly contributedChatSession: IChatSessionContext | undefined;
-	setContributedChatSession(session: IChatSessionContext | undefined): void;
 }
 
 export interface ISerializableChatsData {
@@ -1108,7 +1175,24 @@ export interface ISerializableChatsData {
 
 export type ISerializableChatAgentData = UriDto<IChatAgentData>;
 
-export interface ISerializableChatRequestData {
+interface ISerializableChatResponseData {
+	responseId?: string;
+	result?: IChatAgentResult; // Optional for backcompat
+	responseMarkdownInfo?: ISerializableMarkdownInfo[];
+	followups?: ReadonlyArray<IChatFollowup>;
+	modelState?: ResponseModelStateT;
+	vote?: ChatAgentVoteDirection;
+	voteDownReason?: ChatAgentVoteDownReason;
+	timestamp?: number;
+	slashCommand?: IChatAgentCommand;
+	/** For backward compat: should be optional */
+	usedContext?: IChatUsedContext;
+	contentReferences?: ReadonlyArray<IChatContentReference>;
+	codeCitations?: ReadonlyArray<IChatCodeCitation>;
+	timeSpentWaiting?: number;
+}
+
+export interface ISerializableChatRequestData extends ISerializableChatResponseData {
 	requestId: string;
 	message: string | IParsedChatRequest; // string => old format
 	/** Is really like "prompt data". This is the message in the format in which the agent gets it + variable values. */
@@ -1118,26 +1202,15 @@ export interface ISerializableChatRequestData {
 	/**Old, persisted name for shouldBeRemovedOnSend */
 	isHidden?: boolean;
 	shouldBeRemovedOnSend?: IChatRequestDisablement;
-	responseId?: string;
 	agent?: ISerializableChatAgentData;
 	workingSet?: UriComponents[];
-	slashCommand?: IChatAgentCommand;
 	// responseErrorDetails: IChatResponseErrorDetails | undefined;
-	result?: IChatAgentResult; // Optional for backcompat
-	followups: ReadonlyArray<IChatFollowup> | undefined;
-	isCanceled: boolean | undefined;
-	vote: ChatAgentVoteDirection | undefined;
-	voteDownReason?: ChatAgentVoteDownReason;
-	/** For backward compat: should be optional */
-	usedContext?: IChatUsedContext;
-	contentReferences?: ReadonlyArray<IChatContentReference>;
-	codeCitations?: ReadonlyArray<IChatCodeCitation>;
+	/** @deprecated modelState is used instead now */
+	isCanceled?: boolean;
 	timestamp?: number;
 	confirmation?: string;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	modelId?: string;
-
-	responseMarkdownInfo: ISerializableMarkdownInfo[] | undefined;
 }
 
 export interface ISerializableMarkdownInfo {
@@ -1320,7 +1393,6 @@ export interface IChatRemoveRequestEvent {
 
 export interface IChatSetHiddenEvent {
 	kind: 'setHidden';
-	hiddenRequestIds: readonly IChatRequestDisablement[];
 }
 
 export interface IChatMoveEvent {
@@ -1393,9 +1465,9 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests.at(-1);
 	}
 
-	private _creationDate: number;
-	get creationDate(): number {
-		return this._creationDate;
+	private _timestamp: number;
+	get timestamp(): number {
+		return this._timestamp;
 	}
 
 	private _lastMessageDate: number;
@@ -1472,8 +1544,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._sessionResource = initialModelProps.resource ?? LocalChatSessionUri.forSession(this._sessionId);
 
 		this._requests = initialData ? this._deserialize(initialData) : [];
-		this._creationDate = (isValid && initialData.creationDate) || Date.now();
-		this._lastMessageDate = (isValid && initialData.lastMessageDate) || this._creationDate;
+		this._timestamp = (isValid && initialData.creationDate) || Date.now();
+		this._lastMessageDate = (isValid && initialData.lastMessageDate) || this._timestamp;
 		this._customTitle = isValid ? initialData.customTitle : undefined;
 
 		this._initialResponderUsername = initialData?.responderUsername;
@@ -1482,25 +1554,42 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
 		this._canUseTools = initialModelProps.canUseTools;
 
-		const lastResponse = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1)?.response);
+		const lastRequest = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1));
 
-		this.requestInProgress = lastResponse.map((response, r) => {
-			return response?.isInProgress.read(r) ?? false;
+		this._register(autorun(reader => {
+			const request = lastRequest.read(reader);
+			if (!request?.response) {
+				return;
+			}
+
+			reader.store.add(request.response.onDidChange(ev => {
+				if (ev.reason === 'completedRequest') {
+					this._onDidChange.fire({ kind: 'completedRequest', request });
+				}
+			}));
+		}));
+
+		this.requestInProgress = lastRequest.map((request, r) => {
+			return request?.response?.isInProgress.read(r) ?? false;
 		});
 
-		this.requestNeedsInput = lastResponse.map((response, r) => {
-			return response?.isPendingConfirmation.read(r) ?? false;
+		this.requestNeedsInput = lastRequest.map((request, r) => {
+			return !!request?.response?.isPendingConfirmation.read(r);
 		});
 	}
 
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void {
-		this._editingSession ??= this._register(
+		const session = this._editingSession ??= this._register(
 			transferFromSession
 				? this.chatEditingService.transferEditingSession(this, transferFromSession)
 				: isGlobalEditingSession
 					? this.chatEditingService.startOrContinueGlobalEditingSession(this)
 					: this.chatEditingService.createEditingSession(this)
 		);
+
+		this._register(autorun(reader => {
+			this._setDisabledRequests(session.requestDisablement.read(reader));
+		}));
 	}
 
 	private currentEditedFileEvents = new ResourceMap<IChatAgentEditedFileEvent>();
@@ -1559,13 +1648,14 @@ export class ChatModel extends Disposable implements IChatModel {
 						agent,
 						slashCommand: raw.slashCommand,
 						requestId: request.id,
-						isComplete: true,
-						isCanceled: raw.isCanceled,
+						modelState: raw.modelState || { value: raw.isCanceled ? ResponseModelState.Cancelled : ResponseModelState.Complete, completedAt: Date.now() },
 						vote: raw.vote,
+						timestamp: raw.timestamp,
 						voteDownReason: raw.voteDownReason,
 						result,
 						followups: raw.followups,
 						restoredId: raw.responseId,
+						timeSpentWaiting: raw.timeSpentWaiting,
 						shouldBeBlocked: request.shouldBeBlocked,
 						codeBlockInfos: raw.responseMarkdownInfo?.map<ICodeBlockInfo>(info => ({ suggestionId: info.suggestionId })),
 					});
@@ -1678,7 +1768,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._checkpoint;
 	}
 
-	setDisabledRequests(requestIds: IChatRequestDisablement[]) {
+	private _setDisabledRequests(requestIds: IChatRequestDisablement[]) {
 		this._requests.forEach((request) => {
 			const shouldBeRemovedOnSend = requestIds.find(r => r.requestId === request.id);
 			request.shouldBeRemovedOnSend = shouldBeRemovedOnSend;
@@ -1687,10 +1777,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			}
 		});
 
-		this._onDidChange.fire({
-			kind: 'setHidden',
-			hiddenRequestIds: requestIds,
-		});
+		this._onDidChange.fire({ kind: 'setHidden' });
 	}
 
 	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools): ChatRequestModel {
@@ -1770,7 +1857,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			throw new Error('acceptResponseProgress: Adding progress to a completed response');
 		}
 
-
 		if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.applyReference(progress);
 		} else if (progress.kind === 'codeCitation') {
@@ -1816,15 +1902,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		request.response.setResult(result);
-	}
-
-	completeResponse(request: ChatRequestModel): void {
-		if (!request.response) {
-			throw new Error('Call setResponse before completeResponse');
-		}
-
-		request.response.complete();
-		this._onDidChange.fire({ kind: 'completedRequest', request });
 	}
 
 	setFollowups(request: ChatRequestModel, followups: IChatFollowup[] | undefined): void {
@@ -1880,23 +1957,13 @@ export class ChatModel extends Disposable implements IChatModel {
 							}
 						})
 						: undefined,
-					responseId: r.response?.id,
 					shouldBeRemovedOnSend: r.shouldBeRemovedOnSend,
-					result: r.response?.result,
-					responseMarkdownInfo: r.response?.codeBlockInfos?.map<ISerializableMarkdownInfo>(info => ({ suggestionId: info.suggestionId })),
-					followups: r.response?.followups,
-					isCanceled: r.response?.isCanceled,
-					vote: r.response?.vote,
-					voteDownReason: r.response?.voteDownReason,
 					agent: agentJson,
-					slashCommand: r.response?.slashCommand,
-					usedContext: r.response?.usedContext,
-					contentReferences: r.response?.contentReferences,
-					codeCitations: r.response?.codeCitations,
 					timestamp: r.timestamp,
 					confirmation: r.confirmation,
 					editedFileEvents: r.editedFileEvents,
 					modelId: r.modelId,
+					...r.response?.toJSON(),
 				};
 			}),
 		};
@@ -1907,7 +1974,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			version: 3,
 			...this.toExport(),
 			sessionId: this.sessionId,
-			creationDate: this._creationDate,
+			creationDate: this._timestamp,
 			isImported: this._isImported,
 			lastMessageDate: this._lastMessageDate,
 			customTitle: this._customTitle

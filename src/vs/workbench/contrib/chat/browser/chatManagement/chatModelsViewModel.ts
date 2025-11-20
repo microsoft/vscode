@@ -69,13 +69,22 @@ export function isVendorEntry(entry: IModelItemEntry | IVendorItemEntry): entry 
 	return entry.type === 'vendor';
 }
 
+export type IViewModelEntry = IModelItemEntry | IVendorItemEntry;
+
+export interface IViewModelChangeEvent {
+	at: number;
+	removed: number;
+	added: IViewModelEntry[];
+}
+
 export class ChatModelsViewModel extends EditorModel {
 
-	private readonly _onDidChangeModelEntries = this._register(new Emitter<void>());
-	readonly onDidChangeModelEntries = this._onDidChangeModelEntries.event;
+	private readonly _onDidChange = this._register(new Emitter<IViewModelChangeEvent>());
+	readonly onDidChange = this._onDidChange.event;
 
 	private modelEntries: IModelEntry[];
 	private readonly collapsedVendors = new Set<string>();
+	private searchValue: string = '';
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -83,14 +92,21 @@ export class ChatModelsViewModel extends EditorModel {
 	) {
 		super();
 		this.modelEntries = [];
-
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(async () => {
-			await this.resolve();
-			this._onDidChangeModelEntries.fire();
-		}));
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.refresh()));
 	}
 
-	fetch(searchValue: string): (IModelItemEntry | IVendorItemEntry)[] {
+	private readonly _viewModelEntries: IViewModelEntry[] = [];
+	get viewModelEntries(): readonly IViewModelEntry[] {
+		return this._viewModelEntries;
+	}
+	private splice(at: number, removed: number, added: IViewModelEntry[]): void {
+		this._viewModelEntries.splice(at, removed, ...added);
+		this._onDidChange.fire({ at, removed, added });
+	}
+
+	filter(searchValue: string): readonly IViewModelEntry[] {
+		this.searchValue = searchValue;
+
 		let modelEntries = this.modelEntries;
 		const capabilityMatchesMap = new Map<string, string[]>();
 
@@ -135,11 +151,10 @@ export class ChatModelsViewModel extends EditorModel {
 		}
 
 		searchValue = searchValue.trim();
-		if (!searchValue) {
-			return this.toEntries(modelEntries, capabilityMatchesMap);
-		}
+		const filtered = searchValue ? this.filterByText(modelEntries, searchValue, capabilityMatchesMap) : this.toEntries(modelEntries, capabilityMatchesMap);
 
-		return this.filterByText(modelEntries, searchValue, capabilityMatchesMap);
+		this.splice(0, this._viewModelEntries.length, filtered);
+		return this.viewModelEntries;
 	}
 
 	private filterByProviders(modelEntries: IModelEntry[], providers: string[]): IModelEntry[] {
@@ -264,8 +279,12 @@ export class ChatModelsViewModel extends EditorModel {
 	}
 
 	override async resolve(): Promise<void> {
-		this.modelEntries = [];
+		await this.refresh();
+		return super.resolve();
+	}
 
+	private async refresh(): Promise<void> {
+		this.modelEntries = [];
 		for (const vendor of this.getVendors()) {
 			const modelIdentifiers = await this.languageModelsService.selectLanguageModels({ vendor: vendor.vendor }, vendor.vendor === 'copilot');
 			const models = coalesce(modelIdentifiers.map(identifier => {
@@ -288,12 +307,24 @@ export class ChatModelsViewModel extends EditorModel {
 		}
 
 		this.modelEntries = distinct(this.modelEntries, modelEntry => ChatModelsViewModel.getId(modelEntry));
+		this.filter(this.searchValue);
+	}
 
-		return super.resolve();
+	toggleVisibility(model: IModelItemEntry): void {
+		const isVisible = model.modelEntry.metadata.isUserSelectable ?? false;
+		const newVisibility = !isVisible;
+		this.languageModelsService.updateModelPickerPreference(model.modelEntry.identifier, newVisibility);
+		const metadata = this.languageModelsService.lookupLanguageModel(model.modelEntry.identifier);
+		const index = this.viewModelEntries.indexOf(model);
+		if (metadata) {
+			model.id = ChatModelsViewModel.getId(model.modelEntry);
+			model.modelEntry.metadata = metadata;
+			this.splice(index, 1, [model]);
+		}
 	}
 
 	private static getId(modelEntry: IModelEntry): string {
-		return modelEntry.identifier + modelEntry.vendor + (modelEntry.metadata.version || '');
+		return `${modelEntry.identifier}.${modelEntry.metadata.version}-visible:${modelEntry.metadata.isUserSelectable}`;
 	}
 
 	toggleVendorCollapsed(vendorId: string): void {
@@ -302,7 +333,7 @@ export class ChatModelsViewModel extends EditorModel {
 		} else {
 			this.collapsedVendors.add(vendorId);
 		}
-		this._onDidChangeModelEntries.fire();
+		this.filter(this.searchValue);
 	}
 
 	getConfiguredVendors(): IVendorItemEntry[] {

@@ -215,6 +215,11 @@ suite('Strings', () => {
 		assert.strictEqual(strings.ltrim('///', '/'), '');
 		assert.strictEqual(strings.ltrim('', ''), '');
 		assert.strictEqual(strings.ltrim('', '/'), '');
+		// Multi-character needle with consecutive repetitions
+		assert.strictEqual(strings.ltrim('---hello', '---'), 'hello');
+		assert.strictEqual(strings.ltrim('------hello', '---'), 'hello');
+		assert.strictEqual(strings.ltrim('---------hello', '---'), 'hello');
+		assert.strictEqual(strings.ltrim('hello---', '---'), 'hello---');
 	});
 
 	test('rtrim', () => {
@@ -228,6 +233,13 @@ suite('Strings', () => {
 		assert.strictEqual(strings.rtrim('///', '/'), '');
 		assert.strictEqual(strings.rtrim('', ''), '');
 		assert.strictEqual(strings.rtrim('', '/'), '');
+		// Multi-character needle with consecutive repetitions (bug fix)
+		assert.strictEqual(strings.rtrim('hello---', '---'), 'hello');
+		assert.strictEqual(strings.rtrim('hello------', '---'), 'hello');
+		assert.strictEqual(strings.rtrim('hello---------', '---'), 'hello');
+		assert.strictEqual(strings.rtrim('---hello', '---'), '---hello');
+		assert.strictEqual(strings.rtrim('hello world' + '---'.repeat(10), '---'), 'hello world');
+		assert.strictEqual(strings.rtrim('path/to/file///', '//'), 'path/to/file/');
 	});
 
 	test('trim', () => {

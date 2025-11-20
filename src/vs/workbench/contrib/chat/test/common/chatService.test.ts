@@ -7,7 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -147,7 +147,10 @@ suite('ChatService', () => {
 		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		instantiationService.stub(IChatEditingService, new class extends mock<IChatEditingService>() {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
-				return Disposable.None as IChatEditingSession;
+				return {
+					requestDisablement: observableValue('requestDisablement', []),
+					dispose: () => { }
+				} as unknown as IChatEditingSession;
 			}
 		});
 
@@ -359,6 +362,10 @@ function toSnapshotExportData(model: IChatModel) {
 		requests: exp.requests.map(r => {
 			return {
 				...r,
+				modelState: {
+					...r.modelState,
+					completedAt: undefined
+				},
 				timestamp: undefined,
 				requestId: undefined, // id contains a random part
 				responseId: undefined, // id contains a random part
