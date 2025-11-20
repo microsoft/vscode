@@ -136,7 +136,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 
 	await widget.clear();
 
-	const options: IChatEditorOptions = { pinned: true, viewState, auxiliary };
+	const options: IChatEditorOptions = { pinned: true, modelInputState: existingWidget.getViewState(), auxiliary };
 	await editorService.openEditor({ resource: resourceToOpen, options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
 }
 

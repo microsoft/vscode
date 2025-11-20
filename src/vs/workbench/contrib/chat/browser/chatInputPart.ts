@@ -20,6 +20,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { HistoryNavigator2 } from '../../../../base/common/history.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -75,18 +76,18 @@ import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEd
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../common/chatEditingService.js';
-import { IChatModelInputState, IInputModel, IChatRequestModeInfo } from '../common/chatModel.js';
+import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup, IChatService } from '../common/chatService.js';
 import { IChatSessionProviderOptionItem, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
-import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
+import { ChatInputHistoryMaxEntries, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { ChatOpenModelPickerActionId, ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenModePickerAction } from './actions/chatExecuteActions.js';
 import { ChatContinueInSessionActionItem, ContinueChatInSessionAction } from './actions/chatContinueInAction.js';
+import { ChatOpenModelPickerActionId, ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenModePickerAction } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
@@ -94,18 +95,17 @@ import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmen
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
+import { IChatContextService } from './chatContextService.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from './chatSessions/chatSessionPickerActionItem.js';
-import { IChatViewState } from './chatWidget.js';
 import { ChatImplicitContext } from './contrib/chatImplicitContext.js';
 import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
-import { IChatContextService } from './chatContextService.js';
 
 const $ = dom.$;
 
@@ -147,8 +147,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private readonly _chatEditingTodosDisposables = this._register(new DisposableStore());
 	private _lastEditingSessionResource: URI | undefined;
 
-	private _onDidLoadInputState: Emitter<IChatInputState | undefined> = this._register(new Emitter<IChatInputState | undefined>());
-	readonly onDidLoadInputState: Event<IChatInputState | undefined> = this._onDidLoadInputState.event;
+	private _onDidLoadInputState: Emitter<void> = this._register(new Emitter());
+	readonly onDidLoadInputState: Event<void> = this._onDidLoadInputState.event;
 
 	private _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
@@ -283,7 +283,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	readonly dnd: ChatDragAndDrop;
 
-	private history: HistoryNavigator2<IChatHistoryEntry>;
+	private history: HistoryNavigator2<IChatModelInputState>;
 	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
 	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
 	private inputModel: ITextModel | undefined;
@@ -385,8 +385,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attemptedWorkingSetEntriesCount;
 	}
 
-	private readonly getInputState: () => IChatInputState;
-
 	/**
 	 * Number consumers holding the 'generating' lock.
 	 */
@@ -397,7 +395,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		private readonly location: ChatAgentLocation,
 		private readonly options: IChatInputPartOptions,
 		styles: IChatInputStyles,
-		getContribsInputState: () => IChatInputState,
 		private readonly inline: boolean,
 		@IChatWidgetHistoryService private readonly historyService: IChatWidgetHistoryService,
 		@IModelService private readonly modelService: IModelService,
@@ -441,13 +438,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs));
 		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, this._attachmentModel, styles));
 
-		this.getInputState = (): IChatInputState => {
-			return {
-				...getContribsInputState(),
-				chatContextAttachments: this._attachmentModel.attachments,
-				chatMode: this._currentModeObservable.get().id,
-			};
-		};
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 
 		this.inputEditorHasText = ChatContextKeys.inputHasText.bindTo(contextKeyService);
@@ -473,7 +463,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 
 		this.history = this.loadHistory();
-		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2<IChatHistoryEntry>([{ text: '', state: this.getInputState() }], ChatInputHistoryMaxEntries, historyKeyFn)));
+		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2<IChatModelInputState>([this.getCurrentInputState()], ChatInputHistoryMaxEntries, historyKeyFn)));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			const newOptions: IEditorOptions = {};
@@ -788,19 +778,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		const mode = this._currentModeObservable.get();
-
 		this._isSyncingToOrFromInputModel = true;
-		this._inputModel.setState({
-			attachments: this._attachmentModel.attachments,
-			mode: {
-				id: mode.id,
-				kind: mode.kind
-			},
-			selectedModel: this._currentLanguageModel,
-			inputText: this._inputEditor?.getValue() ?? '',
-			selections: this._inputEditor.getSelections() || []
-		});
+		this._inputModel.setState(this.getCurrentInputState());
 		this._isSyncingToOrFromInputModel = false;
 	}
 
@@ -885,13 +864,37 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
+	private loadHistory(): HistoryNavigator2<IChatModelInputState> {
 		const history = this.historyService.getHistory(this.location);
 		if (history.length === 0) {
-			history.push({ text: '', state: this.getInputState() });
+			history.push(this.getCurrentInputState());
 		}
 
 		return new HistoryNavigator2(history, 50, historyKeyFn);
+	}
+
+	/**
+	 * Get the current input state for history
+	 */
+	public getCurrentInputState(): IChatModelInputState {
+		const mode = this._currentModeObservable.get();
+		const state: IChatModelInputState = {
+			inputText: this._inputEditor?.getValue() ?? '',
+			attachments: this._attachmentModel.attachments,
+			mode: {
+				id: mode.id,
+				kind: mode.kind
+			},
+			selectedModel: this._currentLanguageModel,
+			selections: this._inputEditor?.getSelections() || [],
+			contrib: {},
+		};
+
+		for (const contrib of this._widget?.contribs || Iterable.empty()) {
+			contrib.getInputState?.(state.contrib);
+		}
+
+		return state;
 	}
 
 	private _getAriaLabel(): string {
@@ -942,16 +945,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	initForNewChatModel(state: IChatViewState, chatSessionIsEmpty: boolean): void {
+	initForNewChatModel(state: IChatModelInputState | undefined, chatSessionIsEmpty: boolean): void {
 		this.history = this.loadHistory();
 
 		// Note: With the new input model architecture, the state is synced automatically
 		// from the model via _syncFromModel when setInputModel is called.
 		// We only need to handle history here.
-		this.history.add({
-			text: state.inputValue ?? this.history.current().text,
-			state: state.inputState ?? this.getInputState()
-		});
+		this.history.add(state ?? this.getCurrentInputState());
 
 		this.selectedToolsModel.resetSessionEnablementState();
 
@@ -1025,28 +1025,30 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this.container;
 	}
 
+	private isStateEmpty(state: IChatModelInputState): boolean {
+		return state.inputText.trim().length === 0 && state.attachments.length === 0;
+	}
+
 	async showPreviousValue(): Promise<void> {
-		const inputState = this.getInputState();
-		if (this.history.isAtEnd()) {
+		const inputState = this.getCurrentInputState();
+		this.saveCurrentValue(inputState);
+
+		const current = this.history.current();
+		if (current.inputText !== inputState.inputText && !this.isStateEmpty(inputState)) {
 			this.saveCurrentValue(inputState);
-		} else {
-			const currentEntry = this.getFilteredEntry(this._inputEditor.getValue(), inputState);
-			if (!this.history.has(currentEntry)) {
-				this.saveCurrentValue(inputState);
-				this.history.resetCursor();
-			}
+			this.history.resetCursor();
 		}
 
 		this.navigateHistory(true);
 	}
 
 	async showNextValue(): Promise<void> {
-		const inputState = this.getInputState();
+		const inputState = this.getCurrentInputState();
 		if (this.history.isAtEnd()) {
 			return;
 		} else {
-			const currentEntry = this.getFilteredEntry(this._inputEditor.getValue(), inputState);
-			if (!this.history.has(currentEntry)) {
+			const current = this.history.current();
+			if (current.inputText !== inputState.inputText) {
 				this.saveCurrentValue(inputState);
 				this.history.resetCursor();
 			}
@@ -1059,7 +1061,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const historyEntry = previous ?
 			this.history.previous() : this.history.next();
 
-		let historyAttachments = historyEntry.state?.chatContextAttachments ?? [];
+		let historyAttachments = historyEntry.attachments ?? [];
 
 		// Check for images in history to restore the value.
 		if (historyAttachments.length > 0) {
@@ -1085,10 +1087,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._attachmentModel.clearAndSetContext(...historyAttachments);
 
-		aria.status(historyEntry.text);
-		this.setValue(historyEntry.text, true);
-
-		this._onDidLoadInputState.fire(historyEntry.state);
+		aria.status(historyEntry.inputText);
+		this.setValue(historyEntry.inputText, true);
+		this._onDidLoadInputState.fire();
 
 		const model = this._inputEditor.getModel();
 		if (!model) {
@@ -1113,13 +1114,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		if (!transient) {
-			this.saveCurrentValue(this.getInputState());
+			this.saveCurrentValue(this.getCurrentInputState());
 		}
 	}
 
-	private saveCurrentValue(inputState: IChatInputState): void {
-		const newEntry = this.getFilteredEntry(this._inputEditor.getValue(), inputState);
-		this.history.replaceLast(newEntry);
+	private saveCurrentValue(inputState: IChatModelInputState): void {
+		this.history.replaceLast(inputState);
 	}
 
 	focus() {
@@ -1136,16 +1136,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	async acceptInput(isUserQuery?: boolean): Promise<void> {
 		if (isUserQuery) {
-			const userQuery = this._inputEditor.getValue();
-			const inputState = this.getInputState();
-			const entry = this.getFilteredEntry(userQuery, inputState);
-			this.history.replaceLast(entry);
-			this.history.add({ text: '', state: this.getInputState() });
+			const userQuery = this.getCurrentInputState();
+			this.history.replaceLast(userQuery);
+			this.history.add({ ...this.getCurrentInputState(), inputText: '', attachments: [], selections: [] });
 		}
 
 		// Clear attached context, fire event to clear input state, and clear the input editor
 		this.attachmentModel.clear();
-		this._onDidLoadInputState.fire({});
+		this._onDidLoadInputState.fire();
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
 			this._acceptInputForVoiceover();
 		} else {
@@ -1158,26 +1156,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (!this.agentService.hasToolsAgent && this._currentModeObservable.get().kind === ChatModeKind.Agent) {
 			this.setChatMode(ChatModeKind.Edit);
 		}
-	}
-
-	// A function that filters out specifically the `value` property of the attachment.
-	private getFilteredEntry(query: string, inputState: IChatInputState): IChatHistoryEntry {
-		const attachmentsWithoutImageValues = inputState.chatContextAttachments?.map(attachment => {
-			if (isImageVariableEntry(attachment) && attachment.references?.length && attachment.value) {
-				const newAttachment = { ...attachment };
-				newAttachment.value = undefined;
-				return newAttachment;
-			}
-			return attachment;
-		});
-
-		inputState.chatContextAttachments = attachmentsWithoutImageValues;
-		const newEntry = {
-			text: query,
-			state: inputState,
-		};
-
-		return newEntry;
 	}
 
 	private _acceptInputForVoiceover(): void {
@@ -2276,17 +2254,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		};
 	}
 
-	/**
-	 * Get current view state for history and backward compatibility.
-	 * Note: Input state is also automatically synced to the model's inputModel.
-	 */
-	getViewState(): IChatInputState {
-		return this.getInputState();
-	}
-
 	saveState(): void {
 		if (this.history.isAtEnd()) {
-			this.saveCurrentValue(this.getInputState());
+			this.saveCurrentValue(this.getCurrentInputState());
 		}
 
 		const inputHistory = [...this.history];
@@ -2294,7 +2264,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 }
 
-const historyKeyFn = (entry: IChatHistoryEntry) => JSON.stringify({ ...entry, state: { ...entry.state, chatMode: undefined } });
+const historyKeyFn = (entry: IChatModelInputState) => JSON.stringify({ ...entry, mode: { ...entry.mode }, selectedModel: undefined });
 
 function getLastPosition(model: ITextModel): IPosition {
 	return { lineNumber: model.getLineCount(), column: model.getLineLength(model.getLineCount()) + 1 };

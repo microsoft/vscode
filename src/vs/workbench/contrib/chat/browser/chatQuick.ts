@@ -403,6 +403,7 @@ class QuickChat extends Disposable {
 			throw new Error('Could not start chat session');
 		}
 
-		this.widget.setModel(this.model, { inputValue: this._currentQuery });
+		this.model.inputModel.setState({ inputText: '', selections: [] });
+		this.widget.setModel(this.model);
 	}
 }

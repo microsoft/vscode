@@ -19,7 +19,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IChatAcceptInputOptions, IChatWidgetService } from '../../../chat/browser/chat.js';
 import type { IChatViewState } from '../../../chat/browser/chatWidget.js';
 import { IChatAgentService } from '../../../chat/common/chatAgents.js';
-import { ChatModel, IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/chatModel.js';
+import { ChatModel, IChatModelInputState, IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/chatModel.js';
 import { ChatMode } from '../../../chat/common/chatModes.js';
 import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
@@ -325,7 +325,7 @@ export class TerminalChatWidget extends Disposable {
 		return this._focusTracker;
 	}
 
-	private async _createSession(viewState?: IChatViewState): Promise<void> {
+	private async _createSession(viewState?: IChatModelInputState): Promise<void> {
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (!this._model.value) {
 				this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, token);
@@ -344,7 +344,7 @@ export class TerminalChatWidget extends Disposable {
 
 	private _loadViewState() {
 		const rawViewState = this._storageService.get(this._viewStateStorageKey, StorageScope.PROFILE, undefined);
-		let viewState: IChatViewState | undefined;
+		let viewState: IChatModelInputState | undefined;
 		if (rawViewState) {
 			try {
 				viewState = JSON.parse(rawViewState);
@@ -356,7 +356,10 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	private _saveViewState() {
-		this._storageService.store(this._viewStateStorageKey, JSON.stringify(this._inlineChatWidget.chatWidget.getViewState()), StorageScope.PROFILE, StorageTarget.USER);
+		const viewState = this._inlineChatWidget.chatWidget.getViewState();
+		if (viewState) {
+			this._storageService.store(this._viewStateStorageKey, JSON.stringify(viewState), StorageScope.PROFILE, StorageTarget.USER);
+		}
 	}
 
 	clear(): void {

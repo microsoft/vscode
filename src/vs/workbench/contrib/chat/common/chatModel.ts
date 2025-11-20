@@ -1306,6 +1306,9 @@ export interface IChatModelInputState {
 
 	/** Current selection ranges */
 	selections: ISelection[];
+
+	/** Contributed stored state */
+	contrib: Record<string, unknown>;
 }
 
 /**
@@ -1323,6 +1326,7 @@ export interface ISerializableChatModelInputState {
 	} | undefined;
 	inputText: string;
 	selections: ISelection[];
+	contrib: Record<string, unknown>;
 }
 
 /**
@@ -1501,7 +1505,7 @@ class InputModel implements IInputModel {
 	readonly state: IObservable<IChatModelInputState | undefined>;
 
 	constructor(initialState: IChatModelInputState | undefined) {
-		this._state = observableValueOpts({debugName: 'inputModelState', equalsFn: equals }, initialState);
+		this._state = observableValueOpts({ debugName: 'inputModelState', equalsFn: equals }, initialState);
 		this.state = this._state;
 	}
 
@@ -1514,6 +1518,7 @@ class InputModel implements IInputModel {
 			selectedModel: undefined,
 			inputText: '',
 			selections: [],
+			contrib: {},
 			...current,
 			...state
 		}, undefined);
@@ -1668,6 +1673,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				identifier: serializedInputState.selectedModel.identifier,
 				metadata: serializedInputState.selectedModel.metadata
 			},
+			contrib: serializedInputState.contrib,
 			inputText: serializedInputState.inputText,
 			selections: serializedInputState.selections
 		});
@@ -2106,6 +2112,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			// Only include inputState if it has been set
 			...(inputState ? {
 				inputState: {
+					contrib: inputState.contrib,
 					attachments: inputState.attachments,
 					mode: inputState.mode,
 					selectedModel: inputState.selectedModel ? {
