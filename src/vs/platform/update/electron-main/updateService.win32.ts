@@ -137,6 +137,8 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			}
 		} else {
 			const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
+			// GC for background updates in system setup happens via inno_setup since it requires
+			// elevated permissions.
 			if (fastUpdatesEnabled && this.productService.target === 'user' && this.productService.commit) {
 				const versionedResourcesFolder = this.productService.commit.substring(0, 10);
 				const innoUpdater = path.join(exeDir, versionedResourcesFolder, 'tools', 'inno_updater.exe');
