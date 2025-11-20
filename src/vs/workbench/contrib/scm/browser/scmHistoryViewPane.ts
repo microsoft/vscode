@@ -5,7 +5,7 @@
 
 import './media/scm.css';
 import { $, append, h, reset } from '../../../../base/browser/dom.js';
-import { IHoverOptions, IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { IHoverOptions, IManagedHoverContent } from '../../../../base/browser/ui/hover/hover.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
@@ -76,6 +76,7 @@ import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/
 import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
 import { SCMHistoryItemTransferData } from './scmHistoryChatContext.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -480,10 +481,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		const historyItemViewModel = node.element.historyItemViewModel;
 		const historyItem = historyItemViewModel.historyItem;
 
-		const hoverContent = {
-			markdown: historyItem.tooltip ?? historyItem.message,
-			markdownNotSupportedFallback: historyItem.message
-		} satisfies IManagedHoverTooltipMarkdownString;
+		const hoverContent = this._renderHoverContent(historyItem);
 		const historyItemHover = this._hoverService.setupManagedHover(this.hoverDelegate, templateData.element, hoverContent);
 		templateData.elementDisposables.add(historyItemHover);
 
@@ -587,6 +585,21 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		elements.description.textContent = showDescription ? historyItemRefs[0].name : '';
 
 		append(templateData.labelContainer, elements.root);
+	}
+
+	private _renderHoverContent(historyItem: ISCMHistoryItem): IManagedHoverContent {
+		if (historyItem.tooltip === undefined) {
+			return historyItem.message;
+		}
+
+		if (isMarkdownString(historyItem.tooltip)) {
+			return {
+				markdown: historyItem.tooltip,
+				markdownNotSupportedFallback: historyItem.message
+			};
+		}
+
+		return historyItem.message;
 	}
 
 	private _processMatches(historyItemViewModel: ISCMHistoryItemViewModel, filterData: LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
