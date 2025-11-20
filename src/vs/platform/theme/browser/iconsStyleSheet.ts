@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { canASAR } from '../../../amdX.js';
 import * as css from '../../../base/browser/cssValue.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { AppResourcePath, FileAccess, nodeModulesAsarUnpackedPath, nodeModulesPath } from '../../../base/common/network.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { IEnvironmentService } from '../../environment/common/environment.js';
 import { getIconRegistry, IconContribution, IconFontDefinition } from '../common/iconRegistry.js';
 import { IProductIconTheme, IThemeService } from '../common/themeService.js';
 
@@ -15,7 +18,11 @@ export interface IIconsStyleSheet extends IDisposable {
 	readonly onDidChange: Event<void>;
 }
 
-export function getIconsStyleSheet(themeService: IThemeService | undefined): IIconsStyleSheet {
+export function getModuleLocation(environmentService: IEnvironmentService): AppResourcePath {
+	return `${(canASAR && environmentService.isBuilt) ? nodeModulesAsarUnpackedPath : nodeModulesPath}/@vscode/codicons/dist/codicon.ttf`;
+}
+
+export function getIconsStyleSheet(themeService: IThemeService | undefined, environmentService: IEnvironmentService): IIconsStyleSheet {
 	const disposable = new DisposableStore();
 
 	const onDidChangeEmmiter = disposable.add(new Emitter<void>());
@@ -34,6 +41,7 @@ export function getIconsStyleSheet(themeService: IThemeService | undefined): IIc
 
 			const rules = new css.Builder();
 			const rootAttribs = new css.Builder();
+			rules.push(css.inline`@font-face { font-family: "codicon"; font-display: block; src: ${css.asCSSUrl(FileAccess.asFileUri(getModuleLocation(environmentService)).with({ query: '5d4d76ab2ce5108968ad644d591a16a6' }))} format("truetype");}`);
 			for (const contribution of iconRegistry.getIcons()) {
 				const definition = productIconTheme.getIcon(contribution);
 				if (!definition) {

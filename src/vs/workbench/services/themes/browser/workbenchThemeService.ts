@@ -179,7 +179,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		const codiconStyleSheet = createStyleSheet();
 		codiconStyleSheet.id = 'codiconStyles';
 
-		const iconsStyleSheet = this._register(getIconsStyleSheet(this));
+		const iconsStyleSheet = this._register(getIconsStyleSheet(this, this.environmentService));
 		function updateAll() {
 			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 		}

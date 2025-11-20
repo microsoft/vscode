@@ -32,6 +32,7 @@ import { IIssueFormService, IssueReporterData, IssueReporterExtensionData, Issue
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 
 const MAX_URL_LENGTH = 7500;
 
@@ -92,7 +93,8 @@ export class BaseIssueReporterService extends Disposable {
 		@IFileDialogService public readonly fileDialogService: IFileDialogService,
 		@IContextMenuService public readonly contextMenuService: IContextMenuService,
 		@IAuthenticationService public readonly authenticationService: IAuthenticationService,
-		@IOpenerService public readonly openerService: IOpenerService
+		@IOpenerService public readonly openerService: IOpenerService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 		const targetExtension = data.extensionId ? data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -175,7 +177,7 @@ export class BaseIssueReporterService extends Disposable {
 		const codiconStyleSheet = createStyleSheet();
 		codiconStyleSheet.id = 'codiconStyles';
 
-		const iconsStyleSheet = this._register(getIconsStyleSheet(this.themeService));
+		const iconsStyleSheet = this._register(getIconsStyleSheet(this.themeService, this.environmentService));
 		function updateAll() {
 			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 		}
