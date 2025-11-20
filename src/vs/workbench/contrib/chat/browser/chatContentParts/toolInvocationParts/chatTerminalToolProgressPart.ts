@@ -5,7 +5,6 @@
 
 import { h } from '../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
-import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -105,8 +104,6 @@ interface ITerminalCommandDecorationOptions {
 class TerminalCommandDecoration extends Disposable {
 	private readonly _element: HTMLElement;
 	private _interactionElement: HTMLElement | undefined;
-	private readonly _hover: MutableDisposable<IManagedHover>;
-	private _currentHoverText: string | undefined;
 
 	constructor(
 		private readonly _options: ITerminalCommandDecorationOptions,
@@ -115,7 +112,6 @@ class TerminalCommandDecoration extends Disposable {
 		super();
 		const decorationElements = h('span.chat-terminal-command-decoration@decoration', { role: 'img', tabIndex: 0 });
 		this._element = decorationElements.decoration;
-		this._hover = this._register(new MutableDisposable<IManagedHover>());
 		this._attachElementToContainer();
 	}
 
@@ -135,11 +131,6 @@ class TerminalCommandDecoration extends Disposable {
 			}
 		}
 
-		if (!this._hover.value && this._currentHoverText) {
-			this._register(this._hoverService.setupDelayedHover(decoration, {
-				content: this._currentHoverText,
-			}));
-		}
 		this._attachInteractionHandlers(decoration);
 	}
 
@@ -189,13 +180,12 @@ class TerminalCommandDecoration extends Disposable {
 		}
 		const hoverText = tooltip || decorationState.hoverMessage;
 		if (hoverText) {
-			this._currentHoverText = hoverText;
+			this._register(this._hoverService.setupDelayedHover(decoration, {
+				content: hoverText,
+			}));
 			decoration.setAttribute('aria-label', hoverText);
-			this._hover.value?.update(hoverText);
 		} else {
-			this._currentHoverText = undefined;
 			decoration.removeAttribute('aria-label');
-			this._hover.value?.update(undefined);
 		}
 	}
 
