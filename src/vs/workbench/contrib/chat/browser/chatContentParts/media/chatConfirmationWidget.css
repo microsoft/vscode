@@ -69,10 +69,6 @@
 		margin-top: -12px;
 		margin-bottom: 12px;
 	}
-
-	.rendered-markdown p {
-		opacity: 0.85;
-	}
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title.expandable {
@@ -88,6 +84,7 @@
 .chat-confirmation-widget .chat-confirmation-widget-title p,
 .chat-confirmation-widget .chat-confirmation-widget-title .rendered-markdown {
 	display: inline;
+	color: var(--vscode-descriptionForeground);
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title p {
@@ -131,7 +128,6 @@
 
 .chat-confirmation-widget-title small {
 	font-size: 1em;
-	opacity: 0.85;
 
 	&::before {
 		content: ' \2013  ';
