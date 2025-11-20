@@ -166,6 +166,13 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 }
 
+export type ISerializedProperty = { [property: string]: string | number };
+
+export type ISerializedAnnotation = {
+	range: [number, number];
+	annotation: ISerializedProperty;
+};
+
 export class AnnotationsUpdate<T> {
 
 	/**
@@ -175,13 +182,38 @@ export class AnnotationsUpdate<T> {
 		return new AnnotationsUpdate(annotations);
 	}
 
-	private _annotatedString: AnnotatedString<T>;
+	private readonly _annotatedString: AnnotatedString<T>;
+	private readonly _annotations: IAnnotationUpdate<T>[];
 
-	private constructor(public annotations: IAnnotationUpdate<T>[]) {
+	private constructor(annotations: IAnnotationUpdate<T>[]) {
 		this._annotatedString = new AnnotatedString<T>(annotations);
+		this._annotations = annotations;
 	}
 
-	rebase(edit: StringEdit): void {
+	get annotations(): IAnnotationUpdate<T>[] {
+		return this._annotations;
+	}
+
+	public rebase(edit: StringEdit): void {
 		this._annotatedString.applyEdit(edit);
+	}
+
+	static serialize<T>(update: AnnotationsUpdate<T>, serializingFunc: (annotation: T) => ISerializedProperty): ISerializedAnnotation[] {
+		return update.annotations.map(annotation => {
+			return {
+				range: [annotation.range.start, annotation.range.endExclusive],
+				annotation: serializingFunc(annotation.annotation)
+			};
+		});
+	}
+
+	static deserialize<T>(serializedAnnotations: ISerializedAnnotation[], deserializingFunc: (annotation: ISerializedProperty) => T): AnnotationsUpdate<T> {
+		const annotations: IAnnotationUpdate<T>[] = serializedAnnotations.map(serializedAnnotation => {
+			return {
+				range: new OffsetRange(serializedAnnotation.range[0], serializedAnnotation.range[1]),
+				annotation: deserializingFunc(serializedAnnotation.annotation)
+			};
+		});
+		return new AnnotationsUpdate(annotations);
 	}
 }

@@ -8,7 +8,7 @@ import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
 import { IModelContentChange } from './model/mirrorTextModel.js';
-import { AnnotationsUpdate } from './model/tokens/annotations.js';
+import { AnnotationsUpdate, ISerializedProperty } from './model/tokens/annotations.js';
 import { TextModelEditSource } from './textModelEditSource.js';
 
 /**
@@ -163,6 +163,32 @@ export interface IModelTokensFontChangedEvent {
  * @internal
  */
 export type FontTokensUpdate = AnnotationsUpdate<IFontToken>;
+
+/**
+ * @internal
+ */
+export function serializeFontToken(): (annotation: IFontToken) => ISerializedProperty {
+	return (annotation: IFontToken) => {
+		return {
+			fontFamily: annotation.fontFamily ?? '',
+			fontSize: annotation.fontSize ?? '',
+			lineHeight: annotation.lineHeight ?? 0
+		};
+	};
+}
+
+/**
+ * @internal
+ */
+export function deserializeFontToken(): (annotation: ISerializedProperty) => IFontToken {
+	return (annotation: ISerializedProperty) => {
+		return {
+			fontFamily: annotation.fontFamily ? String(annotation.fontFamily) : undefined,
+			fontSize: annotation.fontSize ? String(annotation.fontSize) : undefined,
+			lineHeight: annotation.lineHeight ? Number(annotation.lineHeight) : undefined
+		};
+	};
+}
 
 /**
  * @internal

@@ -25,6 +25,7 @@ import type { IRawTheme } from 'vscode-textmate';
 import { createWebWorker } from '../../../../../base/browser/webWorkerFactory.js';
 import { IWebWorkerClient, Proxied } from '../../../../../base/common/worker/webWorker.js';
 import { FontTokensUpdate } from '../../../../../editor/common/textModelEvents.js';
+import { ISerializedAnnotation } from '../../../../../editor/common/model/tokens/annotations.js';
 
 export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 	private static _reportedMismatchingTokens = false;
@@ -147,13 +148,13 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 				const resource = URI.revive(_resource);
 				return this._extensionResourceLoaderService.readExtensionResource(resource);
 			},
-			$setTokensAndStates: async (controllerId: number, versionId: number, tokens: Uint8Array, fontTokensUpdate: FontTokensUpdate, lineEndStateDeltas: StateDeltas[]): Promise<void> => {
+			$setTokensAndStates: async (controllerId: number, versionId: number, tokens: Uint8Array, fontTokens: ISerializedAnnotation[], lineEndStateDeltas: StateDeltas[]): Promise<void> => {
 				const controller = this._workerTokenizerControllers.get(controllerId);
 				// When a model detaches, it is removed synchronously from the map.
 				// However, the worker might still be sending tokens for that model,
 				// so we ignore the event when there is no controller.
 				if (controller) {
-					controller.setTokensAndStates(controllerId, versionId, tokens, fontTokensUpdate, lineEndStateDeltas);
+					controller.setTokensAndStates(controllerId, versionId, tokens, fontTokens, lineEndStateDeltas);
 				}
 			},
 			$reportTokenizationTime: (timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void => {

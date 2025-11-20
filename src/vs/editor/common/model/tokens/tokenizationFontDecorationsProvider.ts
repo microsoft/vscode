@@ -61,8 +61,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	) {
 		super();
 		this.tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
-			console.log('fontChanges : ', fontChanges);
-
 			// TODO: combine the annotations and the heights into one map later
 			const lineNumberToHeight = new Map<number, number | null>();
 			const lineNumberToAnnotations = new Map<number, IAnnotationUpdate<IFontToken>[]>();
@@ -125,8 +123,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	public handleDidChangeOptions(e: IModelOptionsChangedEvent): void { }
 
 	public getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
-		console.log('getDecorationsInRange : ', range);
-
 		this._resolveDecorations();
 		const startOffsetOfRange = this.textModel.getOffsetAt(range.getStartPosition());
 		const endOffsetOfRange = this.textModel.getOffsetAt(range.getEndPosition());
@@ -162,8 +158,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	}
 
 	private _resolveDecorations(): void {
-		console.log('this._queuedEdits.replacements : ', this._queuedEdits.replacements);
-		console.log('this._queuedEdits.length > 0 : ', this._queuedEdits.replacements.length > 0);
 		this._fontAnnotations.applyEdit(this._queuedEdits);
 	}
 }

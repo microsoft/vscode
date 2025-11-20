@@ -12,7 +12,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IBackgroundTokenizationStore, ILanguageIdCodec } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { TokenizationStateStore } from '../../../../../editor/common/model/textModelTokens.js';
-import { FontTokensUpdate, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { deserializeFontToken, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { IModelContentChange } from '../../../../../editor/common/model/mirrorTextModel.js';
 import { ContiguousMultilineTokensBuilder } from '../../../../../editor/common/tokens/contiguousMultilineTokensBuilder.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -24,6 +24,7 @@ import { linesLengthEditFromModelContentChange } from '../../../../../editor/com
 import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Position } from '../../../../../editor/common/core/position.js';
+import { AnnotationsUpdate, ISerializedAnnotation } from '../../../../../editor/common/model/tokens/annotations.js';
 
 export class TextMateWorkerTokenizerController extends Disposable {
 	private static _id = 0;
@@ -112,7 +113,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 	/**
 	 * This method is called from the worker through the worker host.
 	 */
-	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: Uint8Array, fontTokensUpdate: FontTokensUpdate, stateDeltas: StateDeltas[]): Promise<void> {
+	public async setTokensAndStates(controllerId: number, versionId: number, rawTokens: Uint8Array, fontTokens: ISerializedAnnotation[], stateDeltas: StateDeltas[]): Promise<void> {
 		if (this.controllerId !== controllerId) {
 			// This event is for an outdated controller (the worker didn't receive the delete/create messages yet), ignore the event.
 			return;
@@ -125,6 +126,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		let tokens = ContiguousMultilineTokensBuilder.deserialize(
 			new Uint8Array(rawTokens)
 		);
+		const fontTokensUpdate = AnnotationsUpdate.deserialize(fontTokens, deserializeFontToken());
 
 		if (this._shouldLog) {
 			console.log('received background tokenization result', {

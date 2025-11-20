@@ -20,13 +20,13 @@ import type { StackDiff, StateStack, diffStateStacksRefEq } from 'vscode-textmat
 import { ICreateGrammarResult } from '../../../common/TMGrammarFactory.js';
 import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { FontTokensUpdate, IFontToken } from '../../../../../../editor/common/textModelEvents.js';
-import { AnnotationsUpdate, IAnnotationUpdate } from '../../../../../../editor/common/model/tokens/annotations.js';
+import { IFontToken, serializeFontToken } from '../../../../../../editor/common/textModelEvents.js';
+import { AnnotationsUpdate, IAnnotationUpdate, ISerializedAnnotation } from '../../../../../../editor/common/model/tokens/annotations.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 
 export interface TextMateModelTokenizerHost {
 	getOrCreateGrammar(languageId: string, encodedLanguageId: LanguageId): Promise<ICreateGrammarResult | null>;
-	setTokensAndStates(versionId: number, tokens: Uint8Array, fontTokensUpdate: FontTokensUpdate, stateDeltas: StateDeltas[]): void;
+	setTokensAndStates(versionId: number, tokens: Uint8Array, fontTokens: ISerializedAnnotation[], stateDeltas: StateDeltas[]): void;
 	reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void;
 }
 
@@ -175,11 +175,12 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			}
 
 			const fontUpdate = AnnotationsUpdate.create<IFontToken>(fontTokensUpdate);
+			const serializedFontUpdate = AnnotationsUpdate.serialize<IFontToken>(fontUpdate, serializeFontToken());
 			const stateDeltas = stateDeltaBuilder.getStateDeltas();
 			this._host.setTokensAndStates(
 				this._versionId,
 				tokenBuilder.serialize(),
-				fontUpdate,
+				serializedFontUpdate,
 				stateDeltas
 			);
 
