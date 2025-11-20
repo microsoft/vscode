@@ -12,7 +12,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { IVariableReference } from '../../common/chatModes.js';
 import { ChatRequestToolReferenceEntry } from '../../common/chatVariableEntries.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IStreamedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
@@ -86,6 +86,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		};
 	}
 
+	async handleToolStream(toolId: string, context: IToolInvocationStreamContext, token: CancellationToken): Promise<IStreamedToolInvocation | undefined> {
+		return undefined;
+	}
+
 	toolSets: IObservable<readonly ToolSet[]> = constObservable([]);
 
 	getToolSetByName(name: string): ToolSet | undefined {
@@ -100,7 +104,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap {
 		throw new Error('Method not implemented.');
 	}
 

@@ -39,7 +39,7 @@ import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } f
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { CountTokensCallback, createToolSchemaUri, GithubCopilotToolReference, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, GithubCopilotToolReference, ILanguageModelToolsService, IPreparedToolInvocation, IStreamedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvocationStreamContext, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/languageModelToolsService.js';
 import { Target } from '../common/promptSyntax/promptFileParser.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
@@ -506,6 +506,35 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		return prepared;
+	}
+
+	async handleToolStream(toolId: string, context: IToolInvocationStreamContext, token: CancellationToken): Promise<IStreamedToolInvocation | undefined> {
+		const tool = this._tools.get(toolId);
+		if (!tool) {
+			this._logService.warn(`[LanguageModelToolsService#handleToolStream] Tool ${toolId} not found`);
+			return undefined;
+		}
+
+		if (!tool.impl) {
+			await this._extensionService.activateByEvent(`onLanguageModelTool:${toolId}`);
+			const activatedTool = this._tools.get(toolId);
+			if (!activatedTool?.impl) {
+				this._logService.warn(`[LanguageModelToolsService#handleToolStream] Tool ${toolId} has no implementation after activation`);
+				return undefined;
+			}
+		}
+
+		if (!tool.impl?.handleToolStream) {
+			// Tool doesn't implement handleToolStream, that's fine
+			return undefined;
+		}
+
+		try {
+			return await tool.impl.handleToolStream(context, token);
+		} catch (error) {
+			this._logService.error(`[LanguageModelToolsService#handleToolStream] Error calling handleToolStream for tool ${toolId}:`, error);
+			return undefined;
+		}
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {

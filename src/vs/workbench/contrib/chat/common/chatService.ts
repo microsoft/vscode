@@ -174,6 +174,11 @@ export interface IChatMultiDiffData {
 export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
+	/**
+	 * If true, replaces the last progressMessage in the response instead of appending a new one.
+	 * This prevents duplicate progress messages from accumulating.
+	 */
+	replacesPreviousMessage?: boolean;
 }
 
 export interface IChatTask extends IChatTaskDto {

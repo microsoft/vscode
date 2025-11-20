@@ -6,7 +6,7 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { Schemas } from '../../../base/common/network.js';
@@ -30,10 +30,11 @@ import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../con
 import { IChatModel } from '../../contrib/chat/common/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
-import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatProgressMessage, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
+import { ILanguageModelToolsService, IToolInvocationStreamContext } from '../../contrib/chat/common/languageModelToolsService.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -115,6 +116,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@ILogService private readonly _logService: ILogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -273,7 +275,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				continue;
 			}
 
-			const revivedProgress = progress.kind === 'notebookEdit'
+			let revivedProgress = progress.kind === 'notebookEdit'
 				? ChatNotebookEdit.fromChatEdit(progress)
 				: revive(progress) as IChatProgress;
 
@@ -319,6 +321,33 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					this._unresolvedAnchors.set(requestId, new Map());
 				}
 				this._unresolvedAnchors.get(requestId)?.set(revivedProgress.resolveId, revivedProgress);
+			}
+
+			// Handle ChatPrepareToolInvocationPart: call handleToolStream and generate progress message
+			if (revivedProgress.kind === 'prepareToolInvocation') {
+				const toolData = this._languageModelToolsService.getTool(revivedProgress.toolName);
+				if (toolData) {
+					const streamContext: IToolInvocationStreamContext = {
+						rawInput: revivedProgress.streamData?.partialInput
+					};
+
+					try {
+						const streamResult = await this._languageModelToolsService.handleToolStream(toolData.id, streamContext, CancellationToken.None);
+						if (streamResult?.invocationMessage) {
+							// Generate a progress message part from the handleToolStream result
+							const progressMessage: IChatProgressMessage = {
+								kind: 'progressMessage',
+								content: typeof streamResult.invocationMessage === 'string'
+									? new MarkdownString(streamResult.invocationMessage)
+									: streamResult.invocationMessage,
+								replacesPreviousMessage: true
+							};
+							revivedProgress = progressMessage;
+						}
+					} catch (error) {
+						this._logService.warn(`MainThreadChatAgents2#$handleProgressChunk: Error calling handleToolStream for tool ${toolData.id}`, error);
+					}
+				}
 			}
 
 			chatProgressParts.push(revivedProgress);

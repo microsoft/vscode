@@ -718,6 +718,15 @@ export class Response extends AbstractResponse implements IDisposable {
 			});
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
+		} else if (progress.kind === 'progressMessage' && progress.replacesPreviousMessage) {
+			// Find the last progressMessage and replace it
+			const lastResponsePart = this._responseParts.at(-1);
+			if (lastResponsePart?.kind === 'progressMessage') {
+				lastResponsePart.content = progress.content;
+			} else {
+				this._responseParts.push(progress);
+			}
+			this._updateRepr(quiet);
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
