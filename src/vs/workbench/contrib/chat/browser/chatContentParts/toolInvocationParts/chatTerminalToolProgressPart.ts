@@ -866,31 +866,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const store = new DisposableStore();
 			commandDetectionListener.value = store;
 
-			store.add(commandDetection.onCommandExecuted(command => this._setupStreaming(terminalInstance, command)));
+			store.add(commandDetection.onCommandExecuted(command => this._startStreaming(terminalInstance, command)));
 
-			store.add(commandDetection.onCommandFinished(async command => {
-				if (!terminalInstance || this._store.isDisposed) {
-					return;
-				}
-				const finishedId = command.id;
-				const handledById = this._trackedCommandId !== undefined && finishedId !== undefined && finishedId === this._trackedCommandId;
-				if (!handledById) {
-					return;
-				}
-				if (finishedId && this._terminalData.terminalCommandId !== finishedId) {
-					this._terminalData.terminalCommandId = finishedId;
-				}
-				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				const appliedEmptyOutput = this._tryApplyEmptyOutput(command);
-				if (!appliedEmptyOutput) {
-					await this._queueStreaming(terminalInstance, command, true);
-				}
-				this._outputView.endStreaming();
-				this._commandStreamingListener.clear();
-				this._streamingCommand = undefined;
-				this._trackedCommandId = undefined;
-				commandDetectionListener.clear();
-			}));
+			store.add(commandDetection.onCommandFinished(async command => await this._handleCommandFinished(terminalInstance, command, commandDetectionListener)));
 
 			await tryResolveCommand();
 		};
@@ -915,7 +893,31 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}));
 	}
 
-	private _setupStreaming(terminalInstance: ITerminalInstance, command: ITerminalCommand): void {
+	private async _handleCommandFinished(terminalInstance: ITerminalInstance | undefined, command: ITerminalCommand, commandDetectionListener: MutableDisposable<DisposableStore>): Promise<void> {
+		if (!terminalInstance || this._store.isDisposed) {
+			return;
+		}
+		const finishedId = command.id;
+		const handledById = this._trackedCommandId !== undefined && finishedId !== undefined && finishedId === this._trackedCommandId;
+		if (!handledById) {
+			return;
+		}
+		if (finishedId && this._terminalData.terminalCommandId !== finishedId) {
+			this._terminalData.terminalCommandId = finishedId;
+		}
+		this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
+		const appliedEmptyOutput = this._tryApplyEmptyOutput(command);
+		if (!appliedEmptyOutput) {
+			await this._queueStreaming(terminalInstance, command, true);
+		}
+		this._outputView.endStreaming();
+		this._commandStreamingListener.clear();
+		this._streamingCommand = undefined;
+		this._trackedCommandId = undefined;
+		commandDetectionListener.clear();
+	}
+
+	private _startStreaming(terminalInstance: ITerminalInstance, command: ITerminalCommand): void {
 		if (this._streamingCommand) {
 			return;
 		}
