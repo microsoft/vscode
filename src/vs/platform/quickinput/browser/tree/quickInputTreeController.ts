@@ -16,13 +16,15 @@ import { QuickInputTreeDelegate } from './quickInputDelegate.js';
 import { getParentNodeState, IQuickTreeFilterData } from './quickInputTree.js';
 import { QuickTreeAccessibilityProvider } from './quickInputTreeAccessibilityProvider.js';
 import { QuickInputTreeFilter } from './quickInputTreeFilter.js';
-import { QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
+import { QuickInputCheckboxStateHandler, QuickInputTreeRenderer } from './quickInputTreeRenderer.js';
 import { QuickInputTreeSorter } from './quickInputTreeSorter.js';
+import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
 
 const $ = dom.$;
 
 export class QuickInputTreeController extends Disposable {
 	private readonly _renderer: QuickInputTreeRenderer<IQuickTreeItem>;
+	private readonly _checkboxStateHandler: QuickInputCheckboxStateHandler<IQuickTreeItem>;
 	private readonly _filter: QuickInputTreeFilter;
 	private readonly _sorter: QuickInputTreeSorter;
 	private readonly _tree: WorkbenchObjectTree<IQuickTreeItem, IQuickTreeFilterData>;
@@ -57,12 +59,13 @@ export class QuickInputTreeController extends Disposable {
 	) {
 		super();
 		this._container = dom.append(container, $('.quick-input-tree'));
+		this._checkboxStateHandler = this._register(new QuickInputCheckboxStateHandler<IQuickTreeItem>());
 		this._renderer = this._register(this.instantiationService.createInstance(
 			QuickInputTreeRenderer,
 			hoverDelegate,
 			this._onDidTriggerButton,
 			this.onDidChangeCheckboxState,
-			item => this.handleStickyCheckboxToggle(item)
+			this._checkboxStateHandler,
 		));
 		this._filter = this.instantiationService.createInstance(QuickInputTreeFilter);
 		this._sorter = this._register(new QuickInputTreeSorter());
@@ -87,7 +90,7 @@ export class QuickInputTreeController extends Disposable {
 				filter: this._filter
 			}
 		));
-		this.registerOnOpenListener();
+		this.registerCheckboxStateListeners();
 	}
 
 	get tree(): WorkbenchObjectTree<IQuickTreeItem, IQuickTreeFilterData> {
@@ -233,15 +236,17 @@ export class QuickInputTreeController extends Disposable {
 		}
 	}
 
-	registerOnOpenListener() {
+	registerCheckboxStateListeners() {
 		this._register(this._tree.onDidOpen(e => {
 			const item = e.element;
 			if (!item) {
 				return;
 			}
+
 			if (item.disabled) {
 				return;
 			}
+
 			// Check if the item is pickable (defaults to true if not specified)
 			if (item.pickable === false) {
 				// For non-pickable items, set it as the active item and fire the accept event
@@ -250,19 +255,20 @@ export class QuickInputTreeController extends Disposable {
 				return;
 			}
 
-			this.toggleItem(item);
+			const target = e.browserEvent?.target as HTMLElement | undefined;
+			if (target && target.classList.contains(Checkbox.CLASS_NAME)) {
+				return;
+			}
+
+			this.updateCheckboxState(item, item.checked === true);
+		}));
+
+		this._register(this._checkboxStateHandler.onDidChangeCheckboxState(e => {
+			this.updateCheckboxState(e.item, e.checked === true);
 		}));
 	}
 
-	private handleStickyCheckboxToggle(item: IQuickTreeItem): void {
-		if (item.disabled || item.pickable === false) {
-			return;
-		}
-		this.toggleItem(item);
-	}
-
-	private toggleItem(item: IQuickTreeItem): void {
-		const newState = item.checked !== true;
+	private updateCheckboxState(item: IQuickTreeItem, newState: boolean): void {
 		if ((item.checked ?? false) === newState) {
 			return; // No change
 		}
