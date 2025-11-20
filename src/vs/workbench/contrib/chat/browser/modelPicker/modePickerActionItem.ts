@@ -22,7 +22,7 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../actions/chatExecuteActions.js';
@@ -36,31 +36,43 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		action: MenuItemAction,
 		private readonly delegate: IModePickerDelegate,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IChatAgentService chatAgentService: IChatAgentService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatModeService chatModeService: IChatModeService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService commandService: ICommandService,
 		@IProductService productService: IProductService
 	) {
 		const builtInCategory = { label: localize('built-in', "Built-In"), order: 0 };
 		const customCategory = { label: localize('custom', "Custom"), order: 1 };
-		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
-			...action,
-			id: getOpenChatActionIdForMode(mode),
-			label: mode.label.get(),
-			class: undefined,
-			enabled: true,
-			checked: currentMode.id === mode.id,
-			tooltip: chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
-			run: async () => {
-				const result = await commandService.executeCommand(ToggleAgentModeActionId, { modeId: mode.id } satisfies IToggleChatModeArgs);
-				this.renderLabel(this.element!);
-				return result;
-			},
-			category: builtInCategory
-		});
+		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
+			// Check if Agent mode is disabled by policy
+			const isAgentModeDisabled = mode.kind === ChatModeKind.Agent && chatModeService.isAgentModeDisabledByPolicy();
+			const label = isAgentModeDisabled ? `$(lock) ${mode.label.get()}` : mode.label.get();
+			const tooltip = isAgentModeDisabled 
+				? localize('agentModeDisabledByPolicy', "Managed by your organization")
+				: chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
+
+			return {
+				...action,
+				id: getOpenChatActionIdForMode(mode),
+				label,
+				class: isAgentModeDisabled ? 'disabled-by-policy' : undefined,
+				enabled: !isAgentModeDisabled,
+				checked: currentMode.id === mode.id,
+				tooltip,
+				run: async () => {
+					if (isAgentModeDisabled) {
+						return; // Do nothing if disabled
+					}
+					const result = await commandService.executeCommand(ToggleAgentModeActionId, { modeId: mode.id } satisfies IToggleChatModeArgs);
+					this.renderLabel(this.element!);
+					return result;
+				},
+				category: builtInCategory
+			};
+		};
 
 		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...makeAction(mode, currentMode),

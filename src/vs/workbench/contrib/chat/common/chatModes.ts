@@ -10,6 +10,7 @@ import { constObservable, IObservable, ISettableObservable, observableValue, tra
 import { URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -17,7 +18,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from './chatAgents.js';
 import { ChatContextKeys } from './chatContextKeys.js';
-import { ChatModeKind } from './constants.js';
+import { ChatConfiguration, ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/promptFileParser.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
 
@@ -30,6 +31,7 @@ export interface IChatModeService {
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] };
 	findModeById(id: string): IChatMode | undefined;
 	findModeByName(name: string): IChatMode | undefined;
+	isAgentModeDisabledByPolicy(): boolean;
 }
 
 export class ChatModeService extends Disposable implements IChatModeService {
@@ -48,7 +50,8 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -186,15 +189,23 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			ChatMode.Ask,
 		];
 
-		if (this.chatAgentService.hasToolsAgent) {
-			builtinModes.unshift(ChatMode.Agent);
-		}
+		// Always include Agent mode, but mark as disabled if hasToolsAgent is false
+		builtinModes.unshift(ChatMode.Agent);
 		builtinModes.push(ChatMode.Edit);
 		return builtinModes;
 	}
 
 	private getCustomModes(): IChatMode[] {
+		// Show custom modes only when agent mode is enabled
 		return this.chatAgentService.hasToolsAgent ? Array.from(this._customModeInstances.values()) : [];
+	}
+
+	/**
+	 * Checks if the Agent mode setting is disabled by a policy
+	 */
+	isAgentModeDisabledByPolicy(): boolean {
+		const inspected = this.configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled);
+		return inspected.policyValue !== undefined && inspected.policyValue === false;
 	}
 }
 
