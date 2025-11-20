@@ -1,0 +1,69 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.browser-root {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	height: 100%;
+}
+
+.browser-toolbar {
+	display: flex;
+	align-items: center;
+	padding: 8px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border);
+	background-color: var(--vscode-editor-background);
+	flex-shrink: 0;
+	gap: 8px;
+}
+
+.browser-nav-buttons {
+	display: flex;
+	align-items: center;
+}
+
+.browser-nav-buttons .monaco-action-bar {
+	height: 100%;
+}
+
+.browser-nav-buttons .monaco-action-bar .actions-container {
+	display: flex;
+	align-items: center;
+}
+
+.browser-url-input {
+	flex: 1;
+	padding: 4px 8px;
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 2px;
+	outline: none;
+	font-family: var(--monaco-monospace-font);
+	font-size: 13px;
+}
+
+.browser-url-input:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.browser-container {
+	flex: 1;
+	min-height: 0;
+	margin: 0 2px 2px;
+	overflow: hidden;
+	position: relative;
+	background-image: none;
+	filter: blur(0px);
+	transition: opacity 500ms ease-out, filter 500ms ease-out;
+	opacity: 1.0;
+}
+
+/* Apply blur when view is hidden by overlays */
+.browser-container.overlay-visible {
+	opacity: 0.6;
+	filter: blur(2px);
+}

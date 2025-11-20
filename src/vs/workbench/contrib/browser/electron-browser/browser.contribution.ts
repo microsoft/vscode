@@ -1,0 +1,115 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { localize } from '../../../../nls.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
+import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
+import { BrowserEditor } from './browserEditor.js';
+import { BrowserEditorInput } from './browserEditorInput.js';
+import { BrowserEditorSerializer } from './browserEditorSerializer.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
+import { IBrowserOverlayManager, BrowserOverlayManager } from './overlayManager.js';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
+import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
+import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/clipboard/browser/clipboard.js';
+
+// Register editor pane
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		BrowserEditor,
+		BrowserEditor.ID,
+		localize('browserEditor', "Browser")
+	),
+	[
+		new SyncDescriptor(BrowserEditorInput)
+	]
+);
+
+// Register editor serializer
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
+	BrowserEditorInput.ID,
+	BrowserEditorSerializer
+);
+
+// Register command to open integrated browser
+class OpenIntegratedBrowserAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.openIntegratedBrowser',
+			title: { value: localize('openIntegratedBrowser', "Open Integrated Browser"), original: 'Open Integrated Browser' },
+			category: Categories.View,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor, url?: string): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+
+		// Create a new browser editor input with a unique ID
+		const id = generateUuid();
+		const instantiationService = accessor.get(IInstantiationService);
+		const browserInput = instantiationService.createInstance(BrowserEditorInput, {
+			id,
+			url: url || 'https://github.com/microsoft/vscode'
+		});
+
+		await editorService.openEditor(browserInput);
+	}
+}
+
+registerAction2(OpenIntegratedBrowserAction);
+
+// Register overlay manager service
+registerSingleton(IBrowserOverlayManager, BrowserOverlayManager, InstantiationType.Delayed);
+
+// Register browser data storage configuration
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	properties: {
+		'workbench.browser.dataStorage': {
+			type: 'string',
+			enum: ['global', 'workspace', 'ephemeral'],
+			default: 'workspace',
+			markdownDescription: localize(
+				'browserDataStorage',
+				'Controls how browser data (cookies, cache, storage) is shared between browser views.\n\n- `global`: All browser views share a single persistent session across all workspaces.\n- `workspace`: Browser views within the same workspace share a persistent session.\n- `ephemeral`: Each browser view has its own session that is cleaned up when closed.'
+			),
+			scope: ConfigurationScope.RESOURCE,
+			order: 100
+		}
+	}
+});
+
+const PRIORITY = 100;
+
+function redirectCommandToBrowser(command: MultiCommand | undefined) {
+	command?.addImplementation(PRIORITY, 'integratedBrowser', (accessor: ServicesAccessor) => {
+		const editorService = accessor.get(IEditorService);
+		const activeEditor = editorService.activeEditorPane;
+
+		if (activeEditor instanceof BrowserEditor) {
+			// This will return false if there is no event to forward
+			// (i.e., the command was not triggered from the browser view)
+			return activeEditor.forwardCurrentEvent();
+		}
+
+		return false;
+	});
+}
+
+redirectCommandToBrowser(UndoCommand);
+redirectCommandToBrowser(RedoCommand);
+redirectCommandToBrowser(SelectAllCommand);
+redirectCommandToBrowser(CopyAction);
+redirectCommandToBrowser(PasteAction);
+redirectCommandToBrowser(CutAction);

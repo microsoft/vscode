@@ -36,6 +36,8 @@ import { DialogMainService, IDialogMainService } from '../../platform/dialogs/el
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
 import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
 import { NativeBrowserElementsMainService, INativeBrowserElementsMainService } from '../../platform/browserElements/electron-main/nativeBrowserElementsMainService.js';
+import { IBrowserViewService } from '../../platform/browserView/common/browserView.js';
+import { BrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
 import { isLaunchedFromCli } from '../../platform/environment/node/argvHelper.js';
@@ -413,6 +415,12 @@ export class CodeApplication extends Disposable {
 
 			// Block any in-page navigation
 			contents.on('will-navigate', event => {
+				const browserViewService = this.mainInstantiationService.invokeFunction(accessor => accessor.get(IBrowserViewService));
+				// Allow navigation in integrated browser views
+				if (browserViewService?.isBrowserViewWebContents(contents)) {
+					return;
+				}
+
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
 
 				event.preventDefault();
@@ -421,6 +429,7 @@ export class CodeApplication extends Disposable {
 			// All Windows: only allow about:blank auxiliary windows to open
 			// For all other URLs, delegate to the OS.
 			contents.setWindowOpenHandler(details => {
+				// TODO: for browser views, open in a new browser tab.
 
 				// about:blank windows can open as window witho our default options
 				if (details.url === 'about:blank') {
@@ -1106,6 +1115,8 @@ export class CodeApplication extends Disposable {
 		// MCP
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
 
+		// Browser View
+		services.set(IBrowserViewService, new SyncDescriptor(BrowserViewMainService, undefined, true));
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
@@ -1167,6 +1178,10 @@ export class CodeApplication extends Disposable {
 		const browserElementsChannel = ProxyChannel.fromService(accessor.get(INativeBrowserElementsMainService), disposables);
 		mainProcessElectronServer.registerChannel('browserElements', browserElementsChannel);
 		sharedProcessClient.then(client => client.registerChannel('browserElements', browserElementsChannel));
+
+		// Browser View
+		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewService), disposables);
+		mainProcessElectronServer.registerChannel('browserView', browserViewChannel);
 
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService), disposables);
