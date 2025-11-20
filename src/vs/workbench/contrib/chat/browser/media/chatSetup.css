@@ -51,12 +51,10 @@
 	}
 }
 
-.monaco-workbench.hc-black .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before,
-.monaco-workbench.vs-dark .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
-	background-image: url('./apple-dark.svg');
+.monaco-workbench.hc-light .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
+	background-image: url('./apple-light.svg');
 }
 
-.monaco-workbench.hc-light .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before,
-.monaco-workbench.vs .chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
-	background-image: url('./apple-light.svg');
+.chat-setup-dialog .dialog-buttons-row > .dialog-buttons > .monaco-button.continue-button.apple::before {
+	background-image: url('./apple-dark.svg');
 }
