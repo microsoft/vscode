@@ -200,7 +200,6 @@ class TerminalCommandDecoration extends Disposable {
 	}
 }
 
-
 interface IStreamingSnapshotRequest {
 	readonly instance: ITerminalInstance;
 	readonly command: ITerminalCommand;
@@ -558,10 +557,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _terminalData: IChatTerminalToolInvocationData;
 	private _terminalCommandUri: URI | undefined;
 	private _storedCommandId: string | undefined;
-
 	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
 	private readonly _decoration: TerminalCommandDecoration;
+
 	private readonly _commandStreamingListener: MutableDisposable<IDisposable>;
 	private _streamingCommand: ITerminalCommand | undefined;
 	private _trackedCommandId: string | undefined;
@@ -867,72 +866,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const store = new DisposableStore();
 			commandDetectionListener.value = store;
 
-			store.add(commandDetection.onCommandExecuted(command => {
-				if (this._streamingCommand) {
-					return;
-				}
-				const commandId = command.id;
-				const expectedId = this._trackedCommandId ?? this._terminalData.terminalCommandId ?? this._storedCommandId;
-				const commandMatchesExpected = expectedId !== undefined && commandId !== undefined && commandId === expectedId;
-				if (!commandMatchesExpected) {
-					return;
-				}
-				this._streamingCommand = command;
-				this._trackedCommandId = commandId ?? expectedId;
-				if (commandId && this._terminalData.terminalCommandId !== commandId) {
-					this._terminalData.terminalCommandId = commandId;
-				}
-				this._outputView.beginStreaming();
-				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				const streamingStore = new DisposableStore();
-				this._commandStreamingListener.value = streamingStore;
-				let capturing = true;
-				streamingStore.add(toDisposable(() => { capturing = false; }));
-				if (!this._streamingCommand) {
-					return;
-				}
-				this._queueStreaming(terminalInstance, command);
-				streamingStore.add(terminalInstance.onData(() => {
-					if (!capturing || streamingStore.isDisposed) {
-						return;
-					}
-					const currentCommand = this._streamingCommand;
-					if (!currentCommand) {
-						return;
-					}
-					if (!capturing || streamingStore.isDisposed) {
-						return;
-					}
-					const latestCommand = this._streamingCommand;
-					if (!latestCommand || latestCommand !== currentCommand) {
-						return;
-					}
-					this._queueStreaming(terminalInstance, currentCommand);
-				}));
-				streamingStore.add(terminalInstance.onLineData(() => {
-					if (!capturing || streamingStore.isDisposed) {
-						return;
-					}
-					const latestCommand = this._streamingCommand;
-					if (!latestCommand || latestCommand !== command) {
-						return;
-					}
-					this._outputView.handleCompletedTerminalLine(terminalInstance, latestCommand);
-				}));
-				const xterm = terminalInstance.xterm as unknown as XtermTerminal | undefined;
-				if (xterm) {
-					streamingStore.add(xterm.raw.onCursorMove(() => {
-						if (!capturing || streamingStore.isDisposed) {
-							return;
-						}
-						const latestCommand = this._streamingCommand;
-						if (!latestCommand || latestCommand !== command) {
-							return;
-						}
-						this._outputView.handleCursorRenderableCheck(terminalInstance, latestCommand);
-					}));
-				}
-			}));
+			store.add(commandDetection.onCommandExecuted(command => this._setupStreaming(terminalInstance, command)));
 
 			store.add(commandDetection.onCommandFinished(async command => {
 				if (!terminalInstance || this._store.isDisposed) {
@@ -979,6 +913,73 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._addActions(undefined, this._terminalData.terminalToolSessionId);
 			instanceListener.dispose();
 		}));
+	}
+
+	private _setupStreaming(terminalInstance: ITerminalInstance, command: ITerminalCommand): void {
+		if (this._streamingCommand) {
+			return;
+		}
+		const commandId = command.id;
+		const expectedId = this._trackedCommandId ?? this._terminalData.terminalCommandId ?? this._storedCommandId;
+		const commandMatchesExpected = expectedId !== undefined && commandId !== undefined && commandId === expectedId;
+		if (!commandMatchesExpected) {
+			return;
+		}
+		this._streamingCommand = command;
+		this._trackedCommandId = commandId ?? expectedId;
+		if (commandId && this._terminalData.terminalCommandId !== commandId) {
+			this._terminalData.terminalCommandId = commandId;
+		}
+		this._outputView.beginStreaming();
+		this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
+		const streamingStore = new DisposableStore();
+		this._commandStreamingListener.value = streamingStore;
+		let capturing = true;
+		streamingStore.add(toDisposable(() => { capturing = false; }));
+		if (!this._streamingCommand) {
+			return;
+		}
+		this._queueStreaming(terminalInstance, command);
+		streamingStore.add(terminalInstance.onData(() => {
+			if (!capturing || streamingStore.isDisposed) {
+				return;
+			}
+			const currentCommand = this._streamingCommand;
+			if (!currentCommand) {
+				return;
+			}
+			if (!capturing || streamingStore.isDisposed) {
+				return;
+			}
+			const latestCommand = this._streamingCommand;
+			if (!latestCommand || latestCommand !== currentCommand) {
+				return;
+			}
+			this._queueStreaming(terminalInstance, currentCommand);
+		}));
+		streamingStore.add(terminalInstance.onLineData(() => {
+			if (!capturing || streamingStore.isDisposed) {
+				return;
+			}
+			const latestCommand = this._streamingCommand;
+			if (!latestCommand || latestCommand !== command) {
+				return;
+			}
+			this._outputView.handleCompletedTerminalLine(terminalInstance, latestCommand);
+		}));
+		const xterm = terminalInstance.xterm as unknown as XtermTerminal | undefined;
+		if (xterm) {
+			streamingStore.add(xterm.raw.onCursorMove(() => {
+				if (!capturing || streamingStore.isDisposed) {
+					return;
+				}
+				const latestCommand = this._streamingCommand;
+				if (!latestCommand || latestCommand !== command) {
+					return;
+				}
+				this._outputView.handleCursorRenderableCheck(terminalInstance, latestCommand);
+			}));
+		}
 	}
 
 	private _removeFocusAction(): void {
