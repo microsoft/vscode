@@ -1156,10 +1156,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 				this._mirrorAppendedData(result.appended);
 				contentMutated = true;
 				break;
-			case 'truncate':
-				this._handleTruncatedStreamingSnapshot();
-				contentMutated = true;
-				break;
 			case 'replace':
 				this._handleReplacedStreamingSnapshot();
 				contentMutated = true;
@@ -1223,19 +1219,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}
 		this._setStatusMessages();
 		this._updateTerminalVisibility();
-	}
-
-	private _handleTruncatedStreamingSnapshot(): void {
-		this._streaming.markNeedsReplay();
-		if (this._detachedTerminal.value && this.isExpanded) {
-			this._clearDetachedTerminal();
-		}
-		this._logService.trace('chatTerminalOutput.handleTruncate', { isExpanded: this.isExpanded });
-		this._setStatusMessages();
-		this._updateTerminalVisibility();
-		if (this.isExpanded) {
-			this._scheduleOutputRelayout();
-		}
 	}
 
 	private _handleReplacedStreamingSnapshot(): void {
