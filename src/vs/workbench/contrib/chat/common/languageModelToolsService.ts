@@ -272,6 +272,17 @@ export enum ToolInvocationPresentation {
 	HiddenAfterComplete = 'hiddenAfterComplete'
 }
 
+export interface IToolInvocationStreamContext {
+	rawInput: unknown;
+	chatRequestId?: string;
+	chatSessionId?: string;
+	chatInteractionId?: string;
+}
+
+export interface IStreamedToolInvocation {
+	invocationMessage?: string | IMarkdownString;
+}
+
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
 	pastTenseMessage?: string | IMarkdownString;
@@ -284,6 +295,7 @@ export interface IPreparedToolInvocation {
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
 	prepareToolInvocation?(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	handleToolStream?(context: IToolInvocationStreamContext, token: CancellationToken): Promise<IStreamedToolInvocation | undefined>;
 }
 
 export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | ToolSet, boolean>;

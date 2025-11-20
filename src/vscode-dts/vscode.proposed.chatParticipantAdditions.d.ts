@@ -81,7 +81,19 @@ declare module 'vscode' {
 
 	export class ChatPrepareToolInvocationPart {
 		toolName: string;
-		constructor(toolName: string);
+		/**
+		 * Partial arguments that have streamed in for the tool invocation.
+		 */
+		streamData?: ChatToolInvocationStreamData;
+		constructor(toolName: string, streamData?: ChatToolInvocationStreamData);
+	}
+
+	export interface ChatToolInvocationStreamData {
+		/**
+		 * Partial or not-yet-validated arguments that have streamed from the language model.
+		 * Tools may use this to render interim UI while the full invocation input is collected.
+		 */
+		readonly partialInput?: unknown;
 	}
 
 	export interface ChatTerminalToolInvocationData {
@@ -347,7 +359,11 @@ declare module 'vscode' {
 
 		codeCitation(value: Uri, license: string, snippet: string): void;
 
-		prepareToolInvocation(toolName: string): void;
+		/**
+		 * Notifies the UI that a tool invocation is being prepared. Optional streaming data can be
+		 * provided to render partial arguments while the invocation input is still being generated.
+		 */
+		prepareToolInvocation(toolName: string, streamData?: ChatToolInvocationStreamData): void;
 
 		push(part: ExtendedChatResponsePart): void;
 
@@ -666,6 +682,36 @@ declare module 'vscode' {
 
 	export interface LanguageModelToolInvocationOptions<T> {
 		model?: LanguageModelChat;
+	}
+
+	export interface LanguageModelToolInvocationStreamOptions<T> {
+		/**
+		 * Raw argument payload, such as the streamed JSON fragment from the language model.
+		 */
+		readonly rawInput?: unknown;
+
+		readonly chatRequestId?: string;
+		readonly chatSessionId?: string;
+		readonly chatInteractionId?: string;
+	}
+
+	export interface LanguageModelToolStreamResult {
+		/**
+		 * A customized progress message to show while the tool runs.
+		 */
+		invocationMessage?: string | MarkdownString;
+	}
+
+	export interface LanguageModelTool<T> {
+		/**
+		 * Called zero or more times before {@link LanguageModelTool.prepareInvocation} while the
+		 * language model streams argument data for the invocation. Use this to update progress
+		 * or UI with the partial arguments that have been generated so far.
+		 *
+		 * Implementations must be free of side-effects and should be resilient to receiving
+		 * malformed or incomplete input.
+		 */
+		handleToolStream?(options: LanguageModelToolInvocationStreamOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolStreamResult>;
 	}
 
 	export interface ChatRequest {
