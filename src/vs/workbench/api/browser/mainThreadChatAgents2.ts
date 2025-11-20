@@ -333,17 +333,21 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 					try {
 						const streamResult = await this._languageModelToolsService.handleToolStream(toolData.id, streamContext, CancellationToken.None);
+						let progressContent: IMarkdownString;
 						if (streamResult?.invocationMessage) {
-							// Generate a progress message part from the handleToolStream result
-							const progressMessage: IChatProgressMessage = {
-								kind: 'progressMessage',
-								content: typeof streamResult.invocationMessage === 'string'
-									? new MarkdownString(streamResult.invocationMessage)
-									: streamResult.invocationMessage,
-								replacesPreviousMessage: true
-							};
-							revivedProgress = progressMessage;
+							progressContent = typeof streamResult.invocationMessage === 'string'
+								? new MarkdownString(streamResult.invocationMessage)
+								: streamResult.invocationMessage;
+						} else {
+							progressContent = new MarkdownString('Invoking tool: ' + toolData.displayName);
 						}
+						// Generate a progress message part from the handleToolStream result
+						const progressMessage: IChatProgressMessage = {
+							kind: 'progressMessage',
+							content: progressContent,
+							replacesPreviousMessage: true
+						};
+						revivedProgress = progressMessage;
 					} catch (error) {
 						this._logService.warn(`MainThreadChatAgents2#$handleProgressChunk: Error calling handleToolStream for tool ${toolData.id}`, error);
 					}
