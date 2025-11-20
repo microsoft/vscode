@@ -20,10 +20,8 @@ const { getVersion } = getVersionModule;
 const require = createRequire(import.meta.url);
 const repoPath = path.dirname(import.meta.dirname);
 const commit = getVersion(repoPath);
-const versionedResourcesFolder = `${commit.substring(0, 10)}`;
 const buildPath = (/** @type {string} */ arch) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
 const setupDir = (/** @type {string} */ arch, /** @type {string} */ target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
-const issPath = path.join(import.meta.dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup'))), 'bin', 'ISCC.exe');
 const signWin32Path = path.join(repoPath, 'build', 'azure-pipelines', 'common', 'sign-win32.ts');
 
@@ -79,13 +77,19 @@ function buildWin32Setup(arch, target) {
 		const outputPath = setupDir(arch, target);
 		fs.mkdirSync(outputPath, { recursive: true });
 
+		const quality = product.quality || 'dev';
+		let versionedResourcesFolder = '';
+		let issPath = path.join(__dirname, 'win32', 'code.iss');
+		if (quality && quality === 'insider') {
+			versionedResourcesFolder = commit.substring(0, 10);
+			issPath = path.join(__dirname, 'win32', 'code-insider.iss');
+		}
 		const originalProductJsonPath = path.join(sourcePath, versionedResourcesFolder, 'resources/app/product.json');
 		const productJsonPath = path.join(outputPath, 'product.json');
 		const productJson = JSON.parse(fs.readFileSync(originalProductJsonPath, 'utf8'));
 		productJson['target'] = target;
 		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
-		const quality = product.quality || 'dev';
 		const definitions = {
 			NameLong: product.nameLong,
 			NameShort: product.nameShort,

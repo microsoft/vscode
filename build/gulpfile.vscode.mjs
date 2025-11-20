@@ -45,7 +45,6 @@ const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
-const versionedResourcesFolder = `${commit.substring(0, 10)}`;
 
 // Build
 const vscodeEntryPoints = [
@@ -330,6 +329,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		);
 
 		let customElectronConfig = {};
+		const versionedResourcesFolder = (quality && quality === 'insider') ? commit.substring(0, 10) : '';
 		if (platform === 'win32') {
 			all = es.merge(all, gulp.src([
 				'resources/win32/bower.ico',
@@ -362,10 +362,12 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'resources/win32/code_70x70.png',
 				'resources/win32/code_150x150.png'
 			], { base: '.' }));
-			customElectronConfig = {
-				createVersionedResources: true,
-				productVersionString: `${versionedResourcesFolder}`,
-			};
+			if (quality && quality === 'insider') {
+				customElectronConfig = {
+					createVersionedResources: true,
+					productVersionString: `${versionedResourcesFolder}`,
+				};
+			}
 		} else if (platform === 'linux') {
 			const policyDest = gulp.src('.build/policies/linux/**', { base: '.build/policies/linux' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
