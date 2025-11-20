@@ -19,6 +19,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -66,11 +67,27 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService
 	) {
 		super(action, {
-			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService)
+			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService),
+			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService)
 		}, actionWidgetService, keybindingService, contextKeyService);
+	}
+
+	private static getActionBarActions(openerService: IOpenerService) {
+		const learnMoreUrl = 'https://aka.ms/vscode-continue-chat-in';
+		return [{
+			id: 'workbench.action.chat.continueChatInSession.learnMore',
+			label: localize('chat.learnMore', "Learn More"),
+			tooltip: localize('chat.learnMore', "Learn More"),
+			class: undefined,
+			enabled: true,
+			run: async () => {
+				await openerService.open(URI.parse(learnMoreUrl));
+			}
+		}];
 	}
 
 	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService): IActionWidgetDropdownActionProvider {
