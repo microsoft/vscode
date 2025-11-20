@@ -101,8 +101,13 @@ export class ChatModelsViewModel extends EditorModel {
 	}
 	private splice(at: number, removed: number, added: IViewModelEntry[]): void {
 		this._viewModelEntries.splice(at, removed, ...added);
+		if (this.selectedEntry) {
+			this.selectedEntry = this._viewModelEntries.find(entry => entry.id === this.selectedEntry?.id);
+		}
 		this._onDidChange.fire({ at, removed, added });
 	}
+
+	selectedEntry: IViewModelEntry | undefined;
 
 	filter(searchValue: string): readonly IViewModelEntry[] {
 		this.searchValue = searchValue;
@@ -283,7 +288,7 @@ export class ChatModelsViewModel extends EditorModel {
 		return super.resolve();
 	}
 
-	private async refresh(): Promise<void> {
+	async refresh(): Promise<void> {
 		this.modelEntries = [];
 		for (const vendor of this.getVendors()) {
 			const modelIdentifiers = await this.languageModelsService.selectLanguageModels({ vendor: vendor.vendor }, vendor.vendor === 'copilot');
@@ -327,11 +332,12 @@ export class ChatModelsViewModel extends EditorModel {
 		return `${modelEntry.identifier}.${modelEntry.metadata.version}-visible:${modelEntry.metadata.isUserSelectable}`;
 	}
 
-	toggleVendorCollapsed(vendorId: string): void {
-		if (this.collapsedVendors.has(vendorId)) {
-			this.collapsedVendors.delete(vendorId);
+	toggleVendorCollapsed(vendorEntry: IVendorItemEntry): void {
+		this.selectedEntry = vendorEntry;
+		if (this.collapsedVendors.has(vendorEntry.vendorEntry.vendor)) {
+			this.collapsedVendors.delete(vendorEntry.vendorEntry.vendor);
 		} else {
-			this.collapsedVendors.add(vendorId);
+			this.collapsedVendors.add(vendorEntry.vendorEntry.vendor);
 		}
 		this.filter(this.searchValue);
 	}
