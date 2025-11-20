@@ -758,7 +758,7 @@ export function registerChatActions() {
 									// Create agent pick from the session content
 									const agentPick: ICodingAgentPickerItem = {
 										label: session.label,
-										description: '',
+										description: chatSessionType,
 										session: session,
 										chat: {
 											sessionResource: session.resource,
@@ -774,11 +774,7 @@ export function registerChatActions() {
 									if (existingIndex >= 0) {
 										agentPicks[existingIndex] = agentPick;
 									} else {
-										// Respect show limits
-										const maxToShow = showAllAgents ? Number.MAX_SAFE_INTEGER : 5;
-										if (agentPicks.length < maxToShow) {
-											agentPicks.push(agentPick);
-										}
+										agentPicks.push(agentPick);
 									}
 								}
 							}
@@ -792,7 +788,12 @@ export function registerChatActions() {
 									type: 'separator',
 									label: 'Chat Sessions',
 								});
-								currentPicks.push(...agentPicks);
+
+								const maxToShow = showAllAgents ? Number.MAX_SAFE_INTEGER : 5;
+								currentPicks.push(
+									...agentPicks
+										.toSorted((a, b) => (b.session.timing.endTime ?? b.session.timing.startTime) - (a.session.timing.endTime ?? a.session.timing.startTime))
+										.slice(0, maxToShow));
 
 								// Add "Show more..." if needed and not showing all agents
 								if (!showAllAgents && providerNSessions.length > 5) {
