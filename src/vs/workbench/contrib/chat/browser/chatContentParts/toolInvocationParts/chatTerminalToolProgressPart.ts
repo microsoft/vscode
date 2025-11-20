@@ -56,7 +56,6 @@ import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
-const CSI_SEQUENCE_REGEX = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
 
 /**
  * Remembers whether a tool invocation was last expanded so state survives virtualization re-renders.
@@ -392,8 +391,7 @@ class ChatTerminalStreamingModel {
 			return 0;
 		}
 		const concatenated = this._streamBuffer.join('');
-		const withoutCsi = concatenated.replace(CSI_SEQUENCE_REGEX, '');
-		const withoutAnsi = removeAnsiEscapeCodes(withoutCsi);
+		const withoutAnsi = removeAnsiEscapeCodes(concatenated);
 		const sanitized = withoutAnsi.replace(/\r/g, '');
 		if (!sanitized) {
 			return 0;
