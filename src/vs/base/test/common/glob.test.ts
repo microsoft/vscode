@@ -1210,10 +1210,6 @@ suite('Glob', () => {
 		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.CaseInsensitive), GlobCaseSensitivity.CaseInsensitive);
 		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.Auto), GlobCaseSensitivity.Auto);
 
-		assert.strictEqual(glob.toGlobCaseSensitivity('caseSensitive'), GlobCaseSensitivity.CaseSensitive);
-		assert.strictEqual(glob.toGlobCaseSensitivity('caseInsensitive'), GlobCaseSensitivity.CaseInsensitive);
-		assert.strictEqual(glob.toGlobCaseSensitivity('auto'), GlobCaseSensitivity.Auto);
-
 		assert.strictEqual(glob.toGlobCaseSensitivity({
 			globCaseSensitivity: GlobCaseSensitivity.CaseSensitive
 		}), GlobCaseSensitivity.CaseSensitive);
@@ -1227,46 +1223,8 @@ suite('Glob', () => {
 		}), GlobCaseSensitivity.Auto);
 
 
-		assert.strictEqual(glob.toGlobCaseSensitivity({
-			search: { globCaseSensitivity: 'caseSensitive' }
-		}), GlobCaseSensitivity.CaseSensitive);
-
-		assert.strictEqual(glob.toGlobCaseSensitivity({
-			search: { globCaseSensitivity: 'caseInsensitive' }
-		}), GlobCaseSensitivity.CaseInsensitive);
-
-		assert.strictEqual(glob.toGlobCaseSensitivity({
-			search: { globCaseSensitivity: 'auto' }
-		}), GlobCaseSensitivity.Auto);
-
-
-		assert.strictEqual(glob.toGlobCaseSensitivity({
-			files: { globCaseSensitivity: 'caseSensitive' }
-		}), GlobCaseSensitivity.CaseSensitive);
-
-		assert.strictEqual(glob.toGlobCaseSensitivity({
-			files: { globCaseSensitivity: 'caseInsensitive' }
-		}), GlobCaseSensitivity.CaseInsensitive);
-
-		assert.strictEqual(glob.toGlobCaseSensitivity({
-			files: { globCaseSensitivity: 'auto' }
-		}), GlobCaseSensitivity.Auto);
-
-
-		assert.strictEqual(glob.toGlobCaseSensitivity({
-			search: { globCaseSensitivity: 'caseSensitive' },
-			files: { globCaseSensitivity: 'caseInsensitive' }
-		}), GlobCaseSensitivity.CaseSensitive);
-
-		assert.strictEqual(glob.toGlobCaseSensitivity({
-			search: { globCaseSensitivity: 'auto' },
-			files: { globCaseSensitivity: 'caseInsensitive' }
-		}), GlobCaseSensitivity.CaseInsensitive);
-
 		assert.strictEqual(glob.toGlobCaseSensitivity(
 			GlobCaseSensitivity.Auto,
-			'auto',
-			{ search: { globCaseSensitivity: 'auto' } },
 			undefined,
 			GlobCaseSensitivity.CaseSensitive,
 			GlobCaseSensitivity.Auto,
