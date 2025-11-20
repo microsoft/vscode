@@ -11,6 +11,7 @@
 
 .monaco-keybinding > .monaco-keybinding-key {
 	display: inline-flex;
+	align-items: center;
 	border-style: solid;
 	border-width: 1px;
 	border-radius: 3px;
