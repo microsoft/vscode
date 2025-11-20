@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isString } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -22,7 +23,7 @@ export async function shouldPasteTerminalText(accessor: ServicesAccessor, text: 
 	// Get config value
 	function parseConfigValue(value: unknown): 'auto' | 'always' | 'never' {
 		// Valid value
-		if (typeof value === 'string') {
+		if (isString(value)) {
 			if (value === 'auto' || value === 'always' || value === 'never') {
 				return value;
 			}

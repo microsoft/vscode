@@ -64,12 +64,9 @@ export interface IChatSetCheckpointEvent {
 
 export interface IChatViewModel {
 	readonly model: IChatModel;
-	/** @deprecated Use {@link sessionResource} instead */
-	readonly sessionId: string;
 	readonly sessionResource: URI;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
-	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[];
 	setInputPlaceholder(text: string): void;
@@ -265,17 +262,8 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._onDidChange.fire({ kind: 'changePlaceholder' });
 	}
 
-	/** @deprecated Use {@link sessionResource} instead */
-	get sessionId() {
-		return this._model.sessionId;
-	}
-
 	get sessionResource(): URI {
 		return this._model.sessionResource;
-	}
-
-	get requestInProgress(): boolean {
-		return this._model.requestInProgress;
 	}
 
 	constructor(

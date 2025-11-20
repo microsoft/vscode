@@ -21,7 +21,7 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../browser/languageModelToolsService.js';
-import { IChatModel } from '../../common/chatModel.js';
+import { ChatModel, IChatModel } from '../../common/chatModel.js';
 import { IChatService, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { GithubCopilotToolReference, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet, VSCodeToolReference } from '../../common/languageModelToolsService.js';
@@ -89,9 +89,12 @@ function stubGetSession(chatService: MockChatService, sessionId: string, options
 		sessionId,
 		sessionResource: LocalChatSessionUri.forSession(sessionId),
 		getRequests: () => [{ id: requestId, modelId: 'test-model' }],
-		acceptResponseProgress: (_req: any, progress: any) => { if (capture) { capture.invocation = progress; } },
-	} as IChatModel;
+	} as ChatModel;
 	chatService.addSession(fakeModel);
+	chatService.appendProgress = (request, progress) => {
+		if (capture) { capture.invocation = progress; }
+	};
+
 	return fakeModel;
 }
 
@@ -1831,6 +1834,70 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(toolInSet);
 		assert.strictEqual(toolInSet!.id, 'internalToolSet');
 
+	});
+
+	test('eligibleForAutoApproval setting can be configured via policy', async () => {
+		// Test that policy configuration works for eligibleForAutoApproval
+		// Policy values should be JSON strings for object-type settings
+		const testConfigService = new TestConfigurationService();
+
+		// Simulate policy configuration (would come from policy file)
+		const policyValue = {
+			'toolA': true,
+			'toolB': false
+		};
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', policyValue);
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool A is eligible (true in policy)
+		const toolA = registerToolForTest(testService, store, 'toolA', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'toolA executed' }] })
+		}, {
+			toolReferenceName: 'toolA'
+		});
+
+		// Tool B is ineligible (false in policy)
+		const toolB = registerToolForTest(testService, store, 'toolB', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'toolB executed' }] })
+		}, {
+			toolReferenceName: 'toolB'
+		});
+
+		const sessionId = 'test-policy';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Tool A should execute without confirmation (eligible)
+		const resultA = await testService.invokeTool(
+			toolA.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(resultA.content[0].value, 'toolA executed');
+
+		// Tool B should require confirmation (ineligible)
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId + '2', { requestId: 'req2', capture });
+		const promiseB = testService.invokeTool(
+			toolB.makeDto({ test: 2 }, { sessionId: sessionId + '2' }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'toolB should require confirmation due to policy');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const resultB = await promiseB;
+		assert.strictEqual(resultB.content[0].value, 'toolB executed');
 	});
 
 

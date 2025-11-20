@@ -115,7 +115,7 @@ import { ChatSessionsView, ChatSessionsViewContrib } from './chatSessions/view/c
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
 import { ChatVariablesService } from './chatVariables.js';
-import { ChatWidget, ChatWidgetService } from './chatWidget.js';
+import { ChatWidget } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
 import { ChatDynamicVariableModel } from './contrib/chatDynamicVariables.js';
 import { ChatImplicitContextContribution } from './contrib/chatImplicitContext.js';
@@ -130,6 +130,10 @@ import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import { ChatWidgetService } from './chatWidgetService.js';
+
+const toolReferenceNameEnumValues: string[] = [];
+const toolReferenceNameEnumDescriptions: string[] = [];
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -268,7 +272,7 @@ configurationRegistry.registerConfiguration({
 				'**/.vscode/*.json': false,
 				'**/.git/**': false,
 				'**/{package.json,package-lock.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
-				'**/*.{csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
+				'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
 			},
 			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by chat are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintended side-effects, such as `**/.vscode/*.json`.\n\nSet to `true` to automatically approve edits to matching files, `false` to always require explicit approval. The last pattern matching a given file will determine whether the edit is automatically approved."),
 			type: 'object',
@@ -295,8 +299,12 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.EligibleForAutoApproval]: {
 			default: {},
-			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval.  Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve.  The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.'),
+			markdownDescription: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval. Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.'),
 			type: 'object',
+			propertyNames: {
+				enum: toolReferenceNameEnumValues,
+				enumDescriptions: toolReferenceNameEnumDescriptions,
+			},
 			additionalProperties: {
 				type: 'boolean',
 			},
@@ -306,7 +314,18 @@ configurationRegistry.registerConfiguration({
 					'fetch': false,
 					'runTests': false
 				}
-			]
+			],
+			policy: {
+				name: 'ChatToolsEligibleForAutoApproval',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.107',
+				localization: {
+					description: {
+						key: 'chat.tools.eligibleForAutoApproval',
+						value: nls.localize('chat.tools.eligibleForAutoApproval', 'Controls which tools are eligible for automatic approval. Tools set to \'false\' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to \'true\') may result in the tool offering auto-approval options.')
+					}
+				},
+			}
 		},
 		'chat.sendElementsToChat.enabled': {
 			default: true,
@@ -500,6 +519,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['preview'],
 		},
+		[ChatConfiguration.ShowCodeBlockProgressAnimation]: {
+			type: 'boolean',
+			description: nls.localize('chat.codeBlock.showProgressAnimation.description', "When applying edits, show a progress animation in the code block pill. If disabled, shows the progress percentage instead."),
+			default: true,
+			tags: ['experimental'],
+		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
 			enum: ['disabled', 'view', 'single-view'],
@@ -634,7 +659,7 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.USE_AGENT_MD]: {
 			type: 'boolean',
 			title: nls.localize('chat.useAgentMd.title', "Use AGENTS.MD file",),
-			markdownDescription: nls.localize('chat.useAgentMd.description', "Controls whether instructions from `AGENTS.MD` file found in a workspace roots are added to all chat requests.",),
+			markdownDescription: nls.localize('chat.useAgentMd.description', "Controls whether instructions from `AGENTS.MD` file found in a workspace roots are attached to all chat requests.",),
 			default: true,
 			restricted: true,
 			disallowConfigurationDefault: true,
@@ -643,7 +668,16 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.USE_NESTED_AGENT_MD]: {
 			type: 'boolean',
 			title: nls.localize('chat.useNestedAgentMd.title', "Use nested AGENTS.MD files",),
-			markdownDescription: nls.localize('chat.useNestedAgentMd.description', "Controls whether instructions `AGENTS.MD` files found in the workspace are listed in all chat requests.",),
+			markdownDescription: nls.localize('chat.useNestedAgentMd.description', "Controls whether instructions from nested `AGENTS.MD` files found in the workspace are listed in all chat requests. The language model can load these skills on-demand if the `read` tool is available.",),
+			default: false,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
+		[PromptsConfig.USE_CLAUDE_SKILLS]: {
+			type: 'boolean',
+			title: nls.localize('chat.useClaudeSkills.title', "Use Claude skills",),
+			markdownDescription: nls.localize('chat.useClaudeSkills.description', "Controls whether Claude skills found in the workspace and user home directories under `.claude/skills` are listed in all chat requests. The language model can load these skills on-demand if the `read` tool is available.",),
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,
@@ -733,13 +767,6 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.WINDOW
 		},
-		[ChatConfiguration.UseCloudButtonV2]: {
-			type: 'boolean',
-			description: nls.localize('chat.useCloudButtonV2', "Experimental implementation of 'cloud button'"),
-			default: true,
-			tags: ['experimental'],
-
-		},
 		[ChatConfiguration.ShowAgentSessionsViewDescription]: {
 			type: 'boolean',
 			description: nls.localize('chat.showAgentSessionsViewDescription', "Controls whether session descriptions are displayed on a second row in the Chat Sessions view."),
@@ -753,6 +780,12 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto'
 			}
+		},
+		'chat.hideNewButtonInAgentSessionsView': { // TODO@bpasero remove me eventually
+			type: 'boolean',
+			description: nls.localize('chat.hideNewButtonInAgentSessionsView', "Controls whether the new session button is hidden in the Agent Sessions view."),
+			default: false,
+			tags: ['preview']
 		},
 		'chat.signInWithAlternateScopes': { // TODO@bpasero remove me eventually
 			type: 'boolean',
@@ -957,6 +990,43 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 	}
 }
 
+class ToolReferenceNamesContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.toolReferenceNames';
+
+	constructor(
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
+	) {
+		super();
+		this._updateToolReferenceNames();
+		this._register(this._languageModelToolsService.onDidChangeTools(() => this._updateToolReferenceNames()));
+	}
+
+	private _updateToolReferenceNames(): void {
+		const tools =
+			Array.from(this._languageModelToolsService.getTools())
+				.filter((tool): tool is typeof tool & { toolReferenceName: string } => typeof tool.toolReferenceName === 'string')
+				.sort((a, b) => a.toolReferenceName.localeCompare(b.toolReferenceName));
+		toolReferenceNameEnumValues.length = 0;
+		toolReferenceNameEnumDescriptions.length = 0;
+		for (const tool of tools) {
+			toolReferenceNameEnumValues.push(tool.toolReferenceName);
+			toolReferenceNameEnumDescriptions.push(nls.localize(
+				'chat.toolReferenceName.description',
+				"{0} - {1}",
+				tool.toolReferenceName,
+				tool.userDescription || tool.displayName
+			));
+		}
+		configurationRegistry.notifyConfigurationSchemaUpdated({
+			id: 'chatSidebar',
+			properties: {
+				[ChatConfiguration.EligibleForAutoApproval]: {}
+			}
+		});
+	}
+}
+
 AccessibleViewRegistry.register(new ChatTerminalOutputAccessibleView());
 AccessibleViewRegistry.register(new ChatResponseAccessibleView());
 AccessibleViewRegistry.register(new PanelChatAccessibilityHelp());
@@ -1062,6 +1132,7 @@ registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, Workbe
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatAgentActionsContribution.ID, ChatAgentActionsContribution, WorkbenchPhase.Eventually);
+registerWorkbenchContribution2(ToolReferenceNamesContribution.ID, ToolReferenceNamesContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorAccessibility.ID, ChatEditingEditorAccessibility, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SimpleBrowserOverlay.ID, SimpleBrowserOverlay, WorkbenchPhase.AfterRestored);

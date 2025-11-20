@@ -10,7 +10,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
-import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatTransferredSessionData, IChatUserActionEvent } from '../../common/chatService.js';
+import { IChatCompleteResponse, IChatDetail, IChatProgress, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatTransferredSessionData, IChatUserActionEvent } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
@@ -42,9 +42,6 @@ export class MockChatService implements IChatService {
 		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return this.sessions.get(sessionResource) ?? {} as IChatModel;
 	}
-	getSessionByLegacyId(sessionId: string): IChatModel | undefined {
-		return Array.from(this.sessions.values()).find(session => session.sessionId === sessionId);
-	}
 	async getOrRestoreSession(sessionResource: URI): Promise<IChatModel | undefined> {
 		throw new Error('Method not implemented.');
 	}
@@ -56,6 +53,12 @@ export class MockChatService implements IChatService {
 	}
 	loadSessionForResource(resource: URI, position: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
 		throw new Error('Method not implemented.');
+	}
+	setTitle(sessionResource: URI, title: string): void {
+		throw new Error('Method not implemented.');
+	}
+	appendProgress(request: IChatRequestModel, progress: IChatProgress): void {
+
 	}
 	/**
 	 * Returns whether the request was accepted.
@@ -126,6 +129,13 @@ export class MockChatService implements IChatService {
 	}
 
 	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined {
+		throw new Error('Method not implemented.');
+	}
+
+	getLiveSessionItems(): IChatDetail[] {
+		throw new Error('Method not implemented.');
+	}
+	getHistorySessionItems(): Promise<IChatDetail[]> {
 		throw new Error('Method not implemented.');
 	}
 }

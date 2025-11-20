@@ -41,13 +41,7 @@ export function maxContentWidthInRange(editor: ObservableCodeEditor, range: Line
 	editor.scrollTop.read(reader);
 	for (let i = range.startLineNumber; i < range.endLineNumberExclusive; i++) {
 		const column = model.getLineMaxColumn(i);
-		let lineContentWidth = editor.editor.getOffsetForColumn(i, column);
-		if (lineContentWidth === -1) {
-			// approximation
-			const typicalHalfwidthCharacterWidth = editor.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
-			const approximation = column * typicalHalfwidthCharacterWidth;
-			lineContentWidth = approximation;
-		}
+		const lineContentWidth = editor.getLeftOfPosition(new Position(i, column), reader);
 		maxContentWidth = Math.max(maxContentWidth, lineContentWidth);
 	}
 	const lines = range.mapToLineArray(l => model.getLineContent(l));
@@ -433,7 +427,7 @@ export function rectToProps(fn: (reader: IReader) => Rect | undefined, debugLoca
 			if (!val) {
 				return undefined;
 			}
-			return val.right - val.left;
+			return val.width;
 		}, debugLocation),
 		height: derived({ name: 'editor.validOverlay.height' }, reader => {
 			/** @description height */
@@ -441,7 +435,7 @@ export function rectToProps(fn: (reader: IReader) => Rect | undefined, debugLoca
 			if (!val) {
 				return undefined;
 			}
-			return val.bottom - val.top;
+			return val.height;
 		}, debugLocation),
 	};
 }

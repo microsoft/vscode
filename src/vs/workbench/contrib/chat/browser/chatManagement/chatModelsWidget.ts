@@ -288,11 +288,8 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 	private readonly _onDidToggleCollapse = new Emitter<string>();
 	readonly onDidToggleCollapse = this._onDidToggleCollapse.event;
 
-	private readonly _onDidChange = new Emitter<void>();
-	readonly onDidChange = this._onDidChange.event;
-
 	constructor(
-		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService
+		private readonly viewModel: ChatModelsViewModel,
 	) {
 		super();
 	}
@@ -348,11 +345,7 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 			class: `model-visibility-toggle ${isVisible ? `${ThemeIcon.asClassName(Codicon.eyeClosed)} model-visible` : `${ThemeIcon.asClassName(Codicon.eye)} model-hidden`}`,
 			tooltip: isVisible ? localize('models.visible', 'Hide in the chat model picker') : localize('models.hidden', 'Show in the chat model picker'),
 			checked: !isVisible,
-			run: async () => {
-				const newVisibility = !isVisible;
-				this.languageModelsService.updateModelPickerPreference(modelEntry.identifier, newVisibility);
-				this._onDidChange.fire();
-			}
+			run: async () => this.viewModel.toggleVisibility(entry)
 		});
 		templateData.actionBar.push(toggleVisibilityAction, { icon: true, label: false });
 	}
@@ -712,20 +705,13 @@ export class ChatModelsWidget extends Disposable {
 		super();
 
 		this.searchFocusContextKey = CONTEXT_MODELS_SEARCH_FOCUS.bindTo(contextKeyService);
-		this.delayedFiltering = new Delayer<void>(300);
+		this.delayedFiltering = new Delayer<void>(200);
 		this.viewModel = this._register(this.instantiationService.createInstance(ChatModelsViewModel));
 		this.element = DOM.$('.models-widget');
 		this.create(this.element);
 
-		const loadingPromise = this.extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			await this.viewModel.resolve();
-			this.refreshTable();
-		});
-
-		// Show progress indicator while loading models
+		const loadingPromise = this.extensionService.whenInstalledExtensionsRegistered().then(async () => this.viewModel.resolve());
 		this.editorProgressService.showWhile(loadingPromise, 300);
-
-		this._register(this.viewModel.onDidChangeModelEntries(() => this.refreshTable()));
 	}
 
 	private create(container: HTMLElement): void {
@@ -765,7 +751,6 @@ export class ChatModelsWidget extends Disposable {
 				focusContextKey: this.searchFocusContextKey,
 			},
 		));
-		this._register(this.searchWidget.onInputDidChange(() => this.filterModels()));
 
 		const filterAction = this._register(new ModelsFilterAction());
 		const clearSearchAction = this._register(new Action(
@@ -781,6 +766,7 @@ export class ChatModelsWidget extends Disposable {
 
 		this._register(this.searchWidget.onInputDidChange(() => {
 			clearSearchAction.enabled = !!this.searchWidget.getValue();
+			this.filterModels();
 		}));
 
 		this.searchActionsContainer = DOM.append(searchContainer, $('.models-search-actions'));
@@ -821,7 +807,7 @@ export class ChatModelsWidget extends Disposable {
 		this.tableContainer = DOM.append(container, $('.models-table-container'));
 
 		// Create table
-		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer);
+		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer, this.viewModel);
 		const modelNameColumnRenderer = this.instantiationService.createInstance(ModelNameColumnRenderer);
 		const costColumnRenderer = this.instantiationService.createInstance(MultiplierColumnRenderer);
 		const tokenLimitsColumnRenderer = this.instantiationService.createInstance(TokenLimitsColumnRenderer);
@@ -830,12 +816,6 @@ export class ChatModelsWidget extends Disposable {
 
 		this._register(gutterColumnRenderer.onDidToggleCollapse(vendorId => {
 			this.viewModel.toggleVendorCollapsed(vendorId);
-		}));
-
-		this._register(gutterColumnRenderer.onDidChange(e => {
-			this.viewModel.resolve().then(() => {
-				this.refreshTable();
-			});
 		}));
 
 		this._register(actionsColumnRenderer.onDidChange(e => {
@@ -960,6 +940,8 @@ export class ChatModelsWidget extends Disposable {
 			}
 		}));
 
+		this.table.splice(0, this.table.length, this.viewModel.viewModelEntries);
+		this._register(this.viewModel.onDidChange(({ at, removed, added }) => this.table.splice(at, removed, added)));
 	}
 
 	private filterModels(): void {
@@ -968,7 +950,7 @@ export class ChatModelsWidget extends Disposable {
 
 	private async refreshTable(): Promise<void> {
 		const searchValue = this.searchWidget.getValue();
-		const modelItems = this.viewModel.fetch(searchValue);
+		const modelItems = this.viewModel.filter(searchValue);
 
 		const vendors = this.viewModel.getVendors();
 		const configuredVendors = new Set(this.viewModel.getConfiguredVendors().map(cv => cv.vendorEntry.vendor));

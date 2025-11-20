@@ -131,7 +131,7 @@ export class ChatSessionTracker extends Disposable {
 	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
-		if (model.requestInProgress) {
+		if (model.requestInProgress.get()) {
 			return ChatSessionStatus.InProgress;
 		}
 		const requests = model.getRequests();

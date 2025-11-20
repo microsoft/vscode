@@ -5,9 +5,9 @@
 
 import { TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 
-export = new class NoReaderAfterAwait implements eslint.Rule.RuleModule {
+export default new class NoReaderAfterAwait implements eslint.Rule.RuleModule {
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 		return {
 			'CallExpression': (node: ESTree.CallExpression) => {
