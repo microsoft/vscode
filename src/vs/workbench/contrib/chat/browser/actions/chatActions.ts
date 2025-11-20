@@ -1127,7 +1127,7 @@ export function registerChatActions() {
 				resource: ChatEditorInput.getNewEditorUri(),
 				options: {
 					pinned: true,
-					auxiliary: { compact: false }
+					auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
 				}
 			}, AUX_WINDOW_GROUP);
 		}
