@@ -348,6 +348,7 @@ export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	readonly vscodeToolSet: ToolSet;
 	readonly launchToolSet: ToolSet;
+	readonly readToolSet: ToolSet;
 	readonly onDidChangeTools: Event<void>;
 	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionId: string; readonly toolData: IToolData }>;
 	registerToolData(toolData: IToolData): IDisposable;
@@ -403,4 +404,5 @@ export namespace VSCodeToolReference {
 	export const runSubagent = 'runSubagent';
 	export const vscode = 'vscode';
 	export const launch = 'launch';
+	export const read = 'read';
 }

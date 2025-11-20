@@ -86,8 +86,8 @@ class ChatAgentToolsContribution extends Disposable implements IWorkbenchContrib
 		const getTerminalLastCommandTool = instantiationService.createInstance(GetTerminalLastCommandTool);
 		this._register(toolsService.registerTool(GetTerminalLastCommandToolData, getTerminalLastCommandTool));
 
-		this._register(shellToolSet.addTool(GetTerminalSelectionToolData));
-		this._register(shellToolSet.addTool(GetTerminalLastCommandToolData));
+		this._register(toolsService.readToolSet.addTool(GetTerminalSelectionToolData));
+		this._register(toolsService.readToolSet.addTool(GetTerminalLastCommandToolData));
 
 		// #endregion
 

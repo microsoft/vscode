@@ -542,7 +542,8 @@ suite('LanguageModelToolsService', () => {
 			'internalToolSetRefName',
 			'internalToolSetRefName/internalToolSetTool1RefName',
 			'vscode',
-			'launch'
+			'launch',
+			'read'
 		];
 		const numOfTools = allQualifiedNames.length + 1; // +1 for userToolSet which has no qualified name but is a tool set
 
@@ -556,6 +557,7 @@ suite('LanguageModelToolsService', () => {
 		const userToolSet = service.getToolSet('userToolSet');
 		const vscodeToolSet = service.getToolSet('vscode');
 		const launchToolSet = service.getToolSet('launch');
+		const readToolSet = service.getToolSet('read');
 		assert.ok(tool1);
 		assert.ok(tool2);
 		assert.ok(extTool1);
@@ -566,6 +568,7 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(userToolSet);
 		assert.ok(vscodeToolSet);
 		assert.ok(launchToolSet);
+		assert.ok(readToolSet);
 		// Test with enabled tool
 		{
 			const qualifiedNames = ['tool1RefName'];
@@ -596,10 +599,10 @@ suite('LanguageModelToolsService', () => {
 		{
 			const result1 = service.toToolAndToolSetEnablementMap(allQualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
-			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 10, 'Expected 10 tools to be enabled'); // +2 including the vscode, launch toolsets
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 11, 'Expected 11 tools to be enabled'); // +3 including the vscode, launch, read toolsets
 
 			const qualifiedNames1 = service.toQualifiedToolNames(result1);
-			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName', 'vscode', 'launch'];
+			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName', 'vscode', 'launch', 'read'];
 			assert.deepStrictEqual(qualifiedNames1.sort(), expectedQualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
 		}
 		// Test with no enabled tools
