@@ -51,7 +51,6 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
-import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ChatTerminalStreamingModel, IStreamingSnapshotRequest } from '../../chatTerminalStreamingModel.js';
@@ -623,7 +622,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		streamingStore.add(terminalInstance.onLineData(() => {
 			runIfStreaming(currentCommand => this._outputView.handleCompletedTerminalLine(terminalInstance, currentCommand));
 		}));
-		const xterm = terminalInstance.xterm as unknown as XtermTerminal | undefined;
+		const xterm = terminalInstance.xterm;
 		if (xterm) {
 			streamingStore.add(xterm.raw.onCursorMove(() => {
 				runIfStreaming(currentCommand => this._outputView.handleCursorRenderableCheck(terminalInstance, currentCommand));
@@ -1269,12 +1268,12 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (!instance) {
 			return;
 		}
-		const xterm = instance.xterm as unknown as XtermTerminal | undefined;
+		const xterm = instance.xterm;
 		if (!xterm) {
 			return;
 		}
 		try {
-			xterm.raw.clear();
+			xterm.raw?.clear();
 			xterm.write('\x1b[3J\x1b[2J\x1b[H');
 		} catch {
 			// The detached terminal may be mid-dispose; ignore errors when clearing.
@@ -1528,7 +1527,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _cursorLineHasRenderableContent(instance: ITerminalInstance, command: ITerminalCommand, relativeLineOffset = 0): boolean {
-		const xterm = instance.xterm as unknown as XtermTerminal | undefined;
+		const xterm = instance.xterm;
 		if (!xterm) {
 			return false;
 		}

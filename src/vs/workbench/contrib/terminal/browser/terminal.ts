@@ -1441,6 +1441,10 @@ export interface IXtermTerminal extends IDisposable {
 
 export interface IDetachedXtermTerminal extends IXtermTerminal {
 	/**
+	 * The raw xterm.js terminal instance, this is only available when the terminal is attached
+	 */
+	raw?: RawXtermTerminal;
+	/**
 	 * Writes data to the terminal.
 	 * @param data data to write
 	 * @param callback Optional callback that fires when the data was processed
