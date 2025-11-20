@@ -796,7 +796,7 @@ export function registerChatActions() {
 										.slice(0, maxToShow));
 
 								// Add "Show more..." if needed and not showing all agents
-								if (!showAllAgents && providerNSessions.length > 5) {
+								if (!showAllAgents && agentPicks.length > 5) {
 									currentPicks.push(showMoreAgentsPick);
 								}
 							}
