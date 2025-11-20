@@ -394,7 +394,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			this._onDidChangeDecorations.endDeferredEmit();
 		}));
 		this._register(this._fontDecorationProvider.onDidChangeLineHeight((affectedLineHeights) => {
-			console.log('on did change line height from font decoration provider : ', affectedLineHeights);
 			this._onDidChangeDecorations.beginDeferredEmit();
 			this._onDidChangeDecorations.fire();
 			const affectedLines = Array.from(affectedLineHeights);
@@ -1801,7 +1800,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public getDecorationsInRange(range: IRange, ownerId: number = 0, filterOutValidation: boolean = false, filterFontDecorations: boolean = false, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): model.IModelDecoration[] {
-		// console.log('getDecorationsInRange for range : ', JSON.stringify(range));
 		const validatedRange = this.validateRange(range);
 
 		const decorations = this._getDecorationsInRange(validatedRange, ownerId, filterOutValidation, filterFontDecorations, onlyMarginDecorations);

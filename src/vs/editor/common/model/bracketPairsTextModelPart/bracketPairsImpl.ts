@@ -72,7 +72,6 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 	//#endregion
 
 	private updateBracketPairsTree() {
-		console.log('updateBracketPairsTree');
 		if (this.bracketsRequested && this.canBuildAST) {
 			if (!this.bracketPairsTree.value) {
 				const store = new DisposableStore();

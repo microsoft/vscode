@@ -12,7 +12,7 @@ import { LineRange } from '../../core/ranges/lineRange.js';
 import { StandardTokenType } from '../../encodedTokenAttributes.js';
 import { IBackgroundTokenizer, IState, ILanguageIdCodec, TokenizationRegistry, ITokenizationSupport, IBackgroundTokenizationStore } from '../../languages.js';
 import { IAttachedView } from '../../model.js';
-import { FontAnnotationsUpdate, IModelContentChangedEvent } from '../../textModelEvents.js';
+import { FontTokensUpdate, IModelContentChangedEvent } from '../../textModelEvents.js';
 import { BackgroundTokenizationState } from '../../tokenizationTextModelPart.js';
 import { ContiguousMultilineTokens } from '../../tokens/contiguousMultilineTokens.js';
 import { ContiguousMultilineTokensBuilder } from '../../tokens/contiguousMultilineTokensBuilder.js';
@@ -123,7 +123,7 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 				setTokens: (tokens) => {
 					this.setTokens(tokens);
 				},
-				setFontInfo: (changes: Map<number, FontAnnotationsUpdate>) => {
+				setFontInfo: (changes: FontTokensUpdate) => {
 					this.setFontInfo(changes);
 				},
 				backgroundTokenizationFinished: () => {
@@ -162,7 +162,7 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 					setTokens: (tokens) => {
 						this._debugBackgroundTokens?.setMultilineTokens(tokens, this._textModel);
 					},
-					setFontInfo: (changes: Map<number, FontAnnotationsUpdate>) => {
+					setFontInfo: (changes: FontTokensUpdate) => {
 						this.setFontInfo(changes);
 					},
 					backgroundTokenizationFinished() {
@@ -194,8 +194,8 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 			for (const c of e.changes) {
 				const [eolCount, firstLineLength] = countEOL(c.text);
 
-				this._tokens.accetEdit(c.range, eolCount, firstLineLength);
-				this._debugBackgroundTokens?.accetEdit(c.range, eolCount, firstLineLength);
+				this._tokens.acceptEdit(c.range, eolCount, firstLineLength);
+				this._debugBackgroundTokens?.acceptEdit(c.range, eolCount, firstLineLength);
 			}
 			this._debugBackgroundStates?.acceptChanges(e.changes);
 
@@ -216,7 +216,7 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 		return { changes: changes };
 	}
 
-	private setFontInfo(changes: Map<number, FontAnnotationsUpdate>): void {
+	private setFontInfo(changes: FontTokensUpdate): void {
 		this._onDidChangeFontInfo.fire({ changes });
 	}
 

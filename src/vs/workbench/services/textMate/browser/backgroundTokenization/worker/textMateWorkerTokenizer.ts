@@ -20,11 +20,13 @@ import type { StackDiff, StateStack, diffStateStacksRefEq } from 'vscode-textmat
 import { ICreateGrammarResult } from '../../../common/TMGrammarFactory.js';
 import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IFontOption } from '../../../../../../editor/common/languages.js';
+import { FontTokensUpdate, IFontToken } from '../../../../../../editor/common/textModelEvents.js';
+import { AnnotationsUpdate, IAnnotationUpdate } from '../../../../../../editor/common/model/tokens/annotations.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 
 export interface TextMateModelTokenizerHost {
 	getOrCreateGrammar(languageId: string, encodedLanguageId: LanguageId): Promise<ICreateGrammarResult | null>;
-	setTokensAndStates(versionId: number, tokens: Uint8Array, fontInfos: Map<number, IFontOption[]>, stateDeltas: StateDeltas[]): void;
+	setTokensAndStates(versionId: number, tokens: Uint8Array, fontTokensUpdate: FontTokensUpdate, stateDeltas: StateDeltas[]): void;
 	reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void;
 }
 
@@ -126,7 +128,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			let tokenizedLines = 0;
 			const tokenBuilder = new ContiguousMultilineTokensBuilder();
 			const stateDeltaBuilder = new StateDeltaBuilder();
-			const lineFontInfos: Map<number, IFontOption[]> = new Map();
+			const fontTokensUpdate: IAnnotationUpdate<IFontToken>[] = [];
 
 			while (true) {
 				const lineToTokenize = this._tokenizerWithStateStore.getFirstInvalidLine();
@@ -147,7 +149,19 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 
 				LineTokens.convertToEndOffset(r.tokens, text.length);
 				tokenBuilder.add(lineToTokenize.lineNumber, r.tokens);
-				lineFontInfos.set(lineToTokenize.lineNumber, r.fontInfo);
+				if (this._lineStarts) {
+					for (const fontInfo of r.fontInfo) {
+						const offsetAtLineStart = this._lineStarts.getPrefixSum(lineToTokenize.lineNumber - 1);
+						fontTokensUpdate.push({
+							range: new OffsetRange(offsetAtLineStart + fontInfo.startIndex, offsetAtLineStart + fontInfo.endIndex),
+							annotation: {
+								fontFamily: fontInfo.fontFamily ?? undefined,
+								fontSize: fontInfo.fontSize ?? undefined,
+								lineHeight: fontInfo.lineHeight ?? undefined
+							}
+						});
+					}
+				}
 
 				const deltaMs = new Date().getTime() - startTime;
 				if (deltaMs > 20) {
@@ -160,11 +174,12 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 				break;
 			}
 
+			const fontUpdate = AnnotationsUpdate.create<IFontToken>(fontTokensUpdate);
 			const stateDeltas = stateDeltaBuilder.getStateDeltas();
 			this._host.setTokensAndStates(
 				this._versionId,
 				tokenBuilder.serialize(),
-				lineFontInfos,
+				fontUpdate,
 				stateDeltas
 			);
 

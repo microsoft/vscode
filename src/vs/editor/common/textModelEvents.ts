@@ -8,7 +8,7 @@ import { IRange, Range } from './core/range.js';
 import { Selection } from './core/selection.js';
 import { IModelDecoration, InjectedTextOptions } from './model.js';
 import { IModelContentChange } from './model/mirrorTextModel.js';
-import { AnnotationsUpdate, IAnnotationUpdate } from './model/tokens/annotations.js';
+import { AnnotationsUpdate } from './model/tokens/annotations.js';
 import { TextModelEditSource } from './textModelEditSource.js';
 
 /**
@@ -156,23 +156,18 @@ export interface IModelTokensChangedEvent {
  * @internal
  */
 export interface IModelTokensFontChangedEvent {
-	changes: Map<number, FontAnnotationsUpdate>;
+	changes: FontTokensUpdate;
 }
 
 /**
  * @internal
  */
-export type FontAnnotationsUpdate = AnnotationsUpdate<IFontInfo>;
+export type FontTokensUpdate = AnnotationsUpdate<IFontToken>;
 
 /**
  * @internal
  */
-export type IFontAnnotationUpdate = IAnnotationUpdate<IFontInfo>;
-
-/**
- * @internal
- */
-export interface IFontInfo {
+export interface IFontToken {
 	readonly fontFamily?: string;
 	readonly fontSize?: string;
 	readonly lineHeight?: number;

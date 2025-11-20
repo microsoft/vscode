@@ -109,14 +109,12 @@ export class ViewModelDecorations implements IDisposable {
 	}
 
 	public getDecorationsViewportData(viewRange: Range): IViewDecorationsCollection {
-		// console.log('getDecorationsViewportData');
 		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
 		if (!cacheIsValid) {
 			this._cachedModelDecorationsResolver = this._getDecorationsInRange(viewRange, false, false);
 			this._cachedModelDecorationsResolverViewRange = viewRange;
 		}
-		// console.log('this._cachedModelDecorationsResolver : ', this._cachedModelDecorationsResolver);
 		return this._cachedModelDecorationsResolver!;
 	}
 
@@ -146,13 +144,8 @@ export class ViewModelDecorations implements IDisposable {
 				continue;
 			}
 
-			// console.log('modelDecoration.id : ', modelDecoration.id);
-			// console.log('range : ', JSON.stringify(modelDecoration.range));
-
 			const viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);
 			const viewRange = viewModelDecoration.range;
-
-			// console.log('viewRange : ', JSON.stringify(viewRange));
 
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
@@ -160,10 +153,6 @@ export class ViewModelDecorations implements IDisposable {
 				const inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
 				const intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
 				const intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
-				// console.log('intersectedStartLineNumber : ', intersectedStartLineNumber, 'intersectedEndLineNumber : ', intersectedEndLineNumber);
-				// console.log('startLineNumber : ', startLineNumber, 'endLineNumber : ', endLineNumber);
-				// console.log('viewRange.startLineNumber : ', viewRange.startLineNumber, 'viewRange.endLineNumber : ', viewRange.endLineNumber);
-				// console.log('inlineDecoration : ', JSON.stringify(inlineDecoration));
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
 					inlineDecorations[j - startLineNumber].push(inlineDecoration);
 				}

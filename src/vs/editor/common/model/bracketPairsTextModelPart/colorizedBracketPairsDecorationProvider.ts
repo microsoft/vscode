@@ -43,7 +43,6 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 	//#endregion
 
 	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
-		console.log('ColorizedBracketPairsDecorationProvider - getDecorationsInRange - range : ', range);
 		if (onlyMinimapDecorations) {
 			// Bracket pair colorization decorations are not rendered in the minimap
 			return [];
@@ -68,7 +67,6 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 			range: bracket.range,
 		})).toArray();
 
-		console.log('result : ', result);
 		return result;
 	}
 

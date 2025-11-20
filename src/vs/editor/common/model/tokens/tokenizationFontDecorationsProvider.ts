@@ -10,10 +10,10 @@ import { Range } from '../../core/range.js';
 import { DecorationProvider } from '../decorationProvider.js';
 import { TextModel } from '../textModel.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IFontInfo, IModelContentChangedEvent, IModelOptionsChangedEvent } from '../../textModelEvents.js';
+import { IFontToken, IModelContentChangedEvent, IModelOptionsChangedEvent } from '../../textModelEvents.js';
 import { classNameForFont } from '../../languages/supports/tokenization.js';
 import { Position } from '../../core/position.js';
-import { AnnotatedString, IAnnotatedString } from './annotations.js';
+import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotationUpdate } from './annotations.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
 import { StringEdit } from '../../core/edits/stringEdit.js';
 
@@ -52,7 +52,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	private readonly _onDidChangeFont = new Emitter<Set<LineFontChangingDecoration>>();
 	public readonly onDidChangeFont = this._onDidChangeFont.event;
 
-	private _fontAnnotations: IAnnotatedString<IFontInfo> = new AnnotatedString<IFontInfo>();
+	private _fontAnnotations: IAnnotatedString<IFontToken> = new AnnotatedString<IFontToken>();
 	private _queuedEdits: StringEdit = StringEdit.empty;
 
 	constructor(
@@ -62,37 +62,50 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		super();
 		this.tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
 			console.log('fontChanges : ', fontChanges);
-			const changedLineNumberHeights = new Map<number, number | null>();
-			const changedLineNumberFonts = new Set<number>();
-			for (const [lineNumber, annotations] of fontChanges.changes.entries()) {
-				if (!annotations) {
-					changedLineNumberHeights.set(lineNumber, null);
-					changedLineNumberFonts.add(lineNumber);
+
+			// TODO: combine the annotations and the heights into one map later
+			const lineNumberToHeight = new Map<number, number | null>();
+			const lineNumberToAnnotations = new Map<number, IAnnotationUpdate<IFontToken>[]>();
+
+			for (const annotation of fontChanges.changes.annotations) {
+
+				const startPosition = this.textModel.getPositionAt(annotation.range.start);
+				const endPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
+
+				if (startPosition.lineNumber !== endPosition.lineNumber) {
+					// The token should be always on a single line
 					continue;
 				}
 
-				const beginningLineOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
-				const endLineOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
-
-				for (const annotation of annotations.annotations) {
-					if (changedLineNumberHeights.has(lineNumber)) {
-						const currentLineHeight = changedLineNumberHeights.get(lineNumber);
-						if (!currentLineHeight || (annotation.annotation.lineHeight && annotation.annotation.lineHeight > currentLineHeight)) {
-							changedLineNumberHeights.set(lineNumber, annotation.annotation.lineHeight!); // we take the maximum line height
-						}
-					} else {
-						changedLineNumberHeights.set(lineNumber, annotation.annotation.lineHeight!);
-					}
-					changedLineNumberFonts.add(lineNumber);
+				const lineNumber = startPosition.lineNumber;
+				if (lineNumberToAnnotations.has(lineNumber)) {
+					lineNumberToAnnotations.get(lineNumber)!.push(annotation);
+				} else {
+					lineNumberToAnnotations.set(lineNumber, [annotation]);
 				}
-				this._fontAnnotations.setAnnotations(new OffsetRange(beginningLineOffset, endLineOffset), annotations);
+
+				if (lineNumberToHeight.has(lineNumber)) {
+					const currentLineHeight = lineNumberToHeight.get(lineNumber);
+					if (!currentLineHeight || (annotation.annotation.lineHeight && annotation.annotation.lineHeight > currentLineHeight)) {
+						lineNumberToHeight.set(lineNumber, annotation.annotation.lineHeight!); // we take the maximum line height
+					}
+				} else {
+					lineNumberToHeight.set(lineNumber, annotation.annotation.lineHeight!);
+				}
 			}
+
+			for (const [lineNumber, annotations] of lineNumberToAnnotations.entries()) {
+				const lineStartOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
+				const lineEndOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
+				this._fontAnnotations.setAnnotations(new OffsetRange(lineStartOffset, lineEndOffset), AnnotationsUpdate.create(annotations));
+			}
+
 			const affectedLineHeights = new Set<LineHeightChangingDecoration>();
-			for (const [lineNumber, lineHeight] of changedLineNumberHeights) {
+			for (const [lineNumber, lineHeight] of lineNumberToHeight) {
 				affectedLineHeights.add(new LineHeightChangingDecoration(0, `tokenization-line-decoration-${lineNumber}`, lineNumber, lineHeight));
 			}
 			const affectedLineFonts = new Set<LineFontChangingDecoration>();
-			for (const lineNumber of changedLineNumberFonts) {
+			for (const lineNumber of lineNumberToAnnotations.keys()) {
 				affectedLineFonts.add(new LineFontChangingDecoration(0, `tokenization-line-decoration-${lineNumber}`, lineNumber));
 			}
 			this._onDidChangeLineHeight.fire(affectedLineHeights);

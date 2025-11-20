@@ -14,7 +14,10 @@ export interface IAnnotation<T> {
 	offset?: number;
 }
 
-export type IAnnotationUpdate<T> = IAnnotation<T>; // | undefined
+export interface IAnnotationUpdate<T> {
+	range: OffsetRange;
+	annotation: T;
+}
 
 export interface IAnnotatedString<T> {
 	/**
@@ -163,21 +166,11 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 }
 
-// v-1 -> v0
-
-// v0: 0123456789012345678901234567890
-// E.g. at v0: `[3-5): "Courier New", 12], [10-12): "Courier New", 22], [20-21): "Arial", 12]`
-
-// v1: _0123456789012345678901234567890
-// at v1: `[4-6): "Courier New", 12], [11-13): "Courier New", 22], [21-22): "Arial", 12]`
-
-// update at v0 with [3-11): undefined]
-// 	becomes update at v1 with [4-12): undefined]
-
 export class AnnotationsUpdate<T> {
+
 	/**
 	 * The ranges are sorted and non-overlapping.
-	*/
+	 */
 	public static create<T>(annotations: IAnnotationUpdate<T>[]): AnnotationsUpdate<T> {
 		return new AnnotationsUpdate(annotations);
 	}
@@ -188,7 +181,7 @@ export class AnnotationsUpdate<T> {
 		this._annotatedString = new AnnotatedString<T>(annotations);
 	}
 
-	applyEdit(offsetStart: number, offsetEnd: number, text: string): void {
-		this._annotatedString.applyEdit(StringEdit.replace(new OffsetRange(offsetStart, offsetEnd), text));
+	rebase(edit: StringEdit): void {
+		this._annotatedString.applyEdit(edit);
 	}
 }

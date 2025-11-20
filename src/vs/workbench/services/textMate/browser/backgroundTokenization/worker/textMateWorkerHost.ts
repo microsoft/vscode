@@ -5,7 +5,7 @@
 
 import { UriComponents } from '../../../../../../base/common/uri.js';
 import { IWebWorkerServer, IWebWorkerClient } from '../../../../../../base/common/worker/webWorker.js';
-import { IFontOption } from '../../../../../../editor/common/languages.js';
+import { FontTokensUpdate } from '../../../../../../editor/common/textModelEvents.js';
 import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 
 export abstract class TextMateWorkerHost {
@@ -18,6 +18,6 @@ export abstract class TextMateWorkerHost {
 	}
 
 	abstract $readFile(_resource: UriComponents): Promise<string>;
-	abstract $setTokensAndStates(controllerId: number, versionId: number, tokens: Uint8Array, fontInfo: Map<number, IFontOption[]>, lineEndStateDeltas: StateDeltas[]): Promise<void>;
+	abstract $setTokensAndStates(controllerId: number, versionId: number, tokens: Uint8Array, fontTokensUpdate: FontTokensUpdate, lineEndStateDeltas: StateDeltas[]): Promise<void>;
 	abstract $reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void;
 }
