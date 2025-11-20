@@ -121,16 +121,16 @@ struct PackageJson {
 fn apply_build_environment_variables() {
 	let repo_dir = env::current_dir().unwrap().join("..");
 	let package_json = read_json_from_path::<PackageJson>(&repo_dir.join("package.json"));
-	let quality = env::var("VSCODE_QUALITY").unwrap();
+	let quality = env::var("VSCODE_QUALITY").unwrap_or("oss".to_string());
 
 	let version = match quality.as_str() {
-		"stable" => package_json.version,
+		"oss" | "stable" => package_json.version.clone(),
 		_ => {
 			format!(
 				"{}-{}-{}",
 				package_json.version,
-				env::var("VSCODE_PRERELEASE").unwrap(),
-				quality
+				quality,
+				env::var("VSCODE_PRERELEASE").unwrap()
 			)
 		}
 	};
