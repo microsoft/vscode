@@ -1930,11 +1930,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.setPanelPosition(Position.BOTTOM);
 		}
 
-		// the workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-		if (alignment !== 'center' && this.isPanelMaximized()) {
-			this.toggleMaximizedPanel();
-		}
-
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_ALIGNMENT, alignment);
 
 		this.adjustPartPositions(this.getSideBarPosition(), alignment, this.getPanelPosition());
@@ -2101,10 +2096,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	isPanelMaximized(): boolean {
-		return (
-			this.getPanelAlignment() === 'center' || 	// the workbench grid currently prevents us from supporting panel
-			!isHorizontal(this.getPanelPosition())		// maximization with non-center panel alignment
-		) && !this.isVisible(Parts.EDITOR_PART, mainWindow) && !this.isAuxiliaryBarMaximized();
+		return !this.isVisible(Parts.EDITOR_PART, mainWindow) && !this.isAuxiliaryBarMaximized();
 	}
 
 	toggleMaximizedPanel(): void {
@@ -2134,10 +2126,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private panelOpensMaximized(): boolean {
-		if (this.getPanelAlignment() !== 'center' && isHorizontal(this.getPanelPosition())) {
-			return false; // The workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
-		}
-
 		const panelOpensMaximized = partOpensMaximizedFromString(this.configurationService.getValue<string>(WorkbenchLayoutSettings.PANEL_OPENS_MAXIMIZED));
 		const panelLastIsMaximized = this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED);
 
