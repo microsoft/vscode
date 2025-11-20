@@ -84,11 +84,6 @@ export namespace PromptsConfig {
 	export const USE_CLAUDE_SKILLS = 'chat.useClaudeSkills';
 
 	/**
-	 * Configuration key for custom agents provider usage.
-	 */
-	export const USE_CUSTOM_AGENTS_PROVIDER = 'chat.experimental.prompt.useCustomAgentsProvider';
-
-	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
 	 * @see {@link PROMPT_LOCATIONS_CONFIG_KEY}, {@link INSTRUCTIONS_LOCATIONS_CONFIG_KEY}, {@link MODE_LOCATIONS_CONFIG_KEY}.
 	 */

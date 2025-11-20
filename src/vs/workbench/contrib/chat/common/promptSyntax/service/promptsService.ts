@@ -16,6 +16,69 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
+ * Target environment for custom agents.
+ */
+export enum CustomAgentTarget {
+	GitHubCopilot = 'github-copilot',
+	VSCode = 'vscode',
+}
+
+/**
+ * Options for querying custom agents.
+ */
+export interface ICustomAgentQueryOptions {
+	/**
+	 * Filter agents by target environment.
+	 */
+	readonly target?: CustomAgentTarget;
+}
+
+/**
+ * Represents a custom agent from an external provider.
+ */
+export interface IExternalCustomAgent {
+	/**
+	 * The unique identifier/name of the custom agent.
+	 */
+	readonly name: string;
+
+	/**
+	 * The display name of the custom agent shown in the UI.
+	 */
+	readonly displayName: string;
+
+	/**
+	 * A description of what the custom agent does.
+	 */
+	readonly description: string;
+
+	/**
+	 * The tools enabled for this agent. ['*'] means all tools are enabled.
+	 */
+	readonly tools: readonly string[];
+
+	/**
+	 * Optional hint text for the agent's argument.
+	 */
+	readonly argumentHint?: string;
+
+	/**
+	 * Optional metadata key-value pairs.
+	 */
+	readonly metadata?: Readonly<Record<string, string>>;
+
+	/**
+	 * Optional target environment (e.g., 'vscode', 'github-copilot').
+	 */
+	readonly target?: string;
+
+	/**
+	 * Optional configuration error if the agent config is invalid.
+	 */
+	readonly configError?: string;
+}
+
+/**
  * Provides prompt services.
  */
 export const IPromptsService = createDecorator<IPromptsService>('IPromptsService');
@@ -278,7 +341,7 @@ export interface IPromptsService extends IDisposable {
 	 * @returns A disposable that unregisters the provider when disposed.
 	 */
 	registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
-		provideCustomAgents: (repoOwner: string, repoName: string, options: unknown | undefined, token: CancellationToken) => Promise<unknown[] | undefined>;
+		provideCustomAgents: (repoOwner: string, repoName: string, options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
 	}): IDisposable;
 
 	/**

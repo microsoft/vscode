@@ -332,21 +332,6 @@ declare module 'vscode' {
 		readonly description: string;
 
 		/**
-		 * The repository owner where this agent is defined.
-		 */
-		readonly repoOwner: string;
-
-		/**
-		 * The repository name where this agent is defined.
-		 */
-		readonly repoName: string;
-
-		/**
-		 * The version/commit SHA of the agent configuration.
-		 */
-		readonly version: string;
-
-		/**
 		 * The tools enabled for this agent. ['*'] means all tools are enabled.
 		 */
 		readonly tools: readonly string[];
@@ -381,15 +366,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Source of custom agents.
-	 */
-	export enum CustomAgentSource {
-		Repo = 'repo',
-		Org = 'org',
-		Enterprise = 'enterprise',
-	}
-
-	/**
 	 * Options for querying custom agents.
 	 */
 	export interface CustomAgentQueryOptions {
@@ -397,21 +373,6 @@ declare module 'vscode' {
 		 * Filter agents by target environment.
 		 */
 		readonly target?: CustomAgentTarget;
-
-		/**
-		 * If true, exclude agents with invalid configuration.
-		 */
-		readonly excludeInvalidConfig?: boolean;
-
-		/**
-		 * If true, deduplicate agents with the same name (prefer closest source).
-		 */
-		readonly dedupe?: boolean;
-
-		/**
-		 * Specify which sources to include.
-		 */
-		readonly includeSources?: ReadonlyArray<CustomAgentSource>;
 	}
 
 	/**
@@ -426,7 +387,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @returns An array of custom agents or a promise that resolves to such.
 		 */
-		provideCustomAgents(repoOwner: string, repoName: string, options: CustomAgentQueryOptions | undefined, token: CancellationToken): ProviderResult<CustomAgent[]>;
+		provideCustomAgents(repoOwner: string, repoName: string, options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgent[]>;
 	}
 
 	export namespace chat {

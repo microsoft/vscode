@@ -3494,12 +3494,6 @@ export enum CustomAgentTarget {
 	VSCode = 'vscode',
 }
 
-export enum CustomAgentSource {
-	Repo = 'repo',
-	Org = 'org',
-	Enterprise = 'enterprise',
-}
-
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
 	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage {

@@ -1948,7 +1948,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			McpToolAvailability: extHostTypes.McpToolAvailability,
 			SettingsSearchResultKind: extHostTypes.SettingsSearchResultKind,
 			CustomAgentTarget: extHostTypes.CustomAgentTarget,
-			CustomAgentSource: extHostTypes.CustomAgentSource
 		};
 	};
 }

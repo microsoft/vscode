@@ -26,7 +26,7 @@ import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIde
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
-import { IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ICustomAgentQueryOptions, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatModel } from '../../contrib/chat/common/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
@@ -432,21 +432,17 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatRelatedFilesProviders.deleteAndDispose(handle);
 	}
 
-	async $registerCustomAgentsProvider(handle: number, extension: ExtensionIdentifier): Promise<void> {
-		// Get the extension description for security check
-		const extensionDescription = await this._extensionService.getExtension(extension.value);
-		if (!extensionDescription) {
-			this._logService.error(`[MainThreadChatAgents2] Could not find extension for CustomAgentsProvider: ${extension.value}`);
+	async $registerCustomAgentsProvider(handle: number, extensionId: ExtensionIdentifier): Promise<void> {
+		const extension = await this._extensionService.getExtension(extensionId.value);
+		if (!extension) {
+			this._logService.error(`[MainThreadChatAgents2] Could not find extension for CustomAgentsProvider: ${extensionId.value}`);
 			return;
 		}
 
-		// Register the provider with the prompts service, passing the provider implementation
-		// that bridges to the extension host
-		const disposable = this._promptsService.registerCustomAgentsProvider(extensionDescription, {
-			provideCustomAgents: async (repoOwner: string, repoName: string, options: unknown, token: CancellationToken) => {
+		const disposable = this._promptsService.registerCustomAgentsProvider(extension, {
+			provideCustomAgents: async (repoOwner: string, repoName: string, options: ICustomAgentQueryOptions, token: CancellationToken) => {
 				const result = await this._proxy.$provideCustomAgents(handle, repoOwner, repoName, options, token);
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				return (result ?? []) as any[];
+				return result ?? [];
 			}
 		});
 

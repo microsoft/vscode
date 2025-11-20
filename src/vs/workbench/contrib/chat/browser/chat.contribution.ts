@@ -685,15 +685,6 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
 		},
-		[PromptsConfig.USE_CUSTOM_AGENTS_PROVIDER]: {
-			type: 'boolean',
-			title: nls.localize('chat.useCustomAgentsProvider.title', "Use Custom Agents Provider"),
-			markdownDescription: nls.localize('chat.useCustomAgentsProvider.description', "Controls whether custom agents from registered providers are loaded. When disabled, custom agents provided via the CustomAgentsProvider API will not be available."),
-			default: false,
-			restricted: true,
-			disallowConfigurationDefault: true,
-			tags: ['experimental', 'prompts', 'agents']
-		},
 		[PromptsConfig.PROMPT_FILES_SUGGEST_KEY]: {
 			type: 'object',
 			scope: ConfigurationScope.RESOURCE,

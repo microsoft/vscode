@@ -30,7 +30,7 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
@@ -152,12 +152,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private async computeListPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		const useCustomAgentsProvider = this.configurationService.getValue(PromptsConfig.USE_CUSTOM_AGENTS_PROVIDER);
 		const prompts = await Promise.all([
 			this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath))),
 			this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath))),
 			this.getExtensionContributions(type),
-			type === PromptsType.agent && useCustomAgentsProvider ? this.getCustomAgentsFromProvider(token) : []
+			type === PromptsType.agent ? this.getCustomAgentsFromProvider(token) : []
 		]);
 
 		return [...prompts.flat()];
@@ -167,7 +166,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Registry of CustomAgentsProvider instances. Extensions can register providers via the proposed API.
 	 */
 	private readonly customAgentsProviders: Array<{
-		provideCustomAgents: (repoOwner: string, repoName: string, options: any | undefined, token: CancellationToken) => Promise<any[] | undefined>;
+		provideCustomAgents: (repoOwner: string, repoName: string, options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
 	}> = [];
 
 	/**
@@ -180,14 +179,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * an extension registers a provider via vscode.chat.registerCustomAgentsProvider().
 	 */
 	public registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
-		provideCustomAgents: (repoOwner: string, repoName: string, options: any | undefined, token: CancellationToken) => Promise<any[] | undefined>;
+		provideCustomAgents: (repoOwner: string, repoName: string, options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
 	}): IDisposable {
-		// Gate: only allow extensions with chatParticipantPrivate proposal enabled
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
 			throw new Error(`Extension '${extension.identifier.value}' CANNOT register CustomAgentsProvider. The 'chatParticipantPrivate' proposal must be enabled.`);
 		}
 
 		this.customAgentsProviders.push(provider);
+
 		// Invalidate agent cache when providers change
 		this.cachedFileLocations[PromptsType.agent] = undefined;
 		this.cachedCustomAgents.refresh();
@@ -210,31 +209,23 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 
 		const result: IPromptPath[] = [];
-
-		// Get repository information from workspace
-		// For now, use a simple heuristic: look at workspace name or folders
-		// In a full implementation, this would query git remotes from the workspace
 		const repoInfo = await this.getWorkspaceRepositoryInfo(token);
 		if (!repoInfo) {
 			return [];
 		}
 
-		// Query all registered providers
 		for (const provider of this.customAgentsProviders) {
 			try {
-				const agents = await provider.provideCustomAgents(repoInfo.owner, repoInfo.name, { target: 'vscode', excludeInvalidConfig: true, dedupe: true }, token);
+				const agents = await provider.provideCustomAgents(repoInfo.owner, repoInfo.name, {}, token);
 				if (!agents || token.isCancellationRequested) {
 					continue;
 				}
 
-				// Convert each CustomAgent to an IExtensionPromptPath with a virtual URI
 				for (const agent of agents) {
-					// Create a virtual URI for this custom agent
 					const virtualUri = URI.from({
 						scheme: 'vscode-chat-agent',
 						authority: 'custom-agents-provider',
 						path: `/${repoInfo.owner}/${repoInfo.name}/${agent.name}`,
-						query: `version=${agent.version || 'latest'}`
 					});
 
 					// Generate prompt content from agent metadata

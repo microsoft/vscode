@@ -34,6 +34,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { ICustomAgentQueryOptions, IExternalCustomAgent } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 
 export class ChatAgentResponseStream {
 
@@ -494,13 +495,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
 	}
 
-	async $provideCustomAgents(handle: number, repoOwner: string, repoName: string, options: unknown, token: CancellationToken): Promise<unknown[] | undefined> {
+	async $provideCustomAgents(handle: number, repoOwner: string, repoName: string, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<IExternalCustomAgent[] | undefined> {
 		const providerData = this._customAgentsProviders.get(handle);
 		if (!providerData) {
 			return Promise.resolve([]);
 		}
 
-		return await providerData.provider.provideCustomAgents(repoOwner, repoName, options as vscode.CustomAgentQueryOptions | undefined, token) ?? undefined;
+		return await providerData.provider.provideCustomAgents(repoOwner, repoName, options, token) ?? undefined;
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {
