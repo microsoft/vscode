@@ -16,8 +16,22 @@ import { endsWithIgnoreCase, equalsIgnoreCase, escapeRegExpCharacters, ltrim } f
  * The possible case sensitivity options for glob pattern matching.
  */
 export enum GlobCaseSensitivity {
+	/**
+	 * Match glob patterns with case sensitivity.
+	 * For example `*AGENTS*.md` will only match `AGENTS.MD` but not `agents.md`.
+	 */
 	CaseSensitive = 1,
+	/**
+	 * Match glob patterns ignoring case.
+	 * For example `*AGENTS*.md` will match both `agents.md` and `AGENTS.MD`.
+	 */
 	CaseInsensitive = 2,
+	/**
+	 * Use the platform's default case sensitivity when matching glob patterns,
+	 * that is case sensitive on Linux and case insensitive on Windows and macOS.
+	 * If this value is provided in an API, settings or file system case sensitivity
+	 * will be used before platform's default.
+	 */
 	Auto = 3
 }
 
