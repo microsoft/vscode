@@ -907,7 +907,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 		return this._serializeAddon.serialize({
 			range: {
-				start: startMarker?.line,
+				start: startMarker.line,
 				end: endMarker?.line ?? this.raw.buffer.active.length - 1
 			}
 		});
