@@ -69,10 +69,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const runSubagentToolData: IToolData = {
 			id: RunSubagentToolId,
 			toolReferenceName: VSCodeToolReference.runSubagent,
-			canBeReferencedInPrompt: true,
+			legacyToolReferenceFullNames: ['runSubagent'],
 			icon: ThemeIcon.fromId(Codicon.organization.id),
 			displayName: localize('tool.runSubagent.displayName', 'Run Subagent'),
-			userDescription: localize('tool.runSubagent.userDescription', 'Runs a task within an isolated subagent context. Enables efficient organization of tasks and context window management.'),
+			userDescription: localize('tool.runSubagent.userDescription', 'Run a task within an isolated subagent context to enable efficient organization of tasks and context window management.'),
 			modelDescription: BaseModelDescription,
 			source: ToolDataSource.Internal,
 			inputSchema: {

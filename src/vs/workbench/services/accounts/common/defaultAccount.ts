@@ -241,6 +241,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	private async findMatchingProviderSession(authProviderId: string, allScopes: string[][]): Promise<AuthenticationSession | undefined> {
 		const sessions = await this.authenticationService.getSessions(authProviderId, undefined, undefined, true);
 		for (const session of sessions) {
+			this.logService.debug('[DefaultAccount] Checking session with scopes', session.scopes);
 			for (const scopes of allScopes) {
 				if (this.scopesMatch(session.scopes, scopes)) {
 					return session;

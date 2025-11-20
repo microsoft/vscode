@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.107.20251119",
+  "version": "1.107.0",
   "distro": "70b452e51d85528e38164c11d783791ead374f43",
   "author": {
     "name": "Microsoft Corporation"
@@ -84,7 +84,7 @@
     "@vscode/spdlog": "^0.15.2",
     "@vscode/sqlite3": "5.1.8-vscode",
     "@vscode/sudo-prompt": "9.3.1",
-    "@vscode/tree-sitter-wasm": "^0.2.0",
+    "@vscode/tree-sitter-wasm": "^0.3.0",
     "@vscode/vscode-languagedetection": "1.0.21",
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.6.0",
