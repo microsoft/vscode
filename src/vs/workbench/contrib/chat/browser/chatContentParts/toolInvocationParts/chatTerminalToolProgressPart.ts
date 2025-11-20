@@ -1186,8 +1186,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 		const endMarkerForRange = this._getStreamingRangeEndMarker(startMarker, endMarker, force);
-		let data = await xterm.getRangeAsVT(startMarker, endMarkerForRange);
-		data = this._stripTrailingPrompt(data);
+		const data = await xterm.getRangeAsVT(startMarker, endMarkerForRange);
 		if (this._store.isDisposed || (!force && this._streamingCommand !== command) || !data || data.length === 0) {
 			if (!data || data.length === 0) {
 				this._logService.trace('chatTerminalToolProgressPart.syncStreamingSnapshot.waitForData', { commandId: command.id, force });
@@ -1212,7 +1211,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 							return;
 						}
 						this._queueStreaming(instance, command, force);
-					}, 16);
+					}, 0);
 					return;
 				}
 				if (command.hasOutput() && retryAttempt > 60) {
@@ -1270,17 +1269,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			onDispose: Event.None,
 			dispose: () => { /* no-op */ }
 		};
-	}
-
-	private _stripTrailingPrompt(snapshot: string): string {
-		if (!snapshot) {
-			return snapshot;
-		}
-		const promptStart = snapshot.lastIndexOf('\u001b]633;A');
-		if (promptStart === -1) {
-			return snapshot;
-		}
-		return snapshot.slice(0, promptStart);
 	}
 
 	private _tryApplyEmptyOutput(command: ITerminalCommand): boolean {
