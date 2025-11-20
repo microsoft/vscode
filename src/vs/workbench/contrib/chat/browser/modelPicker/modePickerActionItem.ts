@@ -10,6 +10,7 @@ import { coalesce } from '../../../../../base/common/arrays.js';
 import { groupBy } from '../../../../../base/common/collections.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -29,6 +30,7 @@ import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../actions/chatExe
 
 export interface IModePickerDelegate {
 	readonly currentMode: IObservable<IChatMode>;
+	readonly sessionResource: () => URI | undefined;
 }
 
 export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
@@ -55,7 +57,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			checked: currentMode.id === mode.id,
 			tooltip: chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
 			run: async () => {
-				const result = await commandService.executeCommand(ToggleAgentModeActionId, { modeId: mode.id } satisfies IToggleChatModeArgs);
+				const result = await commandService.executeCommand(ToggleAgentModeActionId, { modeId: mode.id, sessionResource: this.delegate.sessionResource() } satisfies IToggleChatModeArgs);
 				this.renderLabel(this.element!);
 				return result;
 			},
