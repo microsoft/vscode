@@ -10,7 +10,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from '../../common/chatModel.js';
 import { IParsedChatRequest } from '../../common/chatParserTypes.js';
-import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatTransferredSessionData, IChatUserActionEvent } from '../../common/chatService.js';
+import { IChatCompleteResponse, IChatDetail, IChatProgress, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatSessionContext, IChatTransferredSessionData, IChatUserActionEvent } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
@@ -53,6 +53,12 @@ export class MockChatService implements IChatService {
 	}
 	loadSessionForResource(resource: URI, position: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
 		throw new Error('Method not implemented.');
+	}
+	setTitle(sessionResource: URI, title: string): void {
+		throw new Error('Method not implemented.');
+	}
+	appendProgress(request: IChatRequestModel, progress: IChatProgress): void {
+
 	}
 	/**
 	 * Returns whether the request was accepted.

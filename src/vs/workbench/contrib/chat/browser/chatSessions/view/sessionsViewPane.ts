@@ -324,7 +324,10 @@ export class SessionsViewPane extends ViewPane {
 							// noop
 						}
 					},
-					getDragURI: (element: ChatSessionItemWithProvider) => {
+					getDragURI: (element: ChatSessionItemWithProvider | ArchivedSessionItems) => {
+						if (element instanceof ArchivedSessionItems) {
+							return null;
+						}
 						return getResourceForElement(element).toString();
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {

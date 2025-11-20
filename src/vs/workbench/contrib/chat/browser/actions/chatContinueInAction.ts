@@ -3,31 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action2, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
-import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
-import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
-import { localize, localize2 } from '../../../../../nls.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { isITextModel } from '../../../../../editor/common/model.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
+import { Action2, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatModel } from '../../common/chatModel.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
+import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IChatWidgetService } from '../chat.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 
 export class ContinueChatInSessionAction extends Action2 {
@@ -65,11 +67,27 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService
 	) {
 		super(action, {
-			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService)
+			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService),
+			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService)
 		}, actionWidgetService, keybindingService, contextKeyService);
+	}
+
+	private static getActionBarActions(openerService: IOpenerService) {
+		const learnMoreUrl = 'https://aka.ms/vscode-continue-chat-in';
+		return [{
+			id: 'workbench.action.chat.continueChatInSession.learnMore',
+			label: localize('chat.learnMore', "Learn More"),
+			tooltip: localize('chat.learnMore', "Learn More"),
+			class: undefined,
+			enabled: true,
+			run: async () => {
+				await openerService.open(URI.parse(learnMoreUrl));
+			}
+		}];
 	}
 
 	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService): IActionWidgetDropdownActionProvider {
@@ -159,7 +177,8 @@ class CreateRemoteAgentJobAction {
 			if (!widget.viewModel) {
 				return;
 			}
-			const chatModel = widget.viewModel.model;
+			// todo@connor4312: remove 'as' cast
+			const chatModel = widget.viewModel.model as ChatModel;
 			if (!chatModel) {
 				return;
 			}

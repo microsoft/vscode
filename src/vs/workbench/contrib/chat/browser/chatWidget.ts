@@ -1784,7 +1784,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (isRequestVM(currentElement) && !this.viewModel?.editing) {
 
 			const requests = this.viewModel?.model.getRequests();
-			if (!requests) {
+			if (!requests || !this.viewModel?.sessionResource) {
 				return;
 			}
 

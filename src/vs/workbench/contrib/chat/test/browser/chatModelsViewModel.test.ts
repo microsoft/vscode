@@ -427,7 +427,8 @@ suite('ChatModelsViewModel', () => {
 	});
 
 	test('should toggle vendor collapsed state', () => {
-		viewModel.toggleVendorCollapsed('copilot');
+		const vendorEntry = viewModel.viewModelEntries.find(r => isVendorEntry(r) && r.vendorEntry.vendor === 'copilot') as IVendorItemEntry;
+		viewModel.toggleVendorCollapsed(vendorEntry);
 
 		const results = viewModel.filter('');
 		const copilotVendor = results.find(r => isVendorEntry(r) && (r as IVendorItemEntry).vendorEntry.vendor === 'copilot') as IVendorItemEntry;
@@ -442,7 +443,7 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(copilotModelsAfterCollapse.length, 0);
 
 		// Toggle back
-		viewModel.toggleVendorCollapsed('copilot');
+		viewModel.toggleVendorCollapsed(vendorEntry);
 		const resultsAfterExpand = viewModel.filter('');
 		const copilotModelsAfterExpand = resultsAfterExpand.filter(r =>
 			!isVendorEntry(r) && (r as IModelItemEntry).modelEntry.vendor === 'copilot'
@@ -608,24 +609,6 @@ suite('ChatModelsViewModel', () => {
 
 		const models = results.filter(r => !isVendorEntry(r)) as IModelItemEntry[];
 		assert.strictEqual(models.length, 4);
-	});
-
-	test('should show models even when single vendor is collapsed', async () => {
-		const { viewModel: singleVendorViewModel } = createSingleVendorViewModel(store, chatEntitlementService, false);
-		await singleVendorViewModel.resolve();
-
-		// Try to collapse the single vendor
-		singleVendorViewModel.toggleVendorCollapsed('copilot');
-
-		const results = singleVendorViewModel.filter('');
-
-		// Should still show models even though vendor is "collapsed"
-		// because there's no vendor header to collapse
-		const vendors = results.filter(isVendorEntry);
-		assert.strictEqual(vendors.length, 0, 'Should not show vendor header');
-
-		const models = results.filter(r => !isVendorEntry(r)) as IModelItemEntry[];
-		assert.strictEqual(models.length, 1, 'Should still show models even when single vendor is collapsed');
 	});
 
 	test('should filter single vendor models by capability', async () => {

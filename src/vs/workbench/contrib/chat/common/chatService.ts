@@ -944,7 +944,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean, options?: { canUseTools?: boolean }): ChatModel;
+	startSession(location: ChatAgentLocation, token: CancellationToken, options?: { canUseTools?: boolean }): ChatModel;
 	getSession(sessionResource: URI): IChatModel | undefined;
 	getOrRestoreSession(sessionResource: URI): Promise<IChatModel | undefined>;
 	getPersistedSessionTitle(sessionResource: URI): string | undefined;
@@ -959,6 +959,11 @@ export interface IChatService {
 	 */
 	sendRequest(sessionResource: URI, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
 
+	/**
+	 * Sets a custom title for a chat model.
+	 */
+	setTitle(sessionResource: URI, title: string): void;
+	appendProgress(request: IChatRequestModel, progress: IChatProgress): void;
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;

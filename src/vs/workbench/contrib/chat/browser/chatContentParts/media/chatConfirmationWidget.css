@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 .chat-confirmation-widget {
-	border: 1px solid var(--vscode-chat-requestBorder);
+	border: none;
 	border-radius: 4px;
-	padding: 3px;
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -17,6 +16,7 @@
 	padding: 0 12px;
 	min-height: 2em;
 	box-sizing: border-box;
+	font-size: var(--vscode-chat-font-size-body-s);
 }
 
 .chat-confirmation-widget:not(:last-child) {
@@ -29,16 +29,27 @@
 	font-size: var(--vscode-chat-font-size-body-s);
 }
 
-.chat-confirmation-widget .chat-confirmation-widget-title  {
+.chat-confirmation-widget-container .chat-confirmation-widget .chat-confirmation-widget-title  {
 	width: 100%;
 	border-radius: 3px;
-	padding: 3px 8px;
+	padding: 2px 6px 2px 2px;
 	user-select: none;
 
 	&.monaco-button {
 		display: flex;
 		align-items: center;
 		border: 0;
+		width: fit-content;
+		outline: none;
+		gap: 4px;
+	}
+
+	.codicon {
+		font-size: var(--vscode-chat-font-size-body-s);
+	}
+
+	&:hover {
+		background: var(--vscode-list-hoverBackground);
 	}
 }
 
@@ -58,10 +69,6 @@
 		margin-top: -12px;
 		margin-bottom: 12px;
 	}
-
-	.rendered-markdown p {
-		opacity: 0.85;
-	}
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title.expandable {
@@ -74,20 +81,14 @@
 	flex-basis: 0;
 }
 
-.chat-confirmation-widget .chat-confirmation-widget-title-icon  {
-	line-height: 0;
-}
-
 .chat-confirmation-widget .chat-confirmation-widget-title p,
 .chat-confirmation-widget .chat-confirmation-widget-title .rendered-markdown {
 	display: inline;
+	color: var(--vscode-descriptionForeground);
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title p {
 	margin: 0 !important;
-}
-.chat-confirmation-widget .chat-confirmation-widget-title .codicon-check {
-	color: var(--vscode-debugIcon-startForeground) !important;
 }
 .chat-confirmation-widget .chat-confirmation-widget-title .codicon-error {
 	color: var(--vscode-errorForeground) !important;
@@ -118,7 +119,7 @@
 .chat-confirmation-widget-message h3 {
 	font-weight: 600;
 	margin: 4px 0 8px;
-	font-size: 14px;
+	font-size: 12px;
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title .rendered-markdown p a {
@@ -127,7 +128,6 @@
 
 .chat-confirmation-widget-title small {
 	font-size: 1em;
-	opacity: 0.85;
 
 	&::before {
 		content: ' \2013  ';
@@ -138,7 +138,10 @@
 .chat-confirmation-widget .chat-confirmation-widget-message {
 	flex-basis: 100%;
 	padding: 0 8px;
-	margin: 8px 0;
+	margin-top: 2px;
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 4px;
+	font-size: var(--vscode-chat-font-size-body-s);
 
 	&:last-child {
 		margin-bottom: 0;

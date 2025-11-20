@@ -29,7 +29,8 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
-import { AGENT_SESSIONS_VIEWLET_ID, ChatConfiguration } from '../../common/constants.js';
+import { LEGACY_AGENT_SESSIONS_VIEW_ID, ChatConfiguration } from '../../common/constants.js';
+import { AGENT_SESSIONS_VIEW_CONTAINER_ID, AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { findExistingChatEditorByUri } from '../chatSessions/common.js';
@@ -191,13 +192,13 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 		} else {
 			const options: IChatEditorOptions = {
 				ignoreInView: true,
+				auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
 			};
 			await editorService.openEditor({
 				resource: uri,
 				options,
 			}, AUX_WINDOW_GROUP);
 		}
-
 	}
 }
 
@@ -331,25 +332,25 @@ export class ToggleChatSessionsDescriptionDisplayAction extends Action2 {
  */
 export class ToggleAgentSessionsViewLocationAction extends Action2 {
 
-	static readonly id = 'workbench.action.chatSessions.toggleNewSingleView';
+	static readonly id = 'workbench.action.chatSessions.toggleNewCombinedView';
 
 	constructor() {
 		super({
 			id: ToggleAgentSessionsViewLocationAction.id,
-			title: localize('chatSessions.toggleViewLocation.label', "Enable New Single View"),
+			title: localize('chatSessions.toggleViewLocation.label', "Combined Sessions View"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.AgentSessionsViewLocation}`, 'single-view'),
 			menu: [
 				{
 					id: MenuId.ViewContainerTitle,
-					when: ContextKeyExpr.equals('viewContainer', AGENT_SESSIONS_VIEWLET_ID),
+					when: ContextKeyExpr.equals('viewContainer', LEGACY_AGENT_SESSIONS_VIEW_ID),
 					group: '2_togglenew',
 					order: 1
 				},
 				{
-					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', 'workbench.view.agentSessions'),
+					id: MenuId.ViewContainerTitle,
+					when: ContextKeyExpr.equals('viewContainer', AGENT_SESSIONS_VIEW_CONTAINER_ID),
 					group: '2_togglenew',
 					order: 1
 				}
@@ -367,7 +368,7 @@ export class ToggleAgentSessionsViewLocationAction extends Action2 {
 
 		await configurationService.updateValue(ChatConfiguration.AgentSessionsViewLocation, newValue);
 
-		const viewId = newValue === 'single-view' ? 'workbench.view.agentSessions' : `${AGENT_SESSIONS_VIEWLET_ID}.local`;
+		const viewId = newValue === 'single-view' ? AGENT_SESSIONS_VIEW_ID : `${LEGACY_AGENT_SESSIONS_VIEW_ID}.local`;
 		await viewsService.openView(viewId, true);
 	}
 }
@@ -495,7 +496,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 	},
 	group: '1_config',
 	order: 1,
-	when: ContextKeyExpr.equals('viewContainer', AGENT_SESSIONS_VIEWLET_ID),
+	when: ContextKeyExpr.equals('viewContainer', LEGACY_AGENT_SESSIONS_VIEW_ID),
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
@@ -506,5 +507,5 @@ MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	},
 	group: 'navigation',
 	order: 1,
-	when: ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.local`),
+	when: ContextKeyExpr.equals('view', `${LEGACY_AGENT_SESSIONS_VIEW_ID}.local`),
 });

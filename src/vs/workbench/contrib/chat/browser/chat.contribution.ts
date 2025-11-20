@@ -659,7 +659,7 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.USE_AGENT_MD]: {
 			type: 'boolean',
 			title: nls.localize('chat.useAgentMd.title', "Use AGENTS.MD file",),
-			markdownDescription: nls.localize('chat.useAgentMd.description', "Controls whether instructions from `AGENTS.MD` file found in a workspace roots are added to all chat requests.",),
+			markdownDescription: nls.localize('chat.useAgentMd.description', "Controls whether instructions from `AGENTS.MD` file found in a workspace roots are attached to all chat requests.",),
 			default: true,
 			restricted: true,
 			disallowConfigurationDefault: true,
@@ -668,7 +668,16 @@ configurationRegistry.registerConfiguration({
 		[PromptsConfig.USE_NESTED_AGENT_MD]: {
 			type: 'boolean',
 			title: nls.localize('chat.useNestedAgentMd.title', "Use nested AGENTS.MD files",),
-			markdownDescription: nls.localize('chat.useNestedAgentMd.description', "Controls whether instructions `AGENTS.MD` files found in the workspace are listed in all chat requests.",),
+			markdownDescription: nls.localize('chat.useNestedAgentMd.description', "Controls whether instructions from nested `AGENTS.MD` files found in the workspace are listed in all chat requests. The language model can load these skills on-demand if the `read` tool is available.",),
+			default: false,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
+		[PromptsConfig.USE_CLAUDE_SKILLS]: {
+			type: 'boolean',
+			title: nls.localize('chat.useClaudeSkills.title', "Use Claude skills",),
+			markdownDescription: nls.localize('chat.useClaudeSkills.description', "Controls whether Claude skills found in the workspace and user home directories under `.claude/skills` are listed in all chat requests. The language model can load these skills on-demand if the `read` tool is available.",),
 			default: false,
 			restricted: true,
 			disallowConfigurationDefault: true,
