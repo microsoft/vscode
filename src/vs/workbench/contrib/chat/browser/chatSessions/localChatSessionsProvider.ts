@@ -29,6 +29,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 	readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
 	public get onDidChangeChatSessionItems() { return this._onDidChangeChatSessionItems.event; }
 
+	private readonly _registeredRequestIds = new Set<string>();
+
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
@@ -97,51 +99,46 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 	}
 
 	private registerResponseChangeListener(model: IChatModel): void {
-		// Listen for response changes on all requests
-		const requests = model.getRequests();
-		requests.forEach(request => {
-			if (request.response) {
-				this._register(request.response.onDidChange(() => {
-					this._onDidChangeChatSessionItems.fire();
-				}));
-
-				// Track tool invocation state changes
-				const responseParts = request.response.response.value;
-				responseParts.forEach(part => {
-					if (part.kind === 'toolInvocation') {
-						const toolInvocation = part as IChatToolInvocation;
-						// Use autorun to listen for state changes
-						this._register(autorunSelfDisposable(reader => {
-							toolInvocation.state.read(reader);
-							this._onDidChangeChatSessionItems.fire();
-						}));
-					}
-				});
+		// Helper function to register listeners for a request
+		const registerRequestListeners = (request: any) => {
+			if (!request.response || this._registeredRequestIds.has(request.id)) {
+				return;
 			}
-		});
+
+			this._registeredRequestIds.add(request.id);
+
+			this._register(request.response.onDidChange(() => {
+				this._onDidChangeChatSessionItems.fire();
+			}));
+
+			// Track tool invocation state changes
+			const responseParts = request.response.response.value;
+			responseParts.forEach((part: any) => {
+				if (part.kind === 'toolInvocation') {
+					const toolInvocation = part as IChatToolInvocation;
+					// Use autorun to listen for state changes
+					this._register(autorunSelfDisposable(reader => {
+						const state = toolInvocation.state.read(reader);
+						
+						// Also track progress changes when executing
+						if (state.type === IChatToolInvocation.StateKind.Executing) {
+							state.progress.read(reader);
+						}
+						
+						this._onDidChangeChatSessionItems.fire();
+					}));
+				}
+			});
+		};
+
+		// Listen for response changes on all existing requests
+		const requests = model.getRequests();
+		requests.forEach(registerRequestListeners);
 
 		// Listen for new requests being added
 		this._register(model.onDidChange(() => {
 			const currentRequests = model.getRequests();
-			currentRequests.forEach(request => {
-				if (request.response) {
-					this._register(request.response.onDidChange(() => {
-						this._onDidChangeChatSessionItems.fire();
-					}));
-
-					// Track tool invocation state changes for new requests
-					const responseParts = request.response.response.value;
-					responseParts.forEach(part => {
-						if (part.kind === 'toolInvocation') {
-							const toolInvocation = part as IChatToolInvocation;
-							this._register(autorunSelfDisposable(reader => {
-								toolInvocation.state.read(reader);
-								this._onDidChangeChatSessionItems.fire();
-							}));
-						}
-					});
-				}
-			});
+			currentRequests.forEach(registerRequestListeners);
 		}));
 	}
 
