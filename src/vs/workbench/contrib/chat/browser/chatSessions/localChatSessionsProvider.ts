@@ -5,13 +5,13 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { autorunSelfDisposable, IObservable } from '../../../../../base/common/observable.js';
+import * as nls from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { IChatModel } from '../../common/chatModel.js';
+import { IChatModel, IChatProgressResponseContent, IChatRequestModel } from '../../common/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -100,7 +100,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 
 	private registerResponseChangeListener(model: IChatModel): void {
 		// Helper function to register listeners for a request
-		const registerRequestListeners = (request: any) => {
+		const registerRequestListeners = (request: IChatRequestModel, index: number, array: IChatRequestModel[]) => {
 			if (!request.response || this._registeredRequestIds.has(request.id)) {
 				return;
 			}
@@ -113,18 +113,18 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 
 			// Track tool invocation state changes
 			const responseParts = request.response.response.value;
-			responseParts.forEach((part: any) => {
+			responseParts.forEach((part: IChatProgressResponseContent) => {
 				if (part.kind === 'toolInvocation') {
 					const toolInvocation = part as IChatToolInvocation;
 					// Use autorun to listen for state changes
 					this._register(autorunSelfDisposable(reader => {
 						const state = toolInvocation.state.read(reader);
-						
+
 						// Also track progress changes when executing
 						if (state.type === IChatToolInvocation.StateKind.Executing) {
 							state.progress.read(reader);
 						}
-						
+
 						this._onDidChangeChatSessionItems.fire();
 					}));
 				}
@@ -254,11 +254,21 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				modifiedFiles.add(edit.modifiedURI);
 			});
 		}
+		if (modifiedFiles.size === 0) {
+			return;
+		}
 		return {
 			files: modifiedFiles.size,
 			insertions: linesAdded,
 			deletions: linesRemoved,
 		};
+	}
+
+	private extractFileNameFromLink(filePath: string): string {
+		return filePath.replace(/\[.*?\]\(file:\/\/\/([^)]+)\)/g, (match, filePath) => {
+			const fileName = filePath.split('/').pop() || filePath;
+			return fileName;
+		});
 	}
 
 	private getSessionDescription(chatModel: IChatModel): string | undefined {
@@ -276,68 +286,37 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 
 		// If the response is complete, don't show a description
 		if (response.isComplete) {
-			return undefined;
+			return nls.localize('chat.sessions.description.finished', "Finished");
 		}
 
 		// Get the response parts to find tool invocations and progress messages
 		const responseParts = response.response.value;
-		const descriptions: string[] = [];
+		let description: string = '';
 
-		// Find the currently executing or most recent tool invocation
-		let currentTool: IChatToolInvocation | undefined;
 		for (let i = responseParts.length - 1; i >= 0; i--) {
 			const part = responseParts[i];
-			if (part.kind === 'toolInvocation') {
+			if (!description && part.kind === 'toolInvocation' && part.state.get().type !== IChatToolInvocation.StateKind.Completed) {
 				const toolInvocation = part as IChatToolInvocation;
-				const state = toolInvocation.state.get();
-				
-				// Check if this tool is currently executing
-				if (state.type === IChatToolInvocation.StateKind.Executing) {
-					currentTool = toolInvocation;
-					break;
-				}
-				
-				// Check if waiting for confirmation
-				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-					currentTool = toolInvocation;
-					break;
-				}
-				
-				// Check if waiting for post approval
-				if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-					currentTool = toolInvocation;
-					break;
-				}
-			}
-		}
-
-		// Build description from current tool
-		if (currentTool) {
-			const state = currentTool.state.get();
-			const toolName = currentTool.presentation?.tool?.displayName || currentTool.toolId;
-			
-			if (state.type === IChatToolInvocation.StateKind.Executing) {
-				const progressInfo = state.progress.get();
-				if (progressInfo.message) {
-					const messageStr = typeof progressInfo.message === 'string' 
-						? progressInfo.message 
-						: progressInfo.message.value;
-					descriptions.push(`${toolName}: ${messageStr}`);
-				} else if (progressInfo.progress !== undefined) {
-					descriptions.push(`${toolName}: ${Math.round(progressInfo.progress * 100)}%`);
+				const pastTenseMessage = toolInvocation.pastTenseMessage;
+				const invocationMessage = toolInvocation.invocationMessage;
+				if (pastTenseMessage) {
+					description = typeof pastTenseMessage === 'string' ? pastTenseMessage : pastTenseMessage.value;
 				} else {
-					descriptions.push(`Executing: ${toolName}`);
+					description = typeof invocationMessage === 'string' ? invocationMessage : invocationMessage.value;
 				}
-			} else if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-				descriptions.push(`Waiting for confirmation: ${toolName}`);
-			} else if (state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-				descriptions.push(`Waiting for approval: ${toolName}`);
+
+				if (description) {
+					description = this.extractFileNameFromLink(description);
+				}
+				if (toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+					const message = toolInvocation.confirmationMessages?.title && (typeof toolInvocation.confirmationMessages.title === 'string'
+						? toolInvocation.confirmationMessages.title
+						: toolInvocation.confirmationMessages.title.value);
+					description = message ?? `${nls.localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation:")} ${description}`;
+				}
 			}
-		} else if (chatModel.requestInProgress.get()) {
-			// If we're in progress but no active tool, show a generic message
-			descriptions.push('Thinking...');
 		}
 
-		return descriptions.length > 0 ? descriptions.join(' • ') : undefined;
+		return description || nls.localize('chat.sessions.description.working', "Working...");
 	}
 }
