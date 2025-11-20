@@ -89,7 +89,7 @@ export class EditTool implements IToolImpl {
 			location: 'tool',
 			chatRequestId: invocation.chatRequestId,
 			chatRequestModel: invocation.modelId,
-			chatSessionResource: LocalChatSessionUri.forSession(invocation.context.sessionId),
+			chatSessionResource: invocation.context.sessionResource,
 		}, {
 			textEdit: (target, edits) => {
 				model.acceptResponseProgress(request, { kind: 'textEdit', uri: target, edits });
