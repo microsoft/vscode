@@ -316,14 +316,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		}
 		return false;
 	}
-
-	override dispose(): void {
-		super.dispose();
-
-		if (this._sessionResource) {
-			// this.chatService.clearSession(this._sessionResource);
-		}
-	}
 }
 
 export class ChatEditorModel extends Disposable {

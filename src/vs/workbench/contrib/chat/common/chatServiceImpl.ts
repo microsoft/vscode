@@ -641,11 +641,7 @@ export class ChatService extends Disposable implements IChatService {
 		return undefined;
 	}
 
-	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModelReference | undefined {
-		if (URI.isUri(data)) {
-			throw new Error('Loading session from URI is not supported');
-		}
-
+	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModelReference | undefined {
 		const sessionId = 'sessionId' in data && data.sessionId ? data.sessionId : generateUuid();
 		const sessionResource = LocalChatSessionUri.forSession(sessionId);
 		return this._sessionModels.acquireOrCreate({

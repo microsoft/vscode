@@ -251,10 +251,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async clear(): Promise<void> {
-		if (this.widget.viewModel) {
-			// await this.chatService.clearSession(this.widget.viewModel.sessionResource);
-		}
-
 		// Grab the widget's latest view state because it will be loaded back into the widget
 		this.updateViewState();
 		await this.updateModel(undefined);
@@ -264,10 +260,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	async loadSession(sessionId: URI, viewState?: IChatViewState): Promise<void> {
-		if (this.widget.viewModel) {
-			// await this.chatService.clearSession(this.widget.viewModel.sessionResource);
-		}
-
 		// Handle locking for contributed chat sessions
 		// TODO: Is this logic still correct with sessions from different schemes?
 		const local = LocalChatSessionUri.parseLocalSessionId(sessionId);
