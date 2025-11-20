@@ -57,6 +57,7 @@ import { ChatConfiguration } from '../../../../chat/common/constants.js';
 // #region Tool data
 
 const TOOL_REFERENCE_NAME = 'runInTerminal';
+const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 
 function createPowerShellModelDescription(shell: string): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
@@ -194,7 +195,7 @@ export async function createRunInTerminalToolData(
 	return {
 		id: 'run_in_terminal',
 		toolReferenceName: TOOL_REFERENCE_NAME,
-		legacyToolReferenceFullNames: ['runCommands/runInTerminal'],
+		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
 		modelDescription,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
@@ -405,10 +406,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// commands that would be auto approved if it were enabled.
 		const commandLine = rewrittenCommand ?? args.command;
 
-		const isEligibleForAutoApproval = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval)?.[TOOL_REFERENCE_NAME] ?? true;
+		const isEligibleForAutoApproval = () => {
+			const config = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
+			if (config && typeof config === 'object') {
+				if (Object.prototype.hasOwnProperty.call(config, TOOL_REFERENCE_NAME)) {
+					return config[TOOL_REFERENCE_NAME];
+				}
+				for (const legacyName of LEGACY_TOOL_REFERENCE_FULL_NAMES) {
+					if (Object.prototype.hasOwnProperty.call(config, legacyName)) {
+						return config[legacyName];
+					}
+				}
+			}
+			// Default
+			return true;
+		};
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		const isAutoApproveAllowed = isEligibleForAutoApproval && isAutoApproveEnabled && isAutoApproveWarningAccepted;
+		const isAutoApproveAllowed = isEligibleForAutoApproval() && isAutoApproveEnabled && isAutoApproveWarningAccepted;
 
 		const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
 			commandLine,
@@ -428,7 +443,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const analyzersIsAutoApproveAllowed = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
-		const customActions = isEligibleForAutoApproval && analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
+		const customActions = isEligibleForAutoApproval() && analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
 
 		let shellType = basename(shell, '.exe');
 		if (shellType === 'powershell') {
