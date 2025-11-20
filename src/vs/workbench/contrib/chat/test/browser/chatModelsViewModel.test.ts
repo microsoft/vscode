@@ -427,7 +427,8 @@ suite('ChatModelsViewModel', () => {
 	});
 
 	test('should toggle vendor collapsed state', () => {
-		viewModel.toggleVendorCollapsed('copilot');
+		const vendorEntry = viewModel.viewModelEntries.find(r => isVendorEntry(r) && r.vendorEntry.vendor === 'copilot') as IVendorItemEntry;
+		viewModel.toggleVendorCollapsed(vendorEntry);
 
 		const results = viewModel.filter('');
 		const copilotVendor = results.find(r => isVendorEntry(r) && (r as IVendorItemEntry).vendorEntry.vendor === 'copilot') as IVendorItemEntry;
@@ -442,7 +443,7 @@ suite('ChatModelsViewModel', () => {
 		assert.strictEqual(copilotModelsAfterCollapse.length, 0);
 
 		// Toggle back
-		viewModel.toggleVendorCollapsed('copilot');
+		viewModel.toggleVendorCollapsed(vendorEntry);
 		const resultsAfterExpand = viewModel.filter('');
 		const copilotModelsAfterExpand = resultsAfterExpand.filter(r =>
 			!isVendorEntry(r) && (r as IModelItemEntry).modelEntry.vendor === 'copilot'
@@ -615,7 +616,8 @@ suite('ChatModelsViewModel', () => {
 		await singleVendorViewModel.resolve();
 
 		// Try to collapse the single vendor
-		singleVendorViewModel.toggleVendorCollapsed('copilot');
+		const vendorEntry = viewModel.viewModelEntries.find(r => isVendorEntry(r) && r.vendorEntry.vendor === 'copilot') as IVendorItemEntry;
+		singleVendorViewModel.toggleVendorCollapsed(vendorEntry);
 
 		const results = singleVendorViewModel.filter('');
 
