@@ -192,13 +192,13 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 		} else {
 			const options: IChatEditorOptions = {
 				ignoreInView: true,
+				auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
 			};
 			await editorService.openEditor({
 				resource: uri,
 				options,
 			}, AUX_WINDOW_GROUP);
 		}
-
 	}
 }
 
