@@ -20,7 +20,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IEditorPane } from '../../../common/editor.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from './chatAgents.js';
-import { ChatModel, IChatResponseModel } from './chatModel.js';
+import { ChatModel, IChatRequestDisablement, IChatResponseModel } from './chatModel.js';
 import { IChatProgress } from './chatService.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
@@ -117,6 +117,9 @@ export interface IChatEditingSession extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
+	/** Requests disabled by undo/redo in the session */
+	readonly requestDisablement: IObservable<IChatRequestDisablement[]>;
+
 	show(previousChanges?: boolean): Promise<void>;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;

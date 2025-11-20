@@ -85,6 +85,7 @@ import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponse
 import { TestWorkerService } from './testWorkerService.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatWidgetService } from '../../../chat/browser/chatWidgetService.js';
+import { ChatContextService, IChatContextService } from '../../../chat/browser/chatContextService.js';
 
 suite('InlineChatController', function () {
 
@@ -255,6 +256,8 @@ suite('InlineChatController', function () {
 		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));
 		model.setEOL(EndOfLineSequence.LF);
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
+
+		instaService.set(IChatContextService, store.add(instaService.createInstance(ChatContextService)));
 
 		store.add(chatAgentService.registerDynamicAgent({ id: 'testEditorAgent', ...agentData, }, {
 			async invoke(request, progress, history, token) {
@@ -919,7 +922,7 @@ suite('InlineChatController', function () {
 
 		await (await chatService.sendRequest(newSession.chatModel.sessionResource, 'Existing', { location: ChatAgentLocation.EditorInline }))?.responseCreatedPromise;
 
-		assert.strictEqual(newSession.chatModel.requestInProgress, true);
+		assert.strictEqual(newSession.chatModel.requestInProgress.get(), true);
 
 		const response = newSession.chatModel.lastRequest?.response;
 		assertType(response);

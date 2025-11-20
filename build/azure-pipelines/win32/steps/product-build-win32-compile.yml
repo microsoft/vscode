@@ -23,9 +23,6 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
 
-  - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-    - template: ../../common/bump-insiders-version.yml@self
-
   - task: UsePythonVersion@0
     inputs:
       versionSpec: "3.x"
