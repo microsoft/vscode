@@ -54,7 +54,8 @@ export class ChatContextService extends Disposable {
 		if (!providerEntry || !providerEntry.picker || !providerEntry.chatContextProvider) {
 			return;
 		}
-		this._registeredPickers.set(id, this._contextPickService.registerChatContextItem(this._asPicker(providerEntry.picker.title, providerEntry.picker.icon, id)));
+		const title = `${providerEntry.picker.title.replace(/\.+$/, '')}...`;
+		this._registeredPickers.set(id, this._contextPickService.registerChatContextItem(this._asPicker(title, providerEntry.picker.icon, id)));
 	}
 
 	registerChatContextProvider(id: string, selector: LanguageSelector | undefined, provider: IChatContextProvider): void {
