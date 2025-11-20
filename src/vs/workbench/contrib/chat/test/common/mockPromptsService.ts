@@ -53,6 +53,7 @@ export class MockPromptsService implements IPromptsService {
 	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined { throw new Error('Not implemented'); }
 	getDisabledPromptFiles(type: PromptsType): ResourceSet { throw new Error('Method not implemented.'); }
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void { throw new Error('Method not implemented.'); }
+	registerCustomAgentsProvider(extension: IExtensionDescription, provider: { provideCustomAgents: (repoOwner: string, repoName: string, options: unknown | undefined, token: CancellationToken) => Promise<unknown[] | undefined> }): IDisposable { throw new Error('Method not implemented.'); }
 	findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined> { throw new Error('Method not implemented.'); }
 	dispose(): void { }
 }

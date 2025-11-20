@@ -26,6 +26,7 @@ import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIde
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
+import { IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatModel } from '../../contrib/chat/common/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
@@ -96,6 +97,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _chatRelatedFilesProviders = this._register(new DisposableMap<number, IDisposable>());
 
+	private readonly _customAgentsProviders = this._register(new DisposableMap<number, IDisposable>());
+
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
@@ -115,6 +118,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@ILogService private readonly _logService: ILogService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IPromptsService private readonly _promptsService: IPromptsService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
@@ -426,6 +430,31 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	$unregisterRelatedFilesProvider(handle: number): void {
 		this._chatRelatedFilesProviders.deleteAndDispose(handle);
+	}
+
+	async $registerCustomAgentsProvider(handle: number, extension: ExtensionIdentifier): Promise<void> {
+		// Get the extension description for security check
+		const extensionDescription = await this._extensionService.getExtension(extension.value);
+		if (!extensionDescription) {
+			this._logService.error(`[MainThreadChatAgents2] Could not find extension for CustomAgentsProvider: ${extension.value}`);
+			return;
+		}
+
+		// Register the provider with the prompts service, passing the provider implementation
+		// that bridges to the extension host
+		const disposable = this._promptsService.registerCustomAgentsProvider(extensionDescription, {
+			provideCustomAgents: async (repoOwner: string, repoName: string, options: unknown, token: CancellationToken) => {
+				const result = await this._proxy.$provideCustomAgents(handle, repoOwner, repoName, options, token);
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				return (result ?? []) as any[];
+			}
+		});
+
+		this._customAgentsProviders.set(handle, disposable);
+	}
+
+	$unregisterCustomAgentsProvider(handle: number): void {
+		this._customAgentsProviders.deleteAndDispose(handle);
 	}
 }
 

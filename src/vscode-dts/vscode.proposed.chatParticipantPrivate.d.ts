@@ -309,4 +309,134 @@ declare module 'vscode' {
 	}
 
 	// #endregion
+
+	// #region CustomAgentsProvider
+
+	/**
+	 * Represents a custom agent available for a repository.
+	 */
+	export interface CustomAgent {
+		/**
+		 * The unique identifier/name of the custom agent.
+		 */
+		readonly name: string;
+
+		/**
+		 * The display name of the custom agent shown in the UI.
+		 */
+		readonly displayName: string;
+
+		/**
+		 * A description of what the custom agent does.
+		 */
+		readonly description: string;
+
+		/**
+		 * The repository owner where this agent is defined.
+		 */
+		readonly repoOwner: string;
+
+		/**
+		 * The repository name where this agent is defined.
+		 */
+		readonly repoName: string;
+
+		/**
+		 * The version/commit SHA of the agent configuration.
+		 */
+		readonly version: string;
+
+		/**
+		 * The tools enabled for this agent. ['*'] means all tools are enabled.
+		 */
+		readonly tools: readonly string[];
+
+		/**
+		 * Optional hint text for the agent's argument.
+		 */
+		readonly argumentHint?: string;
+
+		/**
+		 * Optional metadata key-value pairs.
+		 */
+		readonly metadata?: Readonly<Record<string, string>>;
+
+		/**
+		 * Optional target environment (e.g., 'vscode', 'github-copilot').
+		 */
+		readonly target?: string;
+
+		/**
+		 * Optional configuration error if the agent config is invalid.
+		 */
+		readonly configError?: string;
+	}
+
+	/**
+	 * Target environment for custom agents.
+	 */
+	export enum CustomAgentTarget {
+		GitHubCopilot = 'github-copilot',
+		VSCode = 'vscode',
+	}
+
+	/**
+	 * Source of custom agents.
+	 */
+	export enum CustomAgentSource {
+		Repo = 'repo',
+		Org = 'org',
+		Enterprise = 'enterprise',
+	}
+
+	/**
+	 * Options for querying custom agents.
+	 */
+	export interface CustomAgentQueryOptions {
+		/**
+		 * Filter agents by target environment.
+		 */
+		readonly target?: CustomAgentTarget;
+
+		/**
+		 * If true, exclude agents with invalid configuration.
+		 */
+		readonly excludeInvalidConfig?: boolean;
+
+		/**
+		 * If true, deduplicate agents with the same name (prefer closest source).
+		 */
+		readonly dedupe?: boolean;
+
+		/**
+		 * Specify which sources to include.
+		 */
+		readonly includeSources?: ReadonlyArray<CustomAgentSource>;
+	}
+
+	/**
+	 * A provider that supplies custom agents for repositories.
+	 */
+	export interface CustomAgentsProvider {
+		/**
+		 * Provide the list of custom agents available for a given repository.
+		 * @param repoOwner The repository owner.
+		 * @param repoName The repository name.
+		 * @param options Optional query parameters.
+		 * @param token A cancellation token.
+		 * @returns An array of custom agents or a promise that resolves to such.
+		 */
+		provideCustomAgents(repoOwner: string, repoName: string, options: CustomAgentQueryOptions | undefined, token: CancellationToken): ProviderResult<CustomAgent[]>;
+	}
+
+	export namespace chat {
+		/**
+		 * Register a provider for custom agents.
+		 * @param provider The custom agents provider.
+		 * @returns A disposable that unregisters the provider when disposed.
+		 */
+		export function registerCustomAgentsProvider(provider: CustomAgentsProvider): Disposable;
+	}
+
+	// #endregion
 }

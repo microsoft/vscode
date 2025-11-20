@@ -271,6 +271,17 @@ export interface IPromptsService extends IDisposable {
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
 
 	/**
+	 * Registers a CustomAgentsProvider that can provide custom agents for repositories.
+	 * This is part of the proposed API and requires the chatParticipantPrivate proposal.
+	 * @param extension The extension registering the provider.
+	 * @param provider The provider implementation.
+	 * @returns A disposable that unregisters the provider when disposed.
+	 */
+	registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
+		provideCustomAgents: (repoOwner: string, repoName: string, options: unknown | undefined, token: CancellationToken) => Promise<unknown[] | undefined>;
+	}): IDisposable;
+
+	/**
 	 * Gets list of claude skills files.
 	 */
 	findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined>;

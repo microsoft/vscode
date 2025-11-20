@@ -394,6 +394,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private static _relatedFilesProviderIdPool = 0;
 	private readonly _relatedFilesProviders = new Map<number, ExtHostRelatedFilesProvider>();
 
+	private static _customAgentsProviderIdPool = 0;
+	private readonly _customAgentsProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.CustomAgentsProvider }>();
+
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
 
@@ -471,6 +474,16 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		});
 	}
 
+	registerCustomAgentsProvider(extension: IExtensionDescription, provider: vscode.CustomAgentsProvider): vscode.Disposable {
+		const handle = ExtHostChatAgents2._customAgentsProviderIdPool++;
+		this._customAgentsProviders.set(handle, { extension, provider });
+		this._proxy.$registerCustomAgentsProvider(handle, extension.identifier);
+		return toDisposable(() => {
+			this._customAgentsProviders.delete(handle);
+			this._proxy.$unregisterCustomAgentsProvider(handle);
+		});
+	}
+
 	async $provideRelatedFiles(handle: number, request: IChatRequestDraft, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined> {
 		const provider = this._relatedFilesProviders.get(handle);
 		if (!provider) {
@@ -479,6 +492,15 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		const extRequestDraft = typeConvert.ChatRequestDraft.to(request);
 		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
+	}
+
+	async $provideCustomAgents(handle: number, repoOwner: string, repoName: string, options: unknown, token: CancellationToken): Promise<unknown[] | undefined> {
+		const providerData = this._customAgentsProviders.get(handle);
+		if (!providerData) {
+			return Promise.resolve([]);
+		}
+
+		return await providerData.provider.provideCustomAgents(repoOwner, repoName, options as vscode.CustomAgentQueryOptions | undefined, token) ?? undefined;
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {
