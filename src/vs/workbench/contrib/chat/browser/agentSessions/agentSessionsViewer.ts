@@ -230,7 +230,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	private renderStatus(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, template: IAgentSessionItemTemplate): void {
-		const getStatus = (session: IAgentSessionViewModel) => `${session.providerLabel} • ${fromNow(session.timing.startTime)}`;
+		const getStatus = (session: IAgentSessionViewModel) => `${session.providerLabel} • ${fromNow(session.timing.endTime || session.timing.startTime)}`;
 
 		template.status.textContent = getStatus(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
@@ -346,8 +346,8 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSessionViewModel> 
 			return 1; // a (finished) comes after b (in-progress)
 		}
 
-		// Both in-progress or finished: sort by start time (most recent first)
-		return sessionB.timing.startTime - sessionA.timing.startTime;
+		// Both in-progress or finished: sort by end or start time (most recent first)
+		return (sessionB.timing.endTime || sessionB.timing.startTime) - (sessionA.timing.endTime || sessionA.timing.startTime);
 	}
 }
 

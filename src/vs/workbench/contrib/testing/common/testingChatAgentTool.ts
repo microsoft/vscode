@@ -53,6 +53,7 @@ export class TestingChatAgentToolContribution extends Disposable implements IWor
 		super();
 		const runTestsTool = instantiationService.createInstance(RunTestTool);
 		this._register(toolsService.registerTool(RunTestTool.DEFINITION, runTestsTool));
+		this._register(toolsService.launchToolSet.addTool(RunTestTool.DEFINITION));
 
 		// todo@connor4312: temporary for 1.103 release during changeover
 		contextKeyService.createKey('chat.coreTestFailureToolEnabled', true).set(true);
@@ -74,6 +75,7 @@ class RunTestTool implements IToolImpl {
 	public static readonly DEFINITION: IToolData = {
 		id: this.ID,
 		toolReferenceName: 'runTests',
+		legacyToolReferenceFullNames: ['runTests'],
 		canBeReferencedInPrompt: true,
 		when: TestingContextKeys.hasRunnableTests,
 		displayName: 'Run tests',
@@ -104,7 +106,7 @@ class RunTestTool implements IToolImpl {
 				}
 			},
 		},
-		userDescription: localize('runTestTool.userDescription', 'Runs unit tests (optionally with coverage)'),
+		userDescription: localize('runTestTool.userDescription', 'Run unit tests (optionally with coverage)'),
 		source: ToolDataSource.Internal,
 		tags: [
 			'vscode_editing_with_tests',

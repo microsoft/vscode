@@ -268,10 +268,10 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 			// For local session only, if we find no existing session, create a new one
 			if (!this.model && LocalChatSessionUri.parseLocalSessionId(this._sessionResource)) {
-				this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: true });
+				this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, { canUseTools: true });
 			}
 		} else if (!this.options.target) {
-			this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, { canUseTools: !inputType });
+			this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, { canUseTools: !inputType });
 		} else if (this.options.target.data) {
 			this.modelRef.value = this.chatService.loadSessionFromContent(this.options.target.data);
 		}

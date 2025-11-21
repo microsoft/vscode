@@ -1216,8 +1216,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		const currentOptionId = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroupId);
-		return optionGroup.items.find(m => m.id === currentOptionId);
+		const currentOptionValue = this.chatSessionsService.getSessionOption(ctx.chatSessionResource, optionGroupId);
+		if (!currentOptionValue) {
+			return;
+		}
+
+		if (typeof currentOptionValue === 'string') {
+			return optionGroup.items.find(m => m.id === currentOptionValue);
+		} else {
+			return currentOptionValue as IChatSessionProviderOptionItem;
+		}
+
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
