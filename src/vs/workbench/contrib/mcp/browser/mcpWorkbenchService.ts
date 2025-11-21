@@ -742,6 +742,14 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return enablementStatus;
 		}
 
+		// Don't mark registry/gallery servers as disabled during startup when collections haven't been loaded yet.
+		// Gallery servers are managed by the InstalledMcpServersDiscovery system which registers them as
+		// collections after they're enabled. Checking mcpService.servers before collections are registered
+		// creates a circular dependency that prevents registry servers from being enabled on restart.
+		if (mcpServer.gallery) {
+			return undefined;
+		}
+
 		if (!this.mcpService.servers.get().find(s => s.definition.id === mcpServer.id)) {
 			return { state: McpServerEnablementState.Disabled };
 		}
@@ -769,7 +777,12 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 
 		if (accessValue === McpAccessValue.Registry) {
-			if (!mcpServer.gallery) {
+			// During startup, gallery info might not be loaded yet for registry servers.
+			// Check if this server was installed from the gallery by looking at local.galleryUrl.
+			// If the server has a galleryUrl, it came from the registry and should be allowed.
+			const hasGalleryUrl = mcpServer.local?.galleryUrl;
+			if (!mcpServer.gallery && !hasGalleryUrl) {
+				// Only disable if we're certain this is NOT a gallery server
 				return {
 					state: McpServerEnablementState.DisabledByAccess,
 					message: {
@@ -780,7 +793,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			}
 
 			const remoteUrl = mcpServer.local.config.type === McpServerType.REMOTE && mcpServer.local.config.url;
-			if (remoteUrl && !mcpServer.gallery.configuration.remotes?.some(remote => remote.url === remoteUrl)) {
+			if (remoteUrl && mcpServer.gallery && !mcpServer.gallery.configuration.remotes?.some(remote => remote.url === remoteUrl)) {
 				return {
 					state: McpServerEnablementState.DisabledByAccess,
 					message: {
