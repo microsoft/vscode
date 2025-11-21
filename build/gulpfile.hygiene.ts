@@ -11,13 +11,10 @@ import { hygiene } from './hygiene.ts';
 
 const dirName = path.dirname(new URL(import.meta.url).pathname);
 
-/**
- * @param {string} actualPath
- */
-function checkPackageJSON(actualPath) {
+function checkPackageJSON(this: NodeJS.ReadWriteStream, actualPath: string) {
 	const actual = JSON.parse(fs.readFileSync(path.join(dirName, '..', actualPath), 'utf8'));
 	const rootPackageJSON = JSON.parse(fs.readFileSync(path.join(dirName, '..', 'package.json'), 'utf8'));
-	const checkIncluded = (set1, set2) => {
+	const checkIncluded = (set1: Record<string, string>, set2: Record<string, string>) => {
 		for (const depName in set1) {
 			const depVersion = set1[depName];
 			const rootDepVersion = set2[depName];

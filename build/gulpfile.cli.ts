@@ -12,12 +12,11 @@ import * as cp from 'child_process';
 import { tmpdir } from 'os';
 import { existsSync, mkdirSync, rmSync } from 'fs';
 import * as task from './lib/task.ts';
-import * as watcher from './lib/watch/index.ts';
+import watcher from './lib/watch/index.ts';
 import * as utilModule from './lib/util.ts';
 import * as reporterModule from './lib/reporter.ts';
 import untar from 'gulp-untar';
 import gunzip from 'gulp-gunzip';
-import { fileURLToPath } from 'url';
 
 const { debounce } = utilModule;
 const { createReporter } = reporterModule;
@@ -43,8 +42,7 @@ const platformOpensslDirName =
 const platformOpensslDir = path.join(rootAbs, 'openssl', 'package', 'out', platformOpensslDirName);
 
 const hasLocalRust = (() => {
-	/** @type boolean | undefined */
-	let result = undefined;
+	let result: boolean | undefined = undefined;
 	return () => {
 		if (result !== undefined) {
 			return result;
@@ -61,15 +59,14 @@ const hasLocalRust = (() => {
 	};
 })();
 
-const compileFromSources = (callback) => {
+const compileFromSources = (callback: (err?: string) => void) => {
 	const proc = cp.spawn('cargo', ['--color', 'always', 'build'], {
 		cwd: root,
 		stdio: ['ignore', 'pipe', 'pipe'],
 		env: existsSync(platformOpensslDir) ? { OPENSSL_DIR: platformOpensslDir, ...process.env } : process.env
 	});
 
-	/** @type Buffer[] */
-	const stdoutErr = [];
+	const stdoutErr: Buffer[] = [];
 	proc.stdout.on('data', d => stdoutErr.push(d));
 	proc.stderr.on('data', d => stdoutErr.push(d));
 	proc.on('error', callback);
@@ -82,7 +79,7 @@ const compileFromSources = (callback) => {
 	});
 };
 
-const acquireBuiltOpenSSL = (callback) => {
+const acquireBuiltOpenSSL = (callback: (err?: unknown) => void) => {
 	const dir = path.join(tmpdir(), 'vscode-openssl-download');
 	mkdirSync(dir, { recursive: true });
 
@@ -103,29 +100,28 @@ const acquireBuiltOpenSSL = (callback) => {
 		});
 };
 
-const compileWithOpenSSLCheck = (/** @type import('./lib/reporter').IReporter */ reporter) => es.map((_, callback) => {
+const compileWithOpenSSLCheck = (reporter: import('./lib/reporter.ts').IReporter) => es.map((_, callback) => {
 	compileFromSources(err => {
 		if (!err) {
-			// no-op
+			callback();
 		} else if (err.toString().includes('Could not find directory of OpenSSL installation') && !existsSync(platformOpensslDir)) {
 			fancyLog(ansiColors.yellow(`[cli]`), 'OpenSSL libraries not found, acquiring prebuilt bits...');
 			acquireBuiltOpenSSL(err => {
 				if (err) {
-					callback(err);
+					callback(err as Error);
 				} else {
 					compileFromSources(err => {
 						if (err) {
 							reporter(err.toString());
 						}
-						callback(null, '');
+						callback();
 					});
 				}
 			});
 		} else {
 			reporter(err.toString());
+			callback();
 		}
-
-		callback(null, '');
 	});
 });
 
@@ -147,8 +143,14 @@ const compileCliTask = task.define('compile-cli', () => {
 
 const watchCliTask = task.define('watch-cli', () => {
 	warnIfRustNotInstalled();
+	const compile = () => {
+		const reporter = createReporter('cli');
+		return gulp.src(`${root}/Cargo.toml`)
+			.pipe(compileWithOpenSSLCheck(reporter))
+			.pipe(reporter.end(true));
+	};
 	return watcher(`${src}/**`, { read: false })
-		.pipe(debounce(compileCliTask));
+		.pipe(debounce(compile));
 });
 
 gulp.task(compileCliTask);
