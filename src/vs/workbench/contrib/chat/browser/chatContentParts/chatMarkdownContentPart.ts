@@ -251,7 +251,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 
 						const ownerMarkdownPartId = this.codeblocksPartId;
-						const info = new class implements IMarkdownPartCodeBlockInfo {
+						const info: IMarkdownPartCodeBlockInfo = new class implements IMarkdownPartCodeBlockInfo {
 							readonly ownerMarkdownPartId = ownerMarkdownPartId;
 							readonly codeBlockIndex = globalIndex;
 							readonly elementId = element.id;
@@ -286,7 +286,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						}
 						this.allRefs.push(ref);
 						const ownerMarkdownPartId = this.codeblocksPartId;
-						const info = new class implements IMarkdownPartCodeBlockInfo {
+						const info: IMarkdownPartCodeBlockInfo = new class implements IMarkdownPartCodeBlockInfo {
 							readonly ownerMarkdownPartId = ownerMarkdownPartId;
 							readonly codeBlockIndex = globalIndex;
 							readonly elementId = element.id;
