@@ -639,4 +639,6 @@ export const codiconsLibrary = {
 	searchLarge: register('search-large', 0xec70),
 	terminalGitBash: register('terminal-git-bash', 0xec71),
 	windowActive: register('window-active', 0xec72),
+	forward: register('forward', 0xec73),
+	download: register('download', 0xec74),
 } as const;

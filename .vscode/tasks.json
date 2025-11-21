@@ -283,7 +283,7 @@
 			"type": "shell",
 			"command": "npm run dev",
 			"options": {
-				"cwd": "./build/monaco-editor-playground/"
+				"cwd": "./build/vite/"
 			},
 			"isBackground": true,
 			"problemMatcher": {

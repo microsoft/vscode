@@ -27,6 +27,7 @@
 	"exclude": [
 		"node_modules/**",
 		"monaco-editor-playground/**",
-		"builtin/**"
+		"builtin/**",
+		"vite/**"
 	]
 }

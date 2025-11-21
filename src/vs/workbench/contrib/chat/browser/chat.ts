@@ -13,11 +13,9 @@ import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js'
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { GroupIdentifier } from '../../../common/editor.js';
-import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-import { ACTIVE_GROUP_TYPE, AUX_WINDOW_GROUP_TYPE, SIDE_GROUP_TYPE } from '../../../services/editor/common/editorService.js';
+import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
-import { IChatResponseModel } from '../common/chatModel.js';
+import { IChatResponseModel, IChatModelInputState } from '../common/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
@@ -27,7 +25,7 @@ import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatInputPart } from './chatInputPart.js';
-import { ChatWidget, IChatViewState, IChatWidgetContrib } from './chatWidget.js';
+import { ChatWidget, IChatWidgetContrib } from './chatWidget.js';
 import { ICodeBlockActionContext } from './codeBlockPart.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
@@ -56,8 +54,8 @@ export interface IChatWidgetService {
 	getAllWidgets(): ReadonlyArray<IChatWidget>;
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined;
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
-	openSession(sessionResource: URI, target?: ChatEditorGroupType, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
-	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | ChatEditorGroupType, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
+	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 
 	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
 
@@ -69,7 +67,6 @@ export interface IChatWidgetService {
 	register(newWidget: IChatWidget): IDisposable;
 }
 
-export type ChatEditorGroupType = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE | AUX_WINDOW_GROUP_TYPE;
 export const ChatViewPaneTarget = Symbol('ChatViewPaneTarget');
 
 export const IQuickChatService = createDecorator<IQuickChatService>('quickChatService');
@@ -226,6 +223,7 @@ export interface IChatWidget {
 	readonly input: ChatInputPart;
 	readonly attachmentModel: ChatAttachmentModel;
 	readonly locationData?: IChatLocationData;
+	readonly contribs: readonly IChatWidgetContrib[];
 
 	readonly supportsChangingModes: boolean;
 
@@ -257,7 +255,7 @@ export interface IChatWidget {
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
 	clear(): Promise<void>;
-	getViewState(): IChatViewState;
+	getViewState(): IChatModelInputState | undefined;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;

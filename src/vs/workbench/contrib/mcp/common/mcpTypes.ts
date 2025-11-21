@@ -184,6 +184,7 @@ export namespace McpServerDefinition {
 	export function equals(a: McpServerDefinition, b: McpServerDefinition): boolean {
 		return a.id === b.id
 			&& a.label === b.label
+			&& a.cacheNonce === b.cacheNonce
 			&& arraysEqual(a.roots, b.roots, (a, b) => a.toString() === b.toString())
 			&& objectsEqual(a.launch, b.launch)
 			&& objectsEqual(a.presentation, b.presentation)

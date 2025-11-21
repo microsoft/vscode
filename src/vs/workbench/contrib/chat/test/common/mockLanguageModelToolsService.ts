@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IProgressStep } from '../../../../../platform/progress/common/progress.js';
 import { IVariableReference } from '../../common/chatModes.js';
 import { ChatRequestToolReferenceEntry } from '../../common/chatVariableEntries.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolSet } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
+	vscodeToolSet: ToolSet = new ToolSet('vscode', 'vscode', ThemeIcon.fromId(Codicon.code.id), ToolDataSource.Internal);
+	launchToolSet: ToolSet = new ToolSet('launch', 'launch', ThemeIcon.fromId(Codicon.rocket.id), ToolDataSource.Internal);
 
 	constructor() { }
 
@@ -120,7 +124,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	getDeprecatedQualifiedToolNames(): Map<string, string> {
+	getDeprecatedQualifiedToolNames(): Map<string, Set<string>> {
 		throw new Error('Method not implemented.');
 	}
 

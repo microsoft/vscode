@@ -16,6 +16,7 @@ export const VENDOR_ENTRY_TEMPLATE_ID = 'vendor.entry.template';
 const wordFilter = or(matchesBaseContiguousSubString, matchesWords);
 const CAPABILITY_REGEX = /@capability:\s*([^\s]+)/gi;
 const VISIBLE_REGEX = /@visible:\s*(true|false)/i;
+const PROVIDER_REGEX = /@provider:\s*((".+?")|([^\s]+))/gi;
 
 export const SEARCH_SUGGESTIONS = {
 	FILTER_TYPES: [
@@ -54,6 +55,7 @@ export interface IModelItemEntry {
 	templateId: string;
 	providerMatches?: IMatch[];
 	modelNameMatches?: IMatch[];
+	modelIdMatches?: IMatch[];
 	capabilityMatches?: string[];
 }
 
@@ -69,13 +71,22 @@ export function isVendorEntry(entry: IModelItemEntry | IVendorItemEntry): entry 
 	return entry.type === 'vendor';
 }
 
+export type IViewModelEntry = IModelItemEntry | IVendorItemEntry;
+
+export interface IViewModelChangeEvent {
+	at: number;
+	removed: number;
+	added: IViewModelEntry[];
+}
+
 export class ChatModelsViewModel extends EditorModel {
 
-	private readonly _onDidChangeModelEntries = this._register(new Emitter<void>());
-	readonly onDidChangeModelEntries = this._onDidChangeModelEntries.event;
+	private readonly _onDidChange = this._register(new Emitter<IViewModelChangeEvent>());
+	readonly onDidChange = this._onDidChange.event;
 
 	private modelEntries: IModelEntry[];
 	private readonly collapsedVendors = new Set<string>();
+	private searchValue: string = '';
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -83,100 +94,173 @@ export class ChatModelsViewModel extends EditorModel {
 	) {
 		super();
 		this.modelEntries = [];
-
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(async () => {
-			await this.resolve();
-			this._onDidChangeModelEntries.fire();
-		}));
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.refresh()));
 	}
 
-	fetch(searchValue: string): (IModelItemEntry | IVendorItemEntry)[] {
-		let modelEntries = this.modelEntries;
-		const capabilityMatchesMap = new Map<string, string[]>();
+	private readonly _viewModelEntries: IViewModelEntry[] = [];
+	get viewModelEntries(): readonly IViewModelEntry[] {
+		return this._viewModelEntries;
+	}
+	private splice(at: number, removed: number, added: IViewModelEntry[]): void {
+		this._viewModelEntries.splice(at, removed, ...added);
+		if (this.selectedEntry) {
+			this.selectedEntry = this._viewModelEntries.find(entry => entry.id === this.selectedEntry?.id);
+		}
+		this._onDidChange.fire({ at, removed, added });
+	}
+
+	selectedEntry: IViewModelEntry | undefined;
+
+	filter(searchValue: string): readonly IViewModelEntry[] {
+		this.searchValue = searchValue;
+		const filtered = this.filterModels(this.modelEntries, searchValue);
+		this.splice(0, this._viewModelEntries.length, filtered);
+		return this.viewModelEntries;
+	}
+
+	private filterModels(modelEntries: IModelEntry[], searchValue: string): (IVendorItemEntry | IModelItemEntry)[] {
+		let visible: boolean | undefined;
 
 		const visibleMatches = VISIBLE_REGEX.exec(searchValue);
 		if (visibleMatches && visibleMatches[1]) {
-			const visible = visibleMatches[1].toLowerCase() === 'true';
-			modelEntries = this.filterByVisible(modelEntries, visible);
+			visible = visibleMatches[1].toLowerCase() === 'true';
 			searchValue = searchValue.replace(VISIBLE_REGEX, '');
 		}
 
 		const providerNames: string[] = [];
-		let match: RegExpExecArray | null;
-
-		const providerRegexGlobal = /@provider:\s*((".+?")|([^\s]+))/gi;
-		while ((match = providerRegexGlobal.exec(searchValue)) !== null) {
-			const providerName = match[2] ? match[2].substring(1, match[2].length - 1) : match[3];
+		let providerMatch: RegExpExecArray | null;
+		PROVIDER_REGEX.lastIndex = 0;
+		while ((providerMatch = PROVIDER_REGEX.exec(searchValue)) !== null) {
+			const providerName = providerMatch[2] ? providerMatch[2].substring(1, providerMatch[2].length - 1) : providerMatch[3];
 			providerNames.push(providerName);
 		}
-
-		// Apply provider filter with OR logic if multiple providers
 		if (providerNames.length > 0) {
-			modelEntries = this.filterByProviders(modelEntries, providerNames);
-			searchValue = searchValue.replace(/@provider:\s*((".+?")|([^\s]+))/gi, '').replace(/@vendor:\s*((".+?")|([^\s]+))/gi, '');
+			searchValue = searchValue.replace(PROVIDER_REGEX, '');
 		}
 
-		// Apply capability filters with AND logic if multiple capabilities
-		const capabilityNames: string[] = [];
+		const capabilities: string[] = [];
 		let capabilityMatch: RegExpExecArray | null;
-
+		CAPABILITY_REGEX.lastIndex = 0;
 		while ((capabilityMatch = CAPABILITY_REGEX.exec(searchValue)) !== null) {
-			capabilityNames.push(capabilityMatch[1].toLowerCase());
+			capabilities.push(capabilityMatch[1].toLowerCase());
+		}
+		if (capabilities.length > 0) {
+			searchValue = searchValue.replace(CAPABILITY_REGEX, '');
 		}
 
-		if (capabilityNames.length > 0) {
-			const filteredEntries = this.filterByCapabilities(modelEntries, capabilityNames);
-			modelEntries = [];
-			for (const { entry, matchedCapabilities } of filteredEntries) {
-				modelEntries.push(entry);
-				capabilityMatchesMap.set(ChatModelsViewModel.getId(entry), matchedCapabilities);
-			}
-			searchValue = searchValue.replace(/@capability:\s*([^\s]+)/gi, '');
+		const quoteAtFirstChar = searchValue.charAt(0) === '"';
+		const quoteAtLastChar = searchValue.charAt(searchValue.length - 1) === '"';
+		const completeMatch = quoteAtFirstChar && quoteAtLastChar;
+		if (quoteAtFirstChar) {
+			searchValue = searchValue.substring(1);
 		}
-
+		if (quoteAtLastChar) {
+			searchValue = searchValue.substring(0, searchValue.length - 1);
+		}
 		searchValue = searchValue.trim();
-		if (!searchValue) {
-			return this.toEntries(modelEntries, capabilityMatchesMap);
-		}
 
-		return this.filterByText(modelEntries, searchValue, capabilityMatchesMap);
-	}
+		const isFiltering = searchValue !== '' || capabilities.length > 0 || providerNames.length > 0 || visible !== undefined;
 
-	private filterByProviders(modelEntries: IModelEntry[], providers: string[]): IModelEntry[] {
-		const lowerProviders = providers.map(p => p.toLowerCase().trim());
-		return modelEntries.filter(m =>
-			lowerProviders.some(provider =>
-				m.vendor.toLowerCase() === provider ||
-				m.vendorDisplayName.toLowerCase() === provider
-			)
-		);
-	}
+		const result: (IVendorItemEntry | IModelItemEntry)[] = [];
+		const words = searchValue.split(' ');
+		const allVendors = new Set(this.modelEntries.map(m => m.vendor));
+		const showHeaders = allVendors.size > 1;
+		const addedVendors = new Set<string>();
+		const lowerProviders = providerNames.map(p => p.toLowerCase().trim());
 
-	private filterByVisible(modelEntries: IModelEntry[], visible: boolean): IModelEntry[] {
-		return modelEntries.filter(m => (m.metadata.isUserSelectable ?? false) === visible);
-	}
-
-	private filterByCapabilities(modelEntries: IModelEntry[], capabilities: string[]): { entry: IModelEntry; matchedCapabilities: string[] }[] {
-		const result: { entry: IModelEntry; matchedCapabilities: string[] }[] = [];
-		for (const m of modelEntries) {
-			if (!m.metadata.capabilities) {
+		for (const modelEntry of modelEntries) {
+			if (!isFiltering && showHeaders && this.collapsedVendors.has(modelEntry.vendor)) {
+				if (!addedVendors.has(modelEntry.vendor)) {
+					const vendorInfo = this.languageModelsService.getVendors().find(v => v.vendor === modelEntry.vendor);
+					result.push({
+						type: 'vendor',
+						id: `vendor-${modelEntry.vendor}`,
+						vendorEntry: {
+							vendor: modelEntry.vendor,
+							vendorDisplayName: modelEntry.vendorDisplayName,
+							managementCommand: vendorInfo?.managementCommand
+						},
+						templateId: VENDOR_ENTRY_TEMPLATE_ID,
+						collapsed: true
+					});
+					addedVendors.add(modelEntry.vendor);
+				}
 				continue;
 			}
-			const allMatchedCapabilities: string[] = [];
-			let matchesAll = true;
 
-			for (const capability of capabilities) {
-				const matchedForThisCapability = this.getMatchingCapabilities(m, capability);
-				if (matchedForThisCapability.length === 0) {
-					matchesAll = false;
-					break;
+			if (visible !== undefined) {
+				if ((modelEntry.metadata.isUserSelectable ?? false) !== visible) {
+					continue;
 				}
-				allMatchedCapabilities.push(...matchedForThisCapability);
 			}
 
-			if (matchesAll) {
-				result.push({ entry: m, matchedCapabilities: distinct(allMatchedCapabilities) });
+			if (lowerProviders.length > 0) {
+				const matchesProvider = lowerProviders.some(provider =>
+					modelEntry.vendor.toLowerCase() === provider ||
+					modelEntry.vendorDisplayName.toLowerCase() === provider
+				);
+				if (!matchesProvider) {
+					continue;
+				}
 			}
+
+			// Filter by capabilities
+			let matchedCapabilities: string[] = [];
+			if (capabilities.length > 0) {
+				if (!modelEntry.metadata.capabilities) {
+					continue;
+				}
+				let matchesAll = true;
+				for (const capability of capabilities) {
+					const matchedForThisCapability = this.getMatchingCapabilities(modelEntry, capability);
+					if (matchedForThisCapability.length === 0) {
+						matchesAll = false;
+						break;
+					}
+					matchedCapabilities.push(...matchedForThisCapability);
+				}
+				if (!matchesAll) {
+					continue;
+				}
+				matchedCapabilities = distinct(matchedCapabilities);
+			}
+
+			// Filter by text
+			let modelMatches: ModelItemMatches | undefined;
+			if (searchValue) {
+				modelMatches = new ModelItemMatches(modelEntry, searchValue, words, completeMatch);
+				if (!modelMatches.modelNameMatches && !modelMatches.modelIdMatches && !modelMatches.providerMatches && !modelMatches.capabilityMatches) {
+					continue;
+				}
+			}
+
+			if (showHeaders && !addedVendors.has(modelEntry.vendor)) {
+				const vendorInfo = this.languageModelsService.getVendors().find(v => v.vendor === modelEntry.vendor);
+				result.push({
+					type: 'vendor',
+					id: `vendor-${modelEntry.vendor}`,
+					vendorEntry: {
+						vendor: modelEntry.vendor,
+						vendorDisplayName: modelEntry.vendorDisplayName,
+						managementCommand: vendorInfo?.managementCommand
+					},
+					templateId: VENDOR_ENTRY_TEMPLATE_ID,
+					collapsed: false
+				});
+				addedVendors.add(modelEntry.vendor);
+			}
+
+			const modelId = ChatModelsViewModel.getId(modelEntry);
+			result.push({
+				type: 'model',
+				id: modelId,
+				templateId: MODEL_ENTRY_TEMPLATE_ID,
+				modelEntry,
+				modelNameMatches: modelMatches?.modelNameMatches || undefined,
+				modelIdMatches: modelMatches?.modelIdMatches || undefined,
+				providerMatches: modelMatches?.providerMatches || undefined,
+				capabilityMatches: matchedCapabilities.length ? matchedCapabilities : undefined,
+			});
 		}
 		return result;
 	}
@@ -219,42 +303,6 @@ export class ChatModelsViewModel extends EditorModel {
 		return matchedCapabilities;
 	}
 
-	private filterByText(modelEntries: IModelEntry[], searchValue: string, capabilityMatchesMap: Map<string, string[]>): IModelItemEntry[] {
-		const quoteAtFirstChar = searchValue.charAt(0) === '"';
-		const quoteAtLastChar = searchValue.charAt(searchValue.length - 1) === '"';
-		const completeMatch = quoteAtFirstChar && quoteAtLastChar;
-		if (quoteAtFirstChar) {
-			searchValue = searchValue.substring(1);
-		}
-		if (quoteAtLastChar) {
-			searchValue = searchValue.substring(0, searchValue.length - 1);
-		}
-		searchValue = searchValue.trim();
-
-		const result: IModelItemEntry[] = [];
-		const words = searchValue.split(' ');
-
-		for (const modelEntry of modelEntries) {
-			const modelMatches = new ModelItemMatches(modelEntry, searchValue, words, completeMatch);
-			if (modelMatches.modelNameMatches
-				|| modelMatches.providerMatches
-				|| modelMatches.capabilityMatches
-			) {
-				const modelId = ChatModelsViewModel.getId(modelEntry);
-				result.push({
-					type: 'model',
-					id: modelId,
-					templateId: MODEL_ENTRY_TEMPLATE_ID,
-					modelEntry,
-					modelNameMatches: modelMatches.modelNameMatches || undefined,
-					providerMatches: modelMatches.providerMatches || undefined,
-					capabilityMatches: capabilityMatchesMap.get(modelId),
-				});
-			}
-		}
-		return result;
-	}
-
 	getVendors(): IUserFriendlyLanguageModel[] {
 		return [...this.languageModelsService.getVendors()].sort((a, b) => {
 			if (a.vendor === 'copilot') { return -1; }
@@ -264,8 +312,12 @@ export class ChatModelsViewModel extends EditorModel {
 	}
 
 	override async resolve(): Promise<void> {
-		this.modelEntries = [];
+		await this.refresh();
+		return super.resolve();
+	}
 
+	async refresh(): Promise<void> {
+		this.modelEntries = [];
 		for (const vendor of this.getVendors()) {
 			const modelIdentifiers = await this.languageModelsService.selectLanguageModels({ vendor: vendor.vendor }, vendor.vendor === 'copilot');
 			const models = coalesce(modelIdentifiers.map(identifier => {
@@ -288,72 +340,50 @@ export class ChatModelsViewModel extends EditorModel {
 		}
 
 		this.modelEntries = distinct(this.modelEntries, modelEntry => ChatModelsViewModel.getId(modelEntry));
+		this.filter(this.searchValue);
+	}
 
-		return super.resolve();
+	toggleVisibility(model: IModelItemEntry): void {
+		const isVisible = model.modelEntry.metadata.isUserSelectable ?? false;
+		const newVisibility = !isVisible;
+		this.languageModelsService.updateModelPickerPreference(model.modelEntry.identifier, newVisibility);
+		const metadata = this.languageModelsService.lookupLanguageModel(model.modelEntry.identifier);
+		const index = this.viewModelEntries.indexOf(model);
+		if (metadata) {
+			model.id = ChatModelsViewModel.getId(model.modelEntry);
+			model.modelEntry.metadata = metadata;
+			this.splice(index, 1, [model]);
+		}
 	}
 
 	private static getId(modelEntry: IModelEntry): string {
-		return modelEntry.identifier + modelEntry.vendor + (modelEntry.metadata.version || '');
+		return `${modelEntry.identifier}.${modelEntry.metadata.version}-visible:${modelEntry.metadata.isUserSelectable}`;
 	}
 
-	toggleVendorCollapsed(vendorId: string): void {
-		if (this.collapsedVendors.has(vendorId)) {
-			this.collapsedVendors.delete(vendorId);
+	toggleVendorCollapsed(vendorEntry: IVendorItemEntry): void {
+		this.selectedEntry = vendorEntry;
+		if (this.collapsedVendors.has(vendorEntry.vendorEntry.vendor)) {
+			this.collapsedVendors.delete(vendorEntry.vendorEntry.vendor);
 		} else {
-			this.collapsedVendors.add(vendorId);
+			this.collapsedVendors.add(vendorEntry.vendorEntry.vendor);
 		}
-		this._onDidChangeModelEntries.fire();
+		this.filter(this.searchValue);
 	}
 
-	getConfiguredVendors(): IVendorItemEntry[] {
-		return this.toEntries(this.modelEntries, new Map(), true) as IVendorItemEntry[];
-	}
-
-	private toEntries(modelEntries: IModelEntry[], capabilityMatchesMap: Map<string, string[]>, excludeModels?: boolean): (IVendorItemEntry | IModelItemEntry)[] {
-		const result: (IVendorItemEntry | IModelItemEntry)[] = [];
-		const vendorMap = new Map<string, IModelEntry[]>();
-
-		for (const modelEntry of modelEntries) {
-			const models = vendorMap.get(modelEntry.vendor) || [];
-			models.push(modelEntry);
-			vendorMap.set(modelEntry.vendor, models);
-		}
-
-		const showVendorHeaders = vendorMap.size > 1;
-
-		for (const [vendor, models] of vendorMap) {
-			const firstModel = models[0];
-			const isCollapsed = this.collapsedVendors.has(vendor);
-			const vendorInfo = this.languageModelsService.getVendors().find(v => v.vendor === vendor);
-
-			if (showVendorHeaders) {
+	getConfiguredVendors(): IVendorEntry[] {
+		const result: IVendorEntry[] = [];
+		const seenVendors = new Set<string>();
+		for (const modelEntry of this.modelEntries) {
+			if (!seenVendors.has(modelEntry.vendor)) {
+				seenVendors.add(modelEntry.vendor);
+				const vendorInfo = this.languageModelsService.getVendors().find(v => v.vendor === modelEntry.vendor);
 				result.push({
-					type: 'vendor',
-					id: `vendor-${vendor}`,
-					vendorEntry: {
-						vendor: firstModel.vendor,
-						vendorDisplayName: firstModel.vendorDisplayName,
-						managementCommand: vendorInfo?.managementCommand
-					},
-					templateId: VENDOR_ENTRY_TEMPLATE_ID,
-					collapsed: isCollapsed
+					vendor: modelEntry.vendor,
+					vendorDisplayName: modelEntry.vendorDisplayName,
+					managementCommand: vendorInfo?.managementCommand
 				});
 			}
-
-			if (!excludeModels && (!isCollapsed || !showVendorHeaders)) {
-				for (const modelEntry of models) {
-					const modelId = ChatModelsViewModel.getId(modelEntry);
-					result.push({
-						type: 'model',
-						id: modelId,
-						modelEntry,
-						templateId: MODEL_ENTRY_TEMPLATE_ID,
-						capabilityMatches: capabilityMatchesMap.get(modelId),
-					});
-				}
-			}
 		}
-
 		return result;
 	}
 }
@@ -361,6 +391,7 @@ export class ChatModelsViewModel extends EditorModel {
 class ModelItemMatches {
 
 	readonly modelNameMatches: IMatch[] | null = null;
+	readonly modelIdMatches: IMatch[] | null = null;
 	readonly providerMatches: IMatch[] | null = null;
 	readonly capabilityMatches: IMatch[] | null = null;
 
@@ -371,10 +402,7 @@ class ModelItemMatches {
 				this.matches(searchValue, modelEntry.metadata.name, (word, wordToMatchAgainst) => matchesWords(word, wordToMatchAgainst, true), words) :
 				null;
 
-			// Match against model identifier
-			if (!this.modelNameMatches) {
-				this.modelNameMatches = this.matches(searchValue, modelEntry.identifier, or(matchesWords, matchesCamelCase), words);
-			}
+			this.modelIdMatches = this.matches(searchValue, modelEntry.identifier, or(matchesWords, matchesCamelCase), words);
 
 			// Match against vendor display name
 			this.providerMatches = this.matches(searchValue, modelEntry.vendorDisplayName, (word, wordToMatchAgainst) => matchesWords(word, wordToMatchAgainst, true), words);

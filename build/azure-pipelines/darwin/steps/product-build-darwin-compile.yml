@@ -1,6 +1,4 @@
 parameters:
-  - name: VSCODE_QUALITY
-    type: string
   - name: VSCODE_ARCH
     type: string
   - name: VSCODE_CIBUILD
@@ -22,9 +20,6 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-
-  - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
-    - template: ../../common/bump-insiders-version.yml@self
 
   - template: ../../distro/download-distro.yml@self
 

@@ -35,7 +35,7 @@
 
 .chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block {
 	display: flex;
-	align-items: center;
+	align-items: flex-start;
 	gap: 6px;
 	flex: 1 1 auto;
 	min-width: 0;
