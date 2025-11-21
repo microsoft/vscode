@@ -222,7 +222,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	private readonly _onProductIconThemeChange = this._register(new Emitter<IProductIconTheme>());
 	public readonly onDidProductIconThemeChange = this._onProductIconThemeChange.event;
 
-	private readonly _environment: IEnvironmentService = Object.create(null);
+	private readonly _environment: IEnvironmentService = { ...Object.create(null), isBuilt: false };
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
 	private _autoDetectHighContrast: boolean;
 	private _codiconCSS: string;
