@@ -179,6 +179,10 @@ gulp.task(coreCIPR);
 
 /**
  * Compute checksums for some files.
+ *
+ * @param out The out folder to read the file from.
+ * @param filenames The paths to compute a checksum for.
+ * @return A map of paths to checksums.
  */
 function computeChecksums(out: string, filenames: string[]): Record<string, string> {
 	const result: Record<string, string> = {};
@@ -191,6 +195,9 @@ function computeChecksums(out: string, filenames: string[]): Record<string, stri
 
 /**
  * Compute checksums for a file.
+ *
+ * @param filename The absolute path to a filename.
+ * @return The checksum for `filename`.
  */
 function computeChecksum(filename: string): string {
 	const contents = fs.readFileSync(filename);

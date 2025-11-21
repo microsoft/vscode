@@ -13,13 +13,10 @@ import { tmpdir } from 'os';
 import { existsSync, mkdirSync, rmSync } from 'fs';
 import * as task from './lib/task.ts';
 import watcher from './lib/watch/index.ts';
-import * as utilModule from './lib/util.ts';
-import * as reporterModule from './lib/reporter.ts';
+import { debounce } from './lib/util.ts';
+import { createReporter } from './lib/reporter.ts';
 import untar from 'gulp-untar';
 import gunzip from 'gulp-gunzip';
-
-const { debounce } = utilModule;
-const { createReporter } = reporterModule;
 
 const root = 'cli';
 const rootAbs = path.resolve(import.meta.dirname, '..', root);
@@ -103,7 +100,7 @@ const acquireBuiltOpenSSL = (callback: (err?: unknown) => void) => {
 const compileWithOpenSSLCheck = (reporter: import('./lib/reporter.ts').IReporter) => es.map((_, callback) => {
 	compileFromSources(err => {
 		if (!err) {
-			callback();
+			// no-op
 		} else if (err.toString().includes('Could not find directory of OpenSSL installation') && !existsSync(platformOpensslDir)) {
 			fancyLog(ansiColors.yellow(`[cli]`), 'OpenSSL libraries not found, acquiring prebuilt bits...');
 			acquireBuiltOpenSSL(err => {
@@ -114,14 +111,14 @@ const compileWithOpenSSLCheck = (reporter: import('./lib/reporter.ts').IReporter
 						if (err) {
 							reporter(err.toString());
 						}
-						callback();
+						callback(undefined, '');
 					});
 				}
 			});
 		} else {
 			reporter(err.toString());
-			callback();
 		}
+		callback(undefined, '');
 	});
 });
 
@@ -143,14 +140,8 @@ const compileCliTask = task.define('compile-cli', () => {
 
 const watchCliTask = task.define('watch-cli', () => {
 	warnIfRustNotInstalled();
-	const compile = () => {
-		const reporter = createReporter('cli');
-		return gulp.src(`${root}/Cargo.toml`)
-			.pipe(compileWithOpenSSLCheck(reporter))
-			.pipe(reporter.end(true));
-	};
 	return watcher(`${src}/**`, { read: false })
-		.pipe(debounce(compile));
+		.pipe(debounce(compileCliTask as task.StreamTask));
 });
 
 gulp.task(compileCliTask);

@@ -184,7 +184,8 @@ BUILD_TARGETS.forEach(({ platform, arch }) => {
 const defaultNodeTask = gulp.task(`node-${process.platform}-${process.arch}`);
 
 if (defaultNodeTask) {
-	gulp.task(task.define('node', () => defaultNodeTask));
+	// eslint-disable-next-line local/code-no-any-casts
+	gulp.task(task.define('node', defaultNodeTask as any));
 }
 
 function nodejs(platform: string, arch: string): NodeJS.ReadWriteStream | undefined {
@@ -309,7 +310,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 
 		const name = product.nameShort;
 
-		let packageJsonContents: string = '';
+		let packageJsonContents = '';
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
 			.pipe(jsonEditor({ name, version, dependencies: undefined, optionalDependencies: undefined, type: 'module' }))
 			.pipe(es.through(function (file) {
@@ -317,7 +318,7 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 				this.emit('data', file);
 			}));
 
-		let productJsonContents: string = '';
+		let productJsonContents = '';
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(jsonEditor({ commit, date: readISODate('out-build'), version }))
 			.pipe(es.through(function (file) {
@@ -420,6 +421,9 @@ function packageTask(type: string, platform: string, arch: string, sourceFolderN
 	};
 }
 
+/**
+ * @param product The parsed product.json file contents
+ */
 function tweakProductForServerWeb(product: typeof import('../product.json')) {
 	const result: typeof product & { webEndpointUrlTemplate?: string } = { ...product };
 	delete result.webEndpointUrlTemplate;
@@ -463,13 +467,7 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 
 			const serverTaskCI = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(
 				compileNativeExtensionsBuildTask,
-				() => {
-					const nodeTask = gulp.task(`node-${platform}-${arch}`) as task.CallbackTask;
-					if (nodeTask) {
-						return nodeTask();
-					}
-					return Promise.resolve();
-				},
+				gulp.task(`node-${platform}-${arch}`) as task.Task,
 				util.rimraf(path.join(BUILD_ROOT, destinationFolderName)),
 				packageTask(type, platform, arch, sourceFolderName, destinationFolderName)
 			));

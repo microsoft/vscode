@@ -14,7 +14,6 @@ import * as deps from './lib/dependencies.ts';
 import { existsSync, readdirSync } from 'fs';
 
 const { config } = electronConfigModule;
-const electronDest = (electron as unknown as { dest: (destination: string, options: unknown) => NodeJS.ReadWriteStream }).dest;
 
 const root = path.dirname(import.meta.dirname);
 
@@ -48,19 +47,19 @@ BUILD_TARGETS.forEach(buildTarget => {
 	tasks.push(util.rimraf(destinationExe), util.rimraf(destinationPdb));
 
 	// electron
-	tasks.push(() => electronDest(destinationExe, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch }));
+	tasks.push(() => electron.dest(destinationExe, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch }));
 
 	// pdbs for windows
 	if (platform === 'win32') {
 		tasks.push(
-			() => electronDest(destinationPdb, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, pdbs: true }),
+			() => electron.dest(destinationPdb, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, pdbs: true }),
 			() => confirmPdbsExist(destinationExe, destinationPdb)
 		);
 	}
 
 	if (platform === 'linux') {
 		tasks.push(
-			() => electronDest(destinationPdb, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, symbols: true })
+			() => electron.dest(destinationPdb, { ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, symbols: true })
 		);
 	}
 
