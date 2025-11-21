@@ -33,7 +33,7 @@ export const BrowserFeatures = {
 			return KeyboardSupport.Always;
 		}
 
-		if ((<any>navigator).keyboard || browser.isSafari) {
+		if ((navigator as Navigator & { keyboard?: unknown }).keyboard || browser.isSafari) {
 			return KeyboardSupport.FullScreen;
 		}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { HierarchicalKind } from '../../../../base/common/hierarchicalKind.js';
-import { IJSONSchema, SchemaToType } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, TypeFromJsonSchema } from '../../../../base/common/jsonSchema.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import * as nls from '../../../../nls.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -32,7 +32,7 @@ registerEditorCommand(new class extends EditorCommand {
 		});
 	}
 
-	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor) {
+	public override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		return CopyPasteController.get(editor)?.changePasteType();
 	}
 });
@@ -49,7 +49,7 @@ registerEditorCommand(new class extends EditorCommand {
 		});
 	}
 
-	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor) {
+	public override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor) {
 		CopyPasteController.get(editor)?.clearWidgets();
 	}
 });
@@ -92,11 +92,12 @@ registerEditorAction(class PasteAsAction extends EditorAction {
 					name: 'args',
 					schema: PasteAsAction.argsSchema
 				}]
-			}
+			},
+			canTriggerInlineEdits: true,
 		});
 	}
 
-	public override run(_accessor: ServicesAccessor, editor: ICodeEditor, args?: SchemaToType<typeof PasteAsAction.argsSchema>) {
+	public override run(_accessor: ServicesAccessor, editor: ICodeEditor, args?: TypeFromJsonSchema<typeof PasteAsAction.argsSchema>) {
 		let preference: PastePreference | undefined;
 		if (args) {
 			if ('kind' in args) {
@@ -115,6 +116,7 @@ registerEditorAction(class extends EditorAction {
 			id: 'editor.action.pasteAsText',
 			label: nls.localize2('pasteAsText', "Paste as Text"),
 			precondition: EditorContextKeys.writable,
+			canTriggerInlineEdits: true,
 		});
 	}
 

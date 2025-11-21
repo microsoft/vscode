@@ -98,7 +98,7 @@ export abstract class DelegatingEditor extends Disposable implements IEditor {
 	public setSelection(editorRange: Range, source?: string): void;
 	public setSelection(selection: ISelection, source?: string): void;
 	public setSelection(editorSelection: Selection, source?: string): void;
-	public setSelection(something: any, source: string = 'api'): void {
+	public setSelection(something: unknown, source: string = 'api'): void {
 		this._targetEditor.setSelection(something, source);
 	}
 
@@ -154,7 +154,7 @@ export abstract class DelegatingEditor extends Disposable implements IEditor {
 		this._targetEditor.focus();
 	}
 
-	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
+	public trigger(source: string | null | undefined, handlerId: string, payload: unknown): void {
 		this._targetEditor.trigger(source, handlerId, payload);
 	}
 
@@ -162,7 +162,7 @@ export abstract class DelegatingEditor extends Disposable implements IEditor {
 		return this._targetEditor.createDecorationsCollection(decorations);
 	}
 
-	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
+	public changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null {
 		return this._targetEditor.changeDecorations(callback);
 	}
 

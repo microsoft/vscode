@@ -24,6 +24,7 @@ import { Range } from '../../../../common/core/range.js';
 import { TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
+import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -189,27 +190,27 @@ export class GhostTextContext extends Disposable {
 	}
 
 	public cursorUp(): void {
-		CoreNavigationCommands.CursorUp.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorUp, null);
 	}
 
 	public cursorRight(): void {
-		CoreNavigationCommands.CursorRight.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorRight, null);
 	}
 
 	public cursorLeft(): void {
-		CoreNavigationCommands.CursorLeft.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorLeft, null);
 	}
 
 	public cursorDown(): void {
-		CoreNavigationCommands.CursorDown.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorDown, null);
 	}
 
 	public cursorLineEnd(): void {
-		CoreNavigationCommands.CursorLineEnd.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreNavigationCommands.CursorLineEnd, null);
 	}
 
 	public leftDelete(): void {
-		CoreEditingCommands.DeleteLeft.runEditorCommand(null, this.editor, null);
+		this.editor.runCommand(CoreEditingCommands.DeleteLeft, null);
 	}
 }
 
@@ -237,6 +238,7 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					options.serviceCollection = new ServiceCollection();
 				}
 				options.serviceCollection.set(ILanguageFeaturesService, languageFeaturesService);
+				// eslint-disable-next-line local/code-no-any-casts
 				options.serviceCollection.set(IAccessibilitySignalService, {
 					playSignal: async () => { },
 					isSoundEnabled(signal: unknown) { return false; },
@@ -247,8 +249,11 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 
 			let result: T;
 			await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
+				instantiationService.stubInstance(InlineSuggestionsView, {
+					shouldShowHoverAtViewZone: () => false,
+					dispose: () => { },
+				});
 				const controller = instantiationService.createInstance(InlineCompletionsController, editor);
-				controller.testOnlyDisableUi();
 				const model = controller.model.get()!;
 				const context = new GhostTextContext(model, editor);
 				try {

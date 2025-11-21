@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { PolicyTag } from '../../../../../base/common/policy.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { DefaultAccountService, IDefaultAccount, IDefaultAccountService } from '../../../accounts/common/defaultAccount.js';
+import { DefaultAccountService, IDefaultAccountService } from '../../../accounts/common/defaultAccount.js';
 import { AccountPolicyService } from '../../common/accountPolicyService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -19,6 +18,8 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	enterprise: false,
@@ -47,7 +48,9 @@ suite('MultiplexPolicyService', () => {
 				'default': 'defaultValueA',
 				policy: {
 					name: 'PolicySettingA',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
+					localization: { description: { key: '', value: '' } }
 				}
 			},
 			'setting.B': {
@@ -55,9 +58,10 @@ suite('MultiplexPolicyService', () => {
 				'default': 'defaultValueB',
 				policy: {
 					name: 'PolicySettingB',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					defaultValue: "policyValueB",
-					tags: [PolicyTag.Account, PolicyTag.Preview]
+					localization: { description: { key: '', value: '' } },
+					value: account => account.chat_preview_features_enabled === false ? 'policyValueB' : undefined,
 				}
 			},
 			'setting.C': {
@@ -65,9 +69,10 @@ suite('MultiplexPolicyService', () => {
 				'default': ['defaultValueC1', 'defaultValueC2'],
 				policy: {
 					name: 'PolicySettingC',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					defaultValue: JSON.stringify(['policyValueC1', 'policyValueC2']),
-					tags: [PolicyTag.Account, PolicyTag.Preview]
+					localization: { description: { key: '', value: '' } },
+					value: account => account.chat_preview_features_enabled === false ? JSON.stringify(['policyValueC1', 'policyValueC2']) : undefined,
 				}
 			},
 			'setting.D': {
@@ -75,9 +80,10 @@ suite('MultiplexPolicyService', () => {
 				'default': true,
 				policy: {
 					name: 'PolicySettingD',
+					category: PolicyCategory.Extensions,
 					minimumVersion: '1.0.0',
-					defaultValue: false,
-					tags: [PolicyTag.Account, PolicyTag.Preview]
+					localization: { description: { key: '', value: '' } },
+					value: account => account.chat_preview_features_enabled === false ? false : undefined,
 				}
 			},
 			'setting.E': {

@@ -42,13 +42,13 @@ import { ActionBar, IActionViewItemProvider } from '../../../../base/browser/ui/
 import { getContextMenuActions, createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { ColorScheme } from '../../../../platform/theme/common/theme.js';
+import { isDark } from '../../../../platform/theme/common/theme.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from '../../../browser/parts/editor/editorCommands.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { isString } from '../../../../base/common/types.js';
-import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -693,7 +693,7 @@ export class TimelinePane extends ViewPane {
 		}
 	}
 
-	private *getItems(): Generator<ITreeElement<TreeElement>, any, any> {
+	private *getItems(): Generator<ITreeElement<TreeElement>, void, undefined> {
 		let more = false;
 
 		if (this.uri === undefined || this.timelinesBySource.size === 0) {
@@ -821,7 +821,7 @@ export class TimelinePane extends ViewPane {
 			return;
 		}
 
-		this.tree.setChildren(null, this.getItems() as any);
+		this.tree.setChildren(null, this.getItems());
 		this._isEmpty = !this.hasVisibleItems;
 
 		if (this.uri === undefined) {
@@ -1202,7 +1202,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		const { element: item } = node;
 
 		const theme = this.themeService.getColorTheme();
-		const icon = theme.type === ColorScheme.LIGHT ? item.icon : item.iconDark;
+		const icon = isDark(theme.type) ? item.iconDark : item.icon;
 		const iconUrl = icon ? URI.revive(icon) : null;
 
 		if (iconUrl) {
@@ -1225,7 +1225,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		const tooltip = item.tooltip
 			? isString(item.tooltip)
 				? item.tooltip
-				: { markdown: item.tooltip, markdownNotSupportedFallback: renderMarkdownAsPlaintext(item.tooltip) }
+				: { markdown: item.tooltip, markdownNotSupportedFallback: renderAsPlaintext(item.tooltip) }
 			: undefined;
 
 		template.iconLabel.setLabel(item.label, item.description, {
@@ -1289,13 +1289,13 @@ class TimelinePaneCommands extends Disposable {
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, ...args: any[]) {
+			run(accessor: ServicesAccessor, ...args: unknown[]) {
 				pane.reset();
 			}
 		}));
 
 		this._register(CommandsRegistry.registerCommand('timeline.toggleFollowActiveEditor',
-			(accessor: ServicesAccessor, ...args: any[]) => pane.followActiveEditor = !pane.followActiveEditor
+			(accessor: ServicesAccessor, ...args: unknown[]) => pane.followActiveEditor = !pane.followActiveEditor
 		));
 
 		this._register(MenuRegistry.appendMenuItem(MenuId.TimelineTitle, ({
@@ -1361,10 +1361,8 @@ class TimelinePaneCommands extends Disposable {
 						toggled: ContextKeyExpr.regex(`timelineExcludeSources`, new RegExp(`\\b${escapeRegExpCharacters(source.id)}\\b`)).negate()
 					});
 				}
-				run(accessor: ServicesAccessor, ...args: any[]) {
-					if (excluded.has(source.id)) {
-						excluded.delete(source.id);
-					} else {
+				run(accessor: ServicesAccessor, ...args: unknown[]) {
+					if (!excluded.delete(source.id)) {
 						excluded.add(source.id);
 					}
 

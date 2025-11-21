@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { PromptsType } from '../promptTypes.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPromptFileDefaultLocation } from './promptFileLocations.js';
 
 /**
  * Configuration helper for the `reusable prompts` feature.
- * @see {@link PromptsConfig.KEY}, {@link PromptsConfig.PROMPT_LOCATIONS_KEY}, {@link PromptsConfig.INSTRUCTIONS_LOCATION_KEY} or {@link PromptsConfig.MODE_LOCATION_KEY}.
+ * @see {@link PromptsConfig.PROMPT_LOCATIONS_KEY}, {@link PromptsConfig.INSTRUCTIONS_LOCATION_KEY}, {@link PromptsConfig.MODE_LOCATION_KEY}, or {@link PromptsConfig.PROMPT_FILES_SUGGEST_KEY}.
  *
  * ### Functions
  *
- * - {@link enabled} allows to check if the feature is enabled
  * - {@link getLocationsValue} allows to current read configuration value
  * - {@link promptSourceFolders} gets list of source folders for prompt files
+ * - {@link getPromptFilesRecommendationsValue} gets prompt file recommendation configuration
  *
  * ### File Paths Resolution
  *
@@ -27,14 +27,23 @@ import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPr
  *   can be used as a prompt files source folder
  * - root of each top-level folder in the workspace (if there are multiple workspace folders)
  * - current root folder (if a single folder is open)
+ *
+ * ### Prompt File Suggestions
+ *
+ * The `chat.promptFilesRecommendations` setting allows configuring which prompt files to suggest in different contexts:
+ *
+ * ```json
+ * {
+ *   "chat.promptFilesRecommendations": {
+ *     "plan": true,                            // Always suggest
+ *     "new-page": "resourceExtname == .js",    // Suggest for JavaScript files
+ *     "draft-blog": "resourceLangId == markdown", // Suggest for Markdown files
+ *     "debug": false                           // Never suggest
+ *   }
+ * }
+ * ```
  */
 export namespace PromptsConfig {
-	/**
-	 * Configuration key for the `reusable prompts` feature
-	 * (also known as `prompt files`, `prompt instructions`, etc.).
-	 */
-	export const KEY = 'chat.promptFiles';
-
 	/**
 	 * Configuration key for the locations of reusable prompt files.
 	 */
@@ -50,29 +59,29 @@ export namespace PromptsConfig {
 	export const MODE_LOCATION_KEY = 'chat.modeFilesLocations';
 
 	/**
+	 * Configuration key for prompt file suggestions.
+	 */
+	export const PROMPT_FILES_SUGGEST_KEY = 'chat.promptFilesRecommendations';
+
+	/**
 	 * Configuration key for use of the copilot instructions file.
 	 */
 	export const USE_COPILOT_INSTRUCTION_FILES = 'github.copilot.chat.codeGeneration.useInstructionFiles';
 
 	/**
-	 * Configuration key for the copilot instruction setting.
+	 * Configuration key for the AGENTS.md.
 	 */
-	export const COPILOT_INSTRUCTIONS = 'github.copilot.chat.codeGeneration.instructions';
+	export const USE_AGENT_MD = 'chat.useAgentsMdFile';
 
 	/**
-	 * Checks if the feature is enabled.
-	 * @see {@link PromptsConfig.KEY}.
+	 * Configuration key for nested AGENTS.md files.
 	 */
-	export function enabled(configService: IConfigurationService): boolean {
-		const enabledValue = configService.getValue(PromptsConfig.KEY);
-
-		return asBoolean(enabledValue) ?? false;
-	}
+	export const USE_NESTED_AGENT_MD = 'chat.useNestedAgentsMdFiles';
 
 	/**
-	 * Context key expression for the `reusable prompts` feature `enabled` status.
+	 * Configuration key for claude skills usage.
 	 */
-	export const enabledCtx = ContextKeyExpr.equals(`config.${PromptsConfig.KEY}`, true);
+	export const USE_CLAUDE_SKILLS = 'chat.useClaudeSkills';
 
 	/**
 	 * Get value of the `reusable prompt locations` configuration setting.
@@ -142,6 +151,56 @@ export namespace PromptsConfig {
 		return [];
 	}
 
+	/**
+	 * Get value of the prompt file recommendations configuration setting.
+	 * @param configService Configuration service instance
+	 * @param resource Optional resource URI to get workspace folder-specific settings
+	 * @see {@link PROMPT_FILES_SUGGEST_KEY}.
+	 */
+	export function getPromptFilesRecommendationsValue(configService: IConfigurationService, resource?: URI): Record<string, boolean | string> | undefined {
+		// Get the merged configuration value (VS Code automatically merges all levels: default → user → workspace → folder)
+		const configValue = configService.getValue(PromptsConfig.PROMPT_FILES_SUGGEST_KEY, { resource });
+
+		if (!configValue || typeof configValue !== 'object' || Array.isArray(configValue)) {
+			return undefined;
+		}
+
+		const suggestions: Record<string, boolean | string> = {};
+
+		for (const [promptName, value] of Object.entries(configValue)) {
+			const cleanPromptName = promptName.trim();
+
+			// Skip empty prompt names
+			if (!cleanPromptName) {
+				continue;
+			}
+
+			// Accept boolean values directly
+			if (typeof value === 'boolean') {
+				suggestions[cleanPromptName] = value;
+				continue;
+			}
+
+			// Accept string values as when clauses
+			if (typeof value === 'string') {
+				const cleanValue = value.trim();
+				if (cleanValue) {
+					suggestions[cleanPromptName] = cleanValue;
+				}
+				continue;
+			}
+
+			// Convert other truthy/falsy values to boolean
+			const booleanValue = asBoolean(value);
+			if (booleanValue !== undefined) {
+				suggestions[cleanPromptName] = booleanValue;
+			}
+		}
+
+		// Return undefined if no valid suggestions were found
+		return Object.keys(suggestions).length > 0 ? suggestions : undefined;
+	}
+
 }
 
 export function getPromptFileLocationsConfigKey(type: PromptsType): string {
@@ -150,7 +209,7 @@ export function getPromptFileLocationsConfigKey(type: PromptsType): string {
 			return PromptsConfig.INSTRUCTIONS_LOCATION_KEY;
 		case PromptsType.prompt:
 			return PromptsConfig.PROMPT_LOCATIONS_KEY;
-		case PromptsType.mode:
+		case PromptsType.agent:
 			return PromptsConfig.MODE_LOCATION_KEY;
 		default:
 			throw new Error('Unknown prompt type');

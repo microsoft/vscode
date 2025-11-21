@@ -19,7 +19,7 @@ import { ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditing
 
 suite('ChatEditingSessionStorage', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
-	const sessionId = generateUuid();
+	const sessionResource = URI.parse('chat://test-session');
 	let fs: FileService;
 	let storage: TestChatEditingSessionStorage;
 
@@ -34,10 +34,11 @@ suite('ChatEditingSessionStorage', () => {
 		ds.add(fs.registerProvider(TestEnvironmentService.workspaceStorageHome.scheme, ds.add(new InMemoryFileSystemProvider())));
 
 		storage = new TestChatEditingSessionStorage(
-			sessionId,
+			sessionResource,
 			fs,
 			TestEnvironmentService,
 			new NullLogService(),
+			// eslint-disable-next-line local/code-no-any-casts
 			{ getWorkspace: () => ({ id: 'workspaceId' }) } as any,
 		);
 	});
@@ -48,7 +49,7 @@ suite('ChatEditingSessionStorage', () => {
 		return {
 			stopId,
 			entries: new ResourceMap([
-				[resource, { resource, languageId: 'javascript', snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionId, requestId, stopId, resource.path), original: `contents${before}}`, current: `contents${after}`, state: ModifiedFileEntryState.Modified, telemetryInfo: { agentId: 'agentId', command: 'cmd', requestId: generateUuid(), result: undefined, sessionId } } satisfies ISnapshotEntry],
+				[resource, { resource, languageId: 'javascript', snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionResource, requestId, stopId, resource.path), original: `contents${before}}`, current: `contents${after}`, state: ModifiedFileEntryState.Modified, telemetryInfo: { agentId: 'agentId', command: 'cmd', requestId: generateUuid(), result: undefined, sessionResource: sessionResource, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined } } satisfies ISnapshotEntry],
 			]),
 		};
 	}
@@ -57,17 +58,10 @@ suite('ChatEditingSessionStorage', () => {
 		const initialFileContents = new ResourceMap<string>();
 		for (let i = 0; i < 10; i++) { initialFileContents.set(URI.file(`/foo${i}.js`), `fileContents${Math.floor(i / 2)}`); }
 
-		const r1 = generateUuid();
-		const r2 = generateUuid();
 		return {
 			initialFileContents,
-			pendingSnapshot: makeStop(undefined, 'd', 'e'),
 			recentSnapshot: makeStop(undefined, 'd', 'e'),
-			linearHistoryIndex: 3,
-			linearHistory: [
-				{ startIndex: 0, requestId: r1, stops: [makeStop(r1, 'a', 'b')] },
-				{ startIndex: 1, requestId: r2, stops: [makeStop(r2, 'c', 'd'), makeStop(r2, 'd', 'd')] },
-			]
+			timeline: undefined,
 		};
 	}
 

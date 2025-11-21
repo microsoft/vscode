@@ -4,21 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IProgressStep } from '../../../../../platform/progress/common/progress.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolSet } from '../../common/languageModelToolsService.js';
+import { IVariableReference } from '../../common/chatModes.js';
+import { ChatRequestToolReferenceEntry } from '../../common/chatVariableEntries.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
+	vscodeToolSet: ToolSet = new ToolSet('vscode', 'vscode', ThemeIcon.fromId(Codicon.code.id), ToolDataSource.Internal);
+	launchToolSet: ToolSet = new ToolSet('launch', 'launch', ThemeIcon.fromId(Codicon.rocket.id), ToolDataSource.Internal);
 
 	constructor() { }
 
-	cancelToolCallsForRequest(requestId: string): void {
-	}
-
-	onDidChangeTools: Event<void> = Event.None;
+	readonly onDidChangeTools: Event<void> = Event.None;
+	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ sessionId: string; toolData: IToolData }> = Event.None;
 
 	registerToolData(toolData: IToolData): IDisposable {
 		return Disposable.None;
@@ -28,11 +32,35 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	}
 
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile', autoConfirm?: boolean): void {
+	getToolPostExecutionAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never' {
+		return 'never';
+	}
+
+	resetToolPostExecutionAutoConfirmation(): void {
 
 	}
 
+	flushToolUpdates(): void {
+
+	}
+
+	cancelToolCallsForRequest(requestId: string): void {
+
+	}
+
+	setToolAutoConfirmation(toolId: string, scope: any): void {
+
+	}
+
+	getToolAutoConfirmation(toolId: string): 'never' {
+		return 'never';
+	}
+
 	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
+		return Disposable.None;
+	}
+
+	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable {
 		return Disposable.None;
 	}
 
@@ -72,11 +100,31 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean> {
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
 		throw new Error('Method not implemented.');
 	}
 
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
+	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getQualifiedToolNames(): Iterable<string> {
+		throw new Error('Method not implemented.');
+	}
+
+	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined {
+		throw new Error('Method not implemented.');
+	}
+
+	getQualifiedToolName(tool: IToolData, set?: ToolSet): string {
+		throw new Error('Method not implemented.');
+	}
+
+	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[] {
+		throw new Error('Method not implemented.');
+	}
+
+	getDeprecatedQualifiedToolNames(): Map<string, Set<string>> {
 		throw new Error('Method not implemented.');
 	}
 }

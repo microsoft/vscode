@@ -70,10 +70,9 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 			let children: INotebookVariableElement[] = [];
 			if (parent.hasNamedChildren) {
 				const variables = selectedKernel.provideVariables(parent.notebook.uri, parent.extHostId, 'named', 0, this.cancellationTokenSource.token);
-				const childNodes = await variables
-					.map(variable => { return this.createVariableElement(variable, parent.notebook); })
-					.toPromise();
-				children = children.concat(childNodes);
+				for await (const variable of variables) {
+					children.push(this.createVariableElement(variable, parent.notebook));
+				}
 			}
 			if (parent.indexedChildrenCount > 0) {
 				const childNodes = await this.getIndexedChildren(parent, selectedKernel);
@@ -145,9 +144,11 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 		const selectedKernel = this.notebookKernelService.getMatchingKernel(notebook).selected;
 		if (selectedKernel && selectedKernel.hasVariableProvider) {
 			const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, this.cancellationTokenSource.token);
-			return await variables
-				.map(variable => { return this.createVariableElement(variable, notebook); })
-				.toPromise();
+			const varElements: INotebookVariableElement[] = [];
+			for await (const variable of variables) {
+				varElements.push(this.createVariableElement(variable, notebook));
+			}
+			return varElements;
 		}
 
 		return [];

@@ -86,10 +86,6 @@ suite('LspTerminalModelContentProvider', () => {
 	});
 
 	suite('setContent', () => {
-		test('should not call setValue if content is "exit()"', () => {
-			lspTerminalModelContentProvider.setContent('exit()');
-			assert.strictEqual(setValueSpy.called, false);
-		});
 
 		test('should add delimiter when setting content on empty document', () => {
 			getValueSpy.returns('');

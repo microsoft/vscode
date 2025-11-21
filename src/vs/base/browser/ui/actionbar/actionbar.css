@@ -77,7 +77,7 @@
 
 .monaco-action-bar.vertical .action-label.separator {
 	display: block;
-	border-bottom: 1px solid #bbb;
+	border-bottom: 1px solid var(--vscode-disabledForeground);
 	padding-top: 1px;
 	margin-left: .8em;
 	margin-right: .8em;
@@ -90,7 +90,7 @@
 	cursor: default;
 	min-width: 1px;
 	padding: 0;
-	background-color: #bbb;
+	background-color: var(--vscode-disabledForeground);
 }
 
 .secondary-actions .monaco-action-bar .action-label {

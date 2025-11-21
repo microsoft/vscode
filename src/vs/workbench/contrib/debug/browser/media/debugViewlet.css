@@ -33,7 +33,7 @@
 }
 
 .monaco-workbench.mac .part > .title > .title-actions .start-debug-action-item {
-	border-radius: 4px;
+	border-radius: 5px;
 }
 
 .monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon {
@@ -43,8 +43,9 @@
 
 .monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon-debug-start {
 	width: 18px;
-	height: 21px;
-	padding-left: 2px;
+	height: 22px;
+	padding-left: 3px;
+	padding-right: 1px
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
@@ -57,6 +58,9 @@
 
 	/* The debug view title is crowded, let this one get narrower than others */
 	min-width: 90px;
+
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
 

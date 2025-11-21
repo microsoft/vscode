@@ -51,7 +51,7 @@ const STICKY_IS_FOLDING_ICON_ATTR = 'data-sticky-is-folding-icon';
 
 export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
-	private readonly _foldingIconStore = new DisposableStore();
+	private readonly _foldingIconStore = this._register(new DisposableStore());
 	private readonly _rootDomNode: HTMLElement = document.createElement('div');
 	private readonly _lineNumbersDomNode: HTMLElement = document.createElement('div');
 	private readonly _linesDomNodeScrollable: HTMLElement = document.createElement('div');
@@ -118,7 +118,6 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 			updateScrollLeftPosition();
 			this._updateWidgetWidth();
 		}));
-		this._register(this._foldingIconStore);
 		updateScrollLeftPosition();
 
 		this._register(this._editor.onDidLayoutChange((e) => {
@@ -283,6 +282,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		if (showFoldingControls !== 'mouseover') {
 			return;
 		}
+		this._foldingIconStore.clear();
 		this._foldingIconStore.add(dom.addDisposableListener(this._lineNumbersDomNode, dom.EventType.MOUSE_ENTER, () => {
 			this._isOnGlyphMargin = true;
 			this._setFoldingIconsVisibility(true);
@@ -298,6 +298,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const viewLineNumber = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel.getViewLineRenderingData(viewLineNumber);
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
+		const verticalScrollbarSize = this._editor.getOption(EditorOption.scrollbar).verticalScrollbarSize;
 
 		let actualInlineDecorations: LineDecoration[];
 		try {
@@ -307,12 +308,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		const lineHeight = this._editor.getLineHeightForPosition(new Position(line, 1));
+		const textDirection = viewModel.getTextDirection(line);
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
 			lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
 			lineRenderingData.tokens, actualInlineDecorations,
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
-			1, 1, 1, 500, 'none', true, true, null
+			1, 1, 1, 500, 'none', true, true, null,
+			textDirection, verticalScrollbarSize
 		);
 
 		const sb = new StringBuilder(2000);
@@ -432,7 +435,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 	getPosition(): IOverlayWidgetPosition | null {
 		return {
 			preference: OverlayWidgetPositionPreference.TOP_CENTER,
-			stackOridinal: 10,
+			stackOrdinal: 10,
 		};
 	}
 

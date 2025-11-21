@@ -17,9 +17,10 @@ import * as strings from '../../../../../base/common/strings.js';
 import { Position } from '../../../../common/core/position.js';
 import { Selection } from '../../../../common/core/selection.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { ClipboardDataToCopy, ClipboardEventUtils, ClipboardStoredMetadata, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { _debugComposition, ITextAreaWrapper, ITypeData, TextAreaState } from './textAreaEditContextState.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -342,13 +343,22 @@ export class TextAreaInput extends Disposable {
 				|| typeInput.replaceNextCharCnt !== 0
 				|| typeInput.positionDelta !== 0
 			) {
-				this._onType.fire(typeInput);
+				// https://w3c.github.io/input-events/#interface-InputEvent-Attributes
+				if (e.inputType === 'insertFromPaste') {
+					this._onPaste.fire({
+						text: typeInput.text,
+						metadata: InMemoryClipboardMetadataManager.INSTANCE.get(typeInput.text)
+					});
+				} else {
+					this._onType.fire(typeInput);
+				}
 			}
 		}));
 
 		// --- Clipboard operations
 
 		this._register(this._textArea.onCut((e) => {
+			this._logService.trace(`TextAreaInput#onCut`, e);
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received cut event');
@@ -358,10 +368,12 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(this._textArea.onCopy((e) => {
+			this._logService.trace(`TextAreaInput#onCopy`, e);
 			this._ensureClipboardGetsEditorSelection(e);
 		}));
 
 		this._register(this._textArea.onPaste((e) => {
+			this._logService.trace(`TextAreaInput#onPaste`, e);
 			// Pretend here we touched the text area, as the `paste` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._textArea.setIgnoreSelectionChangeTime('received paste event');
@@ -373,6 +385,7 @@ export class TextAreaInput extends Disposable {
 			}
 
 			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			this._logService.trace(`TextAreaInput#onPaste with id : `, metadata?.id, ' with text.length: ', text.length);
 			if (!text) {
 				return;
 			}
@@ -380,6 +393,7 @@ export class TextAreaInput extends Disposable {
 			// try the in-memory store
 			metadata = metadata || InMemoryClipboardMetadataManager.INSTANCE.get(text);
 
+			this._logService.trace(`TextAreaInput#onPaste (before onPaste)`);
 			this._onPaste.fire({
 				text: text,
 				metadata: metadata
@@ -597,8 +611,13 @@ export class TextAreaInput extends Disposable {
 
 	private _ensureClipboardGetsEditorSelection(e: ClipboardEvent): void {
 		const dataToCopy = this._host.getDataToCopy();
+		let id = undefined;
+		if (this._logService.getLevel() === LogLevel.Trace) {
+			id = generateUuid();
+		}
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
+			id,
 			isFromEmptySelection: dataToCopy.isFromEmptySelection,
 			multicursorText: dataToCopy.multicursorText,
 			mode: dataToCopy.mode
@@ -614,6 +633,7 @@ export class TextAreaInput extends Disposable {
 		if (e.clipboardData) {
 			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
 		}
+		this._logService.trace('TextAreaEditContextInput#_ensureClipboardGetsEditorSelection with id : ', id, ' with text.length: ', dataToCopy.text.length);
 	}
 }
 

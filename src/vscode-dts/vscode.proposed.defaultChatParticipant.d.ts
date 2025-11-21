@@ -13,15 +13,6 @@ declare module 'vscode' {
 		message: MarkdownString;
 	}
 
-	export interface ChatRequesterInformation {
-		name: string;
-
-		/**
-		 * A full URI for the icon of the request.
-		 */
-		icon?: Uri;
-	}
-
 	export interface ChatTitleProvider {
 		/**
 		 * TODO@API Should this take a ChatResult like the followup provider, or just take a new ChatContext that includes the current message as history?
@@ -40,11 +31,6 @@ declare module 'vscode' {
 		helpTextPrefix?: string | MarkdownString;
 
 		/**
-		 * A string that will be added before the listing of chat variables in `/help`.
-		 */
-		helpTextVariablesPrefix?: string | MarkdownString;
-
-		/**
 		 * A string that will be appended after the listing of chat participants in `/help`.
 		 */
 		helpTextPostfix?: string | MarkdownString;
@@ -52,6 +38,5 @@ declare module 'vscode' {
 		additionalWelcomeMessage?: string | MarkdownString;
 		titleProvider?: ChatTitleProvider;
 		summarizer?: ChatSummarizer;
-		requester?: ChatRequesterInformation;
 	}
 }

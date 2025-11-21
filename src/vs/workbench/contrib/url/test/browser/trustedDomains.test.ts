@@ -37,6 +37,11 @@ suite('Link protection domain matching', () => {
 		linkAllowedByRules('https://127.0.0.1:3000', []);
 		linkAllowedByRules('https://localhost', []);
 		linkAllowedByRules('https://localhost:3000', []);
+		linkAllowedByRules('https://dev.localhost', []);
+		linkAllowedByRules('https://dev.localhost:3000', []);
+		linkAllowedByRules('https://app.localhost', []);
+		linkAllowedByRules('https://api.localhost:8080', []);
+		linkAllowedByRules('https://myapp.dev.localhost:8080', []);
 	});
 
 	test('* star', () => {

@@ -54,7 +54,7 @@ export class RangeHighlightDecorations extends Disposable {
 		this.rangeHighlightDecorationId = null;
 	}
 
-	highlightRange(range: IRangeHighlightDecoration, editor?: any) {
+	highlightRange(range: IRangeHighlightDecoration, editor?: unknown) {
 		editor = editor ?? this.getEditor(range);
 		if (isCodeEditor(editor)) {
 			this.doHighlightRange(editor, range);

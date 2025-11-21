@@ -29,5 +29,14 @@ import { AccessibleViewRegistry } from '../../../../../platform/accessibility/br
 import { TerminalChatAccessibilityHelp } from './terminalChatAccessibilityHelp.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { TerminalChatEnabler } from './terminalChatEnabler.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { ITerminalChatService } from '../../../terminal/browser/terminal.js';
+import { TerminalChatService } from './terminalChatService.js';
+
+// #region Services
+
+registerSingleton(ITerminalChatService, TerminalChatService, InstantiationType.Delayed);
+
+// #endregion
 
 // #endregion

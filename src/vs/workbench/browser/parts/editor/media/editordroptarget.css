@@ -25,7 +25,7 @@
 	justify-content: center;
 }
 
-.monaco-workbench:not(.reduce-motion) #monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator {
+.monaco-workbench.monaco-enable-motion #monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator {
 	transition: opacity 150ms ease-out;
 }
 
@@ -37,7 +37,7 @@
 	opacity: 0; /* hidden initially */
 }
 
-.monaco-workbench:not(.reduce-motion) #monaco-workbench-editor-drop-overlay .editor-group-overlay-drop-into-prompt {
+.monaco-workbench.monaco-enable-motion #monaco-workbench-editor-drop-overlay .editor-group-overlay-drop-into-prompt {
 	transition: opacity 150ms ease-out;
 }
 
@@ -50,6 +50,6 @@
 	font-style: normal;
 }
 
-.monaco-workbench:not(.reduce-motion) #monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator.overlay-move-transition {
+.monaco-workbench.monaco-enable-motion #monaco-workbench-editor-drop-overlay > .editor-group-overlay-indicator.overlay-move-transition {
 	transition: top 70ms ease-out, left 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
 }

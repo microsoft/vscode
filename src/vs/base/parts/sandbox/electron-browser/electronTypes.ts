@@ -66,17 +66,17 @@ export interface IpcRenderer {
 	 * returned by `invoke` will reject. However, the `Error` object in the renderer
 	 * process will not be the same as the one thrown in the main process.
 	 */
-	invoke(channel: string, ...args: any[]): Promise<any>;
+	invoke(channel: string, ...args: unknown[]): Promise<unknown>;
 	/**
 	 * Listens to `channel`, when a new message arrives `listener` would be called with
 	 * `listener(event, args...)`.
 	 */
-	on(channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void): this;
+	on(channel: string, listener: (event: IpcRendererEvent, ...args: unknown[]) => void): this;
 	/**
 	 * Adds a one time `listener` function for the event. This `listener` is invoked
 	 * only the next time a message is sent to `channel`, after which it is removed.
 	 */
-	once(channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void): this;
+	once(channel: string, listener: (event: IpcRendererEvent, ...args: unknown[]) => void): this;
 	// Note: API with `Transferable` intentionally commented out because you
 	// cannot transfer these when `contextIsolation: true`.
 	// /**
@@ -92,12 +92,12 @@ export interface IpcRenderer {
 	//  * For more information on using `MessagePort` and `MessageChannel`, see the MDN
 	//  * documentation.
 	//  */
-	// postMessage(channel: string, message: any, transfer?: MessagePort[]): void;
+	// postMessage(channel: string, message: unknown, transfer?: MessagePort[]): void;
 	/**
 	 * Removes the specified `listener` from the listener array for the specified
 	 * `channel`.
 	 */
-	removeListener(channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void): this;
+	removeListener(channel: string, listener: (event: IpcRendererEvent, ...args: unknown[]) => void): this;
 	/**
 	 * Send an asynchronous message to the main process via `channel`, along with
 	 * arguments. Arguments will be serialized with the Structured Clone Algorithm,
@@ -122,7 +122,7 @@ export interface IpcRenderer {
 	 * If you want to receive a single response from the main process, like the result
 	 * of a method call, consider using `ipcRenderer.invoke`.
 	 */
-	send(channel: string, ...args: any[]): void;
+	send(channel: string, ...args: unknown[]): void;
 }
 
 export interface WebFrame {

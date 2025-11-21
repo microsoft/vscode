@@ -70,7 +70,7 @@ const toolSetsSchema: IJSONSchema = {
 				}
 			},
 			icon: {
-				description: localize('schema.icon', "Icon to use for this tool set in the UI. Uses the `\\$(name)`-syntax, like `\\$(zap)`"),
+				description: localize('schema.icon', 'Icon to use for this tool set in the UI. Uses the "\\$(name)"-syntax, like "\\$(zap)"'),
 				type: 'string',
 				enum: Array.from(getAllCodicons(), icon => icon.id),
 				markdownEnumDescriptions: Array.from(getAllCodicons(), icon => `$(${icon.id})`),
@@ -327,7 +327,7 @@ export class ConfigureToolSets extends Action2 {
 				id: CHAT_CONFIG_MENU_ID,
 				when: ContextKeyExpr.equals('view', ChatViewId),
 				order: 11,
-				group: '0_level'
+				group: '2_level'
 			},
 		});
 	}

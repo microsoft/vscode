@@ -26,6 +26,7 @@ import { Viewport } from '../../../common/viewModel.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { ViewLineOptions } from './viewLineOptions.js';
 import type { ViewGpuContext } from '../../gpu/viewGpuContext.js';
+import { TextDirection } from '../../../common/model.js';
 
 class LastRenderedData {
 
@@ -244,12 +245,10 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return r;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		if (true/*e.inlineDecorationsChanged*/) {
-			const rendStartLineNumber = this._visibleLines.getStartLineNumber();
-			const rendEndLineNumber = this._visibleLines.getEndLineNumber();
-			for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
-				this._visibleLines.getVisibleLine(lineNumber).onDecorationsChanged();
-			}
+		const rendStartLineNumber = this._visibleLines.getStartLineNumber();
+		const rendEndLineNumber = this._visibleLines.getEndLineNumber();
+		for (let lineNumber = rendStartLineNumber; lineNumber <= rendEndLineNumber; lineNumber++) {
+			this._visibleLines.getVisibleLine(lineNumber).onDecorationsChanged();
 		}
 		return true;
 	}
@@ -317,7 +316,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 			}
 		}
 		this.domNode.setWidth(e.scrollWidth);
-		return this._visibleLines.onScrollChanged(e) || true;
+		return this._visibleLines.onScrollChanged(e) || e.scrollTopChanged || e.scrollLeftChanged;
 	}
 
 	public override onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
@@ -414,12 +413,6 @@ export class ViewLines extends ViewPart implements IViewLines {
 	}
 
 	public linesVisibleRangesForRange(_range: Range, includeNewLines: boolean): LineVisibleRanges[] | null {
-		if (this.shouldRender()) {
-			// Cannot read from the DOM because it is dirty
-			// i.e. the model & the dom are out of sync, so I'd be reading something stale
-			return null;
-		}
-
 		const originalEndLineNumber = _range.endLineNumber;
 		const range = Range.intersectRanges(_range, this._lastRenderedData.getCurrentVisibleRange());
 		if (!range) {
@@ -446,7 +439,8 @@ export class ViewLines extends ViewPart implements IViewLines {
 			const startColumn = lineNumber === range.startLineNumber ? range.startColumn : 1;
 			const continuesInNextLine = lineNumber !== originalEndLineNumber;
 			const endColumn = continuesInNextLine ? this._context.viewModel.getLineMaxColumn(lineNumber) : range.endColumn;
-			const visibleRangesForLine = this._visibleLines.getVisibleLine(lineNumber).getVisibleRangesForRange(lineNumber, startColumn, endColumn, domReadingContext);
+			const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
+			const visibleRangesForLine = visibleLine.getVisibleRangesForRange(lineNumber, startColumn, endColumn, domReadingContext);
 
 			if (!visibleRangesForLine) {
 				continue;
@@ -457,7 +451,11 @@ export class ViewLines extends ViewPart implements IViewLines {
 				nextLineModelLineNumber = this._context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber + 1, 1)).lineNumber;
 
 				if (currentLineModelLineNumber !== nextLineModelLineNumber) {
-					visibleRangesForLine.ranges[visibleRangesForLine.ranges.length - 1].width += this._typicalHalfwidthCharacterWidth;
+					const floatHorizontalRange = visibleRangesForLine.ranges[visibleRangesForLine.ranges.length - 1];
+					floatHorizontalRange.width += this._typicalHalfwidthCharacterWidth;
+					if (this._context.viewModel.getTextDirection(currentLineModelLineNumber) === TextDirection.RTL) {
+						floatHorizontalRange.left -= this._typicalHalfwidthCharacterWidth;
+					}
 				}
 			}
 
@@ -474,12 +472,6 @@ export class ViewLines extends ViewPart implements IViewLines {
 	}
 
 	private _visibleRangesForLineRange(lineNumber: number, startColumn: number, endColumn: number): VisibleRanges | null {
-		if (this.shouldRender()) {
-			// Cannot read from the DOM because it is dirty
-			// i.e. the model & the dom are out of sync, so I'd be reading something stale
-			return null;
-		}
-
 		if (lineNumber < this._visibleLines.getStartLineNumber() || lineNumber > this._visibleLines.getEndLineNumber()) {
 			return null;
 		}
@@ -489,6 +481,14 @@ export class ViewLines extends ViewPart implements IViewLines {
 		this._updateLineWidthsSlowIfDomDidLayout(domReadingContext);
 
 		return result;
+	}
+
+	private _lineIsRenderedRTL(lineNumber: number): boolean {
+		if (lineNumber < this._visibleLines.getStartLineNumber() || lineNumber > this._visibleLines.getEndLineNumber()) {
+			return false;
+		}
+		const visibleLine = this._visibleLines.getVisibleLine(lineNumber);
+		return visibleLine.isRenderedRTL();
 	}
 
 	public visibleRangeForPosition(position: Position): HorizontalPosition | null {
@@ -527,7 +527,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 			// only proceed if we just did a layout
 			return;
 		}
-		if (this._asyncUpdateLineWidths.isScheduled()) {
+		if (!this._asyncUpdateLineWidths.isScheduled()) {
 			// reading widths is not scheduled => widths are up-to-date
 			return;
 		}
@@ -628,7 +628,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 				const newScrollLeft = this._computeScrollLeftToReveal(horizontalRevealRequest);
 
 				if (newScrollLeft) {
-					if (!this._isViewportWrapping) {
+					if (!this._isViewportWrapping && !newScrollLeft.hasRTL) {
 						// ensure `scrollWidth` is large enough
 						this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
 					}
@@ -769,7 +769,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 		return newScrollTop;
 	}
 
-	private _computeScrollLeftToReveal(horizontalRevealRequest: HorizontalRevealRequest): { scrollLeft: number; maxHorizontalOffset: number } | null {
+	private _computeScrollLeftToReveal(horizontalRevealRequest: HorizontalRevealRequest): { scrollLeft: number; maxHorizontalOffset: number; hasRTL: boolean } | null {
 
 		const viewport = this._context.viewLayout.getCurrentViewport();
 		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo);
@@ -778,7 +778,9 @@ export class ViewLines extends ViewPart implements IViewLines {
 
 		let boxStartX = Constants.MAX_SAFE_SMALL_INTEGER;
 		let boxEndX = 0;
+		let hasRTL = false;
 		if (horizontalRevealRequest.type === 'range') {
+			hasRTL = this._lineIsRenderedRTL(horizontalRevealRequest.lineNumber);
 			const visibleRanges = this._visibleRangesForLineRange(horizontalRevealRequest.lineNumber, horizontalRevealRequest.startColumn, horizontalRevealRequest.endColumn);
 			if (!visibleRanges) {
 				return null;
@@ -793,6 +795,7 @@ export class ViewLines extends ViewPart implements IViewLines {
 					return null;
 				}
 				const visibleRanges = this._visibleRangesForLineRange(selection.startLineNumber, selection.startColumn, selection.endColumn);
+				hasRTL ||= this._lineIsRenderedRTL(selection.startLineNumber);
 				if (!visibleRanges) {
 					return null;
 				}
@@ -815,7 +818,8 @@ export class ViewLines extends ViewPart implements IViewLines {
 		const newScrollLeft = this._computeMinimumScrolling(viewportStartX, viewportEndX, boxStartX, boxEndX);
 		return {
 			scrollLeft: newScrollLeft,
-			maxHorizontalOffset: boxEndX
+			maxHorizontalOffset: boxEndX,
+			hasRTL
 		};
 	}
 

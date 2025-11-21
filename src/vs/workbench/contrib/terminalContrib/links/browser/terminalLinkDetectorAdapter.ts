@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from './links.js';
@@ -28,7 +28,7 @@ export interface IShowHoverEvent {
  * Wrap a link detector object so it can be used in xterm.js
  */
 export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProvider {
-	private _activeLinks: TerminalLink[] | undefined;
+	private readonly _activeLinksStore = this._register(new DisposableStore());
 
 	private readonly _onDidActivateLink = this._register(new Emitter<IActivateLinkEvent>());
 	readonly onDidActivateLink = this._onDidActivateLink.event;
@@ -46,20 +46,16 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 	async provideLinks(bufferLineNumber: number, callback: (links: ILink[] | undefined) => void) {
 		let activeRequest = this._activeProvideLinkRequests.get(bufferLineNumber);
 		if (activeRequest) {
-			await activeRequest;
-			callback(this._activeLinks);
+			const links = await activeRequest;
+			callback(links);
 			return;
 		}
-		if (this._activeLinks) {
-			for (const link of this._activeLinks) {
-				link.dispose();
-			}
-		}
+		this._activeLinksStore.clear();
 		activeRequest = this._provideLinks(bufferLineNumber);
 		this._activeProvideLinkRequests.set(bufferLineNumber, activeRequest);
-		this._activeLinks = await activeRequest;
+		const links = await activeRequest;
 		this._activeProvideLinkRequests.delete(bufferLineNumber);
-		callback(this._activeLinks);
+		callback(links);
 	}
 
 	private async _provideLinks(bufferLineNumber: number): Promise<TerminalLink[]> {
@@ -93,7 +89,9 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 
 		const detectedLinks = await this._detector.detect(lines, startLine, endLine);
 		for (const link of detectedLinks) {
-			links.push(this._createTerminalLink(link, async (event) => this._onDidActivateLink.fire({ link, event })));
+			const terminalLink = this._createTerminalLink(link, async (event) => this._onDidActivateLink.fire({ link, event }));
+			links.push(terminalLink);
+			this._activeLinksStore.add(terminalLink);
 		}
 
 		return links;

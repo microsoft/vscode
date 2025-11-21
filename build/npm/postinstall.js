@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const cp = require('child_process');
-const { dirs } = require('./dirs');
+import * as fs from 'fs';
+import path from 'path';
+import * as os from 'os';
+import * as child_process from 'child_process';
+import { dirs } from './dirs.js';
+
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const root = path.dirname(path.dirname(__dirname));
+const root = path.dirname(path.dirname(import.meta.dirname));
 
 function log(dir, message) {
 	if (process.stdout.isTTY) {
@@ -22,7 +23,7 @@ function log(dir, message) {
 function run(command, args, opts) {
 	log(opts.cwd || '.', '$ ' + command + ' ' + args.join(' '));
 
-	const result = cp.spawnSync(command, args, opts);
+	const result = child_process.spawnSync(command, args, opts);
 
 	if (result.error) {
 		console.error(`ERR Failed to spawn process: ${result.error}`);
@@ -56,7 +57,16 @@ function npmInstall(dir, opts) {
 		if (process.env['npm_config_arch'] === 'arm64') {
 			run('sudo', ['docker', 'run', '--rm', '--privileged', 'multiarch/qemu-user-static', '--reset', '-p', 'yes'], opts);
 		}
-		run('sudo', ['docker', 'run', '-e', 'GITHUB_TOKEN', '-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`, '-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`, '-w', path.resolve('/root/vscode', dir), process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && npm i -g node-gyp-build && npm ci\"`], opts);
+		run('sudo', [
+			'docker', 'run',
+			'-e', 'GITHUB_TOKEN',
+			'-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`,
+			'-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`,
+			'-v', `${process.env['VSCODE_NPMRC_PATH']}:/root/.npmrc`,
+			'-w', path.resolve('/root/vscode', dir),
+			process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'],
+			'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && export PATH="/root/vscode/.build/nodejs-musl/usr/local/bin:$PATH" && npm i -g node-gyp-build && npm ci\"`
+		], opts);
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], opts);
 	} else {
 		log(dir, 'Installing dependencies...');
@@ -80,8 +90,8 @@ function setNpmrcConfig(dir, env) {
 	// Use our bundled node-gyp version
 	env['npm_config_node_gyp'] =
 		process.platform === 'win32'
-			? path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
-			: path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
+			? path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
+			: path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
 
 	// Force node-gyp to use process.config on macOS
 	// which defines clang variable as expected. Otherwise we
@@ -176,5 +186,5 @@ for (let dir of dirs) {
 	npmInstall(dir, opts);
 }
 
-cp.execSync('git config pull.rebase merges');
-cp.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+child_process.execSync('git config pull.rebase merges');
+child_process.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');

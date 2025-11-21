@@ -26,6 +26,8 @@ import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js
 import { IMarker, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { Progress } from '../../../../platform/progress/common/progress.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 const $ = dom.$;
 
@@ -264,12 +266,18 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 					context.statusBar.addAction({
 						label: aiCodeAction.action.title,
 						commandId: aiCodeAction.action.command?.id ?? '',
+						iconClass: ThemeIcon.asClassName(Codicon.sparkle),
 						run: () => {
 							const controller = CodeActionController.get(this._editor);
 							controller?.applyCodeAction(aiCodeAction, false, false, ApplyCodeActionReason.FromProblemsHover);
 						}
 					});
 				}
+
+				// Notify that the contents have changed given we added
+				// actions to the hover
+				// https://github.com/microsoft/vscode/issues/250424
+				context.onContentsChanged();
 
 			}, onUnexpectedError);
 		}

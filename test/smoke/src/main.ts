@@ -8,12 +8,11 @@ import { gracefulify } from 'graceful-fs';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
-import * as minimist from 'minimist';
-import * as rimraf from 'rimraf';
+import minimist from 'minimist';
 import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
-import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion } from '../../automation';
-import { retry, timeout } from './utils';
+import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion, ApplicationOptions } from '../../automation';
+import { retry } from './utils';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
 import { setup as setupPreferencesTests } from './areas/preferences/preferences.test';
@@ -27,6 +26,7 @@ import { setup as setupLocalizationTests } from './areas/workbench/localization.
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
 import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupTaskTests } from './areas/task/task.test';
+import { setup as setupChatTests } from './areas/chat/chat.test';
 
 const rootPath = path.join(__dirname, '..', '..', '..');
 
@@ -58,7 +58,7 @@ const opts = minimist(args, {
 	tracing?: boolean;
 	build?: string;
 	'stable-build'?: string;
-	browser?: string;
+	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
 	electronArgs?: string;
 };
 
@@ -103,7 +103,7 @@ function createLogger(): Logger {
 	}
 
 	// Prepare logs rot path
-	fs.rmSync(logsRootPath, { recursive: true, force: true, maxRetries: 3 });
+	fs.rmSync(logsRootPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 	fs.mkdirSync(logsRootPath, { recursive: true });
 
 	// Always log to log file
@@ -118,21 +118,31 @@ try {
 	logger.log(`Error enabling graceful-fs: ${error}`);
 }
 
-const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
+function getTestTypeSuffix(): string {
+	if (opts.web) {
+		return 'browser';
+	} else if (opts.remote) {
+		return 'remote';
+	} else {
+		return 'electron';
+	}
+}
+
+const testDataPath = path.join(os.tmpdir(), `vscsmoke-${getTestTypeSuffix()}`);
 if (fs.existsSync(testDataPath)) {
-	rimraf.sync(testDataPath);
+	fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 }
 fs.mkdirSync(testDataPath, { recursive: true });
 process.once('exit', () => {
 	try {
-		rimraf.sync(testDataPath);
+		fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 	} catch {
 		// noop
 	}
 });
 
 const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
-const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
+const workspacePath = path.join(testDataPath, `vscode-smoketest-express`);
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 fs.mkdirSync(extensionsPath, { recursive: true });
 
@@ -236,7 +246,7 @@ const userDataDir = path.join(testDataPath, 'd');
 async function setupRepository(): Promise<void> {
 	if (opts['test-repo']) {
 		logger.log('Copying test project repository:', opts['test-repo']);
-		rimraf.sync(workspacePath);
+		fs.rmSync(workspacePath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 		// not platform friendly
 		if (process.platform === 'win32') {
 			cp.execSync(`xcopy /E "${opts['test-repo']}" "${workspacePath}"\\*`);
@@ -305,15 +315,9 @@ async function ensureStableCode(): Promise<void> {
 				},
 				error: error => logger.log(`download stable code error: ${error}`)
 			}
-		}), 'download stable code', logger), 1000, 3, () => new Promise<void>((resolve, reject) => {
-			rimraf(stableCodeDestination, { maxBusyTries: 10 }, error => {
-				if (error) {
-					reject(error);
-				} else {
-					resolve();
-				}
-			});
-		}));
+		}), 'download stable code', logger), 1000, 3, async () => {
+			fs.rmSync(stableCodeDestination, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
+		});
 
 		if (process.platform === 'darwin') {
 			// Visual Studio Code.app/Contents/MacOS/Electron
@@ -352,12 +356,13 @@ async function setup(): Promise<void> {
 before(async function () {
 	this.timeout(5 * 60 * 1000); // increase since we download VSCode
 
-	this.defaultOptions = {
+	const options: ApplicationOptions = {
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
 		codePath: opts.build,
 		workspacePath,
 		userDataDir,
+		useInMemorySecretStorage: true,
 		extensionsPath,
 		logger,
 		logsPath: path.join(logsRootPath, 'suite_unknown'),
@@ -365,11 +370,12 @@ before(async function () {
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
-		tracing: opts.tracing || process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE,
+		tracing: opts.tracing || !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE,
 		headless: opts.headless,
 		browser: opts.browser,
 		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg)
 	};
+	this.defaultOptions = options;
 
 	await setup();
 });
@@ -377,22 +383,9 @@ before(async function () {
 // After main suite (after all tests)
 after(async function () {
 	try {
-		let deleted = false;
-		await measureAndLog(() => Promise.race([
-			new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 10 }, error => {
-				if (error) {
-					reject(error);
-				} else {
-					deleted = true;
-					resolve();
-				}
-			})),
-			timeout(30000).then(() => {
-				if (!deleted) {
-					throw new Error('giving up after 30s');
-				}
-			})
-		]), 'rimraf(testDataPath)', logger);
+		await measureAndLog(async () => {
+			fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
+		}, 'rimraf(testDataPath)', logger);
 	} catch (error) {
 		logger.log(`Unable to delete smoke test workspace: ${error}. This indicates some process is locking the workspace folder.`);
 	}
@@ -411,4 +404,5 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	setupMultirootTests(logger);
 	if (!opts.web && !opts.remote && quality !== Quality.Dev && quality !== Quality.OSS) { setupLocalizationTests(logger); }
 	if (!opts.web && !opts.remote) { setupLaunchTests(logger); }
+	if (!opts.web) { setupChatTests(logger); }
 });

@@ -44,10 +44,15 @@ export const discoverySourceLabel: Record<DiscoverySource, string> = {
 	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global', "Cursor (Global)"),
 	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace', "Cursor (Workspace)"),
 };
+export const discoverySourceSettingsLabel: Record<DiscoverySource, string> = {
+	[DiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop.config', "Claude Desktop configuration (`claude_desktop_config.json`)"),
+	[DiscoverySource.Windsurf]: localize('mcp.discovery.source.windsurf.config', "Windsurf configurations (`~/.codeium/windsurf/mcp_config.json`)"),
+	[DiscoverySource.CursorGlobal]: localize('mcp.discovery.source.cursor-global.config', "Cursor global configuration (`~/.cursor/mcp.json`)"),
+	[DiscoverySource.CursorWorkspace]: localize('mcp.discovery.source.cursor-workspace.config', "Cursor workspace configuration (`.cursor/mcp.json`)"),
+};
 
 export const mcpConfigurationSection = 'mcp';
 export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
-export const mcpEnabledSection = 'chat.mcp.enabled';
 export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
 
 export interface IMcpServerSamplingConfiguration {
@@ -216,10 +221,10 @@ export const mcpServerSchema: IJSONSchema = {
 
 export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContribution[]> = {
 	extensionPoint: 'mcpServerDefinitionProviders',
-	activationEventsGenerator(contribs, result) {
+	activationEventsGenerator: function* (contribs) {
 		for (const contrib of contribs) {
 			if (contrib.id) {
-				result.push(mcpActivationEvent(contrib.id));
+				yield mcpActivationEvent(contrib.id);
 			}
 		}
 	},
@@ -238,6 +243,10 @@ export const mcpContributionPoint: IExtensionPointDescriptor<IMcpCollectionContr
 				},
 				label: {
 					description: localize('vscode.extension.contributes.mcp.label', "Display name for the collection."),
+					type: 'string'
+				},
+				when: {
+					description: localize('vscode.extension.contributes.mcp.when', "Condition which must be true to enable this collection."),
 					type: 'string'
 				}
 			}

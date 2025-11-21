@@ -7,7 +7,6 @@ import assert from 'assert';
 import { mockService } from '../utils/mock.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { randomInt } from '../../../../../../../base/common/numbers.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 
@@ -23,7 +22,7 @@ function createMock<T>(value: T): IConfigurationService {
 			);
 
 			assert(
-				[PromptsConfig.KEY, PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY].includes(key),
+				[PromptsConfig.PROMPT_LOCATIONS_KEY, PromptsConfig.INSTRUCTIONS_LOCATION_KEY, PromptsConfig.MODE_LOCATION_KEY].includes(key),
 				`Unsupported configuration key '${key}'.`,
 			);
 
@@ -34,131 +33,6 @@ function createMock<T>(value: T): IConfigurationService {
 
 suite('PromptsConfig', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	suite('enabled', () => {
-		test('true', () => {
-			const configService = createMock(true);
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				true,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('false', () => {
-			const configService = createMock(false);
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('null', () => {
-			const configService = createMock(null);
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('string', () => {
-			const configService = createMock('');
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('true string', () => {
-			const configService = createMock('TRUE');
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				true,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('false string', () => {
-			const configService = createMock('FaLsE');
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('number', () => {
-			const configService = createMock(randomInt(100));
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('NaN', () => {
-			const configService = createMock(NaN);
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('bigint', () => {
-			const configService = createMock(BigInt(randomInt(100)));
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('symbol', () => {
-			const configService = createMock(Symbol('test'));
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('object', () => {
-			const configService = createMock({
-				'.github/prompts': false,
-			});
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-
-		test('array', () => {
-			const configService = createMock(['.github/prompts']);
-
-			assert.strictEqual(
-				PromptsConfig.enabled(configService),
-				false,
-				'Must read correct enablement value.',
-			);
-		});
-	});
-
 
 	suite('getLocationsValue', () => {
 		test('undefined', () => {
@@ -248,7 +122,7 @@ suite('PromptsConfig', () => {
 						'\r\n': true,
 						'\f\f': true,
 						'../lib/some_library.v1.0.1.so': '\r\n',
-						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'/dev/shm/.shared_resource': 1234,
 					}), PromptsType.prompt),
 					{
 						'../assets/img/logo.v2.png': true,
@@ -275,7 +149,7 @@ suite('PromptsConfig', () => {
 						'/opt/Software/v3.2.1/build.log': '  ',
 						'/var/data/datafile.2025-02-05.json': '\n',
 						'../lib/some_library.v1.0.1.so': '\r\n',
-						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'/dev/shm/.shared_resource': 2345,
 					}), PromptsType.prompt),
 					{
 						'/mnt/storage/video.archive/episode.01.mkv': false,
@@ -379,7 +253,7 @@ suite('PromptsConfig', () => {
 						'\r\n': true,
 						'\f\f': true,
 						'../lib/some_library.v1.0.1.so': '\r\n',
-						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'/dev/shm/.shared_resource': 2345,
 					}), PromptsType.prompt),
 					[
 						'.github/prompts',
@@ -407,7 +281,7 @@ suite('PromptsConfig', () => {
 						'/opt/Software/v3.2.1/build.log': '  ',
 						'/var/data/datafile.2025-02-05.json': '\n',
 						'../lib/some_library.v1.0.1.so': '\r\n',
-						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'/dev/shm/.shared_resource': 7654,
 					}), PromptsType.prompt),
 					[
 						'.github/prompts',
@@ -442,7 +316,7 @@ suite('PromptsConfig', () => {
 						'\r\n': true,
 						'\f\f': true,
 						'../lib/some_library.v1.0.1.so': '\r\n',
-						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'/dev/shm/.shared_resource': 853,
 					}), PromptsType.prompt),
 					[
 						'../assets/img/logo.v2.png',
