@@ -110,7 +110,7 @@ suite('Editor Model - Model', () => {
 		]);
 		annotatedString.applyEdit(StringEdit.replace(new OffsetRange(2, 12), ''));
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
-			{ range: new OffsetRange(0, 1), annotation: 'text1' },
+			{ range: new OffsetRange(0, 2), annotation: 'text1' },
 			{ range: new OffsetRange(2, 5), annotation: 'text2' },
 			{ range: new OffsetRange(10, 15), annotation: 'text3' }
 		]);
@@ -123,7 +123,7 @@ suite('Editor Model - Model', () => {
 	// Add several edits in sequence, not just one
 	// Add edit that covers the same range as annotation
 	// Add edit that is fully inside of an annotation
-	// Add edit that start within annotation and end outside of another one 
+	// Add edit that start within annotation and end outside of another one
 
 	test('annotations test 7', () => {
 

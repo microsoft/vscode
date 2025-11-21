@@ -105,124 +105,79 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 
 	public applyEdit(edit: StringEdit): void {
-		console.log('edit : ', JSON.stringify(edit));
-		console.log('this._annotations before edit: ', JSON.stringify(this._annotations));
+		const result: IAnnotation<T>[] = [];
+		const sortedAnnotations = this._annotations.slice();
+		let offset = 0;
 
-		const withinAnnotation = (value: number, offset: number): boolean => {
-			const annotation = this._annotations[offset];
-			const isWithin = value >= annotation.range.start && value <= annotation.range.endExclusive;
-			return isWithin;
-		};
-
-		for (const replacement of edit.replacements) {
-
-			const replaceRangeStart = replacement.replaceRange.start;
-			const replaceRangeEnd = replacement.replaceRange.endExclusive;
-			const newLength = replacement.newText.length;
-
-			console.log('replaceRangeStart : ', replaceRangeStart);
-			console.log('replaceRangeEnd : ', replaceRangeEnd);
-			console.log('newLength : ', newLength);
-
-			const firstIndexEditAppliedTo = this._getStartIndexOfIntersectingAnnotation(replaceRangeStart);
-			const endIndexEditAppliedTo = this._getEndIndexOfIntersectingAnnotation(replaceRangeEnd);
-
-			console.log('firstIndexEditAppliedTo : ', firstIndexEditAppliedTo);
-			console.log('endIndexEditAppliedTo : ', endIndexEditAppliedTo);
-
-			let deletionStartIndex = -1;
-			let deletionEndIndex = -1;
-
-			if (firstIndexEditAppliedTo === endIndexEditAppliedTo) {
-				const annotation = this._annotations[firstIndexEditAppliedTo];
-				const annotationStart = annotation.range.start;
-				const annotationEnd = annotation.range.endExclusive;
-
-				// Assume [] indicates the edit position and () indicates the annotation range
-				if (!withinAnnotation(replaceRangeEnd, firstIndexEditAppliedTo) && !withinAnnotation(replaceRangeStart, firstIndexEditAppliedTo)) {
-					// []...()
-					console.log('if 1');
-					const offset = newLength - (replaceRangeEnd - replaceRangeStart);
-					annotation.range = new OffsetRange(annotationStart + offset, annotationEnd + offset);
-				} else if (!withinAnnotation(replaceRangeStart, firstIndexEditAppliedTo) && withinAnnotation(replaceRangeEnd, firstIndexEditAppliedTo)) {
-					// [...(...]...)
-					console.log('if 2');
-					annotation.range = new OffsetRange(replaceRangeStart, replaceRangeStart + (annotationEnd - replaceRangeEnd) + newLength);
-				} else {
-					if (replaceRangeStart === annotationStart && replaceRangeEnd === annotationEnd) {
-						// ([...])
-						console.log('if 3');
-						deletionStartIndex = firstIndexEditAppliedTo;
-						deletionEndIndex = firstIndexEditAppliedTo;
-					} else {
-						// (...[]...)
-						console.log('if 4');
-						annotation.range = new OffsetRange(annotationStart, annotationEnd - (replaceRangeEnd - replaceRangeStart) + newLength);
-					}
+		// iterating over all the edits
+		for (const e of edit.replacements) {
+			while (true) {
+				// Take the first annotation in the array
+				const a = sortedAnnotations[0];
+				// If there is no annotation, or if  a.range.endExclusive < e.replaceRange.start
+				// the second condition implies that the annotation is completely before the edit
+				if (!a || a.range.endExclusive >= e.replaceRange.start) {
+					break;
 				}
-			} else {
-				if (withinAnnotation(replaceRangeStart, firstIndexEditAppliedTo)) {
-					// The edit start border is enclosed within a decoration, but not the end
-					const annotationStart = this._annotations[firstIndexEditAppliedTo].range.start;
-					if (annotationStart === replaceRangeStart) {
-						console.log('if 5');
-						deletionStartIndex = firstIndexEditAppliedTo;
-					} else {
-						console.log('if 6');
-						this._annotations[firstIndexEditAppliedTo].range = new OffsetRange(annotationStart, replaceRangeStart - 1);
-						deletionStartIndex = firstIndexEditAppliedTo + 1;
-					}
-				} else {
-					console.log('if 7');
-					deletionStartIndex = firstIndexEditAppliedTo;
-				}
-				if (withinAnnotation(replaceRangeEnd, endIndexEditAppliedTo)) {
-					const annotationEnd = this._annotations[endIndexEditAppliedTo].range.endExclusive;
-					if (annotationEnd === replaceRangeEnd) {
-						console.log('if 8');
-						deletionEndIndex = endIndexEditAppliedTo;
-					} else {
-						console.log('if 9');
-						const offset = replaceRangeStart + newLength;
-						const delta = annotationEnd - replaceRangeEnd;
-						this._annotations[endIndexEditAppliedTo].range = new OffsetRange(offset, offset + delta);
-						deletionEndIndex = endIndexEditAppliedTo - 1;
-					}
-				} else {
-					console.log('if 10');
-					deletionEndIndex = endIndexEditAppliedTo;
-				}
+				sortedAnnotations.shift();
+				// What is this offset?
+				result.push({ range: a.range.delta(offset), annotation: a.annotation });
 			}
-			if (deletionStartIndex > deletionEndIndex) {
-				deletionStartIndex = -1;
-				deletionEndIndex = -1;
-			}
-			console.log('deletionStartIndex : ', deletionStartIndex);
-			console.log('deletionEndIndex : ', deletionEndIndex);
 
-			console.log('---------------------------------------');
-
-			const offset = newLength - (replaceRangeEnd - replaceRangeStart);
-
-			console.log('offset : ', offset);
-
-			const newAnnotations: IAnnotation<T>[] = [];
-			for (const [index, annotation] of this._annotations.entries()) {
-				console.log('index : ', index);
-				console.log('annotation : ', JSON.stringify(annotation));
-				if (index >= deletionStartIndex && index <= deletionEndIndex) {
-					console.log('deleting annotation: ', JSON.stringify(annotation));
-					continue;
+			// contains all the intersecting annotations
+			const intersecting: IAnnotation<T>[] = [];
+			while (true) {
+				const a = sortedAnnotations[0];
+				// If the annotation is not defined
+				// Or it does not intersect or touch the replace range, we break
+				if (!a || !a.range.intersectsOrTouches(e.replaceRange)) {
+					break;
 				}
-				if (index > endIndexEditAppliedTo) {
-					annotation.range = new OffsetRange(annotation.range.start + offset, annotation.range.endExclusive + offset);
-				}
-				console.log('updated annotation: ', JSON.stringify(annotation));
-				newAnnotations.push(annotation);
+				sortedAnnotations.shift();
+				intersecting.push(a);
 			}
-			console.log('annotations : ', JSON.stringify(newAnnotations));
-			this._annotations = newAnnotations;
+
+			// Going down from the last intersecting annotation to the first one
+			for (let i = intersecting.length - 1; i >= 0; i--) {
+				const a = intersecting[i];
+				let r = a.range;
+
+				// It's the length of the overlap
+				const overlap = r.intersect(e.replaceRange)!.length;
+				r = r.deltaEnd(-overlap + (i === 0 ? e.newText.length : 0));
+
+				const rangeAheadOfReplaceRange = r.start - e.replaceRange.start;
+				if (rangeAheadOfReplaceRange > 0) {
+					r = r.delta(-rangeAheadOfReplaceRange);
+				}
+
+				if (i !== 0) {
+					r = r.delta(e.newText.length);
+				}
+
+				// We already took our offset into account.
+				// Because we add r back to the queue (which then adds offset again),
+				// we have to remove it here.
+				r = r.delta(-(e.newText.length - e.replaceRange.length));
+
+				sortedAnnotations.unshift({ range: r, annotation: a.annotation });
+			}
+
+			// Taking the offset and adding to it the different in the lengths of the edit
+			offset += e.newText.length - e.replaceRange.length;
 		}
+
+		while (true) {
+			const a = sortedAnnotations[0];
+			if (!a) {
+				break;
+			}
+			sortedAnnotations.shift();
+			result.push({ range: a.range.delta(offset), annotation: a.annotation });
+		}
+
+		// Filtering for non-empty ranges
+		this._annotations = result.filter(a => !a.range.isEmpty);
 	}
 
 	public clone(): IAnnotatedString<T> {
