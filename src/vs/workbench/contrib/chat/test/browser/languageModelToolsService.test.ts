@@ -1176,7 +1176,7 @@ suite('LanguageModelToolsService', () => {
 		}
 
 		{
-			// using the latest MCP full names should also work
+			// using the old MCP full names should also work
 			const toolNames = ['github-mcp-server/create_branch'];
 			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
