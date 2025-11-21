@@ -78,3 +78,7 @@
 .monaco-workbench .part.banner .action-container .codicon {
 	color: var(--vscode-banner-foreground);
 }
+
+.monaco-workbench .part.banner .action-container [tabindex='0']:focus {
+	outline-color:var(--vscode-banner-foreground);
+}
