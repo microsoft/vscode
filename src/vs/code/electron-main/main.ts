@@ -501,7 +501,7 @@ class CodeMain {
 		}
 
 		try {
-			const readyMutexName = `${productService.win32MutexName}-ready`;
+			const readyMutexName = `${productService.win32MutexName}setup`;
 			const mutex = await import('@vscode/windows-mutex');
 			return mutex.isActive(readyMutexName);
 		} catch (error) {
