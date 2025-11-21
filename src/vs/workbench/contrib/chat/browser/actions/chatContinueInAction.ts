@@ -314,7 +314,8 @@ class CreateRemoteAgentJobFromEditorAction {
 			}
 			const fileUri = model.uri as URI;
 			const chatModel = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, {});
-			const { sessionResource } = chatModel;
+			// todo@connor4312: remove 'as' cast
+			const { sessionResource } = chatModel as ChatModel;
 			await editorService2.openEditor({ resource: sessionResource }, undefined);
 			const attachedContext: IChatRequestVariableEntry[] = [{
 				kind: 'file',
