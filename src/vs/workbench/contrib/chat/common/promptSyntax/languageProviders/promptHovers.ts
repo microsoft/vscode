@@ -235,11 +235,10 @@ export class PromptHoverProvider implements HoverProvider {
 
 	private getHandsOffHover(attribute: IHeaderAttribute, position: Position, isGitHubTarget: boolean): Hover | undefined {
 		const handoffsBaseMessage = localize('promptHeader.agent.handoffs', 'Possible handoff actions when the agent has completed its task.');
-		const detailedMessage = handoffsBaseMessage + '\n\n' + localize('promptHeader.agent.handoffs.structure', 'Each handoff is an object with:\n- `label`: Button text\n- `agent`: Target agent name\n- `prompt`: Prompt to send\n- `send`: (optional) Auto-send the prompt\n- `additionalChoices`: (optional) Array of additional choices with `label` and `prompt`');
 		if (isGitHubTarget) {
-			return this.createHover(detailedMessage + '\n\n' + localize('promptHeader.agent.handoffs.githubCopilot', 'Note: This attribute is not used when target is github-copilot.'), attribute.range);
+			return this.createHover(handoffsBaseMessage + '\n\n' + localize('promptHeader.agent.handoffs.githubCopilot', 'Note: This attribute is not used when target is github-copilot.'), attribute.range);
 		}
-		return this.createHover(detailedMessage, attribute.range);
+		return this.createHover(handoffsBaseMessage, attribute.range);
 
 	}
 }
