@@ -33,6 +33,7 @@ export interface IChatSessionProviderOptionItem {
 	id: string;
 	name: string;
 	locked?: boolean;
+	icon?: ThemeIcon;
 	// [key: string]: any;
 }
 
