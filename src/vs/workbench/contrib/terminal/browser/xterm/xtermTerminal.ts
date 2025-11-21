@@ -892,7 +892,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this._onDidRequestRefreshDimensions.fire();
 	}
 
-	async getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker): Promise<string> {
+	async getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string> {
 		if (!this._serializeAddon) {
 			const Addon = await this._xtermAddonLoader.importAddon('serialize');
 			this._serializeAddon = new Addon();
@@ -900,11 +900,14 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 
 		assert(startMarker.line !== -1);
-
+		let end = endMarker?.line ?? this.raw.buffer.active.length - 1;
+		if (skipLastLine) {
+			end = end - 1;
+		}
 		return this._serializeAddon.serialize({
 			range: {
 				start: startMarker.line,
-				end: endMarker?.line ?? this.raw.buffer.active.length - 1
+				end: end
 			}
 		});
 	}
