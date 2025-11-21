@@ -51,8 +51,8 @@ import { KeybindingWeight, KeybindingsRegistry } from '../../../../../../platfor
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { DetachedTerminalCommandMirror } from '../../../../terminal/browser/chatTerminalCommandMirror.js';
 
-const MIN_OUTPUT_HEIGHT = 20;
-const MAX_OUTPUT_HEIGHT = 200;
+const MIN_OUTPUT_ROWS = 1;
+const MAX_OUTPUT_ROWS = 10;
 
 /**
  * Remembers whether a tool invocation was last expanded so state survives virtualization re-renders.
@@ -795,7 +795,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 			}));
 			const scrollableDomNode = this._outputScrollbar.getDomNode();
 			scrollableDomNode.tabIndex = 0;
-			scrollableDomNode.style.maxHeight = `${MAX_OUTPUT_HEIGHT}px`;
+			const rowHeight = this._computeRowHeightPx();
+			const padding = this._getOutputPadding();
+			const maxHeight = rowHeight * MAX_OUTPUT_ROWS + padding;
+			scrollableDomNode.style.maxHeight = `${maxHeight}px`;
 			this._container.appendChild(scrollableDomNode);
 		}
 
@@ -869,11 +872,15 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 		const scrollableDomNode = this._outputScrollbar.getDomNode();
-		const contentHeight = Math.max(this._getOutputContentHeight(lineCount), MIN_OUTPUT_HEIGHT);
-		const clampedHeight = Math.min(contentHeight, MAX_OUTPUT_HEIGHT);
-		const measuredBodyHeight = Math.max(this._outputBody.clientHeight, MIN_OUTPUT_HEIGHT);
+		const rowHeight = this._computeRowHeightPx();
+		const padding = this._getOutputPadding();
+		const minHeight = rowHeight * MIN_OUTPUT_ROWS + padding;
+		const maxHeight = rowHeight * MAX_OUTPUT_ROWS + padding;
+		const contentHeight = this._getOutputContentHeight(lineCount, rowHeight, padding);
+		const clampedHeight = Math.min(contentHeight, maxHeight);
+		const measuredBodyHeight = Math.max(this._outputBody.clientHeight, minHeight);
 		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
-		scrollableDomNode.style.maxHeight = `${MAX_OUTPUT_HEIGHT}px`;
+		scrollableDomNode.style.maxHeight = `${maxHeight}px`;
 		scrollableDomNode.style.height = `${appliedHeight}px`;
 		this._outputScrollbar.scanDomNode();
 		if (this._renderedOutputHeight !== appliedHeight) {
@@ -890,29 +897,28 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._outputScrollbar.setScrollPosition({ scrollTop: dimensions.scrollHeight });
 	}
 
-	private _getOutputContentHeight(lineCount?: number): number {
+	private _getOutputContentHeight(lineCount: number, rowHeight: number, padding: number): number {
+		const contentRows = Math.max(lineCount, MIN_OUTPUT_ROWS);
+		return (contentRows * rowHeight) + padding;
+	}
+
+	private _getOutputPadding(): number {
 		const style = dom.getComputedStyle(this._outputBody);
 		const paddingTop = Number.parseFloat(style.paddingTop || '0');
 		const paddingBottom = Number.parseFloat(style.paddingBottom || '0');
-		const padding = paddingTop + paddingBottom;
-		const contentHeight = this._calculateContentHeight(lineCount);
-		return contentHeight + padding;
-	}
-
-	private _calculateContentHeight(lineCount?: number): number {
-		if (lineCount === 0 || lineCount === undefined) {
-			return MIN_OUTPUT_HEIGHT;
-		}
-		const rowHeightPx = this._computeRowHeightPx();
-		return lineCount * rowHeightPx;
+		return paddingTop + paddingBottom;
 	}
 
 	private _computeRowHeightPx(): number {
 		const window = dom.getActiveWindow();
 		const font = this._terminalConfigurationService.getFont(window);
-		const charHeight = font.charHeight && font.charHeight > 0 ? font.charHeight : font.fontSize;
-		const rowHeight = charHeight * font.lineHeight;
-		return Math.max(Math.ceil(rowHeight), MIN_OUTPUT_HEIGHT);
+		const hasCharHeight = typeof font.charHeight === 'number' && font.charHeight > 0;
+		const hasFontSize = typeof font.fontSize === 'number' && font.fontSize > 0;
+		const hasLineHeight = typeof font.lineHeight === 'number' && font.lineHeight > 0;
+		const charHeight = (hasCharHeight ? font.charHeight : (hasFontSize ? font.fontSize : 1)) ?? 1;
+		const lineHeight = hasLineHeight ? font.lineHeight : 1;
+		const rowHeight = Math.ceil(charHeight * lineHeight);
+		return Math.max(rowHeight, 1);
 	}
 
 	private _ensureOutputResizeObserver(): void {
