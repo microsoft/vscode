@@ -909,19 +909,11 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _computeRowHeightPx(): number {
-		const configLineHeight = this._terminalConfigurationService.config.lineHeight && this._terminalConfigurationService.config.lineHeight > 0
-			? this._terminalConfigurationService.config.lineHeight
-			: 1;
-		try {
-			const window = dom.getActiveWindow();
-			const font = this._terminalConfigurationService.getFont(window);
-			const charHeight = font.charHeight && font.charHeight > 0 ? font.charHeight : font.fontSize;
-			const rowHeight = charHeight * font.lineHeight;
-			return Math.max(Math.ceil(rowHeight), MIN_OUTPUT_HEIGHT);
-		} catch {
-			const fallback = this._terminalConfigurationService.config.fontSize * configLineHeight;
-			return Math.max(Math.ceil(fallback), MIN_OUTPUT_HEIGHT);
-		}
+		const window = dom.getActiveWindow();
+		const font = this._terminalConfigurationService.getFont(window);
+		const charHeight = font.charHeight && font.charHeight > 0 ? font.charHeight : font.fontSize;
+		const rowHeight = charHeight * font.lineHeight;
+		return Math.max(Math.ceil(rowHeight), MIN_OUTPUT_HEIGHT);
 	}
 
 	private _ensureOutputResizeObserver(): void {
