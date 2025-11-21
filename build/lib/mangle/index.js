@@ -614,7 +614,6 @@ class Mangler {
             result.set(item.fileName, { out: newFullText, sourceMap: generator?.toString() });
         }
         service.dispose();
-        this.renameWorkerPool.terminate();
         this.log(`Done: ${savedBytes / 1000}kb saved, memory-usage: ${JSON.stringify(node_v8_1.default.getHeapStatistics())}`);
         return result;
     }
