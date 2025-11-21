@@ -128,8 +128,10 @@ class ValidatedIpcMain implements Event.NodeEventEmitter {
 			return false; // unexpected URL
 		}
 
-		if (url === process.env.DEV_WINDOW_SRC && (host === 'localhost' || host.startsWith('localhost:'))) {
-			return true;
+		if (process.env.VSCODE_DEV) {
+			if (url === process.env.DEV_WINDOW_SRC && (host === 'localhost' || host.startsWith('localhost:'))) {
+				return true; // development support where the window is served from localhost
+			}
 		}
 
 		if (host !== VSCODE_AUTHORITY) {

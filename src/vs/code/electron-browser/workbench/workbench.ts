@@ -290,10 +290,9 @@
 		// Compute base URL and set as global
 		const baseUrl = new URL(`${fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out/`);
 		globalThis._VSCODE_FILE_ROOT = baseUrl.toString();
-		if (!globalThis._VSCODE_DISABLE_CSS_IMPORT_MAP) {
-			// Dev only: CSS import map tricks
-			setupCSSImportMaps<T>(configuration, baseUrl);
-		}
+
+		// Dev only: CSS import map tricks
+		setupCSSImportMaps<T>(configuration, baseUrl);
 
 		// ESM Import
 		try {
@@ -452,6 +451,10 @@
 		// DEV: For each CSS modules that we have we defined an entry in the import map that maps to
 		// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
 		// DEV ---------------------------------------------------------------------------------------
+
+		if (globalThis._VSCODE_DISABLE_CSS_IMPORT_MAP) {
+			return; // disabled in certain development setups
+		}
 
 		if (Array.isArray(configuration.cssModules) && configuration.cssModules.length > 0) {
 			performance.mark('code/willAddCssLoader');
