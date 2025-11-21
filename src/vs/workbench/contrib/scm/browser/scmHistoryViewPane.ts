@@ -28,7 +28,7 @@ import { asCssVariable, ColorIdentifier, foreground } from '../../../../platform
 import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemIndex, historyItemHoverDefaultLabelForeground } from './scmHistory.js';
+import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemIndex, toHistoryItemHoverContent } from './scmHistory.js';
 import { getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ViewMode } from '../common/scm.js';
@@ -76,8 +76,8 @@ import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/
 import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
 import { SCMHistoryItemTransferData } from './scmHistoryChatContext.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { isEmptyMarkdownString, isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -483,7 +483,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		const historyItemViewModel = node.element.historyItemViewModel;
 		const historyItem = historyItemViewModel.historyItem;
 
-		const { content, disposables } = this._renderHoverContent(historyItem);
+		const { content, disposables } = this.toHistoryItemHoverContent(historyItem);
 		const historyItemHover = this._hoverService.setupManagedHover(this.hoverDelegate, templateData.element, content);
 		templateData.elementDisposables.add(historyItemHover);
 		templateData.elementDisposables.add(disposables);
@@ -590,59 +590,21 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		append(templateData.labelContainer, elements.root);
 	}
 
-	private _renderHoverContent(historyItem: ISCMHistoryItem): { content: IManagedHoverContent; disposables: IDisposable } {
-		const disposables = new DisposableStore();
+	private toHistoryItemHoverContent(historyItem: ISCMHistoryItem): { content: IManagedHoverContent; disposables: IDisposable } {
+		// Depracte when we removed the usage of `this._hoverService.setupManagedHover`
+		const { content, disposables } = toHistoryItemHoverContent(this._markdownRendererService, historyItem, true);
 
-		if (historyItem.tooltip === undefined) {
-			return { content: historyItem.message, disposables };
-		}
-
-		if (isMarkdownString(historyItem.tooltip)) {
+		if (isMarkdownString(content)) {
 			return {
 				content: {
-					markdown: historyItem.tooltip,
+					markdown: content,
 					markdownNotSupportedFallback: historyItem.message
 				},
 				disposables
 			};
 		}
 
-		// References as "injected" into the hover here since the extension does
-		// not know that color used in the graph to render the history item at which
-		// the reference is pointing to. They are being added before the last element
-		// of the array which is assumed to contain the hover commands.
-		const tooltipSections = historyItem.tooltip.slice();
-
-		if (historyItem.references?.length) {
-			const markdownString = new MarkdownString('', { supportHtml: true, supportThemeIcons: true });
-
-			for (const reference of historyItem.references) {
-				const labelIconId = ThemeIcon.isThemeIcon(reference.icon) ? reference.icon.id : '';
-
-				const labelBackgroundColor = reference.color ? asCssVariable(reference.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
-				const labelForegroundColor = reference.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(historyItemHoverDefaultLabelForeground);
-				markdownString.appendMarkdown(`<span style="color:${labelForegroundColor};background-color:${labelBackgroundColor};border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;`);
-				markdownString.appendText(reference.name);
-				markdownString.appendMarkdown('&nbsp;&nbsp;</span>');
-			}
-
-			markdownString.appendMarkdown(`\n\n---\n\n`);
-			tooltipSections.splice(tooltipSections.length - 1, 0, markdownString);
-		}
-
-		// Render tooltip content
-		const hoverContainer = $('.history-item-hover-container');
-		for (const markdownString of tooltipSections) {
-			if (isEmptyMarkdownString(markdownString)) {
-				continue;
-			}
-
-			const renderedContent = this._markdownRendererService.render(markdownString);
-			hoverContainer.appendChild(renderedContent.element);
-			disposables.add(renderedContent);
-		}
-
-		return { content: hoverContainer, disposables };
+		return { content, disposables };
 	}
 
 	private _processMatches(historyItemViewModel: ISCMHistoryItemViewModel, filterData: LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
