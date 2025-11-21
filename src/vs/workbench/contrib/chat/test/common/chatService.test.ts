@@ -127,6 +127,17 @@ suite('ChatService', () => {
 
 	let chatAgentService: IChatAgentService;
 
+	/**
+	 * Hack to avoid triggering async persistence after model disposal. TODO@roblourens
+	 */
+	function createChatService(options?: { enablePersistence?: boolean }): ChatService {
+		const service = testDisposables.add(instantiationService.createInstance(ChatService));
+		if (!options?.enablePersistence) {
+			service.setChatPersistanceEnabled(false);
+		}
+		return service;
+	}
+
 	function startSessionModel(service: IChatService, location: ChatAgentLocation = ChatAgentLocation.Chat): IChatModelReference {
 		const ref = testDisposables.add(service.startSession(location, CancellationToken.None));
 		return ref;
@@ -187,7 +198,7 @@ suite('ChatService', () => {
 	});
 
 	test('retrieveSession', async () => {
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+		const testService = createChatService({ enablePersistence: true });
 		// Don't add refs to testDisposables so we can control disposal
 		const session1Ref = testService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
 		const session1 = session1Ref.object as ChatModel;
@@ -216,7 +227,7 @@ suite('ChatService', () => {
 		assert.ok(session2WriteOp, 'Session 2 should have been written to file service');
 
 		// Create a new service instance to simulate app restart
-		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
+		const testService2 = createChatService({ enablePersistence: true });
 
 		// Retrieve sessions and verify they're loaded from file service
 		const retrieved1 = await getOrRestoreModel(testService2, session1.sessionResource);
@@ -229,7 +240,7 @@ suite('ChatService', () => {
 	});
 
 	test('addCompleteRequest', async () => {
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+		const testService = createChatService();
 
 		const modelRef = startSessionModel(testService);
 		const model = modelRef.object;
@@ -242,7 +253,7 @@ suite('ChatService', () => {
 	});
 
 	test('sendRequest fails', async () => {
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+		const testService = createChatService();
 
 		const modelRef = startSessionModel(testService);
 		const model = modelRef.object;
@@ -267,7 +278,7 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation('defaultAgent', historyLengthAgent));
 		testDisposables.add(chatAgentService.registerAgentImplementation('agent2', historyLengthAgent));
 
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+		const testService = createChatService();
 		const modelRef = startSessionModel(testService);
 		const model = modelRef.object;
 
@@ -296,7 +307,7 @@ suite('ChatService', () => {
 	test('can serialize', async () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithUsedContextId, chatAgentWithUsedContext));
 		chatAgentService.updateAgent(chatAgentWithUsedContextId, {});
-		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+		const testService = createChatService();
 
 		const modelRef = startSessionModel(testService);
 		const model = modelRef.object;
@@ -323,8 +334,7 @@ suite('ChatService', () => {
 
 		// create the first service, send request, get response, and serialize the state
 		{  // serapate block to not leak variables in outer scope
-			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
-			testService.setChatPersistanceEnabled(false);
+			const testService = createChatService();
 
 			const chatModel1Ref = startSessionModel(testService);
 			const chatModel1 = chatModel1Ref.object;
@@ -340,8 +350,7 @@ suite('ChatService', () => {
 
 		// try deserializing the state into a new service
 
-		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
-		testService2.setChatPersistanceEnabled(false);
+		const testService2 = createChatService();
 
 		const chatModel2Ref = testService2.loadSessionFromContent(serializedChatData);
 		assert(chatModel2Ref);
@@ -356,7 +365,7 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithMarkdownId, chatAgentWithMarkdown));
 
 		{
-			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+			const testService = createChatService();
 
 			const chatModel1Ref = startSessionModel(testService);
 			const chatModel1 = chatModel1Ref.object;
@@ -372,7 +381,7 @@ suite('ChatService', () => {
 
 		// try deserializing the state into a new service
 
-		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
+		const testService2 = createChatService();
 
 		const chatModel2Ref = testService2.loadSessionFromContent(serializedChatData);
 		assert(chatModel2Ref);
