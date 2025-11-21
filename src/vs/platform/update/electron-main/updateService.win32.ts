@@ -131,9 +131,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			} catch (e) {
 				this.logService.error(`update#doCheckForUpdates - could not read ${updatingVersionPath}`, e);
 			} finally {
-				try {
-					await unlink(updatingVersionPath);
-				} catch { }
+				// updatingVersionPath will be deleted by inno setup.
 			}
 		} else {
 			const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
