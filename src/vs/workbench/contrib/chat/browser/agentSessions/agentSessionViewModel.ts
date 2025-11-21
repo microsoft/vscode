@@ -11,12 +11,13 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { ChatSessionStatus, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 import { AgentSessionsViewFilter } from './agentSessionsViewFilter.js';
 
@@ -50,10 +51,7 @@ export interface IAgentSessionViewModel {
 	readonly description?: string | IMarkdownString;
 	readonly icon: ThemeIcon;
 
-	readonly timing: {
-		readonly startTime: number;
-		readonly endTime?: number;
-
+	readonly timing: IChatSessionItem['timing'] & {
 		readonly inProgressTime?: number;
 		readonly finishedOrFailedTime?: number;
 	};
@@ -254,8 +252,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					status,
 					archived: session.archived ?? false,
 					timing: {
-						startTime: session.timing.startTime,
-						endTime: session.timing.endTime,
+						...session.timing,
 						inProgressTime,
 						finishedOrFailedTime
 					},
@@ -305,7 +302,7 @@ interface ISerializedAgentSessionViewModel {
 	readonly timing: {
 		readonly startTime: number;
 		readonly endTime?: number;
-	};
+	} | IChatSessionItem['timing'];
 
 	readonly statistics?: {
 		readonly files: number;
@@ -330,7 +327,7 @@ class AgentSessionsCache {
 				session.providerType === AgentSessionProviders.Background ||
 				session.providerType === AgentSessionProviders.Cloud
 			)
-			.map(session => ({
+			.map((session): ISerializedAgentSessionViewModel => ({
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
 
@@ -344,10 +341,7 @@ class AgentSessionsCache {
 				status: session.status,
 				archived: session.archived,
 
-				timing: {
-					startTime: session.timing.startTime,
-					endTime: session.timing.endTime,
-				},
+				timing: session.timing,
 
 				statistics: session.statistics,
 			}));
@@ -362,7 +356,7 @@ class AgentSessionsCache {
 
 		try {
 			const cached = JSON.parse(sessionsCache) as ISerializedAgentSessionViewModel[];
-			return cached.map(session => ({
+			return cached.map((session): IAgentSessionViewModel => ({
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
 
@@ -376,9 +370,10 @@ class AgentSessionsCache {
 				status: session.status,
 				archived: session.archived,
 
-				timing: {
-					startTime: session.timing.startTime,
-					endTime: session.timing.endTime,
+				timing: hasKey(session.timing, { created: true }) ? session.timing : {
+					created: session.timing.startTime,
+					lastRequestStarted: session.timing.startTime,
+					lastRequestEnded: session.timing.endTime,
 				},
 
 				statistics: session.statistics,

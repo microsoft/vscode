@@ -64,17 +64,8 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'test-type',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						resource: URI.parse('test://session-1'),
-						label: 'Test Session 1',
-						description: 'Description 1',
-						timing: { startTime: Date.now() }
-					},
-					{
-						resource: URI.parse('test://session-2'),
-						label: 'Test Session 2',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-1'),
+					makeSimpleSessionItem('session-2'),
 				]
 			};
 
@@ -97,11 +88,8 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'type-1',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						resource: URI.parse('test://session-1'),
-						label: 'Session 1',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-1')
+
 				]
 			};
 
@@ -109,11 +97,7 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'type-2',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						resource: URI.parse('test://session-2'),
-						label: 'Session 2',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-2')
 				]
 			};
 
@@ -167,11 +151,7 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'test-type',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						resource: URI.parse('test://session-1'),
-						label: 'Test Session',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-1')
 				]
 			};
 
@@ -192,7 +172,8 @@ suite('AgentSessionsViewModel', () => {
 	test('should handle session with all properties', async () => {
 		return runWithFakedTimers({}, async () => {
 			const startTime = Date.now();
-			const endTime = startTime + 1000;
+			const requestStartTime = startTime + 1000;
+			const requestEndTime = requestStartTime + 1000;
 
 			const provider: IChatSessionItemProvider = {
 				chatSessionType: 'test-type',
@@ -205,7 +186,11 @@ suite('AgentSessionsViewModel', () => {
 						status: ChatSessionStatus.Completed,
 						tooltip: 'Session tooltip',
 						iconPath: ThemeIcon.fromId('check'),
-						timing: { startTime, endTime },
+						timing: {
+							created: startTime,
+							lastRequestStarted: requestStartTime,
+							lastRequestEnded: requestEndTime,
+						},
 						statistics: { files: 1, insertions: 10, deletions: 5 }
 					}
 				]
@@ -225,8 +210,9 @@ suite('AgentSessionsViewModel', () => {
 				assert.strictEqual(session.description.value, '**Bold** description');
 			}
 			assert.strictEqual(session.status, ChatSessionStatus.Completed);
-			assert.strictEqual(session.timing.startTime, startTime);
-			assert.strictEqual(session.timing.endTime, endTime);
+			assert.strictEqual(session.timing.created, startTime);
+			assert.strictEqual(session.timing.lastRequestStarted, requestStartTime);
+			assert.strictEqual(session.timing.lastRequestEnded, requestEndTime);
 			assert.deepStrictEqual(session.statistics, { files: 1, insertions: 10, deletions: 5 });
 		});
 	});
@@ -237,11 +223,7 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'type-1',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						resource: URI.parse('test://session-1'),
-						label: 'Session 1',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-1')
 				]
 			};
 
@@ -249,12 +231,8 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'type-2',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						id: 'session-2',
-						resource: URI.parse('test://session-2'),
-						label: 'Session 2',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-1')
+
 				]
 			};
 
@@ -280,11 +258,8 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'type-1',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						resource: URI.parse('test://session-1'),
-						label: 'Session 1',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-1')
+
 				]
 			};
 
@@ -292,12 +267,7 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'type-2',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						id: 'session-2',
-						resource: URI.parse('test://session-2'),
-						label: 'Session 2',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-2'),
 				]
 			};
 
@@ -318,11 +288,7 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'test-type',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						resource: URI.parse('test://session-1'),
-						label: 'Test Session',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-1')
 				]
 			};
 
@@ -347,11 +313,7 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'test-type',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						resource: URI.parse('test://session-1'),
-						label: 'Test Session',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-1')
 				]
 			};
 
@@ -376,11 +338,7 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'test-type',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						resource: URI.parse('test://session-1'),
-						label: 'Test Session',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-1')
 				]
 			};
 
@@ -405,11 +363,7 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'test-type',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						resource: URI.parse('test://session-1'),
-						label: 'Test Session',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-1')
 				]
 			};
 
@@ -447,25 +401,16 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'session-failed',
-						resource: URI.parse('test://session-failed'),
-						label: 'Failed Session',
+						...makeSimpleSessionItem('session-failed'),
 						status: ChatSessionStatus.Failed,
-						timing: { startTime: Date.now() }
 					},
 					{
-						id: 'session-completed',
-						resource: URI.parse('test://session-completed'),
-						label: 'Completed Session',
+						...makeSimpleSessionItem('session-completed'),
 						status: ChatSessionStatus.Completed,
-						timing: { startTime: Date.now() }
 					},
 					{
-						id: 'session-inprogress',
-						resource: URI.parse('test://session-inprogress'),
-						label: 'In Progress Session',
+						...makeSimpleSessionItem('session-inprogress'),
 						status: ChatSessionStatus.InProgress,
-						timing: { startTime: Date.now() }
 					}
 				]
 			};
@@ -492,11 +437,7 @@ suite('AgentSessionsViewModel', () => {
 				provideChatSessionItems: async () => {
 					const sessions: IChatSessionItem[] = [];
 					for (let i = 0; i < sessionCount; i++) {
-						sessions.push({
-							resource: URI.parse(`test://session-${i}`),
-							label: `Session ${i}`,
-							timing: { startTime: Date.now() }
-						});
+						sessions.push(makeSimpleSessionItem(`session-${i}`));
 					}
 					return sessions;
 				}
@@ -521,10 +462,13 @@ suite('AgentSessionsViewModel', () => {
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
 					{
-						id: 'local-session',
 						resource: LocalChatSessionUri.forSession('local-session'),
 						label: 'Local Session',
-						timing: { startTime: Date.now() }
+						timing: {
+							created: Date.now(),
+							lastRequestStarted: undefined,
+							lastRequestEnded: undefined
+						}
 					}
 				]
 			};
@@ -547,11 +491,7 @@ suite('AgentSessionsViewModel', () => {
 				chatSessionType: 'test-type',
 				onDidChangeChatSessionItems: Event.None,
 				provideChatSessionItems: async () => [
-					{
-						resource: resource,
-						label: 'Test Session',
-						timing: { startTime: Date.now() }
-					}
+					makeSimpleSessionItem('session-1'),
 				]
 			};
 
@@ -575,11 +515,7 @@ suite('AgentSessionsViewModel', () => {
 				provideChatSessionItems: async () => {
 					providerCallCount++;
 					return [
-						{
-							resource: URI.parse('test://session-1'),
-							label: 'Test Session',
-							timing: { startTime: Date.now() }
-						}
+						makeSimpleSessionItem('session-1')
 					];
 				}
 			};
@@ -614,9 +550,8 @@ suite('AgentSessionsViewModel', () => {
 					provider1CallCount++;
 					return [
 						{
-							resource: URI.parse('test://session-1'),
+							...makeSimpleSessionItem('session-1'),
 							label: `Session 1 (call ${provider1CallCount})`,
-							timing: { startTime: Date.now() }
 						}
 					];
 				}
@@ -629,9 +564,8 @@ suite('AgentSessionsViewModel', () => {
 					provider2CallCount++;
 					return [
 						{
-							resource: URI.parse('test://session-2'),
+							...makeSimpleSessionItem('session-2'),
 							label: `Session 2 (call ${provider2CallCount})`,
-							timing: { startTime: Date.now() }
 						}
 					];
 				}
@@ -674,11 +608,7 @@ suite('AgentSessionsViewModel', () => {
 				provideChatSessionItems: async () => {
 					resolveCount++;
 					resolvedProviders.push('type-1');
-					return [{
-						resource: URI.parse('test://session-1'),
-						label: 'Session 1',
-						timing: { startTime: Date.now() }
-					}];
+					return [makeSimpleSessionItem('session-1')];
 				}
 			};
 
@@ -688,11 +618,7 @@ suite('AgentSessionsViewModel', () => {
 				provideChatSessionItems: async () => {
 					resolveCount++;
 					resolvedProviders.push('type-2');
-					return [{
-						resource: URI.parse('test://session-2'),
-						label: 'Session 2',
-						timing: { startTime: Date.now() }
-					}];
+					return [makeSimpleSessionItem('session-2')];
 				}
 			};
 
@@ -730,7 +656,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			resource: URI.parse('test://local-1'),
 			label: 'Local',
 			description: 'test',
-			timing: { startTime: Date.now() },
+			timing: makeNewSessionTiming(),
 			archived: false,
 			status: ChatSessionStatus.Completed
 		};
@@ -742,7 +668,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			resource: URI.parse('test://remote-1'),
 			label: 'Remote',
 			description: 'test',
-			timing: { startTime: Date.now() },
+			timing: makeNewSessionTiming(),
 			archived: false,
 			status: ChatSessionStatus.Completed
 		};
@@ -759,7 +685,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			resource: URI.parse('test://test-1'),
 			label: 'Test',
 			description: 'test',
-			timing: { startTime: Date.now() },
+			timing: makeNewSessionTiming(),
 			archived: false,
 			status: ChatSessionStatus.Completed
 		};
@@ -780,7 +706,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			resource: URI.parse('test://test-1'),
 			label: 'Test',
 			description: 'test',
-			timing: { startTime: Date.now() },
+			timing: makeNewSessionTiming(),
 			archived: false,
 			status: ChatSessionStatus.Completed
 		};
@@ -843,7 +769,7 @@ suite('AgentSessionsViewFilter', () => {
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://session-1'),
 			label: 'Session 1',
-			timing: { startTime: Date.now() },
+			timing: makeNewSessionTiming(),
 			archived: false,
 			status: ChatSessionStatus.Completed
 		};
@@ -854,7 +780,7 @@ suite('AgentSessionsViewFilter', () => {
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://session-2'),
 			label: 'Session 2',
-			timing: { startTime: Date.now() },
+			timing: makeNewSessionTiming(),
 			archived: false,
 			status: ChatSessionStatus.Completed
 		};
@@ -895,7 +821,7 @@ suite('AgentSessionsViewFilter', () => {
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://archived-session'),
 			label: 'Archived Session',
-			timing: { startTime: Date.now() },
+			timing: makeNewSessionTiming(),
 			archived: true,
 			status: ChatSessionStatus.Completed
 		};
@@ -906,7 +832,7 @@ suite('AgentSessionsViewFilter', () => {
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://active-session'),
 			label: 'Active Session',
-			timing: { startTime: Date.now() },
+			timing: makeNewSessionTiming(),
 			archived: false,
 			status: ChatSessionStatus.Completed
 		};
@@ -947,7 +873,7 @@ suite('AgentSessionsViewFilter', () => {
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://failed-session'),
 			label: 'Failed Session',
-			timing: { startTime: Date.now() },
+			timing: makeNewSessionTiming(),
 			archived: false,
 			status: ChatSessionStatus.Failed
 		};
@@ -958,7 +884,7 @@ suite('AgentSessionsViewFilter', () => {
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://completed-session'),
 			label: 'Completed Session',
-			timing: { startTime: Date.now() },
+			timing: makeNewSessionTiming(),
 			archived: false,
 			status: ChatSessionStatus.Completed
 		};
@@ -969,7 +895,7 @@ suite('AgentSessionsViewFilter', () => {
 			icon: Codicon.chatSparkle,
 			resource: URI.parse('test://inprogress-session'),
 			label: 'In Progress Session',
-			timing: { startTime: Date.now() },
+			timing: makeNewSessionTiming(),
 			archived: false,
 			status: ChatSessionStatus.InProgress
 		};
@@ -993,3 +919,21 @@ suite('AgentSessionsViewFilter', () => {
 		assert.strictEqual(filter.exclude(inProgressSession), false);
 	});
 });
+
+
+function makeSimpleSessionItem(id: string): IChatSessionItem {
+	return {
+		resource: URI.parse(`test://${id}`),
+		label: `Session ${id}`,
+		timing: makeNewSessionTiming()
+	};
+}
+
+function makeNewSessionTiming(): IChatSessionItem['timing'] {
+	return {
+		created: Date.now(),
+		lastRequestStarted: undefined,
+		lastRequestEnded: undefined,
+	};
+}
+

@@ -129,31 +129,22 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		const sessions: ChatSessionItemWithProvider[] = [];
 		const sessionsByResource = new ResourceSet();
 		this.chatService.getLiveSessionItems().forEach(sessionDetail => {
-			let status: ChatSessionStatus | undefined;
-			let startTime: number | undefined;
-			let endTime: number | undefined;
 			const model = this.chatService.getSession(sessionDetail.sessionResource);
-			if (model) {
-				status = this.modelToStatus(model);
-				startTime = model.timestamp;
+			const lastResponse = model?.getRequests().at(-1)?.response;
 
-				const lastResponse = model.getRequests().at(-1)?.response;
-				if (lastResponse) {
-					endTime = lastResponse.completedAt ?? lastResponse.timestamp;
-				}
-			}
 			const statistics = model ? this.getSessionStatistics(model) : undefined;
 			const description = model ? this.getSessionDescription(model) : undefined;
 			const editorSession: ChatSessionItemWithProvider = {
 				resource: sessionDetail.sessionResource,
 				label: sessionDetail.title,
 				iconPath: Codicon.chatSparkle,
-				status,
+				status: model ? this.modelToStatus(model) : undefined,
 				description,
 				provider: this,
 				timing: {
-					startTime: startTime ?? Date.now(), // TODO@osortega this is not so good
-					endTime
+					created: model?.timestamp ?? Date.now(), // TODO@osortega this is not so good
+					lastRequestStarted: lastResponse?.timestamp,
+					lastRequestEnded: lastResponse?.completedAt
 				},
 				statistics
 			};
@@ -172,13 +163,16 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			const historyItems = allHistory.map((historyDetail): ChatSessionItemWithProvider => {
 				const model = this.chatService.getSession(historyDetail.sessionResource);
 				const statistics = model ? this.getSessionStatistics(model) : undefined;
+				const lastResponse = model?.getRequests().at(-1)?.response;
 				return {
 					resource: historyDetail.sessionResource,
 					label: historyDetail.title,
 					iconPath: Codicon.chatSparkle,
 					provider: this,
 					timing: {
-						startTime: historyDetail.lastMessageDate ?? Date.now()
+						created: model?.timestamp ?? Date.now(),
+						lastRequestStarted: lastResponse?.timestamp,
+						lastRequestEnded: lastResponse?.completedAt
 					},
 					archived: true,
 					statistics

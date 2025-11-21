@@ -74,6 +74,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
+import { chatSessionTimestampComparator } from '../chatSessions/common.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -793,7 +794,7 @@ export function registerChatActions() {
 								const maxToShow = showAllAgents ? Number.MAX_SAFE_INTEGER : defaultMaxToShow;
 								currentPicks.push(
 									...agentPicks
-										.toSorted((a, b) => (b.session.timing.endTime ?? b.session.timing.startTime) - (a.session.timing.endTime ?? a.session.timing.startTime))
+										.toSorted((a, b) => chatSessionTimestampComparator(a.session.timing, b.session.timing))
 										.slice(0, maxToShow));
 
 								// Add "Show more..." if needed and not showing all agents

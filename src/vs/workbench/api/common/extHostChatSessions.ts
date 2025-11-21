@@ -166,6 +166,9 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 	}
 
 	private convertChatSessionItem(sessionType: string, sessionContent: vscode.ChatSessionItem): IChatSessionItem {
+		// Was optional in older API versions
+		const timing: typeof sessionContent.timing | undefined = sessionContent.timing;
+
 		return {
 			resource: sessionContent.resource,
 			label: sessionContent.label,
@@ -173,8 +176,9 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			status: this.convertChatSessionStatus(sessionContent.status),
 			tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip),
 			timing: {
-				startTime: sessionContent.timing?.startTime ?? 0,
-				endTime: sessionContent.timing?.endTime
+				created: timing?.created ?? timing?.startTime ?? 0,
+				lastRequestStarted: timing?.lastRequestStarted ?? undefined,
+				lastRequestEnded: timing?.lastRequestEnded ?? timing.endTime ?? undefined,
 			},
 			statistics: sessionContent.statistics ? {
 				files: sessionContent.statistics?.files ?? 0,

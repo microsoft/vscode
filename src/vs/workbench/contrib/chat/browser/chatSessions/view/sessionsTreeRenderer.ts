@@ -49,7 +49,7 @@ import { IChatWidgetService } from '../../chat.js';
 import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
 import '../../media/chatSessions.css';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, processSessionsWithTimeGrouping } from '../common.js';
+import { ChatSessionItemWithProvider, getSessionItemContextOverlay, processSessionsWithTimeGrouping } from '../common.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -333,7 +333,8 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		}
 
 		// Handle timestamp display and grouping
-		const hasTimestamp = session.timing?.startTime !== undefined;
+		const startTime = session.timing.lastRequestStarted ?? session.timing.created;
+		const hasTimestamp = startTime !== undefined;
 		if (hasTimestamp) {
 			templateData.timestamp.textContent = session.relativeTime ?? '';
 			templateData.timestamp.ariaLabel = session.relativeTimeFullWord ?? '';
@@ -341,8 +342,8 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			templateData.timestamp.parentElement!.style.display = '';
 
 			// Add tooltip showing full date/time when hovering over the timestamp
-			if (session.timing?.startTime) {
-				const fullDateTime = getLocalHistoryDateFormatter().format(session.timing.startTime);
+			if (startTime) {
+				const fullDateTime = getLocalHistoryDateFormatter().format(startTime);
 				templateData.elementDisposable.add(
 					this.hoverService.setupDelayedHover(templateData.timestamp, () => ({
 						content: nls.localize('chat.sessions.lastActivity', 'Last Activity: {0}', fullDateTime),
@@ -572,7 +573,7 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 				// Clear archived items from previous calls
 				this.archivedItems.clear();
 				let ungroupedItems = items.map(item => {
-					const itemWithProvider = { ...item, provider: this.provider, timing: { startTime: extractTimestamp(item) ?? 0 } };
+					const itemWithProvider: ChatSessionItemWithProvider = { ...item, provider: this.provider };
 					if (itemWithProvider.archived) {
 						this.archivedItems.pushItem(itemWithProvider);
 						return;

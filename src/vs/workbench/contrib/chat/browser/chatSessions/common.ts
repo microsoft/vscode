@@ -20,6 +20,8 @@ export const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionE
 
 export type ChatSessionItemWithProvider = IChatSessionItem & {
 	readonly provider: IChatSessionItemProvider;
+
+	// no :(
 	relativeTime?: string;
 	relativeTimeFullWord?: string;
 	hideRelativeTime?: boolean;
@@ -57,9 +59,9 @@ export function findExistingChatEditorByUri(sessionUri: URI, editorGroupsService
 
 // Helper function to update relative time for chat sessions (similar to timeline)
 function updateRelativeTime(item: ChatSessionItemWithProvider, lastRelativeTime: string | undefined): string | undefined {
-	if (item.timing?.startTime) {
-		item.relativeTime = fromNow(item.timing.startTime);
-		item.relativeTimeFullWord = fromNow(item.timing.startTime, false, true);
+	if (item.timing.created) {
+		item.relativeTime = fromNow(item.timing.created);
+		item.relativeTimeFullWord = fromNow(item.timing.created, false, true);
 		if (lastRelativeTime === undefined || item.relativeTime !== lastRelativeTime) {
 			lastRelativeTime = item.relativeTime;
 			item.hideRelativeTime = false;
@@ -78,9 +80,9 @@ function updateRelativeTime(item: ChatSessionItemWithProvider, lastRelativeTime:
 
 // Helper function to extract timestamp from session item
 export function extractTimestamp(item: IChatSessionItem): number | undefined {
-	// Use timing.startTime if available from the API
-	if (item.timing?.startTime) {
-		return item.timing.startTime;
+	// Use timing.created if available from the API
+	if (item.timing?.created) {
+		return item.timing.created;
 	}
 
 	// For other items, timestamp might already be set
@@ -92,17 +94,17 @@ export function extractTimestamp(item: IChatSessionItem): number | undefined {
 	return undefined;
 }
 
-// Helper function to sort sessions by timestamp (newest first)
-function sortSessionsByTimestamp(sessions: ChatSessionItemWithProvider[]): void {
-	sessions.sort((a, b) => {
-		const aTime = a.timing?.startTime ?? 0;
-		const bTime = b.timing?.startTime ?? 0;
-		return bTime - aTime; // newest first
-	});
+/**
+ * Sorts chat sessions by timestamp (newest first)
+ */
+export function chatSessionTimestampComparator(a: IChatSessionItem['timing'], b: IChatSessionItem['timing']): number {
+	const aTime = a.lastRequestEnded ?? a.lastRequestStarted ?? a.created ?? 0;
+	const bTime = b.lastRequestEnded ?? b.lastRequestStarted ?? b.created ?? 0;
+	return bTime - aTime; // newest first
 }
 
 // Helper function to apply time grouping to a list of sessions
-function applyTimeGrouping(sessions: ChatSessionItemWithProvider[]): void {
+function applyTimeGrouping(sessions: readonly ChatSessionItemWithProvider[]): void {
 	let lastRelativeTime: string | undefined;
 	sessions.forEach(session => {
 		lastRelativeTime = updateRelativeTime(session, lastRelativeTime);
@@ -111,12 +113,8 @@ function applyTimeGrouping(sessions: ChatSessionItemWithProvider[]): void {
 
 // Helper function to process session items with timestamps, sorting, and grouping
 export function processSessionsWithTimeGrouping(sessions: ChatSessionItemWithProvider[]): ChatSessionItemWithProvider[] {
-	const sessionsTemp = [...sessions];
-	// Only process if we have sessions with timestamps
-	if (sessions.some(session => session.timing?.startTime !== undefined)) {
-		sortSessionsByTimestamp(sessionsTemp);
-		applyTimeGrouping(sessionsTemp);
-	}
+	const sessionsTemp = sessions.toSorted((a, b) => chatSessionTimestampComparator(a.timing, b.timing));
+	applyTimeGrouping(sessionsTemp);
 	return sessionsTemp;
 }
 
