@@ -135,14 +135,15 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		this.chatService.getLiveSessionItems().forEach(sessionDetail => {
 			let status: ChatSessionStatus | undefined;
 			let startTime: number | undefined;
+			let endTime: number | undefined;
 			const model = this.chatService.getSession(sessionDetail.sessionResource);
 			if (model) {
 				status = this.modelToStatus(model);
-				const requests = model.getRequests();
-				if (requests.length > 0) {
-					startTime = requests.at(0)?.timestamp;
-				} else {
-					startTime = Date.now();
+				startTime = model.timestamp;
+
+				const lastResponse = model.getRequests().at(-1)?.response;
+				if (lastResponse) {
+					endTime = lastResponse.completedAt ?? lastResponse.timestamp;
 				}
 			}
 			const statistics = model ? this.getSessionStatistics(model) : undefined;
@@ -153,7 +154,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				status,
 				provider: this,
 				timing: {
-					startTime: startTime ?? 0
+					startTime: startTime ?? Date.now(), // TODO@osortega this is not so good
+					endTime
 				},
 				statistics
 			};

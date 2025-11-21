@@ -32,8 +32,8 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
-import { AGENT_SESSIONS_VIEWLET_ID, ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
+import { LEGACY_AGENT_SESSIONS_VIEW_ID, ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
@@ -199,11 +199,11 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 
 class ContributedChatSessionData extends Disposable {
 
-	private readonly _optionsCache: Map<string /* 'models' */, string>;
-	public getOption(optionId: string): string | undefined {
+	private readonly _optionsCache: Map<string /* 'models' */, string | IChatSessionProviderOptionItem>;
+	public getOption(optionId: string): string | IChatSessionProviderOptionItem | undefined {
 		return this._optionsCache.get(optionId);
 	}
-	public setOption(optionId: string, value: string): void {
+	public setOption(optionId: string, value: string | IChatSessionProviderOptionItem): void {
 		this._optionsCache.set(optionId, value);
 	}
 
@@ -211,12 +211,12 @@ class ContributedChatSessionData extends Disposable {
 		readonly session: IChatSession,
 		readonly chatSessionType: string,
 		readonly resource: URI,
-		readonly options: Record<string, string> | undefined,
+		readonly options: Record<string, string | IChatSessionProviderOptionItem> | undefined,
 		private readonly onWillDispose: (resource: URI) => void
 	) {
 		super();
 
-		this._optionsCache = new Map<string, string>();
+		this._optionsCache = new Map<string, string | IChatSessionProviderOptionItem>();
 		if (options) {
 			for (const [key, value] of Object.entries(options)) {
 				this._optionsCache.set(key, value);
@@ -475,7 +475,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const menuActions = rawMenuActions.map(value => value[1]).flat();
 
 		const whenClause = ContextKeyExpr.and(
-			ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.${contribution.type}`)
+			ContextKeyExpr.equals('view', `${LEGACY_AGENT_SESSIONS_VIEW_ID}.${contribution.type}`)
 		);
 
 		// If there's exactly one action, inline it
@@ -842,12 +842,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return !!session && !!session.options && Object.keys(session.options).length > 0;
 	}
 
-	public getSessionOption(sessionResource: URI, optionId: string): string | undefined {
+	public getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined {
 		const session = this._sessions.get(sessionResource);
 		return session?.getOption(optionId);
 	}
 
-	public setSessionOption(sessionResource: URI, optionId: string, value: string): boolean {
+	public setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean {
 		const session = this._sessions.get(sessionResource);
 		return !!session?.setOption(optionId, value);
 	}

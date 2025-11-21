@@ -2268,16 +2268,16 @@ export class Repository implements Disposable {
 		});
 	}
 
-	async popStash(index?: number): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.popStash(index));
+	async popStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.popStash(index, options));
 	}
 
 	async dropStash(index?: number): Promise<void> {
 		return await this.run(Operation.Stash, () => this.repository.dropStash(index));
 	}
 
-	async applyStash(index?: number): Promise<void> {
-		return await this.run(Operation.Stash, () => this.repository.applyStash(index));
+	async applyStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
+		return await this.run(Operation.Stash, () => this.repository.applyStash(index, options));
 	}
 
 	async showStash(index: number): Promise<Change[] | undefined> {
@@ -2500,17 +2500,16 @@ export class Repository implements Disposable {
 			}
 		}
 
-		const stashName = `migration-${sourceRepository.HEAD?.name ?? sourceRepository.HEAD?.commit}-${this.HEAD?.name ?? this.HEAD?.commit}`;
+		const stashName = `migration:${sourceRepository.HEAD?.name ?? sourceRepository.HEAD?.commit}-${this.HEAD?.name ?? this.HEAD?.commit}`;
 		await sourceRepository.createStash(stashName, options?.untracked);
 		const stashes = await sourceRepository.getStashes();
 
 		try {
-			await this.applyStash(stashes[0].index);
-
 			if (options?.deleteFromSource) {
-				await sourceRepository.dropStash(stashes[0].index);
+				await this.popStash(stashes[0].index);
 			} else {
-				await sourceRepository.popStash();
+				await this.applyStash(stashes[0].index);
+				await sourceRepository.popStash(stashes[0].index, { reinstateStagedChanges: true });
 			}
 		} catch (err) {
 			if (err.gitErrorCode === GitErrorCodes.StashConflict) {
@@ -2523,11 +2522,11 @@ export class Repository implements Disposable {
 					await commands.executeCommand('workbench.view.scm');
 				}
 
-				await sourceRepository.popStash();
+				await sourceRepository.popStash(stashes[0].index, { reinstateStagedChanges: true });
 				return;
 			}
 
-			await sourceRepository.popStash();
+			await sourceRepository.popStash(stashes[0].index, { reinstateStagedChanges: true });
 			throw err;
 		}
 	}
@@ -2872,7 +2871,7 @@ export class Repository implements Disposable {
 			const result = await runOperation();
 			return result;
 		} finally {
-			await this.repository.popStash();
+			await this.repository.popStash(undefined, { reinstateStagedChanges: true });
 		}
 	}
 

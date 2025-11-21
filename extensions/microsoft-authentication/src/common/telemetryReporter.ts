@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AuthError } from '@azure/msal-node';
+import { AuthError, ClientAuthError } from '@azure/msal-node';
 import TelemetryReporter, { TelemetryEventProperties } from '@vscode/extension-telemetry';
 import { IExperimentationTelemetry } from 'vscode-tas-client';
 
@@ -105,6 +105,40 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 			errorName,
 			errorCode,
 			errorCorrelationId,
+		});
+	}
+
+	sendTelemetryClientAuthErrorEvent(error: ClientAuthError): void {
+		const errorCode = error.errorCode;
+		const correlationId = error.correlationId;
+		let brokerErrorCode: string | undefined;
+		let brokerStatusCode: string | undefined;
+		let brokerTag: string | undefined;
+
+		// Extract platform broker error information if available
+		if (error.platformBrokerError) {
+			brokerErrorCode = error.platformBrokerError.errorCode;
+			brokerStatusCode = `${error.platformBrokerError.statusCode}`;
+			brokerTag = error.platformBrokerError.tag;
+		}
+
+		/* __GDPR__
+			"msalClientAuthError" : {
+				"owner": "TylerLeonhardt",
+				"comment": "Used to determine how often users run into client auth errors during the login flow.",
+				"errorCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The client auth error code." },
+				"correlationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The client auth error correlation id." },
+				"brokerErrorCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The broker error code." },
+				"brokerStatusCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The broker error status code." },
+				"brokerTag": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The broker error tag." }
+			}
+		*/
+		this._telemetryReporter.sendTelemetryErrorEvent('msalClientAuthError', {
+			errorCode,
+			correlationId,
+			brokerErrorCode,
+			brokerStatusCode,
+			brokerTag
 		});
 	}
 

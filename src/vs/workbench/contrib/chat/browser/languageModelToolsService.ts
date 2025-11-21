@@ -565,9 +565,22 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			return true;
 		}
 		const eligibilityConfig = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
-		return eligibilityConfig && typeof eligibilityConfig === 'object' && toolReferenceName
-			? (eligibilityConfig[toolReferenceName] ?? true) // Default to true if not specified
-			: true; // Default to eligible if the setting is not an object or no reference name
+		if (eligibilityConfig && typeof eligibilityConfig === 'object' && toolReferenceName) {
+			// Direct match
+			if (Object.prototype.hasOwnProperty.call(eligibilityConfig, toolReferenceName)) {
+				return eligibilityConfig[toolReferenceName];
+			}
+			// Back compat with legacy names
+			if (toolData.legacyToolReferenceFullNames) {
+				for (const legacyName of toolData.legacyToolReferenceFullNames) {
+					if (Object.prototype.hasOwnProperty.call(eligibilityConfig, legacyName)) {
+						return eligibilityConfig[legacyName];
+					}
+				}
+			}
+		}
+		// Default true
+		return true;
 	}
 
 	private async shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined, source: ToolDataSource, parameters: unknown): Promise<ConfirmedReason | undefined> {
