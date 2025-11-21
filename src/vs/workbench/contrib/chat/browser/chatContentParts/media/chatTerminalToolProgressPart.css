@@ -164,9 +164,6 @@
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
 }
-.chat-terminal-output-container .xterm-decoration-overview-ruler {
-	display: none !important;
-}
 .chat-terminal-output {
 	margin: 0;
 	white-space: pre;
