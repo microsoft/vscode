@@ -94,9 +94,6 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts > .watermark-box {
 	display: flex;
 	flex-direction: column;
-	/* padding: 16px;
-	border-radius: 8px;
-	background-color: var(--vscode-panel-background); */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl {
@@ -116,7 +113,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dt {
-	letter-spacing: 0.04em
+	letter-spacing: 0.04em;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dd {
