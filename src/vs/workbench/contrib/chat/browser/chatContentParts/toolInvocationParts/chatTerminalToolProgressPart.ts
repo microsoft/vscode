@@ -45,6 +45,7 @@ import { TerminalLocation } from '../../../../../../platform/terminal/common/ter
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { TerminalContribCommandId } from '../../../../terminal/terminalContribExports.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
@@ -968,12 +969,23 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 }
 
+type ToggleChatTerminalOutputTelemetryEvent = {
+	previousExpanded: boolean;
+};
+
+type ToggleChatTerminalOutputTelemetryClassification = {
+	owner: 'meganrogge';
+	comment: 'Track usage of the toggle chat terminal output action.';
+	previousExpanded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal output was expanded before the toggle.' };
+};
+
 export class ToggleChatTerminalOutputAction extends Action implements IAction {
 	private _expanded = false;
 
 	constructor(
 		private readonly _toggle: () => Promise<void>,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super(
 			TerminalContribCommandId.ToggleChatTerminalOutput,
@@ -985,6 +997,9 @@ export class ToggleChatTerminalOutputAction extends Action implements IAction {
 	}
 
 	public override async run(): Promise<void> {
+		this._telemetryService.publicLog2<ToggleChatTerminalOutputTelemetryEvent, ToggleChatTerminalOutputTelemetryClassification>('terminal/chatToggleOutput', {
+			previousExpanded: this._expanded
+		});
 		await this._toggle();
 	}
 
@@ -1015,6 +1030,18 @@ export class ToggleChatTerminalOutputAction extends Action implements IAction {
 	}
 }
 
+type FocusChatInstanceTelemetryEvent = {
+	target: 'instance' | 'commandUri' | 'none';
+	location: 'panel' | 'editor';
+};
+
+type FocusChatInstanceTelemetryClassification = {
+	owner: 'meganrogge';
+	comment: 'Track usage of the focus chat terminal action.';
+	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether focusing targeted an existing instance or opened a command URI.' };
+	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Location of the terminal instance when focusing.' };
+};
+
 export class FocusChatInstanceAction extends Action implements IAction {
 	constructor(
 		private _instance: ITerminalInstance | undefined,
@@ -1026,6 +1053,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super(
 			TerminalContribCommandId.FocusChatInstanceAction,
@@ -1039,6 +1067,20 @@ export class FocusChatInstanceAction extends Action implements IAction {
 	public override async run() {
 		this.label = localize('focusTerminal', 'Focus Terminal');
 		this._updateTooltip();
+
+		let target: FocusChatInstanceTelemetryEvent['target'] = 'none';
+		let location: FocusChatInstanceTelemetryEvent['location'] = 'panel';
+		if (this._instance) {
+			target = 'instance';
+			location = this._instance.target === TerminalLocation.Editor ? 'editor' : 'panel';
+		} else if (this._commandUri) {
+			target = 'commandUri';
+		}
+		this._telemetryService.publicLog2<FocusChatInstanceTelemetryEvent, FocusChatInstanceTelemetryClassification>('terminal/chatFocusInstance', {
+			target,
+			location
+		});
+
 		if (this._instance) {
 			this._terminalService.setActiveInstance(this._instance);
 			if (this._instance.target === TerminalLocation.Editor) {
