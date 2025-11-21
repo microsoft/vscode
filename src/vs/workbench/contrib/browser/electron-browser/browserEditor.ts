@@ -17,7 +17,7 @@ import { BrowserEditorInput } from './browserEditorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewService } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewService, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
@@ -27,7 +27,8 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { IBrowserOverlayManager } from './overlayManager.js';
 import { encodeBase64 } from '../../../../base/common/buffer.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
+import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class BrowserEditor extends EditorPane {
 	static readonly ID = 'workbench.editor.browser';
@@ -54,11 +55,12 @@ export class BrowserEditor extends EditorPane {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IMainProcessService private readonly mainProcessService: IMainProcessService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IBrowserOverlayManager private readonly overlayManager: IBrowserOverlayManager
+		@IBrowserOverlayManager private readonly overlayManager: IBrowserOverlayManager,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
 
-		const channel = this.mainProcessService.getChannel('browserView');
+		const channel = this.mainProcessService.getChannel(ipcBrowserViewChannelName);
 		this.browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
 
 		// Listen for key commands and handle them
@@ -76,40 +78,29 @@ export class BrowserEditor extends EditorPane {
 				this.backAction.enabled = navEvent.canGoBack;
 				this.forwardAction.enabled = navEvent.canGoForward;
 				this.urlInput.value = navEvent.url;
-
-				// Update URL without changing loading state
-				if (this.currentInput) {
-					this.currentInput.setUrl(navEvent.url);
-				}
+				this.currentInput.setUrl(navEvent.url);
 			}
 		}, null, this._store);
 
 		// Listen for loading state changes
 		this.browserViewService.onDidChangeLoadingState(loadingEvent => {
-			if (this.currentInput && loadingEvent.id === this.currentInput.id && this.currentInput) {
+			if (this.currentInput && loadingEvent.id === this.currentInput.id) {
 				this.currentInput.setLoading(loadingEvent.loading);
 			}
 		}, null, this._store);
 
 		this.browserViewService.onDidChangeFavicons(async ({ id, favicon }) => {
-			if (this.currentInput && id === this.currentInput.id && this.currentInput) {
+			if (this.currentInput && id === this.currentInput.id) {
 				this.currentInput.setFavicon(favicon);
 			}
 		}, null, this._store);
 
 		this.browserViewService.onDidChangeTitle(({ id, title }) => {
-			if (this.currentInput && id === this.currentInput.id && this.currentInput) {
+			if (this.currentInput && id === this.currentInput.id) {
 				this.currentInput.setTitle(title);
 			}
 		}, null, this._store);
 
-		// Listen for paint events and update overlay
-		// 	this.browserViewService.onDidPaint(paintEvent => {
-		// 		if (paintEvent.id === input.id && this.browserContainer) {
-		// 			const cssUrl = `url('${paintEvent.dataUrl}')`;
-		// 			this.browserContainer.style.backgroundImage = cssUrl;
-		// 		}
-		// 	}, null, this._store);
 
 		this._register(this.overlayManager.onDidChangeOverlayState(() => {
 			if (!this.currentInput) {
@@ -122,7 +113,7 @@ export class BrowserEditor extends EditorPane {
 				this.overlayVisible = hasOverlappingOverlay;
 
 				this.browserContainer.classList.toggle('overlay-visible', hasOverlappingOverlay);
-				this.browserViewService.setVisible(this.currentInput.id, !hasOverlappingOverlay, true);
+				this.browserViewService.setVisible(this.currentInput.id, !hasOverlappingOverlay);
 			}
 		}));
 
@@ -135,9 +126,8 @@ export class BrowserEditor extends EditorPane {
 
 		// Listen for zoom level changes and update browser view zoom factor
 		this._register(onDidChangeZoomLevel(targetWindowId => {
-			if (targetWindowId === this.window.vscodeWindowId && this.currentInput) {
-				const zoomFactor = this.window.devicePixelRatio || 1;
-				this.browserViewService.setZoomFactor(this.currentInput.id, zoomFactor);
+			if (targetWindowId === this.window.vscodeWindowId) {
+				this.layout();
 			}
 		}));
 	}
@@ -214,6 +204,9 @@ export class BrowserEditor extends EditorPane {
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		this.currentInput = input;
 		input.onWillDispose(() => {
@@ -223,6 +216,9 @@ export class BrowserEditor extends EditorPane {
 
 		// Create browser view in main process (use group's windowId)
 		const state = await this.browserViewService.getOrCreateBrowserView(input.id, this.group.windowId);
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		// Initialize action states (disabled by default until we know navigation state)
 		this.backAction.enabled = state.canGoBack;
@@ -290,7 +286,7 @@ export class BrowserEditor extends EditorPane {
 					this.browserContainer.style.backgroundImage = cssUrl;
 				}
 			} catch (error) {
-				console.error('Failed to capture placeholder snapshot:', error);
+				this.logService.error('browserEditor.capturePlaceholderSnapshot', error);
 			}
 		}
 	}
@@ -315,7 +311,7 @@ export class BrowserEditor extends EditorPane {
 				this.forwardCurrentEvent();
 			}
 		} catch (error) {
-			console.error('Error in handleKeyEventFromBrowserView:', error);
+			this.logService.error('Error in handleKeyEventFromBrowserView', error);
 		} finally {
 			this._currentKeyDownEvent = undefined;
 		}
@@ -324,12 +320,12 @@ export class BrowserEditor extends EditorPane {
 	override layout(): void {
 		if (this.currentInput) {
 			const containerRect = this.browserContainer.getBoundingClientRect();
-			const zoom = this.window.devicePixelRatio || 1;
-			this.browserViewService.setBounds(this.currentInput.id, {
-				x: Math.floor(containerRect.left * zoom),
-				y: Math.floor(containerRect.top * zoom),
-				width: Math.floor(containerRect.width * zoom),
-				height: Math.floor(containerRect.height * zoom)
+			this.browserViewService.layout(this.currentInput.id, {
+				x: containerRect.left,
+				y: containerRect.top,
+				width: containerRect.width,
+				height: containerRect.height,
+				zoomFactor: getZoomFactor(this.window)
 			});
 
 			// After layout, check for overlay overlaps again
@@ -342,14 +338,14 @@ export class BrowserEditor extends EditorPane {
 				}
 
 				this.browserContainer.classList.toggle('overlay-visible', hasOverlappingOverlay);
-				this.browserViewService.setVisible(this.currentInput.id, !hasOverlappingOverlay, true);
+				this.browserViewService.setVisible(this.currentInput.id, !hasOverlappingOverlay);
 			}
 		}
 	}
 
 	override clearInput(): void {
 		if (this.currentInput) {
-			this.browserViewService.setVisible(this.currentInput.id, false, true);
+			this.browserViewService.setVisible(this.currentInput.id, false);
 		}
 
 		this.currentInput = undefined;

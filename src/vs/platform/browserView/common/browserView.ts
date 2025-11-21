@@ -5,15 +5,13 @@
 
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
-import { createDecorator } from '../../instantiation/common/instantiation.js';
-
-export const IBrowserViewService = createDecorator<IBrowserViewService>('browserViewService');
 
 export interface IBrowserViewBounds {
 	x: number;
 	y: number;
 	width: number;
 	height: number;
+	zoomFactor: number;
 }
 
 export interface IBrowserViewState {
@@ -72,6 +70,8 @@ export interface IBrowserViewCreateOptions {
 	offscreen?: boolean;
 }
 
+export const ipcBrowserViewChannelName = 'browserView';
+
 export interface IBrowserViewService {
 	readonly _serviceBrand: undefined;
 
@@ -102,14 +102,14 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 * @param bounds The new bounds for the view
 	 */
-	setBounds(id: string, bounds: IBrowserViewBounds): Promise<void>;
+	layout(id: string, bounds: IBrowserViewBounds): Promise<void>;
 
 	/**
 	 * Set the visibility of a browser view
 	 * @param id The browser view identifier
 	 * @param visible Whether the view should be visible
 	 */
-	setVisible(id: string, visible: boolean, keepRendering?: boolean): Promise<void>;
+	setVisible(id: string, visible: boolean): Promise<void>;
 
 	/**
 	 * Navigate the browser view to a URL
@@ -162,44 +162,10 @@ export interface IBrowserViewService {
 	 */
 	captureScreenshot(id: string, quality?: number): Promise<VSBuffer | undefined>;
 
-	// /**
-	//  * Clear all browsing data (cookies, cache, storage, etc.)
-	//  */
-	// clearBrowsingData(): Promise<void>;
-
-	// /**
-	//  * Clear cookies only
-	//  */
-	// clearCookies(): Promise<void>;
-
-	// /**
-	//  * Clear cache only
-	//  */
-	// clearCache(): Promise<void>;
-
-	// /**
-	//  * Clear local storage and session storage
-	//  */
-	// clearStorageData(): Promise<void>;
-
 	/**
 	 * Dispatch a key event to the browser view
 	 * @param viewId The browser view identifier
 	 * @param keyEvent The key event data
 	 */
 	dispatchKeyEvent(viewId: string, keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
-
-	/**
-	 * Set the zoom factor for a browser view
-	 * @param id The browser view identifier
-	 * @param zoomFactor The zoom factor to apply
-	 */
-	setZoomFactor(id: string, zoomFactor: number): Promise<void>;
-
-	/**
-	 * Check if a WebContents instance belongs to a browser view
-	 * @param contents The WebContents instance to check
-	 * @returns True if the WebContents belongs to a browser view
-	 */
-	isBrowserViewWebContents(contents: Electron.WebContents): boolean;
 }

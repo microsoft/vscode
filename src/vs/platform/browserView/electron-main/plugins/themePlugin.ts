@@ -5,6 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IThemeMainService } from '../../../theme/electron-main/themeMainService.js';
+import { ILogService } from '../../../log/common/log.js';
 
 /**
  * Plugin that handles theming for a specific WebContents by detecting
@@ -16,7 +17,7 @@ export class ThemePlugin extends Disposable {
 	private readonly webContents: Electron.WebContents;
 	private injectedCSSKey?: string;
 
-	constructor(webContents: Electron.WebContents, private readonly themeMainService: IThemeMainService) {
+	constructor(webContents: Electron.WebContents, private readonly themeMainService: IThemeMainService, private readonly logService: ILogService) {
 		super();
 		this.webContents = webContents;
 
@@ -79,7 +80,7 @@ export class ThemePlugin extends Disposable {
 				}
 			`);
 		} catch (error) {
-			console.error('Failed to inject theme CSS:', error);
+			this.logService.error('browserView.theme.injectCSSFailed', error);
 		}
 	}
 }

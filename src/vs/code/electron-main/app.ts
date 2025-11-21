@@ -36,7 +36,8 @@ import { DialogMainService, IDialogMainService } from '../../platform/dialogs/el
 import { IEncryptionMainService } from '../../platform/encryption/common/encryptionService.js';
 import { EncryptionMainService } from '../../platform/encryption/electron-main/encryptionMainService.js';
 import { NativeBrowserElementsMainService, INativeBrowserElementsMainService } from '../../platform/browserElements/electron-main/nativeBrowserElementsMainService.js';
-import { IBrowserViewService } from '../../platform/browserView/common/browserView.js';
+import { ipcBrowserViewChannelName } from '../../platform/browserView/common/browserView.js';
+import { IBrowserViewMainService } from '../../platform/browserView/electron-main/browserView.js';
 import { BrowserViewMainService } from '../../platform/browserView/electron-main/browserViewMainService.js';
 import { NativeParsedArgs } from '../../platform/environment/common/argv.js';
 import { IEnvironmentMainService } from '../../platform/environment/electron-main/environmentMainService.js';
@@ -415,7 +416,7 @@ export class CodeApplication extends Disposable {
 
 			// Block any in-page navigation
 			contents.on('will-navigate', event => {
-				const browserViewService = this.mainInstantiationService.invokeFunction(accessor => accessor.get(IBrowserViewService));
+				const browserViewService = this.mainInstantiationService.invokeFunction(accessor => accessor.get(IBrowserViewMainService));
 				// Allow navigation in integrated browser views
 				if (browserViewService?.isBrowserViewWebContents(contents)) {
 					return;
@@ -1116,7 +1117,7 @@ export class CodeApplication extends Disposable {
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
 
 		// Browser View
-		services.set(IBrowserViewService, new SyncDescriptor(BrowserViewMainService, undefined, true));
+		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, true));
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
@@ -1180,8 +1181,8 @@ export class CodeApplication extends Disposable {
 		sharedProcessClient.then(client => client.registerChannel('browserElements', browserElementsChannel));
 
 		// Browser View
-		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewService), disposables);
-		mainProcessElectronServer.registerChannel('browserView', browserViewChannel);
+		const browserViewChannel = ProxyChannel.fromService(accessor.get(IBrowserViewMainService), disposables);
+		mainProcessElectronServer.registerChannel(ipcBrowserViewChannelName, browserViewChannel);
 
 		// Signing
 		const signChannel = ProxyChannel.fromService(accessor.get(ISignService), disposables);

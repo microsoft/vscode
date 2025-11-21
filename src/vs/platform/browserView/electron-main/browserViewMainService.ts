@@ -6,7 +6,8 @@
 import { KeyboardInputEvent, WebContentsView, webContents, session } from 'electron';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IBrowserViewService, IBrowserViewBounds, IBrowserViewPaintEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewCreateOptions, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewPaintEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewCreateOptions, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent } from '../common/browserView.js';
+import { IBrowserViewMainService } from './browserView.js';
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { ThemePlugin } from './plugins/themePlugin.js';
@@ -18,8 +19,9 @@ import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryW
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
+import { ILogService } from '../../log/common/log.js';
 
-export class BrowserViewMainService extends Disposable implements IBrowserViewService {
+export class BrowserViewMainService extends Disposable implements IBrowserViewMainService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly browserViews = new Map<string, WebContentsView>();
@@ -34,7 +36,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewSe
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
@@ -128,7 +131,9 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewSe
 	async getOrCreateBrowserView(id: string, windowId: number, { offscreen = false }: IBrowserViewCreateOptions = {}): Promise<IBrowserViewState> {
 		const window = this.windowById(windowId);
 		if (!window) {
-			throw new Error(`Window ${windowId} not found`);
+			const message = `Window ${windowId} not found for browser view ${id}`;
+			this.logService.error(message);
+			throw new Error(message);
 		}
 
 		if (this.browserViews.has(id)) {
@@ -185,13 +190,18 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewSe
 			let found = favicons.find(f => this.faviconCache.get(f));
 			if (!found) {
 				found = favicons[0];
-				const firstImage = await webContents.session.fetch(found, {
-					cache: 'force-cache'
-				});
-				const type = await firstImage.headers.get('content-type');
-				const buffer = await firstImage.arrayBuffer();
-				const favicon = `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
-				this.faviconCache.set(found, favicon);
+				try {
+					const firstImage = await webContents.session.fetch(found, {
+						cache: 'force-cache'
+					});
+					const type = await firstImage.headers.get('content-type');
+					const buffer = await firstImage.arrayBuffer();
+					const favicon = `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
+					this.faviconCache.set(found, favicon);
+				} catch (error) {
+					this.logService.warn('browserViewMainService.fetchFaviconFailed', error);
+					return;
+				}
 			}
 
 			this._onDidChangeFavicons.fire({ id, favicon: this.faviconCache.get(found)! });
@@ -233,7 +243,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewSe
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
 
 		// Create and register plugins for this web contents
-		viewDisposables.add(new ThemePlugin(webContents, this.themeMainService));
+		viewDisposables.add(new ThemePlugin(webContents, this.themeMainService, this.logService));
 
 		// Focus events
 		webContents.on('focus', () => {
@@ -292,21 +302,22 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewSe
 		this.browserViewDisposables.delete(id);
 	}
 
-	async setBounds(id: string, bounds: IBrowserViewBounds): Promise<void> {
+	async layout(id: string, bounds: IBrowserViewBounds): Promise<void> {
 		const view = this.browserViews.get(id);
 		if (!view) {
 			throw new Error(`Browser view ${id} not found`);
 		}
 
+		view.webContents.setZoomFactor(bounds.zoomFactor);
 		view.setBounds({
-			x: Math.round(bounds.x),
-			y: Math.round(bounds.y),
-			width: Math.round(bounds.width),
-			height: Math.round(bounds.height)
+			x: Math.round(bounds.x * bounds.zoomFactor),
+			y: Math.round(bounds.y * bounds.zoomFactor),
+			width: Math.round(bounds.width * bounds.zoomFactor),
+			height: Math.round(bounds.height * bounds.zoomFactor)
 		});
 	}
 
-	async setVisible(id: string, visible: boolean, _keepRendering = false): Promise<void> {
+	async setVisible(id: string, visible: boolean): Promise<void> {
 		const view = this.browserViews.get(id);
 		if (!view) {
 			throw new Error(`Browser view ${id} not found`);
@@ -404,40 +415,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewSe
 		return VSBuffer.wrap(buffer);
 	}
 
-	// async clearBrowsingData(): Promise<void> {
-	// 	// Clear data for all browser sessions
-	// 	for (const partitionId of this.knownPartitions) {
-	// 		const browserSession = session.fromPartition(partitionId);
-	// 		await browserSession.clearData();
-	// 	}
-	// }
-
-	// async clearCookies(): Promise<void> {
-	// 	// Clear cookies for all browser sessions
-	// 	for (const partitionId of this.knownPartitions) {
-	// 		const browserSession = session.fromPartition(partitionId);
-	// 		await browserSession.clearData({
-	// 			dataTypes: ['cookies']
-	// 		});
-	// 	}
-	// }
-
-	// async clearCache(): Promise<void> {
-	// 	// Clear cache for all browser sessions
-	// 	for (const partitionId of this.knownPartitions) {
-	// 		const browserSession = session.fromPartition(partitionId);
-	// 		await browserSession.clearCache();
-	// 	}
-	// }
-
-	// async clearStorageData(): Promise<void> {
-	// 	// Clear storage data for all browser sessions
-	// 	for (const partitionId of this.knownPartitions) {
-	// 		const browserSession = session.fromPartition(partitionId);
-	// 		await browserSession.clearStorageData();
-	// 	}
-	// }
-
 	async dispatchKeyEvent(viewId: string, keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
 		const view = this.browserViews.get(viewId);
 		if (!view) {
@@ -461,8 +438,11 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewSe
 			event.modifiers!.push('meta');
 		}
 		this._isSendingKeyEvent = true;
-		await view.webContents.sendInputEvent(event);
-		this._isSendingKeyEvent = false;
+		try {
+			await view.webContents.sendInputEvent(event);
+		} finally {
+			this._isSendingKeyEvent = false;
+		}
 	}
 
 	async setZoomFactor(id: string, zoomFactor: number): Promise<void> {

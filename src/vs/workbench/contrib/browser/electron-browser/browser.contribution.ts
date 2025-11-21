@@ -10,8 +10,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { BrowserEditor } from './browserEditor.js';
-import { BrowserEditorInput } from './browserEditorInput.js';
-import { BrowserEditorSerializer } from './browserEditorSerializer.js';
+import { BrowserEditorInput, BrowserEditorSerializer } from './browserEditorInput.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -84,7 +83,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				'browserDataStorage',
 				'Controls how browser data (cookies, cache, storage) is shared between browser views.\n\n- `global`: All browser views share a single persistent session across all workspaces.\n- `workspace`: Browser views within the same workspace share a persistent session.\n- `ephemeral`: Each browser view has its own session that is cleaned up when closed.'
 			),
-			scope: ConfigurationScope.RESOURCE,
+			scope: ConfigurationScope.WINDOW,
 			order: 100
 		}
 	}

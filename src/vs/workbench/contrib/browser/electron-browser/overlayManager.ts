@@ -80,8 +80,8 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 						}
 					}
 				}
-				this.updateTrackedElements(didRemove);
 			}
+			this.updateTrackedElements(didRemove);
 		});
 
 		// Start observing the document for structural changes
