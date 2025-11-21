@@ -71,12 +71,13 @@ export class DetachedTerminalCommandMirror extends Disposable {
 		}
 		const endLine = endMarker.line - 1;
 
-		if (startLine < 0 || endLine < startLine) {
-			return { text: '' };
-		}
-
-		if (executedMarker.line < 0 || endMarker.line < 0) {
-			return { text: '' };
+		if (endLine - startLine < 3) {
+			// Fine to call getOutput for this as its minimal lines
+			// If we try to detect empty output otherwise, it's sometimes
+			// wrong due to VT sequences that contain just the prompt.
+			if (this._command.getOutput()?.trim() === '') {
+				return { text: '' };
+			}
 		}
 
 		const vt = await xterm.getRangeAsVT(executedMarker, endMarker);
