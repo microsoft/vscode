@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyboardInputEvent, WebContentsView, webContents, session } from 'electron';
+import { WebContentsView, webContents, session } from 'electron';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IBrowserViewBounds, IBrowserViewPaintEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewCreateOptions, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent } from '../common/browserView.js';
 import { IBrowserViewMainService } from './browserView.js';
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
 import { ThemePlugin } from './plugins/themePlugin.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -24,12 +23,8 @@ import { ILogService } from '../../log/common/log.js';
 export class BrowserViewMainService extends Disposable implements IBrowserViewMainService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly browserViews = new Map<string, WebContentsView>();
-	private readonly browserViewWindows = new Map<string, IBaseWindow>();
-	private readonly browserViewDisposables = new Map<string, DisposableStore>();
-	private readonly faviconCache = new Map<string, string>();
+	private readonly browserViews = new Map<string, BrowserView>();
 	private readonly knownSessions = new WeakSet<Electron.Session>();
-	private _isSendingKeyEvent = false;
 
 	constructor(
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
@@ -41,27 +36,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	) {
 		super();
 	}
-
-	private readonly _onDidPaint = this._register(new Emitter<IBrowserViewPaintEvent>());
-	readonly onDidPaint: Event<IBrowserViewPaintEvent> = this._onDidPaint.event;
-
-	private readonly _onDidNavigate = this._register(new Emitter<IBrowserViewNavigationEvent>());
-	readonly onDidNavigate: Event<IBrowserViewNavigationEvent> = this._onDidNavigate.event;
-
-	private readonly _onDidChangeLoadingState = this._register(new Emitter<IBrowserViewLoadingEvent>());
-	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent> = this._onDidChangeLoadingState.event;
-
-	private readonly _onDidChangeFocus = this._register(new Emitter<IBrowserViewFocusEvent>());
-	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent> = this._onDidChangeFocus.event;
-
-	private readonly _onDidKeyCommand = this._register(new Emitter<IBrowserViewKeyDownEvent>());
-	readonly onDidKeyCommand: Event<IBrowserViewKeyDownEvent> = this._onDidKeyCommand.event;
-
-	private readonly _onDidChangeTitle = this._register(new Emitter<IBrowserViewTitleChangeEvent>());
-	readonly onDidChangeTitle: Event<IBrowserViewTitleChangeEvent> = this._onDidChangeTitle.event;
-
-	private readonly _onDidChangeFavicons = this._register(new Emitter<IBrowserViewFaviconChangeEvent>());
-	readonly onDidChangeFavicons: Event<IBrowserViewFaviconChangeEvent> = this._onDidChangeFavicons.event;
 
 	/**
 	 * Get the session for a browser view based on data storage setting and workspace
@@ -97,7 +71,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		if (!window) {
 			const auxWindow = this.auxiliaryWindowById(windowId);
 			if (auxWindow) {
-				window = this.codeWindowById(auxWindow?.parentId);
+				window = this.codeWindowById(auxWindow.parentId);
 			}
 		}
 		return window?.openedWorkspace?.id;
@@ -128,7 +102,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this.auxiliaryWindowsMainService.getWindowByWebContents(contents);
 	}
 
-	async getOrCreateBrowserView(id: string, windowId: number, { offscreen = false }: IBrowserViewCreateOptions = {}): Promise<IBrowserViewState> {
+	async getOrCreateBrowserView(id: string, windowId: number): Promise<IBrowserViewState> {
 		const window = this.windowById(windowId);
 		if (!window) {
 			const message = `Window ${windowId} not found for browser view ${id}`;
@@ -137,51 +111,178 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		if (this.browserViews.has(id)) {
-			if (this.browserViewWindows.get(id)?.id !== windowId) {
-				// Move windows
-				const oldWindow = this.browserViewWindows.get(id);
-				if (oldWindow) {
-					oldWindow.win?.contentView.removeChildView(this.browserViews.get(id)!);
-				}
-				this.browserViewWindows.set(id, window);
-				window.win?.contentView.addChildView(this.browserViews.get(id)!);
-			}
 			const view = this.browserViews.get(id)!;
-			return {
-				url: view.webContents.getURL(),
-				title: view.webContents.getTitle(),
-				canGoBack: view.webContents.navigationHistory.canGoBack(),
-				canGoForward: view.webContents.navigationHistory.canGoForward(),
-				loading: view.webContents.isLoading()
-			};
+			// Move to new window if necessary
+			view.moveToWindow(window);
+			return view.getState();
 		}
-
-		const viewDisposables = new DisposableStore();
-		this.browserViewDisposables.set(id, viewDisposables);
 
 		const viewSession = this.getSession(id, windowId);
 		this.knownSessions.add(viewSession);
 
-		const view = new WebContentsView({
+		const view = new BrowserView(window, viewSession, this.themeMainService, this.logService);
+		this.browserViews.set(id, view);
+
+		return view.getState();
+	}
+
+	/**
+	 * Get a browser view or throw if not found
+	 */
+	private _getBrowserView(id: string): BrowserView {
+		const view = this.browserViews.get(id);
+		if (!view) {
+			throw new Error(`Browser view ${id} not found`);
+		}
+		return view;
+	}
+
+	onDynamicDidNavigate(id: string) {
+		return this._getBrowserView(id).onDidNavigate;
+	}
+
+	onDynamicDidChangeLoadingState(id: string) {
+		return this._getBrowserView(id).onDidChangeLoadingState;
+	}
+
+	onDynamicDidChangeFocus(id: string) {
+		return this._getBrowserView(id).onDidChangeFocus;
+	}
+
+	onDynamicDidKeyCommand(id: string) {
+		return this._getBrowserView(id).onDidKeyCommand;
+	}
+
+	onDynamicDidChangeTitle(id: string) {
+		return this._getBrowserView(id).onDidChangeTitle;
+	}
+
+	onDynamicDidChangeFavicon(id: string) {
+		return this._getBrowserView(id).onDidChangeFavicon;
+	}
+
+	async destroyBrowserView(id: string): Promise<void> {
+		this._getBrowserView(id).dispose();
+		this.browserViews.delete(id);
+	}
+
+	async layout(id: string, bounds: IBrowserViewBounds): Promise<void> {
+		return this._getBrowserView(id).layout(bounds);
+	}
+
+	async setVisible(id: string, visible: boolean): Promise<void> {
+		return this._getBrowserView(id).setVisible(visible);
+	}
+
+	async loadURL(id: string, url: string): Promise<void> {
+		return this._getBrowserView(id).loadURL(url);
+	}
+
+	async getURL(id: string): Promise<string> {
+		return this._getBrowserView(id).getURL();
+	}
+
+	async goBack(id: string): Promise<void> {
+		return this._getBrowserView(id).goBack();
+	}
+
+	async goForward(id: string): Promise<void> {
+		return this._getBrowserView(id).goForward();
+	}
+
+	async reload(id: string): Promise<void> {
+		return this._getBrowserView(id).reload();
+	}
+
+	async canGoBack(id: string): Promise<boolean> {
+		return this._getBrowserView(id).canGoBack();
+	}
+
+	async canGoForward(id: string): Promise<boolean> {
+		return this._getBrowserView(id).canGoForward();
+	}
+
+	async captureScreenshot(id: string, quality = 80): Promise<string> {
+		return this._getBrowserView(id).captureScreenshot(quality);
+	}
+
+	async dispatchKeyEvent(id: string, keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
+		return this._getBrowserView(id).dispatchKeyEvent(keyEvent);
+	}
+
+	async setZoomFactor(id: string, zoomFactor: number): Promise<void> {
+		return this._getBrowserView(id).setZoomFactor(zoomFactor);
+	}
+
+	override dispose(): void {
+		// Clean up all browser views
+		for (const view of this.browserViews.values()) {
+			view.dispose();
+		}
+		this.browserViews.clear();
+		super.dispose();
+	}
+}
+
+
+/**
+ * Represents a single browser view instance with its WebContentsView and all associated logic.
+ * This class encapsulates all operations and events for a single browser view.
+ */
+export class BrowserView extends Disposable {
+	private readonly view: WebContentsView;
+	private readonly viewDisposables = this._register(new DisposableStore());
+	private readonly faviconCache = new Map<string, string>();
+	private _isSendingKeyEvent = false;
+
+	private readonly _onDidNavigate = this._register(new Emitter<IBrowserViewNavigationEvent>());
+	readonly onDidNavigate: Event<IBrowserViewNavigationEvent> = this._onDidNavigate.event;
+
+	private readonly _onDidChangeLoadingState = this._register(new Emitter<IBrowserViewLoadingEvent>());
+	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent> = this._onDidChangeLoadingState.event;
+
+	private readonly _onDidChangeFocus = this._register(new Emitter<IBrowserViewFocusEvent>());
+	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent> = this._onDidChangeFocus.event;
+
+	private readonly _onDidKeyCommand = this._register(new Emitter<IBrowserViewKeyDownEvent>());
+	readonly onDidKeyCommand: Event<IBrowserViewKeyDownEvent> = this._onDidKeyCommand.event;
+
+	private readonly _onDidChangeTitle = this._register(new Emitter<IBrowserViewTitleChangeEvent>());
+	readonly onDidChangeTitle: Event<IBrowserViewTitleChangeEvent> = this._onDidChangeTitle.event;
+
+	private readonly _onDidChangeFavicon = this._register(new Emitter<IBrowserViewFaviconChangeEvent>());
+	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent> = this._onDidChangeFavicon.event;
+
+	constructor(
+		private window: IBaseWindow,
+		viewSession: Electron.Session,
+		themeMainService: IThemeMainService,
+		private readonly logService: ILogService
+	) {
+		super();
+
+		this.view = new WebContentsView({
 			webPreferences: {
 				nodeIntegration: false,
 				contextIsolation: true,
 				sandbox: true,
 				webviewTag: false,
-				offscreen: offscreen ? {
-					useSharedTexture: true
-				} : undefined,
 				session: viewSession
 			}
 		});
 
-		this.browserViews.set(id, view);
-		this.browserViewWindows.set(id, window);
-		window.win?.contentView.addChildView(view);
+		window.win?.contentView.addChildView(this.view);
 
-		// Set up event listeners
-		const webContents = view.webContents;
+		this.setupEventListeners();
 
+		// Create and register plugins for this web contents
+		this.viewDisposables.add(new ThemePlugin(this.view.webContents, themeMainService, this.logService));
+	}
+
+	private setupEventListeners(): void {
+		const webContents = this.view.webContents;
+
+		// Favicon events
 		webContents.on('page-favicon-updated', async (_event, favicons) => {
 			if (!favicons || favicons.length === 0) {
 				return;
@@ -199,30 +300,21 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 					const favicon = `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
 					this.faviconCache.set(found, favicon);
 				} catch (error) {
-					this.logService.warn('browserViewMainService.fetchFaviconFailed', error);
+					this.logService.warn('browserView.fetchFaviconFailed', error);
 					return;
 				}
 			}
 
-			this._onDidChangeFavicons.fire({ id, favicon: this.faviconCache.get(found)! });
+			this._onDidChangeFavicon.fire({ favicon: this.faviconCache.get(found)! });
 		});
 
+		// Title events
 		webContents.on('page-title-updated', (_event, title) => {
-			this._onDidChangeTitle.fire({ id, title });
+			this._onDidChangeTitle.fire({ title });
 		});
-
-		if (offscreen) {
-			webContents.on('paint', (_event, _dirtyRect, image) => {
-				const jpegBuffer = image.toJPEG(50);
-				const base64 = jpegBuffer.toString('base64');
-				const dataUrl = `data:image/jpeg;base64,${base64}`;
-				this._onDidPaint.fire({ id, dataUrl });
-			});
-		}
 
 		const fireNavigationEvent = () => {
 			this._onDidNavigate.fire({
-				id,
 				url: webContents.getURL(),
 				canGoBack: webContents.navigationHistory.canGoBack(),
 				canGoForward: webContents.navigationHistory.canGoForward()
@@ -230,7 +322,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		};
 
 		const fireLoadingEvent = (loading: boolean) => {
-			this._onDidChangeLoadingState.fire({ id, loading });
+			this._onDidChangeLoadingState.fire({ loading });
 		};
 
 		// Loading state events
@@ -242,16 +334,13 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		webContents.on('did-navigate', fireNavigationEvent);
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
 
-		// Create and register plugins for this web contents
-		viewDisposables.add(new ThemePlugin(webContents, this.themeMainService, this.logService));
-
 		// Focus events
 		webContents.on('focus', () => {
-			this._onDidChangeFocus.fire({ id, focused: true });
+			this._onDidChangeFocus.fire({ focused: true });
 		});
 
 		webContents.on('blur', () => {
-			this._onDidChangeFocus.fire({ id, focused: false });
+			this._onDidChangeFocus.fire({ focused: false });
 		});
 
 		// Key down events - listen for raw key input events
@@ -259,7 +348,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			if (input.type === 'keyDown' && (input.control || input.alt || input.meta) && !this._isSendingKeyEvent) {
 				event.preventDefault();
 				this._onDidKeyCommand.fire({
-					viewId: id,
 					key: input.key,
 					keyCode: SCAN_CODE_STR_TO_EVENT_KEY_CODE[input.code] || 0,
 					code: input.code,
@@ -271,7 +359,13 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 				});
 			}
 		});
+	}
 
+	/**
+	 * Get the current state of this browser view
+	 */
+	getState(): IBrowserViewState {
+		const webContents = this.view.webContents;
 		return {
 			url: webContents.getURL(),
 			title: webContents.getTitle(),
@@ -281,35 +375,25 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		};
 	}
 
-	async destroyBrowserView(id: string): Promise<void> {
-		const view = this.browserViews.get(id);
-		if (!view) {
+	/**
+	 * Move this view to a different window
+	 */
+	moveToWindow(newWindow: IBaseWindow): void {
+		if (this.window.id === newWindow.id) {
 			return;
 		}
 
-		// Remove from parent window
-		const window = this.browserViewWindows.get(id);
-		if (window) {
-			window.win?.contentView.removeChildView(view);
-		}
-
-		// Clean up the view and all its event listeners
-		// Note: webContents.close() automatically removes all event listeners
-		view.webContents.close();
-		this.browserViews.delete(id);
-		this.browserViewWindows.delete(id);
-		this.browserViewDisposables.get(id)?.dispose();
-		this.browserViewDisposables.delete(id);
+		this.window.win?.contentView.removeChildView(this.view);
+		this.window = newWindow;
+		newWindow.win?.contentView.addChildView(this.view);
 	}
 
-	async layout(id: string, bounds: IBrowserViewBounds): Promise<void> {
-		const view = this.browserViews.get(id);
-		if (!view) {
-			throw new Error(`Browser view ${id} not found`);
-		}
-
-		view.webContents.setZoomFactor(bounds.zoomFactor);
-		view.setBounds({
+	/**
+	 * Update the layout bounds of this view
+	 */
+	layout(bounds: IBrowserViewBounds): void {
+		this.view.webContents.setZoomFactor(bounds.zoomFactor);
+		this.view.setBounds({
 			x: Math.round(bounds.x * bounds.zoomFactor),
 			y: Math.round(bounds.y * bounds.zoomFactor),
 			width: Math.round(bounds.width * bounds.zoomFactor),
@@ -317,110 +401,87 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		});
 	}
 
-	async setVisible(id: string, visible: boolean): Promise<void> {
-		const view = this.browserViews.get(id);
-		if (!view) {
-			throw new Error(`Browser view ${id} not found`);
+	/**
+	 * Set the visibility of this view
+	 */
+	setVisible(visible: boolean): void {
+		if (!visible && this.view.webContents.isFocused()) {
+			this.window.win?.webContents.focus();
 		}
 
-		if (!visible && view.webContents.isFocused()) {
-			const window = this.browserViewWindows.get(id);
-			if (window) {
-				window.win?.webContents.focus();
-			}
-		}
-
-		view.setVisible(visible);
+		this.view.setVisible(visible);
 	}
 
-	async loadURL(id: string, url: string): Promise<void> {
-		const view = this.browserViews.get(id);
-		if (!view) {
-			throw new Error(`Browser view ${id} not found`);
-		}
-
-		await view.webContents.loadURL(url);
+	/**
+	 * Load a URL in this view
+	 */
+	async loadURL(url: string): Promise<void> {
+		await this.view.webContents.loadURL(url);
 	}
 
-	async getURL(id: string): Promise<string> {
-		const view = this.browserViews.get(id);
-		if (!view) {
-			throw new Error(`Browser view ${id} not found`);
-		}
-
-		return view.webContents.getURL();
+	/**
+	 * Get the current URL
+	 */
+	getURL(): string {
+		return this.view.webContents.getURL();
 	}
 
-	async goBack(id: string): Promise<void> {
-		const view = this.browserViews.get(id);
-		if (!view) {
-			throw new Error(`Browser view ${id} not found`);
-		}
-
-		if (view.webContents.navigationHistory.canGoBack()) {
-			view.webContents.navigationHistory.goBack();
+	/**
+	 * Navigate back in history
+	 */
+	goBack(): void {
+		if (this.view.webContents.navigationHistory.canGoBack()) {
+			this.view.webContents.navigationHistory.goBack();
 		}
 	}
 
-	async goForward(id: string): Promise<void> {
-		const view = this.browserViews.get(id);
-		if (!view) {
-			throw new Error(`Browser view ${id} not found`);
-		}
-
-		if (view.webContents.navigationHistory.canGoForward()) {
-			view.webContents.navigationHistory.goForward();
+	/**
+	 * Navigate forward in history
+	 */
+	goForward(): void {
+		if (this.view.webContents.navigationHistory.canGoForward()) {
+			this.view.webContents.navigationHistory.goForward();
 		}
 	}
 
-	async reload(id: string): Promise<void> {
-		const view = this.browserViews.get(id);
-
-		if (!view) {
-			throw new Error(`Browser view ${id} not found`);
-		}
-
-		view.webContents.reload();
+	/**
+	 * Reload the current page
+	 */
+	reload(): void {
+		this.view.webContents.reload();
 	}
 
-	async canGoBack(id: string): Promise<boolean> {
-		const view = this.browserViews.get(id);
-		if (!view) {
-			return false;
-		}
-
-		return view.webContents.navigationHistory.canGoBack();
+	/**
+	 * Check if the view can navigate back
+	 */
+	canGoBack(): boolean {
+		return this.view.webContents.navigationHistory.canGoBack();
 	}
 
-	async canGoForward(id: string): Promise<boolean> {
-		const view = this.browserViews.get(id);
-		if (!view) {
-			return false;
-		}
-
-		return view.webContents.navigationHistory.canGoForward();
+	/**
+	 * Check if the view can navigate forward
+	 */
+	canGoForward(): boolean {
+		return this.view.webContents.navigationHistory.canGoForward();
 	}
 
-	async captureScreenshot(id: string, quality = 80): Promise<VSBuffer | undefined> {
-		const view = this.browserViews.get(id);
-		if (!view) {
-			return undefined;
-		}
-
-		const image = await view.webContents.capturePage(undefined, {
+	/**
+	 * Capture a screenshot of this view
+	 */
+	async captureScreenshot(quality = 80): Promise<string> {
+		const image = await this.view.webContents.capturePage(undefined, {
 			stayHidden: true,
 			stayAwake: true
 		});
 		const buffer = image.toJPEG(quality);
-		return VSBuffer.wrap(buffer);
+		return `data:image/jpeg;base64,${buffer.toString('base64')}`;
 	}
 
-	async dispatchKeyEvent(viewId: string, keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
-		const view = this.browserViews.get(viewId);
-		if (!view) {
-			throw new Error(`Browser view ${viewId} not found`);
-		}
-		const event: KeyboardInputEvent = {
+	/**
+	 * Dispatch a keyboard event to this view
+	 */
+	async dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
+		const event: Electron.KeyboardInputEvent = {
 			type: 'keyDown',
 			keyCode: keyEvent.key,
 			modifiers: []
@@ -439,26 +500,34 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 		this._isSendingKeyEvent = true;
 		try {
-			await view.webContents.sendInputEvent(event);
+			await this.view.webContents.sendInputEvent(event);
 		} finally {
 			this._isSendingKeyEvent = false;
 		}
 	}
 
-	async setZoomFactor(id: string, zoomFactor: number): Promise<void> {
-		const view = this.browserViews.get(id);
-		if (!view) {
-			throw new Error(`Browser view ${id} not found`);
-		}
+	/**
+	 * Set the zoom factor of this view
+	 */
+	async setZoomFactor(zoomFactor: number): Promise<void> {
+		await this.view.webContents.setZoomFactor(zoomFactor);
+	}
 
-		await view.webContents.setZoomFactor(zoomFactor);
+	/**
+	 * Get the underlying WebContentsView
+	 */
+	getWebContentsView(): WebContentsView {
+		return this.view;
 	}
 
 	override dispose(): void {
-		// Clean up all browser views
-		for (const id of this.browserViews.keys()) {
-			this.destroyBrowserView(id);
-		}
+		// Remove from parent window
+		this.window.win?.contentView.removeChildView(this.view);
+
+		// Clean up the view and all its event listeners
+		// Note: webContents.close() automatically removes all event listeners
+		this.view.webContents.close();
+
 		super.dispose();
 	}
 }

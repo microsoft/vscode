@@ -57,6 +57,7 @@
 	overflow: hidden;
 	position: relative;
 	background-image: none;
+	background-size: cover;
 	filter: blur(0px);
 	transition: opacity 500ms ease-out, filter 500ms ease-out;
 	opacity: 1.0;

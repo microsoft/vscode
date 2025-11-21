@@ -25,10 +25,10 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IBrowserOverlayManager } from './overlayManager.js';
-import { encodeBase64 } from '../../../../base/common/buffer.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export class BrowserEditor extends EditorPane {
 	static readonly ID = 'workbench.editor.browser';
@@ -46,6 +46,7 @@ export class BrowserEditor extends EditorPane {
 
 	private currentInput: BrowserEditorInput | undefined;
 	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
+	private readonly inputDisposables = this._register(new DisposableStore());
 
 	constructor(
 		group: IEditorGroup,
@@ -62,45 +63,6 @@ export class BrowserEditor extends EditorPane {
 
 		const channel = this.mainProcessService.getChannel(ipcBrowserViewChannelName);
 		this.browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
-
-		// Listen for key commands and handle them
-		this.browserViewService.onDidKeyCommand(keyEvent => {
-			if (this.currentInput && keyEvent.viewId === this.currentInput.id) {
-				// Handle like webview does - convert to webview KeyEvent format
-				this.handleKeyEventFromBrowserView(keyEvent);
-			}
-		}, null, this._store);
-
-		// Listen for navigation events
-		this.browserViewService.onDidNavigate(navEvent => {
-			if (this.currentInput && navEvent.id === this.currentInput.id) {
-				// Update navigation state
-				this.backAction.enabled = navEvent.canGoBack;
-				this.forwardAction.enabled = navEvent.canGoForward;
-				this.urlInput.value = navEvent.url;
-				this.currentInput.setUrl(navEvent.url);
-			}
-		}, null, this._store);
-
-		// Listen for loading state changes
-		this.browserViewService.onDidChangeLoadingState(loadingEvent => {
-			if (this.currentInput && loadingEvent.id === this.currentInput.id) {
-				this.currentInput.setLoading(loadingEvent.loading);
-			}
-		}, null, this._store);
-
-		this.browserViewService.onDidChangeFavicons(async ({ id, favicon }) => {
-			if (this.currentInput && id === this.currentInput.id) {
-				this.currentInput.setFavicon(favicon);
-			}
-		}, null, this._store);
-
-		this.browserViewService.onDidChangeTitle(({ id, title }) => {
-			if (this.currentInput && id === this.currentInput.id) {
-				this.currentInput.setTitle(title);
-			}
-		}, null, this._store);
-
 
 		this._register(this.overlayManager.onDidChangeOverlayState(() => {
 			if (!this.currentInput) {
@@ -209,12 +171,13 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		this.currentInput = input;
+		this.inputDisposables.clear();
 		input.onWillDispose(() => {
 			this.currentInput = undefined;
 			this.browserViewService.destroyBrowserView(input.id);
 		});
 
-		// Create browser view in main process (use group's windowId)
+		// Create browser view in main process
 		const state = await this.browserViewService.getOrCreateBrowserView(input.id, this.group.windowId);
 		if (token.isCancellationRequested) {
 			return;
@@ -233,6 +196,36 @@ export class BrowserEditor extends EditorPane {
 		input.setTitle(state.title);
 		input.setLoading(state.loading);
 
+		// Register per-view events for this input
+		this.inputDisposables.add(this.browserViewService.onDynamicDidKeyCommand(input.id)(event => {
+			// Handle like webview does - convert to webview KeyEvent format
+			this.handleKeyEventFromBrowserView(event);
+		}));
+
+		this.inputDisposables.add(this.browserViewService.onDynamicDidNavigate(input.id)(event => {
+			if (event.url !== input.url) {
+				this.group.pinEditor(input); // Navigated from within the browser -- pin the editor
+			}
+
+			// Update navigation state
+			this.backAction.enabled = event.canGoBack;
+			this.forwardAction.enabled = event.canGoForward;
+			this.urlInput.value = event.url;
+			input.setUrl(event.url);
+		}));
+
+		this.inputDisposables.add(this.browserViewService.onDynamicDidChangeLoadingState(input.id)(event => {
+			input.setLoading(event.loading);
+		}));
+
+		this.inputDisposables.add(this.browserViewService.onDynamicDidChangeFavicon(input.id)(event => {
+			input.setFavicon(event.favicon);
+		}));
+
+		this.inputDisposables.add(this.browserViewService.onDynamicDidChangeTitle(input.id)(event => {
+			input.setTitle(event.title);
+		}));
+
 		this.layout();
 		this.browserViewService.setVisible(this.currentInput.id, true);
 	}
@@ -247,6 +240,8 @@ export class BrowserEditor extends EditorPane {
 
 	private async navigateToUrl(url: string): Promise<void> {
 		if (this.currentInput) {
+			this.group.pinEditor(this.currentInput); // Pin the editor when navigating
+
 			if (!/^https?:\/\//.test(url)) {
 				// If no scheme provided, default to http (first -- this will be upgraded to https if supported)
 				url = 'http://' + url;
@@ -279,12 +274,8 @@ export class BrowserEditor extends EditorPane {
 	private async capturePlaceholderSnapshot(): Promise<void> {
 		if (this.currentInput && !this.overlayVisible) {
 			try {
-				const buffer = await this.browserViewService.captureScreenshot(this.currentInput.id);
-				if (buffer && this.browserContainer) {
-					const base64 = encodeBase64(buffer);
-					const cssUrl = `url('data:image/jpeg;base64,${base64}')`;
-					this.browserContainer.style.backgroundImage = cssUrl;
-				}
+				const dataUrl = await this.browserViewService.captureScreenshot(this.currentInput.id);
+				this.browserContainer.style.backgroundImage = `url('${dataUrl}')`;
 			} catch (error) {
 				this.logService.error('browserEditor.capturePlaceholderSnapshot', error);
 			}

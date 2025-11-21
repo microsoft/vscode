@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from '../../../base/common/buffer.js';
 import { Event } from '../../../base/common/event.js';
 
 export interface IBrowserViewBounds {
@@ -23,29 +22,20 @@ export interface IBrowserViewState {
 }
 
 export interface IBrowserViewNavigationEvent {
-	id: string;
 	url: string;
 	canGoBack: boolean;
 	canGoForward: boolean;
 }
 
 export interface IBrowserViewLoadingEvent {
-	id: string;
 	loading: boolean;
 }
 
-export interface IBrowserViewPaintEvent {
-	id: string;
-	dataUrl: string;
-}
-
 export interface IBrowserViewFocusEvent {
-	id: string;
 	focused: boolean;
 }
 
 export interface IBrowserViewKeyDownEvent {
-	viewId: string;
 	key: string;
 	keyCode: number;
 	code: string;
@@ -57,39 +47,31 @@ export interface IBrowserViewKeyDownEvent {
 }
 
 export interface IBrowserViewTitleChangeEvent {
-	id: string;
 	title: string;
 }
 
 export interface IBrowserViewFaviconChangeEvent {
-	id: string;
 	favicon: string;
-}
-
-export interface IBrowserViewCreateOptions {
-	offscreen?: boolean;
 }
 
 export const ipcBrowserViewChannelName = 'browserView';
 
 export interface IBrowserViewService {
-	readonly _serviceBrand: undefined;
-
-	readonly onDidPaint: Event<IBrowserViewPaintEvent>;
-	readonly onDidNavigate: Event<IBrowserViewNavigationEvent>;
-	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent>;
-	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent>;
-	readonly onDidKeyCommand: Event<IBrowserViewKeyDownEvent>;
-	readonly onDidChangeTitle: Event<IBrowserViewTitleChangeEvent>;
-	readonly onDidChangeFavicons: Event<IBrowserViewFaviconChangeEvent>;
-
+	/**
+	 * Dynamic events that return an Event for a specific browser view ID.
+	 */
+	onDynamicDidNavigate(id: string): Event<IBrowserViewNavigationEvent>;
+	onDynamicDidChangeLoadingState(id: string): Event<IBrowserViewLoadingEvent>;
+	onDynamicDidChangeFocus(id: string): Event<IBrowserViewFocusEvent>;
+	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
+	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
+	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
 	/**
 	 * Get or create a browser view instance
 	 * @param id The browser view identifier
 	 * @param windowId The window identifier to host the view
-	 * @param offscreen Whether to create the view in offscreen mode
 	 */
-	getOrCreateBrowserView(id: string, windowId: number, options?: IBrowserViewCreateOptions): Promise<IBrowserViewState>;
+	getOrCreateBrowserView(id: string, windowId: number): Promise<IBrowserViewState>;
 
 	/**
 	 * Destroy a browser view instance
@@ -160,7 +142,7 @@ export interface IBrowserViewService {
 	 * @param quality The quality of the screenshot (0-100)
 	 * @returns Data URL of the screenshot, or undefined if capture failed
 	 */
-	captureScreenshot(id: string, quality?: number): Promise<VSBuffer | undefined>;
+	captureScreenshot(id: string, quality?: number): Promise<string>;
 
 	/**
 	 * Dispatch a key event to the browser view

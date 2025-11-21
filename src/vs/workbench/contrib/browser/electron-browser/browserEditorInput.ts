@@ -61,10 +61,6 @@ export class BrowserEditorInput extends EditorInput {
 		return this._url;
 	}
 
-	get isLoading(): boolean {
-		return this._isLoading;
-	}
-
 	setFavicon(favicon: string): void {
 		// Notify any listeners that the favicon has changed
 		this._favicon = favicon;
@@ -104,7 +100,7 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Singleton;
+		return EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
 	}
 
 	override get resource(): URI {
