@@ -213,6 +213,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _terminalInstance: ITerminalInstance | undefined;
 	private readonly _decoration: TerminalCommandDecoration;
 
+	private _command: ITerminalCommand | undefined;
+
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		return this.markdownPart?.codeblocks ?? [];
@@ -296,7 +298,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			displayCommand,
 			() => this._onDidChangeHeight.fire(),
 			() => this._ensureTerminalInstance(),
-			() => this._getResolvedCommand(),
+			() => this._command ?? this._getResolvedCommand(),
 		));
 		this._register(this._outputView.onDidFocus(() => this._handleOutputFocus()));
 		this._register(this._outputView.onDidBlur(e => this._handleOutputBlur(e)));
@@ -411,13 +413,13 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 	}
 
-	private _addActions(terminalInstance?: ITerminalInstance, terminalToolSessionId?: string): void {
+	private _addActions(terminalInstance?: ITerminalInstance, terminalToolSessionId?: string, command?: ITerminalCommand): void {
 		if (this._store.isDisposed) {
 			return;
 		}
 		const actionBar = this._actionBar;
 		this._removeFocusAction();
-		const resolvedCommand = this._getResolvedCommand(terminalInstance);
+		const resolvedCommand = command ?? this._getResolvedCommand(terminalInstance);
 
 		if (terminalInstance) {
 			const isTerminalHidden = terminalInstance && terminalToolSessionId ? this._terminalChatService.isBackgroundTerminal(terminalToolSessionId) : false;
@@ -480,6 +482,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _clearCommandAssociation(): void {
 		this._terminalCommandUri = undefined;
 		this._storedCommandId = undefined;
+		this._command = undefined;
 		if (this._terminalData.terminalCommandUri) {
 			delete this._terminalData.terminalCommandUri;
 		}
@@ -490,23 +493,46 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _registerInstanceListener(terminalInstance: ITerminalInstance): void {
-		const commandDetectionListener = this._register(new MutableDisposable<IDisposable>());
+		const commandFinishedListener = this._register(new MutableDisposable<IDisposable>());
+		const commandExecutedListener = this._register(new MutableDisposable<IDisposable>());
 		const tryResolveCommand = async (): Promise<ITerminalCommand | undefined> => {
 			const resolvedCommand = this._resolveCommand(terminalInstance);
-			this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
+			if (resolvedCommand) {
+				this._command = resolvedCommand;
+			}
+			this._addActions(terminalInstance, this._terminalData.terminalToolSessionId, resolvedCommand);
 			return resolvedCommand;
 		};
 
 		const attachCommandDetection = async (commandDetection: ICommandDetectionCapability | undefined) => {
-			commandDetectionListener.clear();
+			commandFinishedListener.clear();
+			commandExecutedListener.clear();
 			if (!commandDetection) {
 				await tryResolveCommand();
 				return;
 			}
 
-			commandDetectionListener.value = commandDetection.onCommandFinished(() => {
+			commandExecutedListener.value = commandDetection.onCommandExecuted((command) => {
+				void (async () => {
+					if (!command.id) {
+						return;
+					}
+					if (command.id !== this._terminalData.terminalCommandId) {
+						return;
+					}
+					this._command = command;
+					this._addActions(terminalInstance, this._terminalData.terminalToolSessionId, command);
+					await this._outputView.prepareMirrorForStreaming(terminalInstance, command);
+					if (this._outputView.isExpanded) {
+						await this._outputView.ensureRendered();
+					}
+				})();
+			});
+
+			commandFinishedListener.value = commandDetection.onCommandFinished(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				commandDetectionListener.clear();
+				commandFinishedListener.clear();
+				commandExecutedListener.clear();
 			});
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
@@ -522,7 +548,8 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._terminalInstance = undefined;
 			}
 			this._clearCommandAssociation();
-			commandDetectionListener.clear();
+			commandFinishedListener.clear();
+			commandExecutedListener.clear();
 			if (!this._store.isDisposed) {
 				this._actionBar.clear();
 			}
@@ -665,6 +692,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _terminalHost: HTMLElement | undefined;
 	private _emptyElement: HTMLElement | undefined;
 	private _hasRendered = false;
+	private _mirrorUpdateListener: IDisposable | undefined;
 
 	private readonly _onDidFocusEmitter = new Emitter<void>();
 	private readonly _onDidBlurEmitter = new Emitter<FocusEvent>();
@@ -820,11 +848,18 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._showEmptyMessage(localize('chat.terminalOutputCommandMissing', 'Command information is not available.'));
 			return;
 		}
-		if (!this._mirror) {
-			this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, terminalInstance, command));
+		const mirror = this._getOrCreateMirror(terminalInstance, command);
+		await mirror.attach(this._terminalHost);
+		if (!this._mirrorUpdateListener) {
+			this._mirrorUpdateListener = this._register(mirror.onDidUpdate(lineCount => {
+				if (lineCount > 0) {
+					this._hideEmptyMessage();
+				}
+				this._layoutOutput(lineCount);
+				this._scrollOutputToBottom();
+			}));
 		}
-		await this._mirror.attach(this._terminalHost);
-		const result = await this._mirror.renderCommand();
+		const result = await mirror.renderCommand();
 		if (!result) {
 			this._showEmptyMessage(localize('chat.terminalOutputPending', 'Command output will appear here once available.'));
 			return;
@@ -836,6 +871,20 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._hideEmptyMessage();
 		}
 		this._layoutOutput(result.lineCount);
+	}
+
+	public async prepareMirrorForStreaming(terminalInstance: ITerminalInstance, command: ITerminalCommand): Promise<void> {
+		const mirror = this._getOrCreateMirror(terminalInstance, command);
+		if (this._terminalHost) {
+			await mirror.attach(this._terminalHost);
+		}
+	}
+
+	private _getOrCreateMirror(terminalInstance: ITerminalInstance, command: ITerminalCommand): DetachedTerminalCommandMirror {
+		if (!this._mirror) {
+			this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, terminalInstance, command));
+		}
+		return this._mirror;
 	}
 
 	private _showEmptyMessage(message: string): void {
