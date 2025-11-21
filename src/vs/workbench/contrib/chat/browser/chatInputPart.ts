@@ -529,6 +529,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._register(this.chatModeService.onDidChangeChatModes(() => this.validateCurrentChatMode()));
 		this._register(autorun(r => {
 			const mode = this._currentModeObservable.read(r);
+			this.chatModeKindKey.set(mode.kind);
 			const model = mode.model?.read(r);
 			if (model) {
 				this.switchModelByQualifiedName(model);
@@ -837,7 +838,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		this._currentModeObservable.set(mode, undefined);
-		this.chatModeKindKey.set(mode.kind);
 		this._onDidChangeCurrentChatMode.fire();
 
 		// Sync to model (mode is now persisted in the model's input state)
