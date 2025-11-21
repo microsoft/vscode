@@ -170,9 +170,6 @@
 	box-sizing: border-box;
 	min-height: 0;
 }
-.chat-terminal-output-terminal {
-	min-height: 40px;
-}
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
 }
