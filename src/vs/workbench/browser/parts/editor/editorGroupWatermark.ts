@@ -37,8 +37,8 @@ const openFileOrFolder: WatermarkEntry = { text: localize('watermark.openFileFol
 const openRecent: WatermarkEntry = { text: localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
 const newUntitledFile: WatermarkEntry = { text: localize('watermark.newUntitledFile', "New Untitled Text File"), id: 'workbench.action.files.newUntitledFile' };
 
-const showChat = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabled', false));
-const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: showChat, web: showChat } };
+const showChatContextKey = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabled', false));
+const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: showChatContextKey, web: showChatContextKey } };
 
 const emptyWindowEntries: WatermarkEntry[] = coalesce([
 	openChat,
@@ -48,17 +48,9 @@ const emptyWindowEntries: WatermarkEntry[] = coalesce([
 	isMacintosh && !isWeb ? newUntitledFile : undefined, // fill in one more on macOS to get to 5 entries
 ]);
 
-const randomEmptyWindowEntries: WatermarkEntry[] = [
-	/* Nothing yet */
-];
-
 const workspaceEntries: WatermarkEntry[] = [
 	openChat,
 	showCommands,
-];
-
-const randomWorkspaceEntries: WatermarkEntry[] = [
-	/* Empty for now */
 ];
 
 export class EditorGroupWatermark extends Disposable {
@@ -118,7 +110,7 @@ export class EditorGroupWatermark extends Disposable {
 
 		this._register(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				const entries = [...emptyWindowEntries, ...randomEmptyWindowEntries, ...workspaceEntries, ...randomWorkspaceEntries];
+				const entries = [...emptyWindowEntries, ...workspaceEntries];
 				for (const entry of entries) {
 					const when = isWeb ? entry.when?.web : entry.when?.native;
 					if (when) {
