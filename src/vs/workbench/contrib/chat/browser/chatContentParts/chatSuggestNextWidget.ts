@@ -84,7 +84,6 @@ export class ChatSuggestNextWidget extends Disposable {
 			childrenToRemove.push(this.promptsContainer.children[i] as HTMLElement);
 		}
 		for (const child of childrenToRemove) {
-			// Dispose the button's disposables before removing it
 			const disposables = this.buttonDisposables.get(child);
 			if (disposables) {
 				disposables.dispose();
@@ -93,7 +92,6 @@ export class ChatSuggestNextWidget extends Disposable {
 			this.promptsContainer.removeChild(child);
 		}
 
-		// Create prompt buttons using welcome view classes
 		for (const handoff of handoffs) {
 			const promptButton = this.createPromptButton(handoff);
 			this.promptsContainer.appendChild(promptButton);
@@ -122,6 +120,8 @@ export class ChatSuggestNextWidget extends Disposable {
 		const availableContributions = contributions.filter(c => c.canDelegate !== false);
 
 		if (showContinueOn && availableContributions.length > 0) {
+			const separator = dom.append(button, dom.$('.chat-suggest-next-separator'));
+			separator.setAttribute('aria-hidden', 'true');
 			const chevron = dom.append(button, dom.$('.codicon.codicon-chevron-down.dropdown-chevron'));
 			chevron.setAttribute('tabindex', '0');
 			chevron.setAttribute('role', 'button');
