@@ -134,7 +134,6 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			let endTime: number | undefined;
 			const model = this.chatService.getSession(sessionDetail.sessionResource);
 			if (model) {
-				console.log(model.getRequests());
 				status = this.modelToStatus(model);
 				startTime = model.timestamp;
 
