@@ -396,7 +396,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 					// Show Edit Direction
 					const arrowIcon = isEditBelowHint(viewState) ? Codicon.arrowDown : Codicon.arrowUp;
 					const keybinding = this._keybindingService.lookupKeybinding(jumpToNextInlineEditId);
-					let label = 'Go to Suggestion';
+					let label = 'Go to suggestion';
 					if (keybinding && keybinding.getLabel() === 'Tab') {
 						label = 'Tab to suggestion';
 					}
