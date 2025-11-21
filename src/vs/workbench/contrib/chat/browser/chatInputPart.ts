@@ -1022,7 +1022,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const state = this.getCurrentInputState();
-		if (state.inputText !== '') {
+		if (state.inputText || state.attachments.length) {
 			this.history.overlay(state);
 		}
 		this.navigateHistory(true);
@@ -1034,7 +1034,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const state = this.getCurrentInputState();
-		if (state.inputText !== '') {
+		if (state.inputText || state.attachments.length) {
 			this.history.overlay(state);
 		}
 		this.navigateHistory(false);

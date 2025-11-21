@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -55,7 +56,7 @@ export class ChatWidgetHistoryService extends Disposable implements IChatWidgetH
 	private memento: Memento<IChatHistory>;
 	private viewState: IChatHistory;
 
-	private readonly _onDidChangeHistory = new Emitter<ChatHistoryChange>();
+	private readonly _onDidChangeHistory = this._register(new Emitter<ChatHistoryChange>());
 	private changed = false;
 	readonly onDidChangeHistory = this._onDidChangeHistory.event;
 
@@ -190,6 +191,7 @@ export class ChatHistoryNavigator extends Disposable {
 			} else if (e.kind === 'clear') {
 				this._history = [];
 				this._currentIndex = 0;
+				this._overlay = [];
 			}
 		}));
 	}
@@ -236,6 +238,25 @@ export class ChatHistoryNavigator extends Disposable {
 	public append(entry: IChatModelInputState) {
 		this._overlay = [];
 		this._currentIndex = this._history.length;
-		this.chatWidgetHistoryService.append(this.location, entry);
+
+		if (!entriesEqual(this._history.at(-1), entry)) {
+			this.chatWidgetHistoryService.append(this.location, entry);
+		}
 	}
+}
+
+function entriesEqual(a: IChatModelInputState | undefined, b: IChatModelInputState | undefined): boolean {
+	if (!a || !b) {
+		return false;
+	}
+
+	if (a.inputText !== b.inputText) {
+		return false;
+	}
+
+	if (!arraysEqual(a.attachments, b.attachments, (x, y) => x.id === y.id)) {
+		return false;
+	}
+
+	return true;
 }
