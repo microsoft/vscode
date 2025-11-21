@@ -76,14 +76,14 @@ export default abstract class BaseErrorTelemetry {
 		// to override
 	}
 
-	private _onErrorEvent(err: any): void {
+	private _onErrorEvent(err: unknown): void {
 
-		if (!err || err.code) {
+		if (!err || (typeof err === 'object' && 'code' in err)) {
 			return;
 		}
 
 		// unwrap nested errors from loader
-		if (err.detail && err.detail.stack) {
+		if (typeof err === 'object' && 'detail' in err && err.detail && typeof err.detail === 'object' && 'stack' in err.detail) {
 			err = err.detail;
 		}
 
@@ -93,13 +93,13 @@ export default abstract class BaseErrorTelemetry {
 		// Explicitly filter out PendingMigrationError for https://github.com/microsoft/vscode/issues/250648#issuecomment-3394040431
 		// We don't inherit from ErrorNoTelemetry to preserve the name used in reporting for exthostdeprecatedapiusage event.
 		// TODO(deepak1556): remove when PendingMigrationError is no longer needed.
-		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || PendingMigrationError.is(err) || (typeof err?.message === 'string' && err.message.includes('Unable to read file'))) {
+		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || PendingMigrationError.is(err) || (typeof err === 'object' && err !== null && 'message' in err && typeof err.message === 'string' && err.message.includes('Unable to read file'))) {
 			return;
 		}
 
 		// work around behavior in workerServer.ts that breaks up Error.stack
-		const callstack = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
-		const msg = err.message ? err.message : safeStringify(err);
+		const callstack = typeof err === 'object' && err !== null && 'stack' in err ? (Array.isArray(err.stack) ? err.stack.join('\n') : err.stack) : undefined;
+		const msg = typeof err === 'object' && err !== null && 'message' in err && err.message ? String(err.message) : safeStringify(err);
 
 		// errors without a stack are not useful telemetry
 		if (!callstack) {

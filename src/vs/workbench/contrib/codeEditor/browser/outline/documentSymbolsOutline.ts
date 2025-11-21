@@ -66,14 +66,14 @@ class DocumentSymbolBreadcrumbsSource implements IBreadcrumbsDataSource<Document
 		const chain: Array<OutlineGroup | OutlineElement> = [];
 		while (item) {
 			chain.push(item);
-			const parent: any = item.parent;
+			const parent: TreeElement | undefined = item.parent;
 			if (parent instanceof OutlineModel) {
 				break;
 			}
 			if (parent instanceof OutlineGroup && parent.parent && parent.parent.children.size === 1) {
 				break;
 			}
-			item = parent;
+			item = parent as OutlineGroup | OutlineElement | undefined;
 		}
 		const result: Array<OutlineGroup | OutlineElement> = [];
 		for (let i = chain.length - 1; i >= 0; i--) {

@@ -25,7 +25,7 @@ const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
 export class Context implements IContext {
 
 	protected _parent: Context | null;
-	protected _value: Record<string, any>;
+	protected _value: Record<string, ContextKeyValue>;
 	protected _id: number;
 
 	constructor(id: number, parent: Context | null) {
@@ -35,11 +35,11 @@ export class Context implements IContext {
 		this._value['_contextId'] = id;
 	}
 
-	public get value(): Record<string, any> {
+	public get value(): Record<string, ContextKeyValue> {
 		return { ...this._value };
 	}
 
-	public setValue(key: string, value: any): boolean {
+	public setValue(key: string, value: ContextKeyValue): boolean {
 		// console.log('SET ' + key + ' = ' + value + ' ON ' + this._id);
 		if (!equals(this._value[key], value)) {
 			this._value[key] = value;
@@ -62,14 +62,14 @@ export class Context implements IContext {
 		if (typeof ret === 'undefined' && this._parent) {
 			return this._parent.getValue<T>(key);
 		}
-		return ret;
+		return ret as T | undefined;
 	}
 
 	public updateParent(parent: Context): void {
 		this._parent = parent;
 	}
 
-	public collectAllValues(): Record<string, any> {
+	public collectAllValues(): Record<string, ContextKeyValue> {
 		let result = this._parent ? this._parent.collectAllValues() : Object.create(null);
 		result = { ...result, ...this._value };
 		delete result['_contextId'];
@@ -85,7 +85,7 @@ class NullContext extends Context {
 		super(-1, null);
 	}
 
-	public override setValue(key: string, value: any): boolean {
+	public override setValue(key: string, value: ContextKeyValue): boolean {
 		return false;
 	}
 
@@ -97,7 +97,7 @@ class NullContext extends Context {
 		return undefined;
 	}
 
-	override collectAllValues(): { [key: string]: any } {
+	override collectAllValues(): Record<string, ContextKeyValue> {
 		return Object.create(null);
 	}
 }
@@ -105,7 +105,7 @@ class NullContext extends Context {
 class ConfigAwareContextValuesContainer extends Context {
 	private static readonly _keyPrefix = 'config.';
 
-	private readonly _values = TernarySearchTree.forConfigKeys<any>();
+	private readonly _values = TernarySearchTree.forConfigKeys<ContextKeyValue>();
 	private readonly _listener: IDisposable;
 
 	constructor(
@@ -147,7 +147,7 @@ class ConfigAwareContextValuesContainer extends Context {
 		this._listener.dispose();
 	}
 
-	override getValue(key: string): any {
+	override getValue(key: string): ContextKeyValue | undefined {
 
 		if (key.indexOf(ConfigAwareContextValuesContainer._keyPrefix) !== 0) {
 			return super.getValue(key);
@@ -159,7 +159,7 @@ class ConfigAwareContextValuesContainer extends Context {
 
 		const configKey = key.substr(ConfigAwareContextValuesContainer._keyPrefix.length);
 		const configValue = this._configurationService.getValue(configKey);
-		let value: any = undefined;
+		let value: ContextKeyValue = undefined;
 		switch (typeof configValue) {
 			case 'number':
 			case 'boolean':
@@ -170,7 +170,7 @@ class ConfigAwareContextValuesContainer extends Context {
 				if (Array.isArray(configValue)) {
 					value = JSON.stringify(configValue);
 				} else {
-					value = configValue;
+					value = configValue as ContextKeyValue;
 				}
 		}
 
@@ -178,7 +178,7 @@ class ConfigAwareContextValuesContainer extends Context {
 		return value;
 	}
 
-	override setValue(key: string, value: any): boolean {
+	override setValue(key: string, value: ContextKeyValue): boolean {
 		return super.setValue(key, value);
 	}
 
@@ -186,8 +186,8 @@ class ConfigAwareContextValuesContainer extends Context {
 		return super.removeValue(key);
 	}
 
-	override collectAllValues(): { [key: string]: any } {
-		const result: { [key: string]: any } = Object.create(null);
+	override collectAllValues(): Record<string, ContextKeyValue> {
+		const result: Record<string, ContextKeyValue> = Object.create(null);
 		this._values.forEach((value, index) => result[index] = value);
 		return { ...result, ...super.collectAllValues() };
 	}
@@ -336,7 +336,7 @@ export abstract class AbstractContextKeyService extends Disposable implements IC
 		return this.getContextValuesContainer(this._myContextId).getValue<T>(key);
 	}
 
-	public setContext(key: string, value: any): void {
+	public setContext(key: string, value: ContextKeyValue): void {
 		if (this._isDisposed) {
 			return;
 		}
@@ -638,14 +638,14 @@ function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
 	return 0;
 }
 
-export function setContext(accessor: ServicesAccessor, contextKey: any, contextValue: any) {
+export function setContext(accessor: ServicesAccessor, contextKey: unknown, contextValue: unknown) {
 	const contextKeyService = accessor.get(IContextKeyService);
 	contextKeyService.createKey(String(contextKey), stringifyURIs(contextValue));
 }
 
-function stringifyURIs(contextValue: any): any {
+function stringifyURIs(contextValue: unknown): unknown {
 	return cloneAndChange(contextValue, (obj) => {
-		if (typeof obj === 'object' && (<MarshalledObject>obj).$mid === MarshalledId.Uri) {
+		if (typeof obj === 'object' && obj !== null && (<MarshalledObject>obj).$mid === MarshalledId.Uri) {
 			return URI.revive(obj).toString();
 		}
 		if (obj instanceof URI) {

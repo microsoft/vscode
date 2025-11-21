@@ -98,23 +98,23 @@ export enum RemoteAuthorityResolverErrorCode {
 
 export class RemoteAuthorityResolverError extends ErrorNoTelemetry {
 
-	public static isNotAvailable(err: any): boolean {
+	public static isNotAvailable(err: unknown): boolean {
 		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.NotAvailable;
 	}
 
-	public static isTemporarilyNotAvailable(err: any): boolean {
+	public static isTemporarilyNotAvailable(err: unknown): boolean {
 		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable;
 	}
 
-	public static isNoResolverFound(err: any): err is RemoteAuthorityResolverError {
+	public static isNoResolverFound(err: unknown): err is RemoteAuthorityResolverError {
 		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.NoResolverFound;
 	}
 
-	public static isInvalidAuthority(err: any): boolean {
+	public static isInvalidAuthority(err: unknown): boolean {
 		return (err instanceof RemoteAuthorityResolverError) && err._code === RemoteAuthorityResolverErrorCode.InvalidAuthority;
 	}
 
-	public static isHandled(err: any): boolean {
+	public static isHandled(err: unknown): boolean {
 		return (err instanceof RemoteAuthorityResolverError) && err.isHandled;
 	}
 
@@ -158,7 +158,7 @@ export interface IRemoteAuthorityResolverService {
 
 	_clearResolvedAuthority(authority: string): void;
 	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
-	_setResolvedAuthorityError(authority: string, err: any): void;
+	_setResolvedAuthorityError(authority: string, err: unknown): void;
 	_setAuthorityConnectionToken(authority: string, connectionToken: string): void;
 	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void;
 }

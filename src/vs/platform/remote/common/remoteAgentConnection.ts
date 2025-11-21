@@ -106,7 +106,7 @@ class PromiseWithTimeout<T> {
 	private readonly _disposables: DisposableStore;
 	public readonly promise: Promise<T>;
 	private readonly _resolvePromise: (value: T) => void;
-	private readonly _rejectPromise: (err: any) => void;
+	private readonly _rejectPromise: (err: unknown) => void;
 
 	public get didTimeout(): boolean {
 		return (this._state === 'timedout');
@@ -142,8 +142,8 @@ class PromiseWithTimeout<T> {
 		this._rejectPromise(this._createTimeoutError());
 	}
 
-	private _createTimeoutError(): Error {
-		const err: any = new Error('Time limit reached');
+	private _createTimeoutError(): Error & { code: string; syscall: string } {
+		const err = new Error('Time limit reached') as Error & { code: string; syscall: string };
 		err.code = 'ETIMEDOUT';
 		err.syscall = 'connect';
 		return err;
@@ -158,7 +158,7 @@ class PromiseWithTimeout<T> {
 		this._resolvePromise(value);
 	}
 
-	public reject(err: any): void {
+	public reject(err: unknown): void {
 		if (this._state !== 'pending') {
 			return;
 		}
@@ -266,7 +266,7 @@ async function connectToRemoteExtensionHostAgent<T extends RemoteConnection>(opt
 		const msg = await readOneControlMessage<HandshakeMessage>(protocol, combineTimeoutCancellation(timeoutCancellationToken, createTimeoutCancellation(10000)));
 
 		if (msg.type !== 'sign' || typeof msg.data !== 'string') {
-			const error: any = new Error('Unexpected handshake message');
+			const error = new Error('Unexpected handshake message') as Error & { code: string };
 			error.code = 'VSCODE_CONNECTION_ERROR';
 			throw error;
 		}
@@ -275,7 +275,7 @@ async function connectToRemoteExtensionHostAgent<T extends RemoteConnection>(opt
 
 		const isValid = await raceWithTimeoutCancellation(options.signService.validate(message, msg.signedData), timeoutCancellationToken);
 		if (!isValid) {
-			const error: any = new Error('Refused to connect to unsupported server');
+			const error = new Error('Refused to connect to unsupported server') as Error & { code: string };
 			error.code = 'VSCODE_CONNECTION_ERROR';
 			throw error;
 		}
@@ -795,11 +795,10 @@ function safeDisposeProtocolAndSocket(protocol: PersistentProtocol): void {
 	}
 }
 
-function getErrorFromMessage(msg: any): Error | null {
-	if (msg && msg.type === 'error') {
-		const error = new Error(`Connection error: ${msg.reason}`);
-		// eslint-disable-next-line local/code-no-any-casts
-		(<any>error).code = 'VSCODE_CONNECTION_ERROR';
+function getErrorFromMessage(msg: unknown): Error | null {
+	if (msg && typeof msg === 'object' && 'type' in msg && msg.type === 'error' && 'reason' in msg) {
+		const error = new Error(`Connection error: ${msg.reason}`) as Error & { code: string };
+		error.code = 'VSCODE_CONNECTION_ERROR';
 		return error;
 	}
 	return null;
