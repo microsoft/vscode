@@ -69,7 +69,9 @@ suite('PromptsService', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [LEGACY_MODE_DEFAULT_SOURCE_FOLDER]: true });
 
 		instaService.stub(IConfigurationService, testConfigService);
-		instaService.stub(IWorkbenchEnvironmentService, {});
+		instaService.stub(IWorkbenchEnvironmentService, {
+			workspaceStorageHome: URI.file('/tmp/workspace-storage')
+		});
 		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instaService.stub(ITelemetryService, NullTelemetryService);
 		instaService.stub(IStorageService, InMemoryStorageService);
