@@ -39,11 +39,9 @@ const newUntitledFile: WatermarkEntry = { text: localize('watermark.newUntitledF
 
 const showChat = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabled', false));
 const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: showChat, web: showChat } };
-const showAgentSessions: WatermarkEntry = { text: localize('watermark.showAgentSessions', "Show Agent Sessions"), id: 'workbench.view.agentSessions', when: { native: showChat, web: showChat } };
 
 const emptyWindowEntries: WatermarkEntry[] = coalesce([
 	openChat,
-	showAgentSessions,
 	showCommands,
 	...(isMacintosh && !isWeb ? [openFileOrFolder] : [openFile, openFolder]),
 	openRecent,
@@ -56,7 +54,6 @@ const randomEmptyWindowEntries: WatermarkEntry[] = [
 
 const workspaceEntries: WatermarkEntry[] = [
 	openChat,
-	showAgentSessions,
 	showCommands,
 ];
 
