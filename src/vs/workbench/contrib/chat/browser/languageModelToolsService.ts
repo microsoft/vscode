@@ -151,7 +151,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			'execute',
 			VSCodeToolReference.execute,
 			{
-				icon: ThemeIcon.fromId(Codicon.run.id),
+				icon: ThemeIcon.fromId(Codicon.terminal.id),
 				description: localize('copilot.toolSet.execute.description', 'Execute code and applications on your machine'),
 			}
 		));
