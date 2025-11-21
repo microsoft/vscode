@@ -51,6 +51,7 @@ import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID, AgentSessionP
 import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
+import { distinct } from '../../../../../base/common/arrays.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -164,7 +165,7 @@ export class AgentSessionsView extends ViewPane {
 
 		const marshalledSession: IMarshalledChatSessionContext = { session, $mid: MarshalledId.ChatSessionContext };
 		this.contextMenuService.showContextMenu({
-			getActions: () => getFlatActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true })),
+			getActions: () => distinct(getFlatActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true })), action => action.id),
 			getAnchor: () => anchor,
 			getActionsContext: () => marshalledSession,
 		});
