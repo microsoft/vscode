@@ -29,6 +29,7 @@ import { isString } from '../../../../../base/common/types.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IPreferencesService, IOpenSettingsOptions } from '../../../../services/preferences/common/preferences.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { TerminalChatAgentToolsSettingId } from '../../chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
@@ -491,7 +492,7 @@ CommandsRegistry.registerCommand(TerminalChatCommandId.OpenTerminalSettingsLink,
 		const options: IOpenSettingsOptions = {
 			jsonEditor: true,
 			revealSetting: {
-				key: 'terminal.integrated.chat.autoApprove',
+				key: TerminalChatAgentToolsSettingId.AutoApprove,
 			}
 		};
 		switch (target) {
@@ -505,7 +506,7 @@ CommandsRegistry.registerCommand(TerminalChatCommandId.OpenTerminalSettingsLink,
 				// Fallback if something goes wrong
 				preferencesService.openSettings({
 					target: ConfigurationTarget.USER,
-					query: `@id:terminal.integrated.chat.autoApprove`,
+					query: `@id:${TerminalChatAgentToolsSettingId.AutoApprove}`,
 				});
 				break;
 			}
