@@ -104,7 +104,6 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						agentInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs,
 						target: cachedMode.target,
-						showContinueOn: cachedMode.showContinueOn,
 						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
 					};
 					const instance = new CustomChatMode(customChatMode);
@@ -213,7 +212,6 @@ export interface IChatModeData {
 	readonly uri?: URI;
 	readonly source?: IChatModeSourceData;
 	readonly target?: string;
-	readonly showContinueOn?: boolean;
 }
 
 export interface IChatMode {
@@ -231,7 +229,6 @@ export interface IChatMode {
 	readonly uri?: IObservable<URI>;
 	readonly source?: IAgentSource;
 	readonly target?: IObservable<string | undefined>;
-	readonly showContinueOn?: IObservable<boolean>;
 }
 
 export interface IVariableReference {
@@ -262,8 +259,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.handOffs === undefined || Array.isArray(mode.handOffs)) &&
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null)) &&
 		(mode.source === undefined || isChatModeSourceData(mode.source)) &&
-		(mode.target === undefined || typeof mode.target === 'string') &&
-		(mode.showContinueOn === undefined || typeof mode.showContinueOn === 'boolean');
+		(mode.target === undefined || typeof mode.target === 'string');
 }
 
 export class CustomChatMode implements IChatMode {
@@ -276,7 +272,6 @@ export class CustomChatMode implements IChatMode {
 	private readonly _argumentHintObservable: ISettableObservable<string | undefined>;
 	private readonly _handoffsObservable: ISettableObservable<readonly IHandOff[] | undefined>;
 	private readonly _targetObservable: ISettableObservable<string | undefined>;
-	private readonly _showContinueOnObservable: ISettableObservable<boolean>;
 	private _source: IAgentSource;
 
 	public readonly id: string;
@@ -329,10 +324,6 @@ export class CustomChatMode implements IChatMode {
 		return this._targetObservable;
 	}
 
-	get showContinueOn(): IObservable<boolean> {
-		return this._showContinueOnObservable;
-	}
-
 	public readonly kind = ChatModeKind.Agent;
 
 	constructor(
@@ -346,7 +337,6 @@ export class CustomChatMode implements IChatMode {
 		this._argumentHintObservable = observableValue('argumentHint', customChatMode.argumentHint);
 		this._handoffsObservable = observableValue('handOffs', customChatMode.handOffs);
 		this._targetObservable = observableValue('target', customChatMode.target);
-		this._showContinueOnObservable = observableValue('showContinueOn', customChatMode.showContinueOn ?? true);
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.agentInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 		this._source = customChatMode.source;
@@ -364,7 +354,6 @@ export class CustomChatMode implements IChatMode {
 			this._argumentHintObservable.set(newData.argumentHint, tx);
 			this._handoffsObservable.set(newData.handOffs, tx);
 			this._targetObservable.set(newData.target, tx);
-			this._showContinueOnObservable.set(newData.showContinueOn ?? true, tx);
 			this._modeInstructions.set(newData.agentInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
 			this._source = newData.source;
@@ -384,8 +373,7 @@ export class CustomChatMode implements IChatMode {
 			uri: this.uri.get(),
 			handOffs: this.handOffs.get(),
 			source: serializeChatModeSource(this._source),
-			target: this.target.get(),
-			showContinueOn: this.showContinueOn.get()
+			target: this.target.get()
 		};
 	}
 }

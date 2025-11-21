@@ -204,11 +204,6 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 					return ['vscode', 'github-copilot'];
 				}
 				break;
-			case PromptHeaderAttributes.showContinueOn:
-				if (promptType === PromptsType.agent) {
-					return ['true', 'false'];
-				}
-				break;
 			case PromptHeaderAttributes.tools:
 				if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
 					return ['[]', `['search', 'edit', 'fetch']`];

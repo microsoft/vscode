@@ -108,8 +108,8 @@ export class ChatSuggestNextWidget extends Disposable {
 		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
 		titleElement.textContent = handoff.label;
 
-		// Check if continue on dropdown should be shown
-		const showContinueOn = this._currentMode?.showContinueOn?.get() ?? true;
+		// Check if continue on dropdown should be shown for this specific handoff
+		const showContinueOn = handoff.showContinueOn ?? true;
 
 		// Get chat session contributions to show in chevron dropdown
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();

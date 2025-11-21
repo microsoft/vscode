@@ -323,8 +323,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				if (!ast.header) {
 					return { uri, name, agentInstructions, source };
 				}
-				const { description, model, tools, handOffs, argumentHint, target, showContinueOn } = ast.header;
-				return { uri, name, description, model, tools, handOffs, argumentHint, target, showContinueOn, agentInstructions, source };
+				const { description, model, tools, handOffs, argumentHint, target } = ast.header;
+				return { uri, name, description, model, tools, handOffs, argumentHint, target, agentInstructions, source };
 			})
 		);
 		return customAgents;

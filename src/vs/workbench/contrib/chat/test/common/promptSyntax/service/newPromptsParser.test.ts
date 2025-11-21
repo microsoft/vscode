@@ -118,31 +118,36 @@ suite('NewPromptsParser', () => {
 		]);
 	});
 
-	test('mode with handoff and showContinueOn', async () => {
+	test('mode with handoff and showContinueOn per handoff', async () => {
 		const uri = URI.parse('file:///test/test.agent.md');
 		const content = [
 			/* 01 */'---',
 			/* 02 */`description: "Agent test"`,
 			/* 03 */'model: GPT 4.1',
-			/* 04 */'showContinueOn: false',
-			/* 05 */'handoffs:',
-			/* 06 */'  - label: "Implement"',
-			/* 07 */'    agent: Default',
-			/* 08 */'    prompt: "Implement the plan"',
-			/* 09 */'    send: false',
-			/* 10 */'---',
+			/* 04 */'handoffs:',
+			/* 05 */'  - label: "Implement"',
+			/* 06 */'    agent: Default',
+			/* 07 */'    prompt: "Implement the plan"',
+			/* 08 */'    send: false',
+			/* 09 */'    showContinueOn: false',
+			/* 10 */'  - label: "Save"',
+			/* 11 */'    agent: Default',
+			/* 12 */'    prompt: "Save the plan"',
+			/* 13 */'    send: true',
+			/* 14 */'    showContinueOn: true',
+			/* 15 */'---',
 		].join('\n');
 		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
-		assert.deepEqual(result.header.showContinueOn, false);
 		assert.ok(result.header.handOffs);
 		assert.deepEqual(result.header.handOffs, [
-			{ label: 'Implement', agent: 'Default', prompt: 'Implement the plan', send: false }
+			{ label: 'Implement', agent: 'Default', prompt: 'Implement the plan', send: false, showContinueOn: false },
+			{ label: 'Save', agent: 'Default', prompt: 'Save the plan', send: true, showContinueOn: true }
 		]);
 	});
 
-	test('showContinueOn defaults to true', async () => {
+	test('showContinueOn defaults to undefined when not specified per handoff', async () => {
 		const uri = URI.parse('file:///test/test.agent.md');
 		const content = [
 			/* 01 */'---',
@@ -156,8 +161,9 @@ suite('NewPromptsParser', () => {
 		const result = new PromptFileParser().parse(uri, content);
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
-		// showContinueOn should default to true when not specified
-		assert.deepEqual(result.header.showContinueOn, true);
+		assert.ok(result.header.handOffs);
+		// showContinueOn should be undefined when not specified, widget defaults to true
+		assert.deepEqual(result.header.handOffs[0].showContinueOn, undefined);
 	});
 
 	test('instructions', async () => {
