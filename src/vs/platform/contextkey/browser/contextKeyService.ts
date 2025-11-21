@@ -147,14 +147,14 @@ class ConfigAwareContextValuesContainer extends Context {
 		this._listener.dispose();
 	}
 
-	override getValue(key: string): ContextKeyValue | undefined {
+	override getValue<T>(key: string): T | undefined {
 
 		if (key.indexOf(ConfigAwareContextValuesContainer._keyPrefix) !== 0) {
-			return super.getValue(key);
+			return super.getValue<T>(key);
 		}
 
 		if (this._values.has(key)) {
-			return this._values.get(key);
+			return this._values.get(key) as T | undefined;
 		}
 
 		const configKey = key.substr(ConfigAwareContextValuesContainer._keyPrefix.length);
@@ -175,7 +175,7 @@ class ConfigAwareContextValuesContainer extends Context {
 		}
 
 		this._values.set(key, value);
-		return value;
+		return value as T | undefined;
 	}
 
 	override setValue(key: string, value: ContextKeyValue): boolean {
@@ -640,7 +640,7 @@ function findContextAttr(domNode: IContextKeyServiceTarget | null): number {
 
 export function setContext(accessor: ServicesAccessor, contextKey: unknown, contextValue: unknown) {
 	const contextKeyService = accessor.get(IContextKeyService);
-	contextKeyService.createKey(String(contextKey), stringifyURIs(contextValue));
+	contextKeyService.createKey(String(contextKey), stringifyURIs(contextValue) as ContextKeyValue);
 }
 
 function stringifyURIs(contextValue: unknown): unknown {

@@ -93,12 +93,20 @@ export default abstract class BaseErrorTelemetry {
 		// Explicitly filter out PendingMigrationError for https://github.com/microsoft/vscode/issues/250648#issuecomment-3394040431
 		// We don't inherit from ErrorNoTelemetry to preserve the name used in reporting for exthostdeprecatedapiusage event.
 		// TODO(deepak1556): remove when PendingMigrationError is no longer needed.
-		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || PendingMigrationError.is(err) || (typeof err === 'object' && err !== null && 'message' in err && typeof err.message === 'string' && err.message.includes('Unable to read file'))) {
+		if ((err instanceof Error && ErrorNoTelemetry.isErrorNoTelemetry(err)) || err instanceof FileOperationError || PendingMigrationError.is(err) || (typeof err === 'object' && err !== null && 'message' in err && typeof err.message === 'string' && err.message.includes('Unable to read file'))) {
 			return;
 		}
 
 		// work around behavior in workerServer.ts that breaks up Error.stack
-		const callstack = typeof err === 'object' && err !== null && 'stack' in err ? (Array.isArray(err.stack) ? err.stack.join('\n') : err.stack) : undefined;
+		let callstack: string | undefined;
+		if (typeof err === 'object' && err !== null && 'stack' in err) {
+			const stack = err.stack;
+			if (Array.isArray(stack)) {
+				callstack = stack.join('\n');
+			} else if (typeof stack === 'string') {
+				callstack = stack;
+			}
+		}
 		const msg = typeof err === 'object' && err !== null && 'message' in err && err.message ? String(err.message) : safeStringify(err);
 
 		// errors without a stack are not useful telemetry
