@@ -983,15 +983,16 @@ suite('LanguageModelToolsService', () => {
 
 	test('toToolAndToolSetEnablementMap map Github to VSCode tools', () => {
 		const executeToolData: IToolData = {
-			id: VSCodeToolReference.execute,
-			toolReferenceName: VSCodeToolReference.execute,
+			id: 'executeTool',
+			toolReferenceName: 'executeTool',
 			modelDescription: 'execute',
 			displayName: 'execute',
 			source: ToolDataSource.Internal,
-			canBeReferencedInPrompt: true,
+			canBeReferencedInPrompt: false,
 		};
 
 		store.add(service.registerToolData(executeToolData));
+		store.add(service.executeToolSet.addTool(executeToolData));
 		const agentToolData: IToolData = {
 			id: VSCodeToolReference.agent,
 			toolReferenceName: VSCodeToolReference.agent,
