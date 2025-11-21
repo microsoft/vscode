@@ -46,14 +46,13 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@ICommandService commandService: ICommandService,
 		@IProductService productService: IProductService
 	) {
-		const builtInCategory = { label: localize('built-in', "Built-In"), order: 0 };
-		const customCategory = { label: localize('custom', "Custom"), order: 1 };
+		const builtInCategory = { label: '', order: 0 };
+		const customCategory = { label: '', order: 1 };
+		const policyDisabledCategory = { label: localize('managedByOrganization', "Managed by your organization"), order: 999 };
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
 			// Check if Agent mode is disabled by policy
 			const isAgentModeDisabled = mode.kind === ChatModeKind.Agent && chatModeService.isAgentModeDisabledByPolicy();
-			const tooltip = isAgentModeDisabled
-				? localize('agentModeDisabledByPolicy', "Managed by your organization")
-				: chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
+			const tooltip = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 
 			return {
 				...action,
@@ -72,7 +71,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 					this.renderLabel(this.element!);
 					return result;
 				},
-				category: builtInCategory
+				category: isAgentModeDisabled ? policyDisabledCategory : builtInCategory
 			};
 		};
 
@@ -101,11 +100,9 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 
 				const orderedModes = coalesce([
 					agentMode && makeAction(agentMode, currentMode),
-					...customBuiltinModeActions,
 					...otherBuiltinModes.map(mode => mode && makeAction(mode, currentMode)),
-					...customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? []
+					...customBuiltinModeActions, ...customModes.custom?.map(mode => makeActionFromCustomMode(mode, currentMode)) ?? []
 				]);
-
 				return orderedModes;
 			}
 		};

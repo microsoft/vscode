@@ -410,6 +410,11 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return this._configuration.inspect<T>(key, overrides);
 	}
 
+	isSettingControlledByPolicy(key: string): boolean {
+		const inspected = this.inspect(key);
+		return inspected.policyValue !== undefined;
+	}
+
 	keys(): {
 		default: string[];
 		policy: string[];

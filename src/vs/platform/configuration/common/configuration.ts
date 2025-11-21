@@ -194,6 +194,14 @@ export interface IConfigurationService {
 
 	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<Readonly<T>>;
 
+	/**
+	 * Check if a setting is controlled by a policy.
+	 *
+	 * @param key The configuration key to check
+	 * @returns `true` if the setting has a policy value set, `false` otherwise
+	 */
+	isSettingControlledByPolicy(key: string): boolean;
+
 	reloadConfiguration(target?: ConfigurationTarget | IWorkspaceFolder): Promise<void>;
 
 	keys(): {

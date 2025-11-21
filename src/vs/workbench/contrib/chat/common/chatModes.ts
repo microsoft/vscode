@@ -40,6 +40,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	private static readonly CUSTOM_MODES_STORAGE_KEY = 'chat.customModes';
 
 	private readonly hasCustomModes: IContextKey<boolean>;
+	private readonly agentModeDisabledByPolicy: IContextKey<boolean>;
 	private readonly _customModeInstances = new Map<string, CustomChatMode>();
 
 	private readonly _onDidChangeChatModes = new Emitter<void>();
@@ -56,6 +57,10 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		super();
 
 		this.hasCustomModes = ChatContextKeys.Modes.hasCustomChatModes.bindTo(contextKeyService);
+		this.agentModeDisabledByPolicy = ChatContextKeys.Modes.agentModeDisabledByPolicy.bindTo(contextKeyService);
+
+		// Initialize the policy context key
+		this.updateAgentModePolicyContextKey();
 
 		// Load cached modes from storage first
 		this.loadCachedModes();
@@ -65,6 +70,14 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			void this.refreshCustomPromptModes(true);
 		}));
 		this._register(this.storageService.onWillSaveState(() => this.saveCachedModes()));
+
+		// Listen for configuration changes that affect agent mode policy
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
+				this.updateAgentModePolicyContextKey();
+				this._onDidChangeChatModes.fire();
+			}
+		}));
 
 		// Ideally we can get rid of the setting to disable agent mode?
 		let didHaveToolsAgent = this.chatAgentService.hasToolsAgent;
@@ -209,8 +222,12 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	 * Checks if the Agent mode setting is disabled by a policy
 	 */
 	isAgentModeDisabledByPolicy(): boolean {
-		const inspected = this.configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled);
-		return inspected.policyValue !== undefined && inspected.policyValue === false;
+		return this.configurationService.isSettingControlledByPolicy(ChatConfiguration.AgentEnabled)
+			&& !this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
+	}
+
+	private updateAgentModePolicyContextKey(): void {
+		this.agentModeDisabledByPolicy.set(this.isAgentModeDisabledByPolicy());
 	}
 }
 

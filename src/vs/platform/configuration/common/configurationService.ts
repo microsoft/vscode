@@ -147,6 +147,11 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		return this.configuration.inspect<T>(key, overrides, undefined);
 	}
 
+	isSettingControlledByPolicy(key: string): boolean {
+		const inspected = this.inspect(key);
+		return inspected.policyValue !== undefined;
+	}
+
 	keys(): {
 		default: string[];
 		policy: string[];

@@ -75,6 +75,11 @@ export class TestConfigurationService implements IConfigurationService {
 		};
 	}
 
+	public isSettingControlledByPolicy(key: string): boolean {
+		const inspected = this.inspect(key);
+		return inspected.policyValue !== undefined;
+	}
+
 	public keys() {
 		return {
 			default: Object.keys(Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties()),
