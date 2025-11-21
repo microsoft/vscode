@@ -593,12 +593,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		const optionToRun = await Promise.race([userPrompt, inputPromise]);
 		if (optionToRun === focusTerminalSelection) {
+			execution.instance.focus(true);
 			return await inputPromise;
 		}
 		if (optionToRun === true) {
 			return true;
 		}
 		if (typeof optionToRun === 'string' && optionToRun.length) {
+			execution.instance.focus(true);
 			inputDataDisposable.dispose();
 			await execution.instance.sendText(optionToRun, true);
 			return optionToRun;
