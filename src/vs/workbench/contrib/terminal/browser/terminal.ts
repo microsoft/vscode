@@ -1344,6 +1344,13 @@ export interface IXtermTerminal extends IDisposable {
 	getFont(): ITerminalFont;
 
 	/**
+	 * Gets the content between two markers as VT sequences.
+	 * @param startMarker
+	 * @param endMarker
+	 */
+	getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker): Promise<string>;
+
+	/**
 	 * Gets whether there's any terminal selection.
 	 */
 	hasSelection(): boolean;
@@ -1430,6 +1437,8 @@ export interface IXtermTerminal extends IDisposable {
 }
 
 export interface IDetachedXtermTerminal extends IXtermTerminal {
+	raw?: RawXtermTerminal;
+
 	/**
 	 * Writes data to the terminal.
 	 * @param data data to write
