@@ -244,7 +244,14 @@ export class PromptHeader {
 						}
 					}
 					if (agent && label && prompt !== undefined) {
-						handoffs.push({ agent, label, prompt, send, showContinueOn });
+						const handoff: IHandOff = {
+							agent,
+							label,
+							prompt,
+							...(send !== undefined ? { send } : {}),
+							...(showContinueOn !== undefined ? { showContinueOn } : {})
+						};
+						handoffs.push(handoff);
 					}
 				}
 			}
