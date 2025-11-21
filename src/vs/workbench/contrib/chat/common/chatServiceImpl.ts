@@ -312,6 +312,10 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private saveState(): void {
+		if (!this._persistChats) {
+			return;
+		}
+
 		const liveChats = Array.from(this._sessionModels.values())
 			.filter(session => {
 				if (!LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
