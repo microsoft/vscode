@@ -546,8 +546,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 				} else {
 					this._onDidRequestInvalidateLastMarker.fire();
 				}
-				if (this._activeBackgroundMatchers.has(background.key)) {
-					this._activeBackgroundMatchers.delete(background.key);
+				if (this._activeBackgroundMatchers.delete(background.key)) {
 					this.resetCurrentResource();
 					this._onDidStateChange.fire(IProblemCollectorEvent.create(ProblemCollectorEventKind.BackgroundProcessingEnds));
 					result = true;

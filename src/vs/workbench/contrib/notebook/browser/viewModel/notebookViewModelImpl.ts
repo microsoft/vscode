@@ -731,9 +731,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				this._decorationIdToCellMap.delete(id);
 			}
 
-			if (this._overviewRulerDecorations.has(id)) {
-				this._overviewRulerDecorations.delete(id);
-			}
+			this._overviewRulerDecorations.delete(id);
 		});
 
 		const result: string[] = [];

@@ -190,16 +190,12 @@ export class SCMViewService implements ISCMViewService {
 				const removed = new Set(last.removed);
 
 				for (const repository of e.added) {
-					if (removed.has(repository)) {
-						removed.delete(repository);
-					} else {
+					if (!removed.delete(repository)) {
 						added.add(repository);
 					}
 				}
 				for (const repository of e.removed) {
-					if (added.has(repository)) {
-						added.delete(repository);
-					} else {
+					if (!added.delete(repository)) {
 						removed.add(repository);
 					}
 				}
