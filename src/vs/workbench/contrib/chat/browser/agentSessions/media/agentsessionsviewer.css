@@ -90,6 +90,7 @@
 
 		.agent-session-status {
 			padding: 0 4px 0 0; /* to align with diff area above */
+			font-variant-numeric: tabular-nums;
 		}
 	}
 }
