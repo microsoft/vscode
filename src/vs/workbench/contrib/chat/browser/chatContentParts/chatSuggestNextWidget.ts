@@ -32,6 +32,7 @@ export class ChatSuggestNextWidget extends Disposable {
 	private promptsContainer!: HTMLElement;
 	private titleElement!: HTMLElement;
 	private _currentMode: IChatMode | undefined;
+	private buttonDisposables = new Map<HTMLElement, DisposableStore>();
 
 	constructor(
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
@@ -83,6 +84,12 @@ export class ChatSuggestNextWidget extends Disposable {
 			childrenToRemove.push(this.promptsContainer.children[i] as HTMLElement);
 		}
 		for (const child of childrenToRemove) {
+			// Dispose the button's disposables before removing it
+			const disposables = this.buttonDisposables.get(child);
+			if (disposables) {
+				disposables.dispose();
+				this.buttonDisposables.delete(child);
+			}
 			this.promptsContainer.removeChild(child);
 		}
 
@@ -98,7 +105,6 @@ export class ChatSuggestNextWidget extends Disposable {
 
 	private createPromptButton(handoff: IHandOff): HTMLElement {
 		const disposables = new DisposableStore();
-		this._register(disposables);
 
 		const button = dom.$('.chat-welcome-view-suggested-prompt');
 		button.setAttribute('tabindex', '0');
@@ -173,6 +179,9 @@ export class ChatSuggestNextWidget extends Disposable {
 			}
 		}));
 
+		// Store disposables for this button so they can be disposed when the button is removed
+		this.buttonDisposables.set(button, disposables);
+
 		return button;
 	}
 
@@ -182,5 +191,14 @@ export class ChatSuggestNextWidget extends Disposable {
 			this.domNode.style.display = 'none';
 			this._onDidChangeHeight.fire();
 		}
+	}
+
+	public override dispose(): void {
+		// Dispose all button disposables
+		for (const disposables of this.buttonDisposables.values()) {
+			disposables.dispose();
+		}
+		this.buttonDisposables.clear();
+		super.dispose();
 	}
 }
