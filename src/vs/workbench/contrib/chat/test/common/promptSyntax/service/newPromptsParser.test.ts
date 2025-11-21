@@ -162,7 +162,6 @@ suite('NewPromptsParser', () => {
 		assert.deepEqual(result.uri, uri);
 		assert.ok(result.header);
 		assert.ok(result.header.handOffs);
-		// showContinueOn should be undefined when not specified, widget defaults to true
 		assert.deepEqual(result.header.handOffs[0].showContinueOn, undefined);
 	});
 

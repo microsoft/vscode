@@ -266,7 +266,7 @@ export interface IHandOff {
 	readonly label: string;
 	readonly prompt: string;
 	readonly send?: boolean;
-	readonly showContinueOn?: boolean;
+	readonly showContinueOn?: boolean; // treated exactly like send (optional boolean)
 }
 
 export interface IHeaderAttribute {
