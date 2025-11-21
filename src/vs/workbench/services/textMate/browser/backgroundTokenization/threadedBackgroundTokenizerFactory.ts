@@ -24,7 +24,6 @@ import { IValidGrammarDefinition } from '../../common/TMScopeRegistry.js';
 import type { IRawTheme } from 'vscode-textmate';
 import { createWebWorker } from '../../../../../base/browser/webWorkerFactory.js';
 import { IWebWorkerClient, Proxied } from '../../../../../base/common/worker/webWorker.js';
-import { FontTokensUpdate } from '../../../../../editor/common/textModelEvents.js';
 import { ISerializedAnnotation } from '../../../../../editor/common/model/tokens/annotations.js';
 
 export class ThreadedBackgroundTokenizerFactory implements IDisposable {

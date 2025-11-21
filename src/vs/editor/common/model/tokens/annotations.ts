@@ -10,8 +10,6 @@ import { OffsetRange } from '../../core/ranges/offsetRange.js';
 export interface IAnnotation<T> {
 	range: OffsetRange;
 	annotation: T;
-	delete?: boolean;
-	offset?: number;
 }
 
 export interface IAnnotationUpdate<T> {
@@ -107,56 +105,122 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 
 	public applyEdit(edit: StringEdit): void {
+		console.log('edit : ', JSON.stringify(edit));
+		console.log('this._annotations before edit: ', JSON.stringify(this._annotations));
+
+		const withinAnnotation = (value: number, offset: number): boolean => {
+			const annotation = this._annotations[offset];
+			const isWithin = value >= annotation.range.start && value <= annotation.range.endExclusive;
+			return isWithin;
+		};
+
 		for (const replacement of edit.replacements) {
 
-			const changeEventStartIndex = replacement.replaceRange.start;
-			const changeEventEndIndex = replacement.replaceRange.endExclusive;
+			const replaceRangeStart = replacement.replaceRange.start;
+			const replaceRangeEnd = replacement.replaceRange.endExclusive;
 			const newLength = replacement.newText.length;
 
-			const _firstIndexEditAppliedTo = binarySearch2(this._annotations.length, (index) => {
-				return this._annotations[index].range.start - changeEventStartIndex;
-			});
-			const _endIndexEditAppliedTo = binarySearch2(this._annotations.length, (index) => {
-				return this._annotations[index].range.start - changeEventEndIndex;
-			});
+			console.log('replaceRangeStart : ', replaceRangeStart);
+			console.log('replaceRangeEnd : ', replaceRangeEnd);
+			console.log('newLength : ', newLength);
 
-			const firstIndexEditAppliedTo = (_firstIndexEditAppliedTo > 0 ? _firstIndexEditAppliedTo : - (_firstIndexEditAppliedTo + 1));
-			const endIndexEditAppliedTo = (_endIndexEditAppliedTo > 0 ? _endIndexEditAppliedTo : - (_endIndexEditAppliedTo + 1));
+			const firstIndexEditAppliedTo = this._getStartIndexOfIntersectingAnnotation(replaceRangeStart);
+			const endIndexEditAppliedTo = this._getEndIndexOfIntersectingAnnotation(replaceRangeEnd);
 
-			const firstAnnotation = this._annotations[firstIndexEditAppliedTo];
-			const lastAnnotation = this._annotations[endIndexEditAppliedTo];
+			console.log('firstIndexEditAppliedTo : ', firstIndexEditAppliedTo);
+			console.log('endIndexEditAppliedTo : ', endIndexEditAppliedTo);
 
-			if (changeEventStartIndex > firstAnnotation.range.endExclusive && changeEventEndIndex > lastAnnotation.range.endExclusive) {
-				// The edit start and end borders are not enclosed within a decoration
-			} else if (changeEventStartIndex <= firstAnnotation.range.endExclusive && changeEventEndIndex > lastAnnotation.range.endExclusive) {
-				// The edit start border is enclosed within a decoration, but not the end
-				this._annotations[firstIndexEditAppliedTo].range = new OffsetRange(this._annotations[firstIndexEditAppliedTo].range.start, changeEventStartIndex);
+			let deletionStartIndex = -1;
+			let deletionEndIndex = -1;
 
-			} else if (changeEventStartIndex > firstAnnotation.range.endExclusive && changeEventEndIndex <= lastAnnotation.range.endExclusive) {
-				// The edit end border is enclosed within a decoration, but not the start
-				const offset = changeEventStartIndex + newLength;
-				this._annotations[endIndexEditAppliedTo].range = new OffsetRange(offset, offset + this._annotations[endIndexEditAppliedTo].range.endExclusive - changeEventEndIndex);
+			if (firstIndexEditAppliedTo === endIndexEditAppliedTo) {
+				const annotation = this._annotations[firstIndexEditAppliedTo];
+				const annotationStart = annotation.range.start;
+				const annotationEnd = annotation.range.endExclusive;
+
+				// Assume [] indicates the edit position and () indicates the annotation range
+				if (!withinAnnotation(replaceRangeEnd, firstIndexEditAppliedTo) && !withinAnnotation(replaceRangeStart, firstIndexEditAppliedTo)) {
+					// []...()
+					console.log('if 1');
+					const offset = newLength - (replaceRangeEnd - replaceRangeStart);
+					annotation.range = new OffsetRange(annotationStart + offset, annotationEnd + offset);
+				} else if (!withinAnnotation(replaceRangeStart, firstIndexEditAppliedTo) && withinAnnotation(replaceRangeEnd, firstIndexEditAppliedTo)) {
+					// [...(...]...)
+					console.log('if 2');
+					annotation.range = new OffsetRange(replaceRangeStart, replaceRangeStart + (annotationEnd - replaceRangeEnd) + newLength);
+				} else {
+					if (replaceRangeStart === annotationStart && replaceRangeEnd === annotationEnd) {
+						// ([...])
+						console.log('if 3');
+						deletionStartIndex = firstIndexEditAppliedTo;
+						deletionEndIndex = firstIndexEditAppliedTo;
+					} else {
+						// (...[]...)
+						console.log('if 4');
+						annotation.range = new OffsetRange(annotationStart, annotationEnd - (replaceRangeEnd - replaceRangeStart) + newLength);
+					}
+				}
 			} else {
-				// The edits start and end borders are enclosing within a decoration
-				const offset = changeEventStartIndex + newLength;
-				this._annotations[firstIndexEditAppliedTo].range = new OffsetRange(this._annotations[firstIndexEditAppliedTo].range.start, changeEventStartIndex);
-				this._annotations[endIndexEditAppliedTo].range = new OffsetRange(offset, offset + this._annotations[endIndexEditAppliedTo].range.endExclusive - changeEventEndIndex);
+				if (withinAnnotation(replaceRangeStart, firstIndexEditAppliedTo)) {
+					// The edit start border is enclosed within a decoration, but not the end
+					const annotationStart = this._annotations[firstIndexEditAppliedTo].range.start;
+					if (annotationStart === replaceRangeStart) {
+						console.log('if 5');
+						deletionStartIndex = firstIndexEditAppliedTo;
+					} else {
+						console.log('if 6');
+						this._annotations[firstIndexEditAppliedTo].range = new OffsetRange(annotationStart, replaceRangeStart - 1);
+						deletionStartIndex = firstIndexEditAppliedTo + 1;
+					}
+				} else {
+					console.log('if 7');
+					deletionStartIndex = firstIndexEditAppliedTo;
+				}
+				if (withinAnnotation(replaceRangeEnd, endIndexEditAppliedTo)) {
+					const annotationEnd = this._annotations[endIndexEditAppliedTo].range.endExclusive;
+					if (annotationEnd === replaceRangeEnd) {
+						console.log('if 8');
+						deletionEndIndex = endIndexEditAppliedTo;
+					} else {
+						console.log('if 9');
+						const offset = replaceRangeStart + newLength;
+						const delta = annotationEnd - replaceRangeEnd;
+						this._annotations[endIndexEditAppliedTo].range = new OffsetRange(offset, offset + delta);
+						deletionEndIndex = endIndexEditAppliedTo - 1;
+					}
+				} else {
+					console.log('if 10');
+					deletionEndIndex = endIndexEditAppliedTo;
+				}
 			}
-			if (firstIndexEditAppliedTo < endIndexEditAppliedTo) {
-				this._annotations[firstIndexEditAppliedTo + 1].delete = true;
-				this._annotations[endIndexEditAppliedTo + 1].delete = false;
-				this._annotations[endIndexEditAppliedTo + 1].offset = (this._annotations[endIndexEditAppliedTo + 1].offset ?? 0) - (changeEventEndIndex - changeEventStartIndex + newLength);
+			if (deletionStartIndex > deletionEndIndex) {
+				deletionStartIndex = -1;
+				deletionEndIndex = -1;
 			}
+			console.log('deletionStartIndex : ', deletionStartIndex);
+			console.log('deletionEndIndex : ', deletionEndIndex);
+
+			console.log('---------------------------------------');
+
+			const offset = newLength - (replaceRangeEnd - replaceRangeStart);
+
+			console.log('offset : ', offset);
+
 			const newAnnotations: IAnnotation<T>[] = [];
-			let offset = 0;
-			for (const annotation of this._annotations) {
-				if (annotation.delete) {
+			for (const [index, annotation] of this._annotations.entries()) {
+				console.log('index : ', index);
+				console.log('annotation : ', JSON.stringify(annotation));
+				if (index >= deletionStartIndex && index <= deletionEndIndex) {
+					console.log('deleting annotation: ', JSON.stringify(annotation));
 					continue;
 				}
-				offset += annotation.offset ?? 0;
-				annotation.range = new OffsetRange(annotation.range.start + offset, annotation.range.endExclusive + offset);
+				if (index > endIndexEditAppliedTo) {
+					annotation.range = new OffsetRange(annotation.range.start + offset, annotation.range.endExclusive + offset);
+				}
+				console.log('updated annotation: ', JSON.stringify(annotation));
 				newAnnotations.push(annotation);
 			}
+			console.log('annotations : ', JSON.stringify(newAnnotations));
 			this._annotations = newAnnotations;
 		}
 	}
