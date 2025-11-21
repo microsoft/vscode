@@ -86,7 +86,7 @@ interface ChatModelStoreDelegate {
 	willDisposeModel: (model: ChatModel) => Promise<void>;
 }
 
-class ChatModelStore extends ReferenceCollection<ChatModel> {
+class ChatModelStore extends ReferenceCollection<ChatModel> implements IDisposable {
 	private readonly _models = new ObservableMap<string, ChatModel>();
 
 	constructor(
@@ -150,6 +150,10 @@ class ChatModelStore extends ReferenceCollection<ChatModel> {
 
 	private toKey(uri: URI): string {
 		return uri.toString();
+	}
+
+	dispose(): void {
+		this._models.forEach(model => model.dispose());
 	}
 }
 
@@ -234,7 +238,7 @@ export class ChatService extends Disposable implements IChatService {
 	) {
 		super();
 
-		this._sessionModels = instantiationService.createInstance(ChatModelStore, {
+		this._sessionModels = this._register(instantiationService.createInstance(ChatModelStore, {
 			createModel: props => this._startSession(props),
 			willDisposeModel: async model => {
 				const localSessionId = LocalChatSessionUri.parseLocalSessionId(model.sessionResource);
@@ -247,7 +251,7 @@ export class ChatService extends Disposable implements IChatService {
 					}
 				}
 			}
-		});
+		}));
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
 
