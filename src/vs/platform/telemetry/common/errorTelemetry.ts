@@ -76,6 +76,44 @@ export default abstract class BaseErrorTelemetry {
 		// to override
 	}
 
+	private _hasNestedErrorDetail(err: unknown): boolean {
+		return typeof err === 'object' && err !== null && 'detail' in err && err.detail !== null && typeof err.detail === 'object' && 'stack' in err.detail;
+	}
+
+	private _shouldSkipErrorForTelemetry(err: unknown): boolean {
+		// If it's the no telemetry error it doesn't get logged
+		if (err instanceof Error && ErrorNoTelemetry.isErrorNoTelemetry(err)) {
+			return true;
+		}
+		// TOOD @lramos15 hacking in FileOperation error because it's too messy to adopt ErrorNoTelemetry. A better solution should be found
+		if (err instanceof FileOperationError) {
+			return true;
+		}
+		// Explicitly filter out PendingMigrationError for https://github.com/microsoft/vscode/issues/250648#issuecomment-3394040431
+		// We don't inherit from ErrorNoTelemetry to preserve the name used in reporting for exthostdeprecatedapiusage event.
+		// TODO(deepak1556): remove when PendingMigrationError is no longer needed.
+		if (PendingMigrationError.is(err)) {
+			return true;
+		}
+		// Skip errors with specific messages
+		if (typeof err === 'object' && err !== null && 'message' in err && typeof err.message === 'string' && err.message.includes('Unable to read file')) {
+			return true;
+		}
+		return false;
+	}
+
+	private _extractCallstack(err: unknown): string | undefined {
+		if (typeof err === 'object' && err !== null && 'stack' in err) {
+			const stack = err.stack;
+			if (Array.isArray(stack)) {
+				return stack.join('\n');
+			} else if (typeof stack === 'string') {
+				return stack;
+			}
+		}
+		return undefined;
+	}
+
 	private _onErrorEvent(err: unknown): void {
 
 		if (!err || (typeof err === 'object' && 'code' in err)) {
@@ -83,30 +121,16 @@ export default abstract class BaseErrorTelemetry {
 		}
 
 		// unwrap nested errors from loader
-		if (typeof err === 'object' && 'detail' in err && err.detail && typeof err.detail === 'object' && 'stack' in err.detail) {
-			err = err.detail;
+		if (this._hasNestedErrorDetail(err)) {
+			err = (err as { detail: unknown }).detail;
 		}
 
-		// If it's the no telemetry error it doesn't get logged
-		// TOOD @lramos15 hacking in FileOperation error because it's too messy to adopt ErrorNoTelemetry. A better solution should be found
-		//
-		// Explicitly filter out PendingMigrationError for https://github.com/microsoft/vscode/issues/250648#issuecomment-3394040431
-		// We don't inherit from ErrorNoTelemetry to preserve the name used in reporting for exthostdeprecatedapiusage event.
-		// TODO(deepak1556): remove when PendingMigrationError is no longer needed.
-		if ((err instanceof Error && ErrorNoTelemetry.isErrorNoTelemetry(err)) || err instanceof FileOperationError || PendingMigrationError.is(err) || (typeof err === 'object' && err !== null && 'message' in err && typeof err.message === 'string' && err.message.includes('Unable to read file'))) {
+		if (this._shouldSkipErrorForTelemetry(err)) {
 			return;
 		}
 
 		// work around behavior in workerServer.ts that breaks up Error.stack
-		let callstack: string | undefined;
-		if (typeof err === 'object' && err !== null && 'stack' in err) {
-			const stack = err.stack;
-			if (Array.isArray(stack)) {
-				callstack = stack.join('\n');
-			} else if (typeof stack === 'string') {
-				callstack = stack;
-			}
-		}
+		const callstack = this._extractCallstack(err);
 		const msg = typeof err === 'object' && err !== null && 'message' in err && err.message ? String(err.message) : safeStringify(err);
 
 		// errors without a stack are not useful telemetry

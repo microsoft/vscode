@@ -796,7 +796,7 @@ function safeDisposeProtocolAndSocket(protocol: PersistentProtocol): void {
 }
 
 function getErrorFromMessage(msg: unknown): Error | null {
-	if (msg && typeof msg === 'object' && 'type' in msg && msg.type === 'error' && 'reason' in msg) {
+	if (msg && typeof msg === 'object' && 'type' in msg && msg.type === 'error' && 'reason' in msg && typeof msg.reason === 'string') {
 		const error = new Error(`Connection error: ${msg.reason}`) as Error & { code: string };
 		error.code = 'VSCODE_CONNECTION_ERROR';
 		return error;
