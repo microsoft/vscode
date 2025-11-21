@@ -1,0 +1,23 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"target": "ES2020",
+		"module": "commonjs",
+		"outDir": "./out",
+		"rootDir": "./src",
+		"strict": true,
+		"lib": [
+			"ES2020"
+		],
+		"types": [
+			"node"
+		],
+		"typeRoots": [
+			"./node_modules/@types"
+		]
+	},
+	"include": [
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts"
+	]
+}

@@ -1,0 +1,38 @@
+{
+  "name": "codex-cli",
+  "displayName": "Codex CLI Integration",
+  "description": "Built-in scaffolding for upcoming Codex CLI features.",
+  "version": "0.0.1",
+  "publisher": "vscode",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.107.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:codex.runTask"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codex.runTask",
+        "title": "Codex: Run Task"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "gulp compile-extension:codex-cli",
+    "watch": "gulp watch-extension:codex-cli"
+  },
+  "devDependencies": {
+    "@types/node": "22.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

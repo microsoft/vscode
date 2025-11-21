@@ -36,6 +36,7 @@ const commit = getVersion(root);
 // });
 const compilations = [
 	'extensions/configuration-editing/tsconfig.json',
+	'extensions/codex-cli/tsconfig.json',
 	'extensions/css-language-features/client/tsconfig.json',
 	'extensions/css-language-features/server/tsconfig.json',
 	'extensions/debug-auto-launch/tsconfig.json',
