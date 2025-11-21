@@ -23,9 +23,6 @@ export type ChatSessionItemWithProvider = IChatSessionItem & {
 	relativeTime?: string;
 	relativeTimeFullWord?: string;
 	hideRelativeTime?: boolean;
-	timing?: {
-		startTime: number;
-	};
 };
 
 export function isChatSession(schemes: readonly string[], editor?: EditorInput): boolean {
@@ -56,10 +53,6 @@ export function findExistingChatEditorByUri(sessionUri: URI, editorGroupsService
 		}
 	}
 	return undefined;
-}
-
-export function isLocalChatSessionItem(item: ChatSessionItemWithProvider): boolean {
-	return item.provider.chatSessionType === localChatSessionType;
 }
 
 // Helper function to update relative time for chat sessions (similar to timeline)
@@ -129,7 +122,7 @@ export function processSessionsWithTimeGrouping(sessions: ChatSessionItemWithPro
 
 // Helper function to create context overlay for session items
 export function getSessionItemContextOverlay(
-	session: ChatSessionItemWithProvider,
+	session: IChatSessionItem,
 	provider?: IChatSessionItemProvider,
 	chatWidgetService?: IChatWidgetService,
 	chatService?: IChatService,

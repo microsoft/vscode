@@ -4,25 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
-import { ModifiedFileEntryState } from './chatEditingService.js';
+import { IChatModelInputState } from './chatModel.js';
 import { CHAT_PROVIDER_ID } from './chatParticipantContribTypes.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
-export interface IChatHistoryEntry {
+interface IChatHistoryEntry {
 	text: string;
 	state?: IChatInputState;
 }
 
-/** The collected input state of ChatWidget contribs + attachments */
-export interface IChatInputState {
+/** The collected input state for chat history entries */
+interface IChatInputState {
 	[key: string]: any;
 	chatContextAttachments?: ReadonlyArray<IChatRequestVariableEntry>;
-	chatWorkingSet?: ReadonlyArray<{ uri: URI; state: ModifiedFileEntryState }>;
 
 	/**
 	 * This should be a mode id (ChatMode | string).
@@ -38,12 +36,12 @@ export interface IChatWidgetHistoryService {
 	readonly onDidClearHistory: Event<void>;
 
 	clearHistory(): void;
-	getHistory(location: ChatAgentLocation): IChatHistoryEntry[];
-	saveHistory(location: ChatAgentLocation, history: IChatHistoryEntry[]): void;
+	getHistory(location: ChatAgentLocation): IChatModelInputState[];
+	saveHistory(location: ChatAgentLocation, history: IChatModelInputState[]): void;
 }
 
 interface IChatHistory {
-	history?: { [providerId: string]: IChatHistoryEntry[] };
+	history?: { [providerId: string]: IChatModelInputState[] };
 }
 
 export const ChatInputHistoryMaxEntries = 40;
@@ -62,17 +60,63 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 	) {
 		this.memento = new Memento<IChatHistory>('interactive-session', storageService);
 		const loadedState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		for (const provider in loadedState.history) {
-			// Migration from old format
-			loadedState.history[provider] = loadedState.history[provider].map(entry => typeof entry === 'string' ? { text: entry } : entry);
-		}
-
 		this.viewState = loadedState;
 	}
 
-	getHistory(location: ChatAgentLocation): IChatHistoryEntry[] {
+	getHistory(location: ChatAgentLocation): IChatModelInputState[] {
 		const key = this.getKey(location);
-		return this.viewState.history?.[key] ?? [];
+		const history = this.viewState.history?.[key] ?? [];
+
+		// Migrate old IChatHistoryEntry format to IChatModelInputState
+		return history.map(entry => this.migrateHistoryEntry(entry));
+	}
+
+	private migrateHistoryEntry(entry: any): IChatModelInputState {
+		// If it's already in the new format (has 'inputText' property), return as-is
+		if (entry.inputText !== undefined) {
+			return entry as IChatModelInputState;
+		}
+
+		// Otherwise, it's an old IChatHistoryEntry with 'text' and 'state' properties
+		const oldEntry = entry as IChatHistoryEntry;
+		const oldState = oldEntry.state ?? {};
+
+		// Migrate chatMode to the new mode structure
+		let modeId: string;
+		let modeKind: ChatModeKind | undefined;
+		if (oldState.chatMode) {
+			if (typeof oldState.chatMode === 'string') {
+				modeId = oldState.chatMode;
+				modeKind = Object.values(ChatModeKind).includes(oldState.chatMode as ChatModeKind)
+					? oldState.chatMode as ChatModeKind
+					: undefined;
+			} else if (typeof oldState.chatMode === 'object' && oldState.chatMode !== null) {
+				// Old format: { id: string }
+				const oldMode = oldState.chatMode as { id?: string };
+				modeId = oldMode.id ?? ChatModeKind.Ask;
+				modeKind = oldMode.id && Object.values(ChatModeKind).includes(oldMode.id as ChatModeKind)
+					? oldMode.id as ChatModeKind
+					: undefined;
+			} else {
+				modeId = ChatModeKind.Ask;
+				modeKind = ChatModeKind.Ask;
+			}
+		} else {
+			modeId = ChatModeKind.Ask;
+			modeKind = ChatModeKind.Ask;
+		}
+
+		return {
+			inputText: oldEntry.text ?? '',
+			attachments: oldState.chatContextAttachments ?? [],
+			mode: {
+				id: modeId,
+				kind: modeKind
+			},
+			contrib: oldEntry.state || {},
+			selectedModel: undefined,
+			selections: []
+		};
 	}
 
 	private getKey(location: ChatAgentLocation): string {
@@ -80,7 +124,7 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 		return location === ChatAgentLocation.Chat ? CHAT_PROVIDER_ID : location;
 	}
 
-	saveHistory(location: ChatAgentLocation, history: IChatHistoryEntry[]): void {
+	saveHistory(location: ChatAgentLocation, history: IChatModelInputState[]): void {
 		if (!this.viewState.history) {
 			this.viewState.history = {};
 		}

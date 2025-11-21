@@ -90,7 +90,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.currentTitle = this.defaultTitle;
 			if (this._collapseButton) {
 				this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
-				this._collapseButton.label = localize('chat.thinking.fixed.progress', 'Thinking:');
 			}
 
 			// override for codicon chevron in the collapsible part
@@ -105,6 +104,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				}
 			}));
 		}
+
+		const label = (this.lastExtractedTitle ?? '') + (this.hasMultipleItems ? '...' : '');
+		this.setTitle(label);
 	}
 
 	// @TODO: @justschen Convert to template for each setting?
@@ -215,7 +217,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		this.lastExtractedTitle = extractedTitle;
 
-		const label = localize('chat.thinking.progress.withHeader', '{0}{1}', this.lastExtractedTitle, this.hasMultipleItems ? '...' : '');
+		const label = (this.lastExtractedTitle ?? '') + (this.hasMultipleItems ? '...' : '');
 		this.setTitle(label);
 		this.currentTitle = label;
 

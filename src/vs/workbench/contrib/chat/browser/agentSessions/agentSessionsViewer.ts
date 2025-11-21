@@ -221,7 +221,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	private toDuration(startTime: number, endTime: number): string | undefined {
-		const elapsed = Math.floor((endTime - startTime) / 1000) * 1000;
+		const elapsed = Math.round((endTime - startTime) / 1000) * 1000;
 		if (elapsed < 1000) {
 			return undefined;
 		}
@@ -230,7 +230,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	private renderStatus(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, template: IAgentSessionItemTemplate): void {
-		const getStatus = (session: IAgentSessionViewModel) => `${session.providerLabel} • ${fromNow(session.timing.startTime)}`;
+		const getStatus = (session: IAgentSessionViewModel) => `${session.providerLabel} • ${fromNow(session.timing.endTime || session.timing.startTime)}`;
 
 		template.status.textContent = getStatus(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
@@ -258,7 +258,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 							}
 						})()
 					}
-				}))
+				}), { groupId: 'agent.sessions' })
 			);
 		}
 	}
@@ -336,18 +336,18 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 export class AgentSessionsSorter implements ITreeSorter<IAgentSessionViewModel> {
 
 	compare(sessionA: IAgentSessionViewModel, sessionB: IAgentSessionViewModel): number {
-		const aHasEndTime = !!sessionA.timing.endTime;
-		const bHasEndTime = !!sessionB.timing.endTime;
+		const aInProgress = sessionA.status === ChatSessionStatus.InProgress;
+		const bInProgress = sessionB.status === ChatSessionStatus.InProgress;
 
-		if (!aHasEndTime && bHasEndTime) {
+		if (aInProgress && !bInProgress) {
 			return -1; // a (in-progress) comes before b (finished)
 		}
-		if (aHasEndTime && !bHasEndTime) {
+		if (!aInProgress && bInProgress) {
 			return 1; // a (finished) comes after b (in-progress)
 		}
 
-		// Both in-progress or finished: sort by start time (most recent first)
-		return sessionB.timing.startTime - sessionA.timing.startTime;
+		// Both in-progress or finished: sort by end or start time (most recent first)
+		return (sessionB.timing.endTime || sessionB.timing.startTime) - (sessionA.timing.endTime || sessionA.timing.startTime);
 	}
 }
 

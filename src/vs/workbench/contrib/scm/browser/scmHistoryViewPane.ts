@@ -344,7 +344,18 @@ registerAction2(class extends Action2 {
 		} else {
 			title = getHistoryItemEditorTitle(historyItem);
 			historyItemId = historyItem.id;
-			historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+
+			if (historyItem.parentIds.length > 0) {
+				// History item right above the incoming changes history item
+				if (historyItem.parentIds[0] === SCMIncomingHistoryItemId && historyItemRemoteRef) {
+					historyItemParentId = await historyProvider.resolveHistoryItemRefsCommonAncestor([
+						historyItemRef.name,
+						historyItemRemoteRef.name
+					]);
+				} else {
+					historyItemParentId = historyItem.parentIds[0];
+				}
+			}
 		}
 
 		if (!title || !historyItemId || !historyItemParentId) {
@@ -938,7 +949,24 @@ class SCMHistoryTreeDataSource extends Disposable implements IAsyncDataSource<SC
 			} else {
 				// History item
 				historyItemId = historyItem.id;
-				historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+
+				if (historyItem.parentIds.length > 0) {
+					// History item right above the incoming changes history item
+					if (historyItem.parentIds[0] === SCMIncomingHistoryItemId) {
+						const historyItemRef = historyProvider?.historyItemRef.get();
+						const historyItemRemoteRef = historyProvider?.historyItemRemoteRef.get();
+
+						if (!historyProvider || !historyItemRef || !historyItemRemoteRef) {
+							return [];
+						}
+
+						historyItemParentId = await historyProvider.resolveHistoryItemRefsCommonAncestor([
+							historyItemRef.name,
+							historyItemRemoteRef.name]);
+					} else {
+						historyItemParentId = historyItem.parentIds[0];
+					}
+				}
 			}
 
 			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItemId, historyItemParentId) ?? [];

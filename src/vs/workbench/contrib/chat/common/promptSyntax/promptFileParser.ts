@@ -10,8 +10,6 @@ import { URI } from '../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../base/common/yaml.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 
-export const PROMPT_NAME_REGEXP = /^[\p{L}\d_\-\.]+$/u;
-
 export class PromptFileParser {
 	constructor() {
 	}
@@ -162,11 +160,7 @@ export class PromptHeader {
 	}
 
 	public get name(): string | undefined {
-		const name = this.getStringAttribute(PromptHeaderAttributes.name);
-		if (name && PROMPT_NAME_REGEXP.test(name)) {
-			return name;
-		}
-		return undefined;
+		return this.getStringAttribute(PromptHeaderAttributes.name);
 	}
 
 	public get description(): string | undefined {
