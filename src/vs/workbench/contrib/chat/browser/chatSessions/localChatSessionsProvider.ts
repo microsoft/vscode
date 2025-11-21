@@ -248,7 +248,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			if (!description && part.kind === 'toolInvocation') {
 				const toolInvocation = part as IChatToolInvocation;
 				const state = toolInvocation.state.get();
-				
+
 				if (state.type !== IChatToolInvocation.StateKind.Completed) {
 					const pastTenseMessage = toolInvocation.pastTenseMessage;
 					const invocationMessage = toolInvocation.invocationMessage;
