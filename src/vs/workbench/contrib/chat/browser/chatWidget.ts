@@ -864,7 +864,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private scrollToEnd() {
 		if (this.lastItem) {
 			const offset = Math.max(this.lastItem.currentRenderedHeight ?? 0, 1e6);
-			this.tree.reveal(this.lastItem, offset);
+			if (this.tree.hasElement(this.lastItem)) {
+				this.tree.reveal(this.lastItem, offset);
+			}
 		}
 	}
 

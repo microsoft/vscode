@@ -24,6 +24,7 @@ import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.j
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { migrateLegacyTerminalToolSpecificData } from './chat.js';
@@ -1533,6 +1534,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IChatService chatService: IChatService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -1576,16 +1578,18 @@ export class ChatModel extends Disposable implements IChatModel {
 		});
 
 		// Retain a reference to itself when a request is in progress, so the ChatModel stays alive in the background
-		// only while running a request. TODO also keep it alive for 5min or so so we don't have to dispose/restore too often
-		const selfRef = this._register(new MutableDisposable<IChatModelReference>());
-		this._register(autorun(r => {
-			const inProgress = this.requestInProgress.read(r);
-			if (inProgress && !selfRef.value) {
-				selfRef.value = chatService.getActiveSessionReference(this._sessionResource);
-			} else if (!inProgress && selfRef.value) {
-				selfRef.clear();
-			}
-		}));
+		// only while running a request. TODO also keep it alive for 5min or so so we don't have to dispose/restore too often?
+		if (this.initialLocation === ChatAgentLocation.Chat && configurationService.getValue<boolean>('chat.localBackgroundSessions')) {
+			const selfRef = this._register(new MutableDisposable<IChatModelReference>());
+			this._register(autorun(r => {
+				const inProgress = this.requestInProgress.read(r);
+				if (inProgress && !selfRef.value) {
+					selfRef.value = chatService.getActiveSessionReference(this._sessionResource);
+				} else if (!inProgress && selfRef.value) {
+					selfRef.clear();
+				}
+			}));
+		}
 
 		this.requestNeedsInput = lastRequest.map((request, r) => {
 			return !!request?.response?.isPendingConfirmation.read(r);
