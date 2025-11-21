@@ -6,12 +6,14 @@
 import { distinct, coalesce } from '../../../../../base/common/arrays.js';
 import { IMatch, IFilter, or, matchesCamelCase, matchesWords, matchesBaseContiguousSubString } from '../../../../../base/common/filters.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { EditorModel } from '../../../../common/editor/editorModel.js';
 import { ILanguageModelsService, ILanguageModelChatMetadata, IUserFriendlyLanguageModel } from '../../../chat/common/languageModels.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { localize } from '../../../../../nls.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 
 export const MODEL_ENTRY_TEMPLATE_ID = 'model.entry.template';
 export const VENDOR_ENTRY_TEMPLATE_ID = 'vendor.entry.template';
+export const GROUP_ENTRY_TEMPLATE_ID = 'group.entry.template';
 
 const wordFilter = or(matchesBaseContiguousSubString, matchesWords);
 const CAPABILITY_REGEX = /@capability:\s*([^\s]+)/gi;
@@ -67,11 +69,24 @@ export interface IVendorItemEntry {
 	collapsed: boolean;
 }
 
-export function isVendorEntry(entry: IModelItemEntry | IVendorItemEntry): entry is IVendorItemEntry {
+export interface IGroupItemEntry {
+	type: 'group';
+	id: string;
+	group: string;
+	label: string;
+	templateId: string;
+	collapsed: boolean;
+}
+
+export function isVendorEntry(entry: IViewModelEntry): entry is IVendorItemEntry {
 	return entry.type === 'vendor';
 }
 
-export type IViewModelEntry = IModelItemEntry | IVendorItemEntry;
+export function isGroupEntry(entry: IViewModelEntry): entry is IGroupItemEntry {
+	return entry.type === 'group';
+}
+
+export type IViewModelEntry = IModelItemEntry | IVendorItemEntry | IGroupItemEntry;
 
 export interface IViewModelChangeEvent {
 	at: number;
@@ -79,14 +94,35 @@ export interface IViewModelChangeEvent {
 	added: IViewModelEntry[];
 }
 
-export class ChatModelsViewModel extends EditorModel {
+export const enum ChatModelGroup {
+	Vendor = 'vendor',
+	Visibility = 'visibility'
+}
+
+export class ChatModelsViewModel extends Disposable {
 
 	private readonly _onDidChange = this._register(new Emitter<IViewModelChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
 
+	private readonly _onDidChangeGrouping = this._register(new Emitter<ChatModelGroup>());
+	readonly onDidChangeGrouping = this._onDidChangeGrouping.event;
+
 	private modelEntries: IModelEntry[];
-	private readonly collapsedVendors = new Set<string>();
+	private readonly collapsedGroups = new Set<string>();
 	private searchValue: string = '';
+	private modelsSorted: boolean = false;
+
+	private _groupBy: ChatModelGroup = ChatModelGroup.Vendor;
+	get groupBy(): ChatModelGroup { return this._groupBy; }
+	set groupBy(groupBy: ChatModelGroup) {
+		if (this._groupBy !== groupBy) {
+			this._groupBy = groupBy;
+			this.collapsedGroups.clear();
+			this.modelEntries = this.sortModels(this.modelEntries);
+			this.filter(this.searchValue);
+			this._onDidChangeGrouping.fire(groupBy);
+		}
+	}
 
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
@@ -111,14 +147,21 @@ export class ChatModelsViewModel extends EditorModel {
 
 	selectedEntry: IViewModelEntry | undefined;
 
+	public shouldRefilter(): boolean {
+		return !this.modelsSorted;
+	}
+
 	filter(searchValue: string): readonly IViewModelEntry[] {
 		this.searchValue = searchValue;
+		if (!this.modelsSorted) {
+			this.modelEntries = this.sortModels(this.modelEntries);
+		}
 		const filtered = this.filterModels(this.modelEntries, searchValue);
 		this.splice(0, this._viewModelEntries.length, filtered);
 		return this.viewModelEntries;
 	}
 
-	private filterModels(modelEntries: IModelEntry[], searchValue: string): (IVendorItemEntry | IModelItemEntry)[] {
+	private filterModels(modelEntries: IModelEntry[], searchValue: string): IViewModelEntry[] {
 		let visible: boolean | undefined;
 
 		const visibleMatches = VISIBLE_REGEX.exec(searchValue);
@@ -161,33 +204,14 @@ export class ChatModelsViewModel extends EditorModel {
 
 		const isFiltering = searchValue !== '' || capabilities.length > 0 || providerNames.length > 0 || visible !== undefined;
 
-		const result: (IVendorItemEntry | IModelItemEntry)[] = [];
+		const result: IViewModelEntry[] = [];
 		const words = searchValue.split(' ');
 		const allVendors = new Set(this.modelEntries.map(m => m.vendor));
 		const showHeaders = allVendors.size > 1;
-		const addedVendors = new Set<string>();
+		const addedGroups = new Set<string>();
 		const lowerProviders = providerNames.map(p => p.toLowerCase().trim());
 
 		for (const modelEntry of modelEntries) {
-			if (!isFiltering && showHeaders && this.collapsedVendors.has(modelEntry.vendor)) {
-				if (!addedVendors.has(modelEntry.vendor)) {
-					const vendorInfo = this.languageModelsService.getVendors().find(v => v.vendor === modelEntry.vendor);
-					result.push({
-						type: 'vendor',
-						id: `vendor-${modelEntry.vendor}`,
-						vendorEntry: {
-							vendor: modelEntry.vendor,
-							vendorDisplayName: modelEntry.vendorDisplayName,
-							managementCommand: vendorInfo?.managementCommand
-						},
-						templateId: VENDOR_ENTRY_TEMPLATE_ID,
-						collapsed: true
-					});
-					addedVendors.add(modelEntry.vendor);
-				}
-				continue;
-			}
-
 			if (visible !== undefined) {
 				if ((modelEntry.metadata.isUserSelectable ?? false) !== visible) {
 					continue;
@@ -234,20 +258,48 @@ export class ChatModelsViewModel extends EditorModel {
 				}
 			}
 
-			if (showHeaders && !addedVendors.has(modelEntry.vendor)) {
-				const vendorInfo = this.languageModelsService.getVendors().find(v => v.vendor === modelEntry.vendor);
-				result.push({
-					type: 'vendor',
-					id: `vendor-${modelEntry.vendor}`,
-					vendorEntry: {
-						vendor: modelEntry.vendor,
-						vendorDisplayName: modelEntry.vendorDisplayName,
-						managementCommand: vendorInfo?.managementCommand
-					},
-					templateId: VENDOR_ENTRY_TEMPLATE_ID,
-					collapsed: false
-				});
-				addedVendors.add(modelEntry.vendor);
+			if (this.groupBy === ChatModelGroup.Vendor) {
+				if (showHeaders) {
+					if (!addedGroups.has(modelEntry.vendor)) {
+						const isCollapsed = !isFiltering && this.collapsedGroups.has(modelEntry.vendor);
+						const vendorInfo = this.languageModelsService.getVendors().find(v => v.vendor === modelEntry.vendor);
+						result.push({
+							type: 'vendor',
+							id: `vendor-${modelEntry.vendor}`,
+							vendorEntry: {
+								vendor: modelEntry.vendor,
+								vendorDisplayName: modelEntry.vendorDisplayName,
+								managementCommand: vendorInfo?.managementCommand
+							},
+							templateId: VENDOR_ENTRY_TEMPLATE_ID,
+							collapsed: isCollapsed
+						});
+						addedGroups.add(modelEntry.vendor);
+					}
+
+					if (!isFiltering && this.collapsedGroups.has(modelEntry.vendor)) {
+						continue;
+					}
+				}
+			} else if (this.groupBy === ChatModelGroup.Visibility) {
+				const isVisible = modelEntry.metadata.isUserSelectable ?? false;
+				const groupKey = isVisible ? 'visible' : 'hidden';
+				if (!addedGroups.has(groupKey)) {
+					const isCollapsed = !isFiltering && this.collapsedGroups.has(groupKey);
+					result.push({
+						type: 'group',
+						id: `group-${groupKey}`,
+						group: groupKey,
+						label: isVisible ? localize('visible', "Visible") : localize('hidden', "Hidden"),
+						templateId: GROUP_ENTRY_TEMPLATE_ID,
+						collapsed: isCollapsed
+					});
+					addedGroups.add(groupKey);
+				}
+
+				if (!isFiltering && this.collapsedGroups.has(groupKey)) {
+					continue;
+				}
 			}
 
 			const modelId = ChatModelsViewModel.getId(modelEntry);
@@ -303,17 +355,41 @@ export class ChatModelsViewModel extends EditorModel {
 		return matchedCapabilities;
 	}
 
+	private sortModels(modelEntries: IModelEntry[]): IModelEntry[] {
+		if (this.groupBy === ChatModelGroup.Visibility) {
+			modelEntries.sort((a, b) => {
+				const aVisible = a.metadata.isUserSelectable ?? false;
+				const bVisible = b.metadata.isUserSelectable ?? false;
+				if (aVisible === bVisible) {
+					if (a.vendor === b.vendor) {
+						return a.metadata.name.localeCompare(b.metadata.name);
+					}
+					if (a.vendor === 'copilot') { return -1; }
+					if (b.vendor === 'copilot') { return 1; }
+					return a.vendorDisplayName.localeCompare(b.vendorDisplayName);
+				}
+				return aVisible ? -1 : 1;
+			});
+		} else if (this.groupBy === ChatModelGroup.Vendor) {
+			modelEntries.sort((a, b) => {
+				if (a.vendor === b.vendor) {
+					return a.metadata.name.localeCompare(b.metadata.name);
+				}
+				if (a.vendor === 'copilot') { return -1; }
+				if (b.vendor === 'copilot') { return 1; }
+				return a.vendorDisplayName.localeCompare(b.vendorDisplayName);
+			});
+		}
+		this.modelsSorted = true;
+		return modelEntries;
+	}
+
 	getVendors(): IUserFriendlyLanguageModel[] {
 		return [...this.languageModelsService.getVendors()].sort((a, b) => {
 			if (a.vendor === 'copilot') { return -1; }
 			if (b.vendor === 'copilot') { return 1; }
 			return a.displayName.localeCompare(b.displayName);
 		});
-	}
-
-	override async resolve(): Promise<void> {
-		await this.refresh();
-		return super.resolve();
 	}
 
 	async refresh(): Promise<void> {
@@ -339,7 +415,8 @@ export class ChatModelsViewModel extends EditorModel {
 			this.modelEntries.push(...models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)));
 		}
 
-		this.modelEntries = distinct(this.modelEntries, modelEntry => ChatModelsViewModel.getId(modelEntry));
+		const modelEntries = distinct(this.modelEntries, modelEntry => ChatModelsViewModel.getId(modelEntry));
+		this.modelEntries = this._groupBy === ChatModelGroup.Visibility ? this.sortModels(modelEntries) : modelEntries;
 		this.filter(this.searchValue);
 	}
 
@@ -349,9 +426,12 @@ export class ChatModelsViewModel extends EditorModel {
 		this.languageModelsService.updateModelPickerPreference(model.modelEntry.identifier, newVisibility);
 		const metadata = this.languageModelsService.lookupLanguageModel(model.modelEntry.identifier);
 		const index = this.viewModelEntries.indexOf(model);
-		if (metadata) {
+		if (metadata && index !== -1) {
 			model.id = ChatModelsViewModel.getId(model.modelEntry);
 			model.modelEntry.metadata = metadata;
+			if (this.groupBy === ChatModelGroup.Visibility) {
+				this.modelsSorted = false;
+			}
 			this.splice(index, 1, [model]);
 		}
 	}
@@ -360,12 +440,16 @@ export class ChatModelsViewModel extends EditorModel {
 		return `${modelEntry.identifier}.${modelEntry.metadata.version}-visible:${modelEntry.metadata.isUserSelectable}`;
 	}
 
-	toggleVendorCollapsed(vendorEntry: IVendorItemEntry): void {
-		this.selectedEntry = vendorEntry;
-		if (this.collapsedVendors.has(vendorEntry.vendorEntry.vendor)) {
-			this.collapsedVendors.delete(vendorEntry.vendorEntry.vendor);
+	toggleCollapsed(viewModelEntry: IViewModelEntry): void {
+		const id = isGroupEntry(viewModelEntry) ? viewModelEntry.group : isVendorEntry(viewModelEntry) ? viewModelEntry.vendorEntry.vendor : undefined;
+		if (!id) {
+			return;
+		}
+		this.selectedEntry = viewModelEntry;
+		if (this.collapsedGroups.has(id)) {
+			this.collapsedGroups.delete(id);
 		} else {
-			this.collapsedVendors.add(vendorEntry.vendorEntry.vendor);
+			this.collapsedGroups.add(id);
 		}
 		this.filter(this.searchValue);
 	}
