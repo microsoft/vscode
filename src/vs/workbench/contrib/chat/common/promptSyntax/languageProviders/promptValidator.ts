@@ -350,19 +350,18 @@ export class PromptValidator {
 				if (item.type !== 'string') {
 					report(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));
 				} else if (item.value) {
-					const toolName = target === undefined ? this.languageModelToolsService.mapGithubToolName(item.value) : item.value;
-					if (!available.has(toolName)) {
-						const currentNames = deprecatedNames.get(toolName);
+					if (!available.has(item.value)) {
+						const currentNames = deprecatedNames.get(item.value);
 						if (currentNames) {
 							if (currentNames?.size === 1) {
 								const newName = Array.from(currentNames)[0];
-								report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", toolName, newName), item.range, MarkerSeverity.Info));
+								report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", item.value, newName), item.range, MarkerSeverity.Info));
 							} else {
 								const newNames = Array.from(currentNames).sort((a, b) => a.localeCompare(b)).join(', ');
-								report(toMarker(localize('promptValidator.toolDeprecatedMultipleNames', "Tool or toolset '{0}' has been renamed, use the following tools instead: {1}", toolName, newNames), item.range, MarkerSeverity.Info));
+								report(toMarker(localize('promptValidator.toolDeprecatedMultipleNames', "Tool or toolset '{0}' has been renamed, use the following tools instead: {1}", item.value, newNames), item.range, MarkerSeverity.Info));
 							}
 						} else {
-							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", toolName), item.range, MarkerSeverity.Warning));
+							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Warning));
 						}
 					}
 				}
