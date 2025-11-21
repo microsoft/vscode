@@ -213,8 +213,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 	}
 
 	private extractFileNameFromLink(filePath: string): string {
-		return filePath.replace(/\[.*?\]\(file:\/\/\/([^)]+)\)/g, (match, filePath) => {
-			const fileName = filePath.split('/').pop() || filePath;
+		return filePath.replace(/\[.*?\]\(file:\/\/\/(?<path>[^)]+)\)/g, (_: string, __: string, ___: number, ____, groups?: { path?: string }) => {
+			const fileName = groups?.path ? groups.path.split('/').pop() || groups.path : '';
 			return fileName;
 		});
 	}
