@@ -5,6 +5,7 @@
 // @ts-check
 const path = require('path');
 const fs = require('fs');
+const semver = require('semver');
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	// Get the running Node.js version
@@ -33,6 +34,17 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 		console.error(`\x1b[1;31m*** Please use Node.js v${requiredVersion} or later for development. Currently using v${process.versions.node}.\x1b[0;0m`);
 		throw new Error();
 	}
+}
+
+const requiredNpmVersion = '10.5.0';
+const npmUserAgent = process.env['npm_config_user_agent'];
+const npmVersionMatch = npmUserAgent?.match(/npm\/(\d+\.\d+\.\d+)/);
+const npmVersion = npmVersionMatch?.[1];
+const currentNpmVersion = npmVersion ? semver.coerce(npmVersion) : undefined;
+
+if (currentNpmVersion && semver.lt(currentNpmVersion, requiredNpmVersion)) {
+	console.error(`\x1b[1;31m*** Please use npm v${requiredNpmVersion} or later. Currently using v${npmVersion}. ***\x1b[0;0m`);
+	process.exit(1);
 }
 
 if (process.env.npm_execpath?.includes('yarn')) {
