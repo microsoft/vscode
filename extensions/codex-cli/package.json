@@ -28,6 +28,10 @@
     "compile": "gulp compile-extension:codex-cli",
     "watch": "gulp watch-extension:codex-cli"
   },
+  "files": [
+    "out/**",
+    "bin/**"
+  ],
   "devDependencies": {
     "@types/node": "22.x"
   },

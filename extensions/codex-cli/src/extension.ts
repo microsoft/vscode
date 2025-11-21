@@ -4,10 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import { getBundledCodexPath } from './paths';
 
 export function activate(context: vscode.ExtensionContext): void {
 	const disposable = vscode.commands.registerCommand('codex.runTask', () => {
-		vscode.window.showInformationMessage('Codex: Run Task (stub)');
+		try {
+			const codexPath = getBundledCodexPath(context);
+			if (!fs.existsSync(codexPath)) {
+				vscode.window.showErrorMessage(`Bundled Codex CLI not found at ${codexPath}`);
+				return;
+			}
+
+			console.log(`[Codex CLI] Bundled binary: ${codexPath}`);
+			vscode.window.showInformationMessage(`Codex CLI path: ${codexPath}`);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			vscode.window.showErrorMessage(`Codex CLI path error: ${message}`);
+		}
 	});
 
 	context.subscriptions.push(disposable);
