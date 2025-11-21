@@ -91,7 +91,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			return { text: '', lineCount: 0 };
 		}
 		const text = this._trimTrailingPrompt(vt, lineCount);
-		return { text, lineCount: text ? lineCount : 0 };
+		return { text, lineCount: this._countLines(text) };
 	}
 
 	private async _getOrCreateTerminal(): Promise<IDetachedTerminalInstance> {
@@ -128,5 +128,16 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 
 		return trimmedLines.join('\r\n');
+	}
+
+	private _countLines(text: string): number {
+		if (!text) {
+			return 0;
+		}
+		const lines = text.split('\r\n');
+		if (lines.length && lines[lines.length - 1] === '') {
+			lines.pop();
+		}
+		return lines.length;
 	}
 }

@@ -26,7 +26,7 @@ import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -87,6 +87,8 @@ interface ITerminalCommandDecorationOptions {
 	 */
 	getResolvedCommand(): ITerminalCommand | undefined;
 }
+
+const MIN_OUTPUT_HEIGHT = 20;
 
 class TerminalCommandDecoration extends Disposable {
 	private readonly _element: HTMLElement;
@@ -681,7 +683,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 		ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>,
 		resolveCommand: () => ITerminalCommand | undefined,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService) {
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService) {
 		super();
 		this._onDidChangeHeight = onDidChangeHeight;
 		this._ensureTerminalInstance = ensureTerminalInstance;
@@ -838,6 +841,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		} else {
 			this._hideEmptyMessage();
 		}
+		this._layoutOutput(result.lineCount);
 	}
 
 	private _showEmptyMessage(message: string): void {
@@ -868,15 +872,19 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _layoutOutput(lineCount?: number): void {
-		if (!this._outputScrollbar || !this.isExpanded) {
+		if (!this._outputScrollbar || !this.isExpanded || !lineCount) {
 			return;
 		}
 		const scrollableDomNode = this._outputScrollbar.getDomNode();
-		const viewportHeight = Math.min(this._getOutputContentHeight(), MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
-		scrollableDomNode.style.height = `${viewportHeight}px`;
+		const contentHeight = Math.max(this._getOutputContentHeight(lineCount), MIN_OUTPUT_HEIGHT);
+		const clampedHeight = Math.min(contentHeight, MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
+		const measuredBodyHeight = Math.max(this._outputBody.clientHeight, MIN_OUTPUT_HEIGHT);
+		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
+		scrollableDomNode.style.maxHeight = `${MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT}px`;
+		scrollableDomNode.style.height = `${appliedHeight}px`;
 		this._outputScrollbar.scanDomNode();
-		if (this._renderedOutputHeight !== viewportHeight) {
-			this._renderedOutputHeight = viewportHeight;
+		if (this._renderedOutputHeight !== appliedHeight) {
+			this._renderedOutputHeight = appliedHeight;
 			this._onDidChangeHeight();
 		}
 	}
@@ -889,16 +897,37 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._outputScrollbar.setScrollPosition({ scrollTop: dimensions.scrollHeight });
 	}
 
-	private _getOutputContentHeight(): number {
-		const firstChild = this._outputBody.firstElementChild as HTMLElement | null;
-		if (!firstChild) {
-			return this._outputBody.scrollHeight;
-		}
+	private _getOutputContentHeight(lineCount?: number): number {
 		const style = dom.getComputedStyle(this._outputBody);
 		const paddingTop = Number.parseFloat(style.paddingTop || '0');
 		const paddingBottom = Number.parseFloat(style.paddingBottom || '0');
 		const padding = paddingTop + paddingBottom;
-		return firstChild.scrollHeight + padding;
+		const contentHeight = this._calculateContentHeight(lineCount);
+		return contentHeight + padding;
+	}
+
+	private _calculateContentHeight(lineCount?: number): number {
+		if (lineCount === 0 || lineCount === undefined) {
+			return MIN_OUTPUT_HEIGHT;
+		}
+		const rowHeightPx = this._computeRowHeightPx();
+		return lineCount * rowHeightPx;
+	}
+
+	private _computeRowHeightPx(): number {
+		const configLineHeight = this._terminalConfigurationService.config.lineHeight && this._terminalConfigurationService.config.lineHeight > 0
+			? this._terminalConfigurationService.config.lineHeight
+			: 1;
+		try {
+			const window = dom.getActiveWindow();
+			const font = this._terminalConfigurationService.getFont(window);
+			const charHeight = font.charHeight && font.charHeight > 0 ? font.charHeight : font.fontSize;
+			const rowHeight = charHeight * font.lineHeight;
+			return Math.max(Math.ceil(rowHeight), MIN_OUTPUT_HEIGHT);
+		} catch {
+			const fallback = this._terminalConfigurationService.config.fontSize * configLineHeight;
+			return Math.max(Math.ceil(fallback), MIN_OUTPUT_HEIGHT);
+		}
 	}
 
 	private _ensureOutputResizeObserver(): void {
