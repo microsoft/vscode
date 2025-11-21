@@ -6,19 +6,19 @@
 import gulp from 'gulp';
 import * as path from 'path';
 import es from 'event-stream';
-import * as util from './lib/util.js';
-import * as getVersionModule from './lib/getVersion.js';
-import * as task from './lib/task.js';
-import optimize from './lib/optimize.js';
-import * as dateModule from './lib/date.js';
+import * as util from './lib/util.ts';
+import * as getVersionModule from './lib/getVersion.ts';
+import * as task from './lib/task.ts';
+import * as optimize from './lib/optimize.ts';
+import * as dateModule from './lib/date.ts';
 import product from '../product.json' with { type: 'json' };
 import rename from 'gulp-rename';
 import filter from 'gulp-filter';
-import * as dependenciesModule from './lib/dependencies.js';
+import * as dependenciesModule from './lib/dependencies.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
 import { compileBuildWithManglingTask } from './gulpfile.compile.mjs';
-import extensions from './lib/extensions.js';
+import * as extensions from './lib/extensions.ts';
 import VinylFile from 'vinyl';
 import jsonEditor from 'gulp-json-editor';
 import buildfile from './buildfile.js';
@@ -27,9 +27,8 @@ import { fileURLToPath } from 'url';
 const { getVersion } = getVersionModule;
 const { readISODate } = dateModule;
 const { getProductionDependencies } = dependenciesModule;
-const __dirname = import.meta.dirname;
 
-const REPO_ROOT = path.dirname(__dirname);
+const REPO_ROOT = path.dirname(import.meta.dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const WEB_FOLDER = path.join(REPO_ROOT, 'remote', 'web');
 
@@ -184,7 +183,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 
 		const deps = gulp.src(dependenciesSrc, { base: 'remote/web', dot: true })
 			.pipe(filter(['**', '!**/package-lock.json']))
-			.pipe(util.cleanNodeModules(path.join(__dirname, '.webignore')));
+			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.webignore')));
 
 		const favicon = gulp.src('resources/server/favicon.ico', { base: 'resources/server' });
 		const manifest = gulp.src('resources/server/manifest.json', { base: 'resources/server' });

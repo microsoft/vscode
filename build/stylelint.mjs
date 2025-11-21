@@ -7,12 +7,12 @@
 import es from 'event-stream';
 import vfs from 'vinyl-fs';
 import { stylelintFilter } from './filters.js';
-import { getVariableNameValidator } from './lib/stylelint/validateVariableNames.js';
+import { getVariableNameValidator } from './lib/stylelint/validateVariableNames.ts';
 
 /**
  * use regex on lines
  *
- * @param {function(string, boolean):void} reporter
+ * @param {(arg0: string, arg1: boolean) => void} reporter
  */
 export default function gulpstylelint(reporter) {
 	const variableValidator = getVariableNameValidator();
@@ -66,8 +66,7 @@ function stylelint() {
 		.pipe(es.through(function () { /* noop, important for the stream to end */ }));
 }
 
-const normalizeScriptPath = (/** @type {string} */ p) => p.replace(/\.(js|ts)$/, '');
-if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
+if (import.meta.main) {
 	stylelint().on('error', (err) => {
 		console.error();
 		console.error(err);

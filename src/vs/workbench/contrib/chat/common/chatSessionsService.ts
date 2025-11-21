@@ -14,7 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IEditableData } from '../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
 import { IChatEditingSession } from './chatEditingService.js';
-import { IChatRequestVariableData } from './chatModel.js';
+import { IChatModel, IChatRequestVariableData } from './chatModel.js';
 import { IChatProgress } from './chatService.js';
 
 export const enum ChatSessionStatus {
@@ -33,6 +33,7 @@ export interface IChatSessionProviderOptionItem {
 	id: string;
 	name: string;
 	locked?: boolean;
+	icon?: ThemeIcon;
 	// [key: string]: any;
 }
 
@@ -210,6 +211,7 @@ export interface IChatSessionsService {
 	getEditableData(sessionResource: URI): IEditableData | undefined;
 	isEditable(sessionResource: URI): boolean;
 	// #endregion
+	registerModelProgressListener(model: IChatModel, callback: () => void): void;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

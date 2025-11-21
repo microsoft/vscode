@@ -529,7 +529,7 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['disabled', 'view', 'single-view'],
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
-			default: 'view',
+			default: product.quality === 'stable' ? 'view' : 'single-view',
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'

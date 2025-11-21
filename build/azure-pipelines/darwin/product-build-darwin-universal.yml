@@ -67,7 +67,7 @@ jobs:
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
         displayName: Install build dependencies
 
-      - pwsh: node build/azure-pipelines/common/waitForArtifacts.js unsigned_vscode_client_darwin_x64_archive unsigned_vscode_client_darwin_arm64_archive
+      - pwsh: node -- build/azure-pipelines/common/waitForArtifacts.ts unsigned_vscode_client_darwin_x64_archive unsigned_vscode_client_darwin_arm64_archive
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: Wait for x64 and arm64 artifacts
@@ -80,7 +80,7 @@ jobs:
         artifact: unsigned_vscode_client_darwin_arm64_archive
         displayName: Download arm64 artifact
 
-      - script: node build/azure-pipelines/distro/mixin-quality
+      - script: node build/azure-pipelines/distro/mixin-quality.ts
         displayName: Mixin distro quality
 
       - script: |
@@ -88,14 +88,14 @@ jobs:
           unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_x64_archive/VSCode-darwin-x64.zip -d $(agent.builddirectory)/VSCode-darwin-x64 &
           unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_arm64_archive/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/VSCode-darwin-arm64 &
           wait
-          DEBUG=* node build/darwin/create-universal-app.js $(agent.builddirectory)
+          DEBUG=* node build/darwin/create-universal-app.ts $(agent.builddirectory)
         displayName: Create Universal App
 
       - script: |
           set -e
           APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
           APP_NAME="`ls $APP_ROOT | head -n 1`"
-          APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.js universal
+          APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.ts universal
         displayName: Verify arch of Mach-O objects
 
       - script: |
@@ -107,7 +107,7 @@ jobs:
           security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
           export CODESIGN_IDENTITY=$(security find-identity -v -p codesigning $(agent.tempdirectory)/buildagent.keychain | grep -oEi "([0-9A-F]{40})" | head -n 1)
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
-          DEBUG=electron-osx-sign* node build/darwin/sign.js $(agent.builddirectory)
+          DEBUG=electron-osx-sign* node build/darwin/sign.ts $(agent.builddirectory)
         displayName: Set Hardened Entitlements
 
       - script: |
@@ -132,12 +132,12 @@ jobs:
           Pattern: noop
         displayName: 'Install ESRP Tooling'
 
-      - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+      - script: node build/azure-pipelines/common/sign.ts $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: ✍️ Codesign
 
-      - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll notarize-darwin $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
+      - script: node build/azure-pipelines/common/sign.ts $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll notarize-darwin $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive VSCode-darwin-$(VSCODE_ARCH).zip
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         displayName: ✍️ Notarize

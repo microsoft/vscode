@@ -516,8 +516,8 @@ export function registerChatActions() {
 							ContextKeyExpr.equals('view', ChatViewId),
 							ChatContextKeys.inEmptyStateWithHistoryEnabled.negate()
 						),
-						group: 'navigation',
-						order: 2
+						group: '2_history',
+						order: 1
 					},
 					{
 						id: MenuId.EditorTitle,
