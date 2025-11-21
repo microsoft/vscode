@@ -47,15 +47,21 @@ interface ICompileTaskOptions {
 	readonly emitError: boolean;
 	readonly transpileOnly: boolean | { esbuild: boolean };
 	readonly preserveEnglish: boolean;
+	readonly noEmit?: boolean;
+	readonly logTopic?: string;
 }
 
-export function createCompile(src: string, { build, emitError, transpileOnly, preserveEnglish }: ICompileTaskOptions) {
+export function createCompile(src: string, { build, emitError, transpileOnly, preserveEnglish, noEmit, logTopic }: ICompileTaskOptions) {
 	const tsb = require('./tsb') as typeof import('./tsb');
 	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
+	const currentReporter = logTopic ? createReporter(logTopic) : reporter;
 
 
 	const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
 	const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
+	if (noEmit) {
+		overrideOptions.noEmit = true;
+	}
 	if (!build) {
 		overrideOptions.inlineSourceMap = true;
 	}
@@ -63,8 +69,9 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 	const compilation = tsb.create(projectPath, overrideOptions, {
 		verbose: false,
 		transpileOnly: Boolean(transpileOnly),
-		transpileWithEsbuild: typeof transpileOnly !== 'boolean' && transpileOnly.esbuild
-	}, err => reporter(err));
+		transpileWithEsbuild: typeof transpileOnly !== 'boolean' && transpileOnly.esbuild,
+		logTopic
+	}, err => currentReporter(err));
 
 	function pipeline(token?: util.ICancellationToken) {
 
@@ -89,7 +96,7 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 				sourceRoot: overrideOptions.sourceRoot
 			})))
 			.pipe(tsFilter.restore)
-			.pipe(reporter.end(!!emitError));
+			.pipe(currentReporter.end(!!emitError));
 
 		return es.duplex(input, output);
 	}
@@ -100,11 +107,13 @@ export function createCompile(src: string, { build, emitError, transpileOnly, pr
 	return pipeline;
 }
 
-export function transpileTask(src: string, out: string, esbuild?: boolean): task.StreamTask {
+export function transpileTask(src: string, out: string, options: { esbuild?: boolean; logTopic?: string } | boolean = {}): task.StreamTask {
+	const esbuild = typeof options === 'boolean' ? options : options.esbuild;
+	const logTopic = typeof options === 'object' ? options.logTopic : undefined;
 
 	const task = () => {
 
-		const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { esbuild: !!esbuild }, preserveEnglish: false });
+		const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { esbuild: !!esbuild }, preserveEnglish: false, logTopic });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 
 		return srcPipe
@@ -116,7 +125,7 @@ export function transpileTask(src: string, out: string, esbuild?: boolean): task
 	return task;
 }
 
-export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean; preserveEnglish?: boolean } = {}): task.StreamTask {
+export function compileTask(src: string, out: string, build: boolean, options: { disableMangle?: boolean; preserveEnglish?: boolean; noEmit?: boolean; logTopic?: string } = {}): task.StreamTask {
 
 	const task = () => {
 
@@ -124,7 +133,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			throw new Error('compilation requires 4GB of RAM');
 		}
 
-		const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish });
+		const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish, noEmit: options.noEmit, logTopic: options.logTopic });
 		const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
 		const generator = new MonacoGenerator(false);
 		if (src === 'src') {
@@ -165,23 +174,30 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 	return task;
 }
 
-export function watchTask(out: string, build: boolean, srcPath: string = 'src'): task.StreamTask {
+export function watchTask(out: string, build: boolean, srcPath: string = 'src', options: { useEsbuild?: boolean; noEmit?: boolean; logTopic?: string; skipInitial?: boolean } = {}): task.StreamTask {
 
 	const task = () => {
-		const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false });
+		const compile = createCompile(srcPath, {
+			build,
+			emitError: false,
+			transpileOnly: options.useEsbuild ? { esbuild: true } : false,
+			preserveEnglish: false,
+			noEmit: options.noEmit,
+			logTopic: options.logTopic
+		});
 
 		const src = gulp.src(`${srcPath}/**`, { base: srcPath });
-		const watchSrc = watch(`${srcPath}/**`, { base: srcPath, readDelay: 200 });
+		const watchSrc = watch(`${srcPath}/**`, { base: srcPath, readDelay: 200, ignoreInitial: !!options.skipInitial });
 
 		const generator = new MonacoGenerator(true);
 		generator.execute();
 
 		return watchSrc
 			.pipe(generator.stream)
-			.pipe(util.incremental(compile, src, true))
+			.pipe(util.incremental(compile, options.skipInitial ? undefined : src, true))
 			.pipe(gulp.dest(out));
 	};
-	task.taskName = `watch-${path.basename(out)}`;
+	task.taskName = `watch-${path.basename(out)}${options.logTopic ? `-${options.logTopic}` : ''}`;
 	return task;
 }
 

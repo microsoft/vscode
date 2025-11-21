@@ -8,6 +8,8 @@ import glob from 'glob';
 import gulp from 'gulp';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'url';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
 import { monacoTypecheckTask /* , monacoTypecheckWatchTask */ } from './gulpfile.editor.mjs';
 import { compileExtensionMediaTask, compileExtensionsTask, watchExtensionsTask } from './gulpfile.extensions.mjs';
 import compilation from './lib/compilation.js';
@@ -26,7 +28,7 @@ gulp.task(compileApiProposalNamesTask);
 gulp.task(watchApiProposalNamesTask);
 
 // SWC Client Transpile
-const transpileClientSWCTask = task.define('transpile-client-esbuild', task.series(util.rimraf('out'), transpileTask('src', 'out', true)));
+const transpileClientSWCTask = task.define('transpile-client-esbuild', task.series(util.rimraf('out'), transpileTask('src', 'out', { esbuild: true, logTopic: 'src-transpile' })));
 gulp.task(transpileClientSWCTask);
 
 // Transpile only
@@ -37,7 +39,17 @@ gulp.task(transpileClientTask);
 const compileClientTask = task.define('compile-client', task.series(util.rimraf('out'), compileApiProposalNamesTask, compileTask('src', 'out', false)));
 gulp.task(compileClientTask);
 
-const watchClientTask = task.define('watch-client', task.series(util.rimraf('out'), task.parallel(watchTask('out', false), watchApiProposalNamesTask)));
+const watchClientEsbuildTask = task.define('watch-client-esbuild', watchTask('out', false, 'src', { useEsbuild: true, logTopic: 'src-transpile', skipInitial: true }));
+const watchClientCheckTask = task.define('watch-client-check', watchTask('out', false, 'src', { useEsbuild: false, noEmit: true, logTopic: 'src-check' }));
+const watchClientTask = task.define('watch-client', task.series(
+	util.rimraf('out'),
+	task.parallel(transpileClientSWCTask, compileApiProposalNamesTask),
+	task.define('client-ready', () => {
+		fancyLog(ansiColors.bgGreen.black('*** Finished transpiling the client. Ready to launch for debugging! *** '));
+		return Promise.resolve();
+	}),
+	task.parallel(watchClientEsbuildTask, watchClientCheckTask, watchApiProposalNamesTask)
+));
 gulp.task(watchClientTask);
 
 // All

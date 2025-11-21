@@ -87,7 +87,7 @@ function create(projectPath, existingOptions, config, onError = _defaultOnError)
     }
     function logFn(topic, message) {
         if (config.verbose) {
-            (0, fancy_log_1.default)(colors.cyan(topic), message);
+            (0, fancy_log_1.default)(colors.cyan(config.logTopic ? `${config.logTopic} ${topic}` : topic), message);
         }
     }
     // FULL COMPILE stream doing transpile, syntax and semantic diagnostics

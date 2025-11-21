@@ -78,19 +78,24 @@ function getTypeScriptCompilerOptions(src) {
     options.newLine = /\r\n/.test(fs_1.default.readFileSync(__filename, 'utf8')) ? 0 : 1;
     return options;
 }
-function createCompile(src, { build, emitError, transpileOnly, preserveEnglish }) {
+function createCompile(src, { build, emitError, transpileOnly, preserveEnglish, noEmit, logTopic }) {
     const tsb = require('./tsb');
     const sourcemaps = require('gulp-sourcemaps');
+    const currentReporter = logTopic ? (0, reporter_1.createReporter)(logTopic) : reporter;
     const projectPath = path_1.default.join(__dirname, '../../', src, 'tsconfig.json');
     const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
+    if (noEmit) {
+        overrideOptions.noEmit = true;
+    }
     if (!build) {
         overrideOptions.inlineSourceMap = true;
     }
     const compilation = tsb.create(projectPath, overrideOptions, {
         verbose: false,
         transpileOnly: Boolean(transpileOnly),
-        transpileWithEsbuild: typeof transpileOnly !== 'boolean' && transpileOnly.esbuild
-    }, err => reporter(err));
+        transpileWithEsbuild: typeof transpileOnly !== 'boolean' && transpileOnly.esbuild,
+        logTopic
+    }, err => currentReporter(err));
     function pipeline(token) {
         const tsFilter = util.filter(data => /\.ts$/.test(data.path));
         const isUtf8Test = (f) => /(\/|\\)test(\/|\\).*utf8/.test(f.path);
@@ -112,7 +117,7 @@ function createCompile(src, { build, emitError, transpileOnly, preserveEnglish }
             sourceRoot: overrideOptions.sourceRoot
         })))
             .pipe(tsFilter.restore)
-            .pipe(reporter.end(!!emitError));
+            .pipe(currentReporter.end(!!emitError));
         return event_stream_1.default.duplex(input, output);
     }
     pipeline.tsProjectSrc = () => {
@@ -121,9 +126,11 @@ function createCompile(src, { build, emitError, transpileOnly, preserveEnglish }
     pipeline.projectPath = projectPath;
     return pipeline;
 }
-function transpileTask(src, out, esbuild) {
+function transpileTask(src, out, options = {}) {
+    const esbuild = typeof options === 'boolean' ? options : options.esbuild;
+    const logTopic = typeof options === 'object' ? options.logTopic : undefined;
     const task = () => {
-        const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { esbuild: !!esbuild }, preserveEnglish: false });
+        const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { esbuild: !!esbuild }, preserveEnglish: false, logTopic });
         const srcPipe = gulp_1.default.src(`${src}/**`, { base: `${src}` });
         return srcPipe
             .pipe(transpile())
@@ -137,7 +144,7 @@ function compileTask(src, out, build, options = {}) {
         if (os_1.default.totalmem() < 4_000_000_000) {
             throw new Error('compilation requires 4GB of RAM');
         }
-        const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish });
+        const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish, noEmit: options.noEmit, logTopic: options.logTopic });
         const srcPipe = gulp_1.default.src(`${src}/**`, { base: `${src}` });
         const generator = new MonacoGenerator(false);
         if (src === 'src') {
@@ -172,19 +179,26 @@ function compileTask(src, out, build, options = {}) {
     task.taskName = `compile-${path_1.default.basename(src)}`;
     return task;
 }
-function watchTask(out, build, srcPath = 'src') {
+function watchTask(out, build, srcPath = 'src', options = {}) {
     const task = () => {
-        const compile = createCompile(srcPath, { build, emitError: false, transpileOnly: false, preserveEnglish: false });
+        const compile = createCompile(srcPath, {
+            build,
+            emitError: false,
+            transpileOnly: options.useEsbuild ? { esbuild: true } : false,
+            preserveEnglish: false,
+            noEmit: options.noEmit,
+            logTopic: options.logTopic
+        });
         const src = gulp_1.default.src(`${srcPath}/**`, { base: srcPath });
-        const watchSrc = (0, watch_1.default)(`${srcPath}/**`, { base: srcPath, readDelay: 200 });
+        const watchSrc = (0, watch_1.default)(`${srcPath}/**`, { base: srcPath, readDelay: 200, ignoreInitial: !!options.skipInitial });
         const generator = new MonacoGenerator(true);
         generator.execute();
         return watchSrc
             .pipe(generator.stream)
-            .pipe(util.incremental(compile, src, true))
+            .pipe(util.incremental(compile, options.skipInitial ? undefined : src, true))
             .pipe(gulp_1.default.dest(out));
     };
-    task.taskName = `watch-${path_1.default.basename(out)}`;
+    task.taskName = `watch-${path_1.default.basename(out)}${options.logTopic ? `-${options.logTopic}` : ''}`;
     return task;
 }
 const REPO_SRC_FOLDER = path_1.default.join(__dirname, '../../src');

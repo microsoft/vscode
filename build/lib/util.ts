@@ -28,7 +28,7 @@ export interface IStreamProvider {
 	(cancellationToken?: ICancellationToken): NodeJS.ReadWriteStream;
 }
 
-export function incremental(streamProvider: IStreamProvider, initial: NodeJS.ReadWriteStream, supportsCancellation?: boolean): NodeJS.ReadWriteStream {
+export function incremental(streamProvider: IStreamProvider, initial: NodeJS.ReadWriteStream | undefined, supportsCancellation?: boolean): NodeJS.ReadWriteStream {
 	const input = es.through();
 	const output = es.through();
 	let state = 'idle';

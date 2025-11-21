@@ -36,7 +36,7 @@ const _defaultOnError = (err: string) => console.log(JSON.stringify(err, null, 4
 export function create(
 	projectPath: string,
 	existingOptions: Partial<ts.CompilerOptions>,
-	config: { verbose?: boolean; transpileOnly?: boolean; transpileOnlyIncludesDts?: boolean; transpileWithEsbuild?: boolean },
+	config: { verbose?: boolean; transpileOnly?: boolean; transpileOnlyIncludesDts?: boolean; transpileWithEsbuild?: boolean; logTopic?: string },
 	onError: (message: string) => void = _defaultOnError
 ): IncrementalCompiler {
 
@@ -71,7 +71,7 @@ export function create(
 
 	function logFn(topic: string, message: string): void {
 		if (config.verbose) {
-			log(colors.cyan(topic), message);
+			log(colors.cyan(config.logTopic ? `${config.logTopic} ${topic}` : topic), message);
 		}
 	}
 
