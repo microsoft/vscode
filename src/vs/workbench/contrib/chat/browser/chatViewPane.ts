@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, getWindow } from '../../../../base/browser/dom.js';
+import { $, getWindow, append } from '../../../../base/browser/dom.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
@@ -27,6 +31,7 @@ import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPan
 import { Memento } from '../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
@@ -36,6 +41,7 @@ import { IChatService } from '../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { ChatViewId } from './chat.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 
@@ -45,6 +51,7 @@ interface IViewPaneState extends IChatViewState {
 }
 
 export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chat';
+export const ChatSecondaryTitleMenuId = new MenuId('ChatSecondaryTitle');
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -54,6 +61,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private readonly viewState: IViewPaneState;
 
 	private _restoringSession: Promise<void> | undefined;
+	private _secondaryTitleContainer: HTMLElement | undefined;
+	private _secondaryTitle: HTMLElement | undefined;
+	private _lastLayout: { height: number; width: number } | undefined;
 
 	constructor(
 		private readonly chatOptions: { location: ChatAgentLocation.Chat },
@@ -158,6 +168,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Update the toolbar context with new sessionId
 		this.updateActions();
+
+		if (model) {
+			this.modelDisposables.add(model.onDidChange(e => {
+				if (e.kind === 'setCustomTitle' || e.kind === 'addRequest') {
+					this.updateViewTitle(model);
+				}
+			}));
+		}
+		this.updateViewTitle(model);
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -185,6 +204,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	protected override async renderBody(parent: HTMLElement): Promise<void> {
 		super.renderBody(parent);
 
+		this._secondaryTitleContainer = $('.chat-secondary-title', { style: 'display: none; padding: 4px 16px 8px 16px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); align-items: center;' });
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this._secondaryTitleContainer, ChatSecondaryTitleMenuId, {
+			menuOptions: {
+				shouldForwardArgs: true
+			}
+		}));
+
+		this._secondaryTitle = $('span', { style: 'margin-left: 4px;' });
+		append(this._secondaryTitleContainer, this._secondaryTitle);
+		append(parent, this._secondaryTitleContainer);
 
 		type ChatViewPaneOpenedClassification = {
 			owner: 'sbatten';
@@ -249,7 +278,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._widget.acceptInput(query);
 	}
 
-	private async clear(): Promise<void> {
+	public async clear(): Promise<void> {
 		if (this.widget.viewModel) {
 			await this.chatService.clearSession(this.widget.viewModel.sessionResource);
 		}
@@ -294,7 +323,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this._widget.layout(height, width);
+		this._lastLayout = { height, width };
+		let widgetHeight = height;
+		if (this._secondaryTitleContainer && this._secondaryTitleContainer.style.display !== 'none') {
+			widgetHeight -= this._secondaryTitleContainer.offsetHeight;
+		}
+		this._widget.layout(widgetHeight, width);
 	}
 
 	override saveState(): void {
@@ -317,4 +351,56 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			(this.viewState as Record<string, unknown>)[key] = value;
 		}
 	}
+
+	private updateViewTitle(model?: IChatModel): void {
+		model = model ?? this._widget.viewModel?.model;
+		const title = (model && model.hasCustomTitle) ? model.title : localize('chat', "Chat");
+
+		this.updateTitle(localize('chat', "Chat"));
+		if (model && model.hasCustomTitle) {
+			this.setSecondaryTitle(title);
+		} else if (model && model.getRequests().length > 0) {
+			this.setSecondaryTitle(localize('generatingTitle', "Generating title..."));
+		} else {
+			this.setSecondaryTitle(undefined);
+		}
+	}
+
+	private setSecondaryTitle(title: string | undefined): void {
+		if (!this._secondaryTitleContainer || !this._secondaryTitle) {
+			return;
+		}
+		if (title) {
+			this._secondaryTitle.textContent = title;
+			this._secondaryTitleContainer.style.display = 'flex';
+		} else {
+			this._secondaryTitleContainer.style.display = 'none';
+		}
+		if (this._lastLayout) {
+			this.layoutBody(this._lastLayout.height, this._lastLayout.width);
+		}
+	}
 }
+
+registerAction2(class BackToChatAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.backToChat',
+			title: localize('backToChat', "Back to Chat"),
+			icon: Codicon.arrowLeft,
+			menu: {
+				id: ChatSecondaryTitleMenuId,
+				group: 'navigation',
+				order: 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const chatView = viewsService.getViewWithId(ChatViewId) as ChatViewPane | undefined;
+		if (chatView) {
+			await chatView.clear();
+		}
+	}
+});
