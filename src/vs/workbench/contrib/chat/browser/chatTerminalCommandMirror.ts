@@ -65,10 +65,7 @@ export class DetachedTerminalCommandMirror extends Disposable {
 			return undefined;
 		}
 
-		let startLine = executedMarker.line;
-		if (startLine < 0) {
-			startLine = (this._command.marker?.line ?? -1) + 1;
-		}
+		const startLine = executedMarker.line;
 		const endLine = endMarker.line - 1;
 
 		if (endLine - startLine < 3) {
