@@ -48,6 +48,9 @@ import { IMarkdownRendererService } from '../../../../platform/markdown/browser/
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../common/constants.js';
 import { AGENT_SESSIONS_VIEW_ID } from './agentSessions/agentSessions.js';
+import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import * as languages from '../../../../editor/common/languages.js';
 
 const gaugeForeground = registerColor('gauge.foreground', {
 	dark: inputValidationInfoBorder,
@@ -358,6 +361,8 @@ class ChatStatusDashboard extends Disposable {
 		@IInlineCompletionsService private readonly inlineCompletionsService: IInlineCompletionsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		super();
 	}
@@ -495,6 +500,44 @@ class ChatStatusDashboard extends Disposable {
 						previousElement.replaceWith(rendered.element);
 					}
 				}));
+			}
+		}
+
+		// Model Selection
+		{
+			const providers = this.languageFeaturesService.inlineCompletionsProvider.allNoModel();
+			const providersWithModelInfo = providers.filter(p => p.modelInfo && p.modelInfo.models.length > 0);
+
+			if (providersWithModelInfo.length > 0) {
+				addSeparator(localize('inlineCompletionsModel', "Inline Completions Model"));
+
+				for (const provider of providersWithModelInfo) {
+					const modelInfo = provider.modelInfo!;
+					const currentModel = modelInfo.models.find(m => m.id === modelInfo.currentModelId);
+
+					if (currentModel) {
+						const modelContainer = this.element.appendChild($('div.model-selection'));
+
+						const displayName = provider.displayName || 'Inline Completions';
+						const label = localize('currentModel', "{0}: {1}", displayName, currentModel.name);
+
+						const modelButton = disposables.add(new Button(modelContainer, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: true }));
+						modelButton.label = label;
+						modelButton.setTitle(localize('switchModel', "Click to switch model"));
+
+						disposables.add(modelButton.onDidClick(async () => {
+							await this.showModelPicker(provider);
+						}));
+
+						// Listen for model info changes
+						if (provider.onDidModelInfoChange) {
+							disposables.add(provider.onDidModelInfoChange(() => {
+								this.hoverService.hideHover(true);
+								// The hover will re-render when shown again
+							}));
+						}
+					}
+				}
 			}
 		}
 
@@ -907,5 +950,29 @@ class ChatStatusDashboard extends Disposable {
 		disposables.add(this.inlineCompletionsService.onDidChangeIsSnoozing(e => {
 			updateIntervalTimer();
 		}));
+	}
+	private async showModelPicker(provider: languages.InlineCompletionsProvider): Promise<void> {
+		if (!provider.modelInfo || !provider.setModelId) {
+			return;
+		}
+
+		const modelInfo = provider.modelInfo;
+		const items: IQuickPickItem[] = modelInfo.models.map(model => ({
+			id: model.id,
+			label: model.name,
+			description: model.id === modelInfo.currentModelId ? localize('currentModel.description', "Currently selected") : undefined,
+			picked: model.id === modelInfo.currentModelId
+		}));
+
+		const selected = await this.quickInputService.pick(items, {
+			placeHolder: localize('selectModel', "Select a model for {0}", provider.displayName || 'inline completions'),
+			canPickMany: false
+		});
+
+		if (selected && selected.id && selected.id !== modelInfo.currentModelId) {
+			await provider.setModelId(selected.id);
+		}
+
+		this.hoverService.hideHover(true);
 	}
 }

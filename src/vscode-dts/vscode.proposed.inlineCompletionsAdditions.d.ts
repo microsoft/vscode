@@ -133,6 +133,11 @@ declare module 'vscode' {
 
 		readonly onDidChange?: Event<void>;
 
+		readonly modelInfo?: InlineCompletionModelInfo;
+		readonly onDidChangeModelInfo?: Event<void>;
+		setCurrentModelId?(modelId: string): Promise<void>;
+
+
 		// #region Deprecated methods
 
 		/**
@@ -151,6 +156,16 @@ declare module 'vscode' {
 		handleDidRejectCompletionItem?(completionItem: InlineCompletionItem): void;
 
 		// #endregion
+	}
+
+	export interface InlineCompletionModelInfo {
+		readonly models: InlineCompletionModel[];
+		readonly currentModelId: string;
+	}
+
+	export interface InlineCompletionModel {
+		readonly id: string;
+		readonly name: string;
 	}
 
 	export enum InlineCompletionEndOfLifeReasonKind {
