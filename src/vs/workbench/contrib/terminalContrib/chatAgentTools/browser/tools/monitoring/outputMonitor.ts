@@ -250,7 +250,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			// A background poll completed while waiting for a decision
 			const r = race.r;
 			// r can be either an OutputMonitorState or an IPollingResult object (from catch)
-			const state = typeof r === 'object' ? r.state : r;
+			const state = (typeof r === 'object' && r !== null) ? r.state : r;
 
 			if (state === OutputMonitorState.Idle || state === OutputMonitorState.Cancelled || state === OutputMonitorState.Timeout) {
 				try { continuePollingPart?.hide(); } catch { /* noop */ }
