@@ -1558,7 +1558,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ContinueChatInSessionAction.ID && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ChatContinueInSessionActionItem, action);
+					return this.instantiationService.createInstance(ChatContinueInSessionActionItem, action, false);
 				}
 				return undefined;
 			}
