@@ -2,28 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import { ESLint } from 'eslint';
 import fancyLog from 'fancy-log';
 import { relative } from 'path';
-import Stream, { Transform } from 'stream';
+import { Transform, type TransformOptions } from 'stream';
 
-/**
- * @typedef {ESLint.LintResult[] & { errorCount: number, warningCount: number}} ESLintResults
- */
+interface ESLintResults extends Array<ESLint.LintResult> {
+	errorCount: number;
+	warningCount: number;
+}
 
-/**
- * @param {(results: ESLintResults) => void} action - A function to handle all ESLint results
- */
-export default function eslint(action) {
+interface EslintAction {
+	(results: ESLintResults): void;
+}
+
+export default function eslint(action: EslintAction) {
 	const linter = new ESLint({});
 	const formatter = linter.loadFormatter('compact');
 
-	/** @type {ESLintResults} results */
-	const results = [];
-	results.errorCount = 0;
-	results.warningCount = 0;
+	const results: ESLintResults = Object.assign([], { errorCount: 0, warningCount: 0 });
 
-	return transform(
+	return createTransform(
 		async (file, _enc, cb) => {
 			const filePath = relative(process.cwd(), file.path);
 
@@ -68,11 +68,10 @@ export default function eslint(action) {
 		});
 }
 
-/**
- * @param {Stream.TransformOptions['transform']} transform
- * @param {Stream.TransformOptions['flush']} flush
- */
-function transform(transform, flush) {
+function createTransform(
+	transform: TransformOptions['transform'],
+	flush: TransformOptions['flush']
+): Transform {
 	return new Transform({
 		objectMode: true,
 		transform,
