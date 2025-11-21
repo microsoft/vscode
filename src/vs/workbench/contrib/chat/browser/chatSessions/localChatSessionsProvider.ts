@@ -232,7 +232,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			return undefined;
 		}
 
-		// If the response is complete, don't show a description
+		// If the response is complete, show Finished
 		if (response.isComplete) {
 			return nls.localize('chat.sessions.description.finished', "Finished");
 		}

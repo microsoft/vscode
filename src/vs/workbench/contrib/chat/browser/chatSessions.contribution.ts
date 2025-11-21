@@ -785,7 +785,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public registerModelProgressListener(model: IChatModel, callback: () => void): void {
 		// Helper function to register listeners for a request
-		const registerRequestListeners = (request: IChatRequestModel, index: number, array: IChatRequestModel[]) => {
+		const registerRequestListeners = (request: IChatRequestModel) => {
 			if (!request.response || this._registeredRequestIds.has(request.id)) {
 				return;
 			}
