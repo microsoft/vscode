@@ -64,7 +64,7 @@ import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IC
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
-import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
+import { IChatModel, IChatModelInputState, IChatResponseModel } from '../common/chatModel.js';
 import { ChatMode, IChatModeService } from '../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
 import { ChatRequestParser } from '../common/chatRequestParser.js';
@@ -74,7 +74,6 @@ import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
-import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
@@ -104,11 +103,6 @@ const defaultChat = {
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
 };
 
-export interface IChatViewState {
-	inputValue?: string;
-	inputState?: IChatInputState;
-}
-
 export interface IChatWidgetStyles extends IChatInputStyles {
 	inputEditorBackground: string;
 	resultEditorBackground: string;
@@ -118,14 +112,15 @@ export interface IChatWidgetContrib extends IDisposable {
 	readonly id: string;
 
 	/**
-	 * A piece of state which is related to the input editor of the chat widget
+	 * A piece of state which is related to the input editor of the chat widget.
+	 * Takes in the `contrib` object that will be saved in the {@link IChatModelInputState}.
 	 */
-	getInputState?(): IChatInputState;
+	getInputState?(contrib: Record<string, unknown>): void;
 
 	/**
 	 * Called with the result of getInputState when navigating input history.
 	 */
-	setInputState?(s: IChatInputState): void;
+	setInputState?(contrib: Readonly<Record<string, unknown>>): void;
 }
 
 interface IChatRequestInputOptions {
@@ -329,7 +324,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _onDidChangeContentHeight = new Emitter<void>();
 	readonly onDidChangeContentHeight: Event<void> = this._onDidChangeContentHeight.event;
 
-	private contribs: ReadonlyArray<IChatWidgetContrib> = [];
+	public contribs: ReadonlyArray<IChatWidgetContrib> = [];
 
 	private tree!: WorkbenchObjectTree<ChatTreeItem, FuzzyScore>;
 	private renderer!: ChatListItemRenderer;
@@ -864,12 +859,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private scrollToEnd() {
 		if (this.lastItem) {
 			const offset = Math.max(this.lastItem.currentRenderedHeight ?? 0, 1e6);
-			this.tree.reveal(this.lastItem, offset);
+			if (this.tree.hasElement(this.lastItem)) {
+				this.tree.reveal(this.lastItem, offset);
+			}
 		}
-	}
-
-	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
-		return this.contribs.find(c => c.id === id) as T;
 	}
 
 	focusInput(): void {
@@ -2041,7 +2034,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.location,
 				commonConfig,
 				this.styles,
-				() => this.collectInputState(),
 				true
 			);
 		} else {
@@ -2049,20 +2041,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.location,
 				commonConfig,
 				this.styles,
-				() => this.collectInputState(),
 				false
 			);
 		}
 
 		this.input.render(container, '', this);
 
-		this._register(this.input.onDidLoadInputState(state => {
-			this.contribs.forEach(c => {
-				if (c.setInputState) {
-					const contribState = (typeof state === 'object' && state?.[c.id]) ?? {};
-					c.setInputState(contribState);
-				}
-			});
+		this._register(this.input.onDidLoadInputState(() => {
 			this.refreshParsedInput();
 		}));
 		this._register(this.input.onDidFocus(() => this._onDidFocus.fire()));
@@ -2164,9 +2149,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 
-	setModel(model: IChatModel, viewState: IChatViewState): void {
+	setModel(model: IChatModel | undefined): void {
 		if (!this.container) {
 			throw new Error('Call render() before setModel()');
+		}
+
+		if (!model) {
+			this.viewModel = undefined;
+			return;
 		}
 
 		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
@@ -2187,6 +2177,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model, this._codeBlockModelCollection);
+
+		// Pass input model reference to input part for state syncing
+		this.inputPart.setInputModel(model.inputModel);
 
 		if (this._lockedAgent) {
 			let placeholder = this.chatSessionsService.getInputPlaceholderForSessionType(this._lockedAgent.id);
@@ -2232,12 +2225,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
-		this.input.initForNewChatModel(viewState, model.getRequests().length === 0);
-		this.contribs.forEach(c => {
-			if (c.setInputState && viewState.inputState?.[c.id]) {
-				c.setInputState(viewState.inputState?.[c.id]);
-			}
-		});
+		const inputState = model.inputModel.state.get();
+		this.input.initForNewChatModel(inputState, model.getRequests().length === 0);
 
 		this.refreshParsedInput();
 		this.viewModelDisposables.add(model.onDidChange((e) => {
@@ -2318,6 +2307,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.input.inputEditor.getValue();
 	}
 
+	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
+		return this.contribs.find(c => c.id === id) as T | undefined;
+	}
+
 	// Coding agent locking methods
 	public lockToCodingAgent(name: string, displayName: string, agentId: string): void {
 		this._lockedAgent = {
@@ -2386,17 +2379,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			userSelectedModelId: this.input.currentLanguageModel
 		};
 		return await this.chatService.resendRequest(lastRequest, options);
-	}
-
-	private collectInputState(): IChatInputState {
-		const inputState: IChatInputState = {};
-		this.contribs.forEach(c => {
-			if (c.getInputState) {
-				inputState[c.id] = c.getInputState();
-			}
-		});
-
-		return inputState;
 	}
 
 	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<void> {
@@ -2762,13 +2744,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.input.saveState();
 	}
 
-	getViewState(): IChatViewState {
-		// Get the input state which includes our locked agent (if any)
-		const inputState = this.input.getViewState();
-		return {
-			inputValue: this.getInput(),
-			inputState: inputState
-		};
+	getViewState(): IChatModelInputState | undefined {
+		return this.input.getCurrentInputState();
 	}
 
 	private updateChatInputContext() {

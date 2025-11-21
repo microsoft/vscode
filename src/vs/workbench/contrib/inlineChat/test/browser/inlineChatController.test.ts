@@ -670,7 +670,7 @@ suite('InlineChatController', function () {
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
 				// eslint-disable-next-line local/code-no-any-casts
-				return { model: targetModel } as any;
+				return { model: targetModel.object } as any;
 			}
 			override focusResponseItem() { }
 		};
@@ -719,7 +719,7 @@ suite('InlineChatController', function () {
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
 				// eslint-disable-next-line local/code-no-any-casts
-				return { model: targetModel } as any;
+				return { model: targetModel.object } as any;
 			}
 			override focusResponseItem() { }
 		};

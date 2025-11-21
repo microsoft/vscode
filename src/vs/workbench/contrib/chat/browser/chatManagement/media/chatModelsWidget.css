@@ -161,7 +161,7 @@
 
 /** Capabilities column styling **/
 
-.models-widget .models-table-container .monaco-table-td .model-metadata {
+.models-widget .models-table-container .monaco-table-td .model-capabilities {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -179,7 +179,8 @@
 }
 
 .models-widget .models-table-container .monaco-table-td .model-capability.active {
-	border-color: var(--vscode-radio-activeBorder, transparent);
+	background-color: var(--vscode-toolbar-hoverBackground);
+	opacity: 0.8;
 }
 
 /** Vendor row styling **/

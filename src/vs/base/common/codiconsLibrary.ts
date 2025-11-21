@@ -640,4 +640,5 @@ export const codiconsLibrary = {
 	terminalGitBash: register('terminal-git-bash', 0xec71),
 	windowActive: register('window-active', 0xec72),
 	forward: register('forward', 0xec73),
+	download: register('download', 0xec74),
 } as const;

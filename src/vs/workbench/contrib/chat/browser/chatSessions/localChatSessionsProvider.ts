@@ -7,11 +7,11 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import * as nls from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel } from '../../common/chatModel.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatService, IChatToolInvocation } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
@@ -76,7 +76,9 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		const register = () => {
 			this.registerModelTitleListener(widget);
 			if (widget.viewModel) {
-				this.registerProgressListener(widget.viewModel.model.requestInProgress);
+				this.chatSessionsService.registerModelProgressListener(widget.viewModel.model, () => {
+					this._onDidChangeChatSessionItems.fire();
+				});
 			}
 		};
 		// Listen for view model changes on this widget
@@ -86,12 +88,6 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		}));
 
 		register();
-	}
-	private registerProgressListener(observable: IObservable<boolean>) {
-		const progressEvent = Event.fromObservableLight(observable);
-		this._register(progressEvent(() => {
-			this._onDidChangeChatSessionItems.fire();
-		}));
 	}
 
 	private registerModelTitleListener(widget: IChatWidget): void {
@@ -135,25 +131,29 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		this.chatService.getLiveSessionItems().forEach(sessionDetail => {
 			let status: ChatSessionStatus | undefined;
 			let startTime: number | undefined;
+			let endTime: number | undefined;
 			const model = this.chatService.getSession(sessionDetail.sessionResource);
 			if (model) {
 				status = this.modelToStatus(model);
-				const requests = model.getRequests();
-				if (requests.length > 0) {
-					startTime = requests.at(0)?.timestamp;
-				} else {
-					startTime = Date.now();
+				startTime = model.timestamp;
+
+				const lastResponse = model.getRequests().at(-1)?.response;
+				if (lastResponse) {
+					endTime = lastResponse.completedAt ?? lastResponse.timestamp;
 				}
 			}
 			const statistics = model ? this.getSessionStatistics(model) : undefined;
+			const description = model ? this.getSessionDescription(model) : undefined;
 			const editorSession: ChatSessionItemWithProvider = {
 				resource: sessionDetail.sessionResource,
 				label: sessionDetail.title,
 				iconPath: Codicon.chatSparkle,
 				status,
+				description,
 				provider: this,
 				timing: {
-					startTime: startTime ?? 0
+					startTime: startTime ?? Date.now(), // TODO@osortega this is not so good
+					endTime
 				},
 				statistics
 			};
@@ -204,10 +204,70 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				modifiedFiles.add(edit.modifiedURI);
 			});
 		}
+		if (modifiedFiles.size === 0) {
+			return;
+		}
 		return {
 			files: modifiedFiles.size,
 			insertions: linesAdded,
 			deletions: linesRemoved,
 		};
+	}
+
+	private extractFileNameFromLink(filePath: string): string {
+		return filePath.replace(/\[.*?\]\(file:\/\/\/(?<path>[^)]+)\)/g, (_: string, __: string, ___: number, ____, groups?: { path?: string }) => {
+			const fileName = groups?.path ? groups.path.split('/').pop() || groups.path : '';
+			return fileName;
+		});
+	}
+
+	private getSessionDescription(chatModel: IChatModel): string | undefined {
+		const requests = chatModel.getRequests();
+		if (requests.length === 0) {
+			return undefined;
+		}
+
+		// Get the last request to check its response status
+		const lastRequest = requests[requests.length - 1];
+		const response = lastRequest?.response;
+		if (!response) {
+			return undefined;
+		}
+
+		// If the response is complete, show Finished
+		if (response.isComplete) {
+			return nls.localize('chat.sessions.description.finished', "Finished");
+		}
+
+		// Get the response parts to find tool invocations and progress messages
+		const responseParts = response.response.value;
+		let description: string = '';
+
+		for (let i = responseParts.length - 1; i >= 0; i--) {
+			const part = responseParts[i];
+			if (!description && part.kind === 'toolInvocation') {
+				const toolInvocation = part as IChatToolInvocation;
+				const state = toolInvocation.state.get();
+
+				if (state.type !== IChatToolInvocation.StateKind.Completed) {
+					const pastTenseMessage = toolInvocation.pastTenseMessage;
+					const invocationMessage = toolInvocation.invocationMessage;
+					const message = pastTenseMessage || invocationMessage;
+					description = typeof message === 'string' ? message : message?.value ?? '';
+
+					if (description) {
+						description = this.extractFileNameFromLink(description);
+					}
+					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+						const message = toolInvocation.confirmationMessages?.title && (typeof toolInvocation.confirmationMessages.title === 'string'
+							? toolInvocation.confirmationMessages.title
+							: toolInvocation.confirmationMessages.title.value);
+						description = message ?? `${nls.localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation:")} ${description}`;
+					}
+				}
+			}
+		}
+
+		return description || nls.localize('chat.sessions.description.working', "Working...");
 	}
 }
