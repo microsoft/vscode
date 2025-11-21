@@ -441,7 +441,10 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'inline',
 	order: 1,
-	when: ChatContextKeys.sessionType.isEqualTo(localChatSessionType)
+	when: ContextKeyExpr.and(
+		ChatContextKeys.sessionType.isEqualTo(localChatSessionType),
+		ChatContextKeys.isCombinedSessionViewer.negate()
+	)
 });
 
 // Register delete menu item - only show for non-active sessions (history items)
