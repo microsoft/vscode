@@ -273,9 +273,8 @@ export class ChatService extends Disposable implements IChatService {
 			this._persistedSessions[transferredChat.sessionId] = transferredChat;
 			this._transferredSessionData = {
 				sessionId: transferredChat.sessionId,
-				inputValue: transferredData.inputValue,
 				location: transferredData.location,
-				mode: transferredData.mode,
+				inputState: transferredData.inputState
 			};
 		}
 
@@ -1360,9 +1359,8 @@ export class ChatService extends Disposable implements IChatService {
 			chat: model.toJSON(),
 			timestampInMilliseconds: Date.now(),
 			toWorkspace: toWorkspace,
-			inputValue: transferredSessionData.inputValue,
+			inputState: transferredSessionData.inputState,
 			location: transferredSessionData.location,
-			mode: transferredSessionData.mode,
 		});
 
 		this.storageService.store(TransferredGlobalChatKey, JSON.stringify(existingRaw), StorageScope.PROFILE, StorageTarget.MACHINE);
