@@ -94,7 +94,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	async openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
-		const alreadyOpenWidget = await this.revealSessionIfAlreadyOpen(sessionResource);
+		const alreadyOpenWidget = await this.revealSessionIfAlreadyOpen(sessionResource, options?.preserveFocus);
 		if (alreadyOpenWidget) {
 			return alreadyOpenWidget;
 		}
@@ -104,7 +104,9 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			const chatViewPane = await this.viewsService.openView<ChatViewPane>(ChatViewId, true);
 			if (chatViewPane) {
 				await chatViewPane.loadSession(sessionResource);
-				chatViewPane.focusInput();
+				if (!options?.preserveFocus) {
+					chatViewPane.focusInput();
+				}
 			}
 			return chatViewPane?.widget;
 		}
@@ -141,7 +143,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 				]);
 			}
 
-			const pane = await this.editorService.openEditor(existingEditor.editor, existingEditor.group);
+			const pane = await this.editorService.openEditor(existingEditor.editor, { preserveFocus }, existingEditor.group);
 			await ensureFocusTransfer;
 			return pane instanceof ChatEditor ? pane.widget : undefined;
 		}
