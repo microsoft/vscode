@@ -271,6 +271,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
 	private readonly _editableSessions = new ResourceMap<IEditableData>();
 	private readonly _registeredRequestIds = new Set<string>();
+	private readonly _registeredModels = new Set<IChatModel>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -784,6 +785,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public registerModelProgressListener(model: IChatModel, callback: () => void): void {
+		// Prevent duplicate registrations for the same model
+		if (this._registeredModels.has(model)) {
+			return;
+		}
+		this._registeredModels.add(model);
+
 		// Helper function to register listeners for a request
 		const registerRequestListeners = (request: IChatRequestModel) => {
 			if (!request.response || this._registeredRequestIds.has(request.id)) {
@@ -823,6 +830,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._register(model.onDidChange(() => {
 			const currentRequests = model.getRequests();
 			currentRequests.forEach(registerRequestListeners);
+		}));
+
+		// Clean up when model is disposed
+		this._register(model.onDidDispose(() => {
+			this._registeredModels.delete(model);
 		}));
 	}
 

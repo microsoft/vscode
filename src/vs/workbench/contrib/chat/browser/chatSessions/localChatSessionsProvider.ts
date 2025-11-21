@@ -243,21 +243,25 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 
 		for (let i = responseParts.length - 1; i >= 0; i--) {
 			const part = responseParts[i];
-			if (!description && part.kind === 'toolInvocation' && part.state.get().type !== IChatToolInvocation.StateKind.Completed) {
+			if (!description && part.kind === 'toolInvocation') {
 				const toolInvocation = part as IChatToolInvocation;
-				const pastTenseMessage = toolInvocation.pastTenseMessage;
-				const invocationMessage = toolInvocation.invocationMessage;
-				const message = pastTenseMessage || invocationMessage;
-				description = typeof message === 'string' ? message : message?.value ?? '';
+				const state = toolInvocation.state.get();
+				
+				if (state.type !== IChatToolInvocation.StateKind.Completed) {
+					const pastTenseMessage = toolInvocation.pastTenseMessage;
+					const invocationMessage = toolInvocation.invocationMessage;
+					const message = pastTenseMessage || invocationMessage;
+					description = typeof message === 'string' ? message : message?.value ?? '';
 
-				if (description) {
-					description = this.extractFileNameFromLink(description);
-				}
-				if (toolInvocation.state.get().type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-					const message = toolInvocation.confirmationMessages?.title && (typeof toolInvocation.confirmationMessages.title === 'string'
-						? toolInvocation.confirmationMessages.title
-						: toolInvocation.confirmationMessages.title.value);
-					description = message ?? `${nls.localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation:")} ${description}`;
+					if (description) {
+						description = this.extractFileNameFromLink(description);
+					}
+					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+						const message = toolInvocation.confirmationMessages?.title && (typeof toolInvocation.confirmationMessages.title === 'string'
+							? toolInvocation.confirmationMessages.title
+							: toolInvocation.confirmationMessages.title.value);
+						description = message ?? `${nls.localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation:")} ${description}`;
+					}
 				}
 			}
 		}
