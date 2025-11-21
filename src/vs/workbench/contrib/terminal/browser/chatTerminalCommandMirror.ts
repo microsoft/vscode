@@ -77,14 +77,6 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		const startLine = executedMarker.line;
 		const endLine = endMarker.line - 1;
 		const lineCount = Math.max(endLine - startLine + 1, 0);
-		if (endLine - startLine < 3) {
-			// Fine to call getOutput for this as its minimal lines
-			// If we try to detect empty output otherwise, it's sometimes
-			// wrong due to VT sequences that contain just the prompt.
-			if (this._command.getOutput()?.trim() === '') {
-				return { text: '', lineCount: 0 };
-			}
-		}
 
 		const vt = await xterm.getRangeAsVT(executedMarker, endMarker);
 		if (!vt) {
