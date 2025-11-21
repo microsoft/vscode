@@ -847,7 +847,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._contentContainer.appendChild(this._emptyElement);
 		}
 		this._emptyElement.textContent = message;
-		this._emptyElement.style.display = '';
 		this._terminalHost?.classList.add('chat-terminal-output-terminal-no-output');
 	}
 
