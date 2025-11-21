@@ -1065,7 +1065,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Ask]
-		}, async (prompt, progress) => {
+		}, async (prompt, progress, _history, _location, sessionResource) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const agents = chatAgentService.getAgents();
 
@@ -1085,11 +1085,11 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				.filter(a => a.locations.includes(ChatAgentLocation.Chat))
 				.map(async a => {
 					const description = a.description ? `- ${a.description}` : '';
-					const agentMarkdown = instantiationService.invokeFunction(accessor => agentToMarkdown(a, true, accessor));
+					const agentMarkdown = instantiationService.invokeFunction(accessor => agentToMarkdown(a, sessionResource, true, accessor));
 					const agentLine = `- ${agentMarkdown} ${description}`;
 					const commandText = a.slashCommands.map(c => {
 						const description = c.description ? `- ${c.description}` : '';
-						return `\t* ${agentSlashCommandToMarkdown(a, c)} ${description}`;
+						return `\t* ${agentSlashCommandToMarkdown(a, c, sessionResource)} ${description}`;
 					}).join('\n');
 
 					return (agentLine + '\n' + commandText).trim();
