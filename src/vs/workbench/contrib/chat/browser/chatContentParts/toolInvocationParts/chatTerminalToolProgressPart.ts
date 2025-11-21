@@ -39,6 +39,7 @@ import { localize } from '../../../../../../nls.js';
 import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
 import { DomSanitizerConfig } from '../../../../../../base/browser/domSanitize.js';
@@ -99,18 +100,18 @@ interface ITerminalCommandDecorationOptions {
 	getResolvedCommand(): ITerminalCommand | undefined;
 }
 
+
 class TerminalCommandDecoration extends Disposable {
 	private readonly _element: HTMLElement;
-	private readonly _hoverListener: MutableDisposable<IDisposable>;
-	private readonly _focusListener: MutableDisposable<IDisposable>;
 	private _interactionElement: HTMLElement | undefined;
 
-	constructor(private readonly _options: ITerminalCommandDecorationOptions) {
+	constructor(
+		private readonly _options: ITerminalCommandDecorationOptions,
+		@IHoverService private readonly _hoverService: IHoverService
+	) {
 		super();
 		const decorationElements = h('span.chat-terminal-command-decoration@decoration', { role: 'img', tabIndex: 0 });
 		this._element = decorationElements.decoration;
-		this._hoverListener = this._register(new MutableDisposable<IDisposable>());
-		this._focusListener = this._register(new MutableDisposable<IDisposable>());
 		this._attachElementToContainer();
 	}
 
@@ -130,7 +131,16 @@ class TerminalCommandDecoration extends Disposable {
 			}
 		}
 
+		this._register(this._hoverService.setupDelayedHover(decoration, () => ({
+			content: this._getHoverText()
+		})));
 		this._attachInteractionHandlers(decoration);
+	}
+
+	private _getHoverText(): string {
+		const command = this._options.getResolvedCommand();
+		const storedState = this._options.terminalData.terminalCommandState;
+		return getTerminalCommandDecorationTooltip(command, storedState) || '';
 	}
 
 	public update(command?: ITerminalCommand): void {
@@ -179,10 +189,8 @@ class TerminalCommandDecoration extends Disposable {
 		}
 		const hoverText = tooltip || decorationState.hoverMessage;
 		if (hoverText) {
-			decoration.setAttribute('title', hoverText);
 			decoration.setAttribute('aria-label', hoverText);
 		} else {
-			decoration.removeAttribute('title');
 			decoration.removeAttribute('aria-label');
 		}
 	}
@@ -192,18 +200,6 @@ class TerminalCommandDecoration extends Disposable {
 			return;
 		}
 		this._interactionElement = decoration;
-		this._hoverListener.value = dom.addDisposableListener(decoration, dom.EventType.MOUSE_ENTER, () => {
-			if (!decoration.isConnected) {
-				return;
-			}
-			this._apply(decoration, this._options.getResolvedCommand());
-		});
-		this._focusListener.value = dom.addDisposableListener(decoration, dom.EventType.FOCUS_IN, () => {
-			if (!decoration.isConnected) {
-				return;
-			}
-			this._apply(decoration, this._options.getResolvedCommand());
-		});
 	}
 }
 
@@ -280,16 +276,16 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			h('.chat-terminal-output-container@output')
 		]);
 
-		this._decoration = this._register(new TerminalCommandDecoration({
+		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+		const displayCommand = stripIcons(command);
+		this._terminalOutputContextKey = ChatContextKeys.inChatTerminalToolOutput.bindTo(this._contextKeyService);
+
+		this._decoration = this._register(this._instantiationService.createInstance(TerminalCommandDecoration, {
 			terminalData: this._terminalData,
 			getCommandBlock: () => elements.commandBlock,
 			getIconElement: () => undefined,
 			getResolvedCommand: () => this._getResolvedCommand()
 		}));
-
-		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
-		const displayCommand = stripIcons(command);
-		this._terminalOutputContextKey = ChatContextKeys.inChatTerminalToolOutput.bindTo(this._contextKeyService);
 
 		const titlePart = this._register(_instantiationService.createInstance(
 			ChatQueryTitlePart,
