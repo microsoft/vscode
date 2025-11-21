@@ -11,7 +11,16 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { TerminalInstanceColorProvider } from '../../terminal/browser/terminalInstance.js';
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 
-export class DetachedTerminalCommandMirror extends Disposable {
+interface IDetachedTerminalCommandMirror {
+	attach(container: HTMLElement): Promise<void>;
+	renderCommand(): Promise<{ isEmpty?: boolean } | undefined>;
+}
+
+/**
+ * Mirrors a terminal command's output into a detached terminal instance.
+ * Used in the chat terminal tool progress part to show command output for example.
+ */
+export class DetachedTerminalCommandMirror extends Disposable implements IDetachedTerminalCommandMirror {
 	private _detachedTerminal?: IDetachedTerminalInstance;
 	private _attachedContainer?: HTMLElement;
 
@@ -39,7 +48,7 @@ export class DetachedTerminalCommandMirror extends Disposable {
 		if (!raw) {
 			return;
 		}
-		const vt = await this.getCommandOutputAsVT();
+		const vt = await this._getCommandOutputAsVT();
 		raw.reset();
 		if (!vt) {
 			return undefined;
@@ -53,7 +62,7 @@ export class DetachedTerminalCommandMirror extends Disposable {
 		return { isEmpty: !vt.text };
 	}
 
-	async getCommandOutputAsVT(): Promise<{ text: string } | undefined> {
+	private async _getCommandOutputAsVT(): Promise<{ text: string } | undefined> {
 		const executedMarker = this._command.executedMarker;
 		const endMarker = this._command.endMarker;
 		if (!executedMarker || executedMarker.isDisposed || !endMarker || endMarker.isDisposed) {
