@@ -668,7 +668,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _outputScrollbar: DomScrollableElement | undefined;
 	private _outputResizeObserver: ResizeObserver | undefined;
 	private _renderedOutputHeight: number | undefined;
-	private _lastOutputTruncated = false;
 	private readonly _outputAriaLabelBase: string;
 	private _mirror: DetachedTerminalCommandMirror | undefined;
 	private _contentContainer: HTMLElement | undefined;
@@ -777,15 +776,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return `${commandHeader}\n${localize('chat.terminalOutputEmpty', 'No output was produced by the command.')}`;
 		}
 		const lines = rawOutput.split('\n');
-		const shouldTruncate = lines.length > CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES;
-		const visibleLines = shouldTruncate
-			? lines.slice(Math.max(0, lines.length - CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES))
-			: lines;
-		let result = `${commandHeader}\n${visibleLines.join('\n').trimEnd()}`;
-		if (this._lastOutputTruncated || shouldTruncate) {
-			result += `\n\n${localize('chat.terminalOutputTruncated', 'Output truncated to first {0} lines.', CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES)}`;
-		}
-		return result;
+
+		return `${commandHeader}\n${lines.join('\n').trimEnd()}`;
 	}
 
 	private _setExpanded(expanded: boolean): void {
