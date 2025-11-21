@@ -661,7 +661,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _outputAriaLabelBase: string;
 	private _mirror: DetachedTerminalCommandMirror | undefined;
 	private _contentContainer: HTMLElement | undefined;
-	private _terminalHost: HTMLElement | undefined;
+	private _terminalContainer: HTMLElement | undefined;
 	private _emptyElement: HTMLElement | undefined;
 	private _hasRendered = false;
 
@@ -778,10 +778,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}
 
 		const content = dom.$('.chat-terminal-output-content');
-		const host = dom.$('.chat-terminal-output-terminal');
-		content.appendChild(host);
+		const terminalContainer = dom.$('.chat-terminal-output-terminal');
+		content.appendChild(terminalContainer);
 		this._contentContainer = content;
-		this._terminalHost = host;
+		this._terminalContainer = terminalContainer;
 
 		this._outputBody.replaceChildren(content);
 
@@ -805,7 +805,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private async _updateTerminalContent(): Promise<void> {
-		if (!this._contentContainer || !this._terminalHost) {
+		if (!this._contentContainer || !this._terminalContainer) {
 			return;
 		}
 
@@ -823,7 +823,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (!this._mirror) {
 			this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, terminalInstance, command));
 		}
-		await this._mirror.attach(this._terminalHost);
+		await this._mirror.attach(this._terminalContainer);
 		const result = await this._mirror.renderCommand();
 		if (!result) {
 			this._showEmptyMessage(localize('chat.terminalOutputPending', 'Command output will appear here once available.'));
@@ -847,14 +847,14 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._contentContainer.appendChild(this._emptyElement);
 		}
 		this._emptyElement.textContent = message;
-		this._terminalHost?.classList.add('chat-terminal-output-terminal-no-output');
+		this._terminalContainer?.classList.add('chat-terminal-output-terminal-no-output');
 	}
 
 	private _hideEmptyMessage(): void {
 		if (this._emptyElement) {
 			this._emptyElement.style.display = 'none';
 		}
-		this._terminalHost?.classList.remove('chat-terminal-output-terminal-no-output');
+		this._terminalContainer?.classList.remove('chat-terminal-output-terminal-no-output');
 	}
 
 	private _scheduleOutputRelayout(): void {
