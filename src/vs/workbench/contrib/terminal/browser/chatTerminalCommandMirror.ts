@@ -13,7 +13,7 @@ import { TerminalLocation } from '../../../../platform/terminal/common/terminal.
 
 interface IDetachedTerminalCommandMirror {
 	attach(container: HTMLElement): Promise<void>;
-	renderCommand(): Promise<{ isEmpty?: boolean } | undefined>;
+	renderCommand(): Promise<{ lineCount?: number } | undefined>;
 }
 
 /**
@@ -42,7 +42,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		}
 	}
 
-	async renderCommand(): Promise<{ isEmpty?: boolean } | undefined> {
+	async renderCommand(): Promise<{ lineCount?: number } | undefined> {
 		const detached = await this._getOrCreateTerminal();
 		const raw = detached.xterm.raw;
 		if (!raw) {
@@ -54,15 +54,15 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			return undefined;
 		}
 		if (!vt.text) {
-			return { isEmpty: !vt.text };
+			return { lineCount: 0 };
 		}
 		raw.write(vt.text);
 		raw.scrollToBottom();
 		raw.refresh(0, raw.rows - 1);
-		return { isEmpty: !vt.text };
+		return { lineCount: vt.lineCount };
 	}
 
-	private async _getCommandOutputAsVT(): Promise<{ text: string } | undefined> {
+	private async _getCommandOutputAsVT(): Promise<{ text: string; lineCount: number } | undefined> {
 		const executedMarker = this._command.executedMarker;
 		const endMarker = this._command.endMarker;
 		if (!executedMarker || executedMarker.isDisposed || !endMarker || endMarker.isDisposed) {
@@ -76,21 +76,22 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 
 		const startLine = executedMarker.line;
 		const endLine = endMarker.line - 1;
-
+		const lineCount = Math.max(endLine - startLine + 1, 0);
 		if (endLine - startLine < 3) {
 			// Fine to call getOutput for this as its minimal lines
 			// If we try to detect empty output otherwise, it's sometimes
 			// wrong due to VT sequences that contain just the prompt.
 			if (this._command.getOutput()?.trim() === '') {
-				return { text: '' };
+				return { text: '', lineCount: 0 };
 			}
 		}
 
 		const vt = await xterm.getRangeAsVT(executedMarker, endMarker);
 		if (!vt) {
-			return { text: '' };
+			return { text: '', lineCount: 0 };
 		}
-		return { text: vt };
+		const text = this._trimTrailingPrompt(vt, lineCount);
+		return { text, lineCount: text ? lineCount : 0 };
 	}
 
 	private async _getOrCreateTerminal(): Promise<IDetachedTerminalInstance> {
@@ -109,5 +110,23 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		this._detachedTerminal = detached;
 		this._register(detached);
 		return detached;
+	}
+
+	private _trimTrailingPrompt(vt: string, lineCount: number): string {
+		if (!vt || lineCount <= 0) {
+			return '';
+		}
+
+		const vtLines = vt.split('\r\n');
+		if (vtLines.length <= lineCount) {
+			return vt;
+		}
+
+		const trimmedLines = vtLines.slice(0, lineCount);
+		if (vtLines.length === lineCount + 1 && vtLines[lineCount] === '' && vt.endsWith('\r\n')) {
+			return `${trimmedLines.join('\r\n')}\r\n`;
+		}
+
+		return trimmedLines.join('\r\n');
 	}
 }

@@ -833,7 +833,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 
-		if (result.isEmpty) {
+		if (result.lineCount === 0) {
 			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
 		} else {
 			this._hideEmptyMessage();
@@ -867,7 +867,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		});
 	}
 
-	private _layoutOutput(): void {
+	private _layoutOutput(lineCount?: number): void {
 		if (!this._outputScrollbar || !this.isExpanded) {
 			return;
 		}
