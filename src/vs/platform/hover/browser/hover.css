@@ -8,7 +8,6 @@
 .monaco-hover.workbench-hover {
 	position: relative;
 	font-size: 13px;
-	line-height: 19px;
 	/* Must be higher than sash's z-index and terminal canvases */
 	z-index: 40;
 	overflow: hidden;
@@ -32,6 +31,25 @@
 
 .monaco-hover.workbench-hover.compact {
 	font-size: 12px;
+}
+
+.monaco-hover.workbench-hover.compact .codicon,
+.monaco-hover.monaco-hover-content .code-hover-contents {
+	font-size: 16px;
+}
+
+/* Increase codicon size in hover content paragraphs - use !important to override inline styles */
+.monaco-hover .monaco-hover-content p .codicon {
+	font-size: 16px !important;
+}
+
+.monaco-hover .monaco-hover-content p:last-child {
+	display: flex;
+}
+
+.monaco-hover .monaco-hover-content p:last-child a {
+	display: inline-flex;
+	gap: 2px;
 }
 
 .monaco-hover.workbench-hover.compact .monaco-action-bar .action-item .codicon {

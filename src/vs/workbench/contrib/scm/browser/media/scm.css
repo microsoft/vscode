@@ -587,18 +587,6 @@
 
 /* History item hover */
 
-.monaco-hover.history-item-hover p:first-child {
-	margin-top: 4px;
-}
-
-.monaco-hover.history-item-hover p:last-child {
-	margin-bottom: 2px !important;
-}
-
-.monaco-hover.history-item-hover p:last-child span:not(.codicon) {
-	padding: 2px 0;
-}
-
 .monaco-hover.history-item-hover hr {
 	margin-top: 4px;
 	margin-bottom: 4px;

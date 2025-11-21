@@ -48,7 +48,7 @@
 .monaco-hover h4,
 .monaco-hover h5,
 .monaco-hover h6 {
-	margin: 8px 0;
+	margin: 4px 0;
 }
 
 .monaco-hover h1,
@@ -68,20 +68,33 @@
 	box-sizing: border-box;
 	border-left: 0px;
 	border-right: 0px;
-	margin-top: 4px;
-	margin-bottom: -4px;
+	margin-top: 0px;
+	margin-bottom: 0px;
 	margin-left: -8px;
 	margin-right: -8px;
 	height: 1px;
 }
 
-.monaco-hover p:first-child,
 .monaco-hover .code:first-child,
 .monaco-hover ul:first-child {
 	margin-top: 0;
 }
 
-.monaco-hover p:last-child,
+.monaco-hover p:first-child {
+	margin-top: 4px;
+	display: flex;
+	align-items: center;
+}
+
+.monaco-hover p:first-child img {
+	border-radius: 50%;
+	margin-right: 4px;
+}
+
+.monaco-hover p:last-child {
+	margin-bottom: 2px;
+}
+
 .monaco-hover .code:last-child,
 .monaco-hover ul:last-child {
 	margin-bottom: 0;
@@ -186,7 +199,8 @@
  * https://github.com/microsoft/vscode/issues/221359
  */
 .monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents):not(.html-hover-contents) span.codicon {
-	margin-bottom: 2px;
+	/* margin-bottom: 2px; */
+	margin-right: 4px;
 }
 
 .monaco-hover-content .action-container a {
