@@ -28,14 +28,16 @@ declare global {
 	var _VSCODE_PACKAGE_JSON: Record<string, any>;
 
 	/**
-	 * Used to disable CSS import map loading during development. Needed when a bundler is used that loads the css directly.
+	 * Used to disable CSS import map loading during development. Needed
+	 * when a bundler is used that loads the css directly.
 	 * @deprecated Avoid using this variable.
 	*/
 	var _VSCODE_DISABLE_CSS_IMPORT_MAP: boolean | undefined;
 
 	/**
-	 * If this variable is set, and the source code references another module via import, the (relative) module should be referenced
-	 * (instead of the js module in the out folder).
+	 * If this variable is set, and the source code references another module
+	 * via import, the (relative) module should be referenced (instead of the
+	 * JS module in the out folder).
 	 * @deprecated Avoid using this variable.
 	*/
 	var _VSCODE_USE_RELATIVE_IMPORTS: boolean | undefined;
