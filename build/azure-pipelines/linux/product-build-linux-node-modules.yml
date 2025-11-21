@@ -52,7 +52,7 @@ jobs:
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
         displayName: Setup NPM Registry
 
-      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+      - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
         displayName: Prepare node_modules cache key
 
       - task: Cache@2
@@ -104,7 +104,7 @@ jobs:
             SYSROOT_ARCH="amd64"
           fi
           export VSCODE_SYSROOT_DIR=$(Build.SourcesDirectory)/.build/sysroots/glibc-2.28-gcc-8.5.0
-          SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e '(async () => { const { getVSCodeSysroot } = require("./build/linux/debian/install-sysroot.js"); await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
+          SYSROOT_ARCH="$SYSROOT_ARCH" VSCODE_SYSROOT_PREFIX="-glibc-2.28-gcc-8.5.0" node -e 'import { getVSCodeSysroot } from "./build/linux/debian/install-sysroot.ts"; (async () => { await getVSCodeSysroot(process.env["SYSROOT_ARCH"]); })()'
         env:
           VSCODE_ARCH: $(VSCODE_ARCH)
           GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -137,13 +137,13 @@ jobs:
         displayName: Install dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-      - script: node build/azure-pipelines/distro/mixin-npm
+      - script: node build/azure-pipelines/distro/mixin-npm.ts
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
         displayName: Mixin distro node modules
 
       - script: |
           set -e
-          node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
           mkdir -p .build/node_modules_cache
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))

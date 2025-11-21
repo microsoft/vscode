@@ -55,7 +55,7 @@ steps:
 
   - pwsh: |
       mkdir .build -ea 0
-      node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
@@ -101,31 +101,33 @@ steps:
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
-  - powershell: node build/azure-pipelines/distro/mixin-npm
+  - powershell: node build/azure-pipelines/distro/mixin-npm.ts
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Mixin distro node modules
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt }
+      exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
       exec { mkdir -Force .build/node_modules_cache }
       exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
-  - powershell: node build/azure-pipelines/distro/mixin-quality
+  - powershell: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
 
   - template: ../../common/install-builtin-extensions.yml@self
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - powershell: node build\lib\policies\policyGenerator build\lib\policies\policyData.jsonc win32
+    - powershell: |
+        npm run copy-policy-dto --prefix build
+        node build\lib\policies\policyGenerator.ts build\lib\policies\policyData.jsonc win32
       displayName: Generate Group Policy definitions
       retryCountOnTaskFailure: 3
 
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'exploration')) }}:
-    - powershell: node build/win32/explorer-dll-fetcher .build/win32/appx
+    - powershell: node build/win32/explorer-dll-fetcher.ts .build/win32/appx
       displayName: Download Explorer dll
 
   - powershell: |
@@ -223,7 +225,7 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.js }
+        exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.ts }
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: ✍️ Codesign
@@ -240,7 +242,7 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.js }
+        exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.ts }
       condition: succeededOrFailed()
       displayName: "✍️ Post-job: Codesign"
 

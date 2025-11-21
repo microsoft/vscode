@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 import eventStream from 'event-stream';
-import { src } from 'vinyl-fs';
+import vfs from 'vinyl-fs';
 import { eslintFilter } from './filters.js';
 import gulpEslint from './gulp-eslint.js';
 
 function eslint() {
-	return src(eslintFilter, { base: '.', follow: true, allowEmpty: true })
+	return vfs
+		.src(eslintFilter, { base: '.', follow: true, allowEmpty: true })
 		.pipe(
 			gulpEslint((results) => {
 				if (results.warningCount > 0 || results.errorCount > 0) {
@@ -19,8 +20,7 @@ function eslint() {
 		).pipe(eventStream.through(function () { /* noop, important for the stream to end */ }));
 }
 
-const normalizeScriptPath = (/** @type {string} */ p) => p.replace(/\.(js|ts)$/, '');
-if (normalizeScriptPath(import.meta.filename) === normalizeScriptPath(process.argv[1])) {
+if (import.meta.main) {
 	eslint().on('error', (err) => {
 		console.error();
 		console.error(err);

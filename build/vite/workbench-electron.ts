@@ -4,5 +4,5 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './setup-dev';
-import '../../src/vs/code/browser/workbench/workbench';
+import '../../src/vs/code/electron-browser/workbench/workbench';
 

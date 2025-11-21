@@ -224,14 +224,14 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 	private getSessionDescription(chatModel: IChatModel): string | undefined {
 		const requests = chatModel.getRequests();
 		if (requests.length === 0) {
-			return undefined;
+			return ''; // signal Chat that has not started yet
 		}
 
 		// Get the last request to check its response status
 		const lastRequest = requests[requests.length - 1];
 		const response = lastRequest?.response;
 		if (!response) {
-			return undefined;
+			return ''; // signal Chat that has not started yet
 		}
 
 		// If the response is complete, show Finished

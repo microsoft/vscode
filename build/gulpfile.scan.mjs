@@ -5,19 +5,18 @@
 
 import gulp from 'gulp';
 import * as path from 'path';
-import task from './lib/task.js';
-import util from './lib/util.js';
+import * as task from './lib/task.ts';
+import * as util from './lib/util.ts';
 import electron from '@vscode/gulp-electron';
-import electronConfigModule from './lib/electron.js';
+import * as electronConfigModule from './lib/electron.ts';
 import filter from 'gulp-filter';
-import deps from './lib/dependencies.js';
+import * as deps from './lib/dependencies.ts';
 import { existsSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 
 const { config } = electronConfigModule;
 
-const __dirname = import.meta.dirname;
-const root = path.dirname(__dirname);
+const root = path.dirname(import.meta.dirname);
 
 const BUILD_TARGETS = [
 	{ platform: 'win32', arch: 'x64' },
