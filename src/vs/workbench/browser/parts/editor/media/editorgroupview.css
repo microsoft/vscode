@@ -32,7 +32,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark  {
 	display: flex;
 	height: 100%;
-	max-width: 400px;
+	max-width: 256px;
 	margin: auto;
 	flex-direction: column;
 	align-items: center;
@@ -94,9 +94,9 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts > .watermark-box {
 	display: flex;
 	flex-direction: column;
-	padding: 16px;
+	/* padding: 16px;
 	border-radius: 8px;
-	background-color: var(--vscode-panel-background);
+	background-color: var(--vscode-panel-background); */
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl {
