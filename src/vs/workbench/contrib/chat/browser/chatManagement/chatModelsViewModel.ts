@@ -362,9 +362,7 @@ export class ChatModelsViewModel extends EditorModel {
 
 	toggleVendorCollapsed(vendorEntry: IVendorItemEntry): void {
 		this.selectedEntry = vendorEntry;
-		if (this.collapsedVendors.has(vendorEntry.vendorEntry.vendor)) {
-			this.collapsedVendors.delete(vendorEntry.vendorEntry.vendor);
-		} else {
+		if (!this.collapsedVendors.delete(vendorEntry.vendorEntry.vendor)) {
 			this.collapsedVendors.add(vendorEntry.vendorEntry.vendor);
 		}
 		this.filter(this.searchValue);
