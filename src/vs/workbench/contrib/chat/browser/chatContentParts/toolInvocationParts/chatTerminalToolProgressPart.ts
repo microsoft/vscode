@@ -651,10 +651,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		return this._container.classList.contains('expanded');
 	}
 
-	private readonly _onDidChangeHeight: () => void;
-	private readonly _ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>;
-	private readonly _resolveCommand: () => ITerminalCommand | undefined;
-
 	private readonly _outputBody: HTMLElement;
 	private _scrollableContainer: DomScrollableElement | undefined;
 	private _renderedOutputHeight: number | undefined;
@@ -672,16 +668,14 @@ class ChatTerminalToolOutputSection extends Disposable {
 		private readonly _container: HTMLElement,
 		private readonly _title: HTMLElement,
 		private readonly _displayCommand: string,
-		onDidChangeHeight: () => void,
-		ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>,
-		resolveCommand: () => ITerminalCommand | undefined,
+		private readonly _onDidChangeHeight: () => void,
+		private readonly _ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>,
+		private readonly _resolveCommand: () => ITerminalCommand | undefined,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService) {
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
+	) {
 		super();
-		this._onDidChangeHeight = onDidChangeHeight;
-		this._ensureTerminalInstance = ensureTerminalInstance;
-		this._resolveCommand = resolveCommand;
 		this._outputAriaLabelBase = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', this._displayCommand);
 
 		this._container.classList.add('collapsed');
