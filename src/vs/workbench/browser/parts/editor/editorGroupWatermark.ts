@@ -8,18 +8,14 @@ import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/key
 import { coalesce } from '../../../../base/common/arrays.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isMacintosh, isWeb, OS } from '../../../../base/common/platform.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { localize } from '../../../../nls.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { editorForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 
 interface WatermarkEntry {
 	readonly id: string;
@@ -172,40 +168,3 @@ export class EditorGroupWatermark extends Disposable {
 		return filteredEntries;
 	}
 }
-
-// --- Toggle Watermark Visibility Action ---
-
-class ToggleWatermarkAction extends Action2 {
-	static readonly ID = 'workbench.action.toggleEditorWatermark';
-
-	constructor() {
-		super({
-			id: ToggleWatermarkAction.ID,
-			title: localize2('toggleWatermark', "Toggle Editor Watermark"),
-			category: Categories.View,
-			f1: true,
-			toggled: ContextKeyExpr.equals('config.workbench.tips.enabled', true)
-		});
-	}
-
-	run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const currentValue = configurationService.getValue<boolean>('workbench.tips.enabled');
-		return configurationService.updateValue('workbench.tips.enabled', !currentValue);
-	}
-}
-
-registerAction2(ToggleWatermarkAction);
-
-// Register context menu item
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, {
-	group: '5_close',
-	command: {
-		id: ToggleWatermarkAction.ID,
-		title: localize('toggleWorkbenchTips', "Show Keyboard Shortcuts"),
-		toggled: ContextKeyExpr.equals('config.workbench.tips.enabled', true)
-	},
-	order: 20
-});
-
-registerColor('editorWatermark.foreground', { dark: transparent(editorForeground, 0.6), light: transparent(editorForeground, 0.68), hcDark: editorForeground, hcLight: editorForeground }, localize('editorLineHighlight', 'Foreground color for the labels in the editor watermark.'));
