@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// @ts-check
+
 import cp from 'child_process';
 import es from 'event-stream';
 import fs from 'fs';
@@ -11,10 +11,10 @@ import pall from 'p-all';
 import path from 'path';
 import VinylFile from 'vinyl';
 import vfs from 'vinyl-fs';
-import { all, copyrightFilter, eslintFilter, indentationFilter, stylelintFilter, tsFormattingFilter, unicodeFilter } from './filters.js';
-import eslint from './gulp-eslint.js';
+import { all, copyrightFilter, eslintFilter, indentationFilter, stylelintFilter, tsFormattingFilter, unicodeFilter } from './filters.ts';
+import eslint from './gulp-eslint.ts';
 import * as formatter from './lib/formatter.ts';
-import gulpstylelint from './stylelint.mjs';
+import gulpstylelint from './stylelint.ts';
 
 const copyrightHeaderLines = [
 	'/*---------------------------------------------------------------------------------------------',
@@ -23,16 +23,19 @@ const copyrightHeaderLines = [
 	' *--------------------------------------------------------------------------------------------*/',
 ];
 
+interface VinylFileWithLines extends VinylFile {
+	__lines: string[];
+}
+
 /**
- * @param {string[] | NodeJS.ReadWriteStream} some
- * @param {boolean} runEslint
+ * Main hygiene function that runs checks on files
  */
-export function hygiene(some, runEslint = true) {
+export function hygiene(some: NodeJS.ReadWriteStream | string[], runEslint = true): NodeJS.ReadWriteStream {
 	console.log('Starting hygiene...');
 	let errorCount = 0;
 
-	const productJson = es.through(function (file) {
-		const product = JSON.parse(file.contents.toString('utf8'));
+	const productJson = es.through(function (file: VinylFile) {
+		const product = JSON.parse(file.contents!.toString('utf8'));
 
 		if (product.extensionsGallery) {
 			console.error(`product.json: Contains 'extensionsGallery'`);
@@ -42,9 +45,8 @@ export function hygiene(some, runEslint = true) {
 		this.emit('data', file);
 	});
 
-	const unicode = es.through(function (file) {
-		/** @type {string[]} */
-		const lines = file.contents.toString('utf8').split(/\r\n|\r|\n/);
+	const unicode = es.through(function (file: VinylFileWithLines) {
+		const lines = file.contents!.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
 		const allowInComments = lines.some(line => /allow-any-unicode-comment-file/.test(line));
 		let skipNext = false;
@@ -62,7 +64,7 @@ export function hygiene(some, runEslint = true) {
 				if (line.match(/\s+(\*)/)) { // Naive multi-line comment check
 					line = '';
 				} else {
-					const index = line.indexOf('\/\/');
+					const index = line.indexOf('//');
 					line = index === -1 ? line : line.substring(0, index);
 				}
 			}
@@ -80,9 +82,8 @@ export function hygiene(some, runEslint = true) {
 		this.emit('data', file);
 	});
 
-	const indentation = es.through(function (file) {
-		/** @type {string[]} */
-		const lines = file.__lines || file.contents.toString('utf8').split(/\r\n|\r|\n/);
+	const indentation = es.through(function (file: VinylFileWithLines) {
+		const lines = file.__lines || file.contents!.toString('utf8').split(/\r\n|\r|\n/);
 		file.__lines = lines;
 
 		lines.forEach((line, i) => {
@@ -103,7 +104,7 @@ export function hygiene(some, runEslint = true) {
 		this.emit('data', file);
 	});
 
-	const copyrights = es.through(function (file) {
+	const copyrights = es.through(function (file: VinylFileWithLines) {
 		const lines = file.__lines;
 
 		for (let i = 0; i < copyrightHeaderLines.length; i++) {
@@ -117,9 +118,9 @@ export function hygiene(some, runEslint = true) {
 		this.emit('data', file);
 	});
 
-	const formatting = es.map(function (/** @type {any} */ file, cb) {
+	const formatting = es.map(function (file: any, cb) {
 		try {
-			const rawInput = file.contents.toString('utf8');
+			const rawInput = file.contents!.toString('utf8');
 			const rawOutput = formatter.format(file.path, rawInput);
 
 			const original = rawInput.replace(/\r\n/gm, '\n');
@@ -137,13 +138,13 @@ export function hygiene(some, runEslint = true) {
 		}
 	});
 
-	let input;
+	let input: NodeJS.ReadWriteStream;
 	if (Array.isArray(some) || typeof some === 'string' || !some) {
 		const options = { base: '.', follow: true, allowEmpty: true };
 		if (some) {
-			input = vfs.src(some, options).pipe(filter(all)); // split this up to not unnecessarily filter all a second time
+			input = vfs.src(some, options).pipe(filter(Array.from(all))); // split this up to not unnecessarily filter all a second time
 		} else {
-			input = vfs.src(all, options);
+			input = vfs.src(Array.from(all), options);
 		}
 	} else {
 		input = some;
@@ -152,7 +153,7 @@ export function hygiene(some, runEslint = true) {
 	const productJsonFilter = filter('product.json', { restore: true });
 	const snapshotFilter = filter(['**', '!**/*.snap', '!**/*.snap.actual']);
 	const yarnLockFilter = filter(['**', '!**/yarn.lock']);
-	const unicodeFilterStream = filter(unicodeFilter, { restore: true });
+	const unicodeFilterStream = filter(Array.from(unicodeFilter), { restore: true });
 
 	const result = input
 		.pipe(filter((f) => Boolean(f.stat && !f.stat.isDirectory())))
@@ -164,20 +165,19 @@ export function hygiene(some, runEslint = true) {
 		.pipe(unicodeFilterStream)
 		.pipe(unicode)
 		.pipe(unicodeFilterStream.restore)
-		.pipe(filter(indentationFilter))
+		.pipe(filter(Array.from(indentationFilter)))
 		.pipe(indentation)
-		.pipe(filter(copyrightFilter))
+		.pipe(filter(Array.from(copyrightFilter)))
 		.pipe(copyrights);
 
-	/** @type {import('stream').Stream[]} */
-	const streams = [
-		result.pipe(filter(tsFormattingFilter)).pipe(formatting)
+	const streams: NodeJS.ReadWriteStream[] = [
+		result.pipe(filter(Array.from(tsFormattingFilter))).pipe(formatting)
 	];
 
 	if (runEslint) {
 		streams.push(
 			result
-				.pipe(filter(eslintFilter))
+				.pipe(filter(Array.from(eslintFilter)))
 				.pipe(
 					eslint((results) => {
 						errorCount += results.warningCount;
@@ -188,7 +188,7 @@ export function hygiene(some, runEslint = true) {
 	}
 
 	streams.push(
-		result.pipe(filter(stylelintFilter)).pipe(gulpstylelint(((message, isError) => {
+		result.pipe(filter(Array.from(stylelintFilter))).pipe(gulpstylelint(((message: string, isError: boolean) => {
 			if (isError) {
 				console.error(message);
 				errorCount++;
@@ -201,7 +201,7 @@ export function hygiene(some, runEslint = true) {
 	let count = 0;
 	return es.merge(...streams).pipe(
 		es.through(
-			function (data) {
+			function (data: unknown) {
 				count++;
 				if (process.env['TRAVIS'] && count % 10 === 0) {
 					process.stdout.write('.');
@@ -225,14 +225,11 @@ export function hygiene(some, runEslint = true) {
 	);
 }
 
-/**
- * @param {string[]} paths
- */
-function createGitIndexVinyls(paths) {
+function createGitIndexVinyls(paths: string[]): Promise<VinylFile[]> {
 	const repositoryPath = process.cwd();
 
 	const fns = paths.map((relativePath) => () =>
-		new Promise((c, e) => {
+		new Promise<VinylFile | null>((c, e) => {
 			const fullPath = path.join(repositoryPath, relativePath);
 
 			fs.stat(fullPath, (err, stat) => {
@@ -251,32 +248,30 @@ function createGitIndexVinyls(paths) {
 							return e(err);
 						}
 
-						c(
-							new VinylFile({
-								path: fullPath,
-								base: repositoryPath,
-								contents: out,
-								stat,
-							})
-						);
+						c(new VinylFile({
+							path: fullPath,
+							base: repositoryPath,
+							contents: out,
+							stat: stat,
+						}));
 					}
 				);
 			});
 		})
 	);
 
-	return pall(fns, { concurrency: 4 }).then((r) => r.filter((p) => !!p));
+	return pall(fns, { concurrency: 4 }).then((r) => r.filter((p): p is VinylFile => !!p));
 }
 
 // this allows us to run hygiene as a git pre-commit hook
 if (import.meta.main) {
-	process.on('unhandledRejection', (reason, p) => {
+	process.on('unhandledRejection', (reason: unknown, p: Promise<any>) => {
 		console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
 		process.exit(1);
 	});
 
 	if (process.argv.length > 2) {
-		hygiene(process.argv.slice(2)).on('error', (err) => {
+		hygiene(process.argv.slice(2)).on('error', (err: Error) => {
 			console.error();
 			console.error(err);
 			process.exit(1);
@@ -300,15 +295,14 @@ if (import.meta.main) {
 					createGitIndexVinyls(some)
 						.then(
 							(vinyls) => {
-								/** @type {Promise<void>} */
-								return (new Promise((c, e) =>
-									hygiene(es.readArray(vinyls).pipe(filter(all)))
+								return new Promise<void>((c, e) =>
+									hygiene(es.readArray(vinyls).pipe(filter(Array.from(all))))
 										.on('end', () => c())
 										.on('error', e)
-								));
+								);
 							}
 						)
-						.catch((err) => {
+						.catch((err: Error) => {
 							console.error();
 							console.error(err);
 							process.exit(1);

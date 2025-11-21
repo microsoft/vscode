@@ -2,13 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// @ts-check
 
-/**
- * @param {string} name
- * @returns {import('./lib/bundle.js').IEntryPoint}
- */
-export function createModuleDescription(name) {
+import type { IEntryPoint } from './lib/bundle.ts';
+
+function createModuleDescription(name: string): IEntryPoint {
 	return {
 		name
 	};
