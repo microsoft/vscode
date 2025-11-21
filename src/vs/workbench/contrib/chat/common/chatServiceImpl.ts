@@ -83,11 +83,17 @@ interface IStartSessionProps {
 
 interface ChatModelStoreDelegate {
 	createModel: (props: IStartSessionProps) => ChatModel;
+
+	/**
+	 * Called when a 
+	 */
 	willDisposeModel: (model: ChatModel) => Promise<void>;
 }
 
 class ChatModelStore extends ReferenceCollection<ChatModel> implements IDisposable {
 	private readonly _models = new ObservableMap<string, ChatModel>();
+	private readonly _modelsToDispose = new Set<string>();
+	private readonly _pendingDisposals = new Set<Promise<void>>();
 
 	constructor(
 		private readonly delegate: ChatModelStoreDelegate,
@@ -125,6 +131,12 @@ class ChatModelStore extends ReferenceCollection<ChatModel> implements IDisposab
 	}
 
 	protected createReferencedObject(key: string, props?: IStartSessionProps): ChatModel {
+		this._modelsToDispose.delete(key);
+		const existingModel = this._models.get(key);
+		if (existingModel) {
+			return existingModel;
+		}
+
 		if (!props) {
 			throw new Error(`No start session props provided for chat session ${key}`);
 		}
@@ -138,14 +150,32 @@ class ChatModelStore extends ReferenceCollection<ChatModel> implements IDisposab
 		return model;
 	}
 
-	protected async destroyReferencedObject(key: string, object: ChatModel): Promise<void> {
+	protected destroyReferencedObject(key: string, object: ChatModel): void {
+		this._modelsToDispose.add(key);
+		const promise = this.doDestroyReferencedObject(key, object);
+		this._pendingDisposals.add(promise);
+		promise.finally(() => {
+			this._pendingDisposals.delete(promise);
+		});
+	}
+
+	private async doDestroyReferencedObject(key: string, object: ChatModel): Promise<void> {
 		try {
 			await this.delegate.willDisposeModel(object);
+		} catch (error) {
+			this.logService.error('Failed to dispose chat model', toErrorMessage(error, true));
 		} finally {
-			this.logService.trace(`Disposing chat session ${key}`);
-			this._models.delete(key);
-			object.dispose();
+			if (this._modelsToDispose.has(key)) {
+				this.logService.trace(`Disposing chat session ${key}`);
+				this._models.delete(key);
+				object.dispose();
+				this._modelsToDispose.delete(key);
+			}
 		}
+	}
+
+	async waitForModelDisposals(): Promise<void> {
+		await Promise.all(this._pendingDisposals);
 	}
 
 	private toKey(uri: URI): string {
@@ -213,6 +243,10 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _chatSessionStore: ChatSessionStore;
 
 	readonly requestInProgressObs: IObservable<boolean>;
+
+	waitForModelDisposals(): Promise<void> {
+		return this._sessionModels.waitForModelDisposals();
+	}
 
 	public get edits2Enabled(): boolean {
 		return this.configurationService.getValue(ChatConfiguration.Edits2Enabled);
