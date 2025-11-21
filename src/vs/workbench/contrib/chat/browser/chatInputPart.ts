@@ -732,7 +732,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	private _syncFromModel(state: IChatModelInputState | undefined): void {
 		// Prevent circular updates
-		if (this._isSyncingToOrFromInputModel || !state) {
+		if (this._isSyncingToOrFromInputModel) {
 			return;
 		}
 
@@ -740,13 +740,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._isSyncingToOrFromInputModel = true;
 
 			// Sync mode
-			const currentMode = this._currentModeObservable.get();
-			if (currentMode.id !== state.mode.id) {
-				this.setChatMode(state.mode.id, false);
+			if (state) {
+				const currentMode = this._currentModeObservable.get();
+				if (currentMode.id !== state.mode.id) {
+					this.setChatMode(state.mode.id, false);
+				}
 			}
 
 			// Sync selected model
-			if (state.selectedModel) {
+			if (state?.selectedModel) {
 				if (!this._currentLanguageModel || this._currentLanguageModel.identifier !== state.selectedModel.identifier) {
 					this.setCurrentLanguageModel(state.selectedModel);
 				}
@@ -754,16 +756,24 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			// Sync attachments
 			const currentAttachments = this._attachmentModel.attachments;
-			if (!arraysEqual(currentAttachments, state.attachments)) {
+			if (!state) {
+				this._attachmentModel.clear();
+			} else if (!arraysEqual(currentAttachments, state.attachments)) {
 				this._attachmentModel.clearAndSetContext(...state.attachments);
 			}
 
 			// Sync input text
 			if (this._inputEditor) {
-				this._inputEditor.setValue(state.inputText);
-				if (state.selections.length) {
+				this._inputEditor.setValue(state?.inputText || '');
+				if (state?.selections.length) {
 					this._inputEditor.setSelections(state.selections);
 				}
+			}
+
+			if (state) {
+				this._widget?.contribs.forEach(contrib => {
+					contrib.setInputState?.(state.contrib);
+				});
 			}
 		} finally {
 			this._isSyncingToOrFromInputModel = false;
@@ -1089,6 +1099,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		aria.status(historyEntry.inputText);
 		this.setValue(historyEntry.inputText, true);
+		this._widget?.contribs.forEach(contrib => {
+			contrib.setInputState?.(historyEntry.contrib);
+		});
 		this._onDidLoadInputState.fire();
 
 		const model = this._inputEditor.getModel();

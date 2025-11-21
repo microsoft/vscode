@@ -122,6 +122,11 @@ export interface IChatWidgetContrib extends IDisposable {
 	 * Takes in the `contrib` object that will be saved in the {@link IChatModelInputState}.
 	 */
 	getInputState?(contrib: Record<string, unknown>): void;
+
+	/**
+	 * Called with the result of getInputState when navigating input history.
+	 */
+	setInputState?(contrib: Readonly<Record<string, unknown>>): void;
 }
 
 interface IChatRequestInputOptions {
@@ -2219,7 +2224,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
-		this.input.initForNewChatModel(model.inputModel.state.get(), model.getRequests().length === 0);
+		const inputState = model.inputModel.state.get();
+		this.input.initForNewChatModel(inputState, model.getRequests().length === 0);
 
 		this.refreshParsedInput();
 		this.viewModelDisposables.add(model.onDidChange((e) => {

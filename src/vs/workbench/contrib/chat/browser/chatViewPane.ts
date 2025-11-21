@@ -147,7 +147,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		} : undefined;
 	}
 
-	private async updateModel(model?: IChatModel | undefined): Promise<void> {
+	private async updateModel(model?: IChatModel | undefined) {
 		this.modelDisposables.clear();
 
 		model = model ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === this.chatOptions.location
@@ -162,6 +162,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Update the toolbar context with new sessionId
 		this.updateActions();
+
+		return model;
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -268,7 +270,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateActions();
 	}
 
-	async loadSession(sessionId: URI, viewState?: IChatModelInputState): Promise<void> {
+	async loadSession(sessionId: URI): Promise<IChatModel | undefined> {
 		if (this.widget.viewModel) {
 			await this.chatService.clearSession(this.widget.viewModel.sessionResource);
 		}
@@ -286,7 +288,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		const newModel = await this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None);
-		await this.updateModel(newModel);
+		return this.updateModel(newModel);
 	}
 
 	focusInput(): void {

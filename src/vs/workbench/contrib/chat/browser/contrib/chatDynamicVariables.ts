@@ -43,13 +43,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	) {
 		super();
 
-		this._register(widget.onDidChangeViewModel(() => {
-			const contrib = widget.viewModel?.model.inputModel.state.get()?.contrib[ChatDynamicVariableModel.ID];
-			if (contrib) {
-				this.setInputState(contrib);
-			}
-		}));
-
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 
 			const removed: IDynamicVariable[] = [];
@@ -111,7 +104,8 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		contrib[ChatDynamicVariableModel.ID] = this.variables;
 	}
 
-	private setInputState(s: any): void {
+	setInputState(contrib: Readonly<Record<string, unknown>>): void {
+		let s = contrib[ChatDynamicVariableModel.ID] as unknown[];
 		if (!Array.isArray(s)) {
 			s = [];
 		}

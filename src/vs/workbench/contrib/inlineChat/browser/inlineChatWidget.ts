@@ -51,7 +51,7 @@ import { ChatVoteDownButton } from '../../chat/browser/chatListRenderer.js';
 import { ChatWidget, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { chatRequestBackground } from '../../chat/common/chatColors.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { IChatModel, IChatModelInputState } from '../../chat/common/chatModel.js';
+import { IChatModel } from '../../chat/common/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
@@ -464,8 +464,9 @@ export class InlineChatWidget {
 		return this._chatWidget.viewModel?.model;
 	}
 
-	setChatModel(chatModel: IChatModel, state?: IChatModelInputState) {
-		this._chatWidget.setModel(chatModel, state && { ...state, inputText: '', selections: [] });
+	setChatModel(chatModel: IChatModel) {
+		chatModel.inputModel.setState({ inputText: '', selections: [] });
+		this._chatWidget.setModel(chatModel);
 	}
 
 	updateInfo(message: string): void {
