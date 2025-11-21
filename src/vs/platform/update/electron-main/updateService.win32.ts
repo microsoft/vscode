@@ -165,7 +165,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected doCheckForUpdates(explicit: boolean): void {
-		if (!this.url || this.state.type === StateType.Updating) {
+		if (!this.url) {
 			return;
 		}
 
