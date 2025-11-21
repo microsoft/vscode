@@ -257,7 +257,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const quality = product.quality;
 
 		if (quality && quality !== 'stable') {
-			version += '-' + quality;
+			const prerelease = process.env['VSCODE_PRERELEASE'];
+			version += `-${quality}${prerelease}`;
 		}
 
 		const name = product.nameShort;
@@ -415,7 +416,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 			if (quality === 'stable' || quality === 'insider') {
 				result = es.merge(result, gulp.src('.build/win32/appx/**', { base: '.build/win32' }));
-				const rawVersion = version.replace(/-\w+$/, '').split('.');
+				const rawVersion = /^\d+\.\d+\.\d+/.exec(version)[0].split('.');
 				const appxVersion = `${rawVersion[0]}.0.${rawVersion[1]}.${rawVersion[2]}`;
 				result = es.merge(result, gulp.src('resources/win32/appx/AppxManifest.xml', { base: '.' })
 					.pipe(replace('@@AppxPackageName@@', product.win32AppUserModelId))

@@ -121,10 +121,21 @@ struct PackageJson {
 fn apply_build_environment_variables() {
 	let repo_dir = env::current_dir().unwrap().join("..");
 	let package_json = read_json_from_path::<PackageJson>(&repo_dir.join("package.json"));
-	println!(
-		"cargo:rustc-env=VSCODE_CLI_VERSION={}",
-		package_json.version
-	);
+	let quality = env::var("VSCODE_QUALITY").unwrap_or("oss".to_string());
+
+	let version = match quality.as_str() {
+		"oss" | "stable" => package_json.version.clone(),
+		_ => {
+			format!(
+				"{}-{}-{}",
+				package_json.version,
+				quality,
+				env::var("VSCODE_PRERELEASE").unwrap()
+			)
+		}
+	};
+
+	println!("cargo:rustc-env=VSCODE_CLI_VERSION={}", version);
 
 	match env::var("VSCODE_CLI_PRODUCT_JSON") {
 		Ok(v) => {
