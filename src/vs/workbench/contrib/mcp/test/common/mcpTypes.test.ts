@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { McpResourceURI, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../common/mcpTypes.js';
+import { McpResourceURI, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
 import * as assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 
@@ -36,9 +36,11 @@ suite('MCP Types', () => {
 			cacheNonce: 'v1.0.0',
 			launch: {
 				type: McpServerTransportType.Stdio,
+				cwd: undefined,
 				command: 'test-command',
 				args: [],
-				env: {}
+				env: {},
+				envFile: undefined
 			},
 			...overrides
 		});
@@ -83,17 +85,21 @@ suite('MCP Types', () => {
 			const def1 = createBasicDefinition({
 				launch: {
 					type: McpServerTransportType.Stdio,
+					cwd: undefined,
 					command: 'command1',
 					args: [],
-					env: {}
+					env: {},
+					envFile: undefined
 				}
 			});
 			const def2 = createBasicDefinition({
 				launch: {
 					type: McpServerTransportType.Stdio,
+					cwd: undefined,
 					command: 'command2',
 					args: [],
-					env: {}
+					env: {},
+					envFile: undefined
 				}
 			});
 			assert.strictEqual(McpServerDefinition.equals(def1, def2), false);
