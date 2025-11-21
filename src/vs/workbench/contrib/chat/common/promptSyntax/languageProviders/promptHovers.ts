@@ -131,10 +131,7 @@ export class PromptHoverProvider implements HoverProvider {
 		if (node.value.type === 'array') {
 			for (const toolName of node.value.items) {
 				if (toolName.type === 'string' && toolName.range.containsPosition(position)) {
-					let toolNameValue = toolName.value;
-					if (target === undefined) {
-						toolNameValue = this.languageModelToolsService.mapGithubToolName(toolNameValue);
-					}
+					const toolNameValue = toolName.value;
 					if (target === Target.VSCode || target === undefined) {
 						const description = this.getToolHoverByName(toolNameValue, toolName.range);
 						if (description) {

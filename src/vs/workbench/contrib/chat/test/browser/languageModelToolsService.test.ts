@@ -979,25 +979,44 @@ suite('LanguageModelToolsService', () => {
 	});
 
 	test('toToolAndToolSetEnablementMap map Github to VSCode tools', () => {
-		const runCommandsToolData: IToolData = {
-			id: VSCodeToolReference.shell,
-			toolReferenceName: VSCodeToolReference.shell,
-			modelDescription: 'runCommands',
-			displayName: 'runCommands',
+		const runInTerminalToolData: IToolData = {
+			id: 'runInTerminalId',
+			toolReferenceName: 'runInTerminal',
+			modelDescription: 'runInTerminal Description',
+			displayName: 'runInTerminal displayName',
 			source: ToolDataSource.Internal,
-			canBeReferencedInPrompt: true,
+			canBeReferencedInPrompt: false,
 		};
 
-		store.add(service.registerToolData(runCommandsToolData));
+		store.add(service.registerToolData(runInTerminalToolData));
+
+		const shellToolSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			VSCodeToolReference.shell,
+			VSCodeToolReference.shell,
+			{ description: 'Shell' }
+		));
+		store.add(shellToolSet.addTool(runInTerminalToolData));
+
+
 		const runSubagentToolData: IToolData = {
-			id: VSCodeToolReference.runSubagent,
-			toolReferenceName: VSCodeToolReference.runSubagent,
-			modelDescription: 'runSubagent',
-			displayName: 'runSubagent',
+			id: 'runSubagentId',
+			toolReferenceName: 'runSubagent',
+			modelDescription: 'runSubagent Description',
+			displayName: 'runSubagent displayName',
 			source: ToolDataSource.Internal,
-			canBeReferencedInPrompt: true,
+			canBeReferencedInPrompt: false,
 		};
+
 		store.add(service.registerToolData(runSubagentToolData));
+
+		const agentSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			VSCodeToolReference.agent,
+			VSCodeToolReference.agent,
+			{ description: 'Agent' }
+		));
+		store.add(agentSet.addTool(runSubagentToolData));
 
 		const githubMcpDataSource: ToolDataSource = { type: 'mcp', label: 'Github', serverLabel: 'Github MCP Server', instructions: undefined, collectionId: 'githubMCPCollection', definitionId: 'githubMCPDefId' };
 		const githubMcpTool1: IToolData = {
@@ -1018,6 +1037,8 @@ suite('LanguageModelToolsService', () => {
 		));
 		store.add(githubMcpToolSet.addTool(githubMcpTool1));
 
+		assert.equal(githubMcpToolSet.referenceName, 'github', 'github/github-mcp-server will be normalized to github');
+
 		const playwrightMcpDataSource: ToolDataSource = { type: 'mcp', label: 'playwright', serverLabel: 'playwright MCP Server', instructions: undefined, collectionId: 'playwrightMCPCollection', definitionId: 'playwrightMCPDefId' };
 		const playwrightMcpTool1: IToolData = {
 			id: 'browser_click',
@@ -1036,14 +1057,29 @@ suite('LanguageModelToolsService', () => {
 			{ description: 'playwright MCP Test ToolSet' }
 		));
 		store.add(playwrightMcpToolSet.addTool(playwrightMcpTool1));
+
+		const deprecated = service.getDeprecatedQualifiedToolNames();
+		const deprecatesTo = (key: string): string[] | undefined => {
+			const values = deprecated.get(key);
+			return values ? Array.from(values).sort() : undefined;
+		};
+
+		assert.equal(playwrightMcpToolSet.referenceName, 'playwright', 'microsoft/playwright-mcp will be normalized to playwright');
+
 		{
 			const toolNames = [GithubCopilotToolReference.customAgent, GithubCopilotToolReference.shell];
 			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
-			assert.strictEqual(result.get(runSubagentToolData), true, 'runSubagentToolData should be enabled');
-			assert.strictEqual(result.get(runCommandsToolData), true, 'runCommandsToolData should be enabled');
+			assert.strictEqual(result.get(shellToolSet), true, 'shell should be enabled');
+			assert.strictEqual(result.get(agentSet), true, 'agent should be enabled');
+
 			const qualifiedNames = service.toQualifiedToolNames(result).sort();
-			assert.deepStrictEqual(qualifiedNames, [VSCodeToolReference.runSubagent, VSCodeToolReference.shell].sort(), 'toQualifiedToolNames should return the VS Code tool names');
+			assert.deepStrictEqual(qualifiedNames, [VSCodeToolReference.agent, VSCodeToolReference.shell].sort(), 'toQualifiedToolNames should return the VS Code tool names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [agentSet, shellToolSet]);
+
+			assert.deepStrictEqual(deprecatesTo(GithubCopilotToolReference.customAgent), [VSCodeToolReference.agent], 'customAgent should map to agent');
+			assert.deepStrictEqual(deprecatesTo(GithubCopilotToolReference.shell), undefined, 'shell is fine');
 		}
 		{
 			const toolNames = ['github/*', 'playwright/*'];
@@ -1052,29 +1088,105 @@ suite('LanguageModelToolsService', () => {
 			assert.strictEqual(result.get(githubMcpToolSet), true, 'githubMcpToolSet should be enabled');
 			assert.strictEqual(result.get(playwrightMcpToolSet), true, 'playwrightMcpToolSet should be enabled');
 			const qualifiedNames = service.toQualifiedToolNames(result).sort();
-			assert.deepStrictEqual(qualifiedNames, ['github/github-mcp-server/*', 'microsoft/playwright-mcp/*'], 'toQualifiedToolNames should return the VS Code tool names');
+			assert.deepStrictEqual(qualifiedNames, ['github/*', 'playwright/*'], 'toQualifiedToolNames should return the VS Code tool names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpToolSet, playwrightMcpToolSet]);
+
+			assert.deepStrictEqual(deprecatesTo('github/*'), undefined, 'github/* is fine');
+			assert.deepStrictEqual(deprecatesTo('playwright/*'), undefined, 'playwright/* is fine');
 		}
 
 		{
-			// map the qualified tool names for github and playwright MCP tools
+			// the speced names should work and not be altered
 			const toolNames = ['github/create_branch', 'playwright/browser_click'];
 			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
 			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
 			const qualifiedNames = service.toQualifiedToolNames(result).sort();
-			assert.deepStrictEqual(qualifiedNames, ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'], 'toQualifiedToolNames should return the VS Code tool names');
+			assert.deepStrictEqual(qualifiedNames, ['github/create_branch', 'playwright/browser_click'], 'toQualifiedToolNames should return the speced names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpTool1, playwrightMcpTool1]);
+
+			assert.deepStrictEqual(deprecatesTo('github/create_branch'), undefined, 'github/create_branch is fine');
+			assert.deepStrictEqual(deprecatesTo('playwright/browser_click'), undefined, 'playwright/browser_click is fine');
 		}
 
 		{
-			// test that already qualified names are not altered
+			// using the old MCP full names should also work
+			const toolNames = ['github/github-mcp-server/*', 'microsoft/playwright-mcp/*'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpToolSet), true, 'githubMcpToolSet should be enabled');
+			assert.strictEqual(result.get(playwrightMcpToolSet), true, 'playwrightMcpToolSet should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/*', 'playwright/*'], 'toQualifiedToolNames should return the speced names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpToolSet, playwrightMcpToolSet]);
+
+			assert.deepStrictEqual(deprecatesTo('github/github-mcp-server/*'), ['github/*']);
+			assert.deepStrictEqual(deprecatesTo('microsoft/playwright-mcp/*'), ['playwright/*']);
+		}
+		{
+			// using the old MCP full names should also work
 			const toolNames = ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'];
 			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
 			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
 			const qualifiedNames = service.toQualifiedToolNames(result).sort();
-			assert.deepStrictEqual(qualifiedNames, ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'], 'toQualifiedToolNames should return the VS Code tool names');
+			assert.deepStrictEqual(qualifiedNames, ['github/create_branch', 'playwright/browser_click'], 'toQualifiedToolNames should return the speced names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpTool1, playwrightMcpTool1]);
+
+			assert.deepStrictEqual(deprecatesTo('github/github-mcp-server/create_branch'), ['github/create_branch']);
+			assert.deepStrictEqual(deprecatesTo('microsoft/playwright-mcp/browser_click'), ['playwright/browser_click']);
+		}
+
+		{
+			// using the latest MCP full names should also work
+			const toolNames = ['io.github.github/github-mcp-server/*', 'com.microsoft/playwright-mcp/*'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpToolSet), true, 'githubMcpToolSet should be enabled');
+			assert.strictEqual(result.get(playwrightMcpToolSet), true, 'playwrightMcpToolSet should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/*', 'playwright/*'], 'toQualifiedToolNames should return the speced names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpToolSet, playwrightMcpToolSet]);
+
+			assert.deepStrictEqual(deprecatesTo('io.github.github/github-mcp-server/*'), ['github/*']);
+			assert.deepStrictEqual(deprecatesTo('com.microsoft/playwright-mcp/*'), ['playwright/*']);
+		}
+
+		{
+			// using the latest MCP full names should also work
+			const toolNames = ['io.github.github/github-mcp-server/create_branch', 'com.microsoft/playwright-mcp/browser_click'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
+			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/create_branch', 'playwright/browser_click'], 'toQualifiedToolNames should return the speced names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpTool1, playwrightMcpTool1]);
+
+			assert.deepStrictEqual(deprecatesTo('io.github.github/github-mcp-server/create_branch'), ['github/create_branch']);
+			assert.deepStrictEqual(deprecatesTo('com.microsoft/playwright-mcp/browser_click'), ['playwright/browser_click']);
+		}
+
+		{
+			// using the latest MCP full names should also work
+			const toolNames = ['github-mcp-server/create_branch'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/create_branch'], 'toQualifiedToolNames should return the VS Code tool names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpTool1]);
+
+			assert.deepStrictEqual(deprecatesTo('github-mcp-server/create_branch'), ['github/create_branch']);
 		}
 
 	});
