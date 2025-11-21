@@ -77,7 +77,7 @@ export const globalAutoApproveDescription = localize2(
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	vscodeToolSet: ToolSet;
-	launchToolSet: ToolSet;
+	executeToolSet: ToolSet;
 	readToolSet: ToolSet;
 
 	private _onDidChangeTools = this._register(new Emitter<void>());
@@ -145,14 +145,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		));
 
-		// Create the internal Launch tool set
-		this.launchToolSet = this._register(this.createToolSet(
+		// Create the internal Execute tool set
+		this.executeToolSet = this._register(this.createToolSet(
 			ToolDataSource.Internal,
-			'launch',
-			VSCodeToolReference.launch,
+			'execute',
+			VSCodeToolReference.execute,
 			{
-				icon: ThemeIcon.fromId(Codicon.rocket.id),
-				description: localize('copilot.toolSet.launch.description', 'Launch and run code, binaries or tests in the workspace'),
+				icon: ThemeIcon.fromId(Codicon.run.id),
+				description: localize('copilot.toolSet.execute.description', 'Execute code and applications on your machine'),
 			}
 		));
 
@@ -707,8 +707,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	private _githubToVSCodeToolMap: Record<string, string> = {
-		[GithubCopilotToolReference.shell]: VSCodeToolReference.shell,
-		[GithubCopilotToolReference.customAgent]: VSCodeToolReference.runSubagent,
+		[GithubCopilotToolReference.shell]: VSCodeToolReference.execute,
+		[GithubCopilotToolReference.customAgent]: VSCodeToolReference.agent,
 		'github/*': 'github/github-mcp-server/*',
 		'playwright/*': 'microsoft/playwright-mcp/*',
 	};

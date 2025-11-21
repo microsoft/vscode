@@ -542,7 +542,7 @@ suite('LanguageModelToolsService', () => {
 			'internalToolSetRefName',
 			'internalToolSetRefName/internalToolSetTool1RefName',
 			'vscode',
-			'launch',
+			'execute',
 			'read'
 		];
 		const numOfTools = allQualifiedNames.length + 1; // +1 for userToolSet which has no qualified name but is a tool set
@@ -556,7 +556,7 @@ suite('LanguageModelToolsService', () => {
 		const internalTool = service.getToolByQualifiedName('internalToolSetRefName/internalToolSetTool1RefName');
 		const userToolSet = service.getToolSet('userToolSet');
 		const vscodeToolSet = service.getToolSet('vscode');
-		const launchToolSet = service.getToolSet('launch');
+		const executeToolSet = service.getToolSet('execute');
 		const readToolSet = service.getToolSet('read');
 		assert.ok(tool1);
 		assert.ok(tool2);
@@ -567,7 +567,7 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(internalTool);
 		assert.ok(userToolSet);
 		assert.ok(vscodeToolSet);
-		assert.ok(launchToolSet);
+		assert.ok(executeToolSet);
 		assert.ok(readToolSet);
 		// Test with enabled tool
 		{
@@ -599,10 +599,10 @@ suite('LanguageModelToolsService', () => {
 		{
 			const result1 = service.toToolAndToolSetEnablementMap(allQualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
-			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 11, 'Expected 11 tools to be enabled'); // +3 including the vscode, launch, read toolsets
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 11, 'Expected 11 tools to be enabled'); // +3 including the vscode, execute, read toolsets
 
 			const qualifiedNames1 = service.toQualifiedToolNames(result1);
-			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName', 'vscode', 'launch', 'read'];
+			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName', 'vscode', 'execute', 'read'];
 			assert.deepStrictEqual(qualifiedNames1.sort(), expectedQualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
 		}
 		// Test with no enabled tools
@@ -982,25 +982,25 @@ suite('LanguageModelToolsService', () => {
 	});
 
 	test('toToolAndToolSetEnablementMap map Github to VSCode tools', () => {
-		const runCommandsToolData: IToolData = {
-			id: VSCodeToolReference.shell,
-			toolReferenceName: VSCodeToolReference.shell,
-			modelDescription: 'runCommands',
-			displayName: 'runCommands',
+		const executeToolData: IToolData = {
+			id: VSCodeToolReference.execute,
+			toolReferenceName: VSCodeToolReference.execute,
+			modelDescription: 'execute',
+			displayName: 'execute',
 			source: ToolDataSource.Internal,
 			canBeReferencedInPrompt: true,
 		};
 
-		store.add(service.registerToolData(runCommandsToolData));
-		const runSubagentToolData: IToolData = {
-			id: VSCodeToolReference.runSubagent,
-			toolReferenceName: VSCodeToolReference.runSubagent,
-			modelDescription: 'runSubagent',
-			displayName: 'runSubagent',
+		store.add(service.registerToolData(executeToolData));
+		const agentToolData: IToolData = {
+			id: VSCodeToolReference.agent,
+			toolReferenceName: VSCodeToolReference.agent,
+			modelDescription: 'agent',
+			displayName: 'agent',
 			source: ToolDataSource.Internal,
 			canBeReferencedInPrompt: true,
 		};
-		store.add(service.registerToolData(runSubagentToolData));
+		store.add(service.registerToolData(agentToolData));
 
 		const githubMcpDataSource: ToolDataSource = { type: 'mcp', label: 'Github', serverLabel: 'Github MCP Server', instructions: undefined, collectionId: 'githubMCPCollection', definitionId: 'githubMCPDefId' };
 		const githubMcpTool1: IToolData = {
@@ -1043,10 +1043,10 @@ suite('LanguageModelToolsService', () => {
 			const toolNames = [GithubCopilotToolReference.customAgent, GithubCopilotToolReference.shell];
 			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
-			assert.strictEqual(result.get(runSubagentToolData), true, 'runSubagentToolData should be enabled');
-			assert.strictEqual(result.get(runCommandsToolData), true, 'runCommandsToolData should be enabled');
+			assert.strictEqual(result.get(agentToolData), true, 'agentToolData should be enabled');
+			assert.strictEqual(result.get(executeToolData), true, 'executeToolData should be enabled');
 			const qualifiedNames = service.toQualifiedToolNames(result).sort();
-			assert.deepStrictEqual(qualifiedNames, [VSCodeToolReference.runSubagent, VSCodeToolReference.shell].sort(), 'toQualifiedToolNames should return the VS Code tool names');
+			assert.deepStrictEqual(qualifiedNames, [VSCodeToolReference.agent, VSCodeToolReference.execute].sort(), 'toQualifiedToolNames should return the VS Code tool names');
 		}
 		{
 			const toolNames = ['github/*', 'playwright/*'];
@@ -1986,7 +1986,7 @@ suite('LanguageModelToolsService', () => {
 			'internalToolSetRefName',
 			'internalToolSetRefName/internalToolSetTool1RefName',
 			'vscode',
-			'launch',
+			'execute',
 			'read'
 		].sort();
 
