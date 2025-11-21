@@ -693,6 +693,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
+	private static readonly githubMCPServerAliases = ['github/github-mcp-server', 'io.github.github/github-mcp-server', 'github-mcp-server'];
+	private static readonly playwrightMCPServerAliases = ['microsoft/playwright-mcp', 'com.microsoft/playwright-mcp'];
+
 	private * getToolSetAliases(toolSet: ToolSet, toolReferenceName: string): Iterable<string> {
 		if (toolReferenceName !== toolSet.referenceName) {
 			yield toolSet.referenceName; // full name, with '/*'
@@ -702,10 +705,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 		switch (toolSet.referenceName) {
 			case 'github':
-				yield* ['github/github-mcp-server/*', 'io.github.github/github-mcp-server/*', 'github-mcp-server/*'];
+				for (const alias of LanguageModelToolsService.githubMCPServerAliases) {
+					yield alias + '/*';
+				}
 				break;
 			case 'playwright':
-				yield* ['microsoft/playwright-mcp/*', 'com.microsoft/playwright-mcp/*'];
+				for (const alias of LanguageModelToolsService.playwrightMCPServerAliases) {
+					yield alias + '/*';
+				}
 				break;
 			case VSCodeToolReference.agent: // 'agent'
 				yield VSCodeToolReference.runSubagent;
@@ -732,10 +739,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		if (slashIndex !== -1) {
 			switch (toolReferenceName.substring(0, slashIndex)) {
 				case 'github':
-					yield* ['github/github-mcp-server', 'io.github.github/github-mcp-server', 'github-mcp-server'].map(n => n + toolReferenceName.substring(slashIndex));
+					for (const alias of LanguageModelToolsService.githubMCPServerAliases) {
+						yield alias + toolReferenceName.substring(slashIndex);
+					}
 					break;
 				case 'playwright':
-					yield* ['microsoft/playwright-mcp', 'com.microsoft/playwright-mcp'].map(n => n + toolReferenceName.substring(slashIndex));
+					for (const alias of LanguageModelToolsService.playwrightMCPServerAliases) {
+						yield alias + toolReferenceName.substring(slashIndex);
+					}
 					break;
 			}
 		}
@@ -846,14 +857,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	getSpecedToolSetName(referenceName: string): string {
-		switch (referenceName) {
-			case 'microsoft/playwright-mcp':
-			case 'com.microsoft/playwright-mcp':
-				return 'playwright';
-			case 'github/github-mcp-server':
-			case 'io.github.github/github-mcp-server':
-			case 'github-mcp-server':
-				return 'github';
+		if (LanguageModelToolsService.githubMCPServerAliases.includes(referenceName)) {
+			return 'github';
+		}
+		if (LanguageModelToolsService.playwrightMCPServerAliases.includes(referenceName)) {
+			return 'playwright';
 		}
 		return referenceName;
 	}
