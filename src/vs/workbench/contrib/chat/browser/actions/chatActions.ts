@@ -428,7 +428,7 @@ export function getOpenChatActionIdForMode(mode: IChatMode): string {
 	return `workbench.action.chat.open${mode.name.get()}`;
 }
 
-abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
+export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 	constructor(mode: IChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
 		super({
 			id: getOpenChatActionIdForMode(mode),
@@ -516,8 +516,8 @@ export function registerChatActions() {
 							ContextKeyExpr.equals('view', ChatViewId),
 							ChatContextKeys.inEmptyStateWithHistoryEnabled.negate()
 						),
-						group: 'navigation',
-						order: 2
+						group: '2_history',
+						order: 1
 					},
 					{
 						id: MenuId.EditorTitle,

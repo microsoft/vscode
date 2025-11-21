@@ -2,19 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-'use strict';
-
 import { spawnSync } from 'child_process';
 import path from 'path';
-import { getChromiumSysroot, getVSCodeSysroot } from './debian/install-sysroot';
-import { generatePackageDeps as generatePackageDepsDebian } from './debian/calculate-deps';
-import { generatePackageDeps as generatePackageDepsRpm } from './rpm/calculate-deps';
-import { referenceGeneratedDepsByArch as debianGeneratedDeps } from './debian/dep-lists';
-import { referenceGeneratedDepsByArch as rpmGeneratedDeps } from './rpm/dep-lists';
-import { DebianArchString, isDebianArchString } from './debian/types';
-import { isRpmArchString, RpmArchString } from './rpm/types';
-import product = require('../../product.json');
+import { getChromiumSysroot, getVSCodeSysroot } from './debian/install-sysroot.ts';
+import { generatePackageDeps as generatePackageDepsDebian } from './debian/calculate-deps.ts';
+import { generatePackageDeps as generatePackageDepsRpm } from './rpm/calculate-deps.ts';
+import { referenceGeneratedDepsByArch as debianGeneratedDeps } from './debian/dep-lists.ts';
+import { referenceGeneratedDepsByArch as rpmGeneratedDeps } from './rpm/dep-lists.ts';
+import { type DebianArchString, isDebianArchString } from './debian/types.ts';
+import { isRpmArchString, type RpmArchString } from './rpm/types.ts';
+import product from '../../product.json' with { type: 'json' };
 
 // A flag that can easily be toggled.
 // Make sure to compile the build directory after toggling the value.

@@ -859,7 +859,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private scrollToEnd() {
 		if (this.lastItem) {
 			const offset = Math.max(this.lastItem.currentRenderedHeight ?? 0, 1e6);
-			this.tree.reveal(this.lastItem, offset);
+			if (this.tree.hasElement(this.lastItem)) {
+				this.tree.reveal(this.lastItem, offset);
+			}
 		}
 	}
 
@@ -2147,9 +2149,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 
-	setModel(model: IChatModel): void {
+	setModel(model: IChatModel | undefined): void {
 		if (!this.container) {
 			throw new Error('Call render() before setModel()');
+		}
+
+		if (!model) {
+			this.viewModel = undefined;
+			return;
 		}
 
 		if (isEqual(model.sessionResource, this.viewModel?.sessionResource)) {
@@ -2210,7 +2217,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
-			this.input.saveState();
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
 			}
@@ -2734,7 +2740,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	saveState(): void {
-		this.input.saveState();
+		// no-op
 	}
 
 	getViewState(): IChatModelInputState | undefined {

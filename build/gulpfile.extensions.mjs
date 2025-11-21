@@ -12,22 +12,21 @@ import * as path from 'path';
 import * as nodeUtil from 'util';
 import es from 'event-stream';
 import filter from 'gulp-filter';
-import util from './lib/util.js';
-import getVersionModule from './lib/getVersion.js';
-import task from './lib/task.js';
-import watcher from './lib/watch/index.js';
-import reporterModule from './lib/reporter.js';
+import * as util from './lib/util.ts';
+import * as getVersionModule from './lib/getVersion.ts';
+import * as task from './lib/task.ts';
+import watcher from './lib/watch/index.ts';
+import * as reporterModule from './lib/reporter.ts';
 import glob from 'glob';
 import plumber from 'gulp-plumber';
-import ext from './lib/extensions.js';
-import tsb from './lib/tsb/index.js';
+import * as ext from './lib/extensions.ts';
+import * as tsb from './lib/tsb/index.ts';
 import sourcemaps from 'gulp-sourcemaps';
 import { fileURLToPath } from 'url';
 
-const __dirname = import.meta.dirname;
 const { getVersion } = getVersionModule;
 const { createReporter } = reporterModule;
-const root = path.dirname(__dirname);
+const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 
 // To save 250ms for each gulp startup, we are caching the result here
@@ -168,7 +167,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		const pipeline = createPipeline(false);
 		const nonts = gulp.src(src, srcOpts).pipe(filter(['**', '!**/*.ts']));
 		const input = es.merge(nonts, pipeline.tsProjectSrc());
-		const watchInput = watcher.default(src, { ...srcOpts, ...{ readDelay: 200 } });
+		const watchInput = watcher(src, { ...srcOpts, ...{ readDelay: 200 } });
 
 		return watchInput
 			.pipe(util.incremental(pipeline, input))

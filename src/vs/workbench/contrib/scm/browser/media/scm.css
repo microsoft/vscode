@@ -587,60 +587,51 @@
 
 /* History item hover */
 
-.monaco-hover.history-item-hover p:first-child {
+.monaco-hover.history-item-hover .history-item-hover-container > .rendered-markdown:first-child > p {
 	margin-top: 4px;
 }
 
-.monaco-hover.history-item-hover p:last-child {
+.monaco-hover.history-item-hover .history-item-hover-container > .rendered-markdown:last-child p {
 	margin-bottom: 2px !important;
 }
 
-.monaco-hover.history-item-hover p:last-child span:not(.codicon) {
+.monaco-hover.history-item-hover .history-item-hover-container > .rendered-markdown:last-child p span:not(.codicon) {
 	padding: 2px 0;
 }
 
-.monaco-hover.history-item-hover hr {
+.monaco-hover.history-item-hover .history-item-hover-container > .rendered-markdown hr {
 	margin-top: 4px;
 	margin-bottom: 4px;
 }
 
-.monaco-hover.history-item-hover hr + p {
+.monaco-hover.history-item-hover .history-item-hover-container > .rendered-markdown > p {
 	margin: 4px 0;
 }
 
-.monaco-hover.history-item-hover hr:nth-of-type(2):nth-last-of-type(2) + p {
+.monaco-hover.history-item-hover .history-item-hover-container div:nth-of-type(3):nth-last-of-type(2) > p {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 4px;
 }
 
-.monaco-hover.history-item-hover span:not(.codicon) {
+.monaco-hover.history-item-hover .history-item-hover-container span:not(.codicon) {
 	margin-bottom: 0 !important;
 }
 
-.monaco-hover.history-item-hover p > span > span.codicon.codicon-git-branch {
+.monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-git-branch {
 	font-size: 12px;
 	margin-bottom: 2px !important;
 }
 
-.monaco-hover.history-item-hover p > span > span.codicon.codicon-tag,
-.monaco-hover.history-item-hover p > span > span.codicon.codicon-target {
+.monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-tag,
+.monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-target {
 	font-size: 14px;
 	margin-bottom: 2px !important;
 }
 
-.monaco-hover.history-item-hover p > span > span.codicon.codicon-cloud {
+.monaco-hover.history-item-hover .history-item-hover-container p > span > span.codicon.codicon-cloud {
 	font-size: 14px;
 	margin-bottom: 1px !important;
-}
-
-.monaco-hover.history-item-hover .hover-row.status-bar .action {
-	display: flex;
-	align-items: center;
-}
-
-.monaco-hover.history-item-hover .hover-row.status-bar .action .codicon {
-	color: inherit;
 }
 
 /* Graph */
