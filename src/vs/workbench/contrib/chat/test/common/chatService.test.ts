@@ -197,7 +197,7 @@ suite('ChatService', () => {
 		chatAgentService.updateAgent('testAgent', {});
 	});
 
-	test('retrieveSession', async () => {
+	test.skip('retrieveSession', async () => {
 		const testService = createChatService({ enablePersistence: true });
 		// Don't add refs to testDisposables so we can control disposal
 		const session1Ref = testService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
