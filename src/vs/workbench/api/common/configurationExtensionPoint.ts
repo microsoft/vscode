@@ -437,8 +437,9 @@ class SettingsTableRenderer extends Disposable implements IExtensionFeatureTable
 	}
 
 	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
-		const configuration: IConfigurationNode[] = manifest.contributes?.configuration
-			? Array.isArray(manifest.contributes.configuration) ? manifest.contributes.configuration : [manifest.contributes.configuration]
+		const contributesConfig = manifest.contributes?.configuration;
+		const configuration: IConfigurationNode[] = contributesConfig
+			? Array.isArray(contributesConfig) ? contributesConfig as IConfigurationNode[] : [contributesConfig as IConfigurationNode]
 			: [];
 
 		const properties = getAllConfigurationProperties(configuration);

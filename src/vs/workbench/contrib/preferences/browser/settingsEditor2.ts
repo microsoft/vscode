@@ -1507,10 +1507,13 @@ export class SettingsEditor2 extends EditorPane {
 				const contributesConfiguration = manifest?.contributes?.configuration;
 
 				let groupTitle: string | undefined;
-				if (!Array.isArray(contributesConfiguration)) {
-					groupTitle = contributesConfiguration?.title;
-				} else if (contributesConfiguration.length === 1) {
-					groupTitle = contributesConfiguration[0].title;
+				if (!Array.isArray(contributesConfiguration) && contributesConfiguration && typeof contributesConfiguration === 'object' && 'title' in contributesConfiguration) {
+					groupTitle = typeof contributesConfiguration.title === 'string' ? contributesConfiguration.title : undefined;
+				} else if (Array.isArray(contributesConfiguration) && contributesConfiguration.length === 1) {
+					const config = contributesConfiguration[0];
+					if (config && typeof config === 'object' && 'title' in config && typeof config.title === 'string') {
+						groupTitle = config.title;
+					}
 				}
 
 				const recommendationInfo = toggleData.settingsEditorRecommendedExtensions[key];

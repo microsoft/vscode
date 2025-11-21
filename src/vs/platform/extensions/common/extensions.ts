@@ -201,7 +201,7 @@ export interface IMcpCollectionContribution {
 
 export interface IExtensionContributions {
 	commands?: ICommand[];
-	configuration?: any;
+	configuration?: unknown;
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
