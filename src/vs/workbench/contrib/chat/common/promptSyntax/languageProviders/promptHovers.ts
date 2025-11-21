@@ -100,6 +100,8 @@ export class PromptHoverProvider implements HoverProvider {
 							return this.getHandsOffHover(attribute, position, isGitHubTarget);
 						case PromptHeaderAttributes.target:
 							return this.createHover(localize('promptHeader.agent.target', 'The target to which the header attributes like tools apply to. Possible values are `github-copilot` and `vscode`.'), attribute.range);
+						case PromptHeaderAttributes.showContinueOn:
+							return this.createHover(localize('promptHeader.agent.showContinueOn', 'Whether to show the continue on targets dropdown for handoffs. Defaults to `true` if not specified.'), attribute.range);
 					}
 				}
 			}

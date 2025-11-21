@@ -74,6 +74,7 @@ export namespace PromptHeaderAttributes {
 	export const argumentHint = 'argument-hint';
 	export const excludeAgent = 'excludeAgent';
 	export const target = 'target';
+	export const showContinueOn = 'showContinueOn';
 }
 
 export namespace GithubPromptHeaderAttributes {
@@ -185,6 +186,19 @@ export class PromptHeader {
 
 	public get target(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.target);
+	}
+
+	private getBooleanAttribute(key: string): boolean | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
+		if (attribute?.value.type === 'boolean') {
+			return attribute.value.value;
+		}
+		return undefined;
+	}
+
+	public get showContinueOn(): boolean {
+		const value = this.getBooleanAttribute(PromptHeaderAttributes.showContinueOn);
+		return value ?? true; // default to true if not specified
 	}
 
 	public get tools(): string[] | undefined {

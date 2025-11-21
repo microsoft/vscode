@@ -129,6 +129,12 @@ export interface ICustomAgent {
 	readonly handOffs?: readonly IHandOff[];
 
 	/**
+	 * Whether to show the continue on targets dropdown for handoffs.
+	 * Defaults to true if not specified.
+	 */
+	readonly showContinueOn?: boolean;
+
+	/**
 	 * Where the agent was loaded from.
 	 */
 	readonly source: IAgentSource;
