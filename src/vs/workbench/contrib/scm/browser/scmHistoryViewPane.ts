@@ -483,9 +483,10 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		const historyItemViewModel = node.element.historyItemViewModel;
 		const historyItem = historyItemViewModel.historyItem;
 
-		const hoverContent = this._renderHoverContent(historyItem);
-		const historyItemHover = this._hoverService.setupManagedHover(this.hoverDelegate, templateData.element, hoverContent);
+		const { content, disposables } = this._renderHoverContent(historyItem);
+		const historyItemHover = this._hoverService.setupManagedHover(this.hoverDelegate, templateData.element, content);
 		templateData.elementDisposables.add(historyItemHover);
+		templateData.elementDisposables.add(disposables);
 
 		templateData.graphContainer.textContent = '';
 		templateData.graphContainer.classList.toggle('current', historyItemViewModel.kind === 'HEAD');
@@ -589,15 +590,20 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		append(templateData.labelContainer, elements.root);
 	}
 
-	private _renderHoverContent(historyItem: ISCMHistoryItem): IManagedHoverContent {
+	private _renderHoverContent(historyItem: ISCMHistoryItem): { content: IManagedHoverContent; disposables: IDisposable } {
+		const disposables = new DisposableStore();
+
 		if (historyItem.tooltip === undefined) {
-			return historyItem.message;
+			return { content: historyItem.message, disposables };
 		}
 
 		if (isMarkdownString(historyItem.tooltip)) {
 			return {
-				markdown: historyItem.tooltip,
-				markdownNotSupportedFallback: historyItem.message
+				content: {
+					markdown: historyItem.tooltip,
+					markdownNotSupportedFallback: historyItem.message
+				},
+				disposables
 			};
 		}
 
@@ -605,6 +611,8 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		// not know that color used in the graph to render the history item at which
 		// the reference is pointing to. They are being added before the last element
 		// of the array which is assumed to contain the hover commands.
+		const tooltipSections = historyItem.tooltip.slice();
+
 		if (historyItem.references?.length) {
 			const markdownString = new MarkdownString('', { supportHtml: true, supportThemeIcons: true });
 
@@ -619,21 +627,22 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 			}
 
 			markdownString.appendMarkdown(`\n\n---\n\n`);
-			historyItem.tooltip.splice(historyItem.tooltip.length - 1, 0, markdownString);
+			tooltipSections.splice(tooltipSections.length - 1, 0, markdownString);
 		}
 
 		// Render tooltip content
 		const hoverContainer = $('.history-item-hover-container');
-		for (const markdownString of historyItem.tooltip) {
+		for (const markdownString of tooltipSections) {
 			if (isEmptyMarkdownString(markdownString)) {
 				continue;
 			}
 
 			const renderedContent = this._markdownRendererService.render(markdownString);
 			hoverContainer.appendChild(renderedContent.element);
+			disposables.add(renderedContent);
 		}
 
-		return hoverContainer;
+		return { content: hoverContainer, disposables };
 	}
 
 	private _processMatches(historyItemViewModel: ISCMHistoryItemViewModel, filterData: LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
