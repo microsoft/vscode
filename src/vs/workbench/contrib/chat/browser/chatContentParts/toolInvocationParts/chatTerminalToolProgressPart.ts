@@ -660,9 +660,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _renderedOutputHeight: number | undefined;
 	private readonly _outputAriaLabelBase: string;
 	private _mirror: DetachedTerminalCommandMirror | undefined;
-	private _contentContainer: HTMLElement | undefined;
-	private _terminalContainer: HTMLElement | undefined;
-	private _emptyElement: HTMLElement | undefined;
+	private readonly _contentContainer: HTMLElement;
+	private readonly _terminalContainer: HTMLElement;
+	private readonly _emptyElement: HTMLElement;
 	private _hasRendered = false;
 
 	private readonly _onDidFocusEmitter = new Emitter<void>();
@@ -685,7 +685,19 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._outputAriaLabelBase = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', this._displayCommand);
 
 		this._container.classList.add('collapsed');
-		this._outputBody = dom.$('.chat-terminal-output-body');
+		const outputElements = h('.chat-terminal-output-body@body', [
+			h('.chat-terminal-output-content@content', [
+				h('.chat-terminal-output-terminal@terminal')
+			])
+		]);
+		this._outputBody = outputElements.body;
+		this._contentContainer = outputElements.content;
+		this._terminalContainer = outputElements.terminal;
+
+		const emptyElements = h('.chat-terminal-output-empty@empty');
+		this._emptyElement = emptyElements.empty;
+		this._emptyElement.style.display = 'none';
+		this._contentContainer.appendChild(this._emptyElement);
 
 		this.onDidFocus = this._onDidFocusEmitter.event;
 		this.onDidBlur = this._onDidBlurEmitter.event;
@@ -777,14 +789,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 
-		const content = dom.$('.chat-terminal-output-content');
-		const terminalContainer = dom.$('.chat-terminal-output-terminal');
-		content.appendChild(terminalContainer);
-		this._contentContainer = content;
-		this._terminalContainer = terminalContainer;
-
-		this._outputBody.replaceChildren(content);
-
 		if (!this._scrollableContainer) {
 			this._scrollableContainer = this._register(new DomScrollableElement(this._outputBody, {
 				vertical: ScrollbarVisibility.Auto,
@@ -805,10 +809,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private async _updateTerminalContent(): Promise<void> {
-		if (!this._contentContainer || !this._terminalContainer) {
-			return;
-		}
-
 		const terminalInstance = await this._ensureTerminalInstance();
 		if (!terminalInstance) {
 			this._showEmptyMessage(localize('chat.terminalOutputTerminalMissing', 'Terminal is no longer available.'));
@@ -839,22 +839,15 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _showEmptyMessage(message: string): void {
-		if (!this._contentContainer) {
-			return;
-		}
-		if (!this._emptyElement) {
-			this._emptyElement = dom.$('.chat-terminal-output-empty');
-			this._contentContainer.appendChild(this._emptyElement);
-		}
+		this._emptyElement.style.display = '';
 		this._emptyElement.textContent = message;
-		this._terminalContainer?.classList.add('chat-terminal-output-terminal-no-output');
+		this._terminalContainer.classList.add('chat-terminal-output-terminal-no-output');
 	}
 
 	private _hideEmptyMessage(): void {
-		if (this._emptyElement) {
-			this._emptyElement.style.display = 'none';
-		}
-		this._terminalContainer?.classList.remove('chat-terminal-output-terminal-no-output');
+		this._emptyElement.style.display = 'none';
+		this._emptyElement.textContent = '';
+		this._terminalContainer.classList.remove('chat-terminal-output-terminal-no-output');
 	}
 
 	private _scheduleOutputRelayout(): void {

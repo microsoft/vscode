@@ -1105,6 +1105,10 @@ export class TerminalService extends Disposable implements ITerminalService {
 			xterm.raw.attachCustomKeyEventHandler(() => false);
 		}
 
+		if (options.disableOverviewRuler) {
+			xterm.raw.options.overviewRuler = { width: 0 };
+		}
+
 		const instance = new DetachedTerminal(xterm, options, this._instantiationService);
 		this._detachedXterms.add(instance);
 		const l = xterm.onDidDispose(() => {

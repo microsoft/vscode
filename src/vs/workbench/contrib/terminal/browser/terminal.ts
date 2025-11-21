@@ -332,6 +332,7 @@ export interface IDetachedXTermOptions {
 	capabilities?: ITerminalCapabilityStore;
 	readonly?: boolean;
 	processInfo: ITerminalProcessInfo;
+	disableOverviewRuler?: boolean;
 }
 
 /**

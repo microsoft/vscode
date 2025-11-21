@@ -38,8 +38,6 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (this._attachedContainer !== container) {
 			container.classList.add('chat-terminal-output-terminal');
 			terminal.attachToElement(container);
-			// Disable overview ruler
-			terminal.xterm.raw!.options = { overviewRuler: { width: 0 } };
 			this._attachedContainer = container;
 		}
 	}
@@ -99,7 +97,8 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			rows: 10,
 			readonly: true,
 			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
-			colorProvider
+			colorProvider,
+			disableOverviewRuler: true
 		});
 		this._detachedTerminal = detached;
 		this._register(detached);
