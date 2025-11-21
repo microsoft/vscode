@@ -1347,8 +1347,9 @@ export interface IXtermTerminal extends IDisposable {
 	 * Gets the content between two markers as VT sequences.
 	 * @param startMarker
 	 * @param endMarker
+	 * @param skipLastLine Whether the last line should be skipped (e.g. when it's the prompt line)
 	 */
-	getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker): Promise<string>;
+	getRangeAsVT(startMarker: IXtermMarker, endMarker?: IXtermMarker, skipLastLine?: boolean): Promise<string>;
 
 	/**
 	 * Gets whether there's any terminal selection.
