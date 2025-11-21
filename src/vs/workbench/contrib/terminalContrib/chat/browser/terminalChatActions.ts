@@ -510,6 +510,7 @@ CommandsRegistry.registerCommand(TerminalChatCommandId.OpenTerminalSettingsLink,
 				break;
 			}
 		}
+
 	}
 });
 
