@@ -181,7 +181,10 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 
 	public clone(): IAnnotatedString<T> {
-		return new AnnotatedString<T>(this._annotations.slice());
+		const newAnnotations = this._annotations.map(a => {
+			return { range: a.range, annotation: a.annotation };
+		});
+		return new AnnotatedString<T>(newAnnotations);
 	}
 }
 
@@ -202,15 +205,13 @@ export class AnnotationsUpdate<T> {
 	}
 
 	private readonly _annotatedString: AnnotatedString<T>;
-	private readonly _annotations: IAnnotationUpdate<T>[];
 
 	private constructor(annotations: IAnnotationUpdate<T>[]) {
 		this._annotatedString = new AnnotatedString<T>(annotations);
-		this._annotations = annotations;
 	}
 
 	get annotations(): IAnnotationUpdate<T>[] {
-		return this._annotations;
+		return this._annotatedString.getAllAnnotations();
 	}
 
 	public rebase(edit: StringEdit): void {
