@@ -80,7 +80,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/co
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { IHandOff, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
+import { IHandOff, IHandOffAdditionalChoice, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
@@ -769,8 +769,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
-		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff }) => {
-			this.handleNextPromptSelection(handoff);
+		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff, option }) => {
+			this.handleNextPromptSelection(handoff, option);
 		}));
 
 		if (renderInputOnTop) {
@@ -1584,9 +1584,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private handleNextPromptSelection(handoff: IHandOff): void {
+	private handleNextPromptSelection(handoff: IHandOff, option?: IHandOffAdditionalChoice): void {
 		// Hide the widget after selection
 		this.chatSuggestNextWidget.hide();
+
+		// Use option's prompt if provided, otherwise use handoff's main prompt
+		const promptToUse = option?.prompt ?? handoff.prompt;
 
 		// Log telemetry
 		const currentMode = this.input.currentModeObs.get();
@@ -1594,7 +1597,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.telemetryService.publicLog2<ChatHandoffClickEvent, ChatHandoffClickClassification>('chat.handoffClicked', {
 			fromAgent: fromAgent,
 			toAgent: handoff.agent || '',
-			hasPrompt: Boolean(handoff.prompt),
+			hasPrompt: Boolean(promptToUse),
 			autoSend: Boolean(handoff.send)
 		});
 
@@ -1603,7 +1606,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._switchToAgentByName(handoff.agent);
 		}
 		// Insert the handoff prompt into the input
-		this.input.setValue(handoff.prompt, false);
+		this.input.setValue(promptToUse, false);
 		this.input.focus();
 
 		// Auto-submit if send flag is true

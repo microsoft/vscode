@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IChatMode } from '../../common/chatModes.js';
-import { IHandOff } from '../../common/promptSyntax/promptFileParser.js';
+import { IHandOff, IHandOffAdditionalChoice } from '../../common/promptSyntax/promptFileParser.js';
 
 export interface INextPromptSelection {
 	readonly handoff: IHandOff;
+	readonly option?: IHandOffAdditionalChoice;
 }
 
 export class ChatSuggestNextWidget extends Disposable {
@@ -27,7 +30,9 @@ export class ChatSuggestNextWidget extends Disposable {
 	private titleElement!: HTMLElement;
 	private _currentMode: IChatMode | undefined;
 
-	constructor() {
+	constructor(
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
+	) {
 		super();
 		this.domNode = this.createSuggestNextWidget();
 	}
@@ -88,23 +93,63 @@ export class ChatSuggestNextWidget extends Disposable {
 	}
 
 	private createPromptButton(handoff: IHandOff): HTMLElement {
-		// Reuse welcome view prompt button class
+		const disposables = new DisposableStore();
+		this._register(disposables);
+
 		const button = dom.$('.chat-welcome-view-suggested-prompt');
 		button.setAttribute('tabindex', '0');
 		button.setAttribute('role', 'button');
 		button.setAttribute('aria-label', localize('chat.suggestNext.item', '{0}', handoff.label));
 
-		// Title element using welcome view class
 		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
 		titleElement.textContent = handoff.label;
 
-		// Click handler
-		this._register(dom.addDisposableListener(button, 'click', () => {
+		const hasAdditionalChoices = handoff.additionalChoices && handoff.additionalChoices.length > 0;
+
+		if (hasAdditionalChoices) {
+			const chevron = dom.append(button, dom.$('.codicon.codicon-chevron-down.dropdown-chevron'));
+			chevron.setAttribute('tabindex', '0');
+			chevron.setAttribute('role', 'button');
+			chevron.setAttribute('aria-label', localize('chat.suggestNext.moreOptions', 'More options for {0}', handoff.label));
+			chevron.setAttribute('aria-haspopup', 'true');
+
+			const showContextMenu = (e: MouseEvent | KeyboardEvent, anchor?: HTMLElement) => {
+				e.preventDefault();
+				e.stopPropagation();
+
+				const actions = handoff.additionalChoices!.map(option =>
+					new Action(option.label, option.label, undefined, true, () => {
+						this._onDidSelectPrompt.fire({ handoff, option });
+					})
+				);
+
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor || button,
+					getActions: () => actions,
+					autoSelectFirstItem: true,
+				});
+			};
+
+			disposables.add(dom.addDisposableListener(chevron, 'click', (e: MouseEvent) => {
+				showContextMenu(e, chevron);
+			}));
+
+			disposables.add(dom.addDisposableListener(chevron, 'keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					showContextMenu(e, chevron);
+				}
+			}));
+		}
+
+		// Handle button clicks - ignore clicks on chevron if present
+		disposables.add(dom.addDisposableListener(button, 'click', (e: MouseEvent) => {
+			if (hasAdditionalChoices && (e.target as HTMLElement).classList.contains('dropdown-chevron')) {
+				return;
+			}
 			this._onDidSelectPrompt.fire({ handoff });
 		}));
 
-		// Keyboard handler
-		this._register(dom.addDisposableListener(button, 'keydown', (e) => {
+		disposables.add(dom.addDisposableListener(button, 'keydown', (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				this._onDidSelectPrompt.fire({ handoff });
