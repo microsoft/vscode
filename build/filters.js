@@ -13,10 +13,11 @@
  * all ⊃ eol ⊇ indentation ⊃ copyright ⊃ typescript
  */
 
-const { readFileSync } = require('fs');
-const { join } = require('path');
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
-module.exports.all = [
+
+export const all = [
 	'*',
 	'build/**/*',
 	'extensions/**/*',
@@ -31,7 +32,7 @@ module.exports.all = [
 	'!**/*.js.map',
 ];
 
-module.exports.unicodeFilter = [
+export const unicodeFilter = [
 	'**',
 
 	'!**/ThirdPartyNotices.txt',
@@ -68,7 +69,7 @@ module.exports.unicodeFilter = [
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 ];
 
-module.exports.indentationFilter = [
+export const indentationFilter = [
 	'**',
 
 	// except specific files
@@ -151,7 +152,7 @@ module.exports.indentationFilter = [
 	'!extensions/simple-browser/media/*.js',
 ];
 
-module.exports.copyrightFilter = [
+export const copyrightFilter = [
 	'**',
 	'!**/*.desktop',
 	'!**/*.json',
@@ -193,7 +194,7 @@ module.exports.copyrightFilter = [
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
 ];
 
-module.exports.tsFormattingFilter = [
+export const tsFormattingFilter = [
 	'src/**/*.ts',
 	'test/**/*.ts',
 	'extensions/**/*.ts',
@@ -212,19 +213,19 @@ module.exports.tsFormattingFilter = [
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
 ];
 
-module.exports.eslintFilter = [
+export const eslintFilter = [
 	'**/*.js',
 	'**/*.cjs',
 	'**/*.mjs',
 	'**/*.ts',
 	'.eslint-plugin-local/**/*.ts',
-	...readFileSync(join(__dirname, '..', '.eslint-ignore'))
+	...readFileSync(join(import.meta.dirname, '..', '.eslint-ignore'))
 		.toString()
 		.split(/\r\n|\n/)
 		.filter(line => line && !line.startsWith('#'))
 		.map(line => line.startsWith('!') ? line.slice(1) : `!${line}`)
 ];
 
-module.exports.stylelintFilter = [
+export const stylelintFilter = [
 	'src/**/*.css'
 ];

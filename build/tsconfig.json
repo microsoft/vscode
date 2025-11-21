@@ -5,8 +5,10 @@
 			"ES2024"
 		],
 		"module": "nodenext",
-		"alwaysStrict": true,
-		"removeComments": false,
+		"noEmit": true,
+		"erasableSyntaxOnly": true,
+		"verbatimModuleSyntax": true,
+		"allowImportingTsExtensions": true,
 		"preserveConstEnums": true,
 		"sourceMap": true,
 		"resolveJsonModule": true,
@@ -14,21 +16,18 @@
 		// use the tsconfig.build.json for compiling which disable JavaScript
 		// type checking so that JavaScript file are not transpiled
 		"allowJs": true,
+		"checkJs": false,
+		"skipLibCheck": true,
 		"strict": true,
 		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
-		"noUnusedParameters": true,
-		"newLine": "lf",
-		"noEmit": true
+		"noUnusedParameters": true
 	},
-	"include": [
-		"**/*.ts",
-		"**/*.js",
-		"**/*.mjs",
-	],
 	"exclude": [
 		"node_modules/**",
+		"monaco-editor-playground/**",
+		"builtin/**",
 		"vite/**"
 	]
 }

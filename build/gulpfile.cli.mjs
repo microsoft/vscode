@@ -11,20 +11,19 @@ import ansiColors from 'ansi-colors';
 import * as cp from 'child_process';
 import { tmpdir } from 'os';
 import { existsSync, mkdirSync, rmSync } from 'fs';
-import task from './lib/task.js';
-import watcher from './lib/watch/index.js';
-import utilModule from './lib/util.js';
-import reporterModule from './lib/reporter.js';
+import * as task from './lib/task.ts';
+import * as watcher from './lib/watch/index.ts';
+import * as utilModule from './lib/util.ts';
+import * as reporterModule from './lib/reporter.ts';
 import untar from 'gulp-untar';
 import gunzip from 'gulp-gunzip';
 import { fileURLToPath } from 'url';
 
 const { debounce } = utilModule;
 const { createReporter } = reporterModule;
-const __dirname = import.meta.dirname;
 
 const root = 'cli';
-const rootAbs = path.resolve(__dirname, '..', root);
+const rootAbs = path.resolve(import.meta.dirname, '..', root);
 const src = `${root}/src`;
 
 const platformOpensslDirName =
@@ -148,7 +147,7 @@ const compileCliTask = task.define('compile-cli', () => {
 
 const watchCliTask = task.define('watch-cli', () => {
 	warnIfRustNotInstalled();
-	return watcher.default(`${src}/**`, { read: false })
+	return watcher(`${src}/**`, { read: false })
 		.pipe(debounce(compileCliTask));
 });
 

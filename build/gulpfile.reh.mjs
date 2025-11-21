@@ -6,17 +6,17 @@
 import gulp from 'gulp';
 import * as path from 'path';
 import es from 'event-stream';
-import * as util from './lib/util.js';
-import * as getVersionModule from './lib/getVersion.js';
-import * as task from './lib/task.js';
-import optimize from './lib/optimize.js';
-import * as inlineMetaModule from './lib/inlineMeta.js';
+import * as util from './lib/util.ts';
+import * as getVersionModule from './lib/getVersion.ts';
+import * as task from './lib/task.ts';
+import * as optimize from './lib/optimize.ts';
+import * as inlineMetaModule from './lib/inlineMeta.ts';
 import product from '../product.json' with { type: 'json' };
 import rename from 'gulp-rename';
 import replace from 'gulp-replace';
 import filter from 'gulp-filter';
-import * as dependenciesModule from './lib/dependencies.js';
-import * as dateModule from './lib/date.js';
+import * as dependenciesModule from './lib/dependencies.ts';
+import * as dateModule from './lib/date.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
 import flatmap from 'gulp-flatmap';
@@ -32,7 +32,7 @@ import * as cp from 'child_process';
 import log from 'fancy-log';
 import buildfile from './buildfile.js';
 import { fileURLToPath } from 'url';
-import * as fetchModule from './lib/fetch.js';
+import * as fetchModule from './lib/fetch.ts';
 import jsonEditor from 'gulp-json-editor';
 
 const { inlineMeta } = inlineMetaModule;
@@ -40,9 +40,8 @@ const { getVersion } = getVersionModule;
 const { getProductionDependencies } = dependenciesModule;
 const { readISODate } = dateModule;
 const { fetchUrls, fetchGithub } = fetchModule;
-const __dirname = import.meta.dirname;
 
-const REPO_ROOT = path.dirname(__dirname);
+const REPO_ROOT = path.dirname(import.meta.dirname);
 const commit = getVersion(REPO_ROOT);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const REMOTE_FOLDER = path.join(REPO_ROOT, 'remote');
@@ -340,8 +339,8 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		const deps = gulp.src(dependenciesSrc, { base: 'remote', dot: true })
 			// filter out unnecessary files, no source maps in server build
 			.pipe(filter(['**', '!**/package-lock.json', '!**/*.{js,css}.map']))
-			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
-			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
+			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
+			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
 			.pipe(util.stripSourceMappingURL())
 			.pipe(jsFilter.restore);

@@ -13,20 +13,20 @@ import replace from 'gulp-replace';
 import filter from 'gulp-filter';
 import electron from '@vscode/gulp-electron';
 import jsonEditor from 'gulp-json-editor';
-import * as util from './lib/util.js';
-import * as getVersionModule from './lib/getVersion.js';
-import * as dateModule from './lib/date.js';
-import * as task from './lib/task.js';
+import * as util from './lib/util.ts';
+import * as getVersionModule from './lib/getVersion.ts';
+import * as dateModule from './lib/date.ts';
+import * as task from './lib/task.ts';
 import buildfile from './buildfile.js';
-import optimize from './lib/optimize.js';
-import * as inlineMetaModule from './lib/inlineMeta.js';
+import * as optimize from './lib/optimize.ts';
+import * as inlineMetaModule from './lib/inlineMeta.ts';
 import packageJson from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
 import * as crypto from 'crypto';
-import i18n from './lib/i18n.js';
-import * as dependenciesModule from './lib/dependencies.js';
-import electronModule from './lib/electron.js';
-import asarModule from './lib/asar.js';
+import * as i18n from './lib/i18n.ts';
+import * as dependenciesModule from './lib/dependencies.ts';
+import * as electronModule from './lib/electron.ts';
+import * as asarModule from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.mjs';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.mjs';
@@ -43,8 +43,7 @@ const { config } = electronModule;
 const { createAsar } = asarModule;
 const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
-const __dirname = import.meta.dirname;
-const root = path.dirname(__dirname);
+const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 
 // Build
@@ -292,14 +291,14 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const telemetry = gulp.src('.build/telemetry/**', { base: '.build/telemetry', dot: true });
 
 		const jsFilter = util.filter(data => !data.isDirectory() && /\.js$/.test(data.path));
-		const root = path.resolve(path.join(__dirname, '..'));
+		const root = path.resolve(path.join(import.meta.dirname, '..'));
 		const productionDependencies = getProductionDependencies(root);
 		const dependenciesSrc = productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat().concat('!**/*.mk');
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.{js,css}.map']))
-			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
-			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
+			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, '.moduleignore')))
+			.pipe(util.cleanNodeModules(path.join(import.meta.dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)

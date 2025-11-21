@@ -4,26 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 //@ts-check
 import gulp from 'gulp';
-import * as path from 'path';
-import util from './lib/util.js';
-import getVersionModule from './lib/getVersion.js';
-import task from './lib/task.js';
+import path from 'path';
+import * as util from './lib/util.ts';
+import * as getVersionModule from './lib/getVersion.ts';
+import * as task from './lib/task.ts';
 import es from 'event-stream';
 import File from 'vinyl';
-import i18n from './lib/i18n.js';
-import standalone from './lib/standalone.js';
+import * as i18n from './lib/i18n.ts';
+import * as standalone from './lib/standalone.ts';
 import * as cp from 'child_process';
-import compilation from './lib/compilation.js';
-import monacoapi from './lib/monaco-api.js';
+import * as compilation from './lib/compilation.ts';
+import * as monacoapi from './lib/monaco-api.ts';
 import * as fs from 'fs';
 import filter from 'gulp-filter';
-import reporterModule from './lib/reporter.js';
+import * as reporterModule from './lib/reporter.ts';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
 
-const __dirname = import.meta.dirname;
 const { getVersion } = getVersionModule;
 const { createReporter } = reporterModule;
-const root = path.dirname(__dirname);
+const root = path.dirname(import.meta.dirname);
 const sha1 = getVersion(root);
 const semver = monacoPackage.version;
 const headerVersion = semver + '(' + sha1 + ')';
@@ -242,7 +241,7 @@ function createTscCompileTask(watch) {
 				args.push('-w');
 			}
 			const child = cp.spawn(`node`, args, {
-				cwd: path.join(__dirname, '..'),
+				cwd: path.join(import.meta.dirname, '..'),
 				// stdio: [null, 'pipe', 'inherit']
 			});
 			const errors = [];

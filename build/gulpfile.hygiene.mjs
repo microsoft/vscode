@@ -6,7 +6,7 @@ import gulp from 'gulp';
 import es from 'event-stream';
 import path from 'path';
 import fs from 'fs';
-import task from './lib/task.js';
+import * as task from './lib/task.ts';
 import { hygiene } from './hygiene.mjs';
 
 const dirName = path.dirname(new URL(import.meta.url).pathname);

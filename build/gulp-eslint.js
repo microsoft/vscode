@@ -2,13 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
-'use strict';
-
-const { ESLint } = require('eslint');
-const { Transform, default: Stream } = require('stream');
-const { relative } = require('path');
-const fancyLog = require('fancy-log');
+import { ESLint } from 'eslint';
+import fancyLog from 'fancy-log';
+import { relative } from 'path';
+import Stream, { Transform } from 'stream';
 
 /**
  * @typedef {ESLint.LintResult[] & { errorCount: number, warningCount: number}} ESLintResults
@@ -17,7 +14,7 @@ const fancyLog = require('fancy-log');
 /**
  * @param {(results: ESLintResults) => void} action - A function to handle all ESLint results
  */
-function eslint(action) {
+export default function eslint(action) {
 	const linter = new ESLint({});
 	const formatter = linter.loadFormatter('compact');
 
@@ -82,5 +79,3 @@ function transform(transform, flush) {
 		flush
 	});
 }
-
-module.exports = eslint;
