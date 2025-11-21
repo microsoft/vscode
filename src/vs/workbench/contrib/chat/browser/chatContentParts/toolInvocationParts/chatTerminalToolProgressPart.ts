@@ -51,7 +51,8 @@ import { KeybindingWeight, KeybindingsRegistry } from '../../../../../../platfor
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { DetachedTerminalCommandMirror } from '../../../../terminal/browser/chatTerminalCommandMirror.js';
 
-const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
+const MIN_OUTPUT_HEIGHT = 20;
+const MAX_OUTPUT_HEIGHT = 200;
 
 /**
  * Remembers whether a tool invocation was last expanded so state survives virtualization re-renders.
@@ -794,7 +795,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			}));
 			const scrollableDomNode = this._outputScrollbar.getDomNode();
 			scrollableDomNode.tabIndex = 0;
-			scrollableDomNode.style.maxHeight = `${MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT}px`;
+			scrollableDomNode.style.maxHeight = `${MAX_OUTPUT_HEIGHT}px`;
 			this._container.appendChild(scrollableDomNode);
 		}
 
@@ -870,10 +871,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}
 		const scrollableDomNode = this._outputScrollbar.getDomNode();
 		const contentHeight = Math.max(this._getOutputContentHeight(lineCount), MIN_OUTPUT_HEIGHT);
-		const clampedHeight = Math.min(contentHeight, MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT);
+		const clampedHeight = Math.min(contentHeight, MAX_OUTPUT_HEIGHT);
 		const measuredBodyHeight = Math.max(this._outputBody.clientHeight, MIN_OUTPUT_HEIGHT);
 		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
-		scrollableDomNode.style.maxHeight = `${MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT}px`;
+		scrollableDomNode.style.maxHeight = `${MAX_OUTPUT_HEIGHT}px`;
 		scrollableDomNode.style.height = `${appliedHeight}px`;
 		this._outputScrollbar.scanDomNode();
 		if (this._renderedOutputHeight !== appliedHeight) {
