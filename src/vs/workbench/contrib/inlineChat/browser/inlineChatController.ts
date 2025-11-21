@@ -51,7 +51,7 @@ import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachment
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
-import { ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
+import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/chatVariableEntries.js';
@@ -1587,12 +1587,13 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 
 	const chatService = accessor.get(IChatService);
 	const uri = editor.getModel().uri;
-	const chatModel = chatService.startSession(ChatAgentLocation.EditorInline, token);
+	const chatModelRef = chatService.startSession(ChatAgentLocation.EditorInline, token);
+	const chatModel = chatModelRef.object as ChatModel;
 
 	chatModel.startEditingSession(true);
 
 	const store = new DisposableStore();
-	store.add(chatModel);
+	store.add(chatModelRef);
 
 	// STREAM
 	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0, {
@@ -1638,12 +1639,13 @@ export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, 
 	const chatService = accessor.get(IChatService);
 	const notebookService = accessor.get(INotebookService);
 	const isNotebook = notebookService.hasSupportedNotebooks(uri);
-	const chatModel = chatService.startSession(ChatAgentLocation.EditorInline, token);
+	const chatModelRef = chatService.startSession(ChatAgentLocation.EditorInline, token);
+	const chatModel = chatModelRef.object as ChatModel;
 
 	chatModel.startEditingSession(true);
 
 	const store = new DisposableStore();
-	store.add(chatModel);
+	store.add(chatModelRef);
 
 	// STREAM
 	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);

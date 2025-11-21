@@ -137,6 +137,7 @@ export class ChatEditor extends EditorPane {
 
 	override clearInput(): void {
 		this.saveState();
+		this.widget.setModel(undefined);
 		super.clearInput();
 	}
 
