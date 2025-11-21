@@ -27,8 +27,9 @@ export class ObservableMap<K, V> implements Map<K, V> {
 	}
 
 	set(key: K, value: V, tx?: ITransaction): this {
+		const hadKey = this._data.has(key);
 		const oldValue = this._data.get(key);
-		if (oldValue === undefined || oldValue !== value) {
+		if (!hadKey || oldValue !== value) {
 			this._data.set(key, value);
 			this._obs.set(this, tx);
 		}

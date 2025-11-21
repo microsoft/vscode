@@ -108,9 +108,8 @@ export class CachedFunction<TArg, TComputed> {
 
 	public get(arg: TArg): TComputed {
 		const key = this._computeKey(arg);
-		const cached = this._map2.get(key);
-		if (cached !== undefined) {
-			return cached;
+		if (this._map2.has(key)) {
+			return this._map2.get(key)!;
 		}
 
 		const value = this._fn(arg);
