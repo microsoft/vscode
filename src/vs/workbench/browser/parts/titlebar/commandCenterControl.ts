@@ -22,6 +22,8 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { WindowTitle } from './windowTitle.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IAgentHQService } from '../../../contrib/chat/browser/agentHQ/agentHQService.js';
+import { AgentHQOverlay } from '../../../contrib/chat/browser/agentHQ/agentHQOverlay.js';
 
 export class CommandCenterControl {
 
@@ -86,6 +88,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
+		@IAgentHQService private readonly _agentHQService: IAgentHQService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
@@ -145,20 +148,39 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							container.setAttribute('aria-description', this.getTooltip());
 							const action = this.action;
 
-							// icon (search)
-							const searchIcon = document.createElement('span');
-							searchIcon.ariaHidden = 'true';
-							searchIcon.className = action.class ?? '';
-							searchIcon.classList.add('search-icon');
+							// icon (agent or search)
+							const icon = document.createElement('span');
+							icon.ariaHidden = 'true';
+							icon.className = action.class ?? '';
+							icon.classList.add('search-icon');
 
-							// label: just workspace name and optional decorations
+							// label: agent session or workspace name
 							const label = this._getLabel();
 							const labelElement = document.createElement('span');
 							labelElement.classList.add('search-label');
 							labelElement.textContent = label;
-							reset(container, searchIcon, labelElement);
+							reset(container, icon, labelElement);
 
 							const hover = this._store.add(that._hoverService.setupManagedHover(that._hoverDelegate, container, this.getTooltip()));
+
+							// Override click to show agent HQ overlay
+							this._store.add(that._instaService.createInstance(AgentHQOverlay).onDidClose(() => {
+								// Clean up after overlay closes
+							}));
+							
+							container.onclick = (e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								const overlay = that._instaService.createInstance(AgentHQOverlay);
+								overlay.show();
+							};
+
+							// update label & tooltip when agent session changes
+							this._store.add(that._agentHQService.onDidChangeMostRecentSession(() => {
+								hover.update(this.getTooltip());
+								labelElement.textContent = this._getLabel();
+								this._updateIcon(icon);
+							}));
 
 							// update label & tooltip when window title changes
 							this._store.add(that._windowTitle.onDidChange(() => {
@@ -173,6 +195,17 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 									labelElement.textContent = this._getLabel();
 								}
 							}));
+
+							// Initial icon setup
+							this._updateIcon(icon);
+						}
+
+						private _updateIcon(icon: HTMLElement): void {
+							const session = that._agentHQService.mostRecentSession;
+							if (session) {
+								icon.className = '';
+								icon.classList.add('codicon', `codicon-${session.icon.id}`);
+							}
 						}
 
 						protected override getTooltip() {
@@ -180,6 +213,15 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 						}
 
 						private _getLabel(): string {
+							const session = that._agentHQService.mostRecentSession;
+							if (session) {
+								// Show agent session info
+								const statusIcon = session.status === 2 ? '$(loading~spin)' : 
+												 session.status === 0 ? '$(error)' : '$(check)';
+								return `${statusIcon} ${session.label}`;
+							}
+
+							// Fallback to workspace name
 							const { prefix, suffix } = that._windowTitle.getTitleDecorations();
 							let label = that._windowTitle.workspaceName;
 							if (that._windowTitle.isCustomTitleFormat()) {
@@ -218,6 +260,13 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 	}
 
 	protected override getTooltip() {
+		const session = this._agentHQService.mostRecentSession;
+		if (session) {
+			// Show agent session tooltip
+			const statusText = session.status === 2 ? 'In Progress' : 
+							 session.status === 0 ? 'Failed' : 'Completed';
+			return localize('agentHQ.tooltip', "{0} - {1} ({2})", session.providerLabel, session.label, statusText);
+		}
 
 		// tooltip: full windowTitle
 		const kb = this._keybindingService.lookupKeybinding(this.action.id)?.getLabel();

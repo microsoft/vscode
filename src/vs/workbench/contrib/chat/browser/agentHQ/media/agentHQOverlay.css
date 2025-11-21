@@ -1,0 +1,70 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-hq-overlay-container {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 10000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0;
+	transition: opacity 0.2s ease-in-out;
+	pointer-events: none;
+}
+
+.agent-hq-overlay-container.visible {
+	opacity: 1;
+	pointer-events: all;
+}
+
+.agent-hq-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	background-color: rgba(0, 0, 0, 0.5);
+	backdrop-filter: blur(2px);
+}
+
+.agent-hq-widget {
+	position: relative;
+	width: 80%;
+	max-width: 800px;
+	height: 70%;
+	max-height: 600px;
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 8px;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	z-index: 10001;
+}
+
+.agent-hq-title {
+	padding: 16px 20px;
+	font-size: 18px;
+	font-weight: 600;
+	border-bottom: 1px solid var(--vscode-widget-border);
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+}
+
+.agent-hq-list-container {
+	flex: 1;
+	overflow: auto;
+	padding: 8px;
+}
+
+/* Ensure tree items are visible */
+.agent-hq-list-container .monaco-list {
+	height: 100%;
+}
