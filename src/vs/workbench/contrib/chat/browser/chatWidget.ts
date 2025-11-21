@@ -2217,7 +2217,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
-			this.input.saveState();
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
 			}
@@ -2741,7 +2740,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	saveState(): void {
-		this.input.saveState();
+		// no-op
 	}
 
 	getViewState(): IChatModelInputState | undefined {
