@@ -268,6 +268,22 @@ suite('Common Editor Config', () => {
 		);
 		config.dispose();
 	});
+
+	test('cursorSurroundingLinesHighlightOnSelection option', () => {
+		// Test default value is false
+		const config = new TestConfiguration({});
+		assert.strictEqual(config.options.get(EditorOption.cursorSurroundingLinesHighlightOnSelection), false);
+
+		// Test setting to true
+		config.updateOptions({ cursorSurroundingLinesHighlightOnSelection: true });
+		assert.strictEqual(config.options.get(EditorOption.cursorSurroundingLinesHighlightOnSelection), true);
+
+		// Test setting back to false
+		config.updateOptions({ cursorSurroundingLinesHighlightOnSelection: false });
+		assert.strictEqual(config.options.get(EditorOption.cursorSurroundingLinesHighlightOnSelection), false);
+
+		config.dispose();
+	});
 });
 
 suite('migrateOptions', () => {
