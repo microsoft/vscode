@@ -3,28 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesceInPlace } from '../../../../base/common/arrays.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { Iterable } from '../../../../base/common/iterator.js';
-import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
-import { IRange, Range } from '../../../../editor/common/core/range.js';
-import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
-import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
-import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from '../../../../editor/common/model.js';
-import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
-import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
-import { IModelContentChangedEvent } from '../../../../editor/common/textModelEvents.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IChatAgent } from '../../chat/common/chatAgents.js';
-import { ChatModel, IChatRequestModel, IChatTextEditGroupState } from '../../chat/common/chatModel.js';
 import { CTX_INLINE_CHAT_HAS_STASHED_SESSION } from '../common/inlineChat.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { ModelDecorationOptions } from '../../../../editor/common/model/textModel.js';
+import { EditOperation, ISingleEditOperation } from '../../../../editor/common/core/editOperation.js';
+import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
+import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
+import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
+import { coalesceInPlace } from '../../../../base/common/arrays.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { IModelContentChangedEvent } from '../../../../editor/common/textModelEvents.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { ChatModel, IChatRequestModel, IChatTextEditGroupState } from '../../chat/common/chatModel.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
+import { IChatAgent } from '../../chat/common/chatAgents.js';
+import { IDocumentDiff } from '../../../../editor/common/diff/documentDiffProvider.js';
 
 
 export type TelemetryData = {
