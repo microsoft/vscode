@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import cp from 'child_process';
-import es from 'event-stream';
-import fs from 'fs';
-import filter from 'gulp-filter';
-import pall from 'p-all';
-import path from 'path';
-import VinylFile from 'vinyl';
-import vfs from 'vinyl-fs';
-import { all, copyrightFilter, eslintFilter, indentationFilter, stylelintFilter, tsFormattingFilter, unicodeFilter } from './filters.js';
-import eslint from './gulp-eslint.js';
-import formatter from './lib/formatter.js';
-import gulpstylelint from './stylelint.mjs';
+const cp = require('child_process');
+const es = require('event-stream');
+const fs = require('fs');
+const filter = require('gulp-filter');
+const pall = require('p-all');
+const path = require('path');
+const VinylFile = require('vinyl');
+const vfs = require('vinyl-fs');
+const { all, copyrightFilter, eslintFilter, indentationFilter, stylelintFilter, tsFormattingFilter, unicodeFilter } = require('./filters.js');
+const eslint = require('./gulp-eslint.js');
+const formatter = require('./lib/formatter.js');
+const gulpstylelint = require('./stylelint.mjs');
 
 const copyrightHeaderLines = [
 	'/*---------------------------------------------------------------------------------------------',
@@ -27,7 +27,7 @@ const copyrightHeaderLines = [
  * @param {string[] | NodeJS.ReadWriteStream} some
  * @param {boolean} runEslint
  */
-export function hygiene(some, runEslint = true) {
+function hygiene(some, runEslint = true) {
 	console.log('Starting hygiene...');
 	let errorCount = 0;
 
@@ -225,6 +225,8 @@ export function hygiene(some, runEslint = true) {
 	);
 }
 
+module.exports.hygiene = hygiene;
+
 /**
  * @param {string[]} paths
  */
@@ -269,7 +271,7 @@ function createGitIndexVinyls(paths) {
 }
 
 // this allows us to run hygiene as a git pre-commit hook
-if (import.meta.filename === process.argv[1]) {
+if (require.main === module) {
 	process.on('unhandledRejection', (reason, p) => {
 		console.log('Unhandled Rejection at: Promise', p, 'reason:', reason);
 		process.exit(1);
