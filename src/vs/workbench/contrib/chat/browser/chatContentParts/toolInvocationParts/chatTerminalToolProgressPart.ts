@@ -656,8 +656,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _resolveCommand: () => ITerminalCommand | undefined;
 
 	private readonly _outputBody: HTMLElement;
-	private _outputScrollbar: DomScrollableElement | undefined;
-	private _outputResizeObserver: ResizeObserver | undefined;
+	private _scrollableContainer: DomScrollableElement | undefined;
 	private _renderedOutputHeight: number | undefined;
 	private readonly _outputAriaLabelBase: string;
 	private _mirror: DetachedTerminalCommandMirror | undefined;
@@ -732,7 +731,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	public focus(): void {
-		this._outputScrollbar?.getDomNode().focus();
+		this._scrollableContainer?.getDomNode().focus();
 	}
 
 	public containsElement(element: HTMLElement | null): boolean {
@@ -740,10 +739,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	public updateAriaLabel(): void {
-		if (!this._outputScrollbar) {
+		if (!this._scrollableContainer) {
 			return;
 		}
-		const scrollableDomNode = this._outputScrollbar.getDomNode();
+		const scrollableDomNode = this._scrollableContainer.getDomNode();
 		scrollableDomNode.setAttribute('role', 'region');
 		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.TerminalChatOutput);
 		const label = accessibleViewHint
@@ -775,7 +774,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private async _renderOutputIfNeeded(): Promise<void> {
 		if (this._hasRendered) {
-			this._ensureOutputResizeObserver();
 			return;
 		}
 
@@ -787,13 +785,13 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 		this._outputBody.replaceChildren(content);
 
-		if (!this._outputScrollbar) {
-			this._outputScrollbar = this._register(new DomScrollableElement(this._outputBody, {
+		if (!this._scrollableContainer) {
+			this._scrollableContainer = this._register(new DomScrollableElement(this._outputBody, {
 				vertical: ScrollbarVisibility.Auto,
 				horizontal: ScrollbarVisibility.Auto,
 				handleMouseWheel: true
 			}));
-			const scrollableDomNode = this._outputScrollbar.getDomNode();
+			const scrollableDomNode = this._scrollableContainer.getDomNode();
 			scrollableDomNode.tabIndex = 0;
 			const rowHeight = this._computeRowHeightPx();
 			const padding = this._getOutputPadding();
@@ -803,7 +801,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}
 
 		this.updateAriaLabel();
-		this._ensureOutputResizeObserver();
 		this._hasRendered = true;
 	}
 
@@ -868,10 +865,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _layoutOutput(lineCount?: number): void {
-		if (!this._outputScrollbar || !this.isExpanded || !lineCount) {
+		if (!this._scrollableContainer || !this.isExpanded || !lineCount) {
 			return;
 		}
-		const scrollableDomNode = this._outputScrollbar.getDomNode();
+		const scrollableDomNode = this._scrollableContainer.getDomNode();
 		const rowHeight = this._computeRowHeightPx();
 		const padding = this._getOutputPadding();
 		const minHeight = rowHeight * MIN_OUTPUT_ROWS + padding;
@@ -882,7 +879,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
 		scrollableDomNode.style.maxHeight = `${maxHeight}px`;
 		scrollableDomNode.style.height = `${appliedHeight}px`;
-		this._outputScrollbar.scanDomNode();
+		this._scrollableContainer.scanDomNode();
 		if (this._renderedOutputHeight !== appliedHeight) {
 			this._renderedOutputHeight = appliedHeight;
 			this._onDidChangeHeight();
@@ -890,11 +887,11 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _scrollOutputToBottom(): void {
-		if (!this._outputScrollbar) {
+		if (!this._scrollableContainer) {
 			return;
 		}
-		const dimensions = this._outputScrollbar.getScrollDimensions();
-		this._outputScrollbar.setScrollPosition({ scrollTop: dimensions.scrollHeight });
+		const dimensions = this._scrollableContainer.getScrollDimensions();
+		this._scrollableContainer.setScrollPosition({ scrollTop: dimensions.scrollHeight });
 	}
 
 	private _getOutputContentHeight(lineCount: number, rowHeight: number, padding: number): number {
@@ -919,19 +916,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const lineHeight = hasLineHeight ? font.lineHeight : 1;
 		const rowHeight = Math.ceil(charHeight * lineHeight);
 		return Math.max(rowHeight, 1);
-	}
-
-	private _ensureOutputResizeObserver(): void {
-		if (this._outputResizeObserver || !this._outputScrollbar) {
-			return;
-		}
-		const observer = new ResizeObserver(() => this._layoutOutput());
-		observer.observe(this._container);
-		this._outputResizeObserver = observer;
-		this._register(toDisposable(() => {
-			observer.disconnect();
-			this._outputResizeObserver = undefined;
-		}));
 	}
 }
 
