@@ -17,6 +17,8 @@ const { Mangler } = require('../build/lib/mangle/index');
  */
 const mangleMap = new Map();
 
+const sequentializer = Promise.resolve();
+
 /**
  * @param {string} projectPath
  */
@@ -26,7 +28,12 @@ function getMangledFileContents(projectPath) {
 		const log = (...data) => fancyLog(ansiColors.blue('[mangler]'), ...data);
 		log(`Mangling ${projectPath}`);
 		const ts2tsMangler = new Mangler(projectPath, log, { mangleExports: true, manglePrivateFields: true });
-		entry = ts2tsMangler.computeNewFileContents();
+		const mangleTask = () => {
+			return ts2tsMangler.computeNewFileContents().finally(() => {
+				ts2tsMangler.dispose();
+			});
+		};
+		entry = sequentializer.then(mangleTask, mangleTask);
 		mangleMap.set(projectPath, entry);
 	}
 
@@ -41,10 +48,7 @@ module.exports = async function (source, sourceMap, meta) {
 		// Only enable mangling in production builds
 		return source;
 	}
-	if (true) {
-		// disable mangling for now, SEE https://github.com/microsoft/vscode/issues/204692
-		return source;
-	}
+
 	const options = this.getOptions();
 	if (options.disabled) {
 		// Dynamically disabled
