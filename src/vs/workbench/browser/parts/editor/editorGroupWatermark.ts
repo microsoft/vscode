@@ -149,8 +149,7 @@ export class EditorGroupWatermark extends Disposable {
 			clearNode(box);
 			this.keybindingLabels.clear();
 
-			for (let i = 0; i < entries.length; i++) {
-				const entry = entries[i];
+			for (const entry of entries) {
 				const keys = this.keybindingService.lookupKeybinding(entry.id);
 				if (!keys) {
 					continue;
