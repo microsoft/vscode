@@ -13,3 +13,6 @@ import { StandaloneWebWorkerService } from '../../src/vs/editor/standalone/brows
 
 enableHotReload();
 registerSingleton(IWebWorkerService, StandaloneWebWorkerService, InstantiationType.Eager);
+
+globalThis._VSCODE_DISABLE_CSS_IMPORT_MAP = true;
+globalThis._VSCODE_USE_RELATIVE_IMPORTS = true;

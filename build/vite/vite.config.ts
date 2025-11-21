@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { defineConfig, Plugin } from 'vite';
+import { createLogger, defineConfig, Plugin } from 'vite';
 import path, { join } from 'path';
 /// @ts-ignore
 import { urlToEsmPlugin } from './rollup-url-to-module-plugin/index.mjs';
@@ -114,14 +114,40 @@ if (import.meta.hot) {
 	};
 }
 
+const logger = createLogger();
+const loggerWarn = logger.warn;
+
+logger.warn = (msg, options) => {
+	// amdX and the baseUrl code cannot be analyzed by vite.
+	// However, they are not needed, so it is okay to silence the warning.
+	if (msg.indexOf('vs/amdX.ts') !== -1) {
+		return;
+	}
+	if (msg.indexOf('await import(new URL(`vs/workbench/workbench.desktop.main.js`, baseUrl).href)') !== -1) {
+		return;
+	}
+
+	// See https://github.com/microsoft/vscode/issues/278153
+	if (msg.indexOf('marked.esm.js.map') !== -1 || msg.indexOf('purify.es.mjs.map') !== -1) {
+		return;
+	}
+
+	loggerWarn(msg, options);
+};
+
 export default defineConfig({
 	plugins: [
 		urlToEsmPlugin(),
 		injectBuiltinExtensionsPlugin(),
 		createHotClassSupport()
 	],
+	customLogger: logger,
 	esbuild: {
-		target: 'es6', // to fix property initialization issues, not needed when loading monaco-editor from npm package
+		tsconfigRaw: {
+			compilerOptions: {
+				experimentalDecorators: true,
+			}
+		}
 	},
 	root: '../..', // To support /out/... paths
 	server: {

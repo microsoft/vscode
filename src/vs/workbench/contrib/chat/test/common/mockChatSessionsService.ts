@@ -11,6 +11,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditableData } from '../../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../common/chatAgents.js';
+import { IChatModel } from '../../common/chatModel.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
@@ -214,5 +215,9 @@ export class MockChatSessionsService implements IChatSessionsService {
 
 	getContentProviderSchemes(): string[] {
 		return Array.from(this.contentProviders.keys());
+	}
+
+	registerModelProgressListener(model: IChatModel, callback: () => void): void {
+		throw new Error('Method not implemented.');
 	}
 }
