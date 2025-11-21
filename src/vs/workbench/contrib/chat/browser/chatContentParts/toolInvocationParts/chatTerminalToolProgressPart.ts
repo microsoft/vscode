@@ -23,7 +23,7 @@ import '../media/chatTerminalToolProgressPart.css';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
-import { ChatConfiguration, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../common/constants.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
@@ -655,12 +655,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		return this._container.classList.contains('expanded');
 	}
 
-	private readonly _container: HTMLElement;
-	private readonly _title: HTMLElement;
-	private readonly _displayCommand: string;
-	private readonly _accessibleViewService: IAccessibleViewService;
 	private readonly _onDidChangeHeight: () => void;
-	private readonly _instantiationService: IInstantiationService;
 	private readonly _ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>;
 	private readonly _resolveCommand: () => ITerminalCommand | undefined;
 
@@ -679,21 +674,16 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _onDidBlurEmitter = new Emitter<FocusEvent>();
 
 	constructor(
-		container: HTMLElement,
-		title: HTMLElement,
-		displayCommand: string,
+		private readonly _container: HTMLElement,
+		private readonly _title: HTMLElement,
+		private readonly _displayCommand: string,
 		onDidChangeHeight: () => void,
 		ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>,
 		resolveCommand: () => ITerminalCommand | undefined,
-		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
-		@IInstantiationService instantiationService: IInstantiationService) {
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService) {
 		super();
-		this._container = container;
-		this._title = title;
-		this._displayCommand = displayCommand;
-		this._accessibleViewService = accessibleViewService;
 		this._onDidChangeHeight = onDidChangeHeight;
-		this._instantiationService = instantiationService;
 		this._ensureTerminalInstance = ensureTerminalInstance;
 		this._resolveCommand = resolveCommand;
 		this._outputAriaLabelBase = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', this._displayCommand);
