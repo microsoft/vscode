@@ -12,13 +12,13 @@ import { CHAT_PROVIDER_ID } from './chatParticipantContribTypes.js';
 import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
-export interface IChatHistoryEntry {
+interface IChatHistoryEntry {
 	text: string;
 	state?: IChatInputState;
 }
 
 /** The collected input state for chat history entries */
-export interface IChatInputState {
+interface IChatInputState {
 	[key: string]: any;
 	chatContextAttachments?: ReadonlyArray<IChatRequestVariableEntry>;
 

@@ -1514,7 +1514,7 @@ class InputModel implements IInputModel {
 		this._state.set({
 			// If current is undefined, provide defaults for required fields
 			attachments: [],
-			mode: { id: 'ask', kind: ChatModeKind.Ask },
+			mode: { id: 'agent', kind: ChatModeKind.Agent },
 			selectedModel: undefined,
 			inputText: '',
 			selections: [],

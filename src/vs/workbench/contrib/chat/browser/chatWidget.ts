@@ -74,7 +74,6 @@ import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
-import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
@@ -103,11 +102,6 @@ const defaultChat = {
 	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
 	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
 };
-
-export interface IChatViewState {
-	inputValue?: string;
-	inputState?: IChatInputState;
-}
 
 export interface IChatWidgetStyles extends IChatInputStyles {
 	inputEditorBackground: string;
