@@ -157,19 +157,10 @@
 }
 
 .chat-terminal-output-container.expanded { display: block; }
-.chat-terminal-output-container > .monaco-scrollable-element,
-.chat-terminal-output-container > .chat-terminal-output-scroll-host {
+.chat-terminal-output-container > .monaco-scrollable-element {
 	width: 100%;
 }
 .chat-terminal-output-container:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
-}
-.chat-terminal-output-scroll-host {
-	display: block;
-	outline: none;
-}
-.chat-terminal-output-scroll-host:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }
