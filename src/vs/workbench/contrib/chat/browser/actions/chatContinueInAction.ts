@@ -343,11 +343,6 @@ export class ContinueChatInSessionActionRendering extends Disposable implements 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IChatSessionsService chatSessionsService: IChatSessionsService,
-		@IOpenerService openerService: IOpenerService,
 	) {
 		super();
 		const disposable = actionViewItemService.register(MenuId.EditorContent, ContinueChatInSessionAction.ID, (action, options, instantiationService2) => {
