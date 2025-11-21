@@ -41,10 +41,11 @@ const openSettings: WatermarkEntry = { text: localize('watermark.openSettings', 
 
 const showChat = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabled', false));
 const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: showChat, web: showChat } };
-const inlineChat: WatermarkEntry = { text: localize('watermark.inlineChat', "Inline Chat"), id: 'inlineChat.start', when: { native: showChat, web: showChat } };
+const showAgentSessions: WatermarkEntry = { text: localize('watermark.showAgentSessions', "Show Agent Sessions"), id: 'workbench.view.agentSessions', when: { native: showChat, web: showChat } };
 
 const emptyWindowEntries: WatermarkEntry[] = coalesce([
 	openChat,
+	showAgentSessions,
 	showCommands,
 	...(isMacintosh && !isWeb ? [openFileOrFolder] : [openFile, openFolder]),
 	openRecent,
@@ -57,7 +58,8 @@ const randomEmptyWindowEntries: WatermarkEntry[] = [
 
 const workspaceEntries: WatermarkEntry[] = [
 	openChat,
-	inlineChat,
+	showAgentSessions,
+	showCommands,
 ];
 
 const randomWorkspaceEntries: WatermarkEntry[] = [
@@ -66,7 +68,6 @@ const randomWorkspaceEntries: WatermarkEntry[] = [
 	toggleTerminal,
 	openSettings,
 	gotoFile,
-	showCommands,
 ];
 
 export class EditorGroupWatermark extends Disposable {
@@ -150,7 +151,7 @@ export class EditorGroupWatermark extends Disposable {
 		}
 
 		const fixedEntries = this.filterEntries(this.workbenchState !== WorkbenchState.EMPTY ? workspaceEntries : emptyWindowEntries, false /* not shuffled */);
-		const randomEntries = this.filterEntries(this.workbenchState !== WorkbenchState.EMPTY ? randomWorkspaceEntries : randomEmptyWindowEntries, true /* shuffled */).slice(0, Math.max(0, 5 - fixedEntries.length));
+		const randomEntries = this.filterEntries(this.workbenchState !== WorkbenchState.EMPTY ? randomWorkspaceEntries : randomEmptyWindowEntries, true /* shuffled */).slice(0, 1);
 		const entries = [...fixedEntries, ...randomEntries];
 
 		const box = append(this.shortcuts, $('.watermark-box'));
