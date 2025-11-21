@@ -40,6 +40,11 @@ import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 
+export const enum ActionLocation {
+	ChatWidget = 'chatWidget',
+	Editor = 'editor'
+}
+
 export class ContinueChatInSessionAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.continueChatInSession';
@@ -80,7 +85,7 @@ export class ContinueChatInSessionAction extends Action2 {
 export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionViewItem {
 	constructor(
 		action: MenuItemAction,
-		private readonly fromEditorContext: boolean, // Change to Location Enum
+		private readonly location: ActionLocation,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -89,7 +94,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		@IOpenerService openerService: IOpenerService
 	) {
 		super(action, {
-			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, fromEditorContext),
+			actionProvider: ChatContinueInSessionActionItem.actionProvider(chatSessionsService, instantiationService, location),
 			actionBarActions: ChatContinueInSessionActionItem.getActionBarActions(openerService)
 		}, actionWidgetService, keybindingService, contextKeyService);
 	}
@@ -108,7 +113,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		}];
 	}
 
-	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, fromEditorContext: boolean = false): IActionWidgetDropdownActionProvider {
+	private static actionProvider(chatSessionsService: IChatSessionsService, instantiationService: IInstantiationService, location: ActionLocation): IActionWidgetDropdownActionProvider {
 		return {
 			getActions: () => {
 				const actions: IActionWidgetDropdownAction[] = [];
@@ -117,13 +122,13 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 				// Continue in Background
 				const backgroundContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Background);
 				if (backgroundContrib && backgroundContrib.canDelegate !== false) {
-					actions.push(this.toAction(AgentSessionProviders.Background, backgroundContrib, instantiationService, fromEditorContext));
+					actions.push(this.toAction(AgentSessionProviders.Background, backgroundContrib, instantiationService, location));
 				}
 
 				// Continue in Cloud
 				const cloudContrib = contributions.find(contrib => contrib.type === AgentSessionProviders.Cloud);
 				if (cloudContrib && cloudContrib.canDelegate !== false) {
-					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, fromEditorContext));
+					actions.push(this.toAction(AgentSessionProviders.Cloud, cloudContrib, instantiationService, location));
 				}
 
 				// Offer actions to enter setup if we have no contributions
@@ -137,7 +142,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		};
 	}
 
-	private static toAction(provider: AgentSessionProviders, contrib: IChatSessionsExtensionPoint, instantiationService: IInstantiationService, fromEditorContext?: boolean): IActionWidgetDropdownAction {
+	private static toAction(provider: AgentSessionProviders, contrib: IChatSessionsExtensionPoint, instantiationService: IInstantiationService, location: ActionLocation): IActionWidgetDropdownAction {
 		return {
 			id: contrib.type,
 			enabled: true,
@@ -147,7 +152,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 			label: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
 			tooltip: contrib.displayName,
 			run: () => instantiationService.invokeFunction(accessor => {
-				if (fromEditorContext) {
+				if (location === ActionLocation.Editor) {
 					return new CreateRemoteAgentJobFromEditorAction().run(accessor, contrib);
 				}
 				return new CreateRemoteAgentJobAction().run(accessor, contrib);
@@ -171,7 +176,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		if (this.fromEditorContext) {
+		if (this.location === ActionLocation.Editor) {
 			const container = document.createElement('span');
 			container.classList.add('action-widget-delegate-label');
 
@@ -348,7 +353,7 @@ export class ContinueChatInSessionActionRendering extends Disposable implements 
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(ChatContinueInSessionActionItem, action, true);
+			return instantiationService.createInstance(ChatContinueInSessionActionItem, action, ActionLocation.Editor);
 		});
 		markAsSingleton(disposable);
 	}
