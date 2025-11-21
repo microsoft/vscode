@@ -226,7 +226,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		const configuredVendors = this.viewModel.getConfiguredVendors();
 		if (configuredVendors.length > 1) {
 			actions.push(new Separator());
-			actions.push(...configuredVendors.map(vendor => this.createProviderAction(vendor.vendorEntry.vendor, vendor.vendorEntry.vendorDisplayName)));
+			actions.push(...configuredVendors.map(vendor => this.createProviderAction(vendor.vendor, vendor.vendorDisplayName)));
 		}
 
 		return actions;
@@ -717,17 +717,25 @@ export class ChatModelsWidget extends Disposable {
 			{
 				triggerCharacters: ['@', ':'],
 				provideResults: (query: string) => {
+					const providerSuggestions = this.viewModel.getVendors().map(v => `@provider:"${v.displayName}"`);
+					const allSuggestions = [
+						...providerSuggestions,
+						...SEARCH_SUGGESTIONS.CAPABILITIES,
+						...SEARCH_SUGGESTIONS.VISIBILITY,
+					];
+					if (!query.trim()) {
+						return allSuggestions;
+					}
 					const queryParts = query.split(/\s/g);
 					const lastPart = queryParts[queryParts.length - 1];
 					if (lastPart.startsWith('@provider:')) {
-						const vendors = this.viewModel.getVendors();
-						return vendors.map(v => `@provider:"${v.displayName}"`);
+						return providerSuggestions;
 					} else if (lastPart.startsWith('@capability:')) {
 						return SEARCH_SUGGESTIONS.CAPABILITIES;
 					} else if (lastPart.startsWith('@visible:')) {
 						return SEARCH_SUGGESTIONS.VISIBILITY;
 					} else if (lastPart.startsWith('@')) {
-						return SEARCH_SUGGESTIONS.FILTER_TYPES;
+						return allSuggestions;
 					}
 					return [];
 				}
@@ -930,7 +938,7 @@ export class ChatModelsWidget extends Disposable {
 			}
 
 			const vendors = this.viewModel.getVendors();
-			const configuredVendors = new Set(this.viewModel.getConfiguredVendors().map(cv => cv.vendorEntry.vendor));
+			const configuredVendors = new Set(this.viewModel.getConfiguredVendors().map(cv => cv.vendor));
 			const vendorsWithoutModels = vendors.filter(v => !configuredVendors.has(v.vendor));
 
 			const hasPlan = this.chatEntitlementService.entitlement !== ChatEntitlement.Unknown && this.chatEntitlementService.entitlement !== ChatEntitlement.Available;
