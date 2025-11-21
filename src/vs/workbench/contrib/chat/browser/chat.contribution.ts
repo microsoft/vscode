@@ -951,6 +951,7 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
 		super();
+		this._store.add(this._modeActionDisposables);
 
 		// Register actions for existing custom modes
 		const { custom } = this.chatModeService.getModes();
