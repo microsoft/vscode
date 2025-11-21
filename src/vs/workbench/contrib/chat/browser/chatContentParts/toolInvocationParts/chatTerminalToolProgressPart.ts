@@ -789,7 +789,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._terminalHost = host;
 
 		this._outputBody.replaceChildren(content);
-		await this._mirror?.attach(host);
 
 		if (!this._outputScrollbar) {
 			this._outputScrollbar = this._register(new DomScrollableElement(this._outputBody, {
