@@ -109,20 +109,46 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 			if (item.type !== 'string') {
 				continue;
 			}
-			const newName = deprecatedNames.value.get(item.value);
-			if (newName) {
+			const newNames = deprecatedNames.value.get(item.value);
+			if (newNames && newNames.size > 0) {
 				const quote = model.getValueInRange(new Range(item.range.startLineNumber, item.range.startColumn, item.range.endLineNumber, item.range.startColumn + 1));
-				const text = (quote === `'` || quote === '"') ? (quote + newName + quote) : newName;
-				const edit = { range: item.range, text };
-				edits.push(edit);
 
-				if (item.range.containsRange(range)) {
-					result.push({
-						title: localize('updateToolName', "Update to '{0}'", newName),
-						edit: {
-							edits: [asWorkspaceTextEdit(model, edit)]
-						}
-					});
+				if (newNames.size === 1) {
+					const newName = Array.from(newNames)[0];
+					const text = (quote === `'` || quote === '"') ? (quote + newName + quote) : newName;
+					const edit = { range: item.range, text };
+					edits.push(edit);
+
+					if (item.range.containsRange(range)) {
+						result.push({
+							title: localize('updateToolName', "Update to '{0}'", newName),
+							edit: {
+								edits: [asWorkspaceTextEdit(model, edit)]
+							}
+						});
+					}
+				} else {
+					// Multiple new names - expand to include all of them
+					const newNamesArray = Array.from(newNames).sort((a, b) => a.localeCompare(b));
+					const separator = model.getValueInRange(new Range(item.range.startLineNumber, item.range.endColumn, item.range.endLineNumber, item.range.endColumn + 2));
+					const useCommaSpace = separator.includes(',');
+					const delimiterText = useCommaSpace ? ', ' : ',';
+
+					const newNamesText = newNamesArray.map(name =>
+						(quote === `'` || quote === '"') ? (quote + name + quote) : name
+					).join(delimiterText);
+
+					const edit = { range: item.range, text: newNamesText };
+					edits.push(edit);
+
+					if (item.range.containsRange(range)) {
+						result.push({
+							title: localize('expandToolNames', "Expand to {0} tools", newNames.size),
+							edit: {
+								edits: [asWorkspaceTextEdit(model, edit)]
+							}
+						});
+					}
 				}
 			}
 		}

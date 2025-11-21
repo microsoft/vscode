@@ -347,7 +347,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		this._onWillStartSession.fire(editor as IActiveCodeEditor);
 
-		const chatModel = this._chatService.startSession(ChatAgentLocation.Chat, token, false);
+		const chatModel = this._chatService.startSession(ChatAgentLocation.EditorInline, token);
+		chatModel.startEditingSession(false);
 
 		const widget = this._chatWidgetService.getWidgetBySessionResource(chatModel.sessionResource);
 		await widget?.attachmentModel.addFile(uri);

@@ -32,6 +32,7 @@ export interface IChatSessionCommandContribution {
 export interface IChatSessionProviderOptionItem {
 	id: string;
 	name: string;
+	locked?: boolean;
 	// [key: string]: any;
 }
 
@@ -104,9 +105,9 @@ export interface IChatSession extends IDisposable {
 
 	/**
 	 * Session options as key-value pairs. Keys correspond to option group IDs (e.g., 'models', 'subagents')
-	 * and values are the selected option item IDs.
+	 * and values are either the selected option item IDs (string) or full option items (for locked state).
 	 */
-	readonly options?: Record<string, string>;
+	readonly options?: Record<string, string | IChatSessionProviderOptionItem>;
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
@@ -191,8 +192,8 @@ export interface IChatSessionsService {
 	getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	hasAnySessionOptions(sessionResource: URI): boolean;
-	getSessionOption(sessionResource: URI, optionId: string): string | undefined;
-	setSessionOption(sessionResource: URI, optionId: string, value: string): boolean;
+	getSessionOption(sessionResource: URI, optionId: string): string | IChatSessionProviderOptionItem | undefined;
+	setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean;
 
 	/**
 	 * Get the capabilities for a specific session type
