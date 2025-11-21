@@ -11,6 +11,7 @@ APP_NAME="@@APPNAME@@"
 QUALITY="@@QUALITY@@"
 NAME="@@NAME@@"
 SERVERDATAFOLDER="@@SERVERDATAFOLDER@@"
+VERSIONFOLDER="@@VERSIONFOLDER@@"
 VSCODE_PATH="$(dirname "$(dirname "$(realpath "$0")")")"
 ELECTRON="$VSCODE_PATH/$NAME.exe"
 
@@ -54,9 +55,9 @@ if [ $IN_WSL = true ]; then
 	fi
 
 elif [ -x "$(command -v cygpath)" ]; then
-	CLI=$(cygpath -m "$VSCODE_PATH/resources/app/out/cli.js")
+	CLI=$(cygpath -m "$VSCODE_PATH/$VERSIONFOLDER/resources/app/out/cli.js")
 else
-	CLI="$VSCODE_PATH/resources/app/out/cli.js"
+	CLI="$VSCODE_PATH/$VERSIONFOLDER/resources/app/out/cli.js"
 fi
 ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" "$@"
 exit $?
