@@ -428,7 +428,7 @@ export function getOpenChatActionIdForMode(mode: IChatMode): string {
 	return `workbench.action.chat.open${mode.name.get()}`;
 }
 
-abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
+export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 	constructor(mode: IChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
 		super({
 			id: getOpenChatActionIdForMode(mode),
