@@ -557,6 +557,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		const result = await Promise.race([userPrompt, inputPromise]);
 		if (result === focusTerminalSelection) {
+			execution.instance.focus(true);
 			return await inputPromise;
 		}
 		if (result === undefined) {
