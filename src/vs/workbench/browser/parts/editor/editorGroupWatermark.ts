@@ -41,7 +41,7 @@ const openSettings: WatermarkEntry = { text: localize('watermark.openSettings', 
 
 const showChat = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabled', false));
 const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: showChat, web: showChat } };
-const editCodeInline: WatermarkEntry = { text: localize('watermark.editCodeInline', "Edit Code Inline with Chat"), id: 'inlineChat.start', when: { native: showChat, web: showChat } };
+const inlineChat: WatermarkEntry = { text: localize('watermark.inlineChat', "Inline Chat"), id: 'inlineChat.start', when: { native: showChat, web: showChat } };
 
 const emptyWindowEntries: WatermarkEntry[] = coalesce([
 	openChat,
@@ -57,8 +57,7 @@ const randomEmptyWindowEntries: WatermarkEntry[] = [
 
 const workspaceEntries: WatermarkEntry[] = [
 	openChat,
-	editCodeInline,
-	// showCommands,
+	inlineChat,
 ];
 
 const randomWorkspaceEntries: WatermarkEntry[] = [
