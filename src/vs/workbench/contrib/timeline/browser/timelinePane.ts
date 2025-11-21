@@ -1362,9 +1362,7 @@ class TimelinePaneCommands extends Disposable {
 					});
 				}
 				run(accessor: ServicesAccessor, ...args: unknown[]) {
-					if (excluded.has(source.id)) {
-						excluded.delete(source.id);
-					} else {
+					if (!excluded.delete(source.id)) {
 						excluded.add(source.id);
 					}
 

@@ -17,7 +17,7 @@ import * as util from './lib/util.ts';
 import * as getVersionModule from './lib/getVersion.ts';
 import * as dateModule from './lib/date.ts';
 import * as task from './lib/task.ts';
-import buildfile from './buildfile.js';
+import buildfile from './buildfile.ts';
 import * as optimize from './lib/optimize.ts';
 import * as inlineMetaModule from './lib/inlineMeta.ts';
 import packageJson from '../package.json' with { type: 'json' };

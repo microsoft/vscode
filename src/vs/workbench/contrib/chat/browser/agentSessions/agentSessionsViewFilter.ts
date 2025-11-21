@@ -133,9 +133,7 @@ export class AgentSessionsViewFilter extends Disposable {
 				}
 				run(): void {
 					const providerExcludes = new Set(that.excludes.providers);
-					if (providerExcludes.has(provider.id)) {
-						providerExcludes.delete(provider.id);
-					} else {
+					if (!providerExcludes.delete(provider.id)) {
 						providerExcludes.add(provider.id);
 					}
 
@@ -170,9 +168,7 @@ export class AgentSessionsViewFilter extends Disposable {
 				}
 				run(): void {
 					const stateExcludes = new Set(that.excludes.states);
-					if (stateExcludes.has(state.id)) {
-						stateExcludes.delete(state.id);
-					} else {
+					if (!stateExcludes.delete(state.id)) {
 						stateExcludes.add(state.id);
 					}
 
