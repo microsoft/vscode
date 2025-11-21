@@ -43,6 +43,7 @@ export function getHistoryItemHover(authorAvatar: string | undefined, authorName
 	// Short stats
 	if (shortStats) {
 		const shortStatsMarkdownString = new MarkdownString('', true);
+		shortStatsMarkdownString.supportHtml = true;
 		appendShortStats(shortStatsMarkdownString, shortStats);
 		hoverContent.push(shortStatsMarkdownString);
 	}

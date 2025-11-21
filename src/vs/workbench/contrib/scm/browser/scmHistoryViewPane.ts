@@ -28,7 +28,7 @@ import { asCssVariable, ColorIdentifier, foreground } from '../../../../platform
 import { IFileIconTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewAction, ViewPane, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemIndex } from './scmHistory.js';
+import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray, SWIMLANE_WIDTH, renderSCMHistoryGraphPlaceholder, historyItemHoverLabelForeground, historyItemHoverDefaultLabelBackground, getHistoryItemIndex, historyItemHoverDefaultLabelForeground } from './scmHistory.js';
 import { getHistoryItemEditorTitle, getProviderKey, isSCMHistoryItemChangeNode, isSCMHistoryItemChangeViewModelTreeElement, isSCMHistoryItemLoadMoreTreeElement, isSCMHistoryItemViewModelTreeElement, isSCMRepository } from './util.js';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, ISCMHistoryProvider, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
 import { HISTORY_VIEW_PANE_ID, ISCMProvider, ISCMRepository, ISCMService, ISCMViewService, ViewMode } from '../common/scm.js';
@@ -76,7 +76,8 @@ import { ElementsDragAndDropData, ListViewTargetSector } from '../../../../base/
 import { CodeDataTransfers } from '../../../../platform/dnd/browser/dnd.js';
 import { SCMHistoryItemTransferData } from './scmHistoryChatContext.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { isMarkdownString } from '../../../../base/common/htmlContent.js';
+import { isEmptyMarkdownString, isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 const PICK_REPOSITORY_ACTION_ID = 'workbench.scm.action.graph.pickRepository';
 const PICK_HISTORY_ITEM_REFS_ACTION_ID = 'workbench.scm.action.graph.pickHistoryItemRefs';
@@ -455,6 +456,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IMenuService private readonly _menuService: IMenuService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
@@ -599,7 +601,39 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemVie
 			};
 		}
 
-		return historyItem.message;
+		// References as "injected" into the hover here since the extension does
+		// not know that color used in the graph to render the history item at which
+		// the reference is pointing to. They are being added before the last element
+		// of the array which is assumed to contain the hover commands.
+		if (historyItem.references?.length) {
+			const markdownString = new MarkdownString('', { supportHtml: true, supportThemeIcons: true });
+
+			for (const reference of historyItem.references) {
+				const labelIconId = ThemeIcon.isThemeIcon(reference.icon) ? reference.icon.id : '';
+
+				const labelBackgroundColor = reference.color ? asCssVariable(reference.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
+				const labelForegroundColor = reference.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(historyItemHoverDefaultLabelForeground);
+				markdownString.appendMarkdown(`<span style="color:${labelForegroundColor};background-color:${labelBackgroundColor};border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;`);
+				markdownString.appendText(reference.name);
+				markdownString.appendMarkdown('&nbsp;&nbsp;</span>');
+			}
+
+			markdownString.appendMarkdown(`\n\n---\n\n`);
+			historyItem.tooltip.splice(historyItem.tooltip.length - 1, 0, markdownString);
+		}
+
+		// Render tooltip content
+		const hoverContainer = $('.history-item-hover-container');
+		for (const markdownString of historyItem.tooltip) {
+			if (isEmptyMarkdownString(markdownString)) {
+				continue;
+			}
+
+			const renderedContent = this._markdownRendererService.render(markdownString);
+			hoverContainer.appendChild(renderedContent.element);
+		}
+
+		return hoverContainer;
 	}
 
 	private _processMatches(historyItemViewModel: ISCMHistoryItemViewModel, filterData: LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
