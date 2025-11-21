@@ -739,7 +739,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					break;
 			}
 		}
-		return undefined;
 	}
 
 	/**
