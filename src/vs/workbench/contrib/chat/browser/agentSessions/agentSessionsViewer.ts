@@ -164,15 +164,8 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 	private renderDescription(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, template: IAgentSessionItemTemplate): void {
 
-		// In progress: show duration
-		if (session.element.status === ChatSessionStatus.InProgress) {
-			template.description.textContent = this.getInProgressDescription(session.element);
-			const timer = template.elementDisposable.add(new IntervalTimer());
-			timer.cancelAndSet(() => template.description.textContent = this.getInProgressDescription(session.element), 1000 /* every second */);
-		}
-
-		// Otherwise support description as string
-		else if (typeof session.element.description === 'string') {
+		// Support description as string
+		if (typeof session.element.description === 'string') {
 			template.description.textContent = session.element.description;
 		}
 
@@ -191,7 +184,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Fallback to state label
 		else {
-			if (
+			if (session.element.status === ChatSessionStatus.InProgress) {
+				template.description.textContent = localize('chat.session.status.inProgress', "Working...");
+			} else if (
 				session.element.timing.finishedOrFailedTime &&
 				session.element.timing.inProgressTime &&
 				session.element.timing.finishedOrFailedTime > session.element.timing.inProgressTime
@@ -209,17 +204,6 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		}
 	}
 
-	private getInProgressDescription(session: IAgentSessionViewModel): string {
-		if (session.timing.inProgressTime) {
-			const inProgressDuration = this.toDuration(session.timing.inProgressTime, Date.now());
-			if (inProgressDuration) {
-				return localize('chat.session.status.inProgressWithDuration', "Working... ({0})", inProgressDuration);
-			}
-		}
-
-		return localize('chat.session.status.inProgress', "Working...");
-	}
-
 	private toDuration(startTime: number, endTime: number): string | undefined {
 		const elapsed = Math.round((endTime - startTime) / 1000) * 1000;
 		if (elapsed < 1000) {
@@ -230,11 +214,22 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	private renderStatus(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, template: IAgentSessionItemTemplate): void {
-		const getStatus = (session: IAgentSessionViewModel) => `${session.providerLabel} • ${fromNow(session.timing.endTime || session.timing.startTime)}`;
+
+		const getStatus = (session: IAgentSessionViewModel) => {
+			let timeLabel: string | undefined;
+			if (session.status === ChatSessionStatus.InProgress && session.timing.inProgressTime) {
+				timeLabel = this.toDuration(session.timing.inProgressTime, Date.now());
+			}
+
+			if (!timeLabel) {
+				timeLabel = fromNow(session.timing.endTime || session.timing.startTime, true);
+			}
+			return `${session.providerLabel} • ${timeLabel}`;
+		};
 
 		template.status.textContent = getStatus(session.element);
 		const timer = template.elementDisposable.add(new IntervalTimer());
-		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), 60 * 1000 /* every minute */);
+		timer.cancelAndSet(() => template.status.textContent = getStatus(session.element), session.element.status === ChatSessionStatus.InProgress ? 1000 /* every second */ : 60 * 1000 /* every minute */);
 	}
 
 	private renderHover(session: ITreeNode<IAgentSessionViewModel, FuzzyScore>, template: IAgentSessionItemTemplate): void {

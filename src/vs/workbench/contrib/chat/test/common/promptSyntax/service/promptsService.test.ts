@@ -714,7 +714,7 @@ suite('PromptsService', () => {
 				{
 					name: 'agent1',
 					description: 'Agent file 1.',
-					handOffs: [{ agent: 'Edit', label: 'Do it', prompt: 'Do it now', send: undefined }],
+					handOffs: [{ agent: 'Edit', label: 'Do it', prompt: 'Do it now' }],
 					agentInstructions: {
 						content: '',
 						toolReferences: [],

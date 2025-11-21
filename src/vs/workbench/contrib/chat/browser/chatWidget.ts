@@ -764,8 +764,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
-		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff }) => {
-			this.handleNextPromptSelection(handoff);
+		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff, agentId }) => {
+			this.handleNextPromptSelection(handoff, agentId);
 		}));
 
 		if (renderInputOnTop) {
@@ -1577,31 +1577,41 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private handleNextPromptSelection(handoff: IHandOff): void {
+	private handleNextPromptSelection(handoff: IHandOff, agentId?: string): void {
 		// Hide the widget after selection
 		this.chatSuggestNextWidget.hide();
+
+		const promptToUse = handoff.prompt;
 
 		// Log telemetry
 		const currentMode = this.input.currentModeObs.get();
 		const fromAgent = currentMode?.id ?? '';
 		this.telemetryService.publicLog2<ChatHandoffClickEvent, ChatHandoffClickClassification>('chat.handoffClicked', {
 			fromAgent: fromAgent,
-			toAgent: handoff.agent || '',
-			hasPrompt: Boolean(handoff.prompt),
+			toAgent: agentId || handoff.agent || '',
+			hasPrompt: Boolean(promptToUse),
 			autoSend: Boolean(handoff.send)
 		});
 
-		// Switch to the specified agent/mode if provided
-		if (handoff.agent) {
-			this._switchToAgentByName(handoff.agent);
-		}
-		// Insert the handoff prompt into the input
-		this.input.setValue(handoff.prompt, false);
-		this.input.focus();
-
-		// Auto-submit if send flag is true
-		if (handoff.send) {
+		// If agentId is provided (from chevron dropdown), delegate to that chat session
+		// Otherwise, switch to the handoff agent
+		if (agentId) {
+			// Delegate to chat session (e.g., @background or @cloud)
+			this.input.setValue(`@${agentId} ${promptToUse}`, false);
+			this.input.focus();
+			// Auto-submit for delegated chat sessions
 			this.acceptInput();
+		} else if (handoff.agent) {
+			// Regular handoff to specified agent
+			this._switchToAgentByName(handoff.agent);
+			// Insert the handoff prompt into the input
+			this.input.setValue(promptToUse, false);
+			this.input.focus();
+
+			// Auto-submit if send flag is true
+			if (handoff.send) {
+				this.acceptInput();
+			}
 		}
 	}
 
@@ -2217,7 +2227,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this.viewModelDisposables.add(this.viewModel.onDidDisposeModel(() => {
 			// Ensure that view state is saved here, because we will load it again when a new model is assigned
-			this.input.saveState();
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
 			}
@@ -2741,7 +2750,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	saveState(): void {
-		this.input.saveState();
+		// no-op
 	}
 
 	getViewState(): IChatModelInputState | undefined {

@@ -7,9 +7,9 @@ import { spawnSync } from 'child_process';
 import { constants, statSync } from 'fs';
 import { tmpdir } from 'os';
 import path from 'path';
-import manifests from '../../../cgmanifest.json';
-import { additionalDeps } from './dep-lists';
-import { DebianArchString } from './types';
+import manifests from '../../../cgmanifest.json' with { type: 'json' };
+import { additionalDeps } from './dep-lists.ts';
+import type { DebianArchString } from './types.ts';
 
 export function generatePackageDeps(files: string[], arch: DebianArchString, chromiumSysroot: string, vscodeSysroot: string): Set<string>[] {
 	const dependencies: Set<string>[] = files.map(file => calculatePackageDeps(file, arch, chromiumSysroot, vscodeSysroot));

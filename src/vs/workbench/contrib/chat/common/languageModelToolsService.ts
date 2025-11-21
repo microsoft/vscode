@@ -372,7 +372,6 @@ export interface ILanguageModelToolsService {
 	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined;
 	getQualifiedToolName(tool: IToolData, toolSet?: ToolSet): string;
 	getDeprecatedQualifiedToolNames(): Map<string, Set<string>>;
-	mapGithubToolName(githubToolName: string): string;
 
 	toToolAndToolSetEnablementMap(qualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap;
 	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[];
@@ -398,7 +397,7 @@ export namespace GithubCopilotToolReference {
 }
 
 export namespace VSCodeToolReference {
-	export const customAgent = 'agents';
+	export const agent = 'agent';
 	export const shell = 'shell';
 	export const runSubagent = 'runSubagent';
 	export const vscode = 'vscode';
