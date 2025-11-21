@@ -821,7 +821,7 @@ export class KeybindingsEditor extends EditorPane<IKeybindingsEditorMemento> imp
 		};
 	}
 
-	private onKeybindingEditingError(error: any): void {
+	private onKeybindingEditingError(error: unknown): void {
 		this.notificationService.error(typeof error === 'string' ? error : localize('error', "Error '{0}' while editing the keybinding. Please open 'keybindings.json' file and check for errors.", `${error}`));
 	}
 }
