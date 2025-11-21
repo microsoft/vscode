@@ -131,7 +131,16 @@ class TerminalCommandDecoration extends Disposable {
 			}
 		}
 
+		this._register(this._hoverService.setupDelayedHover(decoration, () => ({
+			content: this._getHoverText()
+		})));
 		this._attachInteractionHandlers(decoration);
+	}
+
+	private _getHoverText(): string {
+		const command = this._options.getResolvedCommand();
+		const storedState = this._options.terminalData.terminalCommandState;
+		return getTerminalCommandDecorationTooltip(command, storedState) || '';
 	}
 
 	public update(command?: ITerminalCommand): void {
@@ -180,9 +189,6 @@ class TerminalCommandDecoration extends Disposable {
 		}
 		const hoverText = tooltip || decorationState.hoverMessage;
 		if (hoverText) {
-			this._register(this._hoverService.setupDelayedHover(decoration, {
-				content: hoverText,
-			}));
 			decoration.setAttribute('aria-label', hoverText);
 		} else {
 			decoration.removeAttribute('aria-label');
@@ -270,16 +276,16 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			h('.chat-terminal-output-container@output')
 		]);
 
+		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+		const displayCommand = stripIcons(command);
+		this._terminalOutputContextKey = ChatContextKeys.inChatTerminalToolOutput.bindTo(this._contextKeyService);
+
 		this._decoration = this._register(this._instantiationService.createInstance(TerminalCommandDecoration, {
 			terminalData: this._terminalData,
 			getCommandBlock: () => elements.commandBlock,
 			getIconElement: () => undefined,
 			getResolvedCommand: () => this._getResolvedCommand()
 		}));
-
-		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
-		const displayCommand = stripIcons(command);
-		this._terminalOutputContextKey = ChatContextKeys.inChatTerminalToolOutput.bindTo(this._contextKeyService);
 
 		const titlePart = this._register(_instantiationService.createInstance(
 			ChatQueryTitlePart,
