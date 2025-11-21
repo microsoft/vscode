@@ -43,6 +43,7 @@ import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
+import { timeout } from '../../../../../base/common/async.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -184,6 +185,11 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgent(chatAgentWithMarkdownId, getAgentData(chatAgentWithMarkdownId)));
 		testDisposables.add(chatAgentService.registerAgentImplementation('testAgent', agent));
 		chatAgentService.updateAgent('testAgent', {});
+	});
+
+	teardown(async () => {
+		// Allow async disposals to complete TODO@roblourens
+		await timeout(10);
 	});
 
 	test('retrieveSession', async () => {

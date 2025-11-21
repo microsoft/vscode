@@ -47,6 +47,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { NullLanguageModelsService } from '../common/languageModels.js';
 import { MockChatVariablesService } from '../common/mockChatVariables.js';
+import { timeout } from '../../../../../base/common/async.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -130,8 +131,10 @@ suite('ChatEditingService', function () {
 		}));
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		store.clear();
+		// Allow async disposals to complete TODO@roblourens
+		await timeout(10);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
