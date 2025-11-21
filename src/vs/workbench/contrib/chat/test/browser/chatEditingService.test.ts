@@ -47,7 +47,6 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { NullLanguageModelsService } from '../common/languageModels.js';
 import { MockChatVariablesService } from '../common/mockChatVariables.js';
-import { timeout } from '../../../../../base/common/async.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -106,9 +105,10 @@ suite('ChatEditingService', function () {
 		editingService = value;
 
 		chatService = insta.get(IChatService);
+		(chatService as ChatService).setChatPersistanceEnabled(false);
 
 		store.add(insta.get(IChatSessionsService) as ChatSessionsService); // Needs to be disposed in between test runs to clear extensionPoint contribution
-		store.add(insta.get(IChatService) as ChatService);
+		store.add(chatService as ChatService);
 
 		const chatAgentService = insta.get(IChatAgentService);
 
@@ -131,10 +131,8 @@ suite('ChatEditingService', function () {
 		}));
 	});
 
-	teardown(async () => {
+	teardown(() => {
 		store.clear();
-		// Allow async disposals to complete TODO@roblourens
-		await timeout(10);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

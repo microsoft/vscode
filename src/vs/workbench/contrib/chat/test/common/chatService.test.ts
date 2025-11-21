@@ -43,7 +43,6 @@ import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
-import { timeout } from '../../../../../base/common/async.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -187,11 +186,6 @@ suite('ChatService', () => {
 		chatAgentService.updateAgent('testAgent', {});
 	});
 
-	teardown(async () => {
-		// Allow async disposals to complete TODO@roblourens
-		await timeout(10);
-	});
-
 	test('retrieveSession', async () => {
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 		// Don't add refs to testDisposables so we can control disposal
@@ -330,6 +324,7 @@ suite('ChatService', () => {
 		// create the first service, send request, get response, and serialize the state
 		{  // serapate block to not leak variables in outer scope
 			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+			testService.setChatPersistanceEnabled(false);
 
 			const chatModel1Ref = startSessionModel(testService);
 			const chatModel1 = chatModel1Ref.object;
@@ -346,6 +341,7 @@ suite('ChatService', () => {
 		// try deserializing the state into a new service
 
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
+		testService2.setChatPersistanceEnabled(false);
 
 		const chatModel2Ref = testService2.loadSessionFromContent(serializedChatData);
 		assert(chatModel2Ref);
