@@ -115,6 +115,9 @@ export class ChatEditor extends EditorPane {
 					inputEditorBackground: inputBackground,
 					resultEditorBackground: editorBackground
 				}));
+		this._register(this.widget.onDidSubmitAgent(() => {
+			this.group.pinEditor(this.input);
+		}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
 	}
@@ -137,6 +140,7 @@ export class ChatEditor extends EditorPane {
 
 	override clearInput(): void {
 		this.saveState();
+		this.widget.setModel(undefined);
 		super.clearInput();
 	}
 

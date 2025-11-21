@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const fs = require('fs');
+import { existsSync } from 'fs';
 
 // Complete list of directories where npm should be executed to install node modules
-const dirs = [
+export const dirs = [
 	'',
 	'build',
-	'build/monaco-editor-playground',
+	'build/vite',
 	'extensions',
 	'extensions/configuration-editing',
 	'extensions/css-language-features',
@@ -60,10 +60,8 @@ const dirs = [
 	'.vscode/extensions/vscode-selfhost-test-provider',
 ];
 
-if (fs.existsSync(`${__dirname}/../../.build/distro/npm`)) {
+if (existsSync(`${import.meta.dirname}/../../.build/distro/npm`)) {
 	dirs.push('.build/distro/npm');
 	dirs.push('.build/distro/npm/remote');
 	dirs.push('.build/distro/npm/remote/web');
 }
-
-exports.dirs = dirs;

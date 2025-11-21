@@ -9,8 +9,12 @@ import { badgeBackground, chartsBlue, chartsPurple, foreground } from '../../../
 import { asCssVariable, ColorIdentifier, registerColor } from '../../../../platform/theme/common/colorUtils.js';
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemRef, ISCMHistoryItemViewModel, SCMIncomingHistoryItemId, SCMOutgoingHistoryItemId } from '../common/history.js';
 import { rot } from '../../../../base/common/numbers.js';
-import { svgElem } from '../../../../base/browser/dom.js';
+import { $, svgElem } from '../../../../base/browser/dom.js';
 import { PANEL_BACKGROUND } from '../../../common/theme.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IMarkdownString, isEmptyMarkdownString, isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 
 export const SWIMLANE_HEIGHT = 22;
 export const SWIMLANE_WIDTH = 11;
@@ -527,4 +531,53 @@ export function compareHistoryItemRefs(
 	const ref2Order = getHistoryItemRefOrder(ref2);
 
 	return ref1Order - ref2Order;
+}
+
+export function toHistoryItemHoverContent(markdownRendererService: IMarkdownRendererService, historyItem: ISCMHistoryItem, includeReferences: boolean): { content: string | IMarkdownString | HTMLElement; disposables: IDisposable } {
+	const disposables = new DisposableStore();
+
+	if (historyItem.tooltip === undefined) {
+		return { content: historyItem.message, disposables };
+	}
+
+	if (isMarkdownString(historyItem.tooltip)) {
+		return { content: historyItem.tooltip, disposables };
+	}
+
+	// References as "injected" into the hover here since the extension does
+	// not know that color used in the graph to render the history item at which
+	// the reference is pointing to. They are being added before the last element
+	// of the array which is assumed to contain the hover commands.
+	const tooltipSections = historyItem.tooltip.slice();
+
+	if (includeReferences && historyItem.references?.length) {
+		const markdownString = new MarkdownString('', { supportHtml: true, supportThemeIcons: true });
+
+		for (const reference of historyItem.references) {
+			const labelIconId = ThemeIcon.isThemeIcon(reference.icon) ? reference.icon.id : '';
+
+			const labelBackgroundColor = reference.color ? asCssVariable(reference.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
+			const labelForegroundColor = reference.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(historyItemHoverDefaultLabelForeground);
+			markdownString.appendMarkdown(`<span style="color:${labelForegroundColor};background-color:${labelBackgroundColor};border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;`);
+			markdownString.appendText(reference.name);
+			markdownString.appendMarkdown('&nbsp;&nbsp;</span>');
+		}
+
+		markdownString.appendMarkdown(`\n\n---\n\n`);
+		tooltipSections.splice(tooltipSections.length - 1, 0, markdownString);
+	}
+
+	// Render tooltip content
+	const hoverContainer = $('.history-item-hover-container');
+	for (const markdownString of tooltipSections) {
+		if (isEmptyMarkdownString(markdownString)) {
+			continue;
+		}
+
+		const renderedContent = markdownRendererService.render(markdownString);
+		hoverContainer.appendChild(renderedContent.element);
+		disposables.add(renderedContent);
+	}
+
+	return { content: hoverContainer, disposables };
 }

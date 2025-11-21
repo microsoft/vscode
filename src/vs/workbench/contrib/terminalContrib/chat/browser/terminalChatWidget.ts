@@ -18,9 +18,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatAcceptInputOptions, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatAgentService } from '../../../chat/common/chatAgents.js';
-import { ChatModel, IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/chatModel.js';
+import { IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/chatModel.js';
 import { ChatMode } from '../../../chat/common/chatModes.js';
-import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
+import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
@@ -81,7 +81,7 @@ export class TerminalChatWidget extends Disposable {
 
 	private _terminalAgentName = 'terminal';
 
-	private readonly _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
+	private readonly _model: MutableDisposable<IChatModelReference> = this._register(new MutableDisposable());
 
 	private _sessionCtor: CancelablePromise<void> | undefined;
 
@@ -327,15 +327,11 @@ export class TerminalChatWidget extends Disposable {
 	private async _createSession(): Promise<void> {
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (!this._model.value) {
-				this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, token);
-				const model = this._model.value;
-				if (model) {
-					this._inlineChatWidget.setChatModel(model);
-					this._resetPlaceholder();
-				}
-				if (!this._model.value) {
-					throw new Error('Failed to start chat session');
-				}
+				const modelRef = this._chatService.startSession(ChatAgentLocation.Terminal, token);
+				this._model.value = modelRef;
+				const model = modelRef.object;
+				this._inlineChatWidget.setChatModel(model);
+				this._resetPlaceholder();
 			}
 		});
 		this._register(toDisposable(() => this._sessionCtor?.cancel()));

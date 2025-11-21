@@ -29,7 +29,7 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile $(node -p process.arch) > .build/packagelockhash
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts compile $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -68,7 +68,7 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           set -e
-          node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
           mkdir -p .build/node_modules_cache
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
 
