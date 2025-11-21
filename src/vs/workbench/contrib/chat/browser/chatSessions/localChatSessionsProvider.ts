@@ -247,11 +247,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 				const toolInvocation = part as IChatToolInvocation;
 				const pastTenseMessage = toolInvocation.pastTenseMessage;
 				const invocationMessage = toolInvocation.invocationMessage;
-				if (pastTenseMessage) {
-					description = typeof pastTenseMessage === 'string' ? pastTenseMessage : pastTenseMessage.value;
-				} else {
-					description = typeof invocationMessage === 'string' ? invocationMessage : invocationMessage.value;
-				}
+				const message = pastTenseMessage || invocationMessage;
+				description = typeof message === 'string' ? message : message?.value ?? '';
 
 				if (description) {
 					description = this.extractFileNameFromLink(description);
