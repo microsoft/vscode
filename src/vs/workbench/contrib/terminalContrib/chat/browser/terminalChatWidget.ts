@@ -17,7 +17,6 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatAcceptInputOptions, IChatWidgetService } from '../../../chat/browser/chat.js';
-import type { IChatViewState } from '../../../chat/browser/chatWidget.js';
 import { IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { ChatModel, IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/chatModel.js';
 import { ChatMode } from '../../../chat/common/chatModes.js';
@@ -232,8 +231,8 @@ export class TerminalChatWidget extends Disposable {
 		this.inlineChatWidget.placeholder = defaultAgent?.description ?? localize('askAboutCommands', 'Ask about commands');
 	}
 
-	async reveal(viewState?: IChatViewState): Promise<void> {
-		await this._createSession(viewState);
+	async reveal(): Promise<void> {
+		await this._createSession();
 		this._doLayout();
 		this._container.classList.remove('hide');
 		this._visibleContextKey.set(true);
@@ -325,13 +324,13 @@ export class TerminalChatWidget extends Disposable {
 		return this._focusTracker;
 	}
 
-	private async _createSession(viewState?: IChatViewState): Promise<void> {
+	private async _createSession(): Promise<void> {
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (!this._model.value) {
 				this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, token);
 				const model = this._model.value;
 				if (model) {
-					this._inlineChatWidget.setChatModel(model, this._loadViewState());
+					this._inlineChatWidget.setChatModel(model);
 					this._resetPlaceholder();
 				}
 				if (!this._model.value) {
@@ -342,21 +341,11 @@ export class TerminalChatWidget extends Disposable {
 		this._register(toDisposable(() => this._sessionCtor?.cancel()));
 	}
 
-	private _loadViewState() {
-		const rawViewState = this._storageService.get(this._viewStateStorageKey, StorageScope.PROFILE, undefined);
-		let viewState: IChatViewState | undefined;
-		if (rawViewState) {
-			try {
-				viewState = JSON.parse(rawViewState);
-			} catch {
-				viewState = undefined;
-			}
-		}
-		return viewState;
-	}
-
 	private _saveViewState() {
-		this._storageService.store(this._viewStateStorageKey, JSON.stringify(this._inlineChatWidget.chatWidget.getViewState()), StorageScope.PROFILE, StorageTarget.USER);
+		const viewState = this._inlineChatWidget.chatWidget.getViewState();
+		if (viewState) {
+			this._storageService.store(this._viewStateStorageKey, JSON.stringify(viewState), StorageScope.PROFILE, StorageTarget.USER);
+		}
 	}
 
 	clear(): void {

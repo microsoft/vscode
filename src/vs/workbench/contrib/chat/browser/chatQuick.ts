@@ -156,7 +156,6 @@ class QuickChat extends Disposable {
 	private widget!: ChatWidget;
 	private sash!: Sash;
 	private model: ChatModel | undefined;
-	private _currentQuery: string | undefined;
 	private readonly maintainScrollTimer: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
 	private _deferUpdatingDynamicLayout: boolean = false;
 
@@ -301,9 +300,6 @@ class QuickChat extends Disposable {
 				this._deferUpdatingDynamicLayout = true;
 			}
 		}));
-		this._register(this.widget.inputEditor.onDidChangeModelContent((e) => {
-			this._currentQuery = this.widget.inputEditor.getValue();
-		}));
 		this._register(this.widget.onDidChangeHeight((e) => this.sash.layout()));
 		const width = parent.offsetWidth;
 		this._register(this.sash.onDidStart(() => {
@@ -381,9 +377,9 @@ class QuickChat extends Disposable {
 			}
 		}
 
-		const value = this.widget.inputEditor.getValue();
+		const value = this.widget.getViewState();
 		if (value) {
-			widget.inputEditor.setValue(value);
+			widget.viewModel.model.inputModel.setState(value);
 		}
 		widget.focusInput();
 	}
@@ -403,6 +399,7 @@ class QuickChat extends Disposable {
 			throw new Error('Could not start chat session');
 		}
 
-		this.widget.setModel(this.model, { inputValue: this._currentQuery });
+		this.model.inputModel.setState({ inputText: '', selections: [] });
+		this.widget.setModel(this.model);
 	}
 }
