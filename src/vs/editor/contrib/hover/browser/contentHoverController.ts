@@ -269,12 +269,10 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 		if (this._ignoreMouseEvents) {
 			return;
 		}
-		// New behavior: if hover is configured for keyboard modifier and the user presses the triggering modifier
 		// we should show the hover immediately for the current (last known) mouse location even without moving the mouse again.
 		if (this._hoverSettings.enabled === 'onKeyboardModifier' && this._mouseMoveEvent) {
-			const multiCursorModifier = this._editor.getOption(EditorOption.multiCursorModifier); // 'altKey' | 'ctrlKey' | 'metaKey'
-			const triggerPressed = isTriggerModifierPressed(multiCursorModifier, e);
-			if (triggerPressed) {
+			const multiCursorModifier = this._editor.getOption(EditorOption.multiCursorModifier);
+			if (isTriggerModifierPressed(multiCursorModifier, e)) {
 				// Avoid re-trigger if already visible
 				if (!this._contentWidget?.isVisible) {
 					// Get the position/range from the last mouse event and show hover immediately

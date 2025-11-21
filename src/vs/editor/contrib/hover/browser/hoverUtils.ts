@@ -51,6 +51,5 @@ export function shouldShowHover(
 	if (hoverEnabled === 'off') {
 		return false;
 	}
-	// onKeyboardModifier
 	return isTriggerModifierPressed(multiCursorModifier, mouseEvent.event);
 }
