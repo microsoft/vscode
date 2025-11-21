@@ -221,7 +221,7 @@ export class PromptHeader {
 			return undefined;
 		}
 		if (handoffsAttribute.value.type === 'array') {
-			// Array format: list of objects: { agent, label, prompt, send? }
+			// Array format: list of objects: { agent, label, prompt, send?, showContinueOn? }
 			const handoffs: IHandOff[] = [];
 			for (const item of handoffsAttribute.value.items) {
 				if (item.type === 'object') {
@@ -229,6 +229,7 @@ export class PromptHeader {
 					let label: string | undefined;
 					let prompt: string | undefined;
 					let send: boolean | undefined;
+					let showContinueOn: boolean | undefined;
 					for (const prop of item.properties) {
 						if (prop.key.value === 'agent' && prop.value.type === 'string') {
 							agent = prop.value.value;
@@ -238,10 +239,12 @@ export class PromptHeader {
 							prompt = prop.value.value;
 						} else if (prop.key.value === 'send' && prop.value.type === 'boolean') {
 							send = prop.value.value;
+						} else if (prop.key.value === 'showContinueOn' && prop.value.type === 'boolean') {
+							showContinueOn = prop.value.value;
 						}
 					}
 					if (agent && label && prompt !== undefined) {
-						handoffs.push({ agent, label, prompt, send });
+						handoffs.push({ agent, label, prompt, send, showContinueOn });
 					}
 				}
 			}
@@ -256,6 +259,7 @@ export interface IHandOff {
 	readonly label: string;
 	readonly prompt: string;
 	readonly send?: boolean;
+	readonly showContinueOn?: boolean;
 }
 
 export interface IHeaderAttribute {
