@@ -80,7 +80,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/co
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { IHandOff, IHandOffAdditionalChoice, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
+import { IHandOff, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
@@ -769,8 +769,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.layout(this.bodyDimension.height, this.bodyDimension.width);
 			}
 		}));
-		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff, option }) => {
-			this.handleNextPromptSelection(handoff, option);
+		this._register(this.chatSuggestNextWidget.onDidSelectPrompt(({ handoff, agentId }) => {
+			this.handleNextPromptSelection(handoff, agentId);
 		}));
 
 		if (renderInputOnTop) {
@@ -1584,34 +1584,41 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private handleNextPromptSelection(handoff: IHandOff, option?: IHandOffAdditionalChoice): void {
+	private handleNextPromptSelection(handoff: IHandOff, agentId?: string): void {
 		// Hide the widget after selection
 		this.chatSuggestNextWidget.hide();
 
-		// Use option's prompt if provided, otherwise use handoff's main prompt
-		const promptToUse = option?.prompt ?? handoff.prompt;
+		const promptToUse = handoff.prompt;
 
 		// Log telemetry
 		const currentMode = this.input.currentModeObs.get();
 		const fromAgent = currentMode?.id ?? '';
 		this.telemetryService.publicLog2<ChatHandoffClickEvent, ChatHandoffClickClassification>('chat.handoffClicked', {
 			fromAgent: fromAgent,
-			toAgent: handoff.agent || '',
+			toAgent: agentId || handoff.agent || '',
 			hasPrompt: Boolean(promptToUse),
 			autoSend: Boolean(handoff.send)
 		});
 
-		// Switch to the specified agent/mode if provided
-		if (handoff.agent) {
-			this._switchToAgentByName(handoff.agent);
-		}
-		// Insert the handoff prompt into the input
-		this.input.setValue(promptToUse, false);
-		this.input.focus();
-
-		// Auto-submit if send flag is true
-		if (handoff.send) {
+		// If agentId is provided (from chevron dropdown), delegate to that chat session
+		// Otherwise, switch to the handoff agent
+		if (agentId) {
+			// Delegate to chat session (e.g., @background or @cloud)
+			this.input.setValue(`@${agentId} ${promptToUse}`, false);
+			this.input.focus();
+			// Auto-submit for delegated chat sessions
 			this.acceptInput();
+		} else if (handoff.agent) {
+			// Regular handoff to specified agent
+			this._switchToAgentByName(handoff.agent);
+			// Insert the handoff prompt into the input
+			this.input.setValue(promptToUse, false);
+			this.input.focus();
+
+			// Auto-submit if send flag is true
+			if (handoff.send) {
+				this.acceptInput();
+			}
 		}
 	}
 

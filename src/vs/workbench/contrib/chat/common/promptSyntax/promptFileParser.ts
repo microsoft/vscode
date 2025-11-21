@@ -221,7 +221,7 @@ export class PromptHeader {
 			return undefined;
 		}
 		if (handoffsAttribute.value.type === 'array') {
-			// Array format: list of objects: { agent, label, prompt, send?, additionalChoices? }
+			// Array format: list of objects: { agent, label, prompt, send? }
 			const handoffs: IHandOff[] = [];
 			for (const item of handoffsAttribute.value.items) {
 				if (item.type === 'object') {
@@ -229,7 +229,6 @@ export class PromptHeader {
 					let label: string | undefined;
 					let prompt: string | undefined;
 					let send: boolean | undefined;
-					let additionalChoices: IHandOffAdditionalChoice[] | undefined;
 					for (const prop of item.properties) {
 						if (prop.key.value === 'agent' && prop.value.type === 'string') {
 							agent = prop.value.value;
@@ -239,28 +238,10 @@ export class PromptHeader {
 							prompt = prop.value.value;
 						} else if (prop.key.value === 'send' && prop.value.type === 'boolean') {
 							send = prop.value.value;
-						} else if (prop.key.value === 'additionalChoices' && prop.value.type === 'array') {
-							additionalChoices = [];
-							for (const optionItem of prop.value.items) {
-								if (optionItem.type === 'object') {
-									let optionLabel: string | undefined;
-									let optionPrompt: string | undefined;
-									for (const optionProp of optionItem.properties) {
-										if (optionProp.key.value === 'label' && optionProp.value.type === 'string') {
-											optionLabel = optionProp.value.value;
-										} else if (optionProp.key.value === 'prompt' && optionProp.value.type === 'string') {
-											optionPrompt = optionProp.value.value;
-										}
-									}
-									if (optionLabel && optionPrompt !== undefined) {
-										additionalChoices.push({ label: optionLabel, prompt: optionPrompt });
-									}
-								}
-							}
 						}
 					}
 					if (agent && label && prompt !== undefined) {
-						handoffs.push({ agent, label, prompt, send, additionalChoices });
+						handoffs.push({ agent, label, prompt, send });
 					}
 				}
 			}
@@ -270,17 +251,11 @@ export class PromptHeader {
 	}
 }
 
-export interface IHandOffAdditionalChoice {
-	readonly label: string;
-	readonly prompt: string;
-}
-
 export interface IHandOff {
 	readonly agent: string;
 	readonly label: string;
 	readonly prompt: string;
 	readonly send?: boolean;
-	readonly additionalChoices?: IHandOffAdditionalChoice[];
 }
 
 export interface IHeaderAttribute {

@@ -7,14 +7,17 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IChatMode } from '../../common/chatModes.js';
-import { IHandOff, IHandOffAdditionalChoice } from '../../common/promptSyntax/promptFileParser.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IHandOff } from '../../common/promptSyntax/promptFileParser.js';
+import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 
 export interface INextPromptSelection {
 	readonly handoff: IHandOff;
-	readonly option?: IHandOffAdditionalChoice;
+	readonly agentId?: string;
 }
 
 export class ChatSuggestNextWidget extends Disposable {
@@ -31,7 +34,8 @@ export class ChatSuggestNextWidget extends Disposable {
 	private _currentMode: IChatMode | undefined;
 
 	constructor(
-		@IContextMenuService private readonly contextMenuService: IContextMenuService
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService
 	) {
 		super();
 		this.domNode = this.createSuggestNextWidget();
@@ -104,9 +108,11 @@ export class ChatSuggestNextWidget extends Disposable {
 		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
 		titleElement.textContent = handoff.label;
 
-		const hasAdditionalChoices = handoff.additionalChoices && handoff.additionalChoices.length > 0;
+		// Get chat session contributions to show in chevron dropdown
+		const contributions = this.chatSessionsService.getAllChatSessionContributions();
+		const availableContributions = contributions.filter(c => c.canDelegate !== false);
 
-		if (hasAdditionalChoices) {
+		if (availableContributions.length > 0) {
 			const chevron = dom.append(button, dom.$('.codicon.codicon-chevron-down.dropdown-chevron'));
 			chevron.setAttribute('tabindex', '0');
 			chevron.setAttribute('role', 'button');
@@ -117,11 +123,20 @@ export class ChatSuggestNextWidget extends Disposable {
 				e.preventDefault();
 				e.stopPropagation();
 
-				const actions = handoff.additionalChoices!.map(option =>
-					new Action(option.label, option.label, undefined, true, () => {
-						this._onDidSelectPrompt.fire({ handoff, option });
-					})
-				);
+				const actions = availableContributions.map(contrib => {
+					const provider = contrib.type === AgentSessionProviders.Background ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
+					const icon = getAgentSessionProviderIcon(provider);
+					const name = getAgentSessionProviderName(provider);
+					return new Action(
+						contrib.type,
+						localize('continueIn', "Continue in {0}", name),
+						ThemeIcon.isThemeIcon(icon) ? ThemeIcon.asClassName(icon) : undefined,
+						true,
+						() => {
+							this._onDidSelectPrompt.fire({ handoff, agentId: contrib.name });
+						}
+					);
+				});
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => anchor || button,
@@ -139,15 +154,17 @@ export class ChatSuggestNextWidget extends Disposable {
 					showContextMenu(e, chevron);
 				}
 			}));
+			disposables.add(dom.addDisposableListener(button, 'click', (e: MouseEvent) => {
+				if ((e.target as HTMLElement).classList.contains('dropdown-chevron')) {
+					return;
+				}
+				this._onDidSelectPrompt.fire({ handoff });
+			}));
+		} else {
+			disposables.add(dom.addDisposableListener(button, 'click', () => {
+				this._onDidSelectPrompt.fire({ handoff });
+			}));
 		}
-
-		// Handle button clicks - ignore clicks on chevron if present
-		disposables.add(dom.addDisposableListener(button, 'click', (e: MouseEvent) => {
-			if (hasAdditionalChoices && (e.target as HTMLElement).classList.contains('dropdown-chevron')) {
-				return;
-			}
-			this._onDidSelectPrompt.fire({ handoff });
-		}));
 
 		disposables.add(dom.addDisposableListener(button, 'keydown', (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {

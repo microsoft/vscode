@@ -168,12 +168,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				'  - label: Start Implementation',
 				'    agent: agent',
 				'    prompt: Implement the plan',
-				'    send: true',
-				'    additionalChoices:',
-				'      - label: Continue in Cloud',
-				'        prompt: \"@cloud implement this\"',
-				'      - label: Continue in Background',
-				'        prompt: \"@cli implement this\"'
+				'    send: true'
 			].join('\n');
 			const item: CompletionItem = {
 				label: localize('promptHeaderAutocompletion.handoffsExample', "Handoff Example"),

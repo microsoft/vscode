@@ -420,7 +420,7 @@ export class PromptValidator {
 		}
 		for (const item of attribute.value.items) {
 			if (item.type !== 'object') {
-				report(toMarker(localize('promptValidator.eachHandoffMustBeObject', "Each handoff in the 'handoffs' attribute must be an object with 'label', 'agent', 'prompt' and optional 'send', 'additionalChoices'."), item.range, MarkerSeverity.Error));
+				report(toMarker(localize('promptValidator.eachHandoffMustBeObject', "Each handoff in the 'handoffs' attribute must be an object with 'label', 'agent', 'prompt' and optional 'send'."), item.range, MarkerSeverity.Error));
 				continue;
 			}
 			const required = new Set(['label', 'agent', 'prompt']);
@@ -448,41 +448,8 @@ export class PromptValidator {
 							report(toMarker(localize('promptValidator.handoffSendMustBeBoolean', "The 'send' property in a handoff must be a boolean."), prop.value.range, MarkerSeverity.Error));
 						}
 						break;
-					case 'additionalChoices':
-						if (prop.value.type !== 'array') {
-							report(toMarker(localize('promptValidator.handoffAdditionalChoicesMustBeArray', "The 'additionalChoices' property in a handoff must be an array."), prop.value.range, MarkerSeverity.Error));
-						} else {
-							for (const optionItem of prop.value.items) {
-								if (optionItem.type !== 'object') {
-									report(toMarker(localize('promptValidator.eachAdditionalChoiceMustBeObject', "Each additional choice must be an object with 'label' and 'prompt'."), optionItem.range, MarkerSeverity.Error));
-									continue;
-								}
-								const optionRequired = new Set(['label', 'prompt']);
-								for (const optionProp of optionItem.properties) {
-									switch (optionProp.key.value) {
-										case 'label':
-											if (optionProp.value.type !== 'string' || optionProp.value.value.trim().length === 0) {
-												report(toMarker(localize('promptValidator.additionalChoiceLabelMustBeNonEmptyString', "The 'label' property in an additional choice must be a non-empty string."), optionProp.value.range, MarkerSeverity.Error));
-											}
-											break;
-										case 'prompt':
-											if (optionProp.value.type !== 'string') {
-												report(toMarker(localize('promptValidator.additionalChoicePromptMustBeString', "The 'prompt' property in an additional choice must be a string."), optionProp.value.range, MarkerSeverity.Error));
-											}
-											break;
-										default:
-											report(toMarker(localize('promptValidator.unknownAdditionalChoiceProperty', "Unknown property '{0}' in additional choice object. Supported properties are 'label' and 'prompt'.", optionProp.key.value), optionProp.value.range, MarkerSeverity.Warning));
-									}
-									optionRequired.delete(optionProp.key.value);
-								}
-								if (optionRequired.size > 0) {
-									report(toMarker(localize('promptValidator.missingAdditionalChoiceProperties', "Missing required properties {0} in additional choice object.", Array.from(optionRequired).map(s => `'${s}'`).join(', ')), optionItem.range, MarkerSeverity.Error));
-								}
-							}
-						}
-						break;
 					default:
-						report(toMarker(localize('promptValidator.unknownHandoffProperty', "Unknown property '{0}' in handoff object. Supported properties are 'label', 'agent', 'prompt' and optional 'send', 'additionalChoices'.", prop.key.value), prop.value.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownHandoffProperty', "Unknown property '{0}' in handoff object. Supported properties are 'label', 'agent', 'prompt' and optional 'send'.", prop.key.value), prop.value.range, MarkerSeverity.Warning));
 				}
 				required.delete(prop.key.value);
 			}
