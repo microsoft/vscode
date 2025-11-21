@@ -28,7 +28,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatModel, IChatModel } from '../../common/chatModel.js';
+import { ChatModel } from '../../common/chatModel.js';
 import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
@@ -313,10 +313,8 @@ class CreateRemoteAgentJobFromEditorAction {
 				return;
 			}
 			const fileUri = model.uri as URI;
-			const chatModel = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, {});
-			// todo@connor4312: remove 'as' cast
-			// todo@joshspicer: why?
-			const { sessionResource } = chatModel as unknown as ChatModel;
+			const chatModelReference = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, {});
+			const { sessionResource } = chatModelReference.object;
 			if (!sessionResource) {
 				return;
 			}
