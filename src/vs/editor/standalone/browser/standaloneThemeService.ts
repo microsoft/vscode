@@ -222,7 +222,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 	private readonly _onProductIconThemeChange = this._register(new Emitter<IProductIconTheme>());
 	public readonly onDidProductIconThemeChange = this._onProductIconThemeChange.event;
 
-	private readonly _environment: IEnvironmentService = { isBuilt: false } as IEnvironmentService;
+	private readonly _environment: IEnvironmentService = Object.create(null);
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
 	private _autoDetectHighContrast: boolean;
 	private _codiconCSS: string;
@@ -245,7 +245,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
 		this._knownThemes.set(HC_LIGHT_THEME_NAME, newBuiltInTheme(HC_LIGHT_THEME_NAME));
-
+		this._environment.isBuilt = false;
 		const iconsStyleSheet = this._register(getIconsStyleSheet(this, this._environment));
 
 		this._codiconCSS = iconsStyleSheet.getCSS();
