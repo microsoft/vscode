@@ -7,11 +7,10 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
-import { autorunSelfDisposable, IObservable } from '../../../../../base/common/observable.js';
 import * as nls from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { IChatModel, IChatProgressResponseContent, IChatRequestModel } from '../../common/chatModel.js';
+import { IChatModel } from '../../common/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -28,8 +27,6 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 
 	readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
 	public get onDidChangeChatSessionItems() { return this._onDidChangeChatSessionItems.event; }
-
-	private readonly _registeredRequestIds = new Set<string>();
 
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
@@ -79,8 +76,9 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		const register = () => {
 			this.registerModelTitleListener(widget);
 			if (widget.viewModel) {
-				this.registerProgressListener(widget.viewModel.model.requestInProgress);
-				this.registerResponseChangeListener(widget.viewModel.model);
+				this.chatSessionsService.registerModelProgressListener(widget.viewModel.model, () => {
+					this._onDidChangeChatSessionItems.fire();
+				});
 			}
 		};
 		// Listen for view model changes on this widget
@@ -90,56 +88,6 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		}));
 
 		register();
-	}
-	private registerProgressListener(observable: IObservable<boolean>) {
-		const progressEvent = Event.fromObservableLight(observable);
-		this._register(progressEvent(() => {
-			this._onDidChangeChatSessionItems.fire();
-		}));
-	}
-
-	private registerResponseChangeListener(model: IChatModel): void {
-		// Helper function to register listeners for a request
-		const registerRequestListeners = (request: IChatRequestModel, index: number, array: IChatRequestModel[]) => {
-			if (!request.response || this._registeredRequestIds.has(request.id)) {
-				return;
-			}
-
-			this._registeredRequestIds.add(request.id);
-
-			this._register(request.response.onDidChange(() => {
-				this._onDidChangeChatSessionItems.fire();
-			}));
-
-			// Track tool invocation state changes
-			const responseParts = request.response.response.value;
-			responseParts.forEach((part: IChatProgressResponseContent) => {
-				if (part.kind === 'toolInvocation') {
-					const toolInvocation = part as IChatToolInvocation;
-					// Use autorun to listen for state changes
-					this._register(autorunSelfDisposable(reader => {
-						const state = toolInvocation.state.read(reader);
-
-						// Also track progress changes when executing
-						if (state.type === IChatToolInvocation.StateKind.Executing) {
-							state.progress.read(reader);
-						}
-
-						this._onDidChangeChatSessionItems.fire();
-					}));
-				}
-			});
-		};
-
-		// Listen for response changes on all existing requests
-		const requests = model.getRequests();
-		requests.forEach(registerRequestListeners);
-
-		// Listen for new requests being added
-		this._register(model.onDidChange(() => {
-			const currentRequests = model.getRequests();
-			currentRequests.forEach(registerRequestListeners);
-		}));
 	}
 
 	private registerModelTitleListener(widget: IChatWidget): void {

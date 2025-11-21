@@ -52,6 +52,12 @@ export class ChatSessionTracker extends Disposable {
 			const editor = e.editor as ChatEditorInput;
 			const sessionType = editor.getSessionType();
 
+			const model = this.chatService.getSession(editor.sessionResource!);
+			if (model) {
+				this.chatSessionsService.registerModelProgressListener(model, () => {
+					this.chatSessionsService.notifySessionItemsChanged(sessionType);
+				});
+			}
 			this.chatSessionsService.notifySessionItemsChanged(sessionType);
 
 			// Emit targeted event for this session type
