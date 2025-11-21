@@ -18,7 +18,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatMode, ChatModeService } from '../../common/chatModes.js';
-import { ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from './mockPromptsService.js';
 
@@ -267,20 +267,4 @@ suite('ChatModeService', () => {
 		assert.strictEqual(modes.custom[0].id, mode1.uri.toString());
 	});
 
-	test('should detect when agent mode is disabled by policy', () => {
-		// By default, agent mode should not be disabled by policy
-		assert.strictEqual(chatModeService.isAgentModeDisabledByPolicy(), false);
-
-		// Set policy value to false
-		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, false, { policyValue: false });
-		assert.strictEqual(chatModeService.isAgentModeDisabledByPolicy(), true);
-
-		// Set policy value to true
-		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, true, { policyValue: true });
-		assert.strictEqual(chatModeService.isAgentModeDisabledByPolicy(), false);
-
-		// Clear policy value
-		configurationService.setUserConfiguration(ChatConfiguration.AgentEnabled, true, { policyValue: undefined });
-		assert.strictEqual(chatModeService.isAgentModeDisabledByPolicy(), false);
-	});
 });

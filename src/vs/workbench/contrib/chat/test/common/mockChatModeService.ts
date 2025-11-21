@@ -8,11 +8,14 @@ import { Event } from '../../../../../base/common/event.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 
 export class MockChatModeService implements IChatModeService {
-	readonly _serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	public readonly onDidChangeChatModes = Event.None;
 
-	constructor(private readonly _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] }) { }
+	constructor(
+		private readonly _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] },
+		private readonly _isAgentModeDisabledByPolicy: boolean = false
+	) { }
 
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
 		return this._modes;
@@ -24,5 +27,9 @@ export class MockChatModeService implements IChatModeService {
 
 	findModeByName(name: string): IChatMode | undefined {
 		return this._modes.builtin.find(mode => mode.name.get() === name) ?? this._modes.custom.find(mode => mode.name.get() === name);
+	}
+
+	isAgentModeDisabledByPolicy(): boolean {
+		return this._isAgentModeDisabledByPolicy;
 	}
 }

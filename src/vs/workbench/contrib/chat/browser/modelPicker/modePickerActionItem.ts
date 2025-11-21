@@ -7,9 +7,11 @@ import * as dom from '../../../../../base/browser/dom.js';
 import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { groupBy } from '../../../../../base/common/collections.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -36,10 +38,10 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		action: MenuItemAction,
 		private readonly delegate: IModePickerDelegate,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@IChatAgentService chatAgentService: IChatAgentService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IChatModeService private readonly chatModeService: IChatModeService,
+		@IChatModeService chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService commandService: ICommandService,
 		@IProductService productService: IProductService
@@ -49,18 +51,18 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
 			// Check if Agent mode is disabled by policy
 			const isAgentModeDisabled = mode.kind === ChatModeKind.Agent && chatModeService.isAgentModeDisabledByPolicy();
-			const label = isAgentModeDisabled ? `$(lock) ${mode.label.get()}` : mode.label.get();
-			const tooltip = isAgentModeDisabled 
+			const tooltip = isAgentModeDisabled
 				? localize('agentModeDisabledByPolicy', "Managed by your organization")
 				: chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 
 			return {
 				...action,
 				id: getOpenChatActionIdForMode(mode),
-				label,
+				label: mode.label.get(),
+				icon: isAgentModeDisabled ? ThemeIcon.fromId(Codicon.lock.id) : undefined,
 				class: isAgentModeDisabled ? 'disabled-by-policy' : undefined,
 				enabled: !isAgentModeDisabled,
-				checked: currentMode.id === mode.id,
+				checked: !isAgentModeDisabled && currentMode.id === mode.id,
 				tooltip,
 				run: async () => {
 					if (isAgentModeDisabled) {

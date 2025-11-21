@@ -189,8 +189,13 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			ChatMode.Ask,
 		];
 
-		// Always include Agent mode, but mark as disabled if hasToolsAgent is false
-		builtinModes.unshift(ChatMode.Agent);
+		// Include Agent mode if:
+		// - It's enabled (hasToolsAgent is true), OR
+		// - It's disabled by policy (so we can show it with a lock icon)
+		// But hide it if the user manually disabled it via settings
+		if (this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy()) {
+			builtinModes.unshift(ChatMode.Agent);
+		}
 		builtinModes.push(ChatMode.Edit);
 		return builtinModes;
 	}

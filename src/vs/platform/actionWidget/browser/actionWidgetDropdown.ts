@@ -93,7 +93,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					kind: ActionListItemKind.Action,
 					canPreview: false,
 					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
-					disabled: false,
+					disabled: !action.enabled,
 					hideIcon: false,
 					label: action.label,
 					keybinding: this._options.showItemKeybindings ?

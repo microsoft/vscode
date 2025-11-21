@@ -529,6 +529,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.switchModelByQualifiedName(model);
 			}
 		}));
+
+		// Validate the initial mode - if Agent mode is set by default but disabled by policy, switch to Ask
+		this.validateCurrentChatMode();
 	}
 
 	public setIsWithinEditSession(inInsideDiff: boolean, isFilePartOfEditSession: boolean) {
@@ -835,6 +838,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const validMode = this.chatModeService.findModeById(currentMode.id);
 		if (!validMode) {
 			this.setChatMode(ChatModeKind.Agent);
+			return;
+		}
+
+		// If Agent mode is currently selected but disabled by policy, switch to Ask mode
+		if (currentMode.kind === ChatModeKind.Agent && this.chatModeService.isAgentModeDisabledByPolicy()) {
+			this.setChatMode(ChatModeKind.Ask);
 			return;
 		}
 	}
