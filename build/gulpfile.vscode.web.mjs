@@ -21,7 +21,7 @@ import { compileBuildWithManglingTask } from './gulpfile.compile.mjs';
 import * as extensions from './lib/extensions.ts';
 import VinylFile from 'vinyl';
 import jsonEditor from 'gulp-json-editor';
-import buildfile from './buildfile.js';
+import buildfile from './buildfile.ts';
 import { fileURLToPath } from 'url';
 
 const { getVersion } = getVersionModule;

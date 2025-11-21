@@ -2,7 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// @ts-check
+
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 /**
  * Hygiene works by creating cascading subsets of all our files and
@@ -13,11 +15,7 @@
  * all ⊃ eol ⊇ indentation ⊃ copyright ⊃ typescript
  */
 
-import { readFileSync } from 'fs';
-import { join } from 'path';
-
-
-export const all = [
+export const all = Object.freeze<string[]>([
 	'*',
 	'build/**/*',
 	'extensions/**/*',
@@ -30,9 +28,9 @@ export const all = [
 	'!test/**/out/**',
 	'!**/node_modules/**',
 	'!**/*.js.map',
-];
+]);
 
-export const unicodeFilter = [
+export const unicodeFilter = Object.freeze<string[]>([
 	'**',
 
 	'!**/ThirdPartyNotices.txt',
@@ -67,9 +65,9 @@ export const unicodeFilter = [
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
-];
+]);
 
-export const indentationFilter = [
+export const indentationFilter = Object.freeze<string[]>([
 	'**',
 
 	// except specific files
@@ -150,9 +148,9 @@ export const indentationFilter = [
 	'!extensions/ipynb/notebook-out/**',
 	'!extensions/notebook-renderers/renderer-out/*.js',
 	'!extensions/simple-browser/media/*.js',
-];
+]);
 
-export const copyrightFilter = [
+export const copyrightFilter = Object.freeze<string[]>([
 	'**',
 	'!**/*.desktop',
 	'!**/*.json',
@@ -192,9 +190,9 @@ export const copyrightFilter = [
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
-];
+]);
 
-export const tsFormattingFilter = [
+export const tsFormattingFilter = Object.freeze<string[]>([
 	'src/**/*.ts',
 	'test/**/*.ts',
 	'extensions/**/*.ts',
@@ -211,9 +209,9 @@ export const tsFormattingFilter = [
 	'!extensions/html-language-features/server/lib/jquery.d.ts',
 	'!extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
-];
+]);
 
-export const eslintFilter = [
+export const eslintFilter = Object.freeze<string[]>([
 	'**/*.js',
 	'**/*.cjs',
 	'**/*.mjs',
@@ -224,8 +222,8 @@ export const eslintFilter = [
 		.split(/\r\n|\n/)
 		.filter(line => line && !line.startsWith('#'))
 		.map(line => line.startsWith('!') ? line.slice(1) : `!${line}`)
-];
+]);
 
-export const stylelintFilter = [
+export const stylelintFilter = Object.freeze<string[]>([
 	'src/**/*.css'
-];
+]);
