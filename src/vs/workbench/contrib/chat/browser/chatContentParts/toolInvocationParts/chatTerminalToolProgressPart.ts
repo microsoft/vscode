@@ -48,7 +48,7 @@ import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { KeybindingWeight, KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
-import { DetachedTerminalCommandMirror } from '../../chatTerminalCommandMirror.js';
+import { DetachedTerminalCommandMirror } from '../../../../terminal/browser/chatTerminalCommandMirror.js';
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
 

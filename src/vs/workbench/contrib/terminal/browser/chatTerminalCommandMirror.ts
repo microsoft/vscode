@@ -5,10 +5,10 @@
 
 import { Disposable, ImmortalReference } from '../../../../base/common/lifecycle.js';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalInstance, ITerminalService, type IDetachedTerminalInstance } from '../../terminal/browser/terminal.js';
-import { DetachedProcessInfo } from '../../terminal/browser/detachedTerminal.js';
+import { ITerminalInstance, ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
+import { DetachedProcessInfo } from './detachedTerminal.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { TerminalInstanceColorProvider } from '../../terminal/browser/terminalInstance.js';
+import { TerminalInstanceColorProvider } from './terminalInstance.js';
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 
 interface IDetachedTerminalCommandMirror {
