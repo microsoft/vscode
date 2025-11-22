@@ -86,6 +86,7 @@ import { registerChatElicitationActions } from './actions/chatElicitationActions
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
 import './agentSessions/agentSessionsView.js';
+import { AgentHQService, IAgentHQService } from './agentHQ/agentHQService.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
 import './chatAttachmentModel.js';
@@ -1201,6 +1202,7 @@ registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, I
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
+registerSingleton(IAgentHQService, AgentHQService, InstantiationType.Delayed);
 
 registerAction2(ConfigureToolSets);
 registerAction2(RenameChatSessionAction);

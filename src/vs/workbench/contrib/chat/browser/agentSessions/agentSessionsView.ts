@@ -52,6 +52,7 @@ import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.j
 import { SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { distinct } from '../../../../../base/common/arrays.js';
+import { IAgentHQService } from '../agentHQ/agentHQService.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -75,6 +76,7 @@ export class AgentSessionsView extends ViewPane {
 		@IChatService private readonly chatService: IChatService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IAgentHQService private readonly agentHQService: IAgentHQService,
 	) {
 		super({ ...options, titleMenuId: MenuId.AgentSessionsTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
@@ -131,6 +133,9 @@ export class AgentSessionsView extends ViewPane {
 		if (!session) {
 			return;
 		}
+
+		// Update most recent session in Agent HQ
+		this.agentHQService.setMostRecentSession(session);
 
 		let sessionOptions: IChatEditorOptions;
 		if (isLocalAgentSessionItem(session)) {
