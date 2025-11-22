@@ -1053,8 +1053,10 @@ export class SettingsEditor2 extends EditorPane {
 					this.settingsTree.scrollTop = 0;
 				}
 			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
-				this.settingsTree.reveal(element, 0);
-				this.settingsTree.setFocus([element]);
+				if (this.settingsTree.hasElement(element)) {
+					this.settingsTree.reveal(element, 0);
+					this.settingsTree.setFocus([element]);
+				}
 			}
 		}));
 
@@ -1571,18 +1573,62 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}
 
-		this.searchResultModel?.updateChildren();
+		const firstVisibleElement = this.settingsTree.firstVisibleElement;
+		let anchorId: string | undefined;
+
+		if (firstVisibleElement instanceof SettingsTreeSettingElement) {
+			anchorId = firstVisibleElement.setting.key;
+		} else if (firstVisibleElement instanceof SettingsTreeGroupElement) {
+			anchorId = firstVisibleElement.id;
+		}
 
 		if (this.settingsTreeModel.value) {
 			this.refreshModels(resolvedSettingsRoot);
 
 			if (schemaChange && this.searchResultModel) {
-				// If an extension's settings were just loaded and a search is active, retrigger the search so it shows up
 				return await this.onSearchInputChanged(false);
 			}
 
 			this.refreshTOCTree();
 			this.renderTree(undefined, forceRefresh);
+
+			if (anchorId) {
+				const newModel = this.settingsTreeModel.value;
+				let newElement: SettingsTreeElement | undefined;
+
+				// eslint-disable-next-line no-restricted-syntax
+				const settings = newModel.getElementsByName(anchorId);
+				if (settings && settings.length > 0) {
+					newElement = settings[0];
+				} else {
+					const findGroup = (roots: SettingsTreeGroupElement[]): SettingsTreeGroupElement | undefined => {
+						for (const g of roots) {
+							if (g.id === anchorId) {
+								return g;
+							}
+							if (g.children) {
+								for (const child of g.children) {
+									if (child instanceof SettingsTreeGroupElement) {
+										const found = findGroup([child]);
+										if (found) {
+											return found;
+										}
+									}
+								}
+							}
+						}
+						return undefined;
+					};
+					newElement = findGroup([newModel.root]);
+				}
+
+				if (newElement) {
+					try {
+						this.settingsTree.reveal(newElement, 0);
+					} catch (e) {
+					}
+				}
+			}
 		} else {
 			this.settingsTreeModel.value = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, this.workspaceTrustManagementService.isWorkspaceTrusted());
 			this.refreshModels(resolvedSettingsRoot);
