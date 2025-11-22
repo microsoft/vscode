@@ -937,13 +937,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	getQualifiedToolName(toolOrToolSet: IToolData | ToolSet): string {
-		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
-			if (tool === toolOrToolSet) {
-				return toolReferenceName;
-			}
+	getQualifiedToolName(tool: IToolData | ToolSet, toolSet?: ToolSet): string {
+		if (tool instanceof ToolSet) {
+			return getToolSetReferenceName(tool);
 		}
-		return (toolOrToolSet instanceof ToolSet) ? getToolSetReferenceName(toolOrToolSet) : getToolReferenceFullName(toolOrToolSet);
+		return getToolReferenceFullName(tool, toolSet);
 	}
 }
 
