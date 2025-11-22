@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { IDisposable, IReference, ReferenceCollection } from '../../../../base/common/lifecycle.js';
 import { ObservableMap } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -31,6 +32,9 @@ export class ChatModelStore extends ReferenceCollection<ChatModel> implements ID
 	private readonly _models = new ObservableMap<string, ChatModel>();
 	private readonly _modelsToDispose = new Set<string>();
 	private readonly _pendingDisposals = new Set<Promise<void>>();
+
+	private readonly _onDidDisposeModel = new Emitter<ChatModel>();
+	public readonly onDidDisposeModel = this._onDidDisposeModel.event;
 
 	constructor(
 		private readonly delegate: ChatModelStoreDelegate,
@@ -108,6 +112,7 @@ export class ChatModelStore extends ReferenceCollection<ChatModel> implements ID
 			if (this._modelsToDispose.has(key)) {
 				this.logService.trace(`Disposing chat session ${key}`);
 				this._models.delete(key);
+				this._onDidDisposeModel.fire(object);
 				object.dispose();
 			}
 			this._modelsToDispose.delete(key);

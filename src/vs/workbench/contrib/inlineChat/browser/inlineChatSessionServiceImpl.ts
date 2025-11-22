@@ -134,13 +134,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			store.add(chatModelRef);
 		}
 
-		store.add(toDisposable(() => {
-			const doesOtherSessionUseChatModel = [...this._sessions.values()].some(data => data.session !== session && data.session.chatModel === chatModel);
-
-			if (!doesOtherSessionUseChatModel) {
-				this._chatService.forceClearSession(chatModel.sessionResource);
-			}
-		}));
 		const lastResponseListener = store.add(new MutableDisposable());
 		store.add(chatModel.onDidChange(e => {
 			if (e.kind !== 'addRequest' || !e.request.response) {
