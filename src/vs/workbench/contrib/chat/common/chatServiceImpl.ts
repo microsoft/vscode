@@ -130,6 +130,9 @@ export class ChatService extends Disposable implements IChatService {
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
+	/**
+	 * For test use only
+	 */
 	waitForModelDisposals(): Promise<void> {
 		return this._sessionModels.waitForModelDisposals();
 	}

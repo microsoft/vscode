@@ -114,8 +114,11 @@ export class ChatModelStore extends ReferenceCollection<ChatModel> implements ID
 		}
 	}
 
-	waitForModelDisposals(): Promise<void> {
-		return Promise.all(this._pendingDisposals).then(() => undefined);
+	/**
+	 * For test use only
+	 */
+	async waitForModelDisposals(): Promise<void> {
+		await Promise.all(this._pendingDisposals);
 	}
 
 	private toKey(uri: URI): string {
