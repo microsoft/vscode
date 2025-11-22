@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { truncate } from '../../../../../../base/common/strings.js';
-import { URI } from '../../../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -49,7 +49,6 @@ import { ChatSessionItemWithProvider, getSessionItemContextOverlay, NEW_CHAT_SES
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { ArchivedSessionItems, GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { UriComponents } from '../../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 
 // Identity provider for session items

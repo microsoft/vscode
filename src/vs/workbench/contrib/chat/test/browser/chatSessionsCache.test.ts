@@ -9,7 +9,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatSessionStatus, IChatSessionItemProvider, localChatSessionType } from '../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Event } from '../../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -72,7 +72,7 @@ suite('ChatSessionsCache', () => {
 			timing: session.timing
 		}));
 
-		storageService.store(storageKey, JSON.stringify(serialized), StorageScope.WORKSPACE, -1);
+		storageService.store(storageKey, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		// Load sessions (simplified version of loadCachedSessions)
 		const cached = storageService.get(storageKey, StorageScope.WORKSPACE);
@@ -108,7 +108,7 @@ suite('ChatSessionsCache', () => {
 
 	test('should handle invalid cache data gracefully', () => {
 		const storageKey = `chatSessions.cache.${localChatSessionType}`;
-		storageService.store(storageKey, 'invalid json data', StorageScope.WORKSPACE, -1);
+		storageService.store(storageKey, 'invalid json data', StorageScope.WORKSPACE, StorageTarget.MACHINE);
 
 		const cached = storageService.get(storageKey, StorageScope.WORKSPACE);
 		assert.ok(cached, 'Should have cached data');
