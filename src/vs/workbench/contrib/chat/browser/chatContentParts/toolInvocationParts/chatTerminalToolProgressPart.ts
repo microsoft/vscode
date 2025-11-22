@@ -969,16 +969,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 }
 
-type ToggleChatTerminalOutputTelemetryEvent = {
-	previousExpanded: boolean;
-};
-
-type ToggleChatTerminalOutputTelemetryClassification = {
-	owner: 'meganrogge';
-	comment: 'Track usage of the toggle chat terminal output action.';
-	previousExpanded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal output was expanded before the toggle.' };
-};
-
 export class ToggleChatTerminalOutputAction extends Action implements IAction {
 	private _expanded = false;
 
@@ -997,6 +987,15 @@ export class ToggleChatTerminalOutputAction extends Action implements IAction {
 	}
 
 	public override async run(): Promise<void> {
+		type ToggleChatTerminalOutputTelemetryEvent = {
+			previousExpanded: boolean;
+		};
+
+		type ToggleChatTerminalOutputTelemetryClassification = {
+			owner: 'meganrogge';
+			comment: 'Track usage of the toggle chat terminal output action.';
+			previousExpanded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal output was expanded before the toggle.' };
+		};
 		this._telemetryService.publicLog2<ToggleChatTerminalOutputTelemetryEvent, ToggleChatTerminalOutputTelemetryClassification>('terminal/chatToggleOutput', {
 			previousExpanded: this._expanded
 		});
