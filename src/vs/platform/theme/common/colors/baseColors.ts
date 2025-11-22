@@ -23,7 +23,7 @@ export const errorForeground = registerColor('errorForeground',
 	nls.localize('errorForeground', "Overall foreground color for error messages. This color is only used if not overridden by a component."));
 
 export const descriptionForeground = registerColor('descriptionForeground',
-	{ light: '#717171', dark: transparent(foreground, 0.7), hcDark: transparent(foreground, 0.7), hcLight: transparent(foreground, 0.7) },
+	{ light: '#5c5c5c', dark: transparent(foreground, 0.7), hcDark: transparent(foreground, 0.7), hcLight: transparent(foreground, 0.7) },
 	nls.localize('descriptionForeground', "Foreground color for description text providing additional information, for example for a label."));
 
 export const iconForeground = registerColor('icon.foreground',

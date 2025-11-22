@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .agent-sessions-viewer {
-
 	.monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie {
 		display: none !important;
 	}
@@ -62,7 +61,8 @@
 		.agent-session-details-row {
 			padding: 0 6px 2px 6px;
 			font-size: 12px;
-			color: var(--vscode-descriptionForeground);
+			color: var(--vscode-foreground);
+			opacity: 0.8;
 
 			.rendered-markdown {
 				p {
@@ -76,7 +76,8 @@
 				}
 
 				a {
-					color: var(--vscode-descriptionForeground);
+					color: var(--vscode-foreground);
+					opacity: 0.8;
 				}
 			}
 		}
