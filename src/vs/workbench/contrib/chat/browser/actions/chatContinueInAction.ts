@@ -150,8 +150,9 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
 			description: `@${contrib.name}`,
-			label: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
-			tooltip: contrib.displayName,
+			label: getAgentSessionProviderName(provider),
+			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
+			category: { label: localize('continueIn', "Continue In"), order: 0 },
 			run: () => instantiationService.invokeFunction(accessor => {
 				if (location === ActionLocation.Editor) {
 					return new CreateRemoteAgentJobFromEditorAction().run(accessor, contrib);
@@ -167,8 +168,9 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 			enabled: true,
 			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
-			label: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
+			label: getAgentSessionProviderName(provider),
 			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
+			category: { label: localize('continueIn', "Continue In"), order: 0 },
 			run: () => instantiationService.invokeFunction(accessor => {
 				const commandService = accessor.get(ICommandService);
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
