@@ -144,6 +144,7 @@ suite('InlineChatSession', function () {
 		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 		store.add(instaService.get(IChatSessionsService) as ChatSessionsService);  // Needs to be disposed in between test runs to clear extensionPoint contribution
+		store.add(instaService.get(IChatService) as ChatService);
 
 		instaService.get(IChatAgentService).registerDynamicAgent({
 			extensionId: nullExtensionDescription.identifier,
