@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { h } from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable, markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename } from '../../../../../base/common/resources.js';
@@ -177,18 +178,11 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		if (this.location === ActionLocation.Editor) {
-			const container = document.createElement('span');
-			container.classList.add('action-widget-delegate-label');
-
-			const iconSpan = document.createElement('span');
-			iconSpan.classList.add(...ThemeIcon.asClassNameArray(Codicon.forward));
-			container.appendChild(iconSpan);
-
-			const textSpan = document.createElement('span');
-			textSpan.textContent = localize('delegate', "Delegate to...");
-			container.appendChild(textSpan);
-
-			element.appendChild(container);
+			const view = h('span.action-widget-delegate-label', [
+				h('span', { className: ThemeIcon.asClassName(Codicon.forward) }),
+				h('span', [localize('delegate', "Delegate to...")])
+			]);
+			element.appendChild(view.root);
 			return null;
 		} else {
 			const icon = this.contextKeyService.contextMatchesRules(ChatContextKeys.remoteJobCreating) ? Codicon.sync : Codicon.forward;
