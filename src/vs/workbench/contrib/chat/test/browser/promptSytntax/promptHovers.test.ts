@@ -220,7 +220,7 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			// Hover on 'shell' tool
 			const hoverShell = await getHover(content, 4, 10, PromptsType.agent);
-			assert.strictEqual(hoverShell, 'Runs commands in the terminal');
+			assert.strictEqual(hoverShell, 'ToolSet: execute\n\n\nExecute code and applications on your machine');
 
 			// Hover on 'edit' tool
 			const hoverEdit = await getHover(content, 4, 20, PromptsType.agent);

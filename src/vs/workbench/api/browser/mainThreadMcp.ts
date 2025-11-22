@@ -200,6 +200,9 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		const resolvedScopes = authDetails.scopes ?? authDetails.resourceMetadata?.scopes_supported ?? authDetails.authorizationServerMetadata.scopes_supported ?? [];
 		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer, resourceServer);
 		if (forceNewRegistration && providerId) {
+			if (!this._authenticationService.isDynamicAuthenticationProvider(providerId)) {
+				throw new Error('Cannot force new registration for a non-dynamic authentication provider.');
+			}
 			this._authenticationService.unregisterAuthenticationProvider(providerId);
 			// TODO: Encapsulate this and the unregister in one call in the auth service
 			await this._dynamicAuthenticationProviderStorageService.removeDynamicProvider(providerId);

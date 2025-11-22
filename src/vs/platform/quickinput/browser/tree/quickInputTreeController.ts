@@ -115,6 +115,7 @@ export class QuickInputTreeController extends Disposable {
 			}
 		));
 		this.registerCheckboxStateListeners();
+		this.registerOnDidChangeFocus();
 	}
 
 	get tree(): WorkbenchObjectTree<IQuickTreeItem, IQuickTreeFilterData> {
@@ -339,6 +340,14 @@ export class QuickInputTreeController extends Disposable {
 			checked: item.checked ?? false
 		});
 		this._onDidCheckedLeafItemsChange.fire(this.getCheckedLeafItems());
+	}
+
+	registerOnDidChangeFocus() {
+		// Ensure that selection follows focus
+		this._register(this._tree.onDidChangeFocus(e => {
+			const item = this._tree.getFocus().findLast(item => item !== null);
+			this._tree.setSelection(item ? [item] : [], e.browserEvent);
+		}));
 	}
 
 	getCheckedLeafItems() {

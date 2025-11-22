@@ -45,7 +45,7 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const runSubagentToolData = runSubagentTool.getToolData();
 		this._register(toolsService.registerTool(runSubagentToolData, runSubagentTool));
 
-		const customAgentToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'custom-agent', VSCodeToolReference.customAgent, {
+		const customAgentToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'custom-agent', VSCodeToolReference.agent, {
 			icon: ThemeIcon.fromId(Codicon.agent.id),
 			description: localize('toolset.custom-agent', 'Delegate tasks to other agents'),
 		}));

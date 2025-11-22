@@ -566,7 +566,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					throw new CancellationError();
 				}
 
-				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId, pollingResult?.output);
+				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
 				const state = toolSpecificData.terminalCommandState ?? {};
 				state.timestamp = state.timestamp ?? timingStart;
 				toolSpecificData.terminalCommandState = state;
@@ -665,7 +665,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					throw new CancellationError();
 				}
 
-				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId, executeResult.output);
+				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
 				{
 					const state = toolSpecificData.terminalCommandState ?? {};
 					state.timestamp = state.timestamp ?? timingStart;

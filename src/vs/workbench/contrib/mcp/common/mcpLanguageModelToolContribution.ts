@@ -68,9 +68,11 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 				const rec: Rec = { dispose: () => store.dispose() };
 				const toolSet = new Lazy(() => {
 					const source = rec.source = mcpServerToSourceData(server);
+					const referenceName = server.definition.label.toLowerCase().replace(/\s+/g, '-'); // see issue https://github.com/microsoft/vscode/issues/278152
 					const toolSet = store.add(this._toolsService.createToolSet(
 						source,
-						server.definition.id, server.definition.label,
+						server.definition.id,
+						referenceName,
 						{
 							icon: Codicon.mcp,
 							description: localize('mcp.toolset', "{0}: All Tools", server.definition.label)

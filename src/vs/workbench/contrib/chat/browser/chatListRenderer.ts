@@ -840,7 +840,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (!element.confirmation) {
 			const markdown = isChatFollowup(element.message) ?
 				element.message.message :
-				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.message);
+				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, element.message);
 			content = [{ content: new MarkdownString(markdown), kind: 'markdownContent' }];
 
 			if (this.rendererOptions.renderStyle === 'minimal' && !element.isComplete) {

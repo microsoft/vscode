@@ -1286,16 +1286,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public removeRecentlyUsedTask(taskRecentlyUsedKey: string) {
-		if (this._getTasksFromStorage('historical').has(taskRecentlyUsedKey)) {
-			this._getTasksFromStorage('historical').delete(taskRecentlyUsedKey);
+		if (this._getTasksFromStorage('historical').delete(taskRecentlyUsedKey)) {
 			this._saveRecentlyUsedTasks();
 		}
 	}
 
 	public removePersistentTask(key: string) {
 		this._log(nls.localize('taskService.removePersistentTask', 'Removing persistent task {0}', key), true);
-		if (this._getTasksFromStorage('persistent').has(key)) {
-			this._getTasksFromStorage('persistent').delete(key);
+		if (this._getTasksFromStorage('persistent').delete(key)) {
 			this._savePersistentTasks();
 		}
 	}
