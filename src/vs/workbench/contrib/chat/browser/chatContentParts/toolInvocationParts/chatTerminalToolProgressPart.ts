@@ -763,7 +763,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (!command) {
 			return commandHeader;
 		}
-		const rawOutput = command.getOutput()?.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+		const rawOutput = command.getOutput();
 		if (!rawOutput || rawOutput.trim().length === 0) {
 			return `${commandHeader}\n${localize('chat.terminalOutputEmpty', 'No output was produced by the command.')}`;
 		}
