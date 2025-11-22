@@ -29,21 +29,7 @@
 		justify-content: center;
 		overflow: hidden;
 		flex: 1;
-		position: relative;
-		/* Allow absolute positioning of prompts */
-
-		&.has-chat-history {
-			/* Reintroduce minimal layout so welcome block centers vertically when history is shown */
-			flex-direction: column;
-			height: 100%;
-
-			/* Keep default align-items/justify-content from base (center) so history list sits above, then auto margins center welcome */
-			div.chat-welcome-view {
-				align-self: center;
-				margin-top: auto;
-				margin-bottom: auto;
-			}
-		}
+		position: relative; /* Allow absolute positioning of prompts */
 	}
 }
 
