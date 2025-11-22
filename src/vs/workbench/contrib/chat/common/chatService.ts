@@ -1001,6 +1001,11 @@ export interface IChatService {
 	readonly edits2Enabled: boolean;
 
 	readonly requestInProgressObs: IObservable<boolean>;
+
+	/**
+	 * For tests only!
+	 */
+	waitForModelDisposals(): Promise<void>;
 }
 
 export interface IChatSessionContext {

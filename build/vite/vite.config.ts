@@ -126,6 +126,9 @@ logger.warn = (msg, options) => {
 	if (msg.indexOf('await import(new URL(`vs/workbench/workbench.desktop.main.js`, baseUrl).href)') !== -1) {
 		return;
 	}
+	if (msg.indexOf('const result2 = await import(workbenchUrl);') !== -1) {
+		return;
+	}
 
 	// See https://github.com/microsoft/vscode/issues/278153
 	if (msg.indexOf('marked.esm.js.map') !== -1 || msg.indexOf('purify.es.mjs.map') !== -1) {

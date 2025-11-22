@@ -40,7 +40,6 @@ import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEn
 import { ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
 import { CountTokensCallback, createToolSchemaUri, GithubCopilotToolReference, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/languageModelToolsService.js';
-import { Target } from '../common/promptSyntax/promptFileParser.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -77,7 +76,8 @@ export const globalAutoApproveDescription = localize2(
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	vscodeToolSet: ToolSet;
-	launchToolSet: ToolSet;
+	executeToolSet: ToolSet;
+	readToolSet: ToolSet;
 
 	private _onDidChangeTools = this._register(new Emitter<void>());
 	readonly onDidChangeTools = this._onDidChangeTools.event;
@@ -144,14 +144,25 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		));
 
-		// Create the internal Launch tool set
-		this.launchToolSet = this._register(this.createToolSet(
+		// Create the internal Execute tool set
+		this.executeToolSet = this._register(this.createToolSet(
 			ToolDataSource.Internal,
-			'launch',
-			VSCodeToolReference.launch,
+			'execute',
+			VSCodeToolReference.execute,
 			{
-				icon: ThemeIcon.fromId(Codicon.rocket.id),
-				description: localize('copilot.toolSet.launch.description', 'Launch and run code, binaries or tests in the workspace'),
+				icon: ThemeIcon.fromId(Codicon.terminal.id),
+				description: localize('copilot.toolSet.execute.description', 'Execute code and applications on your machine'),
+			}
+		));
+
+		// Create the internal Read tool set
+		this.readToolSet = this._register(this.createToolSet(
+			ToolDataSource.Internal,
+			'read',
+			VSCodeToolReference.read,
+			{
+				icon: ThemeIcon.fromId(Codicon.eye.id),
+				description: localize('copilot.toolSet.read.description', 'Read files in your workspace'),
 			}
 		));
 	}
@@ -694,27 +705,66 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	private _githubToVSCodeToolMap: Record<string, string> = {
-		[GithubCopilotToolReference.shell]: VSCodeToolReference.shell,
-		[GithubCopilotToolReference.customAgent]: VSCodeToolReference.runSubagent,
-		'github/*': 'github/github-mcp-server/*',
-		'playwright/*': 'microsoft/playwright-mcp/*',
-	};
-	private _githubPrefixToVSCodePrefix = [['github', 'github/github-mcp-server'], ['playwright', 'microsoft/playwright-mcp']] as const;
+	private static readonly githubMCPServerAliases = ['github/github-mcp-server', 'io.github.github/github-mcp-server', 'github-mcp-server'];
+	private static readonly playwrightMCPServerAliases = ['microsoft/playwright-mcp', 'com.microsoft/playwright-mcp'];
 
-	mapGithubToolName(name: string): string {
-		const mapped = this._githubToVSCodeToolMap[name];
-		if (mapped) {
-			return mapped;
+	private * getToolSetAliases(toolSet: ToolSet, toolReferenceName: string): Iterable<string> {
+		if (toolReferenceName !== toolSet.referenceName) {
+			yield toolSet.referenceName; // full name, with '/*'
 		}
-		for (const [fromPrefix, toPrefix] of this._githubPrefixToVSCodePrefix) {
-			const regexp = new RegExp(`^${fromPrefix}(/[^/]+)$`);
-			const m = name.match(regexp);
-			if (m) {
-				return toPrefix + m[1];
+		if (toolSet.legacyFullNames) {
+			yield* toolSet.legacyFullNames;
+		}
+		switch (toolSet.referenceName) {
+			case 'github':
+				for (const alias of LanguageModelToolsService.githubMCPServerAliases) {
+					yield alias + '/*';
+				}
+				break;
+			case 'playwright':
+				for (const alias of LanguageModelToolsService.playwrightMCPServerAliases) {
+					yield alias + '/*';
+				}
+				break;
+			case VSCodeToolReference.execute: // 'execute'
+				yield GithubCopilotToolReference.shell;
+				break;
+			case VSCodeToolReference.agent: // 'agent'
+				yield VSCodeToolReference.runSubagent;
+				yield GithubCopilotToolReference.customAgent;
+				break;
+		}
+	}
+
+	private * getToolAliases(toolSet: IToolData, toolReferenceName: string): Iterable<string> {
+		const unqualifiedName = toolSet.toolReferenceName ?? toolSet.displayName;
+		if (toolReferenceName !== unqualifiedName) {
+			yield unqualifiedName; // simple name, without toolset name
+		}
+		if (toolSet.legacyToolReferenceFullNames) {
+			for (const legacyName of toolSet.legacyToolReferenceFullNames) {
+				yield legacyName;
+				const lastSlashIndex = legacyName.lastIndexOf('/');
+				if (lastSlashIndex !== -1) {
+					yield legacyName.substring(lastSlashIndex + 1); // it was also known under the simple name
+				}
 			}
 		}
-		return name;
+		const slashIndex = toolReferenceName.lastIndexOf('/');
+		if (slashIndex !== -1) {
+			switch (toolReferenceName.substring(0, slashIndex)) {
+				case 'github':
+					for (const alias of LanguageModelToolsService.githubMCPServerAliases) {
+						yield alias + toolReferenceName.substring(slashIndex);
+					}
+					break;
+				case 'playwright':
+					for (const alias of LanguageModelToolsService.playwrightMCPServerAliases) {
+						yield alias + toolReferenceName.substring(slashIndex);
+					}
+					break;
+			}
+		}
 	}
 
 	/**
@@ -722,19 +772,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	 * @param toolOrToolSetNames A list of tool or toolset names that are enabled.
 	 * @returns A map of tool or toolset instances to their enablement state.
 	 */
-	toToolAndToolSetEnablementMap(enabledQualifiedToolOrToolSetNames: readonly string[], target: string | undefined): IToolAndToolSetEnablementMap {
-		if (target === undefined || target === Target.GitHubCopilot) {
-			enabledQualifiedToolOrToolSetNames = enabledQualifiedToolOrToolSetNames.map(name => this.mapGithubToolName(name));
-		}
+	toToolAndToolSetEnablementMap(enabledQualifiedToolOrToolSetNames: readonly string[], _target: string | undefined): IToolAndToolSetEnablementMap {
 		const toolOrToolSetNames = new Set(enabledQualifiedToolOrToolSetNames);
 		const result = new Map<ToolSet | IToolData, boolean>();
 		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
 			if (tool instanceof ToolSet) {
-				const enabled = Boolean(
-					toolOrToolSetNames.has(toolReferenceName) ||
-					toolOrToolSetNames.has(tool.referenceName) ||
-					tool.legacyFullNames?.some(name => toolOrToolSetNames.has(name))
-				);
+				const enabled = toolOrToolSetNames.has(toolReferenceName) || Iterable.some(this.getToolSetAliases(tool, toolReferenceName), name => toolOrToolSetNames.has(name));
 				result.set(tool, enabled);
 				if (enabled) {
 					for (const memberTool of tool.getTools()) {
@@ -743,20 +786,18 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}
 			} else {
 				if (!result.has(tool)) { // already set via an enabled toolset
-					const enabled = Boolean(
-						toolOrToolSetNames.has(toolReferenceName) ||
-						toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName) ||
-						tool.legacyToolReferenceFullNames?.some(toolFullName => {
-							// enable tool if either the legacy fully qualified name or just the legacy tool set name is present
-							const toolSetFullName = toolFullName.substring(0, toolFullName.lastIndexOf('/'));
-							return toolOrToolSetNames.has(toolFullName) ||
-								(toolSetFullName && toolOrToolSetNames.has(toolSetFullName));
-						})
-					);
+					const enabled = toolOrToolSetNames.has(toolReferenceName)
+						|| Iterable.some(this.getToolAliases(tool, toolReferenceName), name => toolOrToolSetNames.has(name))
+						|| !!tool.legacyToolReferenceFullNames?.some(toolFullName => {
+							// enable tool if just the legacy tool set name is present
+							const index = toolFullName.lastIndexOf('/');
+							return index !== -1 && toolOrToolSetNames.has(toolFullName.substring(0, index));
+						});
 					result.set(tool, enabled);
 				}
 			}
 		}
+
 		// also add all user tool sets (not part of the prompt referencable tools)
 		for (const toolSet of this._toolSets) {
 			if (toolSet.source.type === 'user') {
@@ -830,9 +871,21 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
+	getSpecedToolSetName(referenceName: string): string {
+		if (LanguageModelToolsService.githubMCPServerAliases.includes(referenceName)) {
+			return 'github';
+		}
+		if (LanguageModelToolsService.playwrightMCPServerAliases.includes(referenceName)) {
+			return 'playwright';
+		}
+		return referenceName;
+	}
+
 	createToolSet(source: ToolDataSource, id: string, referenceName: string, options?: { icon?: ThemeIcon; description?: string; legacyFullNames?: string[] }): ToolSet & IDisposable {
 
 		const that = this;
+
+		referenceName = this.getSpecedToolSetName(referenceName);
 
 		const result = new class extends ToolSet implements IDisposable {
 			dispose(): void {
@@ -897,17 +950,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		for (const [tool, toolReferenceName] of this.getPromptReferencableTools()) {
 			if (tool instanceof ToolSet) {
-				add(tool.referenceName, toolReferenceName);
-				if (tool.legacyFullNames) {
-					for (const legacyName of tool.legacyFullNames) {
-						add(legacyName, toolReferenceName);
-					}
+				for (const alias of this.getToolSetAliases(tool, toolReferenceName)) {
+					add(alias, toolReferenceName);
 				}
 			} else {
-				add(tool.toolReferenceName ?? tool.displayName, toolReferenceName);
+				for (const alias of this.getToolAliases(tool, toolReferenceName)) {
+					add(alias, toolReferenceName);
+				}
 				if (tool.legacyToolReferenceFullNames) {
 					for (const legacyName of tool.legacyToolReferenceFullNames) {
-						add(legacyName, toolReferenceName);
 						// for any 'orphaned' toolsets (toolsets that no longer exist and
 						// do not have an explicit legacy mapping), we should
 						// just point them to the list of tools directly
@@ -929,8 +980,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			if (qualifiedName === toolReferenceName) {
 				return tool;
 			}
-			// legacy: check for the old name
-			if (qualifiedName === (tool instanceof ToolSet ? tool.referenceName : tool.toolReferenceName ?? tool.displayName)) {
+			const aliases = tool instanceof ToolSet ? this.getToolSetAliases(tool, toolReferenceName) : this.getToolAliases(tool, toolReferenceName);
+			if (Iterable.some(aliases, alias => qualifiedName === alias)) {
 				return tool;
 			}
 		}

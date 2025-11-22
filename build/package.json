@@ -62,15 +62,14 @@
     "workerpool": "^6.4.0",
     "yauzl": "^2.10.0"
   },
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
-    "copy-policy-dto": "node lib/policies/copyPolicyDto.js",
+    "copy-policy-dto": "node lib/policies/copyPolicyDto.ts",
     "prebuild-ts": "npm run copy-policy-dto",
-    "build-ts": "cd .. && npx tsgo --project build/tsconfig.build.json",
-    "compile": "npm run build-ts",
-    "watch": "npm run build-ts -- --watch",
-    "npmCheckJs": "npm run build-ts -- --noEmit",
-    "test": "npx mocha --ui tdd 'lib/**/*.test.js'"
+    "typecheck": "cd .. && npx tsgo --project build/tsconfig.json",
+    "compile": "npm run copy-policy-dto && npm run typecheck",
+    "watch": "npm run typecheck -- --watch",
+    "test": "mocha --ui tdd 'lib/**/*.test.ts'"
   },
   "optionalDependencies": {
     "tree-sitter-typescript": "^0.23.2",

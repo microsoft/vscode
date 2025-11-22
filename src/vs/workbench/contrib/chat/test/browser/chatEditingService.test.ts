@@ -105,7 +105,6 @@ suite('ChatEditingService', function () {
 		editingService = value;
 
 		chatService = insta.get(IChatService);
-		(chatService as ChatService).setChatPersistanceEnabled(false);
 
 		store.add(insta.get(IChatSessionsService) as ChatSessionsService); // Needs to be disposed in between test runs to clear extensionPoint contribution
 		store.add(chatService as ChatService);
@@ -131,8 +130,9 @@ suite('ChatEditingService', function () {
 		}));
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		store.clear();
+		await chatService.waitForModelDisposals();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
