@@ -87,11 +87,12 @@ import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } f
 const $ = dom.$;
 
 export interface IChatWidgetStyles extends IChatInputStyles {
-	inputEditorBackground: string;
-	resultEditorBackground: string;
+	readonly inputEditorBackground: string;
+	readonly resultEditorBackground: string;
 }
 
 export interface IChatWidgetContrib extends IDisposable {
+
 	readonly id: string;
 
 	/**
@@ -113,6 +114,7 @@ interface IChatRequestInputOptions {
 
 export interface IChatWidgetLocationOptions {
 	location: ChatAgentLocation;
+
 	resolveData?(): IChatLocationData | undefined;
 }
 
@@ -120,7 +122,7 @@ export function isQuickChat(widget: IChatWidget): boolean {
 	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isQuickChat);
 }
 
-export function isInlineChat(widget: IChatWidget): boolean {
+function isInlineChat(widget: IChatWidget): boolean {
 	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isInlineChat);
 }
 
@@ -210,6 +212,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	contribs: ReadonlyArray<IChatWidgetContrib> = [];
 
+	private listContainer!: HTMLElement;
+	private container!: HTMLElement;
+
+	get domNode() { return this.container; }
+
 	private tree!: WorkbenchObjectTree<ChatTreeItem, FuzzyScore>;
 	private renderer!: ChatListItemRenderer;
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
@@ -226,11 +233,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private recentlyRestoredCheckpoint: boolean = false;
 
 	private settingChangeCounter = 0;
-
-	private listContainer!: HTMLElement;
-	private container!: HTMLElement;
-
-	get domNode() { return this.container; }
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
