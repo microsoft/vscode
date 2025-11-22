@@ -43,9 +43,9 @@ registerAction2(class NewBackgroundChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
+	run(accessor: ServicesAccessor) {
 		const commandService = accessor.get(ICommandService);
-		commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Background}`);
+		return commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Background}`);
 	}
 });
 
@@ -65,9 +65,9 @@ registerAction2(class NewCloudChatAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
+	run(accessor: ServicesAccessor) {
 		const commandService = accessor.get(ICommandService);
-		commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Cloud}`);
+		return commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Cloud}`);
 	}
 });
 
