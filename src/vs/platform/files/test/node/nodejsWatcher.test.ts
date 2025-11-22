@@ -24,7 +24,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { addUNCHostToAllowlist } from '../../../../base/node/unc.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { TestParcelWatcher } from './parcelWatcher.test.js';
-import { GlobCaseSensitivity } from '../../../../base/common/glob.js';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -806,19 +805,19 @@ suite.skip('File Watcher (node.js)', function () {
 	});
 
 	(isWindows ? test.skip : test)('includes are case insensitive when globCaseSensitivity is set (posix)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], includes: ['*.TXT'], recursive: false, globCaseSensitivity: GlobCaseSensitivity.CaseInsensitive }]);
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['*.TXT'], recursive: false, ignoreGlobCase: true }]);
 
 		return basicCrudTest(join(testDir, 'newFile.txt'));
 	});
 
 	(!isWindows ? test.skip : test)('includes are case insensitive when globCaseSensitivity is set (windows)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], includes: ['*.TXT'], recursive: false, globCaseSensitivity: GlobCaseSensitivity.CaseInsensitive }]);
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['*.TXT'], recursive: false, ignoreGlobCase: true }]);
 
 		return basicCrudTest(join(testDir, 'newFile.txt'));
 	});
 
 	(isWindows ? test.skip : test)('excludes are case insensitive when globCaseSensitivity is set (posix)', async function () {
-		await watcher.watch([{ path: testDir, excludes: ['*.TXT'], recursive: false, globCaseSensitivity: GlobCaseSensitivity.CaseInsensitive }]);
+		await watcher.watch([{ path: testDir, excludes: ['*.TXT'], recursive: false, ignoreGlobCase: true }]);
 
 		// New file (should be excluded)
 		const newFilePath = join(testDir, 'newFile.txt');
@@ -836,7 +835,7 @@ suite.skip('File Watcher (node.js)', function () {
 	});
 
 	(!isWindows ? test.skip : test)('excludes are case insensitive when globCaseSensitivity is set (windows)', async function () {
-		await watcher.watch([{ path: testDir, excludes: ['*.TXT'], recursive: false, globCaseSensitivity: GlobCaseSensitivity.CaseInsensitive }]);
+		await watcher.watch([{ path: testDir, excludes: ['*.TXT'], recursive: false, ignoreGlobCase: true }]);
 
 		// New file (should be excluded)
 		const newFilePath = join(testDir, 'newFile.txt');

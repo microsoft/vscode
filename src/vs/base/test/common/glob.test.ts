@@ -9,7 +9,6 @@ import { sep } from '../../common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../common/platform.js';
 import { URI } from '../../common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
-import { GlobCaseSensitivity } from '../../common/glob.js';
 
 suite('Glob', () => {
 
@@ -1195,41 +1194,6 @@ suite('Glob', () => {
 		// Other
 		assertNoGlobMatch('some/*/Random/*/Path.FILE', 'some/very/random/unusual/path.file');
 		assertGlobMatch('some/*/Random/*/Path.FILE', 'some/very/random/unusual/path.file', true);
-	});
-
-	test('toGlobIgnoreCase works as expected', () => {
-		assert.strictEqual(glob.toGlobIgnoreCase(GlobCaseSensitivity.CaseInsensitive), true);
-		assert.strictEqual(glob.toGlobIgnoreCase(GlobCaseSensitivity.CaseSensitive), false);
-		assert.strictEqual(glob.toGlobIgnoreCase(GlobCaseSensitivity.Auto), !isLinux);
-	});
-
-	test('toGlobCaseSensitivity works as expected', () => {
-		assert.strictEqual(glob.toGlobCaseSensitivity(undefined), GlobCaseSensitivity.Auto);
-
-		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.CaseSensitive), GlobCaseSensitivity.CaseSensitive);
-		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.CaseInsensitive), GlobCaseSensitivity.CaseInsensitive);
-		assert.strictEqual(glob.toGlobCaseSensitivity(GlobCaseSensitivity.Auto), GlobCaseSensitivity.Auto);
-
-		assert.strictEqual(glob.toGlobCaseSensitivity({
-			globCaseSensitivity: GlobCaseSensitivity.CaseSensitive
-		}), GlobCaseSensitivity.CaseSensitive);
-
-		assert.strictEqual(glob.toGlobCaseSensitivity({
-			globCaseSensitivity: GlobCaseSensitivity.CaseInsensitive
-		}), GlobCaseSensitivity.CaseInsensitive);
-
-		assert.strictEqual(glob.toGlobCaseSensitivity({
-			globCaseSensitivity: GlobCaseSensitivity.Auto
-		}), GlobCaseSensitivity.Auto);
-
-
-		assert.strictEqual(glob.toGlobCaseSensitivity(
-			GlobCaseSensitivity.Auto,
-			undefined,
-			GlobCaseSensitivity.CaseSensitive,
-			GlobCaseSensitivity.Auto,
-			GlobCaseSensitivity.CaseInsensitive
-		), GlobCaseSensitivity.CaseSensitive);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

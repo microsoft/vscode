@@ -109,7 +109,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 			recursive: opts.recursive,
 			filter: opts.filter,
 			correlationId: opts.correlationId,
-			globCaseSensitivity: opts.globCaseSensitivity
+			ignoreGlobCase: opts.ignoreGlobCase
 		};
 
 		if (isRecursiveWatchRequest(request)) {
@@ -179,7 +179,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 			recursive: false,
 			filter: opts.filter,
 			correlationId: opts.correlationId,
-			globCaseSensitivity: opts.globCaseSensitivity
+			ignoreGlobCase: opts.ignoreGlobCase
 		};
 		const remove = insert(this.nonRecursiveWatchRequests, request);
 

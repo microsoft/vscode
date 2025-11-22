@@ -12,29 +12,6 @@ import { basename, extname, posix, sep } from './path.js';
 import { isLinux } from './platform.js';
 import { endsWithIgnoreCase, equalsIgnoreCase, escapeRegExpCharacters, ltrim } from './strings.js';
 
-/**
- * The possible case sensitivity options for glob pattern matching.
- */
-export enum GlobCaseSensitivity {
-	/**
-	 * Match glob patterns with case sensitivity.
-	 * For example `*AGENTS*.md` will only match `AGENTS.MD` but not `agents.md`.
-	 */
-	CaseSensitive = 1,
-	/**
-	 * Match glob patterns ignoring case.
-	 * For example `*AGENTS*.md` will match both `agents.md` and `AGENTS.MD`.
-	 */
-	CaseInsensitive = 2,
-	/**
-	 * Use the platform's default case sensitivity when matching glob patterns,
-	 * that is case sensitive on Linux and case insensitive on Windows and macOS.
-	 * If this value is provided in an API, settings or file system case sensitivity
-	 * will be used before platform's default.
-	 */
-	Auto = 3
-}
-
 export interface IRelativePattern {
 
 	/**
@@ -883,51 +860,4 @@ export function patternsEquals(patternsA: Array<string | IRelativePattern> | und
 
 		return false;
 	});
-}
-
-type GlobCaseSensitivitySource =
-	| undefined
-	| GlobCaseSensitivity // enum values
-	| boolean // to convert from IFileService.hasCapability
-	| { globCaseSensitivity?: GlobCaseSensitivity }; // options;
-
-/**
- * Given a list of {@link GlobCaseSensitivity} sources in priority order, returns whether glob matching should be case insensitive.
- * Defaults to platform case sensitivity if no explicit option is provided.
- */
-export function toGlobIgnoreCase(...args: GlobCaseSensitivitySource[]): boolean {
-	switch (toGlobCaseSensitivity(...args)) {
-		case GlobCaseSensitivity.CaseSensitive:
-			return false;
-		case GlobCaseSensitivity.CaseInsensitive:
-			return true;
-		default:
-			return !isLinux;
-	}
-}
-
-/**
- * Combines multiple {@link GlobCaseSensitivity} sources in priority order into a single value,
- * skipping over intermediate {@link GlobCaseSensitivity.Auto} values.
- */
-export function toGlobCaseSensitivity(...args: GlobCaseSensitivitySource[]): GlobCaseSensitivity {
-	for (const arg of args) {
-		switch (typeof arg) {
-			case 'boolean':
-				return arg ? GlobCaseSensitivity.CaseSensitive : GlobCaseSensitivity.CaseInsensitive;
-			case 'number':
-				if (arg !== GlobCaseSensitivity.Auto) {
-					return arg;
-				}
-				break;
-			case 'object': {
-				const value = arg.globCaseSensitivity;
-				if (value !== undefined && value !== GlobCaseSensitivity.Auto) {
-					return value;
-				}
-				break;
-			}
-		}
-	}
-	return GlobCaseSensitivity.Auto;
 }

@@ -6,7 +6,7 @@
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
-import { GlobCaseSensitivity, IExpression, IRelativePattern } from '../../../base/common/glob.js';
+import { IExpression, IRelativePattern } from '../../../base/common/glob.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { sep } from '../../../base/common/path.js';
@@ -542,7 +542,7 @@ export interface IWatchOptionsWithoutCorrelation {
 	/**
 	 * Defines the case sensitivity of the provided `includes` and `excludes` glob patterns.
 	 */
-	globCaseSensitivity?: GlobCaseSensitivity;
+	ignoreGlobCase?: boolean;
 }
 
 export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {

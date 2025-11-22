@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
-import { GlobCaseSensitivity, GLOBSTAR, IRelativePattern, parse, ParsedPattern } from '../../../base/common/glob.js';
+import { GLOBSTAR, IRelativePattern, parse, ParsedPattern } from '../../../base/common/glob.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { isAbsolute } from '../../../base/common/path.js';
 import { isLinux } from '../../../base/common/platform.js';
@@ -54,7 +54,7 @@ interface IWatchRequest {
 	/**
 	 * Defines the case sensitivity of the provided `includes` and `excludes` glob patterns.
 	 */
-	readonly globCaseSensitivity?: GlobCaseSensitivity;
+	readonly ignoreGlobCase?: boolean;
 }
 
 export interface IWatchRequestWithCorrelation extends IWatchRequest {

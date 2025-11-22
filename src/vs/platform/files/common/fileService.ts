@@ -22,7 +22,6 @@ import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, I
 import { readFileIntoStream } from './io.js';
 import { ILogService } from '../../log/common/log.js';
 import { ErrorNoTelemetry } from '../../../base/common/errors.js';
-import { toGlobCaseSensitivity } from '../../../base/common/glob.js';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -1215,7 +1214,7 @@ export class FileService extends Disposable implements IFileService {
 		const extUri = this.getExtUri(provider);
 		options = {
 			...options,
-			globCaseSensitivity: toGlobCaseSensitivity(options, extUri.isPathCaseSensitive)
+			ignoreGlobCase: options.ignoreGlobCase ?? !extUri.isPathCaseSensitive,
 		};
 
 		// Deduplicate identical watch requests

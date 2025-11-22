@@ -12,7 +12,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../base/
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { randomPath, isEqual, isEqualOrParent } from '../../../../../base/common/extpath.js';
-import { GLOBSTAR, ParsedPattern, patternsEquals, toGlobIgnoreCase } from '../../../../../base/common/glob.js';
+import { GLOBSTAR, ParsedPattern, patternsEquals } from '../../../../../base/common/glob.js';
 import { BaseWatcher } from '../baseWatcher.js';
 import { TernarySearchTree } from '../../../../../base/common/ternarySearchTree.js';
 import { normalizeNFC } from '../../../../../base/common/normalization.js';
@@ -65,7 +65,7 @@ export class ParcelWatcherInstance extends Disposable {
 	) {
 		super();
 
-		const ignoreCase = toGlobIgnoreCase(request);
+		const ignoreCase = request.ignoreGlobCase === true;
 		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes, ignoreCase) : undefined;
 		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes, ignoreCase) : undefined;
 

@@ -17,7 +17,7 @@ import { Promises } from '../../../../../base/node/pfs.js';
 import { FileChangeFilter, FileChangeType, IFileChange } from '../../../common/files.js';
 import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, isWatchRequestWithCorrelation } from '../../../common/watcher.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
-import { ParsedPattern, toGlobIgnoreCase } from '../../../../../base/common/glob.js';
+import { ParsedPattern } from '../../../../../base/common/glob.js';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -96,7 +96,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	) {
 		super();
 
-		const ignoreCase = toGlobIgnoreCase(request);
+		const ignoreCase = request.ignoreGlobCase === true;
 		this.excludes = parseWatcherPatterns(this.request.path, this.request.excludes, ignoreCase);
 		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes, ignoreCase) : undefined;
 		this.filter = isWatchRequestWithCorrelation(this.request) ? this.request.filter : undefined; // filtering is only enabled when correlating because watchers are otherwise potentially reused
