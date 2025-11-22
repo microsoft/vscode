@@ -35,7 +35,9 @@ jobs:
         run: |
           set -e
           # Remove any broken symlinks that could cause hashFiles to fail
-          find . -type l ! -exec test -e {} \; -delete 2>/dev/null || true
+          # Broken symlinks anywhere in the workspace can cause hashFiles to error
+          # The || true ensures this cleanup step doesn't fail the build if find encounters issues
+          find . -path ./node_modules -prune -o -type l ! -exec test -e {} \; -delete 2>/dev/null || true
           mkdir -p .build
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
           # Verify the file was created successfully
