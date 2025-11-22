@@ -162,12 +162,8 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							reset(container, icon, labelElement);
 
 							const hover = this._store.add(that._hoverService.setupManagedHover(that._hoverDelegate, container, this.getTooltip()));
-
-							// Override click to show agent HQ overlay
-							this._store.add(that._instaService.createInstance(AgentHQOverlay).onDidClose(() => {
-								// Clean up after overlay closes
-							}));
 							
+							// Override click to show agent HQ overlay
 							container.onclick = (e) => {
 								e.preventDefault();
 								e.stopPropagation();
