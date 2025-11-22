@@ -100,7 +100,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(() => this.handleVisibleViewDescriptorsChanged()));
 		}
 		this.showSecondaryTitleBar = this.shouldRenderSecondaryTitleBar();
-		this.secondarySideBarShowsLabels = this.computeSecondarySideBarShowsLabels();
+		this.secondarySideBarShowsLabels = this.computeSecondarySideBarLabelConfig();
 		this.currentPrimaryTitle = localize('chat', "Chat");
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
@@ -384,9 +384,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return;
 		}
 		if (customTitle) {
-			const secondaryTitle = this.shouldOmitChatPrefixInSecondaryTitle() ? customTitle : this.withChatPrefix(customTitle);
+			const secondaryTitle = this.shouldOmitChatPrefix() ? customTitle : this.withChatPrefix(customTitle);
 			this.setSecondaryTitle(secondaryTitle);
 		} else {
+			// Do not render secondary title while title is still being generated
 			this.setSecondaryTitle(undefined);
 		}
 	}
@@ -396,6 +397,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return undefined;
 		}
 		return title.startsWith('Chat: ') ? title : `Chat: ${title}`;
+	}
+
+	private shouldOmitChatPrefix(): boolean {
+		return this.showSecondaryTitleBar && this.secondarySideBarShowsLabels;
 	}
 
 	private setSecondaryTitle(title: string | undefined): void {
@@ -413,14 +418,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private shouldRenderSecondaryTitleBar(): boolean {
-		if (this.hasMultipleVisibleViews) {
-			return false;
-		}
-		const location = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		return location !== ActivityBarPosition.TOP && location !== ActivityBarPosition.BOTTOM && location !== ActivityBarPosition.HIDDEN;
-	}
-
 	override get singleViewPaneContainerTitle(): string | undefined {
 		if (!this.showSecondaryTitleBar) {
 			return this.currentPrimaryTitle;
@@ -429,12 +426,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private handleActivityBarLocationChange(): void {
-		this.updateSecondarySideBarShowLabelsPreference();
-		this.updateSecondaryTitlePreference();
+		this.updateViewTitleBasedOnShowLabelsConfig();
+		this.updateSecondaryTitleVisibility();
 	}
 
 	private handleSecondarySideBarShowLabelsChange(): void {
-		this.updateSecondarySideBarShowLabelsPreference();
+		this.updateViewTitleBasedOnShowLabelsConfig();
 	}
 
 	private handleVisibleViewDescriptorsChanged(): void {
@@ -446,10 +443,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return;
 		}
 		this.hasMultipleVisibleViews = hasMultiple;
-		this.updateSecondaryTitlePreference();
+		this.updateSecondaryTitleVisibility();
 	}
 
-	private updateSecondaryTitlePreference(): void {
+	private shouldRenderSecondaryTitleBar(): boolean {
+		if (this.hasMultipleVisibleViews) {
+			return false;
+		}
+		const location = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		return location !== ActivityBarPosition.TOP && location !== ActivityBarPosition.BOTTOM && location !== ActivityBarPosition.HIDDEN;
+	}
+
+	private updateSecondaryTitleVisibility(): void {
 		const previousValue = this.showSecondaryTitleBar;
 		this.showSecondaryTitleBar = this.shouldRenderSecondaryTitleBar();
 		if (previousValue === this.showSecondaryTitleBar) {
@@ -463,9 +468,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private updateSecondarySideBarShowLabelsPreference(): void {
+	private updateViewTitleBasedOnShowLabelsConfig(): void {
 		const previousValue = this.secondarySideBarShowsLabels;
-		this.secondarySideBarShowsLabels = this.computeSecondarySideBarShowsLabels();
+		this.secondarySideBarShowsLabels = this.computeSecondarySideBarLabelConfig();
 		if (previousValue === this.secondarySideBarShowsLabels) {
 			return;
 		}
@@ -474,14 +479,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private computeSecondarySideBarShowsLabels(): boolean {
+	private computeSecondarySideBarLabelConfig(): boolean {
 		if (this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT) {
 			return false;
 		}
 		return this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
-	}
-
-	private shouldOmitChatPrefixInSecondaryTitle(): boolean {
-		return this.showSecondaryTitleBar && this.secondarySideBarShowsLabels;
 	}
 }
