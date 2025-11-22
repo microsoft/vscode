@@ -262,7 +262,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		]);
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
-		const displayCommand = stripIcons(command);
 		this._terminalOutputContextKey = ChatContextKeys.inChatTerminalToolOutput.bindTo(this._contextKeyService);
 
 		this._decoration = this._register(this._instantiationService.createInstance(TerminalCommandDecoration, {
@@ -289,7 +288,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		this._outputView = this._register(this._instantiationService.createInstance(
 			ChatTerminalToolOutputSection,
-			displayCommand,
 			() => this._onDidChangeHeight.fire(),
 			() => this._ensureTerminalInstance(),
 			() => this._getResolvedCommand(),
@@ -652,7 +650,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _outputBody: HTMLElement;
 	private _scrollableContainer: DomScrollableElement | undefined;
 	private _renderedOutputHeight: number | undefined;
-	private readonly _outputAriaLabelBase: string;
 	private _mirror: DetachedTerminalCommandMirror | undefined;
 	private readonly _contentContainer: HTMLElement;
 	private readonly _terminalContainer: HTMLElement;
@@ -662,7 +659,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _onDidBlurEmitter = new Emitter<FocusEvent>();
 
 	constructor(
-		private readonly _displayCommand: string,
 		private readonly _onDidChangeHeight: () => void,
 		private readonly _ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>,
 		private readonly _resolveCommand: () => ITerminalCommand | undefined,
@@ -671,7 +667,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
 	) {
 		super();
-		this._outputAriaLabelBase = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', this._displayCommand);
 
 		const containerElements = h('.chat-terminal-output-container@container', [
 			h('.chat-terminal-output-body@body', [
@@ -739,18 +734,26 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (!this._scrollableContainer) {
 			return;
 		}
+		const command = this._resolveCommand();
+		if (!command) {
+			return;
+		}
+		const ariaLabel = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', command.command);
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
 		scrollableDomNode.setAttribute('role', 'region');
 		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.TerminalChatOutput);
 		const label = accessibleViewHint
-			? this._outputAriaLabelBase + ', ' + accessibleViewHint
-			: this._outputAriaLabelBase;
+			? ariaLabel + ', ' + accessibleViewHint
+			: ariaLabel;
 		scrollableDomNode.setAttribute('aria-label', label);
 	}
 
 	public getCommandAndOutputAsText(): string | undefined {
-		const commandHeader = localize('chatTerminalOutputAccessibleViewHeader', 'Command: {0}', this._displayCommand);
 		const command = this._resolveCommand();
+		if (!command) {
+			return undefined;
+		}
+		const commandHeader = localize('chatTerminalOutputAccessibleViewHeader', 'Command: {0}', command.command);
 		if (!command) {
 			return commandHeader;
 		}
