@@ -495,7 +495,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			location,
 			model,
 			this.getDiagnosticsWhenEnabled(detector.extension),
-			this.getToolsForRequest(detector.extension, request.userSelectedTools),
+			this.getToolsForRequest(detector.extension, request.userSelectedTools, model.id),
 			detector.extension,
 			this._logService);
 
@@ -553,7 +553,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		request.extRequest.tools.clear();
-		for (const [k, v] of this.getToolsForRequest(request.extension, tools)) {
+		for (const [k, v] of this.getToolsForRequest(request.extension, tools, request.extRequest.model.id)) {
 			request.extRequest.tools.set(k, v);
 		}
 		this._onDidChangeChatRequestTools.fire(request.extRequest);
@@ -586,7 +586,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				location,
 				model,
 				this.getDiagnosticsWhenEnabled(agent.extension),
-				this.getToolsForRequest(agent.extension, request.userSelectedTools),
+				this.getToolsForRequest(agent.extension, request.userSelectedTools, model.id),
 				agent.extension,
 				this._logService
 			);
@@ -663,14 +663,17 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._diagnostics.getDiagnostics();
 	}
 
-	private getToolsForRequest(extension: IExtensionDescription, tools: UserSelectedTools | undefined): Map<string, boolean> {
+	private getToolsForRequest(extension: IExtensionDescription, tools: UserSelectedTools | undefined, modelId: string): Map<vscode.LanguageModelToolInformation, boolean> {
 		if (!tools) {
 			return new Map();
 		}
-		const result = new Map<string, boolean>();
+		const result = new Map<vscode.LanguageModelToolInformation, boolean>();
 		for (const tool of this._tools.getTools(extension)) {
+			if (!this._tools.isToolAvailableForModel(tool.name, modelId)) {
+				continue;
+			}
 			if (typeof tools[tool.name] === 'boolean') {
-				result.set(tool.name, tools[tool.name]);
+				result.set(tool, tools[tool.name]);
 			}
 		}
 		return result;

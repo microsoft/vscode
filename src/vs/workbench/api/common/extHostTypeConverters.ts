@@ -3133,7 +3133,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<string, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined, model: vscode.LanguageModelChat, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], tools: Map<vscode.LanguageModelToolInformation, boolean>, extension: IRelaxedExtensionDescription, logService: ILogService): vscode.ChatRequest {
 
 		const toolReferences: typeof request.variables.variables = [];
 		const variableReferences: typeof request.variables.variables = [];

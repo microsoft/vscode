@@ -23,7 +23,7 @@ import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerCacheState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtils.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, isToolAvailableForModel, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
 const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
@@ -183,6 +183,7 @@ function createToolSetTreeItem(toolset: ToolSet, checked: boolean, editorService
  * @param placeHolder - Placeholder text shown in the picker
  * @param description - Optional description text shown in the picker
  * @param toolsEntries - Optional initial selection state for tools and toolsets
+ * @param modelId - Optional model ID to filter tools by supported models
  * @param onUpdate - Optional callback fired when the selection changes
  * @returns Promise resolving to the final selection map, or undefined if cancelled
  */
@@ -190,7 +191,8 @@ export async function showToolsPicker(
 	accessor: ServicesAccessor,
 	placeHolder: string,
 	description?: string,
-	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>
+	getToolsEntries?: () => ReadonlyMap<ToolSet | IToolData, boolean>,
+	modelId?: string
 ): Promise<ReadonlyMap<ToolSet | IToolData, boolean> | undefined> {
 
 	const quickPickService = accessor.get(IQuickInputService);
@@ -216,6 +218,9 @@ export async function showToolsPicker(
 		if (!toolsEntries) {
 			const defaultEntries = new Map();
 			for (const tool of toolsService.getTools()) {
+				if (!isToolAvailableForModel(tool, modelId)) {
+					continue;
+				}
 				if (tool.canBeReferencedInPrompt) {
 					defaultEntries.set(tool, false);
 				}
@@ -399,6 +404,9 @@ export async function showToolsPicker(
 				bucket.children.push(treeItem);
 				const children = [];
 				for (const tool of toolSet.getTools()) {
+					if (!isToolAvailableForModel(tool, modelId)) {
+						continue;
+					}
 					const toolChecked = toolSetChecked || toolsEntries.get(tool) === true;
 					const toolTreeItem = createToolTreeItemFromData(tool, toolChecked);
 					children.push(toolTreeItem);
@@ -410,6 +418,9 @@ export async function showToolsPicker(
 		}
 		for (const tool of toolsService.getTools()) {
 			if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool)) {
+				continue;
+			}
+			if (!isToolAvailableForModel(tool, modelId)) {
 				continue;
 			}
 			const bucket = getBucket(tool.source);

@@ -171,6 +171,20 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			});
 	}
 
+	isToolAvailableForModel(toolId: string, modelId: string): boolean {
+		const tool = this._allTools.get(toolId);
+		if (!tool) {
+			return false;
+		}
+
+		const supportedModels = tool.data.supportedModels;
+		if (!supportedModels) {
+			return true;
+		}
+
+		return supportedModels.includes(modelId);
+	}
+
 	async $invokeTool(dto: Dto<IToolInvocation>, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
 		const item = this._registeredTools.get(dto.toolId);
 		if (!item) {

@@ -36,6 +36,7 @@ export interface IRawToolContribution {
 	userDescription?: string;
 	inputSchema?: IJSONSchema;
 	canBeReferencedInPrompt?: boolean;
+	supportedModels?: string[];
 }
 
 const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolContribution[]>({
@@ -137,6 +138,13 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					items: {
 						type: 'string',
 						pattern: '^(?!copilot_|vscode_)'
+					}
+				},
+				supportedModels: {
+					description: localize('supportedModels', "Array of model ids that can use this tool. If not specified, the tool is available for all models."),
+					type: 'array',
+					items: {
+						type: 'string'
 					}
 				}
 			}
@@ -289,6 +297,7 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						icon,
 						when: rawTool.when ? ContextKeyExpr.deserialize(rawTool.when) : undefined,
 						alwaysDisplayInputOutput: !isBuiltinTool,
+						supportedModels: rawTool.supportedModels,
 					};
 					try {
 						const disposable = languageModelToolsService.registerToolData(tool);
