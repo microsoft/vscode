@@ -3,23 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chat.css';
+import './media/chatAgentHover.css';
+import './media/chatViewWelcome.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { disposableTimeout, RunOnceScheduler, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { fromNow, fromNowByDay } from '../../../../base/common/date.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, thenIfNotDisposed } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -34,15 +32,13 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
-import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { WorkbenchList, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
+import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import product from '../../../../platform/product/common/product.js';
@@ -53,11 +49,8 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { EditorResourceAccessor } from '../../../../workbench/common/editor.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { ViewContainerLocation } from '../../../common/views.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
-import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { katexContainerClassName } from '../../markdown/common/markedKatexExtension.js';
 import { checkModeOption } from '../common/chat.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
@@ -82,26 +75,16 @@ import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { IHandOff, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
-import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
+import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatSuggestNextWidget } from './chatContentParts/chatSuggestNextWidget.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
-import { ChatViewPane } from './chatViewPane.js';
-import './media/chat.css';
-import './media/chatAgentHover.css';
-import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 
 const $ = dom.$;
-
-const defaultChat = {
-	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
-	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
-	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
-};
 
 export interface IChatWidgetStyles extends IChatInputStyles {
 	inputEditorBackground: string;
@@ -141,13 +124,6 @@ export function isInlineChat(widget: IChatWidget): boolean {
 	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isInlineChat);
 }
 
-interface IChatHistoryListItem {
-	readonly sessionResource: URI;
-	readonly title: string;
-	readonly lastMessageDate: number;
-	readonly isActive: boolean;
-}
-
 type ChatHandoffClickEvent = {
 	fromAgent: string;
 	toAgent: string;
@@ -175,101 +151,6 @@ type ChatHandoffWidgetShownClassification = {
 	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current agent/mode that has handoffs defined' };
 	handoffCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of handoff options shown to the user' };
 };
-
-class ChatHistoryListDelegate implements IListVirtualDelegate<IChatHistoryListItem> {
-	getHeight(element: IChatHistoryListItem): number {
-		return 22;
-	}
-
-	getTemplateId(element: IChatHistoryListItem): string {
-		return 'chatHistoryItem';
-	}
-}
-
-interface IChatHistoryTemplate {
-	container: HTMLElement;
-	title: HTMLElement;
-	date: HTMLElement;
-	disposables: DisposableStore;
-}
-
-class ChatHistoryHoverDelegate extends WorkbenchHoverDelegate {
-	constructor(
-		private readonly getViewContainerLocation: () => ViewContainerLocation,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IHoverService hoverService: IHoverService,
-	) {
-		super('element', {
-			instantHover: true
-		}, () => this.getHoverOptions(), configurationService, hoverService);
-	}
-
-	private getHoverOptions(): Partial<IHoverOptions> {
-		const sideBarPosition = this.layoutService.getSideBarPosition();
-		const viewContainerLocation = this.getViewContainerLocation();
-
-		let hoverPosition: HoverPosition;
-		if (viewContainerLocation === ViewContainerLocation.Sidebar) {
-			hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
-		} else if (viewContainerLocation === ViewContainerLocation.AuxiliaryBar) {
-			hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
-		} else {
-			hoverPosition = HoverPosition.RIGHT;
-		}
-
-		return { additionalClasses: ['chat-history-item-hover'], position: { hoverPosition, forcePosition: true } };
-	}
-}
-
-class ChatHistoryListRenderer implements IListRenderer<IChatHistoryListItem, IChatHistoryTemplate> {
-	readonly templateId = 'chatHistoryItem';
-
-	constructor(
-		private readonly onDidClickItem: (item: IChatHistoryListItem) => void,
-		private readonly formatHistoryTimestamp: (timestamp: number, todayMidnightMs: number) => string,
-		private readonly todayMidnightMs: number
-	) { }
-
-	renderTemplate(container: HTMLElement): IChatHistoryTemplate {
-		const disposables = new DisposableStore();
-
-		container.classList.add('chat-welcome-history-item');
-		const title = dom.append(container, $('.chat-welcome-history-title'));
-		const date = dom.append(container, $('.chat-welcome-history-date'));
-
-		container.tabIndex = 0;
-		container.setAttribute('role', 'button');
-
-		return { container, title, date, disposables };
-	}
-
-	renderElement(element: IChatHistoryListItem, index: number, templateData: IChatHistoryTemplate): void {
-		const { container, title, date, disposables } = templateData;
-
-		disposables.clear();
-
-		title.textContent = element.title;
-		date.textContent = this.formatHistoryTimestamp(element.lastMessageDate, this.todayMidnightMs);
-		container.setAttribute('aria-label', element.title);
-
-		disposables.add(dom.addDisposableListener(container, dom.EventType.CLICK, () => {
-			this.onDidClickItem(element);
-		}));
-
-		disposables.add(dom.addStandardDisposableListener(container, dom.EventType.KEY_DOWN, e => {
-			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-				e.preventDefault();
-				e.stopPropagation();
-				this.onDidClickItem(element);
-			}
-		}));
-	}
-
-	disposeTemplate(templateData: IChatHistoryTemplate): void {
-		templateData.disposables.dispose();
-	}
-}
 
 const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsFileAttachments: true,
@@ -344,24 +225,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
-	private historyListContainer!: HTMLElement;
-	get domNode() {
-		return this.container;
-	}
+
+	get domNode() { return this.container; }
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 	private readonly welcomeContextMenuDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
-	private readonly historyViewStore = this._register(new DisposableStore());
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
-	private historyList: WorkbenchList<IChatHistoryListItem> | undefined;
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
-	private inEmptyStateWithHistoryEnabledKey: IContextKey<boolean>;
 	private currentRequest: Promise<void> | undefined;
 
 	private _visible = false;
@@ -495,8 +371,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IHoverService private readonly hoverService: IHoverService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -522,16 +396,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
 
-		// Context key for when empty state history is enabled and in empty state
-		this.inEmptyStateWithHistoryEnabledKey = ChatContextKeys.inEmptyStateWithHistoryEnabled.bindTo(contextKeyService);
 		this._welcomeRenderScheduler = this._register(new RunOnceScheduler(() => this.renderWelcomeViewContentIfNeeded(), 0));
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.EmptyStateHistoryEnabled)) {
-				this.updateEmptyStateWithHistoryContext();
-				this._welcomeRenderScheduler.schedule();
-			}
-		}));
-		this.updateEmptyStateWithHistoryContext();
 
 		// Update welcome view content when `anonymous` condition changes
 		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this._welcomeRenderScheduler.schedule()));
@@ -927,9 +792,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
-		// Update context key when items change
-		this.updateEmptyStateWithHistoryContext();
-
 		if (this._visible || !this.viewModel) {
 			const treeItems = (this.viewModel?.getItems() ?? [])
 				.map((item): ITreeElement<ChatTreeItem> => {
@@ -1018,7 +880,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			let additionalMessage: string | IMarkdownString | undefined;
 			if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.installed) {
-				additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
+				const providers = product.defaultChatAgent.provider;
+				additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", providers.default.name, providers.default.name, product.defaultChatAgent.termsStatementUrl, product.defaultChatAgent.privacyStatementUrl), { isTrusted: true });
 			} else {
 				additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 			}
@@ -1027,17 +890,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			const welcomeContent = this.getWelcomeViewContent(additionalMessage);
 			if (!this.welcomePart.value || this.welcomePart.value.needsRerender(welcomeContent)) {
-				this.historyViewStore.clear();
 				dom.clearNode(this.welcomeMessageContainer);
 
-				// Reset history list reference when clearing welcome view
-				this.historyList = undefined;
-
-				// Optional: recent chat history above welcome content when enabled
-				const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
-				if (showHistory && !this._lockedAgent) {
-					this.renderWelcomeHistorySection();
-				}
 				this.welcomePart.value = this.instantiationService.createInstance(
 					ChatViewWelcomePart,
 					welcomeContent,
@@ -1062,171 +916,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.updateChatViewVisibility();
-
-		if (numItems === 0) {
-			this.refreshHistoryList();
-		}
-	}
-
-	private updateEmptyStateWithHistoryContext(): void {
-		const historyEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
-		const numItems = this.viewModel?.getItems().length ?? 0;
-		const shouldHideButtons = historyEnabled && numItems === 0;
-		this.inEmptyStateWithHistoryEnabledKey.set(shouldHideButtons);
-	}
-
-	private async renderWelcomeHistorySection(): Promise<void> {
-		try {
-			const historyRoot = dom.append(this.welcomeMessageContainer, $('.chat-welcome-history-root'));
-			const container = dom.append(historyRoot, $('.chat-welcome-history'));
-
-			const initialHistoryItems = await this.computeHistoryItems();
-			if (initialHistoryItems.length === 0) {
-				historyRoot.remove();
-				return;
-			}
-
-			this.historyListContainer = dom.append(container, $('.chat-welcome-history-list'));
-			this.welcomeMessageContainer.classList.toggle('has-chat-history', initialHistoryItems.length > 0);
-
-			// Compute today's midnight once for label decisions
-			const todayMidnight = new Date();
-			todayMidnight.setHours(0, 0, 0, 0);
-			const todayMidnightMs = todayMidnight.getTime();
-
-			// Create hover delegate for proper tooltip positioning
-			const getViewContainerLocation = () => {
-				const panelLocation = this.contextKeyService.getContextKeyValue<ViewContainerLocation>('chatPanelLocation');
-				return panelLocation ?? ViewContainerLocation.AuxiliaryBar;
-			};
-			const hoverDelegate = this.instantiationService.createInstance(ChatHistoryHoverDelegate, getViewContainerLocation);
-
-			if (!this.historyList) {
-				const delegate = new ChatHistoryListDelegate();
-
-				const renderer = this.instantiationService.createInstance(
-					ChatHistoryListRenderer,
-					async (item) => await this.openHistorySession(item.sessionResource),
-					(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
-					todayMidnightMs
-				);
-				this.historyList = this._register(this.instantiationService.createInstance(
-					WorkbenchList<IChatHistoryListItem>,
-					'ChatHistoryList',
-					this.historyListContainer,
-					delegate,
-					[renderer],
-					{
-						horizontalScrolling: false,
-						keyboardSupport: true,
-						mouseSupport: true,
-						multipleSelectionSupport: false,
-						overrideStyles: {
-							listBackground: this.styles.listBackground
-						},
-						accessibilityProvider: {
-							getAriaLabel: (item: IChatHistoryListItem) => item.title,
-							getWidgetAriaLabel: () => localize('chat.history.list', 'Chat History')
-						}
-					}
-				));
-				this.historyList.getHTMLElement().tabIndex = -1;
-			} else {
-				const currentHistoryList = this.historyList.getHTMLElement();
-				if (currentHistoryList && currentHistoryList.parentElement !== this.historyListContainer) {
-					this.historyListContainer.appendChild(currentHistoryList);
-				}
-			}
-
-			this.renderHistoryItems(initialHistoryItems);
-
-			// Add "Chat history..." link at the end
-			const previousChatsLink = dom.append(container, $('.chat-welcome-history-more'));
-			previousChatsLink.textContent = localize('chat.history.showMore', 'Chat history...');
-			previousChatsLink.setAttribute('role', 'button');
-			previousChatsLink.setAttribute('tabindex', '0');
-			previousChatsLink.setAttribute('aria-label', localize('chat.history.showMoreAriaLabel', 'Open chat history'));
-
-			// Add hover tooltip for the link at the end of the list
-			const hoverContent = localize('chat.history.showMoreHover', 'Show chat history...');
-			this._register(this.hoverService.setupManagedHover(hoverDelegate, previousChatsLink, hoverContent));
-
-			this._register(dom.addDisposableListener(previousChatsLink, dom.EventType.CLICK, (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				this.commandService.executeCommand('workbench.action.chat.history');
-			}));
-			this._register(dom.addDisposableListener(previousChatsLink, dom.EventType.KEY_DOWN, (e) => {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					this.commandService.executeCommand('workbench.action.chat.history');
-				}
-			}));
-		} catch (err) {
-			this.logService.error('Failed to render welcome history', err);
-		}
-	}
-
-	private async computeHistoryItems(): Promise<IChatHistoryListItem[]> {
-		try {
-			const items = await this.chatService.getLocalSessionHistory();
-			return items
-				.filter(i => !i.isActive)
-				.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0))
-				.slice(0, 3)
-				.map((item): IChatHistoryListItem => ({
-					sessionResource: item.sessionResource,
-					title: item.title,
-					lastMessageDate: typeof item.lastMessageDate === 'number' ? item.lastMessageDate : Date.now(),
-					isActive: item.isActive
-				}));
-		} catch (err) {
-			this.logService.error('Failed to compute chat history items', err);
-			return [];
-		}
-	}
-
-	private renderHistoryItems(historyItems: IChatHistoryListItem[]): void {
-		if (!this.historyList) {
-			return;
-		}
-		const listHeight = historyItems.length * 22;
-		if (this.historyListContainer) {
-			this.historyListContainer.style.height = `${listHeight}px`;
-			this.historyListContainer.style.minHeight = `${listHeight}px`;
-		}
-		this.historyList.splice(0, this.historyList.length, historyItems);
-		this.historyList.layout(undefined, listHeight);
-	}
-
-	private formatHistoryTimestamp(last: number, todayMidnightMs: number): string {
-		if (last > todayMidnightMs) {
-			const diffMs = Date.now() - last;
-			const minMs = 60 * 1000;
-			const adjusted = diffMs < minMs ? Date.now() - minMs : last;
-			return fromNow(adjusted, true, true);
-		}
-		return fromNowByDay(last, true, true);
-	}
-
-	private async openHistorySession(sessionResource: URI): Promise<void> {
-		try {
-			const viewsService = this.instantiationService.invokeFunction(accessor => accessor.get(IViewsService));
-			const chatView = await viewsService.openView<ChatViewPane>(ChatViewId);
-			await chatView?.loadSession(sessionResource);
-		} catch (e) {
-			this.logService.error('Failed to open chat session from history', e);
-		}
-	}
-
-	private async refreshHistoryList(): Promise<void> {
-		const numItems = this.viewModel?.getItems().length ?? 0;
-		// Only refresh history list when in empty state (welcome view) and history list exists
-		if (numItems !== 0 || !this.historyList) {
-			return;
-		}
-		const historyItems = await this.computeHistoryItems();
-		this.renderHistoryItems(historyItems);
 	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
@@ -2174,14 +1863,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.inputPart.clearTodoListWidget(model.sessionResource, false);
 		this.chatSuggestNextWidget.hide();
-
-		if (this.historyList) {
-			this.historyList.setFocus([]);
-			this.historyList.setSelection([]);
-		}
-
-		// Clear history view state when switching sessions to ensure fresh rendering
-		this.historyViewStore.clear();
 
 		this._codeBlockModelCollection.clear();
 
