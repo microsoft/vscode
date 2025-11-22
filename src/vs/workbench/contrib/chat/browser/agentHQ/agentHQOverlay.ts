@@ -10,17 +10,10 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IViewDescriptorService } from '../../../../common/views.js';
-import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IProgressService } from '../../../../../platform/progress/common/progress.js';
+import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../common/chatService.js';
 import { IMenuService } from '../../../../../platform/actions/common/actions.js';
@@ -51,7 +44,6 @@ export class AgentHQOverlay extends Disposable {
 	private widget: HTMLElement | undefined;
 	private listContainer: HTMLElement | undefined;
 	private list: WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore> | undefined;
-	private sessionsViewModel: IAgentSessionsViewModel | undefined;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose: Event<void> = this._onDidClose.event;
@@ -59,16 +51,9 @@ export class AgentHQOverlay extends Disposable {
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IHoverService private readonly hoverService: IHoverService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IChatService private readonly chatService: IChatService,
@@ -170,7 +155,7 @@ export class AgentHQOverlay extends Disposable {
 	}
 
 	private createViewModel(): void {
-		const sessionsViewModel = this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel, { filterMenuId: MenuId.AgentSessionsFilterSubMenu }));
+		const sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel, { filterMenuId: MenuId.AgentSessionsFilterSubMenu }));
 		this.list?.setInput(sessionsViewModel);
 
 		this._register(sessionsViewModel.onDidChangeSessions(() => {
@@ -182,11 +167,11 @@ export class AgentHQOverlay extends Disposable {
 			const didResolve = new DeferredPromise<void>();
 			didResolveDisposable.value = Event.once(sessionsViewModel.onDidResolve)(() => didResolve.complete());
 
+			// Progress location uses window
 			this.progressService.withProgress(
 				{
-					location: this.layoutService.activeContainer,
+					location: ProgressLocation.Window,
 					title: localize('agentHQ.refreshing', 'Refreshing agent sessions...'),
-					delay: 500
 				},
 				() => didResolve.p
 			);
