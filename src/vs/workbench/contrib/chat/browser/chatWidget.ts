@@ -348,7 +348,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	constructor(
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
-		_viewContext: IChatWidgetViewContext | undefined,
+		viewContext: IChatWidgetViewContext | undefined,
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
@@ -381,7 +381,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 
-		this.viewContext = _viewContext ?? {};
+		this.viewContext = viewContext ?? {};
 
 		const viewModelObs = observableFromEvent(this, this.onDidChangeViewModel, () => this.viewModel);
 
@@ -1972,10 +1972,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._mostRecentlyFocusedItemIndex = items.indexOf(node);
 		this.tree.setFocus([node.element]);
 		this.tree.domFocus();
-	}
-
-	refilter() {
-		this.tree.refilter();
 	}
 
 	setInputPlaceholder(placeholder: string): void {
