@@ -845,7 +845,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		// Get the last request to check its response status
-		const lastRequest = requests[requests.length - 1];
+		const lastRequest = requests.at(-1);
 		const response = lastRequest?.response;
 		if (!response) {
 			return undefined;
@@ -879,7 +879,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						const message = toolInvocation.confirmationMessages?.title && (typeof toolInvocation.confirmationMessages.title === 'string'
 							? toolInvocation.confirmationMessages.title
 							: toolInvocation.confirmationMessages.title.value);
-						description = message ?? `${localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation:")} ${description}`;
+						description = message ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", description);
 					}
 				}
 			}
@@ -895,12 +895,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private extractFileNameFromLink(filePath: string): string {
-		return filePath.replace(/\[([^\]]*)\]\(file:\/\/\/([^)]+)\)/g, (match: string, linkText: string, path: string) => {
-			const fileName = path.split('/').pop() || path;
-			return linkText.trim() || fileName;
+		return filePath.replace(/\[(?<linkText>[^\]]*)\]\(file:\/\/\/(?<path>[^)]+)\)/g, (match: string, _p1: string, _p2: string, _offset: number, _string: string, groups?: { linkText?: string; path?: string }) => {
+			const fileName = groups?.path?.split('/').pop() || groups?.path || '';
+			return (groups?.linkText?.trim() || fileName);
 		});
 	}
-
 
 	/**
 	 * Creates a new chat session by delegating to the appropriate provider
