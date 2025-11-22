@@ -103,7 +103,7 @@ export class PromptCodeActionProvider implements CodeActionProvider {
 		}
 
 		const values = toolsAttr.value.items;
-		const deprecatedNames = new Lazy(() => this.languageModelToolsService.getDeprecatedQualifiedToolNames());
+		const deprecatedNames = new Lazy(() => this.languageModelToolsService.getDeprecatedFullReferenceNames());
 		const edits: TextEdit[] = [];
 		for (const item of values) {
 			if (item.type !== 'string') {

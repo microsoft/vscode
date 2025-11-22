@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IJSONSchema, IJSONSchemaMap } from '../../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
@@ -66,6 +67,29 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	}
 
 	getToolData(): IToolData {
+		let modelDescription = BaseModelDescription;
+		const inputSchema: IJSONSchema & { properties: IJSONSchemaMap } = {
+			type: 'object',
+			properties: {
+				prompt: {
+					type: 'string',
+					description: 'A detailed description of the task for the agent to perform'
+				},
+				description: {
+					type: 'string',
+					description: 'A short (3-5 word) description of the task'
+				}
+			},
+			required: ['prompt', 'description']
+		};
+
+		if (this.configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
+			inputSchema.properties.subagentType = {
+				type: 'string',
+				description: 'Optional ID of a specific agent to invoke. If not provided, uses the current agent.'
+			};
+			modelDescription += `\n- If the user asks for a certain agent by name, you MUST provide that EXACT subagentType (case-sensitive) to invoke that specific agent.`;
+		}
 		const runSubagentToolData: IToolData = {
 			id: RunSubagentToolId,
 			toolReferenceName: VSCodeToolReference.runSubagent,
@@ -73,34 +97,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			icon: ThemeIcon.fromId(Codicon.organization.id),
 			displayName: localize('tool.runSubagent.displayName', 'Run Subagent'),
 			userDescription: localize('tool.runSubagent.userDescription', 'Run a task within an isolated subagent context to enable efficient organization of tasks and context window management.'),
-			modelDescription: BaseModelDescription,
+			modelDescription: modelDescription,
 			source: ToolDataSource.Internal,
-			inputSchema: {
-				type: 'object',
-				properties: {
-					prompt: {
-						type: 'string',
-						description: 'A detailed description of the task for the agent to perform'
-					},
-					description: {
-						type: 'string',
-						description: 'A short (3-5 word) description of the task'
-					}
-				},
-				required: ['prompt', 'description']
-			}
+			inputSchema: inputSchema
 		};
-
-		if (this.configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
-			runSubagentToolData.inputSchema!.properties!['subagentType'] = {
-				type: 'string',
-				description: 'Optional ID of a specific agent to invoke. If not provided, uses the current agent.'
-			};
-			runSubagentToolData.modelDescription += `\n- If the user asks for a certain agent by name, you MUST provide that EXACT subagentType (case-sensitive) to invoke that specific agent.`;
-		}
-
-
-
 		return runSubagentToolData;
 	}
 
