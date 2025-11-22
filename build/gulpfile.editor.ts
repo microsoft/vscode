@@ -279,7 +279,12 @@ export const monacoTypecheckWatchTask = task.define('monaco-typecheck-watch', cr
 export const monacoTypecheckTask = task.define('monaco-typecheck', createTscCompileTask(false));
 
 //#endregion
-
+/**
+ * Sets a field on an object only if it's not already set, otherwise throws an error
+ * @param obj The object to modify
+ * @param field The field name to set
+ * @param value The value to set
+ */
 function setUnsetField(obj: Record<string, unknown>, field: string, value: unknown) {
 	if (obj[field] !== undefined) {
 		throw new Error(`Field "${field}" is already set (but was expected to not be).`);

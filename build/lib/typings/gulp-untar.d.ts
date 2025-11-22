@@ -6,9 +6,6 @@
 declare module 'gulp-untar' {
 	import type { Transform } from 'stream';
 
-	/**
-	 * Extract TAR files
-	 */
 	function untar(): Transform;
 
 	export = untar;
