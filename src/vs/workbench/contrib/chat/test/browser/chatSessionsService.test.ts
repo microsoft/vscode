@@ -21,8 +21,9 @@ suite('ChatSessionsService', () => {
 	suite('extractFileNameFromLink', () => {
 
 		function callExtractFileNameFromLink(filePath: string): string {
-			// Access the private method using bracket notation
-			return (chatSessionsService as any)['extractFileNameFromLink'](filePath);
+			// Access the private method using bracket notation with proper typing
+			type ServiceWithPrivateMethod = Record<'extractFileNameFromLink', (filePath: string) => string>;
+			return (chatSessionsService as unknown as ServiceWithPrivateMethod)['extractFileNameFromLink'](filePath);
 		}
 
 		test('should extract filename from markdown link with link text', () => {
