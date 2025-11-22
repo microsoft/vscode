@@ -30,9 +30,15 @@ export class MockChatModel extends Disposable implements IChatModel {
 		clearState: () => { }
 	};
 	readonly contributedChatSession = undefined;
+	isDisposed = false;
 
 	constructor(readonly sessionResource: URI) {
 		super();
+	}
+
+	override dispose() {
+		this.isDisposed = true;
+		super.dispose();
 	}
 
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void { }

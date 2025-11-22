@@ -90,4 +90,94 @@ suite('ChatModelStore', () => {
 
 		ref2.dispose();
 	});
+
+	test('get and has', async () => {
+		const uri = URI.parse('test://session');
+		const props: IStartSessionProps = {
+			sessionResource: uri,
+			location: ChatAgentLocation.Chat,
+			token: CancellationToken.None,
+			canUseTools: true
+		};
+
+		const ref = testObject.acquireOrCreate(props);
+		assert.strictEqual(testObject.get(uri), ref.object);
+		assert.strictEqual(testObject.has(uri), true);
+
+		ref.dispose();
+		willDisposePromises[0].complete();
+		await testObject.waitForModelDisposals();
+
+		assert.strictEqual(testObject.get(uri), undefined);
+		assert.strictEqual(testObject.has(uri), false);
+	});
+
+	test('acquireExisting', async () => {
+		const uri = URI.parse('test://session');
+		const props: IStartSessionProps = {
+			sessionResource: uri,
+			location: ChatAgentLocation.Chat,
+			token: CancellationToken.None,
+			canUseTools: true
+		};
+
+		assert.strictEqual(testObject.acquireExisting(uri), undefined);
+
+		const ref1 = testObject.acquireOrCreate(props);
+		const ref2 = testObject.acquireExisting(uri);
+		assert.ok(ref2);
+		assert.strictEqual(ref2.object, ref1.object);
+
+		ref1.dispose();
+		ref2.dispose();
+		willDisposePromises[0].complete();
+		await testObject.waitForModelDisposals();
+	});
+
+	test('values', async () => {
+		const uri1 = URI.parse('test://session1');
+		const uri2 = URI.parse('test://session2');
+		const props1: IStartSessionProps = {
+			sessionResource: uri1,
+			location: ChatAgentLocation.Chat,
+			token: CancellationToken.None,
+			canUseTools: true
+		};
+		const props2: IStartSessionProps = {
+			sessionResource: uri2,
+			location: ChatAgentLocation.Chat,
+			token: CancellationToken.None,
+			canUseTools: true
+		};
+
+		const ref1 = testObject.acquireOrCreate(props1);
+		const ref2 = testObject.acquireOrCreate(props2);
+
+		const values = Array.from(testObject.values());
+		assert.strictEqual(values.length, 2);
+		assert.ok(values.includes(ref1.object));
+		assert.ok(values.includes(ref2.object));
+
+		ref1.dispose();
+		ref2.dispose();
+		willDisposePromises[0].complete();
+		willDisposePromises[1].complete();
+		await testObject.waitForModelDisposals();
+	});
+
+	test('dispose store', async () => {
+		const uri = URI.parse('test://session');
+		const props: IStartSessionProps = {
+			sessionResource: uri,
+			location: ChatAgentLocation.Chat,
+			token: CancellationToken.None,
+			canUseTools: true
+		};
+
+		const ref = testObject.acquireOrCreate(props);
+		const model = ref.object as unknown as MockChatModel;
+		testObject.dispose();
+
+		assert.strictEqual(model.isDisposed, true);
+	});
 });
