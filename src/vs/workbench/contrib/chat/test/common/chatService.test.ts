@@ -126,15 +126,14 @@ suite('ChatService', () => {
 	let testFileService: InMemoryTestFileService;
 
 	let chatAgentService: IChatAgentService;
+	const testServices: ChatService[] = [];
 
 	/**
 	 * Hack to avoid triggering async persistence after model disposal. TODO@roblourens
 	 */
-	function createChatService(options?: { enablePersistence?: boolean }): ChatService {
+	function createChatService(): ChatService {
 		const service = testDisposables.add(instantiationService.createInstance(ChatService));
-		if (!options?.enablePersistence) {
-			service.setChatPersistanceEnabled(false);
-		}
+		testServices.push(service);
 		return service;
 	}
 
@@ -197,8 +196,13 @@ suite('ChatService', () => {
 		chatAgentService.updateAgent('testAgent', {});
 	});
 
-	test.skip('retrieveSession', async () => {
-		const testService = createChatService({ enablePersistence: true });
+	teardown(async () => {
+		await Promise.all(testServices.map(s => s.waitForModelDisposals()));
+		testServices.length = 0;
+	});
+
+	test('retrieveSession', async () => {
+		const testService = createChatService();
 		// Don't add refs to testDisposables so we can control disposal
 		const session1Ref = testService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
 		const session1 = session1Ref.object as ChatModel;
@@ -213,7 +217,7 @@ suite('ChatService', () => {
 		session2Ref.dispose();
 
 		// Wait for async persistence to complete
-		await new Promise(resolve => setTimeout(resolve, 10));
+		await testService.waitForModelDisposals();
 
 		// Verify that sessions were written to the file service
 		assert.strictEqual(testFileService.writeOperations.length, 2, 'Should have written 2 sessions to file service');
@@ -227,7 +231,7 @@ suite('ChatService', () => {
 		assert.ok(session2WriteOp, 'Session 2 should have been written to file service');
 
 		// Create a new service instance to simulate app restart
-		const testService2 = createChatService({ enablePersistence: true });
+		const testService2 = createChatService();
 
 		// Retrieve sessions and verify they're loaded from file service
 		const retrieved1 = await getOrRestoreModel(testService2, session1.sessionResource);

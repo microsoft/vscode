@@ -161,15 +161,13 @@ export class ChatService extends Disposable implements IChatService {
 		this._sessionModels = this._register(instantiationService.createInstance(ChatModelStore, {
 			createModel: (props: IStartSessionProps) => this._startSession(props),
 			willDisposeModel: async (model: ChatModel) => {
-				if (this._persistChats) {
-					const localSessionId = LocalChatSessionUri.parseLocalSessionId(model.sessionResource);
-					if (localSessionId && (model.initialLocation === ChatAgentLocation.Chat)) {
-						// Always preserve sessions that have custom titles, even if empty
-						if (model.getRequests().length === 0 && !model.customTitle) {
-							this._chatSessionStore.deleteSession(localSessionId);
-						} else {
-							this._chatSessionStore.storeSessions([model]);
-						}
+				const localSessionId = LocalChatSessionUri.parseLocalSessionId(model.sessionResource);
+				if (localSessionId && (model.initialLocation === ChatAgentLocation.Chat)) {
+					// Always preserve sessions that have custom titles, even if empty
+					if (model.getRequests().length === 0 && !model.customTitle) {
+						await this._chatSessionStore.deleteSession(localSessionId);
+					} else {
+						await this._chatSessionStore.storeSessions([model]);
 					}
 				}
 			}
@@ -215,14 +213,6 @@ export class ChatService extends Disposable implements IChatService {
 		});
 	}
 
-	private _persistChats = true;
-	/**
-	 * For test only
-	 */
-	setChatPersistanceEnabled(enabled: boolean): void {
-		this._persistChats = enabled;
-	}
-
 	public get editingSessions() {
 		return [...this._sessionModels.values()].map(v => v.editingSession).filter(isDefined);
 	}
@@ -232,10 +222,6 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private saveState(): void {
-		if (!this._persistChats) {
-			return;
-		}
-
 		const liveChats = Array.from(this._sessionModels.values())
 			.filter(session => {
 				if (!LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
