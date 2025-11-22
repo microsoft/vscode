@@ -5,11 +5,8 @@
 
 import { h } from '../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
-import { Codicon } from '../../../../../../base/common/codicons.js';
-import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
@@ -20,14 +17,9 @@ import { ChatMarkdownContentPart, type IChatMarkdownContentPartOptions } from '.
 import { ChatProgressSubPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatTerminalToolProgressPart.css';
-import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
-import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
-import { ChatConfiguration, CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../common/constants.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
-import { MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES } from '../../../common/constants.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
-import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -36,7 +28,6 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { localize } from '../../../../../../nls.js';
-import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { ITerminalCommand, TerminalCapability, type ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -50,8 +41,13 @@ import { IContextKey, IContextKeyService } from '../../../../../../platform/cont
 import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { EditorPool } from '../chatContentCodePools.js';
-import { KeybindingWeight, KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
+import { Action, IAction } from '../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { TerminalContribCommandId } from '../../../../terminal/terminalContribExports.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+
 
 const MAX_TERMINAL_OUTPUT_PREVIEW_HEIGHT = 200;
 
@@ -969,108 +965,16 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 }
 
-export const focusMostRecentChatTerminalCommandId = 'workbench.action.chat.focusMostRecentChatTerminal';
-export const focusMostRecentChatTerminalOutputCommandId = 'workbench.action.chat.focusMostRecentChatTerminalOutput';
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: focusMostRecentChatTerminalCommandId,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ChatContextKeys.inChatSession,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyT,
-	handler: async (accessor: ServicesAccessor) => {
-		const terminalChatService = accessor.get(ITerminalChatService);
-		const part = terminalChatService.getMostRecentProgressPart();
-		if (!part) {
-			return;
-		}
-		await part.focusTerminal();
-	}
-});
-
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: focusMostRecentChatTerminalOutputCommandId,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ChatContextKeys.inChatSession,
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyO,
-	handler: async (accessor: ServicesAccessor) => {
-		const terminalChatService = accessor.get(ITerminalChatService);
-		const part = terminalChatService.getMostRecentProgressPart();
-		if (!part) {
-			return;
-		}
-		await part.toggleOutputFromKeyboard();
-	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: focusMostRecentChatTerminalCommandId,
-		title: localize('chat.focusMostRecentTerminal', 'Chat: Focus Most Recent Terminal'),
-	},
-	when: ChatContextKeys.inChatSession
-});
-
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-	command: {
-		id: focusMostRecentChatTerminalOutputCommandId,
-		title: localize('chat.focusMostRecentTerminalOutput', 'Chat: Focus Most Recent Terminal Output'),
-	},
-	when: ChatContextKeys.inChatSession
-});
-
-export const openTerminalSettingsLinkCommandId = '_chat.openTerminalSettingsLink';
-export const disableSessionAutoApprovalCommandId = '_chat.disableSessionAutoApproval';
-
-CommandsRegistry.registerCommand(openTerminalSettingsLinkCommandId, async (accessor, scopeRaw: string) => {
-	const preferencesService = accessor.get(IPreferencesService);
-
-	if (scopeRaw === 'global') {
-		preferencesService.openSettings({
-			query: `@id:${ChatConfiguration.GlobalAutoApprove}`
-		});
-	} else {
-		const scope = parseInt(scopeRaw);
-		const target = !isNaN(scope) ? scope as ConfigurationTarget : undefined;
-		const options: IOpenSettingsOptions = {
-			jsonEditor: true,
-			revealSetting: {
-				key: TerminalContribSettingId.AutoApprove
-			}
-		};
-		switch (target) {
-			case ConfigurationTarget.APPLICATION: preferencesService.openApplicationSettings(options); break;
-			case ConfigurationTarget.USER:
-			case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
-			case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
-			case ConfigurationTarget.WORKSPACE:
-			case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
-			default: {
-				// Fallback if something goes wrong
-				preferencesService.openSettings({
-					target: ConfigurationTarget.USER,
-					query: `@id:${TerminalContribSettingId.AutoApprove}`,
-				});
-				break;
-			}
-		}
-	}
-});
-
-CommandsRegistry.registerCommand(disableSessionAutoApprovalCommandId, async (accessor, chatSessionId: string) => {
-	const terminalChatService = accessor.get(ITerminalChatService);
-	terminalChatService.setChatSessionAutoApproval(chatSessionId, false);
-});
-
-
-class ToggleChatTerminalOutputAction extends Action implements IAction {
+export class ToggleChatTerminalOutputAction extends Action implements IAction {
 	private _expanded = false;
 
 	constructor(
 		private readonly _toggle: () => Promise<void>,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super(
-			'chat.showTerminalOutput',
+			TerminalContribCommandId.ToggleChatTerminalOutput,
 			localize('showTerminalOutput', 'Show Output'),
 			ThemeIcon.asClassName(Codicon.chevronRight),
 			true,
@@ -1079,6 +983,18 @@ class ToggleChatTerminalOutputAction extends Action implements IAction {
 	}
 
 	public override async run(): Promise<void> {
+		type ToggleChatTerminalOutputTelemetryEvent = {
+			previousExpanded: boolean;
+		};
+
+		type ToggleChatTerminalOutputTelemetryClassification = {
+			owner: 'meganrogge';
+			comment: 'Track usage of the toggle chat terminal output action.';
+			previousExpanded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the terminal output was expanded before the toggle.' };
+		};
+		this._telemetryService.publicLog2<ToggleChatTerminalOutputTelemetryEvent, ToggleChatTerminalOutputTelemetryClassification>('terminal/chatToggleOutput', {
+			previousExpanded: this._expanded
+		});
 		await this._toggle();
 	}
 
@@ -1103,7 +1019,7 @@ class ToggleChatTerminalOutputAction extends Action implements IAction {
 	}
 
 	private _updateTooltip(): void {
-		const keybinding = this._keybindingService.lookupKeybinding(focusMostRecentChatTerminalOutputCommandId);
+		const keybinding = this._keybindingService.lookupKeybinding(TerminalContribCommandId.FocusMostRecentChatTerminalOutput);
 		const label = keybinding?.getLabel();
 		this.tooltip = label ? `${this.label} (${label})` : this.label;
 	}
@@ -1120,9 +1036,10 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super(
-			'chat.focusTerminalInstance',
+			TerminalContribCommandId.FocusChatInstanceAction,
 			isTerminalHidden ? localize('showTerminal', 'Show and Focus Terminal') : localize('focusTerminal', 'Focus Terminal'),
 			ThemeIcon.asClassName(Codicon.openInProduct),
 			true,
@@ -1133,6 +1050,32 @@ export class FocusChatInstanceAction extends Action implements IAction {
 	public override async run() {
 		this.label = localize('focusTerminal', 'Focus Terminal');
 		this._updateTooltip();
+
+		let target: FocusChatInstanceTelemetryEvent['target'] = 'none';
+		let location: FocusChatInstanceTelemetryEvent['location'] = 'panel';
+		if (this._instance) {
+			target = 'instance';
+			location = this._instance.target === TerminalLocation.Editor ? 'editor' : 'panel';
+		} else if (this._commandUri) {
+			target = 'commandUri';
+		}
+
+		type FocusChatInstanceTelemetryEvent = {
+			target: 'instance' | 'commandUri' | 'none';
+			location: 'panel' | 'editor';
+		};
+
+		type FocusChatInstanceTelemetryClassification = {
+			owner: 'meganrogge';
+			comment: 'Track usage of the focus chat terminal action.';
+			target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether focusing targeted an existing instance or opened a command URI.' };
+			location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Location of the terminal instance when focusing.' };
+		};
+		this._telemetryService.publicLog2<FocusChatInstanceTelemetryEvent, FocusChatInstanceTelemetryClassification>('terminal/chatFocusInstance', {
+			target,
+			location
+		});
+
 		if (this._instance) {
 			this._terminalService.setActiveInstance(this._instance);
 			if (this._instance.target === TerminalLocation.Editor) {
@@ -1174,7 +1117,7 @@ export class FocusChatInstanceAction extends Action implements IAction {
 	}
 
 	private _updateTooltip(): void {
-		const keybinding = this._keybindingService.lookupKeybinding(focusMostRecentChatTerminalCommandId);
+		const keybinding = this._keybindingService.lookupKeybinding(TerminalContribCommandId.FocusMostRecentChatTerminal);
 		const label = keybinding?.getLabel();
 		this.tooltip = label ? `${this.label} (${label})` : this.label;
 	}
