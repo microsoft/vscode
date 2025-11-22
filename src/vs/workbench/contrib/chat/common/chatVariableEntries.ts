@@ -66,7 +66,7 @@ export interface IChatRequestToolSetEntry extends IBaseChatRequestVariableEntry 
 export type ChatRequestToolReferenceEntry = IChatRequestToolEntry | IChatRequestToolSetEntry;
 
 export interface StringChatContextValue {
-	value: string;
+	value?: string;
 	name: string;
 	modelDescription?: string;
 	icon: ThemeIcon;
@@ -84,11 +84,18 @@ export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVaria
 
 export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'string';
-	readonly value: string;
+	readonly value: string | undefined;
 	readonly modelDescription?: string;
 	readonly icon: ThemeIcon;
 	readonly uri: URI;
 }
+
+export interface IChatRequestWorkspaceVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'workspace';
+	readonly value: string;
+	readonly modelDescription?: string;
+}
+
 
 export interface IChatRequestPasteVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'paste';
@@ -260,7 +267,7 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
-	| IChatRequestStringVariableEntry;
+	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -291,6 +298,10 @@ export function isTerminalVariableEntry(obj: IChatRequestVariableEntry): obj is 
 
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
 	return obj.kind === 'paste';
+}
+
+export function isWorkspaceVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestWorkspaceVariableEntry {
+	return obj.kind === 'workspace';
 }
 
 export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {
@@ -346,7 +357,7 @@ export function isStringImplicitContextValue(value: unknown): value is StringCha
 	return (
 		typeof asStringImplicitContextValue === 'object' &&
 		asStringImplicitContextValue !== null &&
-		typeof asStringImplicitContextValue.value === 'string' &&
+		(typeof asStringImplicitContextValue.value === 'string' || typeof asStringImplicitContextValue.value === 'undefined') &&
 		typeof asStringImplicitContextValue.name === 'string' &&
 		ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon) &&
 		URI.isUri(asStringImplicitContextValue.uri)

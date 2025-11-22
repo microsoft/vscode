@@ -95,6 +95,20 @@
             "default": false
         },
         {
+            "key": "chat.tools.eligibleForAutoApproval",
+            "name": "ChatToolsEligibleForAutoApproval",
+            "category": "InteractiveSession",
+            "minimumVersion": "1.107",
+            "localization": {
+                "description": {
+                    "key": "chat.tools.eligibleForAutoApproval",
+                    "value": "Controls which tools are eligible for automatic approval. Tools set to 'false' will always present a confirmation and will never offer the option to auto-approve. The default behavior (or setting a tool to 'true') may result in the tool offering auto-approval options."
+                }
+            },
+            "type": "object",
+            "default": {}
+        },
+        {
             "key": "chat.mcp.access",
             "name": "ChatMCP",
             "category": "InteractiveSession",

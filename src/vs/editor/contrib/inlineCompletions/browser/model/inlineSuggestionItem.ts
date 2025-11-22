@@ -58,7 +58,7 @@ abstract class InlineSuggestionItemBase {
 	public get isFromExplicitRequest(): boolean { return this._data.context.triggerKind === InlineCompletionTriggerKind.Explicit; }
 	public get forwardStable(): boolean { return this.source.inlineSuggestions.enableForwardStability ?? false; }
 	public get editRange(): Range { return this.getSingleTextEdit().range; }
-	public get targetRange(): Range { return this.hint?.range && !this.hint.jumpToEdit ? this.hint?.range : this.editRange; }
+	public get targetRange(): Range { return this.hint?.range ?? this.editRange; }
 	public get insertText(): string { return this.getSingleTextEdit().text; }
 	public get semanticId(): string { return this.hash; }
 	public get action(): Command | undefined { return this._sourceInlineCompletion.gutterMenuLinkAction; }
@@ -171,7 +171,6 @@ export class InlineSuggestHint {
 			Range.lift(displayLocation.range),
 			displayLocation.content,
 			displayLocation.style,
-			displayLocation.jumpToEdit
 		);
 	}
 
@@ -179,7 +178,6 @@ export class InlineSuggestHint {
 		public readonly range: Range,
 		public readonly content: string,
 		public readonly style: InlineCompletionHintStyle,
-		public readonly jumpToEdit: boolean,
 	) { }
 
 	public withEdit(edit: StringEdit, positionOffsetTransformer: PositionOffsetTransformerBase): InlineSuggestHint | undefined {
@@ -195,7 +193,7 @@ export class InlineSuggestHint {
 
 		const newRange = positionOffsetTransformer.getRange(newOffsetRange);
 
-		return new InlineSuggestHint(newRange, this.content, this.style, this.jumpToEdit);
+		return new InlineSuggestHint(newRange, this.content, this.style);
 	}
 }
 
@@ -348,7 +346,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		data: InlineSuggestData,
 		textModel: ITextModel,
 	): InlineEditItem {
-		const offsetEdit = getStringEdit(textModel, data.range, data.insertText);
+		const offsetEdit = getStringEdit(textModel, data.range, data.insertText); // TODO compute async
 		const text = new TextModelText(textModel);
 		const textEdit = TextEdit.fromStringEdit(offsetEdit, text);
 		const singleTextEdit = offsetEdit.isEmpty() ? new TextReplacement(new Range(1, 1, 1, 1), '') : textEdit.toReplacement(text); // FIXME: .toReplacement() can throw because offsetEdit is empty because we get an empty diff in getStringEdit after diffing
@@ -368,7 +366,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 	public readonly isInlineEdit = true;
 
 	private constructor(
-		private readonly _edit: StringEdit,
+		private readonly _edit: StringEdit, // TODO@hediet remove, compute & cache from _edits
 		private readonly _textEdit: TextReplacement,
 		public readonly uri: URI | undefined,
 
@@ -547,7 +545,7 @@ class SingleUpdatedNextEdit {
 	}
 
 	private _applyTextModelChanges(textModelChanges: StringEdit) {
-		this._lastChangeUpdatedEdit = false;
+		this._lastChangeUpdatedEdit = false; // TODO @benibenj make immutable
 
 		if (!this._edit) {
 			throw new BugIndicatingError('UpdatedInnerEdits: No edit to apply changes to');

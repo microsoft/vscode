@@ -55,6 +55,9 @@ suite('PromptHoverProvider', () => {
 		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(testTool2));
 
+		const shellTool = { id: 'shell', displayName: 'shell', canBeReferencedInPrompt: true, toolReferenceName: 'shell', modelDescription: 'Runs commands in the terminal', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(shellTool));
+
 		instaService.set(ILanguageModelToolsService, toolService);
 
 		const testModels: ILanguageModelChatMetadata[] = [
@@ -197,6 +200,27 @@ suite('PromptHoverProvider', () => {
 			// Hover on 'shell' tool
 			const hoverShell = await getHover(content, 4, 10, PromptsType.agent);
 			assert.strictEqual(hoverShell, 'Execute shell commands');
+
+			// Hover on 'edit' tool
+			const hoverEdit = await getHover(content, 4, 20, PromptsType.agent);
+			assert.strictEqual(hoverEdit, 'Edit files');
+
+			// Hover on 'search' tool
+			const hoverSearch = await getHover(content, 4, 28, PromptsType.agent);
+			assert.strictEqual(hoverSearch, 'Search in files');
+		});
+
+		test('hover on github-copilot tool with target undefined', async () => {
+			const content = [
+				'---',
+				'name: "Test"',
+				'description: "Test"',
+				`tools: ['shell', 'edit', 'search']`,
+				'---',
+			].join('\n');
+			// Hover on 'shell' tool
+			const hoverShell = await getHover(content, 4, 10, PromptsType.agent);
+			assert.strictEqual(hoverShell, 'ToolSet: execute\n\n\nExecute code and applications on your machine');
 
 			// Hover on 'edit' tool
 			const hoverEdit = await getHover(content, 4, 20, PromptsType.agent);

@@ -948,7 +948,7 @@ export class GettingStartedPage extends EditorPane {
 		this.updateCategoryProgress();
 		this.registerDispatchListeners();
 
-		if (this.editorInput.selectedCategory) {
+		if (this.editorInput?.selectedCategory) {
 			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
 
 			if (!this.currentWalkthrough) {
@@ -967,7 +967,7 @@ export class GettingStartedPage extends EditorPane {
 			}
 		}
 
-		if (this.editorInput.showTelemetryNotice && this.productService.openToWelcomeMainPage) {
+		if (this.editorInput?.showTelemetryNotice && this.productService.openToWelcomeMainPage) {
 			const telemetryNotice = $('p.telemetry-notice');
 			this.buildTelemetryFooter(telemetryNotice);
 			footer.appendChild(telemetryNotice);
@@ -978,7 +978,7 @@ export class GettingStartedPage extends EditorPane {
 
 			if (fistContentBehaviour === 'openToFirstCategory') {
 				const first = this.gettingStartedCategories.filter(c => !c.when || this.contextService.contextMatchesRules(c.when))[0];
-				if (first) {
+				if (first && this.editorInput) {
 					this.currentWalkthrough = first;
 					this.editorInput.selectedCategory = this.currentWalkthrough?.id;
 					this.editorInput.walkthroughPageTitle = this.currentWalkthrough.walkthroughPageTitle;
@@ -1533,7 +1533,7 @@ export class GettingStartedPage extends EditorPane {
 		buildStepList();
 
 		this.detailsPageDisposables.add(this.contextService.onDidChangeContext(e => {
-			if (e.affectsSome(contextKeysToWatch) && this.currentWalkthrough) {
+			if (e.affectsSome(contextKeysToWatch) && this.currentWalkthrough && this.editorInput) {
 				buildStepList();
 				this.registerDispatchListeners();
 				this.selectStep(this.editorInput.selectedStep, false);

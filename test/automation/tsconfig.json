@@ -12,7 +12,12 @@
 		"lib": [
 			"esnext", // for #201187
 			"dom"
-		]
+		],
+		"paths": {
+			"playwright-core/types/protocol": [
+				"../../node_modules/playwright-core/types/protocol.d.ts"
+			]
+		}
 	},
 	"exclude": [
 		"node_modules",

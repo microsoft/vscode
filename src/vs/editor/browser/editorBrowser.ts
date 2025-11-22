@@ -272,7 +272,7 @@ export interface IOverlayWidgetPosition {
 	 * When set, stacks with other overlay widgets with the same preference,
 	 * in an order determined by the ordinal value.
 	 */
-	stackOridinal?: number;
+	stackOrdinal?: number;
 }
 /**
  * An overlay widgets renders on top of the text.
@@ -825,6 +825,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	*/
 	readonly onEndUpdate: Event<void>;
 
+	readonly onDidChangeViewZones: Event<void>;
+
 	/**
 	 * Saves current view state of the editor in a serializable object.
 	 */
@@ -1011,6 +1013,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param command The commands to execute
 	 */
 	executeCommands(source: string | null | undefined, commands: (editorCommon.ICommand | null)[]): void;
+
+	/**
+	 * Scroll vertically or horizontally as necessary and reveal the current cursors.
+	 */
+	revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void;
 
 	/**
 	 * @internal

@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolDataSource, VSCodeToolReference } from '../../common/languageModelToolsService.js';
 import { ConfirmationTool, ConfirmationToolData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool, TodoListToolDescriptionFieldSettingId, TodoListToolWriteOnlySettingId } from './manageTodoListTool.js';
-import { RunSubagentTool, RunSubagentToolData } from './runSubagentTool.js';
+import { RunSubagentTool } from './runSubagentTool.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -38,7 +41,15 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		const confirmationTool = instantiationService.createInstance(ConfirmationTool);
 		this._register(toolsService.registerTool(ConfirmationToolData, confirmationTool));
 
-		this._register(toolsService.registerTool(RunSubagentToolData, instantiationService.createInstance(RunSubagentTool)));
+		const runSubagentTool = this._register(instantiationService.createInstance(RunSubagentTool));
+		const runSubagentToolData = runSubagentTool.getToolData();
+		this._register(toolsService.registerTool(runSubagentToolData, runSubagentTool));
+
+		const customAgentToolSet = this._register(toolsService.createToolSet(ToolDataSource.Internal, 'custom-agent', VSCodeToolReference.agent, {
+			icon: ThemeIcon.fromId(Codicon.agent.id),
+			description: localize('toolset.custom-agent', 'Delegate tasks to other agents'),
+		}));
+		this._register(customAgentToolSet.addTool(runSubagentToolData));
 	}
 }
 

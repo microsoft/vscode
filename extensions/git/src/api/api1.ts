@@ -7,7 +7,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, GitErrorCodes, CloneOptions } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, SourceControlHistoryItemDetailsProvider, GitErrorCodes, CloneOptions, CommitShortStat } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, filterEvent, mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -163,6 +163,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.diffWithHEAD(path);
 	}
 
+	diffWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.#repository.diffWithHEADShortStats(path);
+	}
+
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffWith(ref: string, path?: string): Promise<string | Change[]> {
@@ -173,6 +177,10 @@ export class ApiRepository implements Repository {
 	diffIndexWithHEAD(path: string): Promise<string>;
 	diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
 		return this.#repository.diffIndexWithHEAD(path);
+	}
+
+	diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.#repository.diffIndexWithHEADShortStats(path);
 	}
 
 	diffIndexWith(ref: string): Promise<Change[]>;
@@ -309,6 +317,18 @@ export class ApiRepository implements Repository {
 
 	dropStash(index?: number): Promise<void> {
 		return this.#repository.dropStash(index);
+	}
+
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+		return this.#repository.createWorktree(options);
+	}
+
+	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+		return this.#repository.deleteWorktree(path, options);
+	}
+
+	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void> {
+		return this.#repository.migrateChanges(sourceRepositoryPath, options);
 	}
 }
 

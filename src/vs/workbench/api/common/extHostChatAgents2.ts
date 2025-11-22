@@ -559,7 +559,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		this._onDidChangeChatRequestTools.fire(request.extRequest);
 	}
 
-	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto; chatSummary?: { prompt?: string; history?: string } }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[]; chatSessionContext?: IChatSessionContextDto }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
@@ -606,11 +606,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 				};
 			}
 
-			const chatContext: vscode.ChatContext = {
-				history,
-				chatSessionContext,
-				chatSummary: context.chatSummary
-			};
+			const chatContext: vscode.ChatContext = { history, chatSessionContext };
 			const task = agent.invoke(
 				extRequest,
 				chatContext,
@@ -855,7 +851,6 @@ class ExtHostChatAgent {
 	private _additionalWelcomeMessage?: string | vscode.MarkdownString | undefined;
 	private _titleProvider?: vscode.ChatTitleProvider | undefined;
 	private _summarizer?: vscode.ChatSummarizer | undefined;
-	private _requester: vscode.ChatRequesterInformation | undefined;
 	private _pauseStateEmitter = new Emitter<vscode.ChatParticipantPauseStateEvent>();
 
 	constructor(
@@ -943,7 +938,6 @@ class ExtHostChatAgent {
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					supportIssueReporting: this._supportIssueReporting,
-					requester: this._requester,
 					additionalWelcomeMessage: (!this._additionalWelcomeMessage || typeof this._additionalWelcomeMessage === 'string') ? this._additionalWelcomeMessage : typeConvert.MarkdownString.from(this._additionalWelcomeMessage),
 				});
 				updateScheduled = false;
@@ -1057,13 +1051,6 @@ class ExtHostChatAgent {
 				? undefined!
 				: this._onDidPerformAction.event
 			,
-			set requester(v) {
-				that._requester = v;
-				updateMetadataSoon();
-			},
-			get requester() {
-				return that._requester;
-			},
 			dispose() {
 				disposed = true;
 				that._followupProvider = undefined;

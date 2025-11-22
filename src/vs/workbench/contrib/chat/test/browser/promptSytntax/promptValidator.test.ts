@@ -56,6 +56,8 @@ suite('PromptValidator', () => {
 		disposables.add(toolService.registerToolData(testTool1));
 		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(testTool2));
+		const shellTool = { id: 'shell', displayName: 'shell', canBeReferencedInPrompt: true, toolReferenceName: 'shell', modelDescription: 'Runs commands in the terminal', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(shellTool));
 
 		const myExtSource = { type: 'extension', label: 'My Extension', extensionId: new ExtensionIdentifier('My.extension') } satisfies ToolDataSource;
 		const testTool3 = { id: 'testTool3', displayName: 'tool3', canBeReferencedInPrompt: true, toolReferenceName: 'tool3', modelDescription: 'Test Tool 3', source: myExtSource, inputSchema: {} } satisfies IToolData;
@@ -64,6 +66,52 @@ suite('PromptValidator', () => {
 		const prExtSource = { type: 'extension', label: 'GitHub Pull Request Extension', extensionId: new ExtensionIdentifier('github.vscode-pull-request-github') } satisfies ToolDataSource;
 		const prExtTool1 = { id: 'suggestFix', canBeReferencedInPrompt: true, toolReferenceName: 'suggest-fix', modelDescription: 'tool4', displayName: 'Test Tool 4', source: prExtSource, inputSchema: {} } satisfies IToolData;
 		disposables.add(toolService.registerToolData(prExtTool1));
+
+		const toolWithLegacy = { id: 'newTool', toolReferenceName: 'newToolRef', displayName: 'New Tool', canBeReferencedInPrompt: true, modelDescription: 'New Tool', source: ToolDataSource.External, inputSchema: {}, legacyToolReferenceFullNames: ['oldToolName', 'deprecatedToolName'] } satisfies IToolData;
+		disposables.add(toolService.registerToolData(toolWithLegacy));
+
+		const toolSetWithLegacy = disposables.add(toolService.createToolSet(
+			ToolDataSource.External,
+			'newToolSet',
+			'newToolSetRef',
+			{ description: 'New Tool Set', legacyFullNames: ['oldToolSet', 'deprecatedToolSet'] }
+		));
+		const toolInSet = { id: 'toolInSet', toolReferenceName: 'toolInSetRef', displayName: 'Tool In Set', canBeReferencedInPrompt: false, modelDescription: 'Tool In Set', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(toolInSet));
+		disposables.add(toolSetWithLegacy.addTool(toolInSet));
+
+		const anotherToolWithLegacy = { id: 'anotherTool', toolReferenceName: 'anotherToolRef', displayName: 'Another Tool', canBeReferencedInPrompt: true, modelDescription: 'Another Tool', source: ToolDataSource.External, inputSchema: {}, legacyToolReferenceFullNames: ['legacyTool'] } satisfies IToolData;
+		disposables.add(toolService.registerToolData(anotherToolWithLegacy));
+
+		const anotherToolSetWithLegacy = disposables.add(toolService.createToolSet(
+			ToolDataSource.External,
+			'anotherToolSet',
+			'anotherToolSetRef',
+			{ description: 'Another Tool Set', legacyFullNames: ['legacyToolSet'] }
+		));
+		const anotherToolInSet = { id: 'anotherToolInSet', toolReferenceName: 'anotherToolInSetRef', displayName: 'Another Tool In Set', canBeReferencedInPrompt: false, modelDescription: 'Another Tool In Set', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(anotherToolInSet));
+		disposables.add(anotherToolSetWithLegacy.addTool(anotherToolInSet));
+
+		const conflictToolSet1 = disposables.add(toolService.createToolSet(
+			ToolDataSource.External,
+			'conflictSet1',
+			'conflictSet1Ref',
+			{ legacyFullNames: ['sharedLegacyName'] }
+		));
+		const conflictTool1 = { id: 'conflictTool1', toolReferenceName: 'conflictTool1Ref', displayName: 'Conflict Tool 1', canBeReferencedInPrompt: false, modelDescription: 'Conflict Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(conflictTool1));
+		disposables.add(conflictToolSet1.addTool(conflictTool1));
+
+		const conflictToolSet2 = disposables.add(toolService.createToolSet(
+			ToolDataSource.External,
+			'conflictSet2',
+			'conflictSet2Ref',
+			{ legacyFullNames: ['sharedLegacyName'] }
+		));
+		const conflictTool2 = { id: 'conflictTool2', toolReferenceName: 'conflictTool2Ref', displayName: 'Conflict Tool 2', canBeReferencedInPrompt: false, modelDescription: 'Conflict Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+		disposables.add(toolService.registerToolData(conflictTool2));
+		disposables.add(conflictToolSet2.addTool(conflictTool2));
 
 		instaService.set(ILanguageModelToolsService, toolService);
 
@@ -185,6 +233,166 @@ suite('PromptValidator', () => {
 			);
 		});
 
+		test('legacy tool reference names', async () => {
+			// Test using legacy tool reference name
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`tools: ['tool1', 'oldToolName']`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(
+					markers.map(m => ({ severity: m.severity, message: m.message })),
+					[
+						{ severity: MarkerSeverity.Info, message: `Tool or toolset 'oldToolName' has been renamed, use 'newToolRef' instead.` },
+					]
+				);
+			}
+
+			// Test using another legacy tool reference name
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`tools: ['tool1', 'deprecatedToolName']`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(
+					markers.map(m => ({ severity: m.severity, message: m.message })),
+					[
+						{ severity: MarkerSeverity.Info, message: `Tool or toolset 'deprecatedToolName' has been renamed, use 'newToolRef' instead.` },
+					]
+				);
+			}
+		});
+
+		test('legacy toolset names', async () => {
+			// Test using legacy toolset name
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`tools: ['tool1', 'oldToolSet']`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(
+					markers.map(m => ({ severity: m.severity, message: m.message })),
+					[
+						{ severity: MarkerSeverity.Info, message: `Tool or toolset 'oldToolSet' has been renamed, use 'newToolSetRef' instead.` },
+					]
+				);
+			}
+
+			// Test using another legacy toolset name
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`tools: ['tool1', 'deprecatedToolSet']`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(
+					markers.map(m => ({ severity: m.severity, message: m.message })),
+					[
+						{ severity: MarkerSeverity.Info, message: `Tool or toolset 'deprecatedToolSet' has been renamed, use 'newToolSetRef' instead.` },
+					]
+				);
+			}
+		});
+
+		test('multiple legacy names in same tools list', async () => {
+			// Test multiple legacy names together
+			const content = [
+				'---',
+				'description: "Test"',
+				`tools: ['legacyTool', 'legacyToolSet', 'tool3']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Info, message: `Tool or toolset 'legacyTool' has been renamed, use 'anotherToolRef' instead.` },
+					{ severity: MarkerSeverity.Info, message: `Tool or toolset 'legacyToolSet' has been renamed, use 'anotherToolSetRef' instead.` },
+					{ severity: MarkerSeverity.Info, message: `Tool or toolset 'tool3' has been renamed, use 'my.extension/tool3' instead.` },
+				]
+			);
+		});
+
+		test('deprecated tool name mapping to multiple new names', async () => {
+			// The toolsets are registered in setup with a shared legacy name 'sharedLegacyName'
+			// This simulates the case where one deprecated name maps to multiple current names
+			const content = [
+				'---',
+				'description: "Test"',
+				`tools: ['sharedLegacyName']`,
+				'---',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Info);
+			// When multiple toolsets share the same legacy name, the message should indicate multiple options
+			// The message will say "use the following tools instead:" for multiple mappings
+			const expectedMessage = `Tool or toolset 'sharedLegacyName' has been renamed, use the following tools instead: conflictSet1Ref, conflictSet2Ref`;
+			assert.strictEqual(markers[0].message, expectedMessage);
+		});
+
+		test('deprecated tool name in body variable reference - single mapping', async () => {
+			// Test deprecated tool name used as variable reference in body
+			const content = [
+				'---',
+				'description: "Test"',
+				'---',
+				'Body with #tool:oldToolName reference',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Info);
+			assert.strictEqual(markers[0].message, `Tool or toolset 'oldToolName' has been renamed, use 'newToolRef' instead.`);
+		});
+
+		test('deprecated tool name in body variable reference - multiple mappings', async () => {
+			// Register tools with the same legacy name to create multiple mappings
+			const multiMapToolSet1 = disposables.add(instaService.get(ILanguageModelToolsService).createToolSet(
+				ToolDataSource.External,
+				'multiMapSet1',
+				'multiMapSet1Ref',
+				{ legacyFullNames: ['multiMapLegacy'] }
+			));
+			const multiMapTool1 = { id: 'multiMapTool1', toolReferenceName: 'multiMapTool1Ref', displayName: 'Multi Map Tool 1', canBeReferencedInPrompt: true, modelDescription: 'Multi Map Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+			disposables.add(instaService.get(ILanguageModelToolsService).registerToolData(multiMapTool1));
+			disposables.add(multiMapToolSet1.addTool(multiMapTool1));
+
+			const multiMapToolSet2 = disposables.add(instaService.get(ILanguageModelToolsService).createToolSet(
+				ToolDataSource.External,
+				'multiMapSet2',
+				'multiMapSet2Ref',
+				{ legacyFullNames: ['multiMapLegacy'] }
+			));
+			const multiMapTool2 = { id: 'multiMapTool2', toolReferenceName: 'multiMapTool2Ref', displayName: 'Multi Map Tool 2', canBeReferencedInPrompt: true, modelDescription: 'Multi Map Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
+			disposables.add(instaService.get(ILanguageModelToolsService).registerToolData(multiMapTool2));
+			disposables.add(multiMapToolSet2.addTool(multiMapTool2));
+
+			const content = [
+				'---',
+				'description: "Test"',
+				'---',
+				'Body with #tool:multiMapLegacy reference',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			assert.strictEqual(markers.length, 1);
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Info);
+			// When multiple toolsets share the same legacy name, the message should indicate multiple options
+			// The message will say "use the following tools instead:" for multiple mappings in body references
+			const expectedMessage = `Tool or toolset 'multiMapLegacy' has been renamed, use the following tools instead: multiMapSet1Ref, multiMapSet2Ref`;
+			assert.strictEqual(markers[0].message, expectedMessage);
+		});
+
 		test('unknown attribute in agent file', async () => {
 			const content = [
 				'---',
@@ -240,6 +448,21 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers.length, 1);
 				assert.deepStrictEqual(markers.map(m => m.message), [`The 'agent' property in a handoff must be a non-empty string.`]);
 			}
+			{
+				const content = [
+					'---',
+					'description: "Test"',
+					`handoffs:`,
+					`  - label: '123'`,
+					`    agent: 'Cool'`,
+					`    prompt: ''`,
+					`    send: true`,
+					'---',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.deepStrictEqual(markers.map(m => m.message), [`Unknown agent 'Cool'. Available agents: agent, ask, edit, BeastMode.`]);
+			}
 		});
 
 		test('agent with handoffs attribute', async () => {
@@ -248,10 +471,10 @@ suite('PromptValidator', () => {
 				'description: \"Test agent with handoffs\"',
 				`handoffs:`,
 				'  - label: Test Prompt',
-				'    agent: Default',
+				'    agent: agent',
 				'    prompt: Add tests for this code',
 				'  - label: Optimize Performance',
-				'    agent: Default',
+				'    agent: agent',
 				'    prompt: Optimize for performance',
 				'---',
 				'Body',
@@ -359,6 +582,40 @@ suite('PromptValidator', () => {
 			assert.strictEqual(markers[0].message, `Unknown tool 'unknownTool'.`);
 		});
 
+		test('vscode target agent with mcp-servers and github-tools', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				'target: vscode',
+				`tools: ['tool1', 'edit']`,
+				`mcp-servers: {}`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			const messages = markers.map(m => m.message);
+			assert.deepStrictEqual(messages, [
+				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
+				'Unknown tool \'edit\'.',
+			]);
+		});
+
+		test('undefined target with mcp-servers and github-tools', async () => {
+			const content = [
+				'---',
+				'description: "VS Code agent"',
+				`tools: ['tool1', 'shell']`,
+				`mcp-servers: {}`,
+				'---',
+				'Body',
+			].join('\n');
+			const markers = await validate(content, PromptsType.agent);
+			const messages = markers.map(m => m.message);
+			assert.deepStrictEqual(messages, [
+				'Attribute \'mcp-servers\' is ignored when running locally in VS Code.',
+			]);
+		});
+
 		test('default target (no target specified) validates as vscode', async () => {
 			const content = [
 				'---',
@@ -421,27 +678,11 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers[0].message, `The 'name' attribute must be a string.`);
 			}
 
-			// Invalid characters in name
-			{
-				const content = [
-					'---',
-					'name: "My@Agent!"',
-					'description: "Test agent"',
-					'target: vscode',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'name' attribute can only consist of letters, digits, underscores, hyphens, and periods.`);
-			}
-
 			// Valid name with allowed characters
 			{
 				const content = [
 					'---',
-					'name: "My_Agent-2.0"',
+					'name: "My_Agent-2.0 with spaces"',
 					'description: "Test agent"',
 					'target: vscode',
 					'---',
@@ -464,9 +705,7 @@ suite('PromptValidator', () => {
 					'Body',
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'name' attribute is required when target is 'github-copilot'.`);
+				assert.strictEqual(markers.length, 0);
 			}
 
 			// Valid name with github-copilot target
@@ -582,22 +821,6 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 				assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
-			}
-
-			// Invalid characters in name
-			{
-				const content = [
-					'---',
-					'name: "My Instructions#"',
-					'description: "Test instructions"',
-					'applyTo: "**/*.ts"',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.instructions);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'name' attribute can only consist of letters, digits, underscores, hyphens, and periods.`);
 			}
 		});
 	});
@@ -736,21 +959,6 @@ suite('PromptValidator', () => {
 				assert.strictEqual(markers.length, 1);
 				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
 				assert.strictEqual(markers[0].message, `The 'name' attribute must not be empty.`);
-			}
-
-			// Invalid characters in name
-			{
-				const content = [
-					'---',
-					'name: "My Prompt!"',
-					'description: "Test prompt"',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.prompt);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
-				assert.strictEqual(markers[0].message, `The 'name' attribute can only consist of letters, digits, underscores, hyphens, and periods.`);
 			}
 		});
 	});

@@ -53,6 +53,11 @@ export interface ISelectOptionItem {
 	isDisabled?: boolean;
 }
 
+export const SeparatorSelectOption: Readonly<ISelectOptionItem> = Object.freeze({
+	text: '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500',
+	isDisabled: true,
+});
+
 export interface ISelectBoxStyles extends IListStyles {
 	readonly selectBackground: string | undefined;
 	readonly selectListBackground: string | undefined;

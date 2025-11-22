@@ -200,7 +200,7 @@ export const Operation = {
 
 export interface OperationResult {
 	operation: Operation;
-	error: any;
+	error: unknown;
 }
 
 interface IOperationManager {

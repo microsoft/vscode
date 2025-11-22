@@ -20,6 +20,7 @@ import { IParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatChangesSummary, IChatCodeCitation, IChatContentReference, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from './chatService.js';
 import { countWords } from './chatWordCounter.js';
 import { CodeBlockModelCollection } from './codeBlockModelCollection.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
@@ -63,12 +64,9 @@ export interface IChatSetCheckpointEvent {
 
 export interface IChatViewModel {
 	readonly model: IChatModel;
-	/** @deprecated Use {@link sessionResource} instead */
-	readonly sessionId: string;
 	readonly sessionResource: URI;
 	readonly onDidDisposeModel: Event<void>;
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
-	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel)[];
 	setInputPlaceholder(text: string): void;
@@ -264,17 +262,8 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._onDidChange.fire({ kind: 'changePlaceholder' });
 	}
 
-	/** @deprecated Use {@link sessionResource} instead */
-	get sessionId() {
-		return this._model.sessionId;
-	}
-
 	get sessionResource(): URI {
 		return this._model.sessionResource;
-	}
-
-	get requestInProgress(): boolean {
-		return this._model.requestInProgress;
 	}
 
 	constructor(
@@ -404,11 +393,11 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	get username() {
-		return this._model.username;
+		return 'User';
 	}
 
-	get avatarIcon() {
-		return this._model.avatarIconUri;
+	get avatarIcon(): ThemeIcon {
+		return Codicon.account;
 	}
 
 	get message() {

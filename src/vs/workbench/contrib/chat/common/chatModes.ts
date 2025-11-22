@@ -6,10 +6,11 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
+import { constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -17,7 +18,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from './chatAgents.js';
 import { ChatContextKeys } from './chatContextKeys.js';
-import { ChatModeKind } from './constants.js';
+import { ChatConfiguration, ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/promptFileParser.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
 
@@ -38,6 +39,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	private static readonly CUSTOM_MODES_STORAGE_KEY = 'chat.customModes';
 
 	private readonly hasCustomModes: IContextKey<boolean>;
+	private readonly agentModeDisabledByPolicy: IContextKey<boolean>;
 	private readonly _customModeInstances = new Map<string, CustomChatMode>();
 
 	private readonly _onDidChangeChatModes = new Emitter<void>();
@@ -48,11 +50,16 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
 		this.hasCustomModes = ChatContextKeys.Modes.hasCustomChatModes.bindTo(contextKeyService);
+		this.agentModeDisabledByPolicy = ChatContextKeys.Modes.agentModeDisabledByPolicy.bindTo(contextKeyService);
+
+		// Initialize the policy context key
+		this.updateAgentModePolicyContextKey();
 
 		// Load cached modes from storage first
 		this.loadCachedModes();
@@ -62,6 +69,14 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			void this.refreshCustomPromptModes(true);
 		}));
 		this._register(this.storageService.onWillSaveState(() => this.saveCachedModes()));
+
+		// Listen for configuration changes that affect agent mode policy
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.AgentEnabled)) {
+				this.updateAgentModePolicyContextKey();
+				this._onDidChangeChatModes.fire();
+			}
+		}));
 
 		// Ideally we can get rid of the setting to disable agent mode?
 		let didHaveToolsAgent = this.chatAgentService.hasToolsAgent;
@@ -178,7 +193,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
-		return this.getBuiltinModes().find(mode => mode.name === name) ?? this.getCustomModes().find(mode => mode.name === name);
+		return this.getBuiltinModes().find(mode => mode.name.get() === name) ?? this.getCustomModes().find(mode => mode.name.get() === name);
 	}
 
 	private getBuiltinModes(): IChatMode[] {
@@ -186,7 +201,11 @@ export class ChatModeService extends Disposable implements IChatModeService {
 			ChatMode.Ask,
 		];
 
-		if (this.chatAgentService.hasToolsAgent) {
+		// Include Agent mode if:
+		// - It's enabled (hasToolsAgent is true), OR
+		// - It's disabled by policy (so we can show it with a lock icon)
+		// But hide it if the user manually disabled it via settings
+		if (this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy()) {
 			builtinModes.unshift(ChatMode.Agent);
 		}
 		builtinModes.push(ChatMode.Edit);
@@ -194,7 +213,16 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	}
 
 	private getCustomModes(): IChatMode[] {
+		// Show custom modes only when agent mode is enabled
 		return this.chatAgentService.hasToolsAgent ? Array.from(this._customModeInstances.values()) : [];
+	}
+
+	private updateAgentModePolicyContextKey(): void {
+		this.agentModeDisabledByPolicy.set(this.isAgentModeDisabledByPolicy());
+	}
+
+	private isAgentModeDisabledByPolicy(): boolean {
+		return this.configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled).policyValue === false;
 	}
 }
 
@@ -216,8 +244,8 @@ export interface IChatModeData {
 
 export interface IChatMode {
 	readonly id: string;
-	readonly name: string;
-	readonly label: string;
+	readonly name: IObservable<string>;
+	readonly label: IObservable<string>;
 	readonly description: IObservable<string | undefined>;
 	readonly isBuiltin: boolean;
 	readonly kind: ChatModeKind;
@@ -263,6 +291,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 }
 
 export class CustomChatMode implements IChatMode {
+	private readonly _nameObservable: ISettableObservable<string>;
 	private readonly _descriptionObservable: ISettableObservable<string | undefined>;
 	private readonly _customToolsObservable: ISettableObservable<readonly string[] | undefined>;
 	private readonly _modeInstructions: ISettableObservable<IChatModeInstructions>;
@@ -274,7 +303,10 @@ export class CustomChatMode implements IChatMode {
 	private _source: IAgentSource;
 
 	public readonly id: string;
-	public readonly name: string;
+
+	get name(): IObservable<string> {
+		return this._nameObservable;
+	}
 
 	get description(): IObservable<string | undefined> {
 		return this._descriptionObservable;
@@ -304,7 +336,7 @@ export class CustomChatMode implements IChatMode {
 		return this._uriObservable;
 	}
 
-	get label(): string {
+	get label(): IObservable<string> {
 		return this.name;
 	}
 
@@ -326,7 +358,7 @@ export class CustomChatMode implements IChatMode {
 		customChatMode: ICustomAgent
 	) {
 		this.id = customChatMode.uri.toString();
-		this.name = customChatMode.name;
+		this._nameObservable = observableValue('name', customChatMode.name);
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);
 		this._modelObservable = observableValue('model', customChatMode.model);
@@ -343,7 +375,7 @@ export class CustomChatMode implements IChatMode {
 	 */
 	updateData(newData: ICustomAgent): void {
 		transaction(tx => {
-			// Note- name is derived from ID, it can't change
+			this._nameObservable.set(newData.name, tx);
 			this._descriptionObservable.set(newData.description, tx);
 			this._customToolsObservable.set(newData.tools, tx);
 			this._modelObservable.set(newData.model, tx);
@@ -359,7 +391,7 @@ export class CustomChatMode implements IChatMode {
 	toJSON(): IChatModeData {
 		return {
 			id: this.id,
-			name: this.name,
+			name: this.name.get(),
 			description: this.description.get(),
 			kind: this.kind,
 			customTools: this.customTools.get(),
@@ -410,13 +442,17 @@ function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSour
 }
 
 export class BuiltinChatMode implements IChatMode {
+	public readonly name: IObservable<string>;
+	public readonly label: IObservable<string>;
 	public readonly description: IObservable<string>;
 
 	constructor(
 		public readonly kind: ChatModeKind,
-		public readonly label: string,
+		label: string,
 		description: string
 	) {
+		this.name = constObservable(kind);
+		this.label = constObservable(label);
 		this.description = observableValue('description', description);
 	}
 
@@ -426,10 +462,6 @@ export class BuiltinChatMode implements IChatMode {
 
 	get id(): string {
 		// Need a differentiator?
-		return this.kind;
-	}
-
-	get name(): string {
 		return this.kind;
 	}
 
@@ -443,7 +475,7 @@ export class BuiltinChatMode implements IChatMode {
 	toJSON(): IChatModeData {
 		return {
 			id: this.id,
-			name: this.name,
+			name: this.name.get(),
 			description: this.description.get(),
 			kind: this.kind
 		};

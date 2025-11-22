@@ -399,11 +399,17 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		}
 
 		set buttons(buttons: QuickInputButton[]) {
-			if (buttons.some(button => button.location || button.toggle)) {
+			if (buttons.some(button =>
+				typeof button.location === 'number' ||
+				typeof button.toggle === 'object' && typeof button.toggle.checked === 'boolean')) {
 				checkProposedApiEnabled(this._extension, 'quickInputButtonLocation');
 			}
 
-			if (buttons.some(button => button.toggle && button.location !== QuickInputButtonLocation.Input)) {
+			if (buttons.some(button =>
+				typeof button.location === 'number' &&
+				button.location !== QuickInputButtonLocation.Input &&
+				typeof button.toggle === 'object' &&
+				typeof button.toggle.checked === 'boolean')) {
 				throw new Error('QuickInputButtons with toggle set are only supported in the Input location.');
 			}
 
@@ -419,8 +425,8 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 						iconPathDto: IconPath.from(button.iconPath),
 						tooltip: button.tooltip,
 						handle: button === QuickInputButtons.Back ? -1 : i,
-						location: button.location,
-						checked: button.toggle?.checked
+						location: typeof button.location === 'number' ? button.location : undefined,
+						checked: typeof button.toggle === 'object' && typeof button.toggle.checked === 'boolean' ? button.toggle.checked : undefined
 					};
 				})
 			});
@@ -490,7 +496,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			proxy.$dispose(this._id);
 		}
 
-		protected update(properties: Record<string, any>): void {
+		protected update(properties: Record<string, unknown>): void {
 			if (this._disposed) {
 				return;
 			}
