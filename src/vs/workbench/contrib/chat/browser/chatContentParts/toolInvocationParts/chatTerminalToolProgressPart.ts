@@ -639,8 +639,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 }
 
 class ChatTerminalToolOutputSection extends Disposable {
-	public readonly onDidFocus: Event<void>;
-	public readonly onDidBlur: Event<FocusEvent>;
 	public readonly domNode: HTMLElement;
 
 	public get isExpanded(): boolean {
@@ -656,7 +654,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _emptyElement: HTMLElement;
 
 	private readonly _onDidFocusEmitter = new Emitter<void>();
+	public onDidFocus: Event<void> = this._onDidFocusEmitter.event;
 	private readonly _onDidBlurEmitter = new Emitter<FocusEvent>();
+	public onDidBlur: Event<FocusEvent> = this._onDidBlurEmitter.event;
 
 	constructor(
 		private readonly _onDidChangeHeight: () => void,
@@ -683,13 +683,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 		const emptyElements = h('.chat-terminal-output-empty@empty');
 		this._emptyElement = emptyElements.empty;
-		this._emptyElement.style.display = 'none';
 		this._contentContainer.appendChild(this._emptyElement);
-
-		this.onDidFocus = this._onDidFocusEmitter.event;
-		this.onDidBlur = this._onDidBlurEmitter.event;
-		this._register(this._onDidFocusEmitter);
-		this._register(this._onDidBlurEmitter);
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, event => this._onDidBlurEmitter.fire(event as FocusEvent)));
@@ -818,13 +812,11 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _showEmptyMessage(message: string): void {
-		this._emptyElement.style.display = '';
 		this._emptyElement.textContent = message;
 		this._terminalContainer.classList.add('chat-terminal-output-terminal-no-output');
 	}
 
 	private _hideEmptyMessage(): void {
-		this._emptyElement.style.display = 'none';
 		this._emptyElement.textContent = '';
 		this._terminalContainer.classList.remove('chat-terminal-output-terminal-no-output');
 	}

@@ -171,9 +171,13 @@
 }
 
 .chat-terminal-output-empty {
+	display: none;
 	font-style: italic;
 	color: var(--vscode-descriptionForeground);
 	line-height: normal;
+}
+.chat-terminal-output-terminal.chat-terminal-output-terminal-no-output ~ .chat-terminal-output-empty {
+	display: block;
 }
 
 .chat-terminal-output div,
