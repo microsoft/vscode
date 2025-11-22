@@ -130,7 +130,7 @@ suite('InlineChatController', function () {
 				setTimeout(() => {
 					d.dispose();
 					resolve(`[${states.join(',')}] <> [${actual.join(',')}]`);
-				}, 10000);
+				}, 1000);
 			});
 		}
 	}
