@@ -38,7 +38,7 @@ import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/v
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../common/chatService.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { IMarshalledChatSessionContext } from '../../actions/chatSessionActions.js';
@@ -50,6 +50,7 @@ import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { ArchivedSessionItems, GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 
 // Identity provider for session items
 class SessionsIdentityProvider {
@@ -173,8 +174,9 @@ export class SessionsViewPane extends ViewPane {
 			// Collect all sessions from the tree
 			if (providerNode.children) {
 				for (const childNode of providerNode.children) {
-					if (childNode.element && !(childNode.element instanceof ArchivedSessionItems)) {
-						sessions.push(childNode.element);
+					const element = childNode.element;
+					if (element && !(element instanceof ArchivedSessionItems) && element !== this.provider) {
+						sessions.push(element as ChatSessionItemWithProvider);
 					}
 				}
 			}
@@ -600,13 +602,14 @@ interface ISerializedChatSessionItem {
 	};
 }
 
-class ChatSessionsCache {
+class ChatSessionsCache extends Disposable {
 	private readonly storageKey: string;
 
 	constructor(
-		private readonly providerType: string,
+		providerType: string,
 		private readonly storageService: IStorageService
 	) {
+		super();
 		this.storageKey = `chatSessions.cache.${providerType}`;
 	}
 
@@ -618,7 +621,7 @@ class ChatSessionsCache {
 			tooltip: session.tooltip,
 			status: session.status,
 			archived: session.archived,
-			iconPath: session.iconPath instanceof ThemeIcon ? session.iconPath.id : undefined,
+			iconPath: session.iconPath && ThemeIcon.isThemeIcon(session.iconPath) ? session.iconPath.id : undefined,
 			timing: session.timing ? {
 				startTime: session.timing.startTime,
 				endTime: session.timing.endTime,
@@ -645,7 +648,7 @@ class ChatSessionsCache {
 				status: session.status,
 				archived: session.archived,
 				iconPath: session.iconPath ? ThemeIcon.fromId(session.iconPath) : undefined,
-				timing: session.timing,
+				timing: session.timing || { startTime: Date.now() },
 				statistics: session.statistics,
 				provider,
 			}));

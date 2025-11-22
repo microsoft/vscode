@@ -68,7 +68,7 @@ suite('ChatSessionsCache', () => {
 			label: session.label,
 			description: session.description,
 			status: session.status,
-			iconPath: session.iconPath instanceof ThemeIcon ? session.iconPath.id : undefined,
+			iconPath: session.iconPath && ThemeIcon.isThemeIcon(session.iconPath) ? session.iconPath.id : undefined,
 			timing: session.timing
 		}));
 
@@ -168,7 +168,7 @@ suite('ChatSessionsCache', () => {
 			tooltip: session.tooltip,
 			status: session.status,
 			archived: session.archived,
-			iconPath: session.iconPath instanceof ThemeIcon ? session.iconPath.id : undefined,
+			iconPath: session.iconPath && ThemeIcon.isThemeIcon(session.iconPath) ? session.iconPath.id : undefined,
 			timing: session.timing,
 			statistics: session.statistics
 		};
