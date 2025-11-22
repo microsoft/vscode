@@ -31,7 +31,6 @@ export interface IChatModeService {
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] };
 	findModeById(id: string): IChatMode | undefined;
 	findModeByName(name: string): IChatMode | undefined;
-	isAgentModeDisabledByPolicy(): boolean;
 }
 
 export class ChatModeService extends Disposable implements IChatModeService {
@@ -218,16 +217,12 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		return this.chatAgentService.hasToolsAgent ? Array.from(this._customModeInstances.values()) : [];
 	}
 
-	/**
-	 * Checks if the Agent mode setting is disabled by a policy
-	 */
-	isAgentModeDisabledByPolicy(): boolean {
-		return this.configurationService.isSettingControlledByPolicy(ChatConfiguration.AgentEnabled)
-			&& !this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
-	}
-
 	private updateAgentModePolicyContextKey(): void {
 		this.agentModeDisabledByPolicy.set(this.isAgentModeDisabledByPolicy());
+	}
+
+	private isAgentModeDisabledByPolicy(): boolean {
+		return this.configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled).policyValue === false;
 	}
 }
 

@@ -689,11 +689,6 @@ export class StandaloneConfigurationService implements IConfigurationService {
 		return this._configuration.inspect<C>(key, options, undefined);
 	}
 
-	public isSettingControlledByPolicy(key: string): boolean {
-		const inspected = this.inspect(key);
-		return inspected.policyValue !== undefined;
-	}
-
 	public keys() {
 		return this._configuration.keys(undefined);
 	}
