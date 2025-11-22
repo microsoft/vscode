@@ -1030,18 +1030,6 @@ export class ToggleChatTerminalOutputAction extends Action implements IAction {
 	}
 }
 
-type FocusChatInstanceTelemetryEvent = {
-	target: 'instance' | 'commandUri' | 'none';
-	location: 'panel' | 'editor';
-};
-
-type FocusChatInstanceTelemetryClassification = {
-	owner: 'meganrogge';
-	comment: 'Track usage of the focus chat terminal action.';
-	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether focusing targeted an existing instance or opened a command URI.' };
-	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Location of the terminal instance when focusing.' };
-};
-
 export class FocusChatInstanceAction extends Action implements IAction {
 	constructor(
 		private _instance: ITerminalInstance | undefined,
@@ -1076,6 +1064,18 @@ export class FocusChatInstanceAction extends Action implements IAction {
 		} else if (this._commandUri) {
 			target = 'commandUri';
 		}
+
+		type FocusChatInstanceTelemetryEvent = {
+			target: 'instance' | 'commandUri' | 'none';
+			location: 'panel' | 'editor';
+		};
+
+		type FocusChatInstanceTelemetryClassification = {
+			owner: 'meganrogge';
+			comment: 'Track usage of the focus chat terminal action.';
+			target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether focusing targeted an existing instance or opened a command URI.' };
+			location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Location of the terminal instance when focusing.' };
+		};
 		this._telemetryService.publicLog2<FocusChatInstanceTelemetryEvent, FocusChatInstanceTelemetryClassification>('terminal/chatFocusInstance', {
 			target,
 			location
