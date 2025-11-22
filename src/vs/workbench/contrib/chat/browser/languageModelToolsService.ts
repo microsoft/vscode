@@ -76,23 +76,22 @@ export const globalAutoApproveDescription = localize2(
 
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
-	vscodeToolSet: ToolSet;
-	executeToolSet: ToolSet;
-	readToolSet: ToolSet;
+	readonly vscodeToolSet: ToolSet;
+	readonly executeToolSet: ToolSet;
+	readonly readToolSet: ToolSet;
 
-	private _onDidChangeTools = this._register(new Emitter<void>());
+	private readonly _onDidChangeTools = this._register(new Emitter<void>());
 	readonly onDidChangeTools = this._onDidChangeTools.event;
-	private _onDidPrepareToolCallBecomeUnresponsive = this._register(new Emitter<{ sessionId: string; toolData: IToolData }>());
+	private readonly _onDidPrepareToolCallBecomeUnresponsive = this._register(new Emitter<{ sessionId: string; toolData: IToolData }>());
 	readonly onDidPrepareToolCallBecomeUnresponsive = this._onDidPrepareToolCallBecomeUnresponsive.event;
 
 	/** Throttle tools updates because it sends all tools and runs on context key updates */
-	private _onDidChangeToolsScheduler = new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750);
-
-	private _tools = new Map<string, IToolEntry>();
-	private _toolContextKeys = new Set<string>();
+	private readonly _onDidChangeToolsScheduler = new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750);
+	private readonly _tools = new Map<string, IToolEntry>();
+	private readonly _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
 
-	private _callsByRequestId = new Map<string, ITrackedCall[]>();
+	private readonly _callsByRequestId = new Map<string, ITrackedCall[]>();
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
