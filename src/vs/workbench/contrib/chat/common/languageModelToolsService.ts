@@ -347,7 +347,8 @@ export type CountTokensCallback = (input: string, token: CancellationToken) => P
 export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	readonly vscodeToolSet: ToolSet;
-	readonly launchToolSet: ToolSet;
+	readonly executeToolSet: ToolSet;
+	readonly readToolSet: ToolSet;
 	readonly onDidChangeTools: Event<void>;
 	readonly onDidPrepareToolCallBecomeUnresponsive: Event<{ readonly sessionId: string; readonly toolData: IToolData }>;
 	registerToolData(toolData: IToolData): IDisposable;
@@ -398,8 +399,8 @@ export namespace GithubCopilotToolReference {
 
 export namespace VSCodeToolReference {
 	export const agent = 'agent';
-	export const shell = 'shell';
+	export const execute = 'execute';
 	export const runSubagent = 'runSubagent';
 	export const vscode = 'vscode';
-	export const launch = 'launch';
+	export const read = 'read';
 }

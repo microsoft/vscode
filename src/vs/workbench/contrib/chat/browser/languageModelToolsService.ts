@@ -76,7 +76,8 @@ export const globalAutoApproveDescription = localize2(
 export class LanguageModelToolsService extends Disposable implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	vscodeToolSet: ToolSet;
-	launchToolSet: ToolSet;
+	executeToolSet: ToolSet;
+	readToolSet: ToolSet;
 
 	private _onDidChangeTools = this._register(new Emitter<void>());
 	readonly onDidChangeTools = this._onDidChangeTools.event;
@@ -143,14 +144,25 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		));
 
-		// Create the internal Launch tool set
-		this.launchToolSet = this._register(this.createToolSet(
+		// Create the internal Execute tool set
+		this.executeToolSet = this._register(this.createToolSet(
 			ToolDataSource.Internal,
-			'launch',
-			VSCodeToolReference.launch,
+			'execute',
+			VSCodeToolReference.execute,
 			{
-				icon: ThemeIcon.fromId(Codicon.rocket.id),
-				description: localize('copilot.toolSet.launch.description', 'Launch and run code, binaries or tests in the workspace'),
+				icon: ThemeIcon.fromId(Codicon.terminal.id),
+				description: localize('copilot.toolSet.execute.description', 'Execute code and applications on your machine'),
+			}
+		));
+
+		// Create the internal Read tool set
+		this.readToolSet = this._register(this.createToolSet(
+			ToolDataSource.Internal,
+			'read',
+			VSCodeToolReference.read,
+			{
+				icon: ThemeIcon.fromId(Codicon.eye.id),
+				description: localize('copilot.toolSet.read.description', 'Read files in your workspace'),
 			}
 		));
 	}
@@ -713,6 +725,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				for (const alias of LanguageModelToolsService.playwrightMCPServerAliases) {
 					yield alias + '/*';
 				}
+				break;
+			case VSCodeToolReference.execute: // 'execute'
+				yield GithubCopilotToolReference.shell;
 				break;
 			case VSCodeToolReference.agent: // 'agent'
 				yield VSCodeToolReference.runSubagent;
