@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './chatViewPane.css';
+
 import { $, getWindow, append } from '../../../../base/browser/dom.js';
-import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
@@ -17,7 +16,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
@@ -30,8 +29,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IViewContainerModel, IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
@@ -41,9 +39,9 @@ import { IChatService } from '../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
-import { ChatViewId } from './chat.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
+import { ActivityBarPosition, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 
 interface IViewPaneState extends IChatViewState {
 	sessionId?: string;
@@ -51,7 +49,6 @@ interface IViewPaneState extends IChatViewState {
 }
 
 export const CHAT_SIDEBAR_PANEL_ID = 'workbench.panel.chat';
-export const ChatSecondaryTitleMenuId = new MenuId('ChatSecondaryTitle');
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -59,6 +56,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private readonly modelDisposables = this._register(new DisposableStore());
 	private memento: Memento<IViewPaneState>;
 	private readonly viewState: IViewPaneState;
+	private showSecondaryTitleBar: boolean;
+	private secondarySideBarShowsLabels: boolean;
+	private currentPrimaryTitle: string;
+	private hasMultipleVisibleViews = false;
+	private readonly viewContainerModel: IViewContainerModel | undefined;
 
 	private _restoringSession: Promise<void> | undefined;
 	private _secondaryTitleContainer: HTMLElement | undefined;
@@ -90,6 +92,24 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(options.id);
+		if (viewContainer) {
+			this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			this.hasMultipleVisibleViews = this.viewContainerModel.visibleViewDescriptors.length > 1;
+			this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(() => this.handleVisibleViewDescriptorsChanged()));
+			this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(() => this.handleVisibleViewDescriptorsChanged()));
+		}
+		this.showSecondaryTitleBar = this.shouldRenderSecondaryTitleBar();
+		this.secondarySideBarShowsLabels = this.computeSecondarySideBarShowsLabels();
+		this.currentPrimaryTitle = localize('chat', "Chat");
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
+				this.handleActivityBarLocationChange();
+			}
+			if (e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
+				this.handleSecondarySideBarShowLabelsChange();
+			}
+		}));
 
 		if (this.chatOptions.location === ChatAgentLocation.Chat && !this.viewState.hasMigratedCurrentSession) {
 			const editsMemento = new Memento<IViewPaneState>('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
@@ -204,14 +224,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	protected override async renderBody(parent: HTMLElement): Promise<void> {
 		super.renderBody(parent);
 
-		this._secondaryTitleContainer = $('.chat-secondary-title', { style: 'display: none; padding: 4px 16px 8px 16px; border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border); align-items: center;' });
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this._secondaryTitleContainer, ChatSecondaryTitleMenuId, {
-			menuOptions: {
-				shouldForwardArgs: true
-			}
-		}));
-
-		this._secondaryTitle = $('span', { style: 'margin-left: 4px;' });
+		this._secondaryTitleContainer = $('.chat-secondary-title');
+		this._secondaryTitle = $('span');
 		append(this._secondaryTitleContainer, this._secondaryTitle);
 		append(parent, this._secondaryTitleContainer);
 
@@ -353,54 +367,121 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private updateViewTitle(model?: IChatModel): void {
+		if (!this._widget) {
+			return;
+		}
 		model = model ?? this._widget.viewModel?.model;
-		const title = (model && model.hasCustomTitle) ? model.title : localize('chat', "Chat");
+		const hasCustomTitle = !!(model && model.hasCustomTitle);
+		const customTitle = hasCustomTitle ? model!.title : undefined;
+		const prefixedCustomTitle = customTitle ? this.withChatPrefix(customTitle) : undefined;
+		const chatTitle = localize('chat', "Chat");
+		const primaryTitle = prefixedCustomTitle ?? chatTitle;
+		this.currentPrimaryTitle = primaryTitle;
 
-		this.updateTitle(localize('chat', "Chat"));
-		if (model && model.hasCustomTitle) {
-			this.setSecondaryTitle(title);
-		} else if (model && model.getRequests().length > 0) {
-			this.setSecondaryTitle(localize('generatingTitle', "Generating title..."));
+		this.updateTitle(primaryTitle);
+		if (!this.showSecondaryTitleBar) {
+			this.setSecondaryTitle(undefined);
+			return;
+		}
+		if (customTitle) {
+			const secondaryTitle = this.shouldOmitChatPrefixInSecondaryTitle() ? customTitle : this.withChatPrefix(customTitle);
+			this.setSecondaryTitle(secondaryTitle);
 		} else {
 			this.setSecondaryTitle(undefined);
 		}
+	}
+
+	private withChatPrefix(title: string | undefined): string | undefined {
+		if (!title) {
+			return undefined;
+		}
+		return title.startsWith('Chat: ') ? title : `Chat: ${title}`;
 	}
 
 	private setSecondaryTitle(title: string | undefined): void {
 		if (!this._secondaryTitleContainer || !this._secondaryTitle) {
 			return;
 		}
-		if (title) {
+		if (!this.showSecondaryTitleBar || !title) {
+			this._secondaryTitleContainer.style.display = 'none';
+		} else {
 			this._secondaryTitle.textContent = title;
 			this._secondaryTitleContainer.style.display = 'flex';
-		} else {
-			this._secondaryTitleContainer.style.display = 'none';
 		}
 		if (this._lastLayout) {
 			this.layoutBody(this._lastLayout.height, this._lastLayout.width);
 		}
 	}
-}
 
-registerAction2(class BackToChatAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.backToChat',
-			title: localize('backToChat', "Back to Chat"),
-			icon: Codicon.arrowLeft,
-			menu: {
-				id: ChatSecondaryTitleMenuId,
-				group: 'navigation',
-				order: 1
-			}
-		});
+	private shouldRenderSecondaryTitleBar(): boolean {
+		if (this.hasMultipleVisibleViews) {
+			return false;
+		}
+		const location = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		return location !== ActivityBarPosition.TOP && location !== ActivityBarPosition.BOTTOM && location !== ActivityBarPosition.HIDDEN;
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
-		const chatView = viewsService.getViewWithId(ChatViewId) as ChatViewPane | undefined;
-		if (chatView) {
-			await chatView.clear();
+	override get singleViewPaneContainerTitle(): string | undefined {
+		if (!this.showSecondaryTitleBar) {
+			return this.currentPrimaryTitle;
+		}
+		return super.singleViewPaneContainerTitle ?? this.currentPrimaryTitle;
+	}
+
+	private handleActivityBarLocationChange(): void {
+		this.updateSecondarySideBarShowLabelsPreference();
+		this.updateSecondaryTitlePreference();
+	}
+
+	private handleSecondarySideBarShowLabelsChange(): void {
+		this.updateSecondarySideBarShowLabelsPreference();
+	}
+
+	private handleVisibleViewDescriptorsChanged(): void {
+		if (!this.viewContainerModel) {
+			return;
+		}
+		const hasMultiple = this.viewContainerModel.visibleViewDescriptors.length > 1;
+		if (hasMultiple === this.hasMultipleVisibleViews) {
+			return;
+		}
+		this.hasMultipleVisibleViews = hasMultiple;
+		this.updateSecondaryTitlePreference();
+	}
+
+	private updateSecondaryTitlePreference(): void {
+		const previousValue = this.showSecondaryTitleBar;
+		this.showSecondaryTitleBar = this.shouldRenderSecondaryTitleBar();
+		if (previousValue === this.showSecondaryTitleBar) {
+			return;
+		}
+		if (!this.showSecondaryTitleBar) {
+			this.setSecondaryTitle(undefined);
+		}
+		if (this._widget?.viewModel) {
+			this.updateViewTitle();
 		}
 	}
-});
+
+	private updateSecondarySideBarShowLabelsPreference(): void {
+		const previousValue = this.secondarySideBarShowsLabels;
+		this.secondarySideBarShowsLabels = this.computeSecondarySideBarShowsLabels();
+		if (previousValue === this.secondarySideBarShowsLabels) {
+			return;
+		}
+		if (this._widget?.viewModel) {
+			this.updateViewTitle();
+		}
+	}
+
+	private computeSecondarySideBarShowsLabels(): boolean {
+		if (this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT) {
+			return false;
+		}
+		return this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
+	}
+
+	private shouldOmitChatPrefixInSecondaryTitle(): boolean {
+		return this.showSecondaryTitleBar && this.secondarySideBarShowsLabels;
+	}
+}
