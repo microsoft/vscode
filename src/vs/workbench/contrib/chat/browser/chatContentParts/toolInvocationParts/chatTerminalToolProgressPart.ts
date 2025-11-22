@@ -21,7 +21,7 @@ import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
 import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { DecorationSelector, getTerminalCommandDecorationState, getTerminalCommandDecorationTooltip } from '../../../../terminal/browser/xterm/decorationStyles.js';
 import * as dom from '../../../../../../base/browser/dom.js';
@@ -44,6 +44,7 @@ import { TerminalLocation } from '../../../../../../platform/terminal/common/ter
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { TerminalContribCommandId } from '../../../../terminal/terminalContribExports.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { isNumber } from '../../../../../../base/common/types.js';
 
 
 const MIN_OUTPUT_ROWS = 1;
@@ -666,7 +667,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const containerElements = h('.chat-terminal-output-container@container', [
 			h('.chat-terminal-output-body@body', [
 				h('.chat-terminal-output-content@content', [
-					h('.chat-terminal-output-terminal@terminal')
+					h('.chat-terminal-output-terminal@terminal'),
+					h('.chat-terminal-output-empty@empty')
 				])
 			])
 		]);
@@ -676,8 +678,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._contentContainer = containerElements.content;
 		this._terminalContainer = containerElements.terminal;
 
-		const emptyElements = h('.chat-terminal-output-empty@empty');
-		this._emptyElement = emptyElements.empty;
+		this._emptyElement = containerElements.empty;
 		this._contentContainer.appendChild(this._emptyElement);
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
@@ -762,7 +763,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private async _createScrollableContainer(): Promise<void> {
 		this._scrollableContainer = this._register(new DomScrollableElement(this._outputBody, {
-			vertical: ScrollbarVisibility.Auto,
+			vertical: ScrollbarVisibility.Hidden,
 			horizontal: ScrollbarVisibility.Auto,
 			handleMouseWheel: true
 		}));
@@ -869,9 +870,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _computeRowHeightPx(): number {
 		const window = dom.getActiveWindow();
 		const font = this._terminalConfigurationService.getFont(window);
-		const hasCharHeight = typeof font.charHeight === 'number' && font.charHeight > 0;
-		const hasFontSize = typeof font.fontSize === 'number' && font.fontSize > 0;
-		const hasLineHeight = typeof font.lineHeight === 'number' && font.lineHeight > 0;
+		const hasCharHeight = isNumber(font.charHeight) && font.charHeight > 0;
+		const hasFontSize = isNumber(font.fontSize) && font.fontSize > 0;
+		const hasLineHeight = isNumber(font.lineHeight) && font.lineHeight > 0;
 		const charHeight = (hasCharHeight ? font.charHeight : (hasFontSize ? font.fontSize : 1)) ?? 1;
 		const lineHeight = hasLineHeight ? font.lineHeight : 1;
 		const rowHeight = Math.ceil(charHeight * lineHeight);

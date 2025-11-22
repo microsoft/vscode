@@ -76,7 +76,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 
 	private async _createTerminal(): Promise<IDetachedTerminalInstance> {
 		const detached = await this._terminalService.createDetachedTerminal({
-			cols: this._xtermTerminal.raw?.cols ?? 80,
+			cols: this._xtermTerminal.raw!.cols,
 			rows: 10,
 			readonly: true,
 			processInfo: new DetachedProcessInfo({ initialCwd: '' }),

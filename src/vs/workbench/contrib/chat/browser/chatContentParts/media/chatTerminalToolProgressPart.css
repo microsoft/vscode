@@ -180,17 +180,7 @@
 	display: block;
 }
 
-.chat-terminal-output-container .xterm-scrollable-element {
-	scrollbar-width: none;
-}
-
-.chat-terminal-output-container .xterm-scrollable-element::-webkit-scrollbar {
-	width: 0;
-	height: 0;
-}
-
-.chat-terminal-output-container .xterm .scrollbar, 
-.chat-terminal-output-container .xterm .xterm-viewport-scrollbar {
+.chat-terminal-output-container .xterm-scrollable-element .scrollbar {
 	display: none;
 }
 
