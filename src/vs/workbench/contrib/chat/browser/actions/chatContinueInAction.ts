@@ -306,7 +306,7 @@ class CreateRemoteAgentJobFromEditorAction {
 			if (!model || !isITextModel(model)) {
 				return;
 			}
-			const fileUri = model.uri as URI;
+			const uri = model.uri;
 			const chatModelReference = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, {});
 			const { sessionResource } = chatModelReference.object;
 			if (!sessionResource) {
@@ -315,11 +315,9 @@ class CreateRemoteAgentJobFromEditorAction {
 			await editorService2.openEditor({ resource: sessionResource }, undefined);
 			const attachedContext: IChatRequestVariableEntry[] = [{
 				kind: 'file',
-				id: 'vscode.implicit.selection',
-				name: basename(fileUri),
-				value: {
-					uri: fileUri
-				},
+				id: 'editor.uri',
+				name: basename(uri),
+				value: uri
 			}];
 			await chatService.sendRequest(sessionResource, `Implement this.`, {
 				agentIdSilent: continuationTargetType,
