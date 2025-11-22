@@ -13,8 +13,7 @@ export class MockChatModeService implements IChatModeService {
 	public readonly onDidChangeChatModes = Event.None;
 
 	constructor(
-		private readonly _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] },
-		private readonly _isAgentModeDisabledByPolicy: boolean = false
+		private readonly _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] }
 	) { }
 
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
