@@ -949,7 +949,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.setChatMode(ChatModeKind.Ask);
 			return;
 		}
-		return;
 	}
 
 	initForNewChatModel(state: IChatModelInputState | undefined, chatSessionIsEmpty: boolean): void {
