@@ -91,8 +91,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 				},
 			}
 		});
-		this._register(detached);
-		return detached;
+		return this._register(detached);
 	}
 
 }
