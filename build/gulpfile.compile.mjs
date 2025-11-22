@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 //@ts-check
 import gulp from 'gulp';
-import util from './lib/util.js';
-import date from './lib/date.js';
-import task from './lib/task.js';
-import compilation from './lib/compilation.js';
+import * as util from './lib/util.ts';
+import * as date from './lib/date.ts';
+import * as task from './lib/task.ts';
+import * as compilation from './lib/compilation.ts';
 
 /**
  * @param {boolean} disableMangle

@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { truncate } from '../../../../base/common/strings.js';
@@ -20,7 +20,7 @@ import { EditorInputCapabilities, IEditorIdentifier, IEditorSerializer, IUntyped
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditingService.js';
 import { IChatModel } from '../common/chatModel.js';
-import { IChatService } from '../common/chatService.js';
+import { IChatModelReference, IChatService } from '../common/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
@@ -52,7 +52,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	private didTransferOutEditingSession = false;
 	private cachedIcon: ThemeIcon | URI | undefined;
 
-	private model: IChatModel | undefined;
+	private readonly modelRef = this._register(new MutableDisposable<IChatModelReference>());
+
+	private get model(): IChatModel | undefined {
+		return this.modelRef.value?.object;
+	}
 
 	static getNewEditorUri(): URI {
 		return ChatEditorUri.getNewEditorUri();
@@ -260,16 +264,16 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const inputType = chatSessionType ?? this.resource.authority;
 
 		if (this._sessionResource) {
-			this.model = await this.chatService.loadSessionForResource(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+			this.modelRef.value = await this.chatService.loadSessionForResource(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
 
 			// For local session only, if we find no existing session, create a new one
 			if (!this.model && LocalChatSessionUri.parseLocalSessionId(this._sessionResource)) {
-				this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, { canUseTools: true });
+				this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, { canUseTools: true });
 			}
 		} else if (!this.options.target) {
-			this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, { canUseTools: !inputType });
+			this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, { canUseTools: !inputType });
 		} else if (this.options.target.data) {
-			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
+			this.modelRef.value = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
 
 		if (!this.model || this.isDisposed()) {
@@ -311,14 +315,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return a.toString() === b.toString();
 		}
 		return false;
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		if (this._sessionResource) {
-			this.chatService.clearSession(this._sessionResource);
-		}
 	}
 }
 

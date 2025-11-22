@@ -25,7 +25,7 @@ export type ChatSessionItemWithProvider = IChatSessionItem & {
 	hideRelativeTime?: boolean;
 };
 
-export function isChatSession(schemes: readonly string[], editor?: EditorInput): boolean {
+export function isChatSession(schemes: readonly string[], editor?: EditorInput): editor is ChatEditorInput {
 	if (!(editor instanceof ChatEditorInput)) {
 		return false;
 	}

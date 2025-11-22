@@ -258,9 +258,7 @@ export class PageIteratorPager<T> implements IPager<T> {
 			}
 			return this.cachedPages[pageIndex];
 		} finally {
-			if (this.pendingRequests.has(pageIndex)) {
-				this.pendingRequests.delete(pageIndex);
-			}
+			this.pendingRequests.delete(pageIndex);
 		}
 	}
 

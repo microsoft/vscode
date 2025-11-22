@@ -22,12 +22,12 @@ import { IEditorWorkerService } from '../../../../editor/common/services/editorW
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -38,9 +38,10 @@ import { UntitledTextEditorInput } from '../../../services/untitled/common/untit
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
+import { ChatModel } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { ILanguageModelToolsService, ToolDataSource, IToolData } from '../../chat/common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../chat/common/languageModelToolsService.js';
 import { CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
 import { askInPanelChat, IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService.js';
@@ -122,21 +123,24 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const store = new DisposableStore();
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${agent.extensionId}`);
 
-		const chatModel = options.session?.chatModel ?? this._chatService.startSession(ChatAgentLocation.EditorInline, token);
+		const chatModelRef = options.session ? undefined : this._chatService.startSession(ChatAgentLocation.EditorInline, token);
+		const chatModel = options.session?.chatModel ?? chatModelRef?.object;
 		if (!chatModel) {
 			this._logService.trace('[IE] NO chatModel found');
+			chatModelRef?.dispose();
 			return undefined;
+		}
+		if (chatModelRef) {
+			store.add(chatModelRef);
 		}
 
 		store.add(toDisposable(() => {
 			const doesOtherSessionUseChatModel = [...this._sessions.values()].some(data => data.session !== session && data.session.chatModel === chatModel);
 
 			if (!doesOtherSessionUseChatModel) {
-				this._chatService.clearSession(chatModel.sessionResource);
-				chatModel.dispose();
+				this._chatService.forceClearSession(chatModel.sessionResource);
 			}
 		}));
-
 		const lastResponseListener = store.add(new MutableDisposable());
 		store.add(chatModel.onDidChange(e => {
 			if (e.kind !== 'addRequest' || !e.request.response) {
@@ -221,7 +225,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			agent,
 			store.add(new SessionWholeRange(textModelN, wholeRange)),
 			store.add(new HunkData(this._editorWorkerService, textModel0, textModelN)),
-			chatModel,
+			chatModel as ChatModel,
 			options.session?.versionsByRequest,
 		);
 
@@ -347,7 +351,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		this._onWillStartSession.fire(editor as IActiveCodeEditor);
 
-		const chatModel = this._chatService.startSession(ChatAgentLocation.EditorInline, token);
+		const chatModelRef = this._chatService.startSession(ChatAgentLocation.EditorInline, token);
+		const chatModel = chatModelRef.object;
 		chatModel.startEditingSession(false);
 
 		const widget = this._chatWidgetService.getWidgetBySessionResource(chatModel.sessionResource);
@@ -360,7 +365,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			this._sessions2.delete(uri);
 			this._onDidChangeSessions.fire(this);
 		}));
-		store.add(chatModel);
+		store.add(chatModelRef);
 
 		store.add(autorun(r => {
 

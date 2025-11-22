@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatSessionAction.css';
 import { IAction } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import * as dom from '../../../../../base/browser/dom.js';
@@ -16,7 +17,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../common/chatSessionsService.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { renderLabelWithIcons, renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { localize } from '../../../../../nls.js';
 
 
@@ -61,7 +62,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 						return [{
 							id: currentOption.id,
 							enabled: false,
-							icon: undefined,
+							icon: currentOption.icon,
 							checked: true,
 							class: undefined,
 							description: undefined,
@@ -75,7 +76,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 							return {
 								id: optionItem.id,
 								enabled: true,
-								icon: undefined,
+								icon: optionItem.icon,
 								checked: isCurrent,
 								class: undefined,
 								description: undefined,
@@ -104,6 +105,10 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 	}
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const domChildren = [];
+		element.classList.add('chat-session-option-picker');
+		if (this.currentOption?.icon) {
+			domChildren.push(renderIcon(this.currentOption.icon));
+		}
 		domChildren.push(dom.$('span.chat-session-option-label', undefined, this.currentOption?.name ?? localize('chat.sessionPicker.label', "Pick Option")));
 		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 		dom.reset(element, ...domChildren);

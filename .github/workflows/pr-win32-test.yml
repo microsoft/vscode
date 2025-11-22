@@ -35,7 +35,7 @@ jobs:
         shell: pwsh
         run: |
           mkdir .build -ea 0
-          node build/azure-pipelines/common/computeNodeModulesCacheKey.js win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch) > .build/packagelockhash
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
         uses: actions/cache/restore@v4
@@ -84,7 +84,7 @@ jobs:
         run: |
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
-          exec { node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt }
+          exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
           exec { mkdir -Force .build/node_modules_cache }
           exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
 
@@ -94,7 +94,7 @@ jobs:
 
       - name: Prepare built-in extensions cache key
         shell: pwsh
-        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
@@ -106,7 +106,7 @@ jobs:
 
       - name: Download built-in extensions
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
-        run: node build/lib/builtInExtensions.js
+        run: node build/lib/builtInExtensions.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

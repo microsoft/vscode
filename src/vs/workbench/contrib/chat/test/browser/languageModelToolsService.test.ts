@@ -542,7 +542,8 @@ suite('LanguageModelToolsService', () => {
 			'internalToolSetRefName',
 			'internalToolSetRefName/internalToolSetTool1RefName',
 			'vscode',
-			'launch'
+			'execute',
+			'read'
 		];
 		const numOfTools = allQualifiedNames.length + 1; // +1 for userToolSet which has no qualified name but is a tool set
 
@@ -555,7 +556,8 @@ suite('LanguageModelToolsService', () => {
 		const internalTool = service.getToolByQualifiedName('internalToolSetRefName/internalToolSetTool1RefName');
 		const userToolSet = service.getToolSet('userToolSet');
 		const vscodeToolSet = service.getToolSet('vscode');
-		const launchToolSet = service.getToolSet('launch');
+		const executeToolSet = service.getToolSet('execute');
+		const readToolSet = service.getToolSet('read');
 		assert.ok(tool1);
 		assert.ok(tool2);
 		assert.ok(extTool1);
@@ -565,7 +567,8 @@ suite('LanguageModelToolsService', () => {
 		assert.ok(internalTool);
 		assert.ok(userToolSet);
 		assert.ok(vscodeToolSet);
-		assert.ok(launchToolSet);
+		assert.ok(executeToolSet);
+		assert.ok(readToolSet);
 		// Test with enabled tool
 		{
 			const qualifiedNames = ['tool1RefName'];
@@ -596,10 +599,10 @@ suite('LanguageModelToolsService', () => {
 		{
 			const result1 = service.toToolAndToolSetEnablementMap(allQualifiedNames, undefined);
 			assert.strictEqual(result1.size, numOfTools, `Expected ${numOfTools} tools and tool sets`);
-			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 10, 'Expected 10 tools to be enabled'); // +2 including the vscode, launch toolsets
+			assert.strictEqual([...result1.entries()].filter(([_, enabled]) => enabled).length, 11, 'Expected 11 tools to be enabled'); // +3 including the vscode, execute, read toolsets
 
 			const qualifiedNames1 = service.toQualifiedToolNames(result1);
-			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName', 'vscode', 'launch'];
+			const expectedQualifiedNames = ['tool1RefName', 'Tool2 Display Name', 'my.extension/extTool1RefName', 'mcpToolSetRefName/*', 'internalToolSetRefName', 'vscode', 'execute', 'read'];
 			assert.deepStrictEqual(qualifiedNames1.sort(), expectedQualifiedNames.sort(), 'toQualifiedToolNames should return the original enabled names');
 		}
 		// Test with no enabled tools
@@ -979,25 +982,37 @@ suite('LanguageModelToolsService', () => {
 	});
 
 	test('toToolAndToolSetEnablementMap map Github to VSCode tools', () => {
-		const runCommandsToolData: IToolData = {
-			id: VSCodeToolReference.shell,
-			toolReferenceName: VSCodeToolReference.shell,
-			modelDescription: 'runCommands',
-			displayName: 'runCommands',
+		const runInTerminalToolData: IToolData = {
+			id: 'runInTerminalId',
+			toolReferenceName: 'runInTerminal',
+			modelDescription: 'runInTerminal Description',
+			displayName: 'runInTerminal displayName',
 			source: ToolDataSource.Internal,
-			canBeReferencedInPrompt: true,
+			canBeReferencedInPrompt: false,
 		};
 
-		store.add(service.registerToolData(runCommandsToolData));
+		store.add(service.registerToolData(runInTerminalToolData));
+		store.add(service.executeToolSet.addTool(runInTerminalToolData));
+
+
 		const runSubagentToolData: IToolData = {
-			id: VSCodeToolReference.runSubagent,
-			toolReferenceName: VSCodeToolReference.runSubagent,
-			modelDescription: 'runSubagent',
-			displayName: 'runSubagent',
+			id: 'runSubagentId',
+			toolReferenceName: 'runSubagent',
+			modelDescription: 'runSubagent Description',
+			displayName: 'runSubagent displayName',
 			source: ToolDataSource.Internal,
-			canBeReferencedInPrompt: true,
+			canBeReferencedInPrompt: false,
 		};
+
 		store.add(service.registerToolData(runSubagentToolData));
+
+		const agentSet = store.add(service.createToolSet(
+			ToolDataSource.Internal,
+			VSCodeToolReference.agent,
+			VSCodeToolReference.agent,
+			{ description: 'Agent' }
+		));
+		store.add(agentSet.addTool(runSubagentToolData));
 
 		const githubMcpDataSource: ToolDataSource = { type: 'mcp', label: 'Github', serverLabel: 'Github MCP Server', instructions: undefined, collectionId: 'githubMCPCollection', definitionId: 'githubMCPDefId' };
 		const githubMcpTool1: IToolData = {
@@ -1018,6 +1033,8 @@ suite('LanguageModelToolsService', () => {
 		));
 		store.add(githubMcpToolSet.addTool(githubMcpTool1));
 
+		assert.equal(githubMcpToolSet.referenceName, 'github', 'github/github-mcp-server will be normalized to github');
+
 		const playwrightMcpDataSource: ToolDataSource = { type: 'mcp', label: 'playwright', serverLabel: 'playwright MCP Server', instructions: undefined, collectionId: 'playwrightMCPCollection', definitionId: 'playwrightMCPDefId' };
 		const playwrightMcpTool1: IToolData = {
 			id: 'browser_click',
@@ -1036,14 +1053,29 @@ suite('LanguageModelToolsService', () => {
 			{ description: 'playwright MCP Test ToolSet' }
 		));
 		store.add(playwrightMcpToolSet.addTool(playwrightMcpTool1));
+
+		const deprecated = service.getDeprecatedQualifiedToolNames();
+		const deprecatesTo = (key: string): string[] | undefined => {
+			const values = deprecated.get(key);
+			return values ? Array.from(values).sort() : undefined;
+		};
+
+		assert.equal(playwrightMcpToolSet.referenceName, 'playwright', 'microsoft/playwright-mcp will be normalized to playwright');
+
 		{
 			const toolNames = [GithubCopilotToolReference.customAgent, GithubCopilotToolReference.shell];
 			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
-			assert.strictEqual(result.get(runSubagentToolData), true, 'runSubagentToolData should be enabled');
-			assert.strictEqual(result.get(runCommandsToolData), true, 'runCommandsToolData should be enabled');
+			assert.strictEqual(result.get(service.executeToolSet), true, 'execute should be enabled');
+			assert.strictEqual(result.get(agentSet), true, 'agent should be enabled');
+
 			const qualifiedNames = service.toQualifiedToolNames(result).sort();
-			assert.deepStrictEqual(qualifiedNames, [VSCodeToolReference.runSubagent, VSCodeToolReference.shell].sort(), 'toQualifiedToolNames should return the VS Code tool names');
+			assert.deepStrictEqual(qualifiedNames, [VSCodeToolReference.agent, VSCodeToolReference.execute].sort(), 'toQualifiedToolNames should return the VS Code tool names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [agentSet, service.executeToolSet]);
+
+			assert.deepStrictEqual(deprecatesTo(GithubCopilotToolReference.customAgent), [VSCodeToolReference.agent], 'customAgent should map to agent');
+			assert.deepStrictEqual(deprecatesTo(GithubCopilotToolReference.shell), [VSCodeToolReference.execute], 'shell is fine');
 		}
 		{
 			const toolNames = ['github/*', 'playwright/*'];
@@ -1052,29 +1084,105 @@ suite('LanguageModelToolsService', () => {
 			assert.strictEqual(result.get(githubMcpToolSet), true, 'githubMcpToolSet should be enabled');
 			assert.strictEqual(result.get(playwrightMcpToolSet), true, 'playwrightMcpToolSet should be enabled');
 			const qualifiedNames = service.toQualifiedToolNames(result).sort();
-			assert.deepStrictEqual(qualifiedNames, ['github/github-mcp-server/*', 'microsoft/playwright-mcp/*'], 'toQualifiedToolNames should return the VS Code tool names');
+			assert.deepStrictEqual(qualifiedNames, ['github/*', 'playwright/*'], 'toQualifiedToolNames should return the VS Code tool names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpToolSet, playwrightMcpToolSet]);
+
+			assert.deepStrictEqual(deprecatesTo('github/*'), undefined, 'github/* is fine');
+			assert.deepStrictEqual(deprecatesTo('playwright/*'), undefined, 'playwright/* is fine');
 		}
 
 		{
-			// map the qualified tool names for github and playwright MCP tools
+			// the speced names should work and not be altered
 			const toolNames = ['github/create_branch', 'playwright/browser_click'];
 			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
 			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
 			const qualifiedNames = service.toQualifiedToolNames(result).sort();
-			assert.deepStrictEqual(qualifiedNames, ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'], 'toQualifiedToolNames should return the VS Code tool names');
+			assert.deepStrictEqual(qualifiedNames, ['github/create_branch', 'playwright/browser_click'], 'toQualifiedToolNames should return the speced names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpTool1, playwrightMcpTool1]);
+
+			assert.deepStrictEqual(deprecatesTo('github/create_branch'), undefined, 'github/create_branch is fine');
+			assert.deepStrictEqual(deprecatesTo('playwright/browser_click'), undefined, 'playwright/browser_click is fine');
 		}
 
 		{
-			// test that already qualified names are not altered
+			// using the old MCP full names should also work
+			const toolNames = ['github/github-mcp-server/*', 'microsoft/playwright-mcp/*'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpToolSet), true, 'githubMcpToolSet should be enabled');
+			assert.strictEqual(result.get(playwrightMcpToolSet), true, 'playwrightMcpToolSet should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/*', 'playwright/*'], 'toQualifiedToolNames should return the speced names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpToolSet, playwrightMcpToolSet]);
+
+			assert.deepStrictEqual(deprecatesTo('github/github-mcp-server/*'), ['github/*']);
+			assert.deepStrictEqual(deprecatesTo('microsoft/playwright-mcp/*'), ['playwright/*']);
+		}
+		{
+			// using the old MCP full names should also work
 			const toolNames = ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'];
 			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
 			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
 			const qualifiedNames = service.toQualifiedToolNames(result).sort();
-			assert.deepStrictEqual(qualifiedNames, ['github/github-mcp-server/create_branch', 'microsoft/playwright-mcp/browser_click'], 'toQualifiedToolNames should return the VS Code tool names');
+			assert.deepStrictEqual(qualifiedNames, ['github/create_branch', 'playwright/browser_click'], 'toQualifiedToolNames should return the speced names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpTool1, playwrightMcpTool1]);
+
+			assert.deepStrictEqual(deprecatesTo('github/github-mcp-server/create_branch'), ['github/create_branch']);
+			assert.deepStrictEqual(deprecatesTo('microsoft/playwright-mcp/browser_click'), ['playwright/browser_click']);
+		}
+
+		{
+			// using the latest MCP full names should also work
+			const toolNames = ['io.github.github/github-mcp-server/*', 'com.microsoft/playwright-mcp/*'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpToolSet), true, 'githubMcpToolSet should be enabled');
+			assert.strictEqual(result.get(playwrightMcpToolSet), true, 'playwrightMcpToolSet should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/*', 'playwright/*'], 'toQualifiedToolNames should return the speced names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpToolSet, playwrightMcpToolSet]);
+
+			assert.deepStrictEqual(deprecatesTo('io.github.github/github-mcp-server/*'), ['github/*']);
+			assert.deepStrictEqual(deprecatesTo('com.microsoft/playwright-mcp/*'), ['playwright/*']);
+		}
+
+		{
+			// using the latest MCP full names should also work
+			const toolNames = ['io.github.github/github-mcp-server/create_branch', 'com.microsoft/playwright-mcp/browser_click'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
+			assert.strictEqual(result.get(playwrightMcpTool1), true, 'playwrightMcpTool1 should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/create_branch', 'playwright/browser_click'], 'toQualifiedToolNames should return the speced names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpTool1, playwrightMcpTool1]);
+
+			assert.deepStrictEqual(deprecatesTo('io.github.github/github-mcp-server/create_branch'), ['github/create_branch']);
+			assert.deepStrictEqual(deprecatesTo('com.microsoft/playwright-mcp/browser_click'), ['playwright/browser_click']);
+		}
+
+		{
+			// using the old MCP full names should also work
+			const toolNames = ['github-mcp-server/create_branch'];
+			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
+
+			assert.strictEqual(result.get(githubMcpTool1), true, 'githubMcpTool1 should be enabled');
+			const qualifiedNames = service.toQualifiedToolNames(result).sort();
+			assert.deepStrictEqual(qualifiedNames, ['github/create_branch'], 'toQualifiedToolNames should return the VS Code tool names');
+
+			assert.deepStrictEqual(toolNames.map(name => service.getToolByQualifiedName(name)), [githubMcpTool1]);
+
+			assert.deepStrictEqual(deprecatesTo('github-mcp-server/create_branch'), ['github/create_branch']);
 		}
 
 	});
@@ -1983,7 +2091,8 @@ suite('LanguageModelToolsService', () => {
 			'internalToolSetRefName',
 			'internalToolSetRefName/internalToolSetTool1RefName',
 			'vscode',
-			'launch'
+			'execute',
+			'read'
 		].sort();
 
 		assert.deepStrictEqual(qualifiedNames, expectedNames, 'getQualifiedToolNames should return correct qualified names');
@@ -2109,6 +2218,284 @@ suite('LanguageModelToolsService', () => {
 		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
 		const resultB = await promiseB;
 		assert.strictEqual(resultB.content[0].value, 'toolB executed');
+	});
+
+	test('eligibleForAutoApproval with legacy tool reference names - eligible', async () => {
+		// Test backwards compatibility: configuring a legacy name as eligible should work
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'oldToolName': true  // Using legacy name
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool has been renamed but has legacy name
+		const renamedTool = registerToolForTest(testService, store, 'renamedTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'tool executed via legacy name' }] })
+		}, {
+			toolReferenceName: 'newToolName',
+			legacyToolReferenceFullNames: ['oldToolName']
+		});
+
+		const sessionId = 'test-legacy-eligible';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Tool should be eligible even though we configured the legacy name
+		const result = await testService.invokeTool(
+			renamedTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'tool executed via legacy name');
+	});
+
+	test('eligibleForAutoApproval with legacy tool reference names - ineligible', async () => {
+		// Test backwards compatibility: configuring a legacy name as ineligible should work
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'deprecatedToolName': false  // Using legacy name
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool has been renamed but has legacy name
+		const renamedTool = registerToolForTest(testService, store, 'renamedTool2', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'tool requires confirmation' }] })
+		}, {
+			toolReferenceName: 'modernToolName',
+			legacyToolReferenceFullNames: ['deprecatedToolName']
+		});
+
+		const sessionId = 'test-legacy-ineligible';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1', capture });
+
+		// Tool should be ineligible and require confirmation
+		const promise = testService.invokeTool(
+			renamedTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'tool should require confirmation when legacy name is ineligible');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await promise;
+		assert.strictEqual(result.content[0].value, 'tool requires confirmation');
+	});
+
+	test('eligibleForAutoApproval with multiple legacy names', async () => {
+		// Test that any of the legacy names can be used in the configuration
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'secondLegacyName': true  // Using the second legacy name
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool has multiple legacy names
+		const multiLegacyTool = registerToolForTest(testService, store, 'multiLegacyTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'multi legacy executed' }] })
+		}, {
+			toolReferenceName: 'currentToolName',
+			legacyToolReferenceFullNames: ['firstLegacyName', 'secondLegacyName', 'thirdLegacyName']
+		});
+
+		const sessionId = 'test-multi-legacy';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Tool should be eligible via second legacy name
+		const result = await testService.invokeTool(
+			multiLegacyTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'multi legacy executed');
+	});
+
+	test('eligibleForAutoApproval current name takes precedence over legacy names', async () => {
+		// Test forward compatibility: current name in config should take precedence
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'currentName': false,      // Current name says ineligible
+			'oldName': true           // Legacy name says eligible
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		const tool = registerToolForTest(testService, store, 'precedenceTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'precedence test' }] })
+		}, {
+			toolReferenceName: 'currentName',
+			legacyToolReferenceFullNames: ['oldName']
+		});
+
+		const sessionId = 'test-precedence';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1', capture });
+
+		// Current name should take precedence, so tool should be ineligible
+		const promise = testService.invokeTool(
+			tool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'current name should take precedence over legacy name');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await promise;
+		assert.strictEqual(result.content[0].value, 'precedence test');
+	});
+
+	test('eligibleForAutoApproval with legacy qualified names from toolsets', async () => {
+		// Test legacy names that include toolset prefixes (e.g., 'oldToolSet/oldToolName')
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'oldToolSet/oldToolName': false  // Legacy qualified name from old toolset
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool was in an old toolset but now standalone
+		const migratedTool = registerToolForTest(testService, store, 'migratedTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'migrated tool' }] })
+		}, {
+			toolReferenceName: 'standaloneToolName',
+			legacyToolReferenceFullNames: ['oldToolSet/oldToolName']
+		});
+
+		const sessionId = 'test-qualified-legacy';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1', capture });
+
+		// Tool should be ineligible based on legacy qualified name
+		const promise = testService.invokeTool(
+			migratedTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'tool should be ineligible via legacy qualified name');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await promise;
+		assert.strictEqual(result.content[0].value, 'migrated tool');
+	});
+
+	test('eligibleForAutoApproval mixed current and legacy names', async () => {
+		// Test realistic migration scenario with mixed current and legacy names
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'modernTool': true,           // Current name
+			'legacyToolOld': false,      // Legacy name
+			'unchangedTool': true        // Tool that never changed
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Modern tool with current name
+		const tool1 = registerToolForTest(testService, store, 'tool1', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'modern executed' }] })
+		}, {
+			toolReferenceName: 'modernTool'
+		});
+
+		// Renamed tool with legacy name
+		const tool2 = registerToolForTest(testService, store, 'tool2', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'legacy needs confirmation' }] })
+		}, {
+			toolReferenceName: 'legacyToolNew',
+			legacyToolReferenceFullNames: ['legacyToolOld']
+		});
+
+		// Unchanged tool
+		const tool3 = registerToolForTest(testService, store, 'tool3', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'unchanged executed' }] })
+		}, {
+			toolReferenceName: 'unchangedTool'
+		});
+
+		const sessionId = 'test-mixed';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Tool 1 should be eligible (current name)
+		const result1 = await testService.invokeTool(
+			tool1.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result1.content[0].value, 'modern executed');
+
+		// Tool 2 should be ineligible (legacy name)
+		const capture2: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId + '2', { requestId: 'req2', capture: capture2 });
+		const promise2 = testService.invokeTool(
+			tool2.makeDto({ test: 2 }, { sessionId: sessionId + '2' }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published2 = await waitForPublishedInvocation(capture2);
+		assert.ok(published2?.confirmationMessages, 'tool2 should require confirmation via legacy name');
+
+		IChatToolInvocation.confirmWith(published2, { type: ToolConfirmKind.UserAction });
+		const result2 = await promise2;
+		assert.strictEqual(result2.content[0].value, 'legacy needs confirmation');
+
+		// Tool 3 should be eligible (unchanged)
+		const result3 = await testService.invokeTool(
+			tool3.makeDto({ test: 3 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result3.content[0].value, 'unchanged executed');
 	});
 
 
