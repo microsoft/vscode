@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, ImmortalReference } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalInstance, ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
+import { ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
 import { DetachedProcessInfo } from './detachedTerminal.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { TerminalInstanceColorProvider } from './terminalInstance.js';
-import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { XtermTerminal } from './xterm/xtermTerminal.js';
+import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
+import { PANEL_BACKGROUND } from '../../../common/theme.js';
 
 interface IDetachedTerminalCommandMirror {
 	attach(container: HTMLElement): Promise<void>;
@@ -21,20 +21,20 @@ interface IDetachedTerminalCommandMirror {
  * Used in the chat terminal tool progress part to show command output for example.
  */
 export class DetachedTerminalCommandMirror extends Disposable implements IDetachedTerminalCommandMirror {
-	private _detachedTerminal?: IDetachedTerminalInstance;
+	private _detachedTerminal: Promise<IDetachedTerminalInstance>;
 	private _attachedContainer?: HTMLElement;
 
 	constructor(
-		private readonly _terminalInstance: ITerminalInstance,
+		private readonly _xtermTerminal: XtermTerminal,
 		private readonly _command: ITerminalCommand,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IInstantiationService private readonly _instantationService: IInstantiationService
 	) {
 		super();
+		this._detachedTerminal = this._createTerminal();
 	}
 
 	async attach(container: HTMLElement): Promise<void> {
-		const terminal = await this._getOrCreateTerminal();
+		const terminal = await this._detachedTerminal;
 		if (this._attachedContainer !== container) {
 			container.classList.add('chat-terminal-output-terminal');
 			terminal.attachToElement(container);
@@ -43,7 +43,6 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	async renderCommand(): Promise<{ lineCount?: number } | undefined> {
-		const detached = await this._getOrCreateTerminal();
 		const vt = await this._getCommandOutputAsVT();
 		if (!vt) {
 			return undefined;
@@ -51,6 +50,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		if (!vt.text) {
 			return { lineCount: 0 };
 		}
+		const detached = await this._detachedTerminal;
 		detached.xterm.write(vt.text);
 		return { lineCount: vt.lineCount };
 	}
@@ -62,16 +62,11 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			return undefined;
 		}
 
-		const xterm = await this._terminalInstance.xtermReadyPromise;
-		if (!xterm) {
-			return undefined;
-		}
-
 		const startLine = executedMarker.line;
 		const endLine = endMarker.line - 1;
 		const lineCount = Math.max(endLine - startLine + 1, 0);
 
-		const text = await xterm.getRangeAsVT(executedMarker, endMarker, true);
+		const text = await this._xtermTerminal.getRangeAsVT(executedMarker, endMarker, true);
 		if (!text) {
 			return { text: '', lineCount: 0 };
 		}
@@ -79,21 +74,23 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		return { text, lineCount };
 	}
 
-	private async _getOrCreateTerminal(): Promise<IDetachedTerminalInstance> {
-		if (this._detachedTerminal) {
-			return this._detachedTerminal;
-		}
-		const targetRef = this._terminalInstance?.targetRef ?? new ImmortalReference<TerminalLocation | undefined>(undefined);
-		const colorProvider = this._instantationService.createInstance(TerminalInstanceColorProvider, targetRef);
+	private async _createTerminal(): Promise<IDetachedTerminalInstance> {
 		const detached = await this._terminalService.createDetachedTerminal({
-			cols: this._terminalInstance?.cols ?? 80,
+			cols: this._xtermTerminal.raw?.cols ?? 80,
 			rows: 10,
 			readonly: true,
 			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
-			colorProvider,
-			disableOverviewRuler: true
+			disableOverviewRuler: true,
+			colorProvider: {
+				getBackgroundColor: theme => {
+					const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
+					if (terminalBackground) {
+						return terminalBackground;
+					}
+					return theme.getColor(PANEL_BACKGROUND);
+				},
+			}
 		});
-		this._detachedTerminal = detached;
 		this._register(detached);
 		return detached;
 	}

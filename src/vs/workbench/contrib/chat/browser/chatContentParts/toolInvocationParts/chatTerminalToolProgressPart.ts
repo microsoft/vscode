@@ -794,7 +794,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 		if (!this._mirror) {
-			this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, terminalInstance, command));
+			await terminalInstance.xtermReadyPromise;
+			this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, terminalInstance.xterm!, command));
 		}
 		await this._mirror.attach(this._terminalContainer);
 		const result = await this._mirror.renderCommand();
