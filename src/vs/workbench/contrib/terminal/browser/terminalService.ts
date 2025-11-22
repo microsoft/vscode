@@ -1099,14 +1099,11 @@ export class TerminalService extends Disposable implements ITerminalService {
 			rows: options.rows,
 			xtermColorProvider: options.colorProvider,
 			capabilities: options.capabilities || new TerminalCapabilityStore(),
+			disableOverviewRuler: options.disableOverviewRuler,
 		}, undefined);
 
 		if (options.readonly) {
 			xterm.raw.attachCustomKeyEventHandler(() => false);
-		}
-
-		if (options.disableOverviewRuler) {
-			xterm.raw.options.overviewRuler = { width: 0 };
 		}
 
 		const instance = new DetachedTerminal(xterm, options, this._instantiationService);
