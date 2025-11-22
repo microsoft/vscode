@@ -260,9 +260,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	private _instructionFilesExist: boolean | undefined;
 
-	private readonly viewModelDisposables = this._register(new DisposableStore());
-	private _viewModel: ChatViewModel | undefined;
-
 	// Welcome view rendering scheduler to prevent reentrant calls
 	private _welcomeRenderScheduler: RunOnceScheduler;
 
@@ -283,6 +280,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _isLoadingPromptDescriptions = false;
 
 	private _mostRecentlyFocusedItemIndex: number = -1;
+
+	private readonly viewModelDisposables = this._register(new DisposableStore());
+	private _viewModel: ChatViewModel | undefined;
 
 	private set viewModel(viewModel: ChatViewModel | undefined) {
 		if (this._viewModel === viewModel) {
@@ -377,6 +377,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super();
+
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
 
@@ -397,8 +398,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
 
 		this._welcomeRenderScheduler = this._register(new RunOnceScheduler(() => this.renderWelcomeViewContentIfNeeded(), 0));
-
-		// Update welcome view content when `anonymous` condition changes
 		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this._welcomeRenderScheduler.schedule()));
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
@@ -458,7 +457,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this._register(autorun(r => {
-
 			const viewModel = viewModelObs.read(r);
 			const sessions = chatEditingService.editingSessionsObs.read(r);
 
