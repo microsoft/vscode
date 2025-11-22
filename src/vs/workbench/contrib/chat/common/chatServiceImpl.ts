@@ -10,10 +10,10 @@ import { BugIndicatingError, ErrorNoTelemetry } from '../../../../base/common/er
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun, derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -29,8 +29,8 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
-import { IChatEditingSession } from './chatEditingService.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
+import { ChatModelStore, IStartSessionProps } from './chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
 import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
@@ -71,121 +71,7 @@ class CancellableRequest implements IDisposable {
 	}
 }
 
-interface IStartSessionProps {
-	readonly initialData?: IExportableChatData | ISerializableChatData;
-	readonly location: ChatAgentLocation;
-	readonly token: CancellationToken;
-	readonly sessionResource: URI;
-	readonly sessionId?: string;
-	readonly canUseTools: boolean;
-	readonly transferEditingSession?: IChatEditingSession;
-}
 
-interface ChatModelStoreDelegate {
-	createModel: (props: IStartSessionProps) => ChatModel;
-
-	/**
-	 * Called when a 
-	 */
-	willDisposeModel: (model: ChatModel) => Promise<void>;
-}
-
-class ChatModelStore extends ReferenceCollection<ChatModel> implements IDisposable {
-	private readonly _models = new ObservableMap<string, ChatModel>();
-	private readonly _modelsToDispose = new Set<string>();
-	private readonly _pendingDisposals = new Set<Promise<void>>();
-
-	constructor(
-		private readonly delegate: ChatModelStoreDelegate,
-		@ILogService private readonly logService: ILogService,
-	) {
-		super();
-	}
-
-	public get observable() {
-		return this._models.observable;
-	}
-
-	public values(): Iterable<ChatModel> {
-		return this._models.values();
-	}
-
-	public get(uri: URI): ChatModel | undefined {
-		return this._models.get(this.toKey(uri));
-	}
-
-	public has(uri: URI): boolean {
-		return this._models.has(this.toKey(uri));
-	}
-
-	public acquireExisting(uri: URI): IReference<ChatModel> | undefined {
-		const key = this.toKey(uri);
-		if (!this._models.has(key)) {
-			return undefined;
-		}
-		return this.acquire(key);
-	}
-
-	public acquireOrCreate(props: IStartSessionProps): IReference<ChatModel> {
-		return this.acquire(this.toKey(props.sessionResource), props);
-	}
-
-	protected createReferencedObject(key: string, props?: IStartSessionProps): ChatModel {
-		this._modelsToDispose.delete(key);
-		const existingModel = this._models.get(key);
-		if (existingModel) {
-			return existingModel;
-		}
-
-		if (!props) {
-			throw new Error(`No start session props provided for chat session ${key}`);
-		}
-
-		this.logService.trace(`Creating chat session ${key}`);
-		const model = this.delegate.createModel(props);
-		if (model.sessionResource.toString() !== key) {
-			throw new Error(`Chat session key mismatch for ${key}`);
-		}
-		this._models.set(key, model);
-		return model;
-	}
-
-	protected destroyReferencedObject(key: string, object: ChatModel): void {
-		this._modelsToDispose.add(key);
-		const promise = this.doDestroyReferencedObject(key, object);
-		this._pendingDisposals.add(promise);
-		promise.finally(() => {
-			this._pendingDisposals.delete(promise);
-		});
-	}
-
-	private async doDestroyReferencedObject(key: string, object: ChatModel): Promise<void> {
-		try {
-			await this.delegate.willDisposeModel(object);
-		} catch (error) {
-			this.logService.error('Failed to dispose chat model', toErrorMessage(error, true));
-		} finally {
-			if (this._modelsToDispose.has(key)) {
-				this.logService.trace(`Disposing chat session ${key}`);
-				this._models.delete(key);
-				object.dispose();
-				this._modelsToDispose.delete(key);
-			}
-		}
-	}
-
-	async waitForModelDisposals(): Promise<void> {
-		await Promise.all(this._pendingDisposals);
-	}
-
-	private toKey(uri: URI): string {
-		return uri.toString();
-	}
-
-	dispose(): void {
-		this._models.forEach(model => model.dispose());
-	}
-}
 
 class DisposableResourceMap<T extends IDisposable> extends Disposable {
 
@@ -273,8 +159,8 @@ export class ChatService extends Disposable implements IChatService {
 		super();
 
 		this._sessionModels = this._register(instantiationService.createInstance(ChatModelStore, {
-			createModel: props => this._startSession(props),
-			willDisposeModel: async model => {
+			createModel: (props: IStartSessionProps) => this._startSession(props),
+			willDisposeModel: async (model: ChatModel) => {
 				if (this._persistChats) {
 					const localSessionId = LocalChatSessionUri.parseLocalSessionId(model.sessionResource);
 					if (localSessionId && (model.initialLocation === ChatAgentLocation.Chat)) {
