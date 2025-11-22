@@ -10,7 +10,7 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentService } from '../chatAgents.js';
 import { ChatModel, IChatRequestModeInstructions } from '../chatModel.js';
@@ -53,6 +53,8 @@ interface IRunSubagentToolInputParams {
 
 export class RunSubagentTool extends Disposable implements IToolImpl {
 
+	readonly onDidUpdateToolData: Event<IConfigurationChangeEvent>;
+
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatService private readonly chatService: IChatService,
@@ -64,10 +66,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+		this.onDidUpdateToolData = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents));
 	}
-
-	readonly onDidUpdateToolData = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents));
-
 
 	getToolData(): IToolData {
 		const runSubagentToolData: IToolData = {
