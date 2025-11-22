@@ -292,7 +292,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._outputView = this._register(this._instantiationService.createInstance(
 			ChatTerminalToolOutputSection,
 			elements.output,
-			elements.title,
 			displayCommand,
 			() => this._onDidChangeHeight.fire(),
 			() => this._ensureTerminalInstance(),
@@ -665,7 +664,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	constructor(
 		private readonly _container: HTMLElement,
-		private readonly _title: HTMLElement,
 		private readonly _displayCommand: string,
 		private readonly _onDidChangeHeight: () => void,
 		private readonly _ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>,
@@ -767,7 +765,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _setExpanded(expanded: boolean): void {
 		this._container.classList.toggle('expanded', expanded);
 		this._container.classList.toggle('collapsed', !expanded);
-		this._title.classList.toggle('expanded', expanded);
 	}
 
 	private async _createScrollableContainer(): Promise<void> {
