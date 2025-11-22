@@ -89,10 +89,10 @@ suite('ChatModeService', () => {
 		let agents = chatModeService.getModes();
 		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Agent));
 
-		// Without tools agent - Agent mode should still be present (but will be disabled in UI)
+		// Without tools agent - Agent mode should not be present
 		chatAgentService.setHasToolsAgent(false);
 		agents = chatModeService.getModes();
-		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Agent), 'Agent mode should be present even when hasToolsAgent is false');
+		assert.strictEqual(agents.builtin.find(agent => agent.id === ChatModeKind.Agent), undefined);
 
 		// Ask and Edit modes should always be present
 		assert.ok(agents.builtin.find(agent => agent.id === ChatModeKind.Ask));
