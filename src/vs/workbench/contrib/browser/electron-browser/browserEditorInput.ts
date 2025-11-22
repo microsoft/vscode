@@ -13,6 +13,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { TAB_ACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IBrowserViewWorkbenchService, IBrowserViewModel } from '../../../services/browserView/common/browserView.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -28,7 +29,6 @@ export interface IBrowserEditorInputData {
 	readonly url?: string;
 	readonly title?: string;
 	readonly favicon?: string;
-	readonly isLoading?: boolean;
 }
 
 export class BrowserEditorInput extends EditorInput {
@@ -36,59 +36,40 @@ export class BrowserEditorInput extends EditorInput {
 	private static readonly DEFAULT_LABEL = localize('browserEditorLabel', "Browser");
 
 	private readonly _id: string;
-	private _url: string;
-	private _favicon: string | undefined;
-	private _title: string | undefined;
-	private _isLoading: boolean = false;
+	private readonly _initialData: IBrowserEditorInputData;
+	private _model: IBrowserViewModel | undefined;
 
 	constructor(
 		options: IBrowserEditorInputData,
-		@IThemeService private readonly themeService: IThemeService
+		@IThemeService private readonly themeService: IThemeService,
+		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService
 	) {
 		super();
 		this._id = options.id;
-		this._url = options.url || '';
-		this._title = options.title;
-		this._favicon = options.favicon;
-		this._isLoading = options.isLoading ?? false;
+		this._initialData = options;
 	}
 
-	get id(): string {
-		return this._id;
-	}
+	override async resolve(): Promise<IBrowserViewModel> {
+		if (!this._model) {
+			this._model = await this.browserViewWorkbenchService.getOrCreateBrowserViewModel(this._id);
 
-	get url(): string {
-		return this._url;
-	}
-
-	setFavicon(favicon: string): void {
-		// Notify any listeners that the favicon has changed
-		this._favicon = favicon;
-		this._onDidChangeLabel.fire();
-	}
-
-	setTitle(title: string): void {
-		// Notify any listeners that the title has changed
-		this._title = title;
-		this._onDidChangeLabel.fire();
-	}
-
-	setUrl(url: string): void {
-		if (this._url !== url) {
-			if (URI.parse(this._url).authority !== URI.parse(url).authority) {
-				// If the authority (domain) has changed, clear the favicon
-				this._favicon = undefined;
+			// Navigate to initial URL if provided
+			if (this._initialData.url && this._model.url !== this._initialData.url) {
+				await this._model.loadURL(this._initialData.url);
 			}
-			this._url = url;
-			this._onDidChangeLabel.fire();
-		}
-	}
 
-	setLoading(isLoading: boolean): void {
-		if (this._isLoading !== isLoading) {
-			this._isLoading = isLoading;
-			this._onDidChangeLabel.fire();
+			// Set up cleanup when the model is disposed
+			this._register(this._model.onWillDispose(() => {
+				this._model = undefined;
+			}));
+
+			// Listen for label-relevant changes to fire onDidChangeLabel
+			this._register(this._model.onDidChangeTitle(() => this._onDidChangeLabel.fire()));
+			this._register(this._model.onDidChangeFavicon(() => this._onDidChangeLabel.fire()));
+			this._register(this._model.onDidChangeLoadingState(() => this._onDidChangeLabel.fire()));
+			this._register(this._model.onDidNavigate(() => this._onDidChangeLabel.fire()));
 		}
+		return this._model;
 	}
 
 	override get typeId(): string {
@@ -100,38 +81,60 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
+		return EditorInputCapabilities.Singleton | EditorInputCapabilities.Scratchpad;
 	}
 
 	override get resource(): URI {
+		const url = this._model?.url ?? this._initialData.url ?? '';
 		return URI.from({
 			scheme: Schemas.vscodeBrowser,
 			path: this._id,
-			query: `url=${encodeURIComponent(this._url)}`
+			query: `url=${encodeURIComponent(url)}`
 		});
 	}
 
 	override getIcon(): ThemeIcon | URI | undefined {
-		if (this._isLoading) {
-			const color = this.themeService.getColorTheme().getColor(TAB_ACTIVE_FOREGROUND);
-			return URI.parse('data:image/svg+xml;utf8,' + encodeURIComponent(LOADING_SPINNER_SVG(color?.toString())));
+		// Use model data if available, otherwise fall back to initial data
+		if (this._model) {
+			if (this._model.loading) {
+				const color = this.themeService.getColorTheme().getColor(TAB_ACTIVE_FOREGROUND);
+				return URI.parse('data:image/svg+xml;utf8,' + encodeURIComponent(LOADING_SPINNER_SVG(color?.toString())));
+			}
+			if (this._model.favicon) {
+				return URI.parse(this._model.favicon);
+			}
+			// Model exists but no favicon yet, use default
+			return Codicon.globe;
 		}
-		if (this._favicon) {
-			return URI.parse(this._favicon);
+		// Model not created yet, use initial data if available
+		if (this._initialData.favicon) {
+			return URI.parse(this._initialData.favicon);
 		}
 		return Codicon.globe;
 	}
 
 	override getName(): string {
-		if (this._title) {
-			return this._title;
+		// Use model data if available, otherwise fall back to initial data
+		if (this._model) {
+			if (this._model.title) {
+				return this._model.title;
+			}
+			// Model exists, use its URL for authority
+			const authority = URI.parse(this._model.url).authority;
+			return authority || BrowserEditorInput.DEFAULT_LABEL;
 		}
-		const authority = URI.parse(this._url).authority;
+		// Model not created yet, use initial data
+		if (this._initialData.title) {
+			return this._initialData.title;
+		}
+		const url = this._initialData.url ?? '';
+		const authority = URI.parse(url).authority;
 		return authority || BrowserEditorInput.DEFAULT_LABEL;
 	}
 
 	override getDescription(): string | undefined {
-		return this._url;
+		// Use model URL if available, otherwise fall back to initial data
+		return this._model ? this._model.url : this._initialData.url;
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
@@ -155,13 +158,20 @@ export class BrowserEditorInput extends EditorInput {
 		};
 	}
 
+	override dispose(): void {
+		if (this._model) {
+			this._model.dispose();
+			this._model = undefined;
+		}
+		super.dispose();
+	}
+
 	serialize(): IBrowserEditorInputData {
 		return {
 			id: this._id,
-			url: this._url,
-			title: this._title,
-			favicon: this._favicon,
-			isLoading: this._isLoading
+			url: this._model ? this._model.url : this._initialData.url,
+			title: this._model ? this._model.title : this._initialData.title,
+			favicon: this._model ? this._model.favicon : this._initialData.favicon
 		};
 	}
 }

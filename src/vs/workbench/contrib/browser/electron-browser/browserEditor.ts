@@ -14,12 +14,11 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from './browserEditorInput.js';
+import { IBrowserViewModel } from '../../../services/browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewService, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
-import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
-import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -42,9 +41,7 @@ export class BrowserEditor extends EditorPane {
 	private forwardAction!: Action;
 	private reloadAction!: Action;
 
-	private browserViewService: IBrowserViewService;
-
-	private currentInput: BrowserEditorInput | undefined;
+	private model: IBrowserViewModel | undefined;
 	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
 	private readonly inputDisposables = this._register(new DisposableStore());
 
@@ -54,18 +51,14 @@ export class BrowserEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IMainProcessService private readonly mainProcessService: IMainProcessService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IBrowserOverlayManager private readonly overlayManager: IBrowserOverlayManager,
 		@ILogService private readonly logService: ILogService
 	) {
 		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
 
-		const channel = this.mainProcessService.getChannel(ipcBrowserViewChannelName);
-		this.browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
-
 		this._register(this.overlayManager.onDidChangeOverlayState(() => {
-			if (!this.currentInput) {
+			if (!this.model) {
 				return;
 			}
 
@@ -75,7 +68,7 @@ export class BrowserEditor extends EditorPane {
 				this.overlayVisible = hasOverlappingOverlay;
 
 				this.browserContainer.classList.toggle('overlay-visible', hasOverlappingOverlay);
-				this.browserViewService.setVisible(this.currentInput.id, !hasOverlappingOverlay);
+				void this.model.setVisible(!hasOverlappingOverlay);
 			}
 		}));
 
@@ -147,7 +140,7 @@ export class BrowserEditor extends EditorPane {
 
 		// Setup URL input handler
 		this._register(addDisposableListener(this.urlInput, EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (e.key === 'Enter' && this.urlInput && this.currentInput) {
+			if (e.key === 'Enter' && this.urlInput) {
 				const url = this.urlInput.value.trim();
 				if (url) {
 					this.navigateToUrl(url);
@@ -157,8 +150,8 @@ export class BrowserEditor extends EditorPane {
 
 		this._register(this.lifecycleService.onWillShutdown(() => {
 			// Ensure browser view is destroyed on shutdown
-			if (this.currentInput) {
-				this.currentInput.dispose();
+			if (this.model) {
+				this.model.dispose();
 			}
 			this.dispose();
 		}));
@@ -170,111 +163,75 @@ export class BrowserEditor extends EditorPane {
 			return;
 		}
 
-		this.currentInput = input;
 		this.inputDisposables.clear();
-		input.onWillDispose(() => {
-			this.currentInput = undefined;
-			this.browserViewService.destroyBrowserView(input.id);
-		});
 
-		// Create browser view in main process
-		const state = await this.browserViewService.getOrCreateBrowserView(input.id, this.group.windowId);
+		// Resolve the browser view model from the input
+		this.model = await input.resolve();
 		if (token.isCancellationRequested) {
 			return;
 		}
 
-		// Initialize action states (disabled by default until we know navigation state)
-		this.backAction.enabled = state.canGoBack;
-		this.forwardAction.enabled = state.canGoForward;
-		this.urlInput.value = state.url;
+		// Clean up on input disposal
+		input.onWillDispose(() => {
+			this.model = undefined;
+		});
 
-		if (input.url !== state.url) {
-			// Navigate to the input URL if different
-			void this.browserViewService.loadURL(input.id, input.url);
-		}
+		// Initialize UI state from model
+		this.backAction.enabled = this.model.canGoBack;
+		this.forwardAction.enabled = this.model.canGoForward;
+		this.urlInput.value = this.model.url;
 
-		input.setTitle(state.title);
-		input.setLoading(state.loading);
-
-		// Register per-view events for this input
-		this.inputDisposables.add(this.browserViewService.onDynamicDidKeyCommand(input.id)(event => {
+		// Listen to model events for UI updates
+		this.inputDisposables.add(this.model.onDidKeyCommand(keyEvent => {
 			// Handle like webview does - convert to webview KeyEvent format
-			this.handleKeyEventFromBrowserView(event);
+			this.handleKeyEventFromBrowserView(keyEvent);
 		}));
 
-		this.inputDisposables.add(this.browserViewService.onDynamicDidNavigate(input.id)(event => {
-			if (event.url !== input.url) {
-				this.group.pinEditor(input); // Navigated from within the browser -- pin the editor
-			}
-
-			// Update navigation state
-			this.backAction.enabled = event.canGoBack;
-			this.forwardAction.enabled = event.canGoForward;
-			this.urlInput.value = event.url;
-			input.setUrl(event.url);
-		}));
-
-		this.inputDisposables.add(this.browserViewService.onDynamicDidChangeLoadingState(input.id)(event => {
-			input.setLoading(event.loading);
-		}));
-
-		this.inputDisposables.add(this.browserViewService.onDynamicDidChangeFavicon(input.id)(event => {
-			input.setFavicon(event.favicon);
-		}));
-
-		this.inputDisposables.add(this.browserViewService.onDynamicDidChangeTitle(input.id)(event => {
-			input.setTitle(event.title);
+		this.inputDisposables.add(this.model.onDidNavigate((navEvent: IBrowserViewNavigationEvent) => {
+			// Update UI state from model
+			this.backAction.enabled = navEvent.canGoBack;
+			this.forwardAction.enabled = navEvent.canGoForward;
+			this.urlInput.value = navEvent.url;
 		}));
 
 		this.layout();
-		this.browserViewService.setVisible(this.currentInput.id, true);
+		await this.model.setVisible(true);
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
-		if (this.currentInput) {
-			this.browserViewService.setVisible(this.currentInput.id, visible);
-		}
-
-		super.setEditorVisible(visible);
+		void this.model?.setVisible(visible);
 	}
 
 	private async navigateToUrl(url: string): Promise<void> {
-		if (this.currentInput) {
-			this.group.pinEditor(this.currentInput); // Pin the editor when navigating
-
+		if (this.model) {
 			if (!/^https?:\/\//.test(url)) {
 				// If no scheme provided, default to http (first -- this will be upgraded to https if supported)
 				url = 'http://' + url;
 			}
-			await this.browserViewService.loadURL(this.currentInput.id, url);
+
+			await this.model.loadURL(url);
 		}
 	}
 
 	private async goBack(): Promise<void> {
-		if (this.currentInput) {
-			await this.browserViewService.goBack(this.currentInput.id);
-		}
+		return this.model?.goBack();
 	}
 
 	private async goForward(): Promise<void> {
-		if (this.currentInput) {
-			await this.browserViewService.goForward(this.currentInput.id);
-		}
+		return this.model?.goForward();
 	}
 
 	private async reload(): Promise<void> {
-		if (this.currentInput) {
-			await this.browserViewService.reload(this.currentInput.id);
-		}
+		return this.model?.reload();
 	}
 
 	/**
 	 * Capture a screenshot of the current browser view to use as placeholder background
 	 */
 	private async capturePlaceholderSnapshot(): Promise<void> {
-		if (this.currentInput && !this.overlayVisible) {
+		if (this.model && !this.overlayVisible) {
 			try {
-				const dataUrl = await this.browserViewService.captureScreenshot(this.currentInput.id);
+				const dataUrl = await this.model.captureScreenshot(80);
 				this.browserContainer.style.backgroundImage = `url('${dataUrl}')`;
 			} catch (error) {
 				this.logService.error('browserEditor.capturePlaceholderSnapshot', error);
@@ -283,8 +240,8 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	public forwardCurrentEvent(): boolean {
-		if (this._currentKeyDownEvent && this.currentInput) {
-			void this.browserViewService.dispatchKeyEvent(this.currentInput.id, this._currentKeyDownEvent);
+		if (this._currentKeyDownEvent && this.model) {
+			void this.model.dispatchKeyEvent(this._currentKeyDownEvent);
 			return true;
 		}
 		return false;
@@ -309,9 +266,10 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	override layout(): void {
-		if (this.currentInput) {
+		if (this.model) {
 			const containerRect = this.browserContainer.getBoundingClientRect();
-			this.browserViewService.layout(this.currentInput.id, {
+			void this.model.layout({
+				windowId: this.group.windowId,
 				x: containerRect.left,
 				y: containerRect.top,
 				width: containerRect.width,
@@ -329,22 +287,17 @@ export class BrowserEditor extends EditorPane {
 				}
 
 				this.browserContainer.classList.toggle('overlay-visible', hasOverlappingOverlay);
-				this.browserViewService.setVisible(this.currentInput.id, !hasOverlappingOverlay);
+				void this.model.setVisible(!hasOverlappingOverlay);
 			}
 		}
 	}
 
 	override clearInput(): void {
-		if (this.currentInput) {
-			this.browserViewService.setVisible(this.currentInput.id, false);
-		}
-
-		this.currentInput = undefined;
+		void this.model?.setVisible(false);
+		this.model = undefined;
+		this.browserContainer.style.backgroundImage = '';
+		this.inputDisposables.clear();
 
 		super.clearInput();
-	}
-
-	override dispose(): void {
-		super.dispose();
 	}
 }

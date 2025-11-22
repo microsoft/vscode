@@ -6,6 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 
 export interface IBrowserViewBounds {
+	windowId: number;
 	x: number;
 	y: number;
 	width: number;
@@ -66,12 +67,13 @@ export interface IBrowserViewService {
 	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
+
 	/**
 	 * Get or create a browser view instance
 	 * @param id The browser view identifier
-	 * @param windowId The window identifier to host the view
+	 * @param workspaceId Optional workspace identifier for session isolation
 	 */
-	getOrCreateBrowserView(id: string, windowId: number): Promise<IBrowserViewState>;
+	getOrCreateBrowserView(id: string, workspaceId?: string): Promise<IBrowserViewState>;
 
 	/**
 	 * Destroy a browser view instance
