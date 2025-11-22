@@ -20,6 +20,7 @@ export interface IStartSessionProps {
 	readonly sessionId?: string;
 	readonly canUseTools: boolean;
 	readonly transferEditingSession?: IChatEditingSession;
+	readonly disableBackgroundKeepAlive?: boolean;
 }
 
 export interface ChatModelStoreDelegate {

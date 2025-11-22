@@ -945,7 +945,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken, options?: { canUseTools?: boolean }): IChatModelReference;
+	startSession(location: ChatAgentLocation, token: CancellationToken, options?: { canUseTools?: boolean; disableBackgroundKeepAlive?: boolean }): IChatModelReference;
 
 	/**
 	 * Get an active session without holding a reference to it.
