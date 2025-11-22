@@ -494,7 +494,6 @@ export class SessionsViewPane extends ViewPane {
 		const contextOverlay = getSessionItemContextOverlay(
 			session,
 			sessionWithProvider.provider,
-			this.chatWidgetService,
 			this.chatService,
 			this.editorGroupsService
 		);
