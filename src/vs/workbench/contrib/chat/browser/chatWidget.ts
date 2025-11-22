@@ -2205,7 +2205,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderImmediately = this.configurationService.getValue<boolean>('chat.experimental.renderMarkdownImmediately');
 		const delay = renderImmediately ? MicrotaskDelay : 0;
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange, delay), (events => {
-			if (!this.viewModel || this._isDisposed) {
+			if (!this.viewModel || this._store.isDisposed) {
 				// See https://github.com/microsoft/vscode/issues/278969
 				return;
 			}
@@ -2833,11 +2833,5 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
 		this.tree.delegateScrollFromMouseWheelEvent(browserEvent);
-	}
-
-	private _isDisposed = false;
-	public override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
 	}
 }
