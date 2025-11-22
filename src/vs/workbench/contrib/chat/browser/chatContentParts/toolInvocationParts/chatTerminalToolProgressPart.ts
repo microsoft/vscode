@@ -258,8 +258,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			h('.chat-terminal-content-title@title', [
 				h('.chat-terminal-command-block@commandBlock')
 			]),
-			h('.chat-terminal-content-message@message'),
-			h('.chat-terminal-output-container@output')
+			h('.chat-terminal-content-message@message')
 		]);
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
@@ -288,15 +287,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._onDidChangeHeight.fire();
 		}));
 
-
 		this._outputView = this._register(this._instantiationService.createInstance(
 			ChatTerminalToolOutputSection,
-			elements.output,
 			displayCommand,
 			() => this._onDidChangeHeight.fire(),
 			() => this._ensureTerminalInstance(),
 			() => this._getResolvedCommand(),
 		));
+		elements.container.append(this._outputView.domNode);
 		this._register(this._outputView.onDidFocus(() => this._handleOutputFocus()));
 		this._register(this._outputView.onDidBlur(e => this._handleOutputBlur(e)));
 		this._register(toDisposable(() => this._handleDispose()));
@@ -645,9 +643,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 class ChatTerminalToolOutputSection extends Disposable {
 	public readonly onDidFocus: Event<void>;
 	public readonly onDidBlur: Event<FocusEvent>;
+	public readonly domNode: HTMLElement;
 
 	public get isExpanded(): boolean {
-		return this._container.classList.contains('expanded');
+		return this.domNode.classList.contains('expanded');
 	}
 
 	private readonly _outputBody: HTMLElement;
@@ -663,7 +662,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _onDidBlurEmitter = new Emitter<FocusEvent>();
 
 	constructor(
-		private readonly _container: HTMLElement,
 		private readonly _displayCommand: string,
 		private readonly _onDidChangeHeight: () => void,
 		private readonly _ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>,
@@ -675,15 +673,18 @@ class ChatTerminalToolOutputSection extends Disposable {
 		super();
 		this._outputAriaLabelBase = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', this._displayCommand);
 
-		this._container.classList.add('collapsed');
-		const outputElements = h('.chat-terminal-output-body@body', [
-			h('.chat-terminal-output-content@content', [
-				h('.chat-terminal-output-terminal@terminal')
+		const containerElements = h('.chat-terminal-output-container@container', [
+			h('.chat-terminal-output-body@body', [
+				h('.chat-terminal-output-content@content', [
+					h('.chat-terminal-output-terminal@terminal')
+				])
 			])
 		]);
-		this._outputBody = outputElements.body;
-		this._contentContainer = outputElements.content;
-		this._terminalContainer = outputElements.terminal;
+		this.domNode = containerElements.container;
+		this.domNode.classList.add('collapsed');
+		this._outputBody = containerElements.body;
+		this._contentContainer = containerElements.content;
+		this._terminalContainer = containerElements.terminal;
 
 		const emptyElements = h('.chat-terminal-output-empty@empty');
 		this._emptyElement = emptyElements.empty;
@@ -695,8 +696,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._register(this._onDidFocusEmitter);
 		this._register(this._onDidBlurEmitter);
 
-		this._register(dom.addDisposableListener(this._container, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
-		this._register(dom.addDisposableListener(this._container, dom.EventType.FOCUS_OUT, event => this._onDidBlurEmitter.fire(event as FocusEvent)));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
+		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, event => this._onDidBlurEmitter.fire(event as FocusEvent)));
 	}
 
 	public async toggle(expanded: boolean): Promise<boolean> {
@@ -731,7 +732,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	public containsElement(element: HTMLElement | null): boolean {
-		return !!element && this._container.contains(element);
+		return !!element && this.domNode.contains(element);
 	}
 
 	public updateAriaLabel(): void {
@@ -763,8 +764,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private _setExpanded(expanded: boolean): void {
-		this._container.classList.toggle('expanded', expanded);
-		this._container.classList.toggle('collapsed', !expanded);
+		this.domNode.classList.toggle('expanded', expanded);
+		this.domNode.classList.toggle('collapsed', !expanded);
 	}
 
 	private async _createScrollableContainer(): Promise<void> {
@@ -779,7 +780,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const padding = this._getOutputPadding();
 		const maxHeight = rowHeight * MAX_OUTPUT_ROWS + padding;
 		scrollableDomNode.style.maxHeight = `${maxHeight}px`;
-		this._container.appendChild(scrollableDomNode);
+		this.domNode.appendChild(scrollableDomNode);
 		this.updateAriaLabel();
 	}
 
