@@ -172,8 +172,9 @@ suite('InlineChatSession', function () {
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
 	});
 
-	teardown(function () {
+	teardown(async function () {
 		store.clear();
+		await instaService.get(IChatService).waitForModelDisposals();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
