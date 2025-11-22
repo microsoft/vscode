@@ -1439,8 +1439,6 @@ export interface IXtermTerminal extends IDisposable {
 }
 
 export interface IDetachedXtermTerminal extends IXtermTerminal {
-	raw?: RawXtermTerminal;
-
 	/**
 	 * Writes data to the terminal.
 	 * @param data data to write

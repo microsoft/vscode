@@ -44,21 +44,14 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 
 	async renderCommand(): Promise<{ lineCount?: number } | undefined> {
 		const detached = await this._getOrCreateTerminal();
-		const raw = detached.xterm.raw;
-		if (!raw) {
-			return;
-		}
 		const vt = await this._getCommandOutputAsVT();
-		raw.reset();
 		if (!vt) {
 			return undefined;
 		}
 		if (!vt.text) {
 			return { lineCount: 0 };
 		}
-		raw.write(vt.text);
-		raw.scrollToBottom();
-		raw.refresh(0, raw.rows - 1);
+		detached.xterm.write(vt.text);
 		return { lineCount: vt.lineCount };
 	}
 
