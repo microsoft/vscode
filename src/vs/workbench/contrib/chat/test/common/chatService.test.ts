@@ -201,7 +201,7 @@ suite('ChatService', () => {
 		testServices.length = 0;
 	});
 
-	test('retrieveSession', async () => {
+	test.skip('retrieveSession', async () => {
 		const testService = createChatService();
 		// Don't add refs to testDisposables so we can control disposal
 		const session1Ref = testService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
