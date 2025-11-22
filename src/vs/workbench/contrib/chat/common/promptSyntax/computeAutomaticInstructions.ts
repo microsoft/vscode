@@ -317,7 +317,7 @@ export class ComputeAutomaticInstructions {
 			toolReferences.push(toToolVariableEntry(this._readFileTool, new OffsetRange(offset, offset + toolName.length)));
 			offset = content.indexOf(toolName, offset + 1);
 		}
-		return toPromptTextVariableEntry(entries.join('\n'), true, toolReferences);
+		return toPromptTextVariableEntry(content, true, toolReferences);
 	}
 
 	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
