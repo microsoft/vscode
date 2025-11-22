@@ -659,7 +659,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _contentContainer: HTMLElement;
 	private readonly _terminalContainer: HTMLElement;
 	private readonly _emptyElement: HTMLElement;
-	private _hasRendered = false;
 
 	private readonly _onDidFocusEmitter = new Emitter<void>();
 	private readonly _onDidBlurEmitter = new Emitter<FocusEvent>();
@@ -719,21 +718,14 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return true;
 		}
 
-		await this._renderOutputIfNeeded();
+		if (!this._scrollableContainer) {
+			await this._createScrollableContainer();
+		}
 		await this._updateTerminalContent();
 		this._layoutOutput();
 		this._scrollOutputToBottom();
 		this._scheduleOutputRelayout();
 		return true;
-	}
-
-	public async ensureRendered(): Promise<void> {
-		await this._renderOutputIfNeeded();
-		await this._updateTerminalContent();
-		if (this.isExpanded) {
-			this._layoutOutput();
-			this._scrollOutputToBottom();
-		}
 	}
 
 	public focus(): void {
@@ -778,28 +770,20 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._title.classList.toggle('expanded', expanded);
 	}
 
-	private async _renderOutputIfNeeded(): Promise<void> {
-		if (this._hasRendered) {
-			return;
-		}
-
-		if (!this._scrollableContainer) {
-			this._scrollableContainer = this._register(new DomScrollableElement(this._outputBody, {
-				vertical: ScrollbarVisibility.Auto,
-				horizontal: ScrollbarVisibility.Auto,
-				handleMouseWheel: true
-			}));
-			const scrollableDomNode = this._scrollableContainer.getDomNode();
-			scrollableDomNode.tabIndex = 0;
-			const rowHeight = this._computeRowHeightPx();
-			const padding = this._getOutputPadding();
-			const maxHeight = rowHeight * MAX_OUTPUT_ROWS + padding;
-			scrollableDomNode.style.maxHeight = `${maxHeight}px`;
-			this._container.appendChild(scrollableDomNode);
-		}
-
+	private async _createScrollableContainer(): Promise<void> {
+		this._scrollableContainer = this._register(new DomScrollableElement(this._outputBody, {
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Auto,
+			handleMouseWheel: true
+		}));
+		const scrollableDomNode = this._scrollableContainer.getDomNode();
+		scrollableDomNode.tabIndex = 0;
+		const rowHeight = this._computeRowHeightPx();
+		const padding = this._getOutputPadding();
+		const maxHeight = rowHeight * MAX_OUTPUT_ROWS + padding;
+		scrollableDomNode.style.maxHeight = `${maxHeight}px`;
+		this._container.appendChild(scrollableDomNode);
 		this.updateAriaLabel();
-		this._hasRendered = true;
 	}
 
 	private async _updateTerminalContent(): Promise<void> {
