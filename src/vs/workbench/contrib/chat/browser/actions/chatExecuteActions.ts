@@ -367,15 +367,7 @@ class ToggleChatModeAction extends Action2 {
 		const modes = modeService.getModes();
 		const flat = [
 			...modes.builtin.filter(mode => {
-				// Filter out Edit mode if not enabled and there are requests
-				if (mode.kind === ChatModeKind.Edit && !configurationService.getValue(ChatConfiguration.Edits2Enabled) && requestCount > 0) {
-					return false;
-				}
-				// Filter out Agent mode if disabled by policy
-				if (mode.kind === ChatModeKind.Agent && modeService.isAgentModeDisabledByPolicy()) {
-					return false;
-				}
-				return true;
+				return mode.kind !== ChatModeKind.Edit || configurationService.getValue(ChatConfiguration.Edits2Enabled) || requestCount === 0;
 			}),
 			...(modes.custom ?? []),
 		];
