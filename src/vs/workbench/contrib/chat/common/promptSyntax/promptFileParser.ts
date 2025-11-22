@@ -74,6 +74,7 @@ export namespace PromptHeaderAttributes {
 	export const argumentHint = 'argument-hint';
 	export const excludeAgent = 'excludeAgent';
 	export const target = 'target';
+	export const infer = 'infer';
 }
 
 export namespace GithubPromptHeaderAttributes {
@@ -159,6 +160,14 @@ export class PromptHeader {
 		return undefined;
 	}
 
+	private getBooleanAttribute(key: string): boolean | undefined {
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
+		if (attribute?.value.type === 'boolean') {
+			return attribute.value.value;
+		}
+		return undefined;
+	}
+
 	public get name(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.name);
 	}
@@ -185,6 +194,10 @@ export class PromptHeader {
 
 	public get target(): string | undefined {
 		return this.getStringAttribute(PromptHeaderAttributes.target);
+	}
+
+	public get infer(): boolean | undefined {
+		return this.getBooleanAttribute(PromptHeaderAttributes.infer);
 	}
 
 	public get tools(): string[] | undefined {

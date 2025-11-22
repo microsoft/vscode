@@ -76,7 +76,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariable
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
-import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { IHandOff, PromptHeader, Target } from '../common/promptSyntax/promptFileParser.js';
@@ -2814,20 +2814,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
 		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
+		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.entriesMap.get() : undefined;
 
-		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, this._getReadTool());
+		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, enabledTools);
 		await computer.collect(attachedContext, CancellationToken.None);
-	}
-
-	private _getReadTool(): IToolData | undefined {
-		if (this.input.currentModeKind !== ChatModeKind.Agent) {
-			return undefined;
-		}
-		const readFileTool = this.toolsService.getToolByName('readFile');
-		if (!readFileTool || !this.input.selectedToolsModel.userSelectedTools.get()[readFileTool.id]) {
-			return undefined;
-		}
-		return readFileTool;
 	}
 
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {

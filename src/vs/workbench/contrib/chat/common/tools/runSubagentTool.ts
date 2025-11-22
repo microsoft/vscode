@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -47,7 +48,7 @@ const BaseModelDescription = `Launch a new agent to handle complex, multi-step t
 interface IRunSubagentToolInputParams {
 	prompt: string;
 	description: string;
-	subagentType?: string;
+	agentName?: string;
 }
 
 export class RunSubagentTool extends Disposable implements IToolImpl {
@@ -64,6 +65,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	) {
 		super();
 	}
+
+	readonly onDidUpdateToolData = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.SubagentToolCustomAgents));
+
 
 	getToolData(): IToolData {
 		const runSubagentToolData: IToolData = {
@@ -92,11 +96,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		};
 
 		if (this.configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents)) {
-			runSubagentToolData.inputSchema!.properties!['subagentType'] = {
+			runSubagentToolData.inputSchema!.properties!['agentName'] = {
 				type: 'string',
-				description: 'Optional ID of a specific agent to invoke. If not provided, uses the current agent.'
+				description: 'Optional name of a specific agent to invoke. If not provided, uses the current agent.'
 			};
-			runSubagentToolData.modelDescription += `\n- If the user asks for a certain agent by name, you MUST provide that EXACT subagentType (case-sensitive) to invoke that specific agent.`;
+			runSubagentToolData.modelDescription += `\n- If the user asks for a certain agent, you MUST provide that EXACT agent name (case-sensitive) to invoke that specific agent.`;
 		}
 
 
@@ -133,8 +137,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			let modeTools = invocation.userSelectedTools;
 			let modeInstructions: IChatRequestModeInstructions | undefined;
 
-			if (args.subagentType) {
-				const mode = this.chatModeService.findModeByName(args.subagentType);
+			if (args.agentName) {
+				const mode = this.chatModeService.findModeByName(args.agentName);
 				if (mode) {
 					// Use mode-specific model if available
 					const modeModelQualifiedName = mode.model?.get();
@@ -172,7 +176,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						metadata: instructions.metadata,
 					};
 				} else {
-					this.logService.warn(`RunSubagentTool: Agent '${args.subagentType}' not found, using current configuration`);
+					this.logService.warn(`RunSubagentTool: Agent '${args.agentName}' not found, using current configuration`);
 				}
 			}
 

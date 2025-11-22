@@ -724,6 +724,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -778,6 +779,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -849,6 +851,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -865,6 +868,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					tools: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -933,6 +937,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					argumentHint: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -949,6 +954,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					argumentHint: undefined,
 					tools: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -965,6 +971,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1018,6 +1025,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
 					source: { storage: PromptsStorage.local },
 				},
