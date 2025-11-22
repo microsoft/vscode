@@ -141,4 +141,8 @@ export class MockChatService implements IChatService {
 	getHistorySessionItems(): Promise<IChatDetail[]> {
 		throw new Error('Method not implemented.');
 	}
+
+	waitForModelDisposals(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 }

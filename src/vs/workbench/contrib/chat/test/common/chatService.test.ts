@@ -43,6 +43,7 @@ import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -120,21 +121,20 @@ function getAgentData(id: string): IChatAgentData {
 }
 
 suite('ChatService', () => {
-	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const testDisposables = new DisposableStore();
 
 	let instantiationService: TestInstantiationService;
 	let testFileService: InMemoryTestFileService;
 
 	let chatAgentService: IChatAgentService;
+	const testServices: ChatService[] = [];
 
 	/**
-	 * Hack to avoid triggering async persistence after model disposal. TODO@roblourens
+	 * Ensure we wait for model disposals from all created ChatServices
 	 */
-	function createChatService(options?: { enablePersistence?: boolean }): ChatService {
+	function createChatService(): ChatService {
 		const service = testDisposables.add(instantiationService.createInstance(ChatService));
-		if (!options?.enablePersistence) {
-			service.setChatPersistanceEnabled(false);
-		}
+		testServices.push(service);
 		return service;
 	}
 
@@ -197,8 +197,15 @@ suite('ChatService', () => {
 		chatAgentService.updateAgent('testAgent', {});
 	});
 
-	test.skip('retrieveSession', async () => {
-		const testService = createChatService({ enablePersistence: true });
+	teardown(async () => {
+		testDisposables.clear();
+		await Promise.all(testServices.map(s => s.waitForModelDisposals()));
+		testServices.length = 0;
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('retrieveSession', async () => {
+		const testService = createChatService();
 		// Don't add refs to testDisposables so we can control disposal
 		const session1Ref = testService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
 		const session1 = session1Ref.object as ChatModel;
@@ -213,7 +220,7 @@ suite('ChatService', () => {
 		session2Ref.dispose();
 
 		// Wait for async persistence to complete
-		await new Promise(resolve => setTimeout(resolve, 10));
+		await testService.waitForModelDisposals();
 
 		// Verify that sessions were written to the file service
 		assert.strictEqual(testFileService.writeOperations.length, 2, 'Should have written 2 sessions to file service');
@@ -227,7 +234,7 @@ suite('ChatService', () => {
 		assert.ok(session2WriteOp, 'Session 2 should have been written to file service');
 
 		// Create a new service instance to simulate app restart
-		const testService2 = createChatService({ enablePersistence: true });
+		const testService2 = createChatService();
 
 		// Retrieve sessions and verify they're loaded from file service
 		const retrieved1 = await getOrRestoreModel(testService2, session1.sessionResource);
@@ -242,7 +249,7 @@ suite('ChatService', () => {
 	test('addCompleteRequest', async () => {
 		const testService = createChatService();
 
-		const modelRef = startSessionModel(testService);
+		const modelRef = testDisposables.add(startSessionModel(testService));
 		const model = modelRef.object;
 		assert.strictEqual(model.getRequests().length, 0);
 
@@ -255,7 +262,7 @@ suite('ChatService', () => {
 	test('sendRequest fails', async () => {
 		const testService = createChatService();
 
-		const modelRef = startSessionModel(testService);
+		const modelRef = testDisposables.add(startSessionModel(testService));
 		const model = modelRef.object;
 		const response = await testService.sendRequest(model.sessionResource, `@${chatAgentWithUsedContextId} test request`);
 		assert(response);
@@ -279,7 +286,7 @@ suite('ChatService', () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation('agent2', historyLengthAgent));
 
 		const testService = createChatService();
-		const modelRef = startSessionModel(testService);
+		const modelRef = testDisposables.add(startSessionModel(testService));
 		const model = modelRef.object;
 
 		// Send a request to default agent
@@ -309,7 +316,7 @@ suite('ChatService', () => {
 		chatAgentService.updateAgent(chatAgentWithUsedContextId, {});
 		const testService = createChatService();
 
-		const modelRef = startSessionModel(testService);
+		const modelRef = testDisposables.add(startSessionModel(testService));
 		const model = modelRef.object;
 		assert.strictEqual(model.getRequests().length, 0);
 
@@ -336,7 +343,7 @@ suite('ChatService', () => {
 		{  // serapate block to not leak variables in outer scope
 			const testService = createChatService();
 
-			const chatModel1Ref = startSessionModel(testService);
+			const chatModel1Ref = testDisposables.add(startSessionModel(testService));
 			const chatModel1 = chatModel1Ref.object;
 			assert.strictEqual(chatModel1.getRequests().length, 0);
 
@@ -354,10 +361,10 @@ suite('ChatService', () => {
 
 		const chatModel2Ref = testService2.loadSessionFromContent(serializedChatData);
 		assert(chatModel2Ref);
+		testDisposables.add(chatModel2Ref);
 		const chatModel2 = chatModel2Ref.object;
 
 		await assertSnapshot(toSnapshotExportData(chatModel2));
-		chatModel2Ref.dispose();
 	});
 
 	test('can deserialize with response', async () => {
@@ -367,7 +374,7 @@ suite('ChatService', () => {
 		{
 			const testService = createChatService();
 
-			const chatModel1Ref = startSessionModel(testService);
+			const chatModel1Ref = testDisposables.add(startSessionModel(testService));
 			const chatModel1 = chatModel1Ref.object;
 			assert.strictEqual(chatModel1.getRequests().length, 0);
 
@@ -385,10 +392,10 @@ suite('ChatService', () => {
 
 		const chatModel2Ref = testService2.loadSessionFromContent(serializedChatData);
 		assert(chatModel2Ref);
+		testDisposables.add(chatModel2Ref);
 		const chatModel2 = chatModel2Ref.object;
 
 		await assertSnapshot(toSnapshotExportData(chatModel2));
-		chatModel2Ref.dispose();
 	});
 });
 
