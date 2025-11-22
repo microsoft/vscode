@@ -2,16 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// @ts-check
+
 import { promises as fs } from 'fs';
 import path from 'path';
 
 /**
- * @param {string} dir
- *
- * @returns {AsyncGenerator<string>}
+ * Recursively find all package-lock.json files in a directory
  */
-async function* getPackageLockFiles(dir) {
+async function* getPackageLockFiles(dir: string): AsyncGenerator<string> {
 	const files = await fs.readdir(dir);
 
 	for (const file of files) {
@@ -27,20 +25,18 @@ async function* getPackageLockFiles(dir) {
 }
 
 /**
- * @param {string} url
- * @param {string} file
+ * Replace the registry URL in a package-lock.json file
  */
-async function setup(url, file) {
+async function setup(url: string, file: string): Promise<void> {
 	let contents = await fs.readFile(file, 'utf8');
 	contents = contents.replace(/https:\/\/registry\.[^.]+\.org\//g, url);
 	await fs.writeFile(file, contents);
 }
 
 /**
- * @param {string} url
- * @param {string} dir
+ * Main function to set up custom NPM registry
  */
-async function main(url, dir) {
+async function main(url: string, dir?: string): Promise<void> {
 	const root = dir ?? process.cwd();
 
 	for await (const file of getPackageLockFiles(root)) {
