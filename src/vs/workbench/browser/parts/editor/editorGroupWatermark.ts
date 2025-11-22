@@ -5,7 +5,7 @@
 
 import { $, append, clearNode, h } from '../../../../base/browser/dom.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { coalesce } from '../../../../base/common/arrays.js';
+import { coalesce, shuffle } from '../../../../base/common/arrays.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isMacintosh, isWeb, OS } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
@@ -30,29 +30,46 @@ const showChatContextKey = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHi
 
 const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: showChatContextKey, web: showChatContextKey } };
 const showCommands: WatermarkEntry = { text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands' };
+const gotoFile: WatermarkEntry = { text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' };
 const openFile: WatermarkEntry = { text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile' };
 const openFolder: WatermarkEntry = { text: localize('watermark.openFolder', "Open Folder"), id: 'workbench.action.files.openFolder' };
 const openFileOrFolder: WatermarkEntry = { text: localize('watermark.openFileFolder', "Open File or Folder"), id: 'workbench.action.files.openFileFolder' };
 const openRecent: WatermarkEntry = { text: localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
 const newUntitledFile: WatermarkEntry = { text: localize('watermark.newUntitledFile', "New Untitled Text File"), id: 'workbench.action.files.newUntitledFile' };
+const findInFiles: WatermarkEntry = { text: localize('watermark.findInFiles', "Find in Files"), id: 'workbench.action.findInFiles' };
+const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: 'workbench.action.terminal.toggleTerminal', when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) } };
+const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) } };
+const openSettings: WatermarkEntry = { text: localize('watermark.openSettings', "Open Settings"), id: 'workbench.action.openSettings' };
 
-const emptyWindowEntries: WatermarkEntry[] = coalesce([
+const baseEntries: WatermarkEntry[] = [
 	openChat,
 	showCommands,
+];
+
+const emptyWindowEntries: WatermarkEntry[] = coalesce([
+	...baseEntries,
 	...(isMacintosh && !isWeb ? [openFileOrFolder] : [openFile, openFolder]),
 	openRecent,
 	isMacintosh && !isWeb ? newUntitledFile : undefined, // fill in one more on macOS to get to 5 entries
 ]);
 
 const workspaceEntries: WatermarkEntry[] = [
-	openChat,
-	showCommands,
+	...baseEntries,
+];
+
+const otherEntries: WatermarkEntry[] = [
+	gotoFile,
+	findInFiles,
+	startDebugging,
+	toggleTerminal,
+	openSettings,
 ];
 
 export class EditorGroupWatermark extends Disposable {
 
 	private static readonly CACHED_WHEN = 'editorGroupWatermark.whenConditions';
 	private static readonly SETTINGS_KEY = 'workbench.tips.enabled';
+	private static readonly MINIMUM_ENTRIES = 2;
 
 	private readonly cachedWhen: { [when: string]: boolean };
 
@@ -110,7 +127,7 @@ export class EditorGroupWatermark extends Disposable {
 
 		this._register(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				const entries = [...emptyWindowEntries, ...workspaceEntries];
+				const entries = [...emptyWindowEntries, ...workspaceEntries, ...otherEntries];
 				for (const entry of entries) {
 					const when = isWeb ? entry.when?.web : entry.when?.native;
 					if (when) {
@@ -134,6 +151,11 @@ export class EditorGroupWatermark extends Disposable {
 		}
 
 		const entries = this.filterEntries(this.workbenchState !== WorkbenchState.EMPTY ? workspaceEntries : emptyWindowEntries);
+		if (entries.length < EditorGroupWatermark.MINIMUM_ENTRIES) {
+			const additionalEntries = this.filterEntries(otherEntries);
+			shuffle(additionalEntries);
+			entries.push(...additionalEntries.slice(0, EditorGroupWatermark.MINIMUM_ENTRIES - entries.length));
+		}
 
 		const box = append(this.shortcuts, $('.watermark-box'));
 
@@ -148,7 +170,6 @@ export class EditorGroupWatermark extends Disposable {
 				}
 
 				const dl = append(box, $('dl'));
-
 				const dt = append(dl, $('dt'));
 				dt.textContent = entry.text;
 
