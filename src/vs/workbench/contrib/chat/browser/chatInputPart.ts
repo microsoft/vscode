@@ -85,7 +85,7 @@ import { ChatHistoryNavigator } from '../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { ChatContinueInSessionActionItem, ContinueChatInSessionAction } from './actions/chatContinueInAction.js';
+import { ActionLocation, ChatContinueInSessionActionItem, ContinueChatInSessionAction } from './actions/chatContinueInAction.js';
 import { ChatOpenModelPickerActionId, ChatSessionPrimaryPickerAction, ChatSubmitAction, IChatExecuteActionContext, OpenModePickerAction } from './actions/chatExecuteActions.js';
 import { ImplicitContextAttachmentWidget } from './attachments/implicitContextAttachment.js';
 import { IChatWidget } from './chat.js';
@@ -434,7 +434,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 		this._register(this._attachmentModel.onDidChange(() => this._syncInputStateToModel()));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs));
-		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, this._attachmentModel, styles));
+		this.dnd = this._register(this.instantiationService.createInstance(ChatDragAndDrop, () => this._widget, this._attachmentModel, styles));
 
 		this.inputEditorMaxHeight = this.options.renderStyle === 'compact' ? INPUT_EDITOR_MAX_HEIGHT / 3 : INPUT_EDITOR_MAX_HEIGHT;
 
@@ -532,6 +532,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.switchModelByQualifiedName(model);
 			}
 		}));
+
+		// Validate the initial mode - if Agent mode is set by default but disabled by policy, switch to Ask
+		this.validateCurrentChatMode();
 	}
 
 	public setIsWithinEditSession(inInsideDiff: boolean, isFilePartOfEditSession: boolean) {
@@ -937,8 +940,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private validateCurrentChatMode() {
 		const currentMode = this._currentModeObservable.get();
 		const validMode = this.chatModeService.findModeById(currentMode.id);
+		const isAgentModeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
 		if (!validMode) {
-			this.setChatMode(ChatModeKind.Agent);
+			this.setChatMode(isAgentModeEnabled ? ChatModeKind.Agent : ChatModeKind.Ask);
+			return;
+		}
+		if (currentMode.kind === ChatModeKind.Agent && !isAgentModeEnabled) {
+			this.setChatMode(ChatModeKind.Ask);
 			return;
 		}
 	}
@@ -1538,7 +1546,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			actionViewItemProvider: (action, options) => {
 				if (action.id === ContinueChatInSessionAction.ID && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ChatContinueInSessionActionItem, action);
+					return this.instantiationService.createInstance(ChatContinueInSessionActionItem, action, ActionLocation.ChatWidget);
 				}
 				return undefined;
 			}
@@ -1675,7 +1683,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const isSuggestedEnabled = this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext');
 
 		if (this.implicitContext?.value && !isSuggestedEnabled) {
-			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels, this.attachmentModel));
+			const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, () => this._widget, this.implicitContext, this._contextResourceLabels, this.attachmentModel));
 			container.appendChild(implicitPart.domNode);
 		}
 
@@ -1749,7 +1757,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			const shouldShowImplicit = !isLocation(implicitValue) ? !currentlyAttached : implicitValue.range;
 			if (shouldShowImplicit) {
-				const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
+				const implicitPart = store.add(this.instantiationService.createInstance(ImplicitContextAttachmentWidget, () => this._widget, this.implicitContext, this._contextResourceLabels, this._attachmentModel));
 				container.appendChild(implicitPart.domNode);
 			}
 		}

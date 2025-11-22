@@ -30,7 +30,7 @@ import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
-import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
@@ -305,7 +305,7 @@ async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item:
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
-	const widget = chatWidgetService.lastFocusedWidget;
+	const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
 	const chatService = accessor.get(IChatService);
 	const chatModel = chatService.getSession(item.sessionResource);
 	if (!chatModel) {
@@ -403,7 +403,7 @@ registerAction2(class RemoveAction extends Action2 {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const configurationService = accessor.get(IConfigurationService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
@@ -451,7 +451,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
@@ -493,7 +493,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const chatService = accessor.get(IChatService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
@@ -552,7 +552,7 @@ registerAction2(class EditAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}

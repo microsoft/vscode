@@ -68,6 +68,7 @@ import { ACTION_ID_NEW_CHAT, CopilotTitleBarMenuRendering, ModeOpenChatGlobalAct
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
+import { ContinueChatInSessionActionRendering } from './actions/chatContinueInAction.js';
 import { registerChatCopyActions } from './actions/chatCopyActions.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { ChatSubmitAction, registerChatExecuteActions } from './actions/chatExecuteActions.js';
@@ -1065,7 +1066,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Ask]
-		}, async (prompt, progress) => {
+		}, async (prompt, progress, _history, _location, sessionResource) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const agents = chatAgentService.getAgents();
 
@@ -1085,11 +1086,11 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				.filter(a => a.locations.includes(ChatAgentLocation.Chat))
 				.map(async a => {
 					const description = a.description ? `- ${a.description}` : '';
-					const agentMarkdown = instantiationService.invokeFunction(accessor => agentToMarkdown(a, true, accessor));
+					const agentMarkdown = instantiationService.invokeFunction(accessor => agentToMarkdown(a, sessionResource, true, accessor));
 					const agentLine = `- ${agentMarkdown} ${description}`;
 					const commandText = a.slashCommands.map(c => {
 						const description = c.description ? `- ${c.description}` : '';
-						return `\t* ${agentSlashCommandToMarkdown(a, c)} ${description}`;
+						return `\t* ${agentSlashCommandToMarkdown(a, c, sessionResource)} ${description}`;
 					}).join('\n');
 
 					return (agentLine + '\n' + commandText).trim();
@@ -1123,6 +1124,7 @@ registerWorkbenchContribution2(ChatPromptFilesExtensionPointHandler.ID, ChatProm
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(CopilotTitleBarMenuRendering.ID, CopilotTitleBarMenuRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(CodeBlockActionRendering.ID, CodeBlockActionRendering, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ContinueChatInSessionActionRendering.ID, ContinueChatInSessionActionRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatImplicitContextContribution.ID, ChatImplicitContextContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatRelatedFilesContribution.ID, ChatRelatedFilesContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);

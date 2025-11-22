@@ -19,7 +19,7 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/chatEditor.js';
 import { ChatEditorInput } from '../../contrib/chat/browser/chatEditorInput.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
-import { IChatContentInlineReference, IChatProgress } from '../../contrib/chat/common/chatService.js';
+import { IChatContentInlineReference, IChatProgress, IChatService } from '../../contrib/chat/common/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
@@ -329,6 +329,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IChatService private readonly _chatService: IChatService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -428,12 +429,21 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		try {
 			// Get all results as an array from the RPC call
 			const sessions = await this._proxy.$provideChatSessionItems(handle, token);
-			return sessions.map(session => ({
-				...session,
-				resource: URI.revive(session.resource),
-				iconPath: session.iconPath,
-				tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined
-			}));
+			return sessions.map(session => {
+				const uri = URI.revive(session.resource);
+				const model = this._chatService.getSession(uri);
+				let description: string | undefined;
+				if (model) {
+					description = this._chatSessionsService.getSessionDescription(model);
+				}
+				return {
+					...session,
+					resource: uri,
+					iconPath: session.iconPath,
+					tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined,
+					description: description || session.description || localize('chat.sessions.description.finished', "Finished")
+				};
+			});
 		} catch (error) {
 			this._logService.error('Error providing chat sessions:', error);
 		}
