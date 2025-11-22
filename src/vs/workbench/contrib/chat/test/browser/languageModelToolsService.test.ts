@@ -2220,6 +2220,284 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(resultB.content[0].value, 'toolB executed');
 	});
 
+	test('eligibleForAutoApproval with legacy tool reference names - eligible', async () => {
+		// Test backwards compatibility: configuring a legacy name as eligible should work
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'oldToolName': true  // Using legacy name
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool has been renamed but has legacy name
+		const renamedTool = registerToolForTest(testService, store, 'renamedTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'tool executed via legacy name' }] })
+		}, {
+			toolReferenceName: 'newToolName',
+			legacyToolReferenceFullNames: ['oldToolName']
+		});
+
+		const sessionId = 'test-legacy-eligible';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Tool should be eligible even though we configured the legacy name
+		const result = await testService.invokeTool(
+			renamedTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'tool executed via legacy name');
+	});
+
+	test('eligibleForAutoApproval with legacy tool reference names - ineligible', async () => {
+		// Test backwards compatibility: configuring a legacy name as ineligible should work
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'deprecatedToolName': false  // Using legacy name
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool has been renamed but has legacy name
+		const renamedTool = registerToolForTest(testService, store, 'renamedTool2', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'tool requires confirmation' }] })
+		}, {
+			toolReferenceName: 'modernToolName',
+			legacyToolReferenceFullNames: ['deprecatedToolName']
+		});
+
+		const sessionId = 'test-legacy-ineligible';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1', capture });
+
+		// Tool should be ineligible and require confirmation
+		const promise = testService.invokeTool(
+			renamedTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'tool should require confirmation when legacy name is ineligible');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await promise;
+		assert.strictEqual(result.content[0].value, 'tool requires confirmation');
+	});
+
+	test('eligibleForAutoApproval with multiple legacy names', async () => {
+		// Test that any of the legacy names can be used in the configuration
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'secondLegacyName': true  // Using the second legacy name
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool has multiple legacy names
+		const multiLegacyTool = registerToolForTest(testService, store, 'multiLegacyTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'multi legacy executed' }] })
+		}, {
+			toolReferenceName: 'currentToolName',
+			legacyToolReferenceFullNames: ['firstLegacyName', 'secondLegacyName', 'thirdLegacyName']
+		});
+
+		const sessionId = 'test-multi-legacy';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Tool should be eligible via second legacy name
+		const result = await testService.invokeTool(
+			multiLegacyTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result.content[0].value, 'multi legacy executed');
+	});
+
+	test('eligibleForAutoApproval current name takes precedence over legacy names', async () => {
+		// Test forward compatibility: current name in config should take precedence
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'currentName': false,      // Current name says ineligible
+			'oldName': true           // Legacy name says eligible
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		const tool = registerToolForTest(testService, store, 'precedenceTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'precedence test' }] })
+		}, {
+			toolReferenceName: 'currentName',
+			legacyToolReferenceFullNames: ['oldName']
+		});
+
+		const sessionId = 'test-precedence';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1', capture });
+
+		// Current name should take precedence, so tool should be ineligible
+		const promise = testService.invokeTool(
+			tool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'current name should take precedence over legacy name');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await promise;
+		assert.strictEqual(result.content[0].value, 'precedence test');
+	});
+
+	test('eligibleForAutoApproval with legacy qualified names from toolsets', async () => {
+		// Test legacy names that include toolset prefixes (e.g., 'oldToolSet/oldToolName')
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'oldToolSet/oldToolName': false  // Legacy qualified name from old toolset
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Tool was in an old toolset but now standalone
+		const migratedTool = registerToolForTest(testService, store, 'migratedTool', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'migrated tool' }] })
+		}, {
+			toolReferenceName: 'standaloneToolName',
+			legacyToolReferenceFullNames: ['oldToolSet/oldToolName']
+		});
+
+		const sessionId = 'test-qualified-legacy';
+		const capture: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId, { requestId: 'req1', capture });
+
+		// Tool should be ineligible based on legacy qualified name
+		const promise = testService.invokeTool(
+			migratedTool.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published = await waitForPublishedInvocation(capture);
+		assert.ok(published?.confirmationMessages, 'tool should be ineligible via legacy qualified name');
+		assert.strictEqual(published?.confirmationMessages?.allowAutoConfirm, false, 'should not allow auto confirm');
+
+		IChatToolInvocation.confirmWith(published, { type: ToolConfirmKind.UserAction });
+		const result = await promise;
+		assert.strictEqual(result.content[0].value, 'migrated tool');
+	});
+
+	test('eligibleForAutoApproval mixed current and legacy names', async () => {
+		// Test realistic migration scenario with mixed current and legacy names
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration('chat.tools.eligibleForAutoApproval', {
+			'modernTool': true,           // Current name
+			'legacyToolOld': false,      // Legacy name
+			'unchangedTool': true        // Tool that never changed
+		});
+
+		const instaService = workbenchInstantiationService({
+			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
+			configurationService: () => testConfigService
+		}, store);
+		instaService.stub(IChatService, chatService);
+		instaService.stub(ILanguageModelToolsConfirmationService, new MockLanguageModelToolsConfirmationService());
+		const testService = store.add(instaService.createInstance(LanguageModelToolsService));
+
+		// Modern tool with current name
+		const tool1 = registerToolForTest(testService, store, 'tool1', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'modern executed' }] })
+		}, {
+			toolReferenceName: 'modernTool'
+		});
+
+		// Renamed tool with legacy name
+		const tool2 = registerToolForTest(testService, store, 'tool2', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'legacy needs confirmation' }] })
+		}, {
+			toolReferenceName: 'legacyToolNew',
+			legacyToolReferenceFullNames: ['legacyToolOld']
+		});
+
+		// Unchanged tool
+		const tool3 = registerToolForTest(testService, store, 'tool3', {
+			prepareToolInvocation: async () => ({}),
+			invoke: async () => ({ content: [{ kind: 'text', value: 'unchanged executed' }] })
+		}, {
+			toolReferenceName: 'unchangedTool'
+		});
+
+		const sessionId = 'test-mixed';
+		stubGetSession(chatService, sessionId, { requestId: 'req1' });
+
+		// Tool 1 should be eligible (current name)
+		const result1 = await testService.invokeTool(
+			tool1.makeDto({ test: 1 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result1.content[0].value, 'modern executed');
+
+		// Tool 2 should be ineligible (legacy name)
+		const capture2: { invocation?: any } = {};
+		stubGetSession(chatService, sessionId + '2', { requestId: 'req2', capture: capture2 });
+		const promise2 = testService.invokeTool(
+			tool2.makeDto({ test: 2 }, { sessionId: sessionId + '2' }),
+			async () => 0,
+			CancellationToken.None
+		);
+		const published2 = await waitForPublishedInvocation(capture2);
+		assert.ok(published2?.confirmationMessages, 'tool2 should require confirmation via legacy name');
+
+		IChatToolInvocation.confirmWith(published2, { type: ToolConfirmKind.UserAction });
+		const result2 = await promise2;
+		assert.strictEqual(result2.content[0].value, 'legacy needs confirmation');
+
+		// Tool 3 should be eligible (unchanged)
+		const result3 = await testService.invokeTool(
+			tool3.makeDto({ test: 3 }, { sessionId }),
+			async () => 0,
+			CancellationToken.None
+		);
+		assert.strictEqual(result3.content[0].value, 'unchanged executed');
+	});
+
 
 
 });
