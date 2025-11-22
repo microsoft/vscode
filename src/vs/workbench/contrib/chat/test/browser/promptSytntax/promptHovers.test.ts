@@ -277,6 +277,18 @@ suite('PromptHoverProvider', () => {
 			const hover = await getHover(content, 2, 1, PromptsType.agent);
 			assert.strictEqual(hover, 'The name of the agent as shown in the UI.');
 		});
+
+		test('hover on infer attribute shows description', async () => {
+			const content = [
+				'---',
+				'name: "Test Agent"',
+				'description: "Test agent"',
+				'infer: true',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+			assert.strictEqual(hover, 'Whether the agent can be used as a subagent.');
+		});
 	});
 
 	suite('prompt hovers', () => {
