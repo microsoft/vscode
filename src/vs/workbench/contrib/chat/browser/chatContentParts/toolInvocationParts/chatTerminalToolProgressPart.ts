@@ -648,10 +648,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _terminalContainer: HTMLElement;
 	private readonly _emptyElement: HTMLElement;
 
-	private readonly _onDidFocusEmitter = new Emitter<void>();
-	public onDidFocus: Event<void> = this._onDidFocusEmitter.event;
-	private readonly _onDidBlurEmitter = new Emitter<FocusEvent>();
-	public onDidBlur: Event<FocusEvent> = this._onDidBlurEmitter.event;
+	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
+	public get onDidFocus() { return this._onDidFocusEmitter.event; }
+	private readonly _onDidBlurEmitter = this._register(new Emitter<FocusEvent>());
+	public get onDidBlur() { return this._onDidBlurEmitter.event; }
 
 	constructor(
 		private readonly _onDidChangeHeight: () => void,
