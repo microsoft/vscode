@@ -15,7 +15,6 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ChatViewId } from '../chat.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 abstract class ConfigAgentActionImpl extends Action2 {
 	public override async run(accessor: ServicesAccessor): Promise<void> {
@@ -35,89 +34,57 @@ abstract class ConfigAgentActionImpl extends Action2 {
 
 const PICKER_CONFIGURE_AGENTS_ACTION_ID = 'workbench.action.chat.picker.customagents';
 
-class PickerConfigAgentAction extends ConfigAgentActionImpl {
-	constructor() {
-		super({
-			id: PICKER_CONFIGURE_AGENTS_ACTION_ID,
-			title: localize2('select-agent', "Configure Custom Agents..."),
-			category: CHAT_CATEGORY,
-			f1: false,
-			precondition: ChatContextKeys.Modes.agentModeDisabledByPolicy.negate(),
-			menu: {
-				id: MenuId.ChatModePicker,
-				when: ChatContextKeys.Modes.agentModeDisabledByPolicy.negate(),
-			}
-		});
-	}
+function createPickerConfigureAgentsActionConfig(disabled: boolean) {
+	const config = {
+		id: disabled ? PICKER_CONFIGURE_AGENTS_ACTION_ID + '.disabled' : PICKER_CONFIGURE_AGENTS_ACTION_ID,
+		title: localize2('select-agent', "Configure Custom Agents..."),
+		tooltip: disabled ? localize('managedByOrganization', "Managed by your organization") : undefined,
+		icon: disabled ? Codicon.lock : undefined,
+		category: CHAT_CATEGORY,
+		f1: false,
+		precondition: disabled ? ContextKeyExpr.false() : ChatContextKeys.Modes.agentModeDisabledByPolicy.negate(),
+		menu: {
+			id: MenuId.ChatModePicker,
+			when: disabled ? ChatContextKeys.Modes.agentModeDisabledByPolicy : ChatContextKeys.Modes.agentModeDisabledByPolicy.negate(),
+		},
+	};
+	return config;
 }
 
-class PickerConfigAgentActionDisabled extends ConfigAgentActionImpl {
-	constructor() {
-		super({
-			id: PICKER_CONFIGURE_AGENTS_ACTION_ID + '.disabled',
-			title: localize2('select-agent', "Configure Custom Agents..."),
-			tooltip: localize('managedByOrganization', "Managed by your organization"),
-			icon: ThemeIcon.fromId(Codicon.lock.id),
-			category: CHAT_CATEGORY,
-			f1: false,
-			precondition: ContextKeyExpr.false(),
-			menu: {
-				id: MenuId.ChatModePicker,
-				when: ChatContextKeys.Modes.agentModeDisabledByPolicy,
-			}
-		});
-	}
-}
+class PickerConfigAgentAction extends ConfigAgentActionImpl { constructor() { super(createPickerConfigureAgentsActionConfig(false)); } }
+class PickerConfigAgentActionDisabled extends ConfigAgentActionImpl { constructor() { super(createPickerConfigureAgentsActionConfig(true)); } }
 
 /**
  * Action ID for the `Configure Custom Agents` action.
  */
 const CONFIGURE_AGENTS_ACTION_ID = 'workbench.action.chat.configure.customagents';
 
-class ManageAgentsAction extends ConfigAgentActionImpl {
-	constructor() {
-		super({
-			id: CONFIGURE_AGENTS_ACTION_ID,
-			title: localize2('configure-agents', "Configure Custom Agents..."),
-			shortTitle: localize('configure-agents.short', "Custom Agents"),
-			icon: Codicon.bookmark,
-			f1: true,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Modes.agentModeDisabledByPolicy.negate()),
-			category: CHAT_CATEGORY,
-			menu: [
-				{
-					id: CHAT_CONFIG_MENU_ID,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ChatContextKeys.Modes.agentModeDisabledByPolicy.negate()),
-					order: 10,
-					group: '0_level'
-				}
-			]
-		});
-	}
+function createManageAgentsActionConfig(disabled: boolean) {
+	const base = {
+		id: disabled ? CONFIGURE_AGENTS_ACTION_ID + '.disabled' : CONFIGURE_AGENTS_ACTION_ID,
+		title: localize2('configure-agents', "Configure Custom Agents..."),
+		shortTitle: localize('configure-agents.short', "Custom Agents"),
+		icon: disabled ? Codicon.lock : Codicon.bookmark,
+		f1: !disabled,
+		precondition: disabled ? ContextKeyExpr.false() : ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Modes.agentModeDisabledByPolicy.negate()),
+		category: CHAT_CATEGORY,
+		menu: [
+			{
+				id: CHAT_CONFIG_MENU_ID,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
+					ContextKeyExpr.equals('view', ChatViewId),
+					disabled ? ChatContextKeys.Modes.agentModeDisabledByPolicy : ChatContextKeys.Modes.agentModeDisabledByPolicy.negate()
+				),
+				order: 10,
+				group: '0_level'
+			}
+		]
+	};
+	return disabled ? { ...base, tooltip: localize('managedByOrganization', "Managed by your organization") } : base;
 }
-
-class ManageAgentsActionDisabled extends ConfigAgentActionImpl {
-	constructor() {
-		super({
-			id: CONFIGURE_AGENTS_ACTION_ID + '.disabled',
-			title: localize2('configure-agents', "Configure Custom Agents..."),
-			shortTitle: localize('configure-agents.short', "Custom Agents"),
-			tooltip: localize('managedByOrganization', "Managed by your organization"),
-			icon: ThemeIcon.fromId(Codicon.lock.id),
-			f1: false,
-			precondition: ContextKeyExpr.false(),
-			category: CHAT_CATEGORY,
-			menu: [
-				{
-					id: CHAT_CONFIG_MENU_ID,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ChatContextKeys.Modes.agentModeDisabledByPolicy),
-					order: 10,
-					group: '0_level'
-				}
-			]
-		});
-	}
-}
+class ManageAgentsAction extends ConfigAgentActionImpl { constructor() { super(createManageAgentsActionConfig(false)); } }
+class ManageAgentsActionDisabled extends ConfigAgentActionImpl { constructor() { super(createManageAgentsActionConfig(true)); } }
 
 
 /**
