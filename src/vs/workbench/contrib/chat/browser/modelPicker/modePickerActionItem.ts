@@ -12,6 +12,7 @@ import { groupBy } from '../../../../../base/common/collections.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -32,6 +33,7 @@ import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../actions/chatExe
 
 export interface IModePickerDelegate {
 	readonly currentMode: IObservable<IChatMode>;
+	readonly sessionResource: () => URI | undefined;
 }
 
 export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
@@ -48,33 +50,39 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@ICommandService commandService: ICommandService,
 		@IProductService productService: IProductService
 	) {
-		const builtInCategory = { label: '', order: 0 };
-		const customCategory = { label: '', order: 1 };
+		// Category definitions (use empty labels if you want no visible group headers)
+		const builtInCategory = { label: localize('built-in', "Built-In"), order: 0 };
+		const customCategory = { label: localize('custom', "Custom"), order: 1 };
 		const policyDisabledCategory = { label: localize('managedByOrganization', "Managed by your organization"), order: 999 };
+
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
-			const isAgentModeDisabled =
+			const agentModeDisabledViaPolicy =
 				mode.kind === ChatModeKind.Agent &&
 				this.configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled).policyValue === false;
+
 			const tooltip = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 
 			return {
 				...action,
 				id: getOpenChatActionIdForMode(mode),
 				label: mode.label.get(),
-				icon: isAgentModeDisabled ? ThemeIcon.fromId(Codicon.lock.id) : undefined,
-				class: isAgentModeDisabled ? 'disabled-by-policy' : undefined,
-				enabled: !isAgentModeDisabled,
-				checked: !isAgentModeDisabled && currentMode.id === mode.id,
+				icon: agentModeDisabledViaPolicy ? ThemeIcon.fromId(Codicon.lock.id) : undefined,
+				class: agentModeDisabledViaPolicy ? 'disabled-by-policy' : undefined,
+				enabled: !agentModeDisabledViaPolicy,
+				checked: !agentModeDisabledViaPolicy && currentMode.id === mode.id,
 				tooltip,
 				run: async () => {
-					if (isAgentModeDisabled) {
-						return; // Do nothing if disabled
+					if (agentModeDisabledViaPolicy) {
+						return; // Block interaction if disabled by policy
 					}
-					const result = await commandService.executeCommand(ToggleAgentModeActionId, { modeId: mode.id } satisfies IToggleChatModeArgs);
+					const result = await commandService.executeCommand(
+						ToggleAgentModeActionId,
+						{ modeId: mode.id, sessionResource: this.delegate.sessionResource() } satisfies IToggleChatModeArgs
+					);
 					this.renderLabel(this.element!);
 					return result;
 				},
-				category: isAgentModeDisabled ? policyDisabledCategory : builtInCategory
+				category: agentModeDisabledViaPolicy ? policyDisabledCategory : builtInCategory
 			};
 		};
 

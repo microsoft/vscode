@@ -44,13 +44,14 @@ import { Event } from '../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions, getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatWidgetService } from '../chat.js';
 import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID, AgentSessionProviders } from './agentSessions.js';
 import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
+import { distinct } from '../../../../../base/common/arrays.js';
 
 export class AgentSessionsView extends ViewPane {
 
@@ -158,18 +159,13 @@ export class AgentSessionsView extends ViewPane {
 		}
 
 		const provider = await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
-
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(getSessionItemContextOverlay(
-			session,
-			provider,
-			this.chatWidgetService,
-			this.chatService,
-			this.editorGroupsService
-		)));
+		const contextOverlay = getSessionItemContextOverlay(session, provider, this.chatWidgetService, this.chatService, this.editorGroupsService);
+		contextOverlay.push([ChatContextKeys.isCombinedSessionViewer.key, true]);
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(contextOverlay));
 
 		const marshalledSession: IMarshalledChatSessionContext = { session, $mid: MarshalledId.ChatSessionContext };
-		const { secondary } = getActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }), 'inline'); this.contextMenuService.showContextMenu({
-			getActions: () => secondary,
+		this.contextMenuService.showContextMenu({
+			getActions: () => distinct(getFlatActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true })), action => action.id),
 			getAnchor: () => anchor,
 			getActionsContext: () => marshalledSession,
 		});

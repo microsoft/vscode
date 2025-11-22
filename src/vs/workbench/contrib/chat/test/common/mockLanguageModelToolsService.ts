@@ -127,8 +127,4 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 	getDeprecatedQualifiedToolNames(): Map<string, Set<string>> {
 		throw new Error('Method not implemented.');
 	}
-
-	mapGithubToolName(githubToolName: string): string {
-		throw new Error('Method not implemented.');
-	}
 }

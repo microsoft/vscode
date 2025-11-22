@@ -51,7 +51,7 @@ jobs:
           sudo service xvfb start
 
       - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js linux x64 $(node -p process.arch) > .build/packagelockhash
+        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux x64 $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
         id: cache-node-modules
@@ -107,7 +107,7 @@ jobs:
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: |
           set -e
-          node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
           mkdir -p .build/node_modules_cache
           tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
 
@@ -115,7 +115,7 @@ jobs:
         run: mkdir -p .build
 
       - name: Prepare built-in extensions cache key
-        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
@@ -127,7 +127,7 @@ jobs:
 
       - name: Download built-in extensions
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
-        run: node build/lib/builtInExtensions.js
+        run: node build/lib/builtInExtensions.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

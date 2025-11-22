@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BasePolicy } from './basePolicy';
-import { CategoryDto, PolicyDto } from './policyDto';
-import { renderProfileString } from './render';
-import { Category, NlsString, PolicyType, LanguageTranslations } from './types';
+import { BasePolicy } from './basePolicy.ts';
+import type { CategoryDto, PolicyDto } from './policyDto.ts';
+import { renderProfileString } from './render.ts';
+import { type Category, type NlsString, PolicyType, type LanguageTranslations } from './types.ts';
 
 export class StringEnumPolicy extends BasePolicy {
 
@@ -38,16 +38,21 @@ export class StringEnumPolicy extends BasePolicy {
 		);
 	}
 
+	protected enum_: string[];
+	protected enumDescriptions: NlsString[];
+
 	private constructor(
 		name: string,
 		category: Category,
 		minimumVersion: string,
 		description: NlsString,
 		moduleName: string,
-		protected enum_: string[],
-		protected enumDescriptions: NlsString[],
+		enum_: string[],
+		enumDescriptions: NlsString[],
 	) {
 		super(PolicyType.StringEnum, name, category, minimumVersion, description, moduleName);
+		this.enum_ = enum_;
+		this.enumDescriptions = enumDescriptions;
 	}
 
 	protected renderADMXElements(): string[] {
