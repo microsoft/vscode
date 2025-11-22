@@ -165,12 +165,15 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 	supportsTerminalAttachments: true,
 };
 
+const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate.");
+
 export class ChatWidget extends Disposable implements IChatWidget {
+
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
+	static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
 
 	private readonly _onDidSubmitAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
-	public readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
+	readonly onDidSubmitAgent = this._onDidSubmitAgent.event;
 
 	private _onDidChangeAgent = this._register(new Emitter<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>());
 	readonly onDidChangeAgent = this._onDidChangeAgent.event;
@@ -205,16 +208,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _onDidChangeContentHeight = new Emitter<void>();
 	readonly onDidChangeContentHeight: Event<void> = this._onDidChangeContentHeight.event;
 
-	public contribs: ReadonlyArray<IChatWidgetContrib> = [];
+	contribs: ReadonlyArray<IChatWidgetContrib> = [];
 
 	private tree!: WorkbenchObjectTree<ChatTreeItem, FuzzyScore>;
 	private renderer!: ChatListItemRenderer;
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 	private lastItem: ChatTreeItem | undefined;
 
+	private readonly visibilityTimeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
+
 	private readonly inputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private readonly inlineInputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
-	private readonly timeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private inputContainer!: HTMLElement;
 	private focusedInputDOM!: HTMLElement;
 	private editorOptions!: ChatEditorOptions;
@@ -241,9 +245,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private currentRequest: Promise<void> | undefined;
 
 	private _visible = false;
-	public get visible() {
-		return this._visible;
-	}
+	get visible() { return this._visible; }
 
 	private previousTreeScrollHeight: number = 0;
 
@@ -336,10 +338,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	get supportsChangingModes(): boolean {
 		return !!this.viewOptions.supportsChangingModes;
-	}
-
-	get chatDisclaimer(): string {
-		return localize('chatDisclaimer', "AI responses may be inaccurate.");
 	}
 
 	get locationData() {
@@ -988,8 +986,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const message = providerMessage
 				? new MarkdownString(providerMessage)
 				: (this._lockedAgent?.prefix === '@copilot '
-					? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._lockedAgent.prefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
-					: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._lockedAgent?.prefix) + this.chatDisclaimer));
+					? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._lockedAgent.prefix, 'https://aka.ms/coding-agent-docs') + DISCLAIMER, { isTrusted: true })
+					: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._lockedAgent?.prefix) + DISCLAIMER));
 
 			return {
 				title: providerTitle ?? localize('codingAgentTitle', "Delegate to {0}", this._lockedAgent?.prefix),
@@ -1011,7 +1009,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		return {
 			title,
-			message: new MarkdownString(this.chatDisclaimer),
+			message: new MarkdownString(DISCLAIMER),
 			icon: Codicon.chatSparkle,
 			additionalMessage,
 			suggestedPrompts: this.getPromptFileSuggestions()
@@ -1313,7 +1311,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (visible) {
 			if (!wasVisible) {
-				this.timeoutDisposable.value = disposableTimeout(() => {
+				this.visibilityTimeoutDisposable.value = disposableTimeout(() => {
 					// Progressive rendering paused while hidden, so start it up again.
 					// Do it after a timeout because the container is not visible yet (it should be but offsetHeight returns 0 here)
 					if (this._visible) {
@@ -2002,7 +2000,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	// Coding agent locking methods
-	public lockToCodingAgent(name: string, displayName: string, agentId: string): void {
+	lockToCodingAgent(name: string, displayName: string, agentId: string): void {
 		this._lockedAgent = {
 			id: agentId,
 			name,
@@ -2018,7 +2016,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.rerender();
 	}
 
-	public unlockFromCodingAgent(): void {
+	unlockFromCodingAgent(): void {
 		// Clear all state related to locking
 		this._lockedAgent = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
@@ -2036,11 +2034,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.rerender();
 	}
 
-	public get isLockedToCodingAgent(): boolean {
+	get isLockedToCodingAgent(): boolean {
 		return !!this._lockedAgent;
 	}
 
-	public get lockedAgentId(): string | undefined {
+	get lockedAgentId(): string | undefined {
 		return this._lockedAgent?.id;
 	}
 
