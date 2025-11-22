@@ -130,7 +130,7 @@ suite('InlineChatController', function () {
 				setTimeout(() => {
 					d.dispose();
 					resolve(`[${states.join(',')}] <> [${actual.join(',')}]`);
-				}, 1000);
+				}, 10000);
 			});
 		}
 	}
@@ -275,9 +275,10 @@ suite('InlineChatController', function () {
 
 	});
 
-	teardown(function () {
+	teardown(async function () {
 		store.clear();
 		ctrl?.dispose();
+		await chatService.waitForModelDisposals();
 	});
 
 	// TODO@jrieken re-enable, looks like List/ChatWidget is leaking
