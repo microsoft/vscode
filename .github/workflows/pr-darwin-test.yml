@@ -34,7 +34,10 @@ jobs:
       - name: Create .build folder (debug)
         run: mkdir -p .build
 
-      - name: Prepare node_modules cache key (debug)
+      - name: Print node_modules cache key (debug)
+        run: node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch)
+
+      - name: Write node_modules cache key to file (debug)
         run: node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
 
       - name: Print contents of .build/packagelockhash (debug)
