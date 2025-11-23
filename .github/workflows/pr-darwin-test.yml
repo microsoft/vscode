@@ -31,11 +31,17 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      - name: Prepare node_modules cache key (debug)
-        run: node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch)
+      - name: Create .build folder (debug)
+        run: mkdir -p .build
 
-      - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+      - name: Prepare node_modules cache key (debug)
+        run: node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+
+      - name: Print contents of .build/packagelockhash (debug)
+        run: cat .build/packagelockhash
+
+      # - name: Prepare node_modules cache key
+      #   run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
         id: cache-node-modules
