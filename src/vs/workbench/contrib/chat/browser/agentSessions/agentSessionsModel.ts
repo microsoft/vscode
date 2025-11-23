@@ -30,16 +30,9 @@ export interface IAgentSessionsModel {
 	readonly sessions: IAgentSession[];
 
 	resolve(provider: string | string[] | undefined): Promise<void>;
-
-	//#region States
-
-	isArchived(sessionResource: URI): boolean;
-	setArchived(sessionResource: URI, archived: boolean): void;
-
-	//#endregion
 }
 
-export interface IAgentSession {
+interface IAgentSessionData {
 
 	readonly providerType: string;
 	readonly providerLabel: string;
@@ -67,6 +60,11 @@ export interface IAgentSession {
 		readonly insertions: number;
 		readonly deletions: number;
 	};
+}
+
+export interface IAgentSession extends IAgentSessionData {
+	isArchived(): boolean;
+	setArchived(archived: boolean): void;
 }
 
 export function isLocalAgentSessionItem(session: IAgentSession): boolean {
@@ -122,7 +120,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		super();
 
 		this.cache = this.instantiationService.createInstance(AgentSessionsCache);
-		this._sessions = this.cache.loadCachedSessions();
+		this._sessions = this.cache.loadCachedSessions().map(data => this.toAgentSession(data));
 
 		this.resolve(undefined);
 
@@ -235,7 +233,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					});
 				}
 
-				sessions.set(session.resource, {
+				sessions.set(session.resource, this.toAgentSession({
 					providerType: provider.chatSessionType,
 					providerLabel,
 					resource: session.resource,
@@ -251,7 +249,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 						finishedOrFailedTime
 					},
 					statistics: session.statistics,
-				});
+				}));
 			}
 		}
 
@@ -273,15 +271,23 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		this._onDidChangeSessions.fire();
 	}
 
+	private toAgentSession(data: IAgentSessionData): IAgentSession {
+		return {
+			...data,
+			isArchived: () => this.isArchived(data.resource),
+			setArchived: (archived: boolean) => this.setArchived(data.resource, archived)
+		};
+	}
+
 	//#region States
 
 	private readonly mapArchivedSessions = new ResourceMap<boolean>();
 
-	isArchived(sessionResource: URI): boolean {
+	private isArchived(sessionResource: URI): boolean {
 		return this.mapArchivedSessions.get(sessionResource) ?? false;
 	}
 
-	setArchived(sessionResource: URI, archived: boolean): void {
+	private setArchived(sessionResource: URI, archived: boolean): void {
 		this.mapArchivedSessions.set(sessionResource, archived);
 		this._onDidChangeSessions.fire();
 	}
@@ -323,9 +329,11 @@ class AgentSessionsCache {
 
 	private static readonly STORAGE_KEY = 'agentSessions.cache';
 
-	constructor(@IStorageService private readonly storageService: IStorageService) { }
+	constructor(
+		@IStorageService private readonly storageService: IStorageService
+	) { }
 
-	saveCachedSessions(sessions: IAgentSession[]): void {
+	saveCachedSessions(sessions: IAgentSessionData[]): void {
 		const serialized: ISerializedAgentSession[] = sessions
 			.filter(session =>
 				// Only consider providers that we own where we know that
@@ -358,7 +366,7 @@ class AgentSessionsCache {
 		this.storageService.store(AgentSessionsCache.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	loadCachedSessions(): IAgentSession[] {
+	loadCachedSessions(): IAgentSessionData[] {
 		const sessionsCache = this.storageService.get(AgentSessionsCache.STORAGE_KEY, StorageScope.WORKSPACE);
 		if (!sessionsCache) {
 			return [];
@@ -391,9 +399,5 @@ class AgentSessionsCache {
 		}
 	}
 }
-
-//#endregion
-
-//#region Agent Sessions States Cache
 
 //#endregion

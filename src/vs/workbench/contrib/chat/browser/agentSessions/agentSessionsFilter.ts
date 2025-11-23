@@ -12,7 +12,6 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ChatSessionStatus, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from './agentSessions.js';
 import { IAgentSession } from './agentSessionsModel.js';
-import { IAgentSessionsService } from './agentSessionsService.js';
 
 export interface IAgentSessionsFilterOptions {
 	readonly filterMenuId: MenuId;
@@ -45,7 +44,6 @@ export class AgentSessionsFilter extends Disposable {
 		private readonly options: IAgentSessionsFilterOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
@@ -219,7 +217,7 @@ export class AgentSessionsFilter extends Disposable {
 	}
 
 	exclude(session: IAgentSession): boolean {
-		if (this.excludes.archived && this.agentSessionsService.model.isArchived(session.resource)) {
+		if (this.excludes.archived && session.isArchived()) {
 			return true;
 		}
 

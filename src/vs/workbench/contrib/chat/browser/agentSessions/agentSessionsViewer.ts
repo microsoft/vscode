@@ -37,6 +37,11 @@ import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { AgentSessionDiffActionViewItem, AgentSessionShowDiffAction } from './agentSessionsActions.js';
+import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -46,12 +51,14 @@ interface IAgentSessionItemTemplate {
 
 	// Column 2 Row 1
 	readonly title: IconLabel;
+	readonly titleToolbar: MenuWorkbenchToolBar;
 
 	// Column 2 Row 2
-	readonly toolbar: ActionBar;
+	readonly detailsToolbar: ActionBar;
 	readonly description: HTMLElement;
 	readonly status: HTMLElement;
 
+	readonly contextKeyService: IContextKeyService;
 	readonly elementDisposable: DisposableStore;
 	readonly disposables: IDisposable;
 }
@@ -69,6 +76,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IAgentSessionItemTemplate {
@@ -84,9 +92,10 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 				h('div.agent-session-main-col', [
 					h('div.agent-session-title-row', [
 						h('div.agent-session-title@title'),
+						h('div.agent-session-title-toolbar@titleToolbar'),
 					]),
 					h('div.agent-session-details-row', [
-						h('div.agent-session-toolbar@toolbar'),
+						h('div.agent-session-details-toolbar@detailsToolbar'),
 						h('div.agent-session-description@description'),
 						h('div.agent-session-status@status')
 					])
@@ -94,9 +103,13 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			]
 		);
 
-		container.appendChild(elements.item);
+		const contextKeyService = disposables.add(this.contextKeyService.createScoped(elements.item));
+		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+		const titleToolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, elements.titleToolbar, MenuId.AgentSessionItemToolbar, {
+			menuOptions: { shouldForwardArgs: true },
+		}));
 
-		const toolbar = disposables.add(new ActionBar(elements.toolbar, {
+		const detailsToolbar = disposables.add(new ActionBar(elements.detailsToolbar, {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === AgentSessionShowDiffAction.ID) {
 					return this.instantiationService.createInstance(AgentSessionDiffActionViewItem, action, options);
@@ -106,13 +119,17 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			},
 		}));
 
+		container.appendChild(elements.item);
+
 		return {
 			element: elements.item,
 			icon: elements.icon,
 			title: disposables.add(new IconLabel(elements.title, { supportHighlights: true, supportIcons: true })),
-			toolbar,
+			titleToolbar,
+			detailsToolbar,
 			description: elements.description,
 			status: elements.status,
+			contextKeyService,
 			elementDisposable,
 			disposables
 		};
@@ -122,7 +139,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Clear old state
 		template.elementDisposable.clear();
-		template.toolbar.clear();
+		template.detailsToolbar.clear();
 		template.description.textContent = '';
 
 		// Icon
@@ -131,11 +148,15 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		// Title
 		template.title.setLabel(session.element.label, undefined, { matches: createMatches(session.filterData) });
 
-		// Diff if provided and finished
+		// Title Actions - Update context keys
+		ChatContextKeys.isArchivedItem.bindTo(template.contextKeyService).set(session.element.isArchived());
+		template.titleToolbar.context = session.element;
+
+		// Details Actions
 		const { statistics: diff } = session.element;
 		if (session.element.status !== ChatSessionStatus.InProgress && diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
 			const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
-			template.toolbar.push([diffAction], { icon: false, label: true });
+			template.detailsToolbar.push([diffAction], { icon: false, label: true });
 		}
 
 		// Description otherwise
@@ -338,6 +359,8 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
+	constructor() { }
+
 	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
 		const aInProgress = sessionA.status === ChatSessionStatus.InProgress;
 		const bInProgress = sessionB.status === ChatSessionStatus.InProgress;
@@ -347,6 +370,16 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 		}
 		if (!aInProgress && bInProgress) {
 			return 1; // a (finished) comes after b (in-progress)
+		}
+
+		const aArchived = sessionA.isArchived();
+		const bArchived = sessionB.isArchived();
+
+		if (!aArchived && bArchived) {
+			return -1; // a (non-archived) comes before b (archived)
+		}
+		if (aArchived && !bArchived) {
+			return 1; // a (archived) comes after b (non-archived)
 		}
 
 		// Both in-progress or finished: sort by end or start time (most recent first)

@@ -294,7 +294,7 @@ export class AgentSessionsView extends ViewPane {
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
-				sorter: new AgentSessionsSorter(),
+				sorter: this.instantiationService.createInstance(AgentSessionsSorter),
 				paddingBottom: AgentSessionsListDelegate.ITEM_HEIGHT,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}

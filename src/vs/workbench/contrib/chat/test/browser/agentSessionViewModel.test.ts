@@ -730,7 +730,9 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			label: 'Local',
 			description: 'test',
 			timing: { startTime: Date.now() },
-			status: ChatSessionStatus.Completed
+			status: ChatSessionStatus.Completed,
+			isArchived: () => false,
+			setArchived: archived => { }
 		};
 
 		const remoteSession: IAgentSession = {
@@ -741,7 +743,9 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			label: 'Remote',
 			description: 'test',
 			timing: { startTime: Date.now() },
-			status: ChatSessionStatus.Completed
+			status: ChatSessionStatus.Completed,
+			isArchived: () => false,
+			setArchived: archived => { }
 		};
 
 		assert.strictEqual(isLocalAgentSessionItem(localSession), true);
@@ -757,7 +761,9 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			label: 'Test',
 			description: 'test',
 			timing: { startTime: Date.now() },
-			status: ChatSessionStatus.Completed
+			status: ChatSessionStatus.Completed,
+			isArchived: () => false,
+			setArchived: archived => { }
 		};
 
 		// Test with a session object
@@ -777,7 +783,9 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			label: 'Test',
 			description: 'test',
 			timing: { startTime: Date.now() },
-			status: ChatSessionStatus.Completed
+			status: ChatSessionStatus.Completed,
+			isArchived: () => false,
+			setArchived: archived => { }
 		};
 
 		// Test with actual view model

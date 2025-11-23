@@ -11,7 +11,7 @@ import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/brow
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { EventHelper, h, hide, show } from '../../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
-import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
@@ -19,8 +19,51 @@ import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders } from './agentSessions.j
 import { AgentSessionsView } from './agentSessionsView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatService } from '../../common/chatService.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 
-//#region Diff Statistics Action
+//#region Item Title Actions
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSession.archive',
+			title: localize('archive', "Archive"),
+			icon: Codicon.archive,
+			menu: {
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.isArchivedItem.negate(),
+			}
+		});
+	}
+	run(accessor: ServicesAccessor, session: IAgentSession): void {
+		session.setArchived(true);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSession.unarchive',
+			title: localize('unarchive', "Unarchive"),
+			icon: Codicon.discard,
+			menu: {
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.isArchivedItem,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor, session: IAgentSession): void {
+		session.setArchived(false);
+	}
+});
+
+//#endregion
+
+//#region Item Detail Actions
 
 export class AgentSessionShowDiffAction extends Action {
 
