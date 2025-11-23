@@ -46,7 +46,7 @@ jobs:
       - name: Print outcome of hashFiles (debug)
         run: |
           echo "Computed hash:"
-          echo "${{ hashFiles('.build/packagelockhash') }}"
+          echo "${{ hashFiles('.build/packagelockhash*') }}"
 
       # - name: Prepare node_modules cache key
       #   run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
@@ -56,7 +56,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .build/node_modules_cache
-          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash*') }}"
 
       - name: Extract node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
