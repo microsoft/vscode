@@ -411,7 +411,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			: ref.value;
 		const range = ref.range ? { start: ref.range[0], endExclusive: ref.range[1] } : undefined;
 		const isFile = URI.isUri(value) || (value && typeof value === 'object' && 'uri' in value);
-		const isFolder = isFile && URI.isUri(value) && (value.fsPath.endsWith('/') || value.fsPath.endsWith('\\'));
+		const isFolder = isFile && URI.isUri(value) && value.path.endsWith('/');
 		return {
 			id: ref.id,
 			name: ref.id,
