@@ -31,6 +31,10 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Prepare node_modules cache key (debug)
+        shell: pwsh
+        run: node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 ${{ env.VSCODE_ARCH }} $(node -p process.arch)
+
       - name: Prepare node_modules cache key
         shell: pwsh
         run: |

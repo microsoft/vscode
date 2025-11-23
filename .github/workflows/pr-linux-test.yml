@@ -48,6 +48,9 @@ jobs:
           sudo update-rc.d xvfb defaults
           sudo service xvfb start
 
+      - name: Prepare node_modules cache key (debug)
+        run: node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch)
+
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
 
