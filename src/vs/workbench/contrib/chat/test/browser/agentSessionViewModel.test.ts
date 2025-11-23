@@ -10,8 +10,8 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AgentSessionsViewModel, IAgentSessionViewModel, isAgentSession, isAgentSessionsViewModel, isLocalAgentSessionItem } from '../../browser/agentSessions/agentSessionViewModel.js';
-import { AgentSessionsViewFilter } from '../../browser/agentSessions/agentSessionsViewFilter.js';
+import { AgentSessionsModel, IAgentSession, isAgentSession, isAgentSessionsModel, isLocalAgentSessionItem } from '../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionsFilter } from '../../browser/agentSessions/agentSessionsFilter.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
@@ -28,13 +28,12 @@ suite('AgentSessionsViewModel', () => {
 	const disposables = new DisposableStore();
 	let mockChatSessionsService: MockChatSessionsService;
 	let mockLifecycleService: TestLifecycleService;
-	let viewModel: AgentSessionsViewModel;
+	let viewModel: AgentSessionsModel;
 	let instantiationService: TestInstantiationService;
 
-	function createViewModel(): AgentSessionsViewModel {
+	function createViewModel(): AgentSessionsModel {
 		return disposables.add(instantiationService.createInstance(
-			AgentSessionsViewModel,
-			{ filterMenuId: MenuId.ViewTitle }
+			AgentSessionsModel,
 		));
 	}
 
@@ -723,7 +722,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('isLocalAgentSessionItem should identify local sessions', () => {
-		const localSession: IAgentSessionViewModel = {
+		const localSession: IAgentSession = {
 			providerType: localChatSessionType,
 			providerLabel: 'Local',
 			icon: Codicon.chatSparkle,
@@ -735,7 +734,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 			status: ChatSessionStatus.Completed
 		};
 
-		const remoteSession: IAgentSessionViewModel = {
+		const remoteSession: IAgentSession = {
 			providerType: 'remote',
 			providerLabel: 'Remote',
 			icon: Codicon.chatSparkle,
@@ -752,7 +751,7 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 	});
 
 	test('isAgentSession should identify session view models', () => {
-		const session: IAgentSessionViewModel = {
+		const session: IAgentSession = {
 			providerType: 'test',
 			providerLabel: 'Local',
 			icon: Codicon.chatSparkle,
@@ -768,12 +767,12 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 		assert.strictEqual(isAgentSession(session), true);
 
 		// Test with a sessions container - pass as session to see it returns false
-		const sessionOrContainer: IAgentSessionViewModel = session;
+		const sessionOrContainer: IAgentSession = session;
 		assert.strictEqual(isAgentSession(sessionOrContainer), true);
 	});
 
 	test('isAgentSessionsViewModel should identify sessions view models', () => {
-		const session: IAgentSessionViewModel = {
+		const session: IAgentSession = {
 			providerType: 'test',
 			providerLabel: 'Local',
 			icon: Codicon.chatSparkle,
@@ -791,13 +790,12 @@ suite('AgentSessionsViewModel - Helper Functions', () => {
 		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(ILifecycleService, lifecycleService);
 		const actualViewModel = disposables.add(instantiationService.createInstance(
-			AgentSessionsViewModel,
-			{ filterMenuId: MenuId.ViewTitle }
+			AgentSessionsModel,
 		));
-		assert.strictEqual(isAgentSessionsViewModel(actualViewModel), true);
+		assert.strictEqual(isAgentSessionsModel(actualViewModel), true);
 
 		// Test with session object
-		assert.strictEqual(isAgentSessionsViewModel(session), false);
+		assert.strictEqual(isAgentSessionsModel(session), false);
 	});
 });
 
@@ -821,7 +819,7 @@ suite('AgentSessionsViewFilter', () => {
 	test('should filter out sessions from excluded provider', () => {
 		const storageService = instantiationService.get(IStorageService);
 		const filter = disposables.add(instantiationService.createInstance(
-			AgentSessionsViewFilter,
+			AgentSessionsFilter,
 			{ filterMenuId: MenuId.ViewTitle }
 		));
 
@@ -837,7 +835,7 @@ suite('AgentSessionsViewFilter', () => {
 			provideChatSessionItems: async () => []
 		};
 
-		const session1: IAgentSessionViewModel = {
+		const session1: IAgentSession = {
 			providerType: provider1.chatSessionType,
 			providerLabel: 'Provider 1',
 			icon: Codicon.chatSparkle,
@@ -848,7 +846,7 @@ suite('AgentSessionsViewFilter', () => {
 			status: ChatSessionStatus.Completed
 		};
 
-		const session2: IAgentSessionViewModel = {
+		const session2: IAgentSession = {
 			providerType: provider2.chatSessionType,
 			providerLabel: 'Provider 2',
 			icon: Codicon.chatSparkle,
@@ -869,7 +867,7 @@ suite('AgentSessionsViewFilter', () => {
 			states: [],
 			archived: true
 		};
-		storageService.store('agentSessions.filterExcludes', JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 		// After excluding type-1, session1 should be filtered but not session2
 		assert.strictEqual(filter.exclude(session1), true);
@@ -879,7 +877,7 @@ suite('AgentSessionsViewFilter', () => {
 	test('should filter out archived sessions', () => {
 		const storageService = instantiationService.get(IStorageService);
 		const filter = disposables.add(instantiationService.createInstance(
-			AgentSessionsViewFilter,
+			AgentSessionsFilter,
 			{ filterMenuId: MenuId.ViewTitle }
 		));
 
@@ -889,7 +887,7 @@ suite('AgentSessionsViewFilter', () => {
 			provideChatSessionItems: async () => []
 		};
 
-		const archivedSession: IAgentSessionViewModel = {
+		const archivedSession: IAgentSession = {
 			providerType: provider.chatSessionType,
 			providerLabel: 'Test Provider',
 			icon: Codicon.chatSparkle,
@@ -900,7 +898,7 @@ suite('AgentSessionsViewFilter', () => {
 			status: ChatSessionStatus.Completed
 		};
 
-		const activeSession: IAgentSessionViewModel = {
+		const activeSession: IAgentSession = {
 			providerType: provider.chatSessionType,
 			providerLabel: 'Test Provider',
 			icon: Codicon.chatSparkle,
@@ -921,7 +919,7 @@ suite('AgentSessionsViewFilter', () => {
 			states: [],
 			archived: false
 		};
-		storageService.store('agentSessions.filterExcludes', JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 		// After including archived, both sessions should not be filtered
 		assert.strictEqual(filter.exclude(archivedSession), false);
@@ -931,7 +929,7 @@ suite('AgentSessionsViewFilter', () => {
 	test('should filter out sessions with excluded status', () => {
 		const storageService = instantiationService.get(IStorageService);
 		const filter = disposables.add(instantiationService.createInstance(
-			AgentSessionsViewFilter,
+			AgentSessionsFilter,
 			{ filterMenuId: MenuId.ViewTitle }
 		));
 
@@ -941,7 +939,7 @@ suite('AgentSessionsViewFilter', () => {
 			provideChatSessionItems: async () => []
 		};
 
-		const failedSession: IAgentSessionViewModel = {
+		const failedSession: IAgentSession = {
 			providerType: provider.chatSessionType,
 			providerLabel: 'Test Provider',
 			icon: Codicon.chatSparkle,
@@ -952,7 +950,7 @@ suite('AgentSessionsViewFilter', () => {
 			status: ChatSessionStatus.Failed
 		};
 
-		const completedSession: IAgentSessionViewModel = {
+		const completedSession: IAgentSession = {
 			providerType: provider.chatSessionType,
 			providerLabel: 'Test Provider',
 			icon: Codicon.chatSparkle,
@@ -963,7 +961,7 @@ suite('AgentSessionsViewFilter', () => {
 			status: ChatSessionStatus.Completed
 		};
 
-		const inProgressSession: IAgentSessionViewModel = {
+		const inProgressSession: IAgentSession = {
 			providerType: provider.chatSessionType,
 			providerLabel: 'Test Provider',
 			icon: Codicon.chatSparkle,
@@ -985,7 +983,7 @@ suite('AgentSessionsViewFilter', () => {
 			states: [ChatSessionStatus.Failed],
 			archived: false
 		};
-		storageService.store('agentSessions.filterExcludes', JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+		storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
 
 		// After excluding failed status, only failedSession should be filtered
 		assert.strictEqual(filter.exclude(failedSession), true);
