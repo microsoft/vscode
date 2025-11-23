@@ -31,6 +31,9 @@ jobs:
         with:
           node-version-file: .nvmrc
 
+      - name: Prepare node_modules cache key (debug)
+        run: node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch)
+
       - name: Prepare node_modules cache key
         run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
 
