@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, usePwsh } from 'zx';
-import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign';
-import { e } from '../common/publish';
+import { printBanner, spawnCodesignProcess, streamProcessOutputAndCheckResult } from '../common/codesign.ts';
+import { e } from '../common/publish.ts';
 
 async function main() {
 	usePwsh();

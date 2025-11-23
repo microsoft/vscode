@@ -64,7 +64,6 @@ export namespace ChatContextKeys {
 
 	export const remoteJobCreating = new RawContextKey<boolean>('chatRemoteJobCreating', false, { type: 'boolean', description: localize('chatRemoteJobCreating', "True when a remote coding agent job is being created.") });
 	export const hasRemoteCodingAgent = new RawContextKey<boolean>('hasRemoteCodingAgent', false, localize('hasRemoteCodingAgent', "Whether any remote coding agent is available"));
-	export const hasCloudButtonV2 = ContextKeyExpr.has('config.chat.useCloudButtonV2');
 	export const enableRemoteCodingAgentPromptFileOverlay = new RawContextKey<boolean>('enableRemoteCodingAgentPromptFileOverlay', false, localize('enableRemoteCodingAgentPromptFileOverlay', "Whether the remote coding agent prompt file overlay feature is enabled"));
 	/** Used by the extension to skip the quit confirmation when #new wants to open a new folder */
 	export const skipChatRequestInProgressMessage = new RawContextKey<boolean>('chatSkipRequestInProgressMessage', false, { type: 'boolean', description: localize('chatSkipRequestInProgressMessage', "True when the chat request in progress message should be skipped.") });
@@ -86,6 +85,7 @@ export namespace ChatContextKeys {
 
 	export const Modes = {
 		hasCustomChatModes: new RawContextKey<boolean>('chatHasCustomAgents', false, { type: 'boolean', description: localize('chatHasAgents', "True when the chat has custom agents available.") }),
+		agentModeDisabledByPolicy: new RawContextKey<boolean>('chatAgentModeDisabledByPolicy', false, { type: 'boolean', description: localize('chatAgentModeDisabledByPolicy', "True when agent mode is disabled by organization policy.") }),
 	};
 
 	export const panelLocation = new RawContextKey<ViewContainerLocation>('chatPanelLocation', undefined, { type: 'number', description: localize('chatPanelLocation', "The location of the chat panel.") });
@@ -94,6 +94,7 @@ export namespace ChatContextKeys {
 
 	export const sessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('chatSessionType', "The type of the current chat session item.") });
 	export const isArchivedItem = new RawContextKey<boolean>('chatIsArchivedItem', false, { type: 'boolean', description: localize('chatIsArchivedItem', "True when the chat session item is archived.") });
+	export const isCombinedSessionViewer = new RawContextKey<boolean>('chatIsCombinedSessionViewer', false, { type: 'boolean', description: localize('chatIsCombinedSessionViewer', "True when the chat session viewer uses the new combined style.") }); // TODO@bpasero eventually retire this context key
 	export const isActiveSession = new RawContextKey<boolean>('chatIsActiveSession', false, { type: 'boolean', description: localize('chatIsActiveSession', "True when the chat session is currently active (not deletable).") });
 	export const isKatexMathElement = new RawContextKey<boolean>('chatIsKatexMathElement', false, { type: 'boolean', description: localize('chatIsKatexMathElement', "True when focusing a KaTeX math element.") });
 }

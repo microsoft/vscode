@@ -9,14 +9,14 @@ import { timeout, type MaybePromise } from '../../../../../../../base/common/asy
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, type IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/browser/chatElicitationRequestPart.js';
 import { ChatModel } from '../../../../../chat/common/chatModel.js';
-import { IChatService } from '../../../../../chat/common/chatService.js';
+import { ElicitationState, IChatService } from '../../../../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/languageModelToolsService.js';
@@ -171,17 +171,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		if (confirmationPrompt?.detectedRequestForFreeFormInput) {
 			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
-			const focusedTerminal = await this._requestFreeFormTerminalInput(token, this._execution, confirmationPrompt);
-			if (focusedTerminal) {
-				await new Promise<void>(resolve => {
-					const disposable = this._execution.instance.onData(data => {
-						if (data === '\r' || data === '\n' || data === '\r\n') {
-							this._outputMonitorTelemetryCounters.inputToolFreeFormInputCount++;
-							disposable.dispose();
-							resolve();
-						}
-					});
-				});
+			const receivedTerminalInput = await this._requestFreeFormTerminalInput(token, this._execution, confirmationPrompt);
+			if (receivedTerminalInput) {
 				// Small delay to ensure input is processed
 				await timeout(200);
 				// Continue polling as we sent the input
@@ -316,8 +307,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				const recentlyIdle = consecutiveIdleEvents >= PollingConsts.MinIdleEvents;
 				const isActive = execution.isActive ? await execution.isActive() : undefined;
 				this._logService.trace(`OutputMonitor: waitForIdle check: waited=${waited}ms, recentlyIdle=${recentlyIdle}, isActive=${isActive}`);
-
-				if (recentlyIdle || isActive === false) {
+				if (recentlyIdle && isActive !== true) {
 					this._state = OutputMonitorState.Idle;
 					return this._state;
 				}
@@ -415,6 +405,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 			9. Output: "Password:"
 				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
+			10. Output: "press ctrl-c to detach, ctrl-d to kill"
+				Response: null
 
 			Alternatively, the prompt may request free form input, for example:
 			1. Output: "Enter your username:"
@@ -517,7 +509,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _requestFreeFormTerminalInput(token: CancellationToken, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<boolean> {
-		const { promise: userPrompt, part } = this._createElicitationPart<boolean>(
+		const focusTerminalSelection = Symbol('focusTerminalSelection');
+		const { promise: userPrompt, part } = this._createElicitationPart<boolean | typeof focusTerminalSelection>(
 			token,
 			execution.sessionId,
 			new MarkdownString(localize('poll.terminal.inputRequest', "The terminal is awaiting input.")),
@@ -525,34 +518,66 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			'',
 			localize('poll.terminal.enterInput', 'Focus terminal'),
 			undefined,
-			async () => {
+			() => {
 				this._showInstance(execution.instance.instanceId);
-				return true;
+				return focusTerminalSelection;
 			}
 		);
 
+		let inputDataDisposable: IDisposable = Disposable.None;
+		let instanceDisposedDisposable: IDisposable = Disposable.None;
 		const inputPromise = new Promise<boolean>(resolve => {
-			const inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
-				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
-					part.hide();
-					inputDataDisposable.dispose();
-					this._state = OutputMonitorState.PollingForIdle;
-					resolve(true);
+			let settled = false;
+			const settle = (value: boolean, state: OutputMonitorState) => {
+				if (settled) {
+					return;
 				}
+				settled = true;
+				part.hide();
+				inputDataDisposable.dispose();
+				instanceDisposedDisposable.dispose();
+				this._state = state;
+				resolve(value);
+			};
+			inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
+				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
+					this._outputMonitorTelemetryCounters.inputToolFreeFormInputCount++;
+					settle(true, OutputMonitorState.PollingForIdle);
+				}
+			}));
+			instanceDisposedDisposable = this._register(execution.instance.onDisposed(() => {
+				settle(false, OutputMonitorState.Cancelled);
 			}));
 		});
 
+		const disposeListeners = () => {
+			inputDataDisposable.dispose();
+			instanceDisposedDisposable.dispose();
+		};
+
 		const result = await Promise.race([userPrompt, inputPromise]);
+		if (result === focusTerminalSelection) {
+			execution.instance.focus(true);
+			return await inputPromise;
+		}
+		if (result === undefined) {
+			disposeListeners();
+			// Prompt was dismissed without providing input
+			return false;
+		}
+		disposeListeners();
 		return !!result;
 	}
 
-	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
+	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | boolean | undefined> {
 		let suggestedOptionValue = isString(suggestedOption) ? suggestedOption : suggestedOption.option;
 		if (suggestedOptionValue === 'any key') {
 			suggestedOptionValue = 'a';
 		}
-		let inputDataDisposable = Disposable.None;
-		const { promise: userPrompt, part } = this._createElicitationPart<string | undefined>(
+		const focusTerminalSelection = Symbol('focusTerminalSelection');
+		let inputDataDisposable: IDisposable = Disposable.None;
+		let instanceDisposedDisposable: IDisposable = Disposable.None;
+		const { promise: userPrompt, part } = this._createElicitationPart<string | boolean | typeof focusTerminalSelection | undefined>(
 			token,
 			execution.sessionId,
 			new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
@@ -571,28 +596,55 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				this._outputMonitorTelemetryCounters.inputToolManualChars += option?.length || 0;
 				return option;
 			},
-			async () => {
+			() => {
 				this._showInstance(execution.instance.instanceId);
-				this._state = OutputMonitorState.Cancelled;
 				this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
-				inputDataDisposable.dispose();
-				return undefined;
+				return focusTerminalSelection;
 			},
 			getMoreActions(suggestedOption, confirmationPrompt)
 		);
-		const inputPromise = new Promise<string | undefined>(resolve => {
-			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
+		const inputPromise = new Promise<boolean>(resolve => {
+			let settled = false;
+			const settle = (value: boolean, state: OutputMonitorState) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
 				part.hide();
 				inputDataDisposable.dispose();
-				this._state = OutputMonitorState.PollingForIdle;
-				resolve(undefined);
+				instanceDisposedDisposable.dispose();
+				this._state = state;
+				resolve(value);
+			};
+			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
+				settle(true, OutputMonitorState.PollingForIdle);
+			}));
+			instanceDisposedDisposable = this._register(execution.instance.onDisposed(() => {
+				settle(false, OutputMonitorState.Cancelled);
 			}));
 		});
 
+		const disposeListeners = () => {
+			inputDataDisposable.dispose();
+			instanceDisposedDisposable.dispose();
+		};
+
 		const optionToRun = await Promise.race([userPrompt, inputPromise]);
-		if (optionToRun) {
-			await execution.instance.sendText(optionToRun, true);
+		if (optionToRun === focusTerminalSelection) {
+			execution.instance.focus(true);
+			return await inputPromise;
 		}
+		if (optionToRun === true) {
+			disposeListeners();
+			return true;
+		}
+		if (typeof optionToRun === 'string' && optionToRun.length) {
+			execution.instance.focus(true);
+			disposeListeners();
+			await execution.instance.sendText(optionToRun, true);
+			return optionToRun;
+		}
+		disposeListeners();
 		return optionToRun;
 	}
 
@@ -639,7 +691,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				acceptLabel,
 				rejectLabel,
 				async (value: IAction | true) => {
-					thePart.state = 'accepted';
 					thePart.hide();
 					this._promptPart = undefined;
 					try {
@@ -648,9 +699,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					} catch {
 						resolve(undefined);
 					}
+
+					return ElicitationState.Accepted;
 				},
 				async () => {
-					thePart.state = 'rejected';
 					thePart.hide();
 					this._promptPart = undefined;
 					try {
@@ -659,6 +711,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					} catch {
 						resolve(undefined);
 					}
+
+					return ElicitationState.Rejected;
 				},
 				undefined, // source
 				moreActions,

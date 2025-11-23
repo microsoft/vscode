@@ -15,6 +15,7 @@
 		display: flex;
 		gap: 4px;
 		padding: 0 4px; /* to make space for hover effect */
+		font-variant-numeric: tabular-nums;
 	}
 
 	.agent-session-diff-files {

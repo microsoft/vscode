@@ -119,8 +119,13 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			console.warn(`The web worker extension host is started in a same-origin iframe!`);
 		}
 
-		const relativeExtensionHostIframeSrc = FileAccess.asBrowserUri(iframeModulePath);
-		return `${relativeExtensionHostIframeSrc.toString(true)}${suffix}`;
+		const relativeExtensionHostIframeSrc = this._webWorkerService.getWorkerUrl(new WebWorkerDescriptor({
+			esmModuleLocation: FileAccess.asBrowserUri(iframeModulePath),
+			esmModuleLocationBundler: new URL(`../worker/webWorkerExtensionHostIframe.html`, import.meta.url),
+			label: 'webWorkerExtensionHostIframe'
+		}));
+
+		return `${relativeExtensionHostIframeSrc}${suffix}`;
 	}
 
 	public async start(): Promise<IMessagePassingProtocol> {
@@ -349,5 +354,5 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 const extensionHostWorkerMainDescriptor = new WebWorkerDescriptor({
 	label: 'extensionHostWorkerMain',
 	esmModuleLocation: () => FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorkerMain.js'),
-	esmModuleLocationBundler: () => new URL('../../../api/worker/extensionHostWorkerMain.ts?worker', import.meta.url),
+	esmModuleLocationBundler: () => new URL('../../../api/worker/extensionHostWorkerMain.ts?workerModule', import.meta.url),
 });

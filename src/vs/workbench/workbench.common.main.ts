@@ -115,7 +115,6 @@ import './services/authentication/browser/authenticationMcpAccessService.js';
 import './services/authentication/browser/authenticationMcpService.js';
 import './services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
 import './services/authentication/browser/authenticationQueryService.js';
-import './services/accounts/common/defaultAccount.js';
 import '../platform/hover/browser/hoverService.js';
 import './services/assignment/common/assignmentService.js';
 import './services/outline/browser/outlineService.js';
@@ -183,6 +182,9 @@ registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, Instantia
 
 
 //#region --- workbench contributions
+
+// Default Account
+import './services/accounts/common/defaultAccount.js';
 
 // Telemetry
 import './contrib/telemetry/browser/telemetry.contribution.js';

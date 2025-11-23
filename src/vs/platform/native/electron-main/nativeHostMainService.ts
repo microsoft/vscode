@@ -353,13 +353,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			return;
 		}
 
-		let activeWindowAccentColor: string | boolean;
-		let inactiveWindowAccentColor: string | boolean;
+		let activeWindowAccentColor: string | boolean | null;
+		let inactiveWindowAccentColor: string | boolean | null;
 
 		if (color === 'default') {
-			// using '' allows us to restore the default accent color
-			activeWindowAccentColor = '';
-			inactiveWindowAccentColor = '';
+			activeWindowAccentColor = null;
+			inactiveWindowAccentColor = null;
 		} else if (color === 'off') {
 			activeWindowAccentColor = false;
 			inactiveWindowAccentColor = false;

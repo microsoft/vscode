@@ -7,7 +7,7 @@ import { localize, localize2 } from '../../../nls.js';
 import { MenuId, Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
 import { KeyMod, KeyCode } from '../../../base/common/keyCodes.js';
 import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from '../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IQuickInputService, ItemActivation } from '../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, ItemActivation, QuickInputHideReason } from '../../../platform/quickinput/common/quickInput.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
@@ -31,7 +31,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape],
 	handler: accessor => {
 		const quickInputService = accessor.get(IQuickInputService);
-		return quickInputService.cancel();
+		return quickInputService.cancel(QuickInputHideReason.Gesture);
 	}
 });
 

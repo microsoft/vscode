@@ -29,7 +29,7 @@ jobs:
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
-        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.js)" >> $GITHUB_OUTPUT
+        run: echo "value=$(node build/azure-pipelines/common/computeNodeModulesCacheKey.ts)" >> $GITHUB_OUTPUT
       - name: Cache node modules
         id: cacheNodeModules
         uses: actions/cache@v4
