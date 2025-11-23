@@ -34,12 +34,12 @@ jobs:
       - name: Prepare node_modules cache key
         run: |
           set -e
-          # Remove any broken symlinks that could cause hashFiles to fail
-          # Broken symlinks anywhere in the workspace can cause hashFiles to error
-          # The || true ensures this cleanup step doesn't fail the build if find encounters issues
-          find . -path ./node_modules -prune -o -type l ! -exec test -e {} \; -delete 2>/dev/null || true
+          # Fix permissions on .build directory to ensure hashFiles can access it
+          # This is needed on macOS where permission handling differs from Linux
           mkdir -p .build
+          chmod -R +r .build 2>/dev/null || true
           node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+          chmod +r .build/packagelockhash
           # Verify the file was created successfully
           if [ ! -s .build/packagelockhash ]; then
             echo "Error: .build/packagelockhash was not created or is empty" >&2
@@ -100,7 +100,9 @@ jobs:
       - name: Prepare built-in extensions cache key
         run: |
           set -e
+          chmod -R +r .build 2>/dev/null || true
           node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+          chmod +r .build/builtindepshash
           # Verify the file was created successfully
           if [ ! -s .build/builtindepshash ]; then
             echo "Error: .build/builtindepshash was not created or is empty" >&2
