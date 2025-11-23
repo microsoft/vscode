@@ -131,7 +131,7 @@ suite('ChatStreamStatsTracker', () => {
 		const data = tracker.update({ totalWordCount: 9 }) as IChatStreamStatsInternal | undefined;
 		assert.ok(data);
 		assert.strictEqual(data.bootstrapActive, true);
-		assert.strictEqual(data.totalTime, 250 + 500);
+		assert.strictEqual(data.totalTime, 250 + 250);
 	}));
 
 	test('uses larger interval cap for large updates', () => runWithFakedTimers<void>({ startTime: 0, useFakeTimers: true }, async () => {
