@@ -226,14 +226,14 @@ export class MarkerService implements IMarkerService {
 		});
 	}
 
-	private static _toMarker(owner: string, resource: URI, data: IMarkerData): IMarker | undefined {
+	private static _toMarker(owner: string, resource: URI, markerData: IMarkerData): IMarker | undefined {
 		let {
 			code, severity,
 			message, source,
 			startLineNumber, startColumn, endLineNumber, endColumn,
 			relatedInformation,
-			tags, origin
-		} = data;
+			tags, origin, data,
+		} = markerData;
 
 		if (!message) {
 			return undefined;
@@ -258,7 +258,8 @@ export class MarkerService implements IMarkerService {
 			endColumn,
 			relatedInformation,
 			tags,
-			origin
+			origin,
+			data,
 		};
 	}
 

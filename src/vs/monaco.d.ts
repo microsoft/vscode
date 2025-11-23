@@ -1469,6 +1469,7 @@ declare namespace monaco.editor {
 		relatedInformation?: IRelatedInformation[];
 		tags?: MarkerTag[];
 		origin?: string | undefined;
+		data?: any;
 	}
 
 	/**
@@ -1490,6 +1491,7 @@ declare namespace monaco.editor {
 		relatedInformation?: IRelatedInformation[];
 		tags?: MarkerTag[];
 		origin?: string | undefined;
+		data?: any;
 	}
 
 	/**
