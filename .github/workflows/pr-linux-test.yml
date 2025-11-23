@@ -62,11 +62,8 @@ jobs:
           echo "Computed hash:"
           echo "${{ hashFiles('.build/packagelockhash') }}"
 
-      - name: Prepare node_modules cache key (debug)
-        run: node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch)
-
-      - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+      # - name: Prepare node_modules cache key
+      #   run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
 
       - name: Restore node_modules cache
         id: cache-node-modules
