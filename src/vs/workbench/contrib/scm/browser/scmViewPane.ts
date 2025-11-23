@@ -2405,9 +2405,7 @@ export class SCMViewPane extends ViewPane {
 				},
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
 				twistieAdditionalCssClass: (e: unknown) => {
-					if (isSCMRepository(e)) {
-						return 'force-twistie';
-					} else if (isSCMActionButton(e) || isSCMInput(e)) {
+					if (isSCMActionButton(e) || isSCMInput(e)) {
 						return 'force-no-twistie';
 					}
 

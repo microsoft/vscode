@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -22,6 +24,7 @@ import { TestExtensionService, TestStorageService } from '../../../../test/commo
 import { ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatModel, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, normalizeSerializableChatData, Response } from '../../common/chatModel.js';
 import { ChatRequestTextPart } from '../../common/chatParserTypes.js';
+import { IChatToolInvocation } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 
 suite('ChatModel', () => {
@@ -248,5 +251,70 @@ suite('normalizeSerializableChatData', () => {
 		assert.ok(newData.creationDate > 0);
 		assert.ok(newData.lastMessageDate > 0);
 		assert.ok(newData.sessionId);
+	});
+});
+
+suite('ChatResponseModel', () => {
+	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let instantiationService: TestInstantiationService;
+
+	setup(async () => {
+		instantiationService = testDisposables.add(new TestInstantiationService());
+		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IExtensionService, new TestExtensionService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+	});
+
+	test('timestamp and confirmationAdjustedTimestamp', async () => {
+		const clock = sinon.useFakeTimers();
+		try {
+			const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const start = Date.now();
+
+			const text = 'hello';
+			const request = model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
+			const response = request.response!;
+
+			assert.strictEqual(response.timestamp, start);
+			assert.strictEqual(response.confirmationAdjustedTimestamp.get(), start);
+
+			// Advance time, no pending confirmation
+			clock.tick(1000);
+			assert.strictEqual(response.confirmationAdjustedTimestamp.get(), start);
+
+			// Add pending confirmation via tool invocation
+			const toolState = observableValue<any>('state', { type: 0 /* IChatToolInvocation.StateKind.WaitingForConfirmation */ });
+			const toolInvocation = {
+				kind: 'toolInvocation',
+				invocationMessage: 'calling tool',
+				state: toolState
+			} as Partial<IChatToolInvocation> as IChatToolInvocation;
+
+			model.acceptResponseProgress(request, toolInvocation);
+
+			// Advance time while pending
+			clock.tick(2000);
+			// Timestamp should still be start (it includes the wait time while waiting)
+			assert.strictEqual(response.confirmationAdjustedTimestamp.get(), start);
+
+			// Resolve confirmation
+			toolState.set({ type: 3 /* IChatToolInvocation.StateKind.Completed */ }, undefined);
+
+			// Now adjusted timestamp should reflect the wait time
+			// The wait time was 2000ms.
+			// confirmationAdjustedTimestamp = start + waitTime = start + 2000
+			assert.strictEqual(response.confirmationAdjustedTimestamp.get(), start + 2000);
+
+			// Advance time again
+			clock.tick(1000);
+			assert.strictEqual(response.confirmationAdjustedTimestamp.get(), start + 2000);
+
+		} finally {
+			clock.restore();
+		}
 	});
 });

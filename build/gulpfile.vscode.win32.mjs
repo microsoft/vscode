@@ -7,8 +7,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import assert from 'assert';
 import * as cp from 'child_process';
-import * as util from './lib/util.js';
-import * as task from './lib/task.js';
+import * as util from './lib/util.ts';
+import * as task from './lib/task.ts';
 import pkg from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
 import vfs from 'vinyl-fs';
@@ -16,13 +16,12 @@ import rcedit from 'rcedit';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const __dirname = import.meta.dirname;
-const repoPath = path.dirname(__dirname);
+const repoPath = path.dirname(import.meta.dirname);
 const buildPath = (/** @type {string} */ arch) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
 const setupDir = (/** @type {string} */ arch, /** @type {string} */ target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
-const issPath = path.join(__dirname, 'win32', 'code.iss');
+const issPath = path.join(import.meta.dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup'))), 'bin', 'ISCC.exe');
-const signWin32Path = path.join(repoPath, 'build', 'azure-pipelines', 'common', 'sign-win32');
+const signWin32Path = path.join(repoPath, 'build', 'azure-pipelines', 'common', 'sign-win32.ts');
 
 function packageInnoSetup(iss, options, cb) {
 	options = options || {};
@@ -83,19 +82,12 @@ function buildWin32Setup(arch, target) {
 		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
 		const quality = product.quality || 'dev';
-		let RawVersion = pkg.version.replace(/-\w+$/, '');
-
-		// InnoSetup doesn't support versions like `1.0.107.20251114039`, so we bring it back down to zero
-		if (quality === 'insider') {
-			RawVersion = RawVersion.replace(/(\d+)$/, '0');
-		}
-
 		const definitions = {
 			NameLong: product.nameLong,
 			NameShort: product.nameShort,
 			DirName: product.win32DirName,
 			Version: pkg.version,
-			RawVersion,
+			RawVersion: pkg.version.replace(/-\w+$/, ''),
 			NameVersion: product.win32NameVersion + (target === 'user' ? ' (User)' : ''),
 			ExeBasename: product.nameShort,
 			RegValueName: product.win32RegValueName,

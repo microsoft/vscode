@@ -389,16 +389,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 					break;
 				}
 				case NotebookCellsChangeType.OutputItem: {
-					const index = getCorrespondingOriginalCellIndex(event.index, this._cellsDiffInfo.get());
-					if (typeof index === 'number') {
-						const edit: ICellEditOperation = {
-							editType: CellEditType.OutputItems,
-							outputId: event.outputId,
-							append: event.append,
-							items: event.outputItems
-						};
-						this.originalModel.applyEdits([edit], true, undefined, () => undefined, undefined, false);
-					}
+					// outputs are shared between original and modified model, so the original model is already updated.
 					break;
 				}
 				case NotebookCellsChangeType.Move: {

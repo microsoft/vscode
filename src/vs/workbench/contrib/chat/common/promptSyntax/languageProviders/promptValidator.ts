@@ -16,7 +16,7 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, IStringValue, ParsedPromptFile, PROMPT_NAME_REGEXP, PromptHeaderAttributes, Target } from '../promptFileParser.js';
+import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, IStringValue, ParsedPromptFile, PromptHeaderAttributes, Target } from '../promptFileParser.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -99,8 +99,16 @@ export class PromptValidator {
 			for (const variable of body.variableReferences) {
 				if (!available.has(variable.name)) {
 					if (deprecatedNames.has(variable.name)) {
-						const currentName = deprecatedNames.get(variable.name);
-						report(toMarker(localize('promptValidator.deprecatedVariableReference', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", variable.name, currentName), variable.range, MarkerSeverity.Info));
+						const currentNames = deprecatedNames.get(variable.name);
+						if (currentNames && currentNames.size > 0) {
+							if (currentNames.size === 1) {
+								const newName = Array.from(currentNames)[0];
+								report(toMarker(localize('promptValidator.deprecatedVariableReference', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", variable.name, newName), variable.range, MarkerSeverity.Info));
+							} else {
+								const newNames = Array.from(currentNames).sort((a, b) => a.localeCompare(b)).join(', ');
+								report(toMarker(localize('promptValidator.deprecatedVariableReferenceMultipleNames', "Tool or toolset '{0}' has been renamed, use the following tools instead: {1}", variable.name, newNames), variable.range, MarkerSeverity.Info));
+							}
+						}
 					} else {
 						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Warning));
 					}
@@ -196,9 +204,6 @@ export class PromptValidator {
 		if (nameAttribute.value.value.trim().length === 0) {
 			report(toMarker(localize('promptValidator.nameShouldNotBeEmpty', "The 'name' attribute must not be empty."), nameAttribute.value.range, MarkerSeverity.Error));
 			return;
-		}
-		if (!PROMPT_NAME_REGEXP.test(nameAttribute.value.value)) {
-			report(toMarker(localize('promptValidator.nameInvalidCharacters', "The 'name' attribute can only consist of letters, digits, underscores, hyphens, and periods."), nameAttribute.value.range, MarkerSeverity.Error));
 		}
 	}
 
@@ -345,13 +350,18 @@ export class PromptValidator {
 				if (item.type !== 'string') {
 					report(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));
 				} else if (item.value) {
-					const toolName = target === undefined ? this.languageModelToolsService.mapGithubToolName(item.value) : item.value;
-					if (!available.has(toolName)) {
-						if (deprecatedNames.has(toolName)) {
-							const currentName = deprecatedNames.get(toolName);
-							report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", toolName, currentName), item.range, MarkerSeverity.Info));
+					if (!available.has(item.value)) {
+						const currentNames = deprecatedNames.get(item.value);
+						if (currentNames) {
+							if (currentNames?.size === 1) {
+								const newName = Array.from(currentNames)[0];
+								report(toMarker(localize('promptValidator.toolDeprecated', "Tool or toolset '{0}' has been renamed, use '{1}' instead.", item.value, newName), item.range, MarkerSeverity.Info));
+							} else {
+								const newNames = Array.from(currentNames).sort((a, b) => a.localeCompare(b)).join(', ');
+								report(toMarker(localize('promptValidator.toolDeprecatedMultipleNames', "Tool or toolset '{0}' has been renamed, use the following tools instead: {1}", item.value, newNames), item.range, MarkerSeverity.Info));
+							}
 						} else {
-							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", toolName), item.range, MarkerSeverity.Warning));
+							report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Warning));
 						}
 					}
 				}
@@ -437,8 +447,13 @@ export class PromptValidator {
 							report(toMarker(localize('promptValidator.handoffSendMustBeBoolean', "The 'send' property in a handoff must be a boolean."), prop.value.range, MarkerSeverity.Error));
 						}
 						break;
+					case 'showContinueOn':
+						if (prop.value.type !== 'boolean') {
+							report(toMarker(localize('promptValidator.handoffShowContinueOnMustBeBoolean', "The 'showContinueOn' property in a handoff must be a boolean."), prop.value.range, MarkerSeverity.Error));
+						}
+						break;
 					default:
-						report(toMarker(localize('promptValidator.unknownHandoffProperty', "Unknown property '{0}' in handoff object. Supported properties are 'label', 'agent', 'prompt' and optional 'send'.", prop.key.value), prop.value.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownHandoffProperty', "Unknown property '{0}' in handoff object. Supported properties are 'label', 'agent', 'prompt' and optional 'send', 'showContinueOn'.", prop.key.value), prop.value.range, MarkerSeverity.Warning));
 				}
 				required.delete(prop.key.value);
 			}

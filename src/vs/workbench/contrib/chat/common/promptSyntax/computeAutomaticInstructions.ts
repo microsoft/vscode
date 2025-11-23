@@ -242,13 +242,24 @@ export class ComputeAutomaticInstructions {
 		const searchNestedAgentMd = this._configurationService.getValue(PromptsConfig.USE_NESTED_AGENT_MD);
 		const agentsMdPromise = searchNestedAgentMd ? this._promptsService.findAgentMDsInWorkspace(token) : Promise.resolve([]);
 
-		const entries: string[] = [];
+		const toolName = 'read_file'; // workaround https://github.com/microsoft/vscode/issues/252167
+		const entries: string[] = [
+			'Here is a list of instruction files that contain rules for modifying or creating new code.',
+			'These files are important for ensuring that the code is modified or created correctly.',
+			'Please make sure to follow the rules specified in these files when working with the codebase.',
+			`If the file is not already available as attachment, use the \`${toolName}\` tool to acquire it.`,
+			'Make sure to acquire the instructions before making any changes to the code.',
+			'| File | Applies To | Description |',
+			'| ------- | --------- | ----------- |',
+		];
+		let hasContent = false;
 		for (const { uri } of instructionFiles) {
 			const parsedFile = await this._parseInstructionsFile(uri, token);
 			if (parsedFile) {
-				const applyTo = parsedFile.header?.applyTo ?? '**/*';
+				const applyTo = parsedFile.header?.applyTo ?? '';
 				const description = parsedFile.header?.description ?? '';
 				entries.push(`| '${getFilePath(uri)}' | ${applyTo} | ${description} |`);
+				hasContent = true;
 			}
 		}
 
@@ -258,24 +269,30 @@ export class ComputeAutomaticInstructions {
 				const folderName = this._labelService.getUriLabel(dirname(uri), { relative: true });
 				const description = folderName.trim().length === 0 ? localize('instruction.file.description.agentsmd.root', 'Instructions for the workspace') : localize('instruction.file.description.agentsmd.folder', 'Instructions for folder \'{0}\'', folderName);
 				entries.push(`| '${getFilePath(uri)}' |    | ${description} |`);
+				hasContent = true;
 			}
 		}
 
-
-		if (entries.length === 0) {
-			return entries;
+		if (!hasContent) {
+			entries.length = 0; // clear entries
+		} else {
+			entries.push('', ''); // add trailing newline
 		}
 
-		const toolName = 'read_file'; // workaround https://github.com/microsoft/vscode/issues/252167
-		return [
-			'Here is a list of instruction files that contain rules for modifying or creating new code.',
-			'These files are important for ensuring that the code is modified or created correctly.',
-			'Please make sure to follow the rules specified in these files when working with the codebase.',
-			`If the file is not already available as attachment, use the \`${toolName}\` tool to acquire it.`,
-			'Make sure to acquire the instructions before making any changes to the code.',
-			'| File | Applies To | Description |',
-			'| ------- | --------- | ----------- |',
-		].concat(entries);
+		const claudeSkills = await this._promptsService.findClaudeSkills(token);
+		if (claudeSkills && claudeSkills.length > 0) {
+			entries.push(
+				'Here is a list of skills that contain domain specific knowledge on a variety of topics.',
+				'Each skill comes with a description of the topic and a file path that contains the detailed instructions.',
+				'When a user asks you to perform a task that falls within the domain of a skill, use the \`${toolName}\` tool to acquire the full instructions from the file URI.',
+				'| Name | Description | File',
+				'| ------- | --------- | ----------- |',
+			);
+			for (const skill of claudeSkills) {
+				entries.push(`| ${skill.name} | ${skill.description} | '${getFilePath(skill.uri)}' |`);
+			}
+		}
+		return entries;
 	}
 
 	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {

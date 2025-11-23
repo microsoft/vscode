@@ -214,5 +214,4 @@
 	"azureMcp.serverMode": "all",
 	"azureMcp.readOnly": true,
 	"chat.tools.terminal.outputLocation": "none",
-	"chat.agentSessionsViewLocation": "single-view"
 }
