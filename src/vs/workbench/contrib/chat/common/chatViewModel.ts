@@ -22,8 +22,6 @@ import { countWords } from './chatWordCounter.js';
 import { CodeBlockModelCollection } from './codeBlockModelCollection.js';
 import { ChatStreamStatsTracker, IChatStreamStats } from './model/chatStreamStats.js';
 
-export { IChatStreamStats } from './model/chatStreamStats.js';
-
 export function isRequestVM(item: unknown): item is IChatRequestViewModel {
 	return !!item && typeof item === 'object' && 'message' in item;
 }
