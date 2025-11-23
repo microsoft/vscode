@@ -40,7 +40,7 @@ const MIN_UPDATES_FOR_STABLE_RATE = 2;
  * When the first text is received, we don't know how long it actually took to generate. So we apply an assumed
  * minimum time, until we have received enough data to make a stable estimate. This is the "bootstrap" phase.
  *
- * Since we don't have visiblity into when the model started generated tool call args, or when the client was running
+ * Since we don't have visibility into when the model started generated tool call args, or when the client was running
  * a tool, we ignore long pauses. The ignore period is longer for large chunks, since those naturally take longer
  * to generate anyway.
  *
