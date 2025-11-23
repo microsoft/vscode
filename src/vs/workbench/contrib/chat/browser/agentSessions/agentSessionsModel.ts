@@ -30,6 +30,13 @@ export interface IAgentSessionsModel {
 	readonly sessions: IAgentSession[];
 
 	resolve(provider: string | string[] | undefined): Promise<void>;
+
+	//#region States
+
+	isArchived(sessionResource: URI): boolean;
+	setArchived(sessionResource: URI, archived: boolean): void;
+
+	//#endregion
 }
 
 export interface IAgentSession {
@@ -40,7 +47,6 @@ export interface IAgentSession {
 	readonly resource: URI;
 
 	readonly status: ChatSessionStatus;
-	readonly archived: boolean;
 
 	readonly tooltip?: string | IMarkdownString;
 
@@ -238,7 +244,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					icon,
 					tooltip: session.tooltip,
 					status,
-					archived: session.archived ?? false,
 					timing: {
 						startTime: session.timing.startTime,
 						endTime: session.timing.endTime,
@@ -267,6 +272,21 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 		this._onDidChangeSessions.fire();
 	}
+
+	//#region States
+
+	private readonly mapArchivedSessions = new ResourceMap<boolean>();
+
+	isArchived(sessionResource: URI): boolean {
+		return this.mapArchivedSessions.get(sessionResource) ?? false;
+	}
+
+	setArchived(sessionResource: URI, archived: boolean): void {
+		this.mapArchivedSessions.set(sessionResource, archived);
+		this._onDidChangeSessions.fire();
+	}
+
+	//#endregion
 }
 
 //#region Sessions Cache
@@ -286,7 +306,6 @@ interface ISerializedAgentSession {
 	readonly tooltip?: string | IMarkdownString;
 
 	readonly status: ChatSessionStatus;
-	readonly archived: boolean;
 
 	readonly timing: {
 		readonly startTime: number;
@@ -328,7 +347,6 @@ class AgentSessionsCache {
 				tooltip: session.tooltip,
 
 				status: session.status,
-				archived: session.archived,
 
 				timing: {
 					startTime: session.timing.startTime,
@@ -360,7 +378,6 @@ class AgentSessionsCache {
 				tooltip: session.tooltip,
 
 				status: session.status,
-				archived: session.archived,
 
 				timing: {
 					startTime: session.timing.startTime,
@@ -374,5 +391,9 @@ class AgentSessionsCache {
 		}
 	}
 }
+
+//#endregion
+
+//#region Agent Sessions States Cache
 
 //#endregion

@@ -12,6 +12,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ChatSessionStatus, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from './agentSessions.js';
 import { IAgentSession } from './agentSessionsModel.js';
+import { IAgentSessionsService } from './agentSessionsService.js';
 
 export interface IAgentSessionsFilterOptions {
 	readonly filterMenuId: MenuId;
@@ -31,7 +32,7 @@ const DEFAULT_EXCLUDES: IAgentSessionsViewExcludes = Object.freeze({
 
 export class AgentSessionsFilter extends Disposable {
 
-	private readonly STORAGE_KEY = `agentSessions.filterExcludes.${this.options.filterMenuId.id.toLowerCase()}`;
+	private readonly STORAGE_KEY: string;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
@@ -44,8 +45,11 @@ export class AgentSessionsFilter extends Disposable {
 		private readonly options: IAgentSessionsFilterOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
+
+		this.STORAGE_KEY = `agentSessions.filterExcludes.${this.options.filterMenuId.id.toLowerCase()}`;
 
 		this.updateExcludes(false);
 
@@ -215,7 +219,7 @@ export class AgentSessionsFilter extends Disposable {
 	}
 
 	exclude(session: IAgentSession): boolean {
-		if (this.excludes.archived && session.archived) {
+		if (this.excludes.archived && this.agentSessionsService.model.isArchived(session.resource)) {
 			return true;
 		}
 
