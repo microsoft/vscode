@@ -7,7 +7,7 @@ import type { IDecoration, ITerminalAddon, Terminal } from '@xterm/xterm';
 import * as dom from '../../../../../base/browser/dom.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, combinedDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
@@ -36,12 +36,12 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { isString } from '../../../../../base/common/types.js';
 
-interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; command?: ITerminalCommand; markProperties?: IMarkProperties }
+interface IDisposableDecoration extends IDisposable { decoration: IDecoration; command?: ITerminalCommand; markProperties?: IMarkProperties }
 
 export class DecorationAddon extends Disposable implements ITerminalAddon, IDecorationAddon {
 	protected _terminal: Terminal | undefined;
 	private _capabilityDisposables: DisposableMap<TerminalCapability> = this._register(new DisposableMap());
-	private _decorations: Map<number, IDisposableDecoration> = new Map();
+	private _decorations: DisposableMap<number, IDisposableDecoration> = this._register(new DisposableMap());
 	private _placeholderDecoration: IDecoration | undefined;
 	private _showGutterDecorations?: boolean;
 	private _showOverviewRulerDecorations?: boolean;
@@ -114,7 +114,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		this._capabilityDisposables.deleteAndDispose(c);
 	}
 
-	registerMarkDecoration(mark: IMarkProperties): IDecoration | undefined {
+	registerMarkDecoration(mark: IMarkProperties): void {
 		if (!this._terminal || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
 			return undefined;
 		}
@@ -141,10 +141,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 
 	private _disposeAllDecorations(): void {
 		this._placeholderDecoration?.dispose();
-		for (const value of this._decorations.values()) {
-			value.decoration.dispose();
-			dispose(value.disposables);
-		}
+		this._decorations.clearAndDisposeAll();
 	}
 
 	private _updateGutterDecorationVisibility(): void {
@@ -205,7 +202,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		this._placeholderDecoration?.marker.dispose();
 		this._clearPlaceholder();
 		this._disposeAllDecorations();
-		this._decorations.clear();
 	}
 
 	private _attachToCommandCapability(): void {
@@ -262,7 +258,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 					const match = this._decorations.get(id);
 					if (match) {
 						match.decoration.dispose();
-						dispose(match.disposables);
+						match.dispose();
 					}
 				}
 			}
@@ -270,8 +266,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		// Current command invalidated
 		commandDetectionListeners.push(capability.onCurrentCommandInvalidated((request) => {
 			if (request.reason === CommandInvalidationReason.NoProblemsReported) {
-				const lastDecoration = Array.from(this._decorations.entries())[this._decorations.size - 1];
-				lastDecoration?.[1].decoration.dispose();
+				const lastDecoration = Array.from(this._decorations.values())[this._decorations.size - 1];
+				lastDecoration?.dispose();
 			} else if (request.reason === CommandInvalidationReason.Windows) {
 				this._clearPlaceholder();
 			}
@@ -284,7 +280,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		this._attachToCommandCapability();
 	}
 
-	registerCommandDecoration(command?: ITerminalCommand, beforeCommandExecution?: boolean, markProperties?: IMarkProperties): IDecoration | undefined {
+	registerCommandDecoration(command?: ITerminalCommand, beforeCommandExecution?: boolean, markProperties?: IMarkProperties): void {
 		if (!this._terminal || (beforeCommandExecution && !command) || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
 			return undefined;
 		}
@@ -303,19 +299,24 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		if (!decoration) {
 			return undefined;
 		}
+		const store = new DisposableStore();
+		store.add(decoration);
 		if (beforeCommandExecution) {
 			this._placeholderDecoration = decoration;
 		}
-		decoration.onRender(element => {
+		store.add(decoration.onRender(element => {
 			if (element.classList.contains(DecorationSelector.OverviewRuler)) {
 				return;
 			}
 			if (!this._decorations.get(decoration.marker.id)) {
-				decoration.onDispose(() => this._decorations.delete(decoration.marker.id));
+				decoration.onDispose(() => this._decorations.deleteAndDispose(decoration.marker.id));
+				store.add(this._createDisposables(element, command, markProperties));
 				this._decorations.set(decoration.marker.id,
 					{
 						decoration,
-						disposables: this._createDisposables(element, command, markProperties),
+						dispose() {
+							store.dispose();
+						},
 						command,
 						markProperties: command?.markProperties || markProperties
 					});
@@ -325,8 +326,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 				updateLayout(this._configurationService, element);
 				this._updateClasses(element, command, command?.markProperties || markProperties);
 			}
-		});
-		return decoration;
+		}));
 	}
 
 	registerMenuItems(command: ITerminalCommand, items: IAction[]): IDisposable {
@@ -349,13 +349,13 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		});
 	}
 
-	private _createDisposables(element: HTMLElement, command?: ITerminalCommand, markProperties?: IMarkProperties): IDisposable[] {
+	private _createDisposables(element: HTMLElement, command?: ITerminalCommand, markProperties?: IMarkProperties): IDisposable {
 		if (command?.exitCode === undefined && !command?.markProperties) {
-			return [];
+			return Disposable.None;
 		} else if (command?.markProperties || markProperties) {
-			return [this._createHover(element, command || markProperties, markProperties?.hoverMessage)];
+			return combinedDisposable(this._createHover(element, command || markProperties, markProperties?.hoverMessage));
 		}
-		return [...this._createContextMenu(element, command), this._createHover(element, command)];
+		return combinedDisposable(...this._createContextMenu(element, command), this._createHover(element, command));
 	}
 
 	private _createHover(element: HTMLElement, command: ITerminalCommand | undefined, hoverMessage?: string) {
