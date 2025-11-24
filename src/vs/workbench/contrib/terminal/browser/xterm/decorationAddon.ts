@@ -255,11 +255,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 			for (const command of commands) {
 				const id = command.marker?.id;
 				if (id) {
-					const match = this._decorations.get(id);
-					if (match) {
-						match.decoration.dispose();
-						match.dispose();
-					}
+					this._decorations.deleteAndDispose(id);
 				}
 			}
 		}));
