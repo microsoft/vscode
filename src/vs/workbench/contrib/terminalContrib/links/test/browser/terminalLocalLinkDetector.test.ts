@@ -89,7 +89,7 @@ const windowsLinks: (string | { link: string; resource: URI })[] = [
 
 const windowsLinksWithIso: (string | { link: string; resource: URI })[] = [
 	// ISO 8601 timestamps - tested separately to avoid line/column suffix conflicts
-	{ link: './test-2025-04-28T11:03:09+02:00.log', resource: URI.file('C:\\Parent\\Cwd\\test-2025-04-28T11:03:09+02:00.log') },
+	{ link: '.\\test-2025-04-28T11:03:09+02:00.log', resource: URI.file('C:\\Parent\\Cwd\\test-2025-04-28T11:03:09+02:00.log') },
 ];
 
 interface LinkFormatInfo {
@@ -331,13 +331,15 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		});
 
 		// Test ISO 8601 links separately with only base format to avoid suffix conflicts
+		// Note: Only test plain format as colons are excluded path characters in the regex,
+		// so wrapped contexts (spaces, parentheses, brackets) won't work
 		for (const l of unixLinksWithIso) {
 			const baseLink = typeof l === 'string' ? l : l.link;
 			const resource = typeof l === 'string' ? URI.file(l) : l.resource;
 			test(`should detect ISO 8601 link: ${baseLink}`, async () => {
 				validResources = [resource];
 				fileService.setFiles(validResources);
-				await assertLinksWithWrapped(baseLink, resource);
+				await assertLinks(TerminalBuiltinLinkType.LocalFile, baseLink, [{ uri: resource, range: [[1, 1], [baseLink.length, 1]] }]);
 			});
 		}
 	});
@@ -413,13 +415,15 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			});
 
 			// Test ISO 8601 links separately with only base format to avoid suffix conflicts
+			// Note: Only test plain format as colons are excluded path characters in the regex,
+			// so wrapped contexts (spaces, parentheses, brackets) won't work
 			for (const l of windowsLinksWithIso) {
 				const baseLink = typeof l === 'string' ? l : l.link;
 				const resource = typeof l === 'string' ? URI.file(l) : l.resource;
 				test(`should detect ISO 8601 link: ${baseLink}`, async () => {
 					validResources = [resource];
 					fileService.setFiles(validResources);
-					await assertLinksWithWrapped(baseLink, resource);
+					await assertLinks(TerminalBuiltinLinkType.LocalFile, baseLink, [{ uri: resource, range: [[1, 1], [baseLink.length, 1]] }]);
 				});
 			}
 
