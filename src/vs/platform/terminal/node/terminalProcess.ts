@@ -662,6 +662,11 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			buildNumber: getWindowsBuildNumber()
 		} : undefined;
 	}
+
+	override dispose() {
+		super.dispose();
+		this._ptyProcess = undefined;
+	}
 }
 
 /**
