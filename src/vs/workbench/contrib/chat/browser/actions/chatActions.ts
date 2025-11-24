@@ -512,21 +512,13 @@ export function registerChatActions() {
 				menu: [
 					{
 						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.and(
-							ContextKeyExpr.equals('view', ChatViewId),
-							ChatContextKeys.inEmptyStateWithHistoryEnabled.negate()
-						),
+						when: ContextKeyExpr.equals('view', ChatViewId),
 						group: '2_history',
 						order: 1
 					},
 					{
 						id: MenuId.EditorTitle,
 						when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-					},
-					{
-						id: MenuId.ChatHistory,
-						when: ChatContextKeys.inEmptyStateWithHistoryEnabled,
-						group: 'navigation',
 					}
 				],
 				category: CHAT_CATEGORY,
@@ -1832,29 +1824,5 @@ registerAction2(class EditToolApproval extends Action2 {
 		const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		confirmationService.manageConfirmationPreferences([...toolsService.getTools()], scope ? { defaultScope: scope } : undefined);
-	}
-});
-
-// Register actions for chat welcome history context menu
-registerAction2(class ToggleChatHistoryVisibilityAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.toggleChatHistoryVisibility',
-			title: localize2('chat.toggleChatHistoryVisibility.label', "Chat History"),
-			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled,
-			toggled: ContextKeyExpr.equals('config.chat.emptyState.history.enabled', true),
-			menu: {
-				id: MenuId.ChatWelcomeContext,
-				group: '1_modify',
-				order: 1
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const current = configurationService.getValue<boolean>('chat.emptyState.history.enabled');
-		await configurationService.updateValue('chat.emptyState.history.enabled', !current);
 	}
 });
