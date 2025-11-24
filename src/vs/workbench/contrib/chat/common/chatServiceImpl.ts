@@ -175,6 +175,9 @@ export class ChatService extends Disposable implements IChatService {
 				}
 			}
 		}));
+		this._register(this._sessionModels.onDidDisposeModel(model => {
+			this._onDidDisposeSession.fire({ sessionResource: model.sessionResource, reason: 'cleared' });
+		}));
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
 
@@ -1250,21 +1253,6 @@ export class ChatService extends Disposable implements IChatService {
 		this.trace('cancelCurrentRequestForSession', `session: ${sessionResource}`);
 		this._pendingRequests.get(sessionResource)?.cancel();
 		this._pendingRequests.deleteAndDispose(sessionResource);
-	}
-
-	// TODO should not exist
-	async forceClearSession(sessionResource: URI): Promise<void> {
-		this.trace('clearSession', `session: ${sessionResource}`);
-		const model = this._sessionModels.get(sessionResource);
-		if (!model) {
-			throw new Error(`Unknown session: ${sessionResource}`);
-		}
-
-		// this._sessionModels.delete(sessionResource);
-		model.dispose();
-		this._pendingRequests.get(sessionResource)?.cancel();
-		this._pendingRequests.deleteAndDispose(sessionResource);
-		this._onDidDisposeSession.fire({ sessionResource, reason: 'cleared' });
 	}
 
 	public hasSessions(): boolean {
