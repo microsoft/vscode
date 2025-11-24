@@ -1632,9 +1632,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}
 				}, 0);
 
-				dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
+				this._register(dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 					this._onDidShow.fire();
-				});
+				}));
 			}
 		} else if (wasVisible) {
 			this._onDidHide.fire();
@@ -1991,11 +1991,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
 				const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
 				if (lastElementWasVisible) {
-					dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
+					this._register(dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 						// Can't set scrollTop during this event listener, the list might overwrite the change
 
 						this.scrollToEnd();
-					}, 0);
+					}, 0));
 				}
 			}
 		}
@@ -2205,7 +2205,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderImmediately = this.configurationService.getValue<boolean>('chat.experimental.renderMarkdownImmediately');
 		const delay = renderImmediately ? MicrotaskDelay : 0;
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange, delay), (events => {
-			if (!this.viewModel) {
+			if (!this.viewModel || this._store.isDisposed) {
+				// See https://github.com/microsoft/vscode/issues/278969
 				return;
 			}
 
