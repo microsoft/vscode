@@ -44,8 +44,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 					updated.push(key);
 				}
 			} else {
-				if (this.policies.has(key)) {
-					this.policies.delete(key);
+				if (this.policies.delete(key)) {
 					updated.push(key);
 				}
 			}

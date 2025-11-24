@@ -7555,7 +7555,8 @@ declare namespace monaco.languages {
 		/** Only show the inline suggestion when the cursor is in the showRange. */
 		readonly showRange?: IRange;
 		readonly warning?: InlineCompletionWarning;
-		readonly hint?: InlineCompletionHint;
+		readonly hint?: IInlineCompletionHint;
+		readonly supportsRename?: boolean;
 		/**
 		 * Used for telemetry.
 		 */
@@ -7572,7 +7573,7 @@ declare namespace monaco.languages {
 		Label = 2
 	}
 
-	export interface InlineCompletionHint {
+	export interface IInlineCompletionHint {
 		/** Refers to the current document. */
 		range: IRange;
 		style: InlineCompletionHintStyle;
@@ -7695,6 +7696,9 @@ declare namespace monaco.languages {
 		selectedSuggestionInfo: boolean;
 		availableProviders: string;
 		sku: string | undefined;
+		renameCreated: boolean;
+		renameDuration?: number;
+		renameTimedOut: boolean;
 	};
 
 	export interface CodeAction {

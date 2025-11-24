@@ -10,7 +10,7 @@ import filter from 'gulp-filter';
 import gzip from 'gulp-gzip';
 import mime from 'mime';
 import { ClientAssertionCredential } from '@azure/identity';
-import { VinylStat } from '../lib/util';
+import { VinylStat } from '../lib/util.ts';
 import azure from 'gulp-azure-storage';
 
 const commit = process.env['BUILD_SOURCEVERSION'];

@@ -837,7 +837,9 @@ export interface InlineCompletion {
 
 	readonly warning?: InlineCompletionWarning;
 
-	readonly hint?: InlineCompletionHint;
+	readonly hint?: IInlineCompletionHint;
+
+	readonly supportsRename?: boolean;
 
 	/**
 	 * Used for telemetry.
@@ -855,7 +857,7 @@ export enum InlineCompletionHintStyle {
 	Label = 2
 }
 
-export interface InlineCompletionHint {
+export interface IInlineCompletionHint {
 	/** Refers to the current document. */
 	range: IRange;
 	style: InlineCompletionHintStyle;
@@ -1053,6 +1055,9 @@ export type LifetimeSummary = {
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
 	sku: string | undefined;
+	renameCreated: boolean;
+	renameDuration?: number;
+	renameTimedOut: boolean;
 };
 
 export interface CodeAction {
