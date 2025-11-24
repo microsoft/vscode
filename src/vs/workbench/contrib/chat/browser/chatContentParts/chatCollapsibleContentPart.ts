@@ -8,7 +8,7 @@ import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js'
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
@@ -24,7 +24,7 @@ import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.
 export abstract class ChatCollapsibleContentPart extends Disposable implements IChatContentPart {
 
 	private _domNode?: HTMLElement;
-	private renderedTitleWithWidgets: IRenderedMarkdown | undefined;
+	private readonly _renderedTitleWithWidgets = this._register(new MutableDisposable<IRenderedMarkdown>());
 
 	protected readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -101,14 +101,6 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		this._register(disposable);
 	}
 
-	override dispose(): void {
-		if (this.renderedTitleWithWidgets) {
-			this.renderedTitleWithWidgets.dispose();
-			this.renderedTitleWithWidgets = undefined;
-		}
-		super.dispose();
-	}
-
 	get expanded(): IObservable<boolean> {
 		return this._isExpanded;
 	}
@@ -136,10 +128,6 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			return;
 		}
 
-		if (this.renderedTitleWithWidgets) {
-			this.renderedTitleWithWidgets.dispose();
-			this.renderedTitleWithWidgets = undefined;
-		}
 		const result = chatContentMarkdownRenderer.render(content);
 		result.element.classList.add('collapsible-title-content');
 
@@ -152,6 +140,6 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		const textContent = result.element.textContent || '';
 		this.updateAriaLabel(this._collapseButton.element, textContent, this.isExpanded());
 
-		this.renderedTitleWithWidgets = result;
+		this._renderedTitleWithWidgets.value = result;
 	}
 }

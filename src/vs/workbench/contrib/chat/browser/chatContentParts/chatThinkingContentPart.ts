@@ -7,7 +7,7 @@ import { $, clearNode } from '../../../../../base/browser/dom.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
 import { ThinkingDisplayMode, ChatAgentLocation } from '../../common/constants.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -61,6 +61,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
@@ -250,10 +251,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		const extractedTitle = extractTitleFromThinkingContent(raw);
-		if (extractedTitle && extractedTitle !== this.currentTitle && !this.extractedTitles.includes(extractedTitle)) {
-			this.extractedTitles.push(extractedTitle);
-			this.lastExtractedTitle = extractedTitle;
-		} else if (extractedTitle && extractedTitle !== this.currentTitle) {
+		if (extractedTitle && extractedTitle !== this.currentTitle) {
+			if (!this.extractedTitles.includes(extractedTitle)) {
+				this.extractedTitles.push(extractedTitle);
+			}
 			this.lastExtractedTitle = extractedTitle;
 		}
 
@@ -277,7 +278,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.isActive = false;
 	}
 
-	public finalizeTitleIfDefault(agentService?: IChatAgentService, agentId?: string, sessionResource?: URI): void {
+	public finalizeTitleIfDefault(): void {
 		this.wrapper.classList.remove('chat-thinking-streaming');
 		this.streamingCompleted = true;
 
@@ -288,16 +289,18 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.updateDropdownClickability();
 
 		// Generate a better title via LLM in the background without blocking
-		if (this.extractedTitles.length > 0 && agentService && agentId && sessionResource) {
-			this.generateTitleViaLLM(agentService, agentId, sessionResource);
+		const agentId = isResponseVM(this.context.element) ? this.context.element.agent?.id : undefined;
+		const sessionResource = this.context.element.sessionResource;
+		if (this.extractedTitles.length > 0 && agentId && sessionResource) {
+			this.generateTitleViaLLM(agentId, sessionResource);
 		}
 	}
 
-	private async generateTitleViaLLM(agentService: IChatAgentService, agentId: string, sessionResource: URI): Promise<void> {
+	private async generateTitleViaLLM(agentId: string, sessionResource: URI): Promise<void> {
 		try {
 			const titlesContext = this.extractedTitles.join(', ');
 			const message = `Generate a concise header for thinking that contains the following thoughts: ${titlesContext}`;
-			const generatedTitle = await agentService.getChatTitle(agentId, [{
+			const generatedTitle = await this.chatAgentService.getChatTitle(agentId, [{
 				request: {
 					sessionId: sessionResource.toString(), // Use toString as fallback
 					sessionResource: sessionResource,

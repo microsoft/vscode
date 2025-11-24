@@ -60,6 +60,12 @@ export enum ThinkingDisplayMode {
 	FixedScrolling = 'fixedScrolling',
 }
 
+export enum CollapsedToolsDisplayMode {
+	Off = 'off',
+	WithThinking = 'withThinking',
+	Always = 'always',
+}
+
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
 
 export enum ChatAgentLocation {

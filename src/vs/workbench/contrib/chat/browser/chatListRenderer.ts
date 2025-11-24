@@ -58,7 +58,7 @@ import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ThinkingDisplayMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, CollapsedToolsDisplayMode, ThinkingDisplayMode } from '../common/constants.js';
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
@@ -734,7 +734,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (element.isCanceled) {
 			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
 			if (lastThinking?.domNode) {
-				lastThinking.finalizeTitleIfDefault(this.chatAgentService, element.agent?.id, element.sessionResource);
+				lastThinking.finalizeTitleIfDefault();
 				lastThinking.markAsInactive();
 				this.updateItemHeight(templateData);
 			}
@@ -776,8 +776,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
 		const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
+		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 
-		if (this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools') || this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools2')) {
+		if (collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
 			const hasActiveThinking = !!this.getLastThinkingPart(templateData.renderedParts);
 			if (hasActiveThinking) {
 				return lastPart?.kind !== 'thinking' && lastPart?.kind !== 'toolInvocation' && lastPart?.kind !== 'prepareToolInvocation' && lastPart?.kind !== 'textEditGroup' && lastPart?.kind !== 'notebookEditGroup';
@@ -1223,9 +1224,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	// put thinking parts inside a pinned part. commented out for now.
 	private shouldPinPart(part: IChatRendererContent, element?: IChatResponseViewModel): boolean {
-		const collapsedTools = this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools') || this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools2');
+		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 
-		if (!collapsedTools) {
+		if (collapsedToolsMode === CollapsedToolsDisplayMode.Off) {
 			return false;
 		}
 
@@ -1291,17 +1292,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (style === ThinkingDisplayMode.CollapsedPreview) {
 			lastThinking.collapseContent();
 		}
-		const agentId = isResponseVM(context.element) ? context.element.agent?.id : undefined;
-		const sessionResource = context.element.sessionResource;
-		lastThinking.finalizeTitleIfDefault(this.chatAgentService, agentId, sessionResource);
+		lastThinking.finalizeTitleIfDefault();
 		lastThinking.resetId();
 		lastThinking.markAsInactive();
 	}
 
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
 		try {
-
-			const collapsedTools = this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools') || this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools2');
+			const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 			// if we get an empty thinking part, mark thinking as finished
 			if (content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length === 0 : !content.value)) {
 				const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
@@ -1313,7 +1311,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const previousContent = context.contentIndex > 0 ? context.content[context.contentIndex - 1] : undefined;
 
 			// Special handling for "create" tool invocations- do not end thinking if previous part is a create tool invocation and config is set.
-			const shouldKeepThinkingForCreateTool = collapsedTools && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
+			const shouldKeepThinkingForCreateTool = collapsedToolsMode !== CollapsedToolsDisplayMode.Off && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
 
 			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
 			if (!shouldKeepThinkingForCreateTool && lastThinking && lastThinking.getIsActive()) {
@@ -1531,11 +1529,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.handleRenderedCodeblocks(context.element, part, codeBlockStartIndex);
 
 		// handling for when we want to put tool invocations inside a thinking part
-		if (isResponseVM(context.element) && (this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools') || this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools2'))) {
+		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
+		if (isResponseVM(context.element) && collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
 
 			// create thinking part if it doesn't exist yet
 			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-			if (!lastThinking && part?.domNode && toolInvocation.presentation !== 'hidden' && this.shouldPinPart(toolInvocation, context.element) && this.configService.getValue<boolean>('chat.agent.thinking.collapsedTools2')) {
+			if (!lastThinking && part?.domNode && toolInvocation.presentation !== 'hidden' && this.shouldPinPart(toolInvocation, context.element) && collapsedToolsMode === CollapsedToolsDisplayMode.Always) {
 				const thinkingPart = this.renderThinkingPart({
 					kind: 'thinking',
 				}, context, templateData);
@@ -1689,9 +1688,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	renderThinkingPart(content: IChatThinkingPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
-		const agentId = isResponseVM(context.element) ? context.element.agent?.id : undefined;
-		const sessionResource = context.element.sessionResource;
-
 		// TODO @justschen @karthiknadig: remove this when OSWE moves off commentary channel
 		if (!content.id) {
 			content.id = Date.now().toString();
@@ -1701,7 +1697,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (Array.isArray(content.value)) {
 			if (content.value.length < 1) {
 				const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-				lastThinking?.finalizeTitleIfDefault(this.chatAgentService, agentId, sessionResource);
+				lastThinking?.finalizeTitleIfDefault();
 				return this.renderNoContent(other => content.kind === other.kind);
 			}
 			let lastPart: IChatContentPart | undefined;
