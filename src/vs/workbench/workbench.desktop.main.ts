@@ -157,7 +157,7 @@ import './contrib/externalTerminal/electron-browser/externalTerminal.contributio
 import './contrib/webview/electron-browser/webview.contribution.js';
 
 // Browser
-import './contrib/browser/electron-browser/browser.contribution.js';
+import './contrib/browserView/electron-browser/browserView.contribution.js';
 
 // Splash
 import './contrib/splash/electron-browser/splash.contribution.js';
