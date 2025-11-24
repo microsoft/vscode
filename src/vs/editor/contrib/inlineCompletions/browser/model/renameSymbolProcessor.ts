@@ -106,6 +106,7 @@ export class RenameSymbolProcessor extends Disposable {
 			if (wordRange === null) {
 				return undefined;
 			}
+
 			const endOffset = startOffset + change.originalLength;
 			const endPos = textModel.getPositionAt(endOffset);
 			const range = Range.fromPositions(startPos, endPos);
@@ -113,12 +114,14 @@ export class RenameSymbolProcessor extends Disposable {
 
 			const tokenInfo = getTokenAtPosition(textModel, startPos);
 			if (tokenInfo.type === StandardTokenType.Other) {
+
 				let identifier = textModel.getValueInRange(tokenInfo.range);
 				if (oldName === undefined) {
 					oldName = identifier;
 				} else if (oldName !== identifier) {
 					return undefined;
 				}
+
 				// We assume that the new name starts at the same position as the old name from a token range perspective.
 				const diff = text.length - change.originalLength;
 				const tokenStartPos = textModel.getOffsetAt(tokenInfo.range.getStartPosition()) - nesOffset + tokenDiff;
@@ -129,20 +132,25 @@ export class RenameSymbolProcessor extends Disposable {
 				} else if (newName !== identifier) {
 					return undefined;
 				}
+
 				if (position === undefined) {
 					position = tokenInfo.range.getStartPosition();
 				}
+
 				renames.push(TextEdit.replace(range, text));
 				tokenDiff += diff;
 			} else {
 				others.push(TextEdit.replace(range, text));
 			}
 		}
+
 		if (oldName === undefined || newName === undefined || position === undefined) {
 			return undefined;
 		}
+
 		return {
-			renames: { edits: renames, position, oldName, newName }, others: { edits: others }
+			renames: { edits: renames, position, oldName, newName },
+			others: { edits: others }
 		};
 	}
 }
