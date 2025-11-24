@@ -1167,6 +1167,8 @@ export interface IChatModel extends IDisposable {
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void;
 	/** Input model for managing input state */
 	readonly inputModel: IInputModel;
+	readonly hasRequests: boolean;
+	readonly lastRequest: IChatRequestModel | undefined;
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
 
