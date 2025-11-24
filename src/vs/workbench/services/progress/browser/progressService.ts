@@ -140,7 +140,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		return promise.finally(() => clearTimeout(delayHandle));
 	}
 
-	private updateWindowProgress(idx: number = 0) {
+	private updateWindowProgress(idx = 0) {
 
 		// We still have progress to show
 		if (idx < this.windowProgressStack.length) {
@@ -148,7 +148,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			const progressTitle = options.title;
 			const progressMessage = progress.value?.message;
-			const progressCommand = (<IProgressWindowOptions>options).command;
+			const progressCommand = options.command;
 			let text: string;
 			let title: string;
 			const source = options.source && typeof options.source !== 'string' ? options.source.label : options.source;

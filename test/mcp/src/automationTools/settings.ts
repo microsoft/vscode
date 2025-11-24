@@ -97,24 +97,24 @@ export function applySettingsTools(server: McpServer, appService: ApplicationSer
 	// 	}
 	// );
 
-	// Playwright can probably figure this one out
-	// server.tool(
-	// 	'vscode_automation_settings_search_ui',
-	// 	'Search for settings in the settings UI',
-	// 	{
-	// 		query: z.string().describe('Search query for settings')
-	// 	},
-	// 	async (args) => {
-	// 		const { query } = args;
-	// 		await app.workbench.settingsEditor.searchSettingsUI(query);
-	// 		return {
-	// 			content: [{
-	// 				type: 'text' as const,
-	// 				text: `Searched settings UI for: "${query}"`
-	// 			}]
-	// 		};
-	// 	}
-	// );
+	tools.push(server.tool(
+		'vscode_automation_settings_search_ui',
+		'Search for settings in the settings UI',
+		{
+			query: z.string().describe('Search query for settings')
+		},
+		async (args) => {
+			const { query } = args;
+			const app = await appService.getOrCreateApplication();
+			await app.workbench.settingsEditor.searchSettingsUI(query);
+			return {
+				content: [{
+					type: 'text' as const,
+					text: `Searched settings UI for: "${query}"`
+				}]
+			};
+		}
+	));
 
 	return tools;
 }

@@ -731,9 +731,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				this._decorationIdToCellMap.delete(id);
 			}
 
-			if (this._overviewRulerDecorations.has(id)) {
-				this._overviewRulerDecorations.delete(id);
-			}
+			this._overviewRulerDecorations.delete(id);
 		});
 
 		const result: string[] = [];
@@ -778,7 +776,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		for (const _handle in deletesByHandle) {
 			const handle = parseInt(_handle);
-			const ids = deletesByHandle[handle];
+			const ids = deletesByHandle[handle]!;
 			const cell = this.getCellByHandle(handle);
 			cell?.deltaCellStatusBarItems(ids, []);
 			ids.forEach(id => this._statusBarItemIdToCellMap.delete(id));

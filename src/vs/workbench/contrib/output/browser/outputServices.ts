@@ -414,7 +414,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return id;
 	}
 
-	async saveOutputAs(...channels: IOutputChannelDescriptor[]): Promise<void> {
+	async saveOutputAs(outputPath?: URI, ...channels: IOutputChannelDescriptor[]): Promise<void> {
 		let channel: IOutputChannel | undefined;
 		if (channels.length > 1) {
 			const compoundChannelId = this.registerCompoundLogChannel(channels);
@@ -428,16 +428,19 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 
 		try {
-			const name = channels.length > 1 ? 'output' : channels[0].label;
-			const uri = await this.fileDialogService.showSaveDialog({
-				title: localize('saveLog.dialogTitle', "Save Output As"),
-				availableFileSystems: [Schemas.file],
-				defaultUri: joinPath(await this.fileDialogService.defaultFilePath(), `${name}.log`),
-				filters: [{
-					name,
-					extensions: ['log']
-				}]
-			});
+			let uri: URI | undefined = outputPath;
+			if (!uri) {
+				const name = channels.length > 1 ? 'output' : channels[0].label;
+				uri = await this.fileDialogService.showSaveDialog({
+					title: localize('saveLog.dialogTitle', "Save Output As"),
+					availableFileSystems: [Schemas.file],
+					defaultUri: joinPath(await this.fileDialogService.defaultFilePath(), `${name}.log`),
+					filters: [{
+						name,
+						extensions: ['log']
+					}]
+				});
+			}
 
 			if (!uri) {
 				return;

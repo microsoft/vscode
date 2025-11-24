@@ -5,7 +5,7 @@
 
 import * as browser from './browser.js';
 import { BrowserFeatures } from './canIUse.js';
-import { IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
+import { hasModifierKeys, IKeyboardEvent, StandardKeyboardEvent } from './keyboardEvent.js';
 import { IMouseEvent, StandardMouseEvent } from './mouseEvent.js';
 import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from '../common/async.js';
 import { BugIndicatingError, onUnexpectedError } from '../common/errors.js';
@@ -799,6 +799,7 @@ export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: 
 function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
 	const flowToParentId = node.dataset[parentFlowToDataKey];
 	if (typeof flowToParentId === 'string') {
+		// eslint-disable-next-line no-restricted-syntax
 		return node.ownerDocument.getElementById(flowToParentId);
 	}
 	return null;
@@ -995,14 +996,14 @@ export const sharedMutationObserver = new class {
 };
 
 export function createMetaElement(container: HTMLElement = mainWindow.document.head): HTMLMetaElement {
-	return createHeadElement('meta', container) as HTMLMetaElement;
+	return createHeadElement('meta', container);
 }
 
 export function createLinkElement(container: HTMLElement = mainWindow.document.head): HTMLLinkElement {
-	return createHeadElement('link', container) as HTMLLinkElement;
+	return createHeadElement('link', container);
 }
 
-function createHeadElement(tagName: string, container: HTMLElement = mainWindow.document.head): HTMLElement {
+function createHeadElement<K extends keyof HTMLElementTagNameMap>(tagName: K, container: HTMLElement = mainWindow.document.head): HTMLElementTagNameMap[K] {
 	const element = document.createElement(tagName);
 	container.appendChild(element);
 	return element;
@@ -1267,7 +1268,7 @@ export function append<T extends Node>(parent: HTMLElement, ...children: (T | st
 export function append<T extends Node>(parent: HTMLElement, ...children: (T | string)[]): T | void {
 	parent.append(...children);
 	if (children.length === 1 && typeof children[0] !== 'string') {
-		return <T>children[0];
+		return children[0];
 	}
 }
 
@@ -1336,7 +1337,7 @@ function _$<T extends Element>(namespace: Namespace, description: string, attrs?
 
 	result.append(...children);
 
-	return result as T;
+	return result;
 }
 
 export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any }, ...children: Array<Node | string>): T {
@@ -1813,7 +1814,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 	}
 
 	get isModifierPressed(): boolean {
-		return this._keyStatus.altKey || this._keyStatus.ctrlKey || this._keyStatus.metaKey || this._keyStatus.shiftKey;
+		return hasModifierKeys(this._keyStatus);
 	}
 
 	/**
@@ -2506,7 +2507,43 @@ export abstract class ObserverNode<T extends HTMLOrSVGElement = HTMLOrSVGElement
 		this.keepUpdated(store);
 		return new LiveElement(this._element, store);
 	}
+
+	private _isHovered: IObservable<boolean> | undefined = undefined;
+
+	get isHovered(): IObservable<boolean> {
+		if (!this._isHovered) {
+			const hovered = observableValue<boolean>('hovered', false);
+			this._element.addEventListener('mouseenter', (_e) => hovered.set(true, undefined));
+			this._element.addEventListener('mouseleave', (_e) => hovered.set(false, undefined));
+			this._isHovered = hovered;
+		}
+		return this._isHovered;
+	}
+
+	private _didMouseMoveDuringHover: IObservable<boolean> | undefined = undefined;
+
+	get didMouseMoveDuringHover(): IObservable<boolean> {
+		if (!this._didMouseMoveDuringHover) {
+			let _hovering = false;
+			const hovered = observableValue<boolean>('didMouseMoveDuringHover', false);
+			this._element.addEventListener('mouseenter', (_e) => {
+				_hovering = true;
+			});
+			this._element.addEventListener('mousemove', (_e) => {
+				if (_hovering) {
+					hovered.set(true, undefined);
+				}
+			});
+			this._element.addEventListener('mouseleave', (_e) => {
+				_hovering = false;
+				hovered.set(false, undefined);
+			});
+			this._didMouseMoveDuringHover = hovered;
+		}
+		return this._didMouseMoveDuringHover;
+	}
 }
+
 function setClassName(domNode: HTMLOrSVGElement, className: string) {
 	if (isSVGElement(domNode)) {
 		domNode.setAttribute('class', className);
@@ -2514,6 +2551,7 @@ function setClassName(domNode: HTMLOrSVGElement, className: string) {
 		domNode.className = className;
 	}
 }
+
 function resolve<T>(value: ValueOrList<T>, reader: IReader | undefined, cb: (val: T) => void): void {
 	if (isObservable(value)) {
 		cb(value.read(reader));
@@ -2580,41 +2618,6 @@ export class LiveElement<T extends HTMLOrSVGElement = HTMLElement> {
 export class ObserverNodeWithElement<T extends HTMLOrSVGElement = HTMLOrSVGElement> extends ObserverNode<T> {
 	public get element() {
 		return this._element;
-	}
-
-	private _isHovered: IObservable<boolean> | undefined = undefined;
-
-	get isHovered(): IObservable<boolean> {
-		if (!this._isHovered) {
-			const hovered = observableValue<boolean>('hovered', false);
-			this._element.addEventListener('mouseenter', (_e) => hovered.set(true, undefined));
-			this._element.addEventListener('mouseleave', (_e) => hovered.set(false, undefined));
-			this._isHovered = hovered;
-		}
-		return this._isHovered;
-	}
-
-	private _didMouseMoveDuringHover: IObservable<boolean> | undefined = undefined;
-
-	get didMouseMoveDuringHover(): IObservable<boolean> {
-		if (!this._didMouseMoveDuringHover) {
-			let _hovering = false;
-			const hovered = observableValue<boolean>('didMouseMoveDuringHover', false);
-			this._element.addEventListener('mouseenter', (_e) => {
-				_hovering = true;
-			});
-			this._element.addEventListener('mousemove', (_e) => {
-				if (_hovering) {
-					hovered.set(true, undefined);
-				}
-			});
-			this._element.addEventListener('mouseleave', (_e) => {
-				_hovering = false;
-				hovered.set(false, undefined);
-			});
-			this._didMouseMoveDuringHover = hovered;
-		}
-		return this._didMouseMoveDuringHover;
 	}
 }
 function setOrRemoveAttribute(element: HTMLOrSVGElement, key: string, value: unknown) {

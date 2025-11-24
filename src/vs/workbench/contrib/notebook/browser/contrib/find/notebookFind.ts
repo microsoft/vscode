@@ -25,8 +25,9 @@ import { INotebookCommandContext, NotebookMultiCellAction } from '../../controll
 import { getNotebookEditorFromEditorPane, INotebookEditor } from '../../notebookBrowser.js';
 import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { CellUri, NotebookFindScopeType } from '../../../common/notebookCommon.js';
-import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../common/notebookContextKeys.js';
+import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from '../../../common/notebookContextKeys.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { CONTEXT_FIND_WIDGET_VISIBLE } from '../../../../../../editor/contrib/find/browser/findModel.js';
 
 registerNotebookContribution(NotebookFindContrib.id, NotebookFindContrib);
 
@@ -36,9 +37,9 @@ registerAction2(class extends Action2 {
 			id: 'notebook.hideFind',
 			title: localize2('notebookActions.hideFind', 'Hide Find in Notebook'),
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED),
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE),
 				primary: KeyCode.Escape,
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.EditorContrib + 5
 			}
 		});
 	}
@@ -140,7 +141,7 @@ function isNotebookEditorValidForSearch(accessor: ServicesAccessor, editor: INot
 	return true;
 }
 
-function openFindWidget(controller: NotebookFindContrib | undefined, editor: INotebookEditor | undefined, codeEditor: ICodeEditor | undefined) {
+function openFindWidget(controller: NotebookFindContrib | undefined, editor: INotebookEditor | undefined, codeEditor: ICodeEditor | undefined, focusWidget: boolean = true) {
 	if (!editor || !codeEditor || !controller) {
 		return false;
 	}
@@ -168,8 +169,11 @@ function openFindWidget(controller: NotebookFindContrib | undefined, editor: INo
 		if (cell) {
 			options = {
 				searchStringSeededFrom: { cell, range: searchStringOptions.selection },
+				focus: focusWidget
 			};
 		}
+	} else {
+		options = { focus: focusWidget };
 	}
 
 	controller.show(searchStringOptions?.searchString, options);
@@ -195,8 +199,8 @@ function findWidgetAction(accessor: ServicesAccessor, codeEditor: ICodeEditor, n
 		next ? controller.findNext() : controller.findPrevious();
 		return true;
 	} else {
-		// Find widget is not open, open it with search string (similar to StartFindAction)
-		return openFindWidget(controller, editor, codeEditor);
+		// Find widget is not open, open it without focusing the widget (keep focus in editor)
+		return openFindWidget(controller, editor, codeEditor, false);
 	}
 }
 
@@ -223,7 +227,7 @@ StartFindAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: 
 	}
 
 	const controller = editor?.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
-	return openFindWidget(controller, editor, codeEditor);
+	return openFindWidget(controller, editor, codeEditor, true);
 });
 
 StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeEditor: ICodeEditor, args: any) => {
@@ -277,11 +281,11 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(
 					NOTEBOOK_EDITOR_FOCUSED,
-					KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED
+					CONTEXT_FIND_WIDGET_VISIBLE
 				),
 				primary: KeyCode.F3,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.KeyG, secondary: [KeyCode.F3] },
-				weight: KeybindingWeight.WorkbenchContrib + 1  // Higher priority than editor
+				weight: KeybindingWeight.WorkbenchContrib + 1
 			}
 		});
 	}
@@ -299,11 +303,11 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(
 					NOTEBOOK_EDITOR_FOCUSED,
-					KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED
+					CONTEXT_FIND_WIDGET_VISIBLE
 				),
 				primary: KeyMod.Shift | KeyCode.F3,
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG, secondary: [KeyMod.Shift | KeyCode.F3] },
-				weight: KeybindingWeight.WorkbenchContrib + 1  // Higher priority than editor
+				weight: KeybindingWeight.WorkbenchContrib + 1
 			}
 		});
 	}
@@ -313,23 +317,3 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.findNext.enter',
-			title: localize2('notebook.findNext.enter', 'Find Next'),
-			keybinding: {
-				when: ContextKeyExpr.and(
-					NOTEBOOK_EDITOR_FOCUSED,
-					KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED
-				),
-				primary: KeyCode.Enter,
-				weight: KeybindingWeight.WorkbenchContrib + 1  // Higher priority than editor
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		return runFind(accessor, true);
-	}
-});

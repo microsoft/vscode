@@ -30,6 +30,7 @@ import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TerminalCommand } from '../../../../../../platform/terminal/common/capabilities/commandDetection/terminalCommand.js';
 import type { IMarker } from '@xterm/headless';
+import { generateUuid } from '../../../../../../base/common/uuid.js';
 
 interface ITerminalLinkActivationResult {
 	source: 'editor' | 'search';
@@ -151,6 +152,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				marker: {
 					line: 0
 				} as Partial<IMarker> as any,
+				id: generateUuid()
 			})]);
 			fileService.setFiles([
 				URI.from({ scheme: Schemas.file, path: '/initial/cwd/foo/bar.txt' }),
@@ -293,7 +295,8 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					} as Partial<IMarker> as any,
 					exitCode: 0,
 					commandStartLineContent: '',
-					markProperties: {}
+					markProperties: {},
+					id: generateUuid()
 				})]);
 				await opener.open({
 					text: 'file.txt',
@@ -554,6 +557,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					marker: {
 						line: 0
 					} as Partial<IMarker> as any,
+					id: generateUuid()
 				})]);
 				await opener.open({
 					text: 'file.txt',

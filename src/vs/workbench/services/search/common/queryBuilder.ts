@@ -313,11 +313,11 @@ export class QueryBuilder {
 				}
 
 				const relPath = path.relative(searchRoot.fsPath, file.fsPath);
-				assertReturnsDefined(folderQuery.includePattern)[relPath.replace(/\\/g, '/')] = true;
+				assertReturnsDefined(folderQuery.includePattern)[escapeGlobPattern(relPath.replace(/\\/g, '/'))] = true;
 			} else {
 				if (file.fsPath) {
 					hasIncludedFile = true;
-					includePattern[file.fsPath] = true;
+					includePattern[escapeGlobPattern(file.fsPath)] = true;
 				}
 			}
 		});
@@ -691,7 +691,7 @@ function normalizeGlobPattern(pattern: string): string {
  * given the input "//?/C:/A?.txt", this would produce output '//[?]/C:/A[?].txt',
  * which may not be desirable in some cases. Use with caution if UNC paths could be expected.
  */
-function escapeGlobPattern(path: string): string {
+export function escapeGlobPattern(path: string): string {
 	return path.replace(/([?*[\]])/g, '[$1]');
 }
 

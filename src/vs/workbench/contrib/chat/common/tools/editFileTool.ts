@@ -14,6 +14,7 @@ import { ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { ChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../common/languageModelToolsService.js';
+import { LocalChatSessionUri } from '../chatUri.js';
 
 export const ExtensionEditToolId = 'vscode_editFile';
 export const InternalEditToolId = 'vscode_editFile_internal';
@@ -47,7 +48,7 @@ export class EditTool implements IToolImpl {
 		const fileUri = URI.revive(parameters.uri);
 		const uri = CellUri.parse(fileUri)?.notebook || fileUri;
 
-		const model = this.chatService.getSession(invocation.context?.sessionId) as ChatModel;
+		const model = this.chatService.getSession(LocalChatSessionUri.forSession(invocation.context?.sessionId)) as ChatModel;
 		const request = model.getRequests().at(-1)!;
 
 		model.acceptResponseProgress(request, {
@@ -88,7 +89,7 @@ export class EditTool implements IToolImpl {
 			location: 'tool',
 			chatRequestId: invocation.chatRequestId,
 			chatRequestModel: invocation.modelId,
-			chatSessionId: invocation.context.sessionId,
+			chatSessionResource: invocation.context.sessionResource,
 		}, {
 			textEdit: (target, edits) => {
 				model.acceptResponseProgress(request, { kind: 'textEdit', uri: target, edits });

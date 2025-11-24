@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 .element-selection-message,
-.element-expand-container,
 .connecting-webview-element {
 	position: absolute;
 	bottom: 10px;
@@ -23,15 +22,16 @@
 	height: 42px;
 }
 
-.element-selection-message {
-	bottom: 10px;
-	right: 10px;
-}
-
-.element-expand-container,
 .connecting-webview-element {
 	bottom: 15px;
 	right: 15px;
+}
+
+.element-selection-main-content,
+.element-expand-container {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 }
 
 .element-selection-cancel {
@@ -39,16 +39,16 @@
 	width: fit-content;
 }
 
-.element-selection-message .monaco-button-dropdown > .monaco-button.monaco-text-button {
+.element-selection-main-content .monaco-button-dropdown > .monaco-button.monaco-text-button {
 	height: 24px;
 	align-content: center;
 	padding: 0px 5px;
 }
 
-.element-selection-message .monaco-button.codicon.codicon-close,
+.element-selection-main-content .monaco-button.codicon.codicon-close,
 .element-expand-container .monaco-button.codicon.codicon-layout,
-.element-selection-message .monaco-button.codicon.codicon-chevron-right,
-.element-selection-message .monaco-button.codicon.codicon-gear {
+.element-selection-main-content .monaco-button.codicon.codicon-chevron-right,
+.element-selection-main-content .monaco-button.codicon.codicon-gear {
 	width: 17px;
 	height: 17px;
 	padding: 2px 2px;
@@ -74,13 +74,13 @@
 	color: var(--vscode-button-foreground);
 }
 
-.element-selection-message .monaco-button:hover,
+.element-selection-main-content .monaco-button:hover,
 .element-expand-container .monaco-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.element-selection-message .hidden,
+.element-selection-main-content .hidden,
 .element-expand-container.hidden,
-.element-selection-message.hidden {
+.element-selection-main-content.hidden {
 	display: none !important;
 }

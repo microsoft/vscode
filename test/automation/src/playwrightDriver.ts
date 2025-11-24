@@ -8,11 +8,12 @@ import type { Protocol } from 'playwright-core/types/protocol';
 import { dirname, join } from 'path';
 import { promises } from 'fs';
 import { IWindowDriver } from './driver';
-import { PageFunction } from 'playwright-core/types/structs';
 import { measureAndLog } from './logger';
 import { LaunchOptions } from './code';
 import { teardown } from './processes';
 import { ChildProcess } from 'child_process';
+
+type PageFunction<Arg, T> = (arg: Arg) => T | Promise<T>;
 
 export class PlaywrightDriver {
 
@@ -51,19 +52,19 @@ export class PlaywrightDriver {
 		return this.page;
 	}
 
-	async startTracing(name: string): Promise<void> {
+	async startTracing(name?: string): Promise<void> {
 		if (!this.options.tracing) {
 			return; // tracing disabled
 		}
 
 		try {
-			await measureAndLog(() => this.context.tracing.startChunk({ title: name }), `startTracing for ${name}`, this.options.logger);
+			await measureAndLog(() => this.context.tracing.startChunk({ title: name }), `startTracing${name ? ` for ${name}` : ''}`, this.options.logger);
 		} catch (error) {
 			// Ignore
 		}
 	}
 
-	async stopTracing(name: string, persist: boolean): Promise<void> {
+	async stopTracing(name?: string, persist: boolean = false): Promise<void> {
 		if (!this.options.tracing) {
 			return; // tracing disabled
 		}
@@ -71,10 +72,11 @@ export class PlaywrightDriver {
 		try {
 			let persistPath: string | undefined = undefined;
 			if (persist) {
-				persistPath = join(this.options.logsPath, `playwright-trace-${PlaywrightDriver.traceCounter++}-${name.replace(/\s+/g, '-')}.zip`);
+				const nameSuffix = name ? `-${name.replace(/\s+/g, '-')}` : '';
+				persistPath = join(this.options.logsPath, `playwright-trace-${PlaywrightDriver.traceCounter++}${nameSuffix}.zip`);
 			}
 
-			await measureAndLog(() => this.context.tracing.stopChunk({ path: persistPath }), `stopTracing for ${name}`, this.options.logger);
+			await measureAndLog(() => this.context.tracing.stopChunk({ path: persistPath }), `stopTracing${name ? ` for ${name}` : ''}`, this.options.logger);
 
 			// To ensure we have a screenshot at the end where
 			// it failed, also trigger one explicitly. Tracing
@@ -168,9 +170,10 @@ export class PlaywrightDriver {
 		return await this._cdpSession.send('Runtime.getProperties', parameters);
 	}
 
-	private async takeScreenshot(name: string): Promise<void> {
+	private async takeScreenshot(name?: string): Promise<void> {
 		try {
-			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.screenShotCounter++}-${name.replace(/\s+/g, '-')}.png`);
+			const nameSuffix = name ? `-${name.replace(/\s+/g, '-')}` : '';
+			const persistPath = join(this.options.logsPath, `playwright-screenshot-${PlaywrightDriver.screenShotCounter++}${nameSuffix}.png`);
 
 			await measureAndLog(() => this.page.screenshot({ path: persistPath, type: 'png' }), 'takeScreenshot', this.options.logger);
 		} catch (error) {

@@ -5,10 +5,10 @@
 
 import { ClientAssertionCredential } from '@azure/identity';
 import { CosmosClient } from '@azure/cosmos';
-import { retry } from './retry';
+import { retry } from './retry.ts';
 
 if (process.argv.length !== 3) {
-	console.error('Usage: node createBuild.js VERSION');
+	console.error('Usage: node createBuild.ts VERSION');
 	process.exit(-1);
 }
 

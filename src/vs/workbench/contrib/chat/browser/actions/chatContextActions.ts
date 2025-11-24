@@ -35,16 +35,16 @@ import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, isEditorCommandsContext, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
+import { CTX_INLINE_CHAT_V2_ENABLED } from '../../../inlineChat/common/inlineChat.js';
 import { AnythingQuickAccessProvider } from '../../../search/browser/anythingQuickAccess.js';
 import { isSearchTreeFileMatch, isSearchTreeMatch } from '../../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from '../../../search/browser/symbolsQuickAccess.js';
 import { SearchContext } from '../../../search/common/constants.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatRequestVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
-import { ChatAgentLocation } from '../../common/constants.js';
-import { IChatWidget, IChatWidgetService, IQuickChatService, showChatView } from '../chat.js';
+import { ChatAgentLocation, isSupportedChatFileScheme } from '../../common/constants.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService } from '../chat.js';
 import { IChatContextPickerItem, IChatContextPickService, IChatContextValueItem, isChatContextPickerPickItem } from '../chatContextPickService.js';
 import { isQuickChat } from '../chatWidget.js';
 import { resizeImage } from '../imageUtils.js';
@@ -61,12 +61,11 @@ export function registerChatContextActions() {
 }
 
 async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {
-	const viewsService = accessor.get(IViewsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 
 	const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
 	if (!lastFocusedWidget || lastFocusedWidget.location === ChatAgentLocation.Chat) {
-		return showChatView(viewsService); // only show chat view if we either have no chat view or its located in view container
+		return chatWidgetService.revealWidget(); // only show chat view if we either have no chat view or its located in view container
 	}
 	return lastFocusedWidget;
 }
@@ -404,13 +403,20 @@ export class AttachContextAction extends Action2 {
 			},
 			menu: {
 				when: ContextKeyExpr.and(
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
-					ChatContextKeys.lockedToCodingAgent.negate()
+					ContextKeyExpr.or(
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline), CTX_INLINE_CHAT_V2_ENABLED)
+					),
+					ContextKeyExpr.or(
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeys.agentSupportsAttachments
+					)
 				),
 				id: MenuId.ChatInputAttachmentToolbar,
 				group: 'navigation',
 				order: 3
 			},
+
 		});
 	}
 
@@ -455,6 +461,12 @@ export class AttachContextAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 
 		const providerOptions: AnythingQuickAccessProviderRunOptions = {
+			filter: (pick) => {
+				if (isIQuickPickItemWithResource(pick) && pick.resource) {
+					return instantiationService.invokeFunction(accessor => isSupportedChatFileScheme(accessor, pick.resource!.scheme));
+				}
+				return true;
+			},
 			additionPicks,
 			handleAccept: async (item: IQuickPickServicePickItem | IContextPickItemItem, isBackgroundAccept: boolean) => {
 
@@ -618,23 +630,37 @@ export class AttachContextAction extends Action2 {
 		}
 
 		if (cts.token.isCancellationRequested) {
+			pickerConfig.dispose?.();
 			return true; // picker got hidden already
 		}
 
 		const defer = new DeferredPromise<boolean>();
 		const addPromises: Promise<void>[] = [];
 
-		store.add(qp.onDidAccept(e => {
+		store.add(qp.onDidAccept(async e => {
+			const noop = 'noop';
 			const [selected] = qp.selectedItems;
 			if (isChatContextPickerPickItem(selected)) {
 				const attachment = selected.asAttachment();
+				if (!attachment || attachment === noop) {
+					return;
+				}
 				if (isThenable(attachment)) {
-					addPromises.push(attachment.then(v => widget.attachmentModel.addContext(v)));
+					addPromises.push(attachment.then(v => {
+						if (v !== noop) {
+							widget.attachmentModel.addContext(v);
+						}
+					}));
 				} else {
 					widget.attachmentModel.addContext(attachment);
 				}
 			}
 			if (selected === goBackItem) {
+				if (pickerConfig.goBack?.()) {
+					// Custom goBack handled the navigation, stay in the picker
+					return; // Don't complete, keep picker open
+				}
+				// Default behavior: go back to main picker
 				defer.complete(false);
 			}
 			if (selected === configureItem) {
@@ -648,6 +674,7 @@ export class AttachContextAction extends Action2 {
 
 		store.add(qp.onDidHide(() => {
 			defer.complete(true);
+			pickerConfig.dispose?.();
 		}));
 
 		try {

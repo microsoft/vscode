@@ -11,10 +11,6 @@ export function sendInlineCompletionsEndOfLifeTelemetry(dataChannel: DataChannel
 
 export type InlineCompletionEndOfLifeEvent = {
 	// request
-	/**
-	 * @deprecated To be removed at one point in favor of opportunityId
-	 */
-	id: string;
 	opportunityId: string;
 	requestReason: string;
 	editorType: string;
@@ -42,8 +38,10 @@ export type InlineCompletionEndOfLifeEvent = {
 	partiallyAcceptedCharactersSinceOriginal: number | undefined;
 	preceeded: boolean | undefined;
 	superseded: boolean | undefined;
-	error: string | undefined;
 	notShownReason: string | undefined;
+	renameCreated: boolean;
+	renameDuration: number | undefined;
+	renameTimedOut: boolean;
 	// rendering
 	viewKind: string | undefined;
 	cursorColumnDistance: number | undefined;
@@ -60,8 +58,7 @@ export type InlineCompletionEndOfLifeEvent = {
 
 type InlineCompletionsEndOfLifeClassification = {
 	owner: 'benibenj';
-	comment: 'Inline completions ended';
-	id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the inline completion request' };
+	comment: 'Inline completions ended. @sentToGitHub';
 	opportunityId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for an opportunity to show an inline completion or NES' };
 	correlationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The correlation identifier for the inline completion' };
 	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the extension that contributed the inline completion' };
@@ -83,9 +80,11 @@ type InlineCompletionsEndOfLifeClassification = {
 	preceeded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was preceeded by another one' };
 	languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language ID of the document where the inline completion was shown' };
 	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
-	error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The error message if the inline completion failed' };
 	typingInterval: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The average typing interval of the user at the moment the inline completion was requested' };
 	typingIntervalCharacterCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count involved in the typing interval calculation' };
+	renameCreated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a rename operation was created' };
+	renameDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the rename processor' };
+	renameTimedOut: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the rename prepare operation timed out' };
 	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
 	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };
 	viewKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of the view where the inline completion was shown' };

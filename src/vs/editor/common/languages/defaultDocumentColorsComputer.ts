@@ -67,7 +67,7 @@ function _findRGBColorInformation(range: IRange | undefined, matches: RegExpMatc
 	if (!range || matches.length !== 1) {
 		return;
 	}
-	const match = matches[0]!;
+	const match = matches[0];
 	const captureGroups = match.values();
 	const parsedRegex = _parseCaptureGroups(captureGroups);
 	return {
@@ -80,7 +80,7 @@ function _findHSLColorInformation(range: IRange | undefined, matches: RegExpMatc
 	if (!range || matches.length !== 1) {
 		return;
 	}
-	const match = matches[0]!;
+	const match = matches[0];
 	const captureGroups = match.values();
 	const parsedRegex = _parseCaptureGroups(captureGroups);
 	const colorEquivalent = new Color(new HSLA(parsedRegex[0], parsedRegex[1] / 100, parsedRegex[2] / 100, isAlpha ? parsedRegex[3] : 1));

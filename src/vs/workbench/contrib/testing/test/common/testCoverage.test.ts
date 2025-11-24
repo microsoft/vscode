@@ -111,20 +111,20 @@ suite('TestCoverage', () => {
 
 		assert.deepStrictEqual(changes, [
 			[
-				"file:///",
-				"file:///",
-				"file:///",
-				"file:///path",
-				"file:///path/to",
-				"file:///path/to/file",
+				'file:///',
+				'file:///',
+				'file:///',
+				'file:///path',
+				'file:///path/to',
+				'file:///path/to/file',
 			],
 			[
-				"file:///",
-				"file:///",
-				"file:///",
-				"file:///path",
-				"file:///path/to",
-				"file:///path/to/file2",
+				'file:///',
+				'file:///',
+				'file:///',
+				'file:///path',
+				'file:///path/to',
+				'file:///path/to/file2',
 			],
 		]);
 	});

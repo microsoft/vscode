@@ -7,6 +7,7 @@ import type { IConfigurationNode } from '../../../platform/configuration/common/
 import { TerminalAccessibilityCommandId, defaultTerminalAccessibilityCommandsToSkipShell } from '../terminalContrib/accessibility/common/terminal.accessibility.js';
 import { terminalAccessibilityConfiguration } from '../terminalContrib/accessibility/common/terminalAccessibilityConfiguration.js';
 import { terminalAutoRepliesConfiguration } from '../terminalContrib/autoReplies/common/terminalAutoRepliesConfiguration.js';
+import { TerminalChatCommandId } from '../terminalContrib/chat/browser/terminalChat.js';
 import { terminalInitialHintConfiguration } from '../terminalContrib/chat/common/terminalInitialHintConfiguration.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../terminalContrib/chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
 import { terminalCommandGuideConfiguration } from '../terminalContrib/commandGuide/common/terminalCommandGuideConfiguration.js';
@@ -25,6 +26,12 @@ import { terminalZoomConfiguration } from '../terminalContrib/zoom/common/termin
 export const enum TerminalContribCommandId {
 	A11yFocusAccessibleBuffer = TerminalAccessibilityCommandId.FocusAccessibleBuffer,
 	DeveloperRestartPtyHost = TerminalDeveloperCommandId.RestartPtyHost,
+	OpenTerminalSettingsLink = TerminalChatCommandId.OpenTerminalSettingsLink,
+	DisableSessionAutoApproval = TerminalChatCommandId.DisableSessionAutoApproval,
+	FocusMostRecentChatTerminalOutput = TerminalChatCommandId.FocusMostRecentChatTerminalOutput,
+	FocusMostRecentChatTerminal = TerminalChatCommandId.FocusMostRecentChatTerminal,
+	ToggleChatTerminalOutput = TerminalChatCommandId.ToggleChatTerminalOutput,
+	FocusChatInstanceAction = TerminalChatCommandId.FocusChatInstanceAction,
 }
 
 // HACK: Export some settings from `terminalContrib/` that are depended upon elsewhere. These are
@@ -36,6 +43,7 @@ export const enum TerminalContribSettingId {
 	AutoApprove = TerminalChatAgentToolsSettingId.AutoApprove,
 	EnableAutoApprove = TerminalChatAgentToolsSettingId.EnableAutoApprove,
 	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
+	OutputLocation = TerminalChatAgentToolsSettingId.OutputLocation
 }
 
 // Export configuration schemes from terminalContrib - this is an exception to the eslint rule since

@@ -53,7 +53,6 @@ export interface ISettingsGroup {
 }
 
 export interface ISettingsSection {
-	titleRange?: IRange;
 	title?: string;
 	settings: ISetting[];
 }

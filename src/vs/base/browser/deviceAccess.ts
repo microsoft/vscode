@@ -5,6 +5,27 @@
 
 // https://wicg.github.io/webusb/
 
+interface UsbDevice {
+	readonly deviceClass: number;
+	readonly deviceProtocol: number;
+	readonly deviceSubclass: number;
+	readonly deviceVersionMajor: number;
+	readonly deviceVersionMinor: number;
+	readonly deviceVersionSubminor: number;
+	readonly manufacturerName?: string;
+	readonly productId: number;
+	readonly productName?: string;
+	readonly serialNumber?: string;
+	readonly usbVersionMajor: number;
+	readonly usbVersionMinor: number;
+	readonly usbVersionSubminor: number;
+	readonly vendorId: number;
+}
+
+interface USB {
+	requestDevice(options: { filters: unknown[] }): Promise<UsbDevice>;
+}
+
 export interface UsbDeviceData {
 	readonly deviceClass: number;
 	readonly deviceProtocol: number;
@@ -23,8 +44,7 @@ export interface UsbDeviceData {
 }
 
 export async function requestUsbDevice(options?: { filters?: unknown[] }): Promise<UsbDeviceData | undefined> {
-	// eslint-disable-next-line local/code-no-any-casts
-	const usb = (navigator as any).usb;
+	const usb = (navigator as Navigator & { usb?: USB }).usb;
 	if (!usb) {
 		return undefined;
 	}
@@ -54,14 +74,26 @@ export async function requestUsbDevice(options?: { filters?: unknown[] }): Promi
 
 // https://wicg.github.io/serial/
 
+interface SerialPortInfo {
+	readonly usbVendorId?: number | undefined;
+	readonly usbProductId?: number | undefined;
+}
+
+interface SerialPort {
+	getInfo(): SerialPortInfo;
+}
+
+interface Serial {
+	requestPort(options: { filters: unknown[] }): Promise<SerialPort>;
+}
+
 export interface SerialPortData {
 	readonly usbVendorId?: number | undefined;
 	readonly usbProductId?: number | undefined;
 }
 
 export async function requestSerialPort(options?: { filters?: unknown[] }): Promise<SerialPortData | undefined> {
-	// eslint-disable-next-line local/code-no-any-casts
-	const serial = (navigator as any).serial;
+	const serial = (navigator as Navigator & { serial?: Serial }).serial;
 	if (!serial) {
 		return undefined;
 	}
@@ -80,6 +112,18 @@ export async function requestSerialPort(options?: { filters?: unknown[] }): Prom
 
 // https://wicg.github.io/webhid/
 
+interface HidDevice {
+	readonly opened: boolean;
+	readonly vendorId: number;
+	readonly productId: number;
+	readonly productName: string;
+	readonly collections: [];
+}
+
+interface HID {
+	requestDevice(options: { filters: unknown[] }): Promise<HidDevice[]>;
+}
+
 export interface HidDeviceData {
 	readonly opened: boolean;
 	readonly vendorId: number;
@@ -89,8 +133,7 @@ export interface HidDeviceData {
 }
 
 export async function requestHidDevice(options?: { filters?: unknown[] }): Promise<HidDeviceData | undefined> {
-	// eslint-disable-next-line local/code-no-any-casts
-	const hid = (navigator as any).hid;
+	const hid = (navigator as Navigator & { hid?: HID }).hid;
 	if (!hid) {
 		return undefined;
 	}

@@ -154,10 +154,13 @@ export const USER_LOCAL_AND_REMOTE_SETTINGS = [
 	'http.proxyAuthorization',
 	'http.proxySupport',
 	'http.systemCertificates',
+	'http.systemCertificatesNode',
 	'http.experimental.systemCertificatesV2',
 	'http.fetchAdditionalSupport',
 	'http.experimental.networkInterfaceCheckInterval',
 ];
+
+export const systemCertificatesNodeDefault = false;
 
 let proxyConfiguration: IConfigurationNode[] = [];
 let previousUseHostProxy: boolean | undefined = undefined;
@@ -257,6 +260,16 @@ function registerProxyConfigurations(useHostProxy = true, useHostProxyDefault = 
 					default: true,
 					markdownDescription: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. On Windows and macOS, a reload of the window is required after turning this off. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
 					restricted: true
+				},
+				'http.systemCertificatesNode': {
+					type: 'boolean',
+					tags: ['experimental'],
+					default: systemCertificatesNodeDefault,
+					markdownDescription: localize('systemCertificatesNode', "Controls whether system certificates should be loaded using Node.js built-in support. Reload the window after changing this setting. When during [remote development](https://aka.ms/vscode-remote) the {0} setting is disabled this setting can be configured in the local and the remote settings separately.", '`#http.useLocalProxyConfiguration#`'),
+					restricted: true,
+					experiment: {
+						mode: 'auto'
+					}
 				},
 				'http.experimental.systemCertificatesV2': {
 					type: 'boolean',

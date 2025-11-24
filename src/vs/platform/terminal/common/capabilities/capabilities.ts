@@ -47,6 +47,10 @@ export const enum TerminalCapability {
 	 */
 	ShellEnvDetection,
 
+	/**
+	 * The terminal can detect the prompt type being used (e.g., p10k, posh-git).
+	 */
+	PromptTypeDetection,
 }
 
 /**
@@ -128,6 +132,7 @@ export interface ITerminalCapabilityImplMap {
 	[TerminalCapability.PartialCommandDetection]: IPartialCommandDetectionCapability;
 	[TerminalCapability.BufferMarkDetection]: IBufferMarkCapability;
 	[TerminalCapability.ShellEnvDetection]: IShellEnvDetectionCapability;
+	[TerminalCapability.PromptTypeDetection]: IPromptTypeDetectionCapability;
 }
 
 export interface ICwdDetectionCapability {
@@ -147,6 +152,13 @@ export interface IShellEnvDetectionCapability {
 	setEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void;
 	deleteEnvironmentSingleVar(key: string, value: string | undefined, isTrusted: boolean): void;
 	endEnvironmentSingleVar(isTrusted: boolean): void;
+}
+
+export interface IPromptTypeDetectionCapability {
+	readonly type: TerminalCapability.PromptTypeDetection;
+	readonly promptType: string | undefined;
+	readonly onPromptTypeChanged: Event<string | undefined>;
+	setPromptType(value: string): void;
 }
 
 export interface TerminalShellIntegrationEnvironment {
@@ -203,14 +215,12 @@ export interface ICommandDetectionCapability {
 	/** The current cwd at the cursor's position. */
 	readonly cwd: string | undefined;
 	readonly hasRichCommandDetection: boolean;
-	readonly promptType: string | undefined;
 	readonly currentCommand: ICurrentPartialCommand | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
 	readonly onCommandExecuted: Event<ITerminalCommand>;
 	readonly onCommandInvalidated: Event<ITerminalCommand[]>;
 	readonly onCurrentCommandInvalidated: Event<ICommandInvalidationRequest>;
-	readonly onPromptTypeChanged: Event<string | undefined>;
 	readonly onSetRichCommandDetection: Event<boolean>;
 	setContinuationPrompt(value: string): void;
 	setPromptTerminator(value: string, lastPromptLine: string): void;
@@ -232,7 +242,6 @@ export interface ICommandDetectionCapability {
 	handleCommandExecuted(options?: IHandleCommandOptions): void;
 	handleCommandFinished(exitCode?: number, options?: IHandleCommandOptions): void;
 	setHasRichCommandDetection(value: boolean): void;
-	setPromptType(value: string): void;
 	/**
 	 * Set the command line explicitly.
 	 * @param commandLine The command line being set.
@@ -242,6 +251,12 @@ export interface ICommandDetectionCapability {
 	 * always be present when running the _builtin_ SI scripts.
 	 */
 	setCommandLine(commandLine: string, isTrusted: boolean): void;
+	/**
+	 * Sets the command ID to use for the next command that starts.
+	 * This allows pre-assigning an ID before the shell sends the command start sequence,
+	 * which is useful for linking commands across renderer and ptyHost.
+	 */
+	setNextCommandId(command: string, commandId: string): void;
 	serialize(): ISerializedCommandDetectionCapability;
 	deserialize(serialized: ISerializedCommandDetectionCapability): void;
 }
@@ -282,6 +297,7 @@ interface IBaseTerminalCommand {
 	isTrusted: boolean;
 	timestamp: number;
 	duration: number;
+	id: string | undefined;
 
 	// Optional serializable
 	cwd: string | undefined;

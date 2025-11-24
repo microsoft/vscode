@@ -11,17 +11,21 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { AUTH_SCOPE_SEPARATOR, fetchAuthorizationServerMetadata, fetchResourceMetadata, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, parseWWWAuthenticateHeader, scopesMatch } from '../../../base/common/oauth.js';
 import { SSEParser } from '../../../base/common/sseParser.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
+import { vArray, vNumber, vObj, vObjAny, vOptionalProp, vString } from '../../../base/common/validation.js';
 import { ConfigurationTarget } from '../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
+import product from '../../../platform/product/common/product.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
-import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails, IStartMcpOptions, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
+import { McpHttpServerDefinition, McpStdioServerDefinition, McpToolAvailability } from './extHostTypes.js';
 import { IExtHostVariableResolverProvider } from './extHostVariableResolverService.js';
 import { IExtHostWorkspace } from './extHostWorkspace.js';
 
@@ -30,6 +34,27 @@ export const IExtHostMpcService = createDecorator<IExtHostMpcService>('IExtHostM
 export interface IExtHostMpcService extends ExtHostMcpShape {
 	registerMcpConfigurationProvider(extension: IExtensionDescription, id: string, provider: vscode.McpServerDefinitionProvider): IDisposable;
 }
+
+const serverDataValidation = vObj({
+	label: vString(),
+	version: vOptionalProp(vString()),
+	metadata: vOptionalProp(vObj({
+		capabilities: vOptionalProp(vObjAny()),
+		serverInfo: vOptionalProp(vObjAny()),
+		tools: vOptionalProp(vArray(vObj({
+			availability: vNumber(),
+			definition: vObjAny(),
+		}))),
+	})),
+	authentication: vOptionalProp(vObj({
+		providerId: vString(),
+		scopes: vArray(vString()),
+	}))
+});
+
+// Can be validated with:
+// declare const _serverDataValidationTest: vscode.McpStdioServerDefinition | vscode.McpHttpServerDefinition;
+// const _serverDataValidationProd: ValidatorType<typeof serverDataValidation> = _serverDataValidationTest;
 
 export class ExtHostMcpService extends Disposable implements IExtHostMpcService {
 	protected _proxy: MainThreadMcpShape;
@@ -76,10 +101,13 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 	}
 
 	$stopMcp(id: number): void {
-		if (this._sseEventSources.has(id)) {
-			this._sseEventSources.deleteAndDispose(id);
-			this._proxy.$onDidChangeState(id, { state: McpConnectionState.Kind.Stopped });
-		}
+		this._sseEventSources.get(id)
+			?.close()
+			.then(() => this._didClose(id));
+	}
+
+	private _didClose(id: number) {
+		this._sseEventSources.deleteAndDispose(id);
 	}
 
 	$sendMessage(id: number, message: string): void {
@@ -140,10 +168,30 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 					id = id + i;
 				}
 
+				serverDataValidation.validateOrThrow(item);
+				if ((item as vscode.McpHttpServerDefinition2).authentication) {
+					checkProposedApiEnabled(extension, 'mcpToolDefinitions');
+				}
+
+				let staticMetadata: McpServerStaticMetadata | undefined;
+				const castAs2 = item as McpStdioServerDefinition | McpHttpServerDefinition;
+				if (isProposedApiEnabled(extension, 'mcpToolDefinitions') && castAs2.metadata) {
+					staticMetadata = {
+						capabilities: castAs2.metadata.capabilities as MCP.ServerCapabilities,
+						instructions: castAs2.metadata.instructions,
+						serverInfo: castAs2.metadata.serverInfo as MCP.Implementation,
+						tools: castAs2.metadata.tools?.map(t => ({
+							availability: t.availability === McpToolAvailability.Dynamic ? McpServerStaticToolAvailability.Dynamic : McpServerStaticToolAvailability.Initial,
+							definition: t.definition as MCP.Tool,
+						})),
+					};
+				}
+
 				servers.push({
 					id,
 					label: item.label,
 					cacheNonce: item.version || '$$NONE',
+					staticMetadata,
 					launch: Convert.McpServerDefinition.from(item),
 				});
 			}
@@ -217,6 +265,7 @@ export class McpHTTPHandle extends Disposable {
 		resourceMetadata?: IAuthorizationProtectedResourceMetadata;
 		scopes?: string[];
 	};
+	private _didSendClose = false;
 
 	constructor(
 		private readonly _id: number,
@@ -247,7 +296,38 @@ export class McpHTTPHandle extends Disposable {
 		}
 	}
 
-	_send(message: string) {
+	async close() {
+		if (this._mode.value === HttpMode.Http && this._mode.sessionId && !this._didSendClose) {
+			this._didSendClose = true;
+			try {
+				await this._closeSession(this._mode.sessionId);
+			} catch {
+				// ignored -- already logged
+			}
+		}
+
+		this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Stopped });
+	}
+
+	private async _closeSession(sessionId: string) {
+		const headers: Record<string, string> = {
+			...Object.fromEntries(this._launch.headers),
+			'Mcp-Session-Id': sessionId,
+		};
+
+		await this._addAuthHeader(headers);
+
+		// no fetch with retry here -- don't try to auth if we get an auth failure
+		await this._fetch(
+			this._launch.uri.toString(true),
+			{
+				method: 'DELETE',
+				headers,
+			},
+		);
+	}
+
+	private _send(message: string) {
 		if (this._mode.value === HttpMode.SSE) {
 			return this._sendLegacySSE(this._mode.endpoint, message);
 		} else {
@@ -295,8 +375,8 @@ export class McpHTTPHandle extends Disposable {
 		if (this._mode.value === HttpMode.Unknown &&
 			// We care about 4xx errors...
 			res.status >= 400 && res.status < 500
-			// ...except for 401 and 403, which are auth errors
-			&& res.status !== 401 && res.status !== 403
+			// ...except for auth errors
+			&& !isAuthStatusCode(res.status)
 		) {
 			this._log(LogLevel.Info, `${res.status} status sending message to ${this._launch.uri}, will attempt to fall back to legacy SSE`);
 			this._sseFallbackWithMessage(message);
@@ -446,8 +526,14 @@ export class McpHTTPHandle extends Disposable {
 	 */
 	private async _attachStreamableBackchannel() {
 		let lastEventId: string | undefined;
+		let canReconnectAt: number | undefined;
 		for (let retry = 0; !this._store.isDisposed; retry++) {
-			await timeout(Math.min(retry * 1000, 30_000), this._cts.token);
+			if (canReconnectAt !== undefined) {
+				await timeout(Math.max(0, canReconnectAt - Date.now()), this._cts.token);
+				canReconnectAt = undefined;
+			} else {
+				await timeout(Math.min(retry * 1000, 30_000), this._cts.token);
+			}
 
 			let res: CommonResponse;
 			try {
@@ -489,7 +575,10 @@ export class McpHTTPHandle extends Disposable {
 			}
 
 			const parser = new SSEParser(event => {
-				if (event.type === 'message') {
+				if (event.retry) {
+					canReconnectAt = Date.now() + event.retry;
+				}
+				if (event.type === 'message' && event.data) {
 					this._proxy.$onDidReceiveMessage(this._id, event.data);
 				}
 				if (event.id) {
@@ -628,6 +717,30 @@ export class McpHTTPHandle extends Disposable {
 				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
 			}
 		}
+		if (this._launch.authentication) {
+			try {
+				this._log(LogLevel.Debug, `Using provided authentication config: providerId=${this._launch.authentication.providerId}, scopes=${this._launch.authentication.scopes.join(', ')}`);
+				const token = await this._proxy.$getTokenForProviderId(
+					this._id,
+					this._launch.authentication.providerId,
+					this._launch.authentication.scopes,
+					{
+						errorOnUserInteraction: this._errorOnUserInteraction,
+						forceNewRegistration
+					}
+				);
+				if (token) {
+					headers['Authorization'] = `Bearer ${token}`;
+					this._log(LogLevel.Info, 'Successfully obtained token from provided authentication config');
+				}
+			} catch (e) {
+				if (UserInteractionRequiredError.is(e)) {
+					this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Stopped, reason: 'needs-user-interaction' });
+					throw new CancellationError();
+				}
+				this._log(LogLevel.Warning, `Error getting token from provided authentication config: ${String(e)}`);
+			}
+		}
 		return headers;
 	}
 
@@ -674,8 +787,8 @@ export class McpHTTPHandle extends Disposable {
 	}
 
 	/**
-	 * Helper method to perform fetch with 401 authentication retry logic.
-	 * If the initial request returns 401 and we don't have auth metadata,
+	 * Helper method to perform fetch with authentication retry logic.
+	 * If the initial request returns an auth error and we don't have auth metadata,
 	 * it will populate the auth metadata and retry once.
 	 * If we already have auth metadata, check if the scopes changed and update them.
 	 */
@@ -683,7 +796,7 @@ export class McpHTTPHandle extends Disposable {
 		const doFetch = () => this._fetch(mcpUrl, init);
 
 		let res = await doFetch();
-		if (res.status === 401) {
+		if (isAuthStatusCode(res.status)) {
 			if (!this._authMetadata) {
 				await this._populateAuthMetadata(mcpUrl, res);
 				await this._addAuthHeader(headers);
@@ -693,7 +806,7 @@ export class McpHTTPHandle extends Disposable {
 					res = await doFetch();
 				}
 			} else {
-				// We have auth metadata, but got a 401. Check if the scopes changed.
+				// We have auth metadata, but got an auth error. Check if the scopes changed.
 				const { scopesChallenge } = this._parseWWWAuthenticateHeader(res);
 				if (!scopesMatch(scopesChallenge, this._authMetadata.scopes)) {
 					this._log(LogLevel.Debug, `Scopes changed from ${JSON.stringify(this._authMetadata.scopes)} to ${JSON.stringify(scopesChallenge)}, updating and retrying`);
@@ -707,8 +820,10 @@ export class McpHTTPHandle extends Disposable {
 				}
 			}
 		}
-		// If we have an Authorization header and still get a 401, we should retry with a new auth registration
-		if (headers['Authorization'] && res.status === 401) {
+		// If we have an Authorization header and still get an auth error, we should retry with a new auth registration
+		if (headers['Authorization'] && isAuthStatusCode(res.status)) {
+			const errorText = await this._getErrText(res);
+			this._log(LogLevel.Debug, `Received ${res.status} status with Authorization header, retrying with new auth registration. Error details: ${errorText || 'no additional details'}`);
 			await this._addAuthHeader(headers, true);
 			res = await doFetch();
 		}
@@ -716,6 +831,8 @@ export class McpHTTPHandle extends Disposable {
 	}
 
 	private async _fetch(url: string, init: MinimalRequestInit): Promise<CommonResponse> {
+		init.headers['user-agent'] = `${product.nameLong}/${product.version}`;
+
 		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
 			const traceObj: any = { ...init, headers: { ...init.headers } };
 			if (traceObj.body) {
@@ -801,4 +918,8 @@ function isJSON(str: string): boolean {
 	} catch (e) {
 		return false;
 	}
+}
+
+function isAuthStatusCode(status: number): boolean {
+	return status === 401 || status === 403;
 }

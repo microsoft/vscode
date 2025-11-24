@@ -184,17 +184,17 @@ export class CursorMoveCommands {
 
 		if (!inSelectionMode) {
 			// Entering line selection for the first time
-			const lineCount = viewModel.model.getLineCount();
+			const lineCount = viewModel.getLineCount();
 
-			let selectToLineNumber = position.lineNumber + 1;
+			let selectToLineNumber = viewPosition.lineNumber + 1;
 			let selectToColumn = 1;
 			if (selectToLineNumber > lineCount) {
 				selectToLineNumber = lineCount;
-				selectToColumn = viewModel.model.getLineMaxColumn(selectToLineNumber);
+				selectToColumn = viewModel.getLineMaxColumn(selectToLineNumber);
 			}
 
-			return CursorState.fromModelState(new SingleCursorState(
-				new Range(position.lineNumber, 1, selectToLineNumber, selectToColumn), SelectionStartKind.Line, 0,
+			return CursorState.fromViewState(new SingleCursorState(
+				new Range(viewPosition.lineNumber, 1, selectToLineNumber, selectToColumn), SelectionStartKind.Line, 0,
 				new Position(selectToLineNumber, selectToColumn), 0
 			));
 		}
@@ -604,6 +604,10 @@ export namespace CursorMove {
 			return false;
 		}
 
+		if (!types.isUndefined(cursorMoveArg.noHistory) && !types.isBoolean(cursorMoveArg.noHistory)) {
+			return false;
+		}
+
 		return true;
 	};
 
@@ -626,6 +630,7 @@ export namespace CursorMove {
 						\`\`\`
 					* 'value': Number of units to move. Default is '1'.
 					* 'select': If 'true' makes the selection. Default is 'false'.
+					* 'noHistory': If 'true' does not add the movement to navigation history. Default is 'false'.
 				`,
 				constraint: isCursorMoveArgs,
 				schema: {
@@ -645,6 +650,10 @@ export namespace CursorMove {
 							'default': 1
 						},
 						'select': {
+							'type': 'boolean',
+							'default': false
+						},
+						'noHistory': {
 							'type': 'boolean',
 							'default': false
 						}
@@ -697,6 +706,7 @@ export namespace CursorMove {
 		select?: boolean;
 		by?: string;
 		value?: number;
+		noHistory?: boolean;
 	}
 
 	export function parse(args: Partial<RawArguments>): ParsedArguments | null {
@@ -777,7 +787,8 @@ export namespace CursorMove {
 			direction: direction,
 			unit: unit,
 			select: (!!args.select),
-			value: (args.value || 1)
+			value: (args.value || 1),
+			noHistory: (!!args.noHistory)
 		};
 	}
 
@@ -786,6 +797,7 @@ export namespace CursorMove {
 		unit: Unit;
 		select: boolean;
 		value: number;
+		noHistory: boolean;
 	}
 
 	export interface SimpleMoveArguments {

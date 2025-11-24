@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
-import { IPager } from '../../../base/common/paging.js';
+import { IIterativePager } from '../../../base/common/paging.js';
 import { URI } from '../../../base/common/uri.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -23,6 +23,7 @@ export interface ILocalMcpServer {
 	readonly displayName?: string;
 	readonly description?: string;
 	readonly galleryUrl?: string;
+	readonly galleryId?: string;
 	readonly repositoryUrl?: string;
 	readonly readmeUrl?: URI;
 	readonly publisher?: string;
@@ -105,8 +106,8 @@ export type Transport = StdioTransport | StreamableHttpTransport | SseTransport;
 export interface IMcpServerPackage {
 	readonly registryType: RegistryType;
 	readonly identifier: string;
-	readonly version: string;
-	readonly transport?: Transport;
+	readonly transport: Transport;
+	readonly version?: string;
 	readonly registryBaseUrl?: string;
 	readonly fileSha256?: string;
 	readonly packageArguments?: readonly IMcpServerArgument[];
@@ -126,14 +127,14 @@ export const enum GalleryMcpServerStatus {
 }
 
 export interface IGalleryMcpServer {
-	readonly id: string;
 	readonly name: string;
 	readonly displayName: string;
 	readonly description: string;
 	readonly version: string;
 	readonly isLatest: boolean;
 	readonly status: GalleryMcpServerStatus;
-	readonly url?: string;
+	readonly id?: string;
+	readonly galleryUrl?: string;
 	readonly webUrl?: string;
 	readonly codicon?: string;
 	readonly icon?: {
@@ -143,7 +144,7 @@ export interface IGalleryMcpServer {
 	readonly lastUpdated?: number;
 	readonly publishDate?: number;
 	readonly repositoryUrl?: string;
-	readonly configuration?: IGalleryMcpServerConfiguration;
+	readonly configuration: IGalleryMcpServerConfiguration;
 	readonly readmeUrl?: string;
 	readonly readme?: string;
 	readonly publisher: string;
@@ -166,11 +167,9 @@ export const IMcpGalleryService = createDecorator<IMcpGalleryService>('IMcpGalle
 export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
-	query(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IGalleryMcpServer>>;
-	getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]>;
+	query(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IGalleryMcpServer>>;
+	getMcpServersFromGallery(infos: { name: string; id?: string }[]): Promise<IGalleryMcpServer[]>;
 	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
-	getMcpServerByName(name: string): Promise<IGalleryMcpServer | undefined>;
-	getMcpServerConfiguration(extension: IGalleryMcpServer, token: CancellationToken): Promise<IGalleryMcpServerConfiguration>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }
 
@@ -250,6 +249,12 @@ export const mcpAccessConfig = 'chat.mcp.access';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
 export const mcpGalleryServiceEnablementConfig = 'chat.mcp.gallery.enabled';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';
+
+export interface IMcpGalleryConfig {
+	readonly serviceUrl?: string;
+	readonly enabled?: boolean;
+	readonly version?: string;
+}
 
 export const enum McpAutoStartValue {
 	Never = 'never',

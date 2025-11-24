@@ -12,7 +12,8 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable, ObservableMap } from '../../../../base/common/observable.js';
-import { IPager } from '../../../../base/common/paging.js';
+import { IIterativePager } from '../../../../base/common/paging.js';
+import Severity from '../../../../base/common/severity.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
@@ -129,6 +130,9 @@ export interface McpServerDefinition {
 	readonly cacheNonce: string;
 	/** Dev mode configuration for the server */
 	readonly devMode?: IMcpDevModeConfig;
+	/** Static description of server tools/data, used to hydrate the cache. */
+	readonly staticMetadata?: McpServerStaticMetadata;
+
 
 	readonly presentation?: {
 		/** Sort order of the definition. */
@@ -138,6 +142,20 @@ export interface McpServerDefinition {
 	};
 }
 
+export const enum McpServerStaticToolAvailability {
+	/** Tool is expected to be present as soon as the server is started. */
+	Initial,
+	/** Tool may be present later. */
+	Dynamic,
+}
+
+export interface McpServerStaticMetadata {
+	tools?: { availability: McpServerStaticToolAvailability; definition: MCP.Tool }[];
+	instructions?: string;
+	capabilities?: MCP.ServerCapabilities;
+	serverInfo?: MCP.Implementation;
+}
+
 export namespace McpServerDefinition {
 	export interface Serialized {
 		readonly id: string;
@@ -145,6 +163,7 @@ export namespace McpServerDefinition {
 		readonly cacheNonce: string;
 		readonly launch: McpServerLaunch.Serialized;
 		readonly variableReplacement?: McpServerDefinitionVariableReplacement.Serialized;
+		readonly staticMetadata?: McpServerStaticMetadata;
 	}
 
 	export function toSerialized(def: McpServerDefinition): McpServerDefinition.Serialized {
@@ -156,6 +175,7 @@ export namespace McpServerDefinition {
 			id: def.id,
 			label: def.label,
 			cacheNonce: def.cacheNonce,
+			staticMetadata: def.staticMetadata,
 			launch: McpServerLaunch.fromSerialized(def.launch),
 			variableReplacement: def.variableReplacement ? McpServerDefinitionVariableReplacement.fromSerialized(def.variableReplacement) : undefined,
 		};
@@ -164,6 +184,7 @@ export namespace McpServerDefinition {
 	export function equals(a: McpServerDefinition, b: McpServerDefinition): boolean {
 		return a.id === b.id
 			&& a.label === b.label
+			&& a.cacheNonce === b.cacheNonce
 			&& arraysEqual(a.roots, b.roots, (a, b) => a.toString() === b.toString())
 			&& objectsEqual(a.launch, b.launch)
 			&& objectsEqual(a.presentation, b.presentation)
@@ -229,7 +250,7 @@ export interface IMcpService {
 	/** Cancels any current autostart @internal */
 	cancelAutostart(): void;
 
-	/** Activatese extensions and runs their MCP servers. */
+	/** Activates extension-providing MCP servers that have not yet been discovered. */
 	activateCollections(): Promise<void>;
 }
 
@@ -294,7 +315,6 @@ export namespace McpServerTrust {
 		Unknown,
 	}
 }
-
 
 export interface IMcpServer extends IDisposable {
 	readonly collection: McpCollectionReference;
@@ -459,6 +479,17 @@ export interface McpServerTransportStdio {
 	readonly envFile: string | undefined;
 }
 
+export interface McpServerTransportHTTPAuthentication {
+	/**
+	 * Authentication provider ID to use to get a session for the initial MCP server connection.
+	 */
+	readonly providerId: string;
+	/**
+	 * Scopes to use to get a session for the initial MCP server connection.
+	 */
+	readonly scopes: string[];
+}
+
 /**
  * MCP server launched on the command line which communicated over SSE or Streamable HTTP.
  * https://spec.modelcontextprotocol.io/specification/2024-11-05/basic/transports/#http-with-sse
@@ -468,6 +499,7 @@ export interface McpServerTransportHTTP {
 	readonly type: McpServerTransportType.HTTP;
 	readonly uri: URI;
 	readonly headers: [string, string][];
+	readonly authentication?: McpServerTransportHTTPAuthentication;
 }
 
 export type McpServerLaunch =
@@ -476,7 +508,7 @@ export type McpServerLaunch =
 
 export namespace McpServerLaunch {
 	export type Serialized =
-		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][] }
+		| { type: McpServerTransportType.HTTP; uri: UriComponents; headers: [string, string][]; authentication?: McpServerTransportHTTPAuthentication }
 		| { type: McpServerTransportType.Stdio; cwd: string | undefined; command: string; args: readonly string[]; env: Record<string, string | number | null>; envFile: string | undefined };
 
 	export function toSerialized(launch: McpServerLaunch): McpServerLaunch.Serialized {
@@ -486,7 +518,7 @@ export namespace McpServerLaunch {
 	export function fromSerialized(launch: McpServerLaunch.Serialized): McpServerLaunch {
 		switch (launch.type) {
 			case McpServerTransportType.HTTP:
-				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers };
+				return { type: launch.type, uri: URI.revive(launch.uri), headers: launch.headers, authentication: launch.authentication };
 			case McpServerTransportType.Stdio:
 				return {
 					type: launch.type,
@@ -660,6 +692,7 @@ export interface IMcpServerEditorOptions extends IEditorOptions {
 }
 
 export const enum McpServerEnablementState {
+	Disabled,
 	DisabledByAccess,
 	Enabled,
 }
@@ -677,12 +710,20 @@ export const enum McpServerEditorTab {
 	Configuration = 'configuration',
 }
 
+export type McpServerEnablementStatus = {
+	readonly state: McpServerEnablementState;
+	readonly message?: {
+		readonly severity: Severity;
+		readonly text: IMarkdownString;
+	};
+};
+
 export interface IWorkbenchMcpServer {
 	readonly gallery: IGalleryMcpServer | undefined;
 	readonly local: IWorkbenchLocalMcpServer | undefined;
 	readonly installable: IInstallableMcpServer | undefined;
 	readonly installState: McpServerInstallState;
-	readonly enablementState: McpServerEnablementState;
+	readonly runtimeStatus: McpServerEnablementStatus | undefined;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;
@@ -696,7 +737,6 @@ export interface IWorkbenchMcpServer {
 	readonly publisherDisplayName?: string;
 	readonly starsCount?: number;
 	readonly license?: string;
-	readonly url?: string;
 	readonly repository?: string;
 	readonly config?: IMcpServerConfiguration | undefined;
 	readonly readmeUrl?: URI;
@@ -712,12 +752,13 @@ export interface IMcpWorkbenchService {
 	readonly local: readonly IWorkbenchMcpServer[];
 	getEnabledLocalMcpServers(): IWorkbenchLocalMcpServer[];
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
-	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IWorkbenchMcpServer>>;
+	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IIterativePager<IWorkbenchMcpServer>>;
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString;
 	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchMcpServer>;
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
 	getMcpConfigPath(arg: IWorkbenchLocalMcpServer): IMcpConfigPath | undefined;
 	getMcpConfigPath(arg: URI): Promise<IMcpConfigPath | undefined>;
+	openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void>;
 	open(extension: IWorkbenchMcpServer | string, options?: IMcpServerEditorOptions): Promise<void>;
 }
 
@@ -877,8 +918,31 @@ export interface IMcpElicitationService {
 	 * @param elicitation Request to elicit a response.
 	 * @returns A promise that resolves to an {@link ElicitationResult}.
 	 */
-	elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<MCP.ElicitResult>;
+	elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<ElicitResult>;
 }
+
+export const enum ElicitationKind {
+	Form,
+	URL,
+}
+
+export interface IUrlModeElicitResult extends IDisposable {
+	kind: ElicitationKind.URL;
+	value: MCP.ElicitResult;
+	/**
+	 * Waits until the server tells us the elicitation is completed before resolving.
+	 * Rejects with a CancellationError if the server stops before elicitation is
+	 * complete, or if the token is cancelled.
+	 */
+	wait: Promise<void>;
+}
+
+export interface IFormModeElicitResult extends IDisposable {
+	kind: ElicitationKind.Form;
+	value: MCP.ElicitResult;
+}
+
+export type ElicitResult = IUrlModeElicitResult | IFormModeElicitResult;
 
 export const IMcpElicitationService = createDecorator<IMcpElicitationService>('IMcpElicitationService');
 

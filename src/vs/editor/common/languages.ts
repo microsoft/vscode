@@ -788,30 +788,34 @@ export interface InlineCompletion {
 	 * The text can also be a snippet. In that case, a preview with default parameters is shown.
 	 * When accepting the suggestion, the full snippet is inserted.
 	*/
-	readonly insertText: string | { snippet: string };
+	readonly insertText: string | { snippet: string } | undefined;
 
 	/**
-	 * A text that is used to decide if this inline completion should be shown.
-	 * An inline completion is shown if the text to replace is a subword of the filter text.
-	 */
-	readonly filterText?: string;
+	 * The range to replace.
+	 * Must begin and end on the same line.
+	 * Refers to the current document or `uri` if provided.
+	*/
+	readonly range?: IRange;
 
 	/**
 	 * An optional array of additional text edits that are applied when
 	 * selecting this completion. Edits must not overlap with the main edit
 	 * nor with themselves.
+	 * Refers to the current document or `uri` if provided.
 	 */
 	readonly additionalTextEdits?: ISingleEditOperation[];
 
 	/**
-	 * The range to replace.
-	 * Must begin and end on the same line.
+	 * The file for which the edit applies to.
 	*/
-	readonly range?: IRange;
+	readonly uri?: UriComponents;
 
+	/**
+	 * A command that is run upon acceptance of this item.
+	*/
 	readonly command?: Command;
 
-	readonly action?: Command;
+	readonly gutterMenuLinkAction?: Command;
 
 	/**
 	 * Is called the first time an inline completion is shown.
@@ -828,11 +832,14 @@ export interface InlineCompletion {
 	readonly isInlineEdit?: boolean;
 	readonly showInlineEditMenu?: boolean;
 
+	/** Only show the inline suggestion when the cursor is in the showRange. */
 	readonly showRange?: IRange;
 
 	readonly warning?: InlineCompletionWarning;
 
-	readonly displayLocation?: InlineCompletionDisplayLocation;
+	readonly hint?: IInlineCompletionHint;
+
+	readonly supportsRename?: boolean;
 
 	/**
 	 * Used for telemetry.
@@ -845,20 +852,19 @@ export interface InlineCompletionWarning {
 	icon?: IconPath;
 }
 
-export enum InlineCompletionDisplayLocationKind {
+export enum InlineCompletionHintStyle {
 	Code = 1,
 	Label = 2
 }
 
-export interface InlineCompletionDisplayLocation {
+export interface IInlineCompletionHint {
+	/** Refers to the current document. */
 	range: IRange;
-	kind: InlineCompletionDisplayLocationKind;
-	label: string;
+	style: InlineCompletionHintStyle;
+	content: string;
 }
 
-/**
- * TODO: add `| URI | { light: URI; dark: URI }`.
-*/
+// TODO: add `| URI | { light: URI; dark: URI }`.
 export type IconPath = ThemeIcon;
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -967,6 +973,17 @@ export class ProviderId {
 		}
 		return result;
 	}
+
+	toStringWithoutVersion(): string {
+		let result = '';
+		if (this.extensionId) {
+			result += this.extensionId;
+		}
+		if (this.providerId) {
+			result += `:${this.providerId}`;
+		}
+		return result;
+	}
 }
 
 /** @internal */
@@ -1022,7 +1039,6 @@ export type LifetimeSummary = {
 	notShownReason: string | undefined;
 	editorType: string;
 	viewKind: string | undefined;
-	error: string | undefined;
 	preceeded: boolean;
 	languageId: string;
 	requestReason: string;
@@ -1038,6 +1054,9 @@ export type LifetimeSummary = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
+	renameCreated: boolean;
+	renameDuration?: number;
+	renameTimedOut: boolean;
 };
 
 export interface CodeAction {
@@ -2268,6 +2287,7 @@ export interface Comment {
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
+	readonly state?: CommentState;
 	readonly timestamp?: string;
 }
 

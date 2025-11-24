@@ -98,7 +98,7 @@ export const EditSources = {
 		} as const);
 	},
 
-	rename: () => createEditSource({ source: 'rename' } as const),
+	rename: (oldName: string | undefined, newName: string) => createEditSource({ source: 'rename', $$$oldName: oldName, $$$newName: newName } as const),
 
 	chatApplyEdits(data: {
 		modelId: string | undefined;
@@ -146,12 +146,13 @@ export const EditSources = {
 		} as const);
 	},
 
-	inlineChatApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
+	inlineChatApplyEdit(data: { modelId: string | undefined; requestId: string | undefined; sessionId: string | undefined; languageId: string; extensionId: VersionedExtensionId | undefined }) {
 		return createEditSource({
 			source: 'inlineChat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
+			$$sessionId: data.sessionId,
 			$$requestId: data.requestId,
 			$$languageId: data.languageId,
 		} as const);
@@ -250,8 +251,8 @@ export namespace EditSuggestionId {
 	/**
 	 * Use AiEditTelemetryServiceImpl to create a new id!
 	*/
-	export function newId(): EditSuggestionId {
-		const id = prefixedUuid('sgt');
+	export function newId(genPrefixedUuid?: (ns: string) => string): EditSuggestionId {
+		const id = genPrefixedUuid ? genPrefixedUuid('sgt') : prefixedUuid('sgt');
 		return toEditIdentity(id);
 	}
 }

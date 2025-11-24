@@ -32,15 +32,18 @@ function toTreeItemLabel(label: any, extension: IExtensionDescription): ITreeIte
 		return { label };
 	}
 
-	if (label
-		&& typeof label === 'object'
-		&& typeof label.label === 'string') {
+	if (label && typeof label === 'object' && label.label) {
 		let highlights: [number, number][] | undefined = undefined;
 		if (Array.isArray(label.highlights)) {
 			highlights = (<[number, number][]>label.highlights).filter((highlight => highlight.length === 2 && typeof highlight[0] === 'number' && typeof highlight[1] === 'number'));
 			highlights = highlights.length ? highlights : undefined;
 		}
-		return { label: label.label, highlights };
+		if (isString(label.label)) {
+			return { label: label.label, highlights };
+		} else if (extHostTypes.MarkdownString.isMarkdownString(label.label)) {
+			checkProposedApiEnabled(extension, 'treeItemMarkdownLabel');
+			return { label: MarkdownString.from(label.label), highlights };
+		}
 	}
 
 	return undefined;
@@ -925,7 +928,15 @@ class ExtHostTreeView<T> extends Disposable {
 
 		const treeItemLabel = toTreeItemLabel(label, this._extension);
 		const prefix: string = parent ? parent.item.handle : ExtHostTreeView.LABEL_HANDLE_PREFIX;
-		let elementId = treeItemLabel ? treeItemLabel.label : resourceUri ? basename(resourceUri) : '';
+		let labelValue = '';
+		if (treeItemLabel) {
+			if (isMarkdownString(treeItemLabel.label)) {
+				labelValue = treeItemLabel.label.value;
+			} else {
+				labelValue = treeItemLabel.label;
+			}
+		}
+		let elementId = labelValue || (resourceUri ? basename(resourceUri) : '');
 		elementId = elementId.indexOf('/') !== -1 ? elementId.replace('/', '//') : elementId;
 		const existingHandle = this._nodes.has(element) ? this._nodes.get(element)!.item.handle : undefined;
 		const childrenNodes = (this._getChildrenNodes(parent) || []);

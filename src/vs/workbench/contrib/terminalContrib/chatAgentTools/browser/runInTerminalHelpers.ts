@@ -21,6 +21,24 @@ export function isPowerShell(envShell: string, os: OperatingSystem): boolean {
 	return /^(?:powershell|pwsh)(?:-preview)?$/.test(pathPosix.basename(envShell));
 }
 
+export function isWindowsPowerShell(envShell: string): boolean {
+	return envShell.endsWith('System32\\WindowsPowerShell\\v1.0\\powershell.exe');
+}
+
+export function isZsh(envShell: string, os: OperatingSystem): boolean {
+	if (os === OperatingSystem.Windows) {
+		return /^zsh(?:\.exe)?$/i.test(pathWin32.basename(envShell));
+	}
+	return /^zsh$/.test(pathPosix.basename(envShell));
+}
+
+export function isFish(envShell: string, os: OperatingSystem): boolean {
+	if (os === OperatingSystem.Windows) {
+		return /^fish(?:\.exe)?$/i.test(pathWin32.basename(envShell));
+	}
+	return /^fish$/.test(pathPosix.basename(envShell));
+}
+
 // Maximum output length to prevent context overflow
 const MAX_OUTPUT_LENGTH = 60000; // ~60KB limit to keep context manageable
 const TRUNCATION_MESSAGE = '\n\n[... MIDDLE OF OUTPUT TRUNCATED ...]\n\n';
@@ -51,7 +69,10 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 	// We shouldn't offer configuring rules for commands that are explicitly denied since it
 	// wouldn't get auto approved with a new rule
-	const canCreateAutoApproval = autoApproveResult.subCommandResults.some(e => e.result !== 'denied') || autoApproveResult.commandLineResult.result === 'denied';
+	const canCreateAutoApproval = (
+		autoApproveResult.subCommandResults.every(e => e.result !== 'denied') &&
+		autoApproveResult.commandLineResult.result !== 'denied'
+	);
 	if (canCreateAutoApproval) {
 		const unapprovedSubCommands = subCommands.filter((_, index) => {
 			return autoApproveResult.subCommandResults[index].result !== 'approved';
@@ -155,6 +176,18 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 	if (actions.length > 0) {
 		actions.push(new Separator());
 	}
+
+
+	// Allow all commands for this session
+	actions.push({
+		label: localize('allowSession', 'Allow All Commands in this Session'),
+		tooltip: localize('allowSessionTooltip', 'Allow this tool to run in this session without confirmation.'),
+		data: {
+			type: 'sessionApproval'
+		} satisfies TerminalNewAutoApproveButtonData
+	});
+
+	actions.push(new Separator());
 
 	// Always show configure option
 	actions.push({

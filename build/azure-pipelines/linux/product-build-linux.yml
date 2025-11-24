@@ -29,6 +29,10 @@ jobs:
       NPM_ARCH: ${{ parameters.NPM_ARCH }}
       VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
     templateContext:
+      sdl:
+        binskim:
+          analyzeTargetGlob: '$(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)/**/*.node;$(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web/**/*.node'
+          preReleaseVersion: '4.3.1'
       outputParentDirectory: $(Build.ArtifactStagingDirectory)/out
       outputs:
         - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
