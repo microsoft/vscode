@@ -166,6 +166,10 @@ export class ChatViewTitleController extends Disposable {
 		if (!title) {
 			return undefined;
 		}
-		return title.startsWith('Chat: ') ? title : `Chat: ${title}`;
+		const localizedPrefix = localize('chatViewTitle.prefixLabel', "Chat: ");
+		if (title.startsWith(localizedPrefix) || title.startsWith('Chat: ')) {
+			return title;
+		}
+		return localize('chatViewTitle.prefixedTitle', "Chat: {0}", title);
 	}
 }
