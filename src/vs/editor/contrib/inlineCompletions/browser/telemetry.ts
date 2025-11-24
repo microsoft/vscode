@@ -41,7 +41,7 @@ export type InlineCompletionEndOfLifeEvent = {
 	notShownReason: string | undefined;
 	renameCreated: boolean;
 	renameDuration: number | undefined;
-	renameTimedOut: boolean | undefined;
+	renameTimedOut: boolean;
 	// rendering
 	viewKind: string | undefined;
 	cursorColumnDistance: number | undefined;
