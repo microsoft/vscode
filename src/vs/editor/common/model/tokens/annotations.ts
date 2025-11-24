@@ -64,15 +64,11 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 		if (startIndexWhereToReplace >= 0) {
 			startIndex = startIndexWhereToReplace;
 		} else {
-			if (startIndexWhereToReplace === -1) {
-				startIndex = 0;
+			const candidate = this._annotations[- (startIndexWhereToReplace + 2)]?.range;
+			if (candidate && offset >= candidate.start && offset <= candidate.endExclusive) {
+				startIndex = - (startIndexWhereToReplace + 2);
 			} else {
-				const candidate = this._annotations[- (startIndexWhereToReplace + 2)].range;
-				if (offset >= candidate.start && offset <= candidate.endExclusive) {
-					startIndex = - (startIndexWhereToReplace + 2);
-				} else {
-					startIndex = - (startIndexWhereToReplace + 1);
-				}
+				startIndex = - (startIndexWhereToReplace + 1);
 			}
 		}
 		return startIndex;
@@ -86,16 +82,16 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 		if (endIndexWhereToReplace >= 0) {
 			endIndexExclusive = endIndexWhereToReplace;
 		} else {
-			if (endIndexWhereToReplace === -1) {
-				endIndexExclusive = 0;
+			// if (endIndexWhereToReplace === -1) {
+			// 	endIndexExclusive = 0;
+			// } else {
+			const candidate = this._annotations[-(endIndexWhereToReplace + 1)]?.range;
+			if (candidate && offset >= candidate.start && offset <= candidate.endExclusive) {
+				endIndexExclusive = - endIndexWhereToReplace;
 			} else {
-				const candidate = this._annotations[-(endIndexWhereToReplace + 1)]?.range;
-				if (candidate && offset >= candidate.start && offset <= candidate.endExclusive) {
-					endIndexExclusive = - endIndexWhereToReplace;
-				} else {
-					endIndexExclusive = - (endIndexWhereToReplace + 1);
-				}
+				endIndexExclusive = - (endIndexWhereToReplace + 1);
 			}
+			// }
 		}
 		return endIndexExclusive;
 	}

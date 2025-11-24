@@ -66,6 +66,23 @@ suite('Editor Model - Model', () => {
 		]);
 	});
 
+	test('setAnnotations 3', () => {
+		const annotatedString = new AnnotatedString<string>([
+			createAnnotation(0, 5),
+			createAnnotation(10, 15),
+			createAnnotation(20, 25)
+		]);
+		annotatedString.setAnnotations(new OffsetRange(3, 22), AnnotationsUpdate.create([createAnnotation(4, 20)]));
+		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
+			createAnnotation(4, 20)
+		]);
+		annotatedString.setAnnotations(new OffsetRange(22, 25), AnnotationsUpdate.create([createAnnotation(22, 23)]));
+		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
+			createAnnotation(4, 20),
+			createAnnotation(22, 23)
+		]);
+	});
+
 	test('getAnnotationsIntersecting 1', () => {
 		const annotatedString = new AnnotatedString<string>([
 			createAnnotation(0, 5),
@@ -97,6 +114,32 @@ suite('Editor Model - Model', () => {
 			createAnnotation(0, 5),
 			createAnnotation(6, 7),
 			createAnnotation(8, 9)
+		]);
+	});
+
+	test('getAnnotationsIntersecting 3', () => {
+		const annotatedString = new AnnotatedString<string>([
+			createAnnotation(0, 5),
+			createAnnotation(10, 15)
+		]);
+		assert.deepStrictEqual(annotatedString.getAnnotationsIntersecting(new OffsetRange(5, 10)), [
+			createAnnotation(0, 5),
+			createAnnotation(10, 15)
+		]);
+		annotatedString.setAnnotations(new OffsetRange(3, 12), AnnotationsUpdate.create([createAnnotation(0, 4), createAnnotation(5, 9)]));
+		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
+			createAnnotation(0, 4),
+			createAnnotation(5, 9)
+		]);
+	});
+
+	test('getAnnotationsIntersecting 4', () => {
+		const annotatedString = new AnnotatedString<string>([
+			createAnnotation(0, 10)
+		]);
+		annotatedString.setAnnotations(new OffsetRange(12, 15), AnnotationsUpdate.create([createAnnotation(12, 15)]));
+		assert.deepStrictEqual(annotatedString.getAnnotationsIntersecting(new OffsetRange(2, 8)), [
+			createAnnotation(0, 10)
 		]);
 	});
 
@@ -197,7 +240,85 @@ suite('Editor Model - Model', () => {
 		]);
 	});
 
-	test('annotations test 7', () => {
+
+	test('applyEdit 8 - insertion at beginning of annotation', () => {
+		const annotatedString = new AnnotatedString<string>([
+			createAnnotation(0, 5),
+			createAnnotation(10, 15),
+			createAnnotation(20, 25)
+		]);
+		annotatedString.applyEdit(StringEdit.insert(10, 'abc'));
+		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
+			createAnnotation(0, 5),
+			createAnnotation(10, 18),
+			createAnnotation(23, 28)
+		]);
+	});
+
+	test('applyEdit 9 - insertion at end of annotation', () => {
+		const annotatedString = new AnnotatedString<string>([
+			createAnnotation(0, 5),
+			createAnnotation(10, 15),
+			createAnnotation(20, 25)
+		]);
+		annotatedString.applyEdit(StringEdit.insert(15, 'abc'));
+		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
+			createAnnotation(0, 5),
+			createAnnotation(10, 18),
+			createAnnotation(23, 28)
+		]);
+	});
+
+	test('applyEdit 10 - insertion in middle of annotation', () => {
+		const annotatedString = new AnnotatedString<string>([
+			createAnnotation(0, 5),
+			createAnnotation(10, 15),
+			createAnnotation(20, 25)
+		]);
+		annotatedString.applyEdit(StringEdit.insert(12, 'abc'));
+		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
+			createAnnotation(0, 5),
+			createAnnotation(10, 18),
+			createAnnotation(23, 28)
+		]);
+	});
+
+	test('applyEdit 11 - replacement consuming annotation', () => {
+		const annotatedString = new AnnotatedString<string>([
+			createAnnotation(0, 1),
+			createAnnotation(2, 5),
+			createAnnotation(6, 7)
+		]);
+		annotatedString.applyEdit(StringEdit.replace(new OffsetRange(1, 6), 'a'));
+		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
+			createAnnotation(0, 2),
+			createAnnotation(2, 3)
+		]);
+	});
+
+	test('applyEdit 12 - multiple disjoint edits', () => {
+		const annotatedString = new AnnotatedString<string>([
+			createAnnotation(0, 5),
+			createAnnotation(10, 15),
+			createAnnotation(20, 25),
+			createAnnotation(30, 35)
+		]);
+		const edit = StringEdit.compose([
+			StringEdit.insert(0, 'a'),
+			StringEdit.delete(new OffsetRange(11, 12)),
+			StringEdit.replace(new OffsetRange(21, 22), 'bb'),
+			StringEdit.replace(new OffsetRange(30, 35), 'c')
+		]);
+		annotatedString.applyEdit(edit);
+		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
+			createAnnotation(0, 6),
+			createAnnotation(11, 15),
+			createAnnotation(20, 26),
+			createAnnotation(30, 32)
+		]);
+	});
+
+	test('rebase', () => {
 		const a: IAnnotatedString<string> = getRandomAnnotatedString();
 		const b = a.clone();
 		const update: AnnotationsUpdate<string> = getRandomAnnotationsUpdate();
