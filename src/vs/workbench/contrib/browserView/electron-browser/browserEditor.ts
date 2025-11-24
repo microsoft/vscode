@@ -227,6 +227,8 @@ export class BrowserEditor extends EditorPane {
 		}));
 
 		this.inputDisposables.add(this.model.onDidNavigate((navEvent: IBrowserViewNavigationEvent) => {
+			this.group.pinEditor(this.input); // pin editor on navigation
+
 			// Update UI state from model
 			this.backAction.enabled = navEvent.canGoBack;
 			this.forwardAction.enabled = navEvent.canGoForward;
@@ -250,6 +252,8 @@ export class BrowserEditor extends EditorPane {
 
 	private async navigateToUrl(url: string): Promise<void> {
 		if (this.model) {
+			this.group.pinEditor(this.input); // pin editor on navigation
+
 			if (!/^https?:\/\//.test(url)) {
 				// If no scheme provided, default to http (first -- this will be upgraded to https if supported)
 				url = 'http://' + url;

@@ -82,7 +82,7 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Singleton | EditorInputCapabilities.Scratchpad;
+		return EditorInputCapabilities.Singleton | EditorInputCapabilities.Readonly;
 	}
 
 	override get resource(): URI {

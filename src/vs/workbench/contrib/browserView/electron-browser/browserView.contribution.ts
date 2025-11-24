@@ -74,7 +74,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 					return {
 						editor: browserInput,
 						options: {
-							pinned: true
+							pinned: !!parsed.url // pin if navigated
 						}
 					};
 				}
