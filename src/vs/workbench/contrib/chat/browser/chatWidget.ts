@@ -2206,6 +2206,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 
 		if (!result) {
+			this.chatAccessibilityService.disposeRequest(requestId);
 			return;
 		}
 
