@@ -150,6 +150,7 @@ export class PromptValidator {
 
 			case PromptsType.agent: {
 				this.validateTarget(attributes, report);
+				this.validateInfer(attributes, report);
 				this.validateTools(attributes, ChatModeKind.Agent, header.target, report);
 				if (!isGitHubTarget) {
 					this.validateModel(attributes, ChatModeKind.Agent, report);
@@ -463,6 +464,17 @@ export class PromptValidator {
 		}
 	}
 
+	private validateInfer(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
+		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.infer);
+		if (!attribute) {
+			return;
+		}
+		if (attribute.value.type !== 'boolean') {
+			report(toMarker(localize('promptValidator.inferMustBeBoolean', "The 'infer' attribute must be a boolean."), attribute.value.range, MarkerSeverity.Error));
+			return;
+		}
+	}
+
 	private validateTarget(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === PromptHeaderAttributes.target);
 		if (!attribute) {
@@ -487,7 +499,7 @@ export class PromptValidator {
 const allAttributeNames = {
 	[PromptsType.prompt]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.mode, PromptHeaderAttributes.agent, PromptHeaderAttributes.argumentHint],
 	[PromptsType.instructions]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.applyTo, PromptHeaderAttributes.excludeAgent],
-	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target]
+	[PromptsType.agent]: [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.model, PromptHeaderAttributes.tools, PromptHeaderAttributes.advancedOptions, PromptHeaderAttributes.handOffs, PromptHeaderAttributes.argumentHint, PromptHeaderAttributes.target, PromptHeaderAttributes.infer]
 };
 const githubCopilotAgentAttributeNames = [PromptHeaderAttributes.name, PromptHeaderAttributes.description, PromptHeaderAttributes.tools, PromptHeaderAttributes.target, GithubPromptHeaderAttributes.mcpServers];
 const recommendedAttributeNames = {
