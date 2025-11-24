@@ -205,7 +205,7 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 0,
-					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey))
+					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.lockedToCodingAgent.negate())
 				}
 			]
 		});
@@ -231,7 +231,7 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), hasUndecidedChatEditingResourceContextKey)
+					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.lockedToCodingAgent.negate())
 				}
 			],
 			keybinding: {
