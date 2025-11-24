@@ -68,12 +68,18 @@ export interface IAgentSession extends IAgentSessionData {
 }
 
 interface IInternalAgentSessionData extends IAgentSessionData {
+
+	/**
+	 * The `archived` property is provided by the session provider
+	 * and will be used as the initial value if the user has not
+	 * changed the archived state for the session previously. It
+	 * is kept internal to not expose it publicly. Use `isArchived()`
+	 * and `setArchived()` methods instead.
+	 */
 	readonly archived: boolean | undefined;
 }
 
-interface IInternalAgentSession extends IAgentSession, IInternalAgentSessionData {
-	readonly archived: boolean | undefined;
-}
+interface IInternalAgentSession extends IAgentSession, IInternalAgentSessionData { }
 
 export function isLocalAgentSessionItem(session: IAgentSession): boolean {
 	return session.providerType === localChatSessionType;
@@ -130,8 +136,6 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		this.cache = this.instantiationService.createInstance(AgentSessionsCache);
 		this._sessions = this.cache.loadCachedSessions().map(data => this.toAgentSession(data));
 		this.sessionStates = this.cache.loadSessionStates();
-
-		this.resolve(undefined);
 
 		this.registerListeners();
 	}

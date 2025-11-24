@@ -22,6 +22,7 @@ export class AgentSessionsService extends Disposable implements IAgentSessionsSe
 	get model(): IAgentSessionsModel {
 		if (!this._model) {
 			this._model = this._register(this.instantiationService.createInstance(AgentSessionsModel));
+			this._model.resolve(undefined /* all providers */);
 		}
 
 		return this._model;

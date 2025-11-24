@@ -359,8 +359,6 @@ export class AgentSessionsCompressionDelegate implements ITreeCompressionDelegat
 
 export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
-	constructor() { }
-
 	compare(sessionA: IAgentSession, sessionB: IAgentSession): number {
 		const aInProgress = sessionA.status === ChatSessionStatus.InProgress;
 		const bInProgress = sessionB.status === ChatSessionStatus.InProgress;

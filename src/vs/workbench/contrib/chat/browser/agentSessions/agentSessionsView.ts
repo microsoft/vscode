@@ -300,9 +300,11 @@ export class AgentSessionsView extends ViewPane {
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, IAgentSession, FuzzyScore>;
 
+		const model = this.agentSessionsService.model;
+
 		this._register(Event.any(
 			this.listFilter.onDidChange,
-			this.agentSessionsService.model.onDidChangeSessions
+			model.onDidChangeSessions
 		)(() => {
 			if (this.isBodyVisible()) {
 				this.list?.updateChildren();
@@ -310,9 +312,9 @@ export class AgentSessionsView extends ViewPane {
 		}));
 
 		const didResolveDisposable = this._register(new MutableDisposable());
-		this._register(this.agentSessionsService.model.onWillResolve(() => {
+		this._register(model.onWillResolve(() => {
 			const didResolve = new DeferredPromise<void>();
-			didResolveDisposable.value = Event.once(this.agentSessionsService.model.onDidResolve)(() => didResolve.complete());
+			didResolveDisposable.value = Event.once(model.onDidResolve)(() => didResolve.complete());
 
 			this.progressService.withProgress(
 				{
@@ -324,7 +326,7 @@ export class AgentSessionsView extends ViewPane {
 			);
 		}));
 
-		this.list?.setInput(this.agentSessionsService.model);
+		this.list?.setInput(model);
 	}
 
 	//#endregion
