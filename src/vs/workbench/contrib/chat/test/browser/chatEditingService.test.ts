@@ -105,7 +105,6 @@ suite('ChatEditingService', function () {
 		editingService = value;
 
 		chatService = insta.get(IChatService);
-		(chatService as ChatService).setChatPersistanceEnabled(false);
 
 		store.add(insta.get(IChatSessionsService) as ChatSessionsService); // Needs to be disposed in between test runs to clear extensionPoint contribution
 		store.add(chatService as ChatService);
@@ -131,8 +130,9 @@ suite('ChatEditingService', function () {
 		}));
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		store.clear();
+		await chatService.waitForModelDisposals();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -161,7 +161,7 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'HelloWorld' });
 
-		const modelRef = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
+		const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
 		const model = modelRef.object as ChatModel;
 		const session = model.editingSession;
 		if (!session) {
@@ -188,8 +188,6 @@ suite('ChatEditingService', function () {
 		await unset;
 
 		await entry.reject();
-
-		modelRef.dispose();
 	});
 
 	async function idleAfterEdit(session: IChatEditingSession, model: ChatModel, uri: URI, edits: TextEdit[]) {

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 
-export const IChatStatusItemService = createDecorator<IChatStatusItemService>('IChatStatusItemService');
+export const IChatStatusItemService = createDecorator<IChatStatusItemService>('chatStatusItemService');
 
 export interface IChatStatusItemService {
 	readonly _serviceBrand: undefined;
@@ -21,7 +21,6 @@ export interface IChatStatusItemService {
 	getEntries(): Iterable<ChatStatusEntry>;
 }
 
-
 export interface IChatStatusItemChangeEvent {
 	readonly entry: ChatStatusEntry;
 }
@@ -32,7 +31,6 @@ export type ChatStatusEntry = {
 	description: string;
 	detail: string | undefined;
 };
-
 
 class ChatStatusItemService implements IChatStatusItemService {
 	readonly _serviceBrand: undefined;

@@ -30,7 +30,7 @@ import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileN
 import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.mjs';
 import * as cp from 'child_process';
 import log from 'fancy-log';
-import buildfile from './buildfile.js';
+import buildfile from './buildfile.ts';
 import { fileURLToPath } from 'url';
 import * as fetchModule from './lib/fetch.ts';
 import jsonEditor from 'gulp-json-editor';

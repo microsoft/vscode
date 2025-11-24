@@ -32,14 +32,19 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Prepare node_modules cache key
-        run: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+        id: prepare-node-modules-cache-key
+        run: |
+          set -e
+          mkdir -p .build
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin $VSCODE_ARCH $(node -p process.arch) > .build/packagelockhash
+          echo "node_modules_cache_key=$(cat .build/packagelockhash)" >> $GITHUB_OUTPUT
 
       - name: Restore node_modules cache
         id: cache-node-modules
         uses: actions/cache/restore@v4
         with:
           path: .build/node_modules_cache
-          key: "node_modules-macos-${{ hashFiles('.build/packagelockhash') }}"
+          key: "node_modules-macos-${{ steps.prepare-node-modules-cache-key.outputs.node_modules_cache_key }}"
 
       - name: Extract node_modules cache
         if: steps.cache-node-modules.outputs.cache-hit == 'true'
@@ -85,7 +90,12 @@ jobs:
         run: mkdir -p .build
 
       - name: Prepare built-in extensions cache key
-        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+        id: prepare-builtin-extensions-cache-key
+        run: |
+          set -e
+          mkdir -p .build
+          node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+          echo "builtin_extensions_cache_key=$(cat .build/builtindepshash)" >> $GITHUB_OUTPUT
 
       - name: Restore built-in extensions cache
         id: cache-builtin-extensions
@@ -93,7 +103,7 @@ jobs:
         with:
           enableCrossOsArchive: true
           path: .build/builtInExtensions
-          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+          key: "builtin-extensions-${{ steps.prepare-builtin-extensions-cache-key.outputs.builtin_extensions_cache_key }}"
 
       - name: Download built-in extensions
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
