@@ -11,7 +11,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, ISettableObservable, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogger, log, LogLevel } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -674,7 +674,9 @@ function isTaskInTerminalState(task: MCP.Task): boolean {
 }
 
 /**
- * Implementation of a task that handles polling, status notifications, and handler reconnections.
+ * Implementation of a task that handles polling, status notifications, and handler reconnections. It implements the task polling loop internally and can also be
+ * updated externally via `onDidUpdateState`, when notifications are received
+ * for example.
  * @internal
  */
 export class McpTask<T extends MCP.Result> extends Disposable implements IMcpTaskInternal {
@@ -698,10 +700,12 @@ export class McpTask<T extends MCP.Result> extends Disposable implements IMcpTas
 		super();
 
 		const expiresAt = _task.ttl ? (Date.now() + _task.ttl) : undefined;
-
 		this._lastTaskState = observableValue('lastTaskState', this._task);
 
 		const store = this._register(new DisposableStore());
+
+		// A `tasks/result` call triggered by an input_required state.
+		const inputRequiredLookup = observableValue<ObservablePromise<MCP.Task> | undefined>('activeResultLookup', undefined);
 
 		// 1. Poll for task updates when the task isn't in a terminal state
 		store.add(autorun(reader => {
@@ -713,6 +717,32 @@ export class McpTask<T extends MCP.Result> extends Disposable implements IMcpTas
 			if (expiresAt && Date.now() > expiresAt) {
 				this._lastTaskState.set({ ...current, status: 'cancelled', statusMessage: 'Task timed out.' }, undefined);
 				return;
+			}
+
+
+			// When a task goes into the input_required state, by spec we should call
+			// `tasks/result` which can return an SSE stream of task updates. No need
+			// to poll while such a lookup is going on, but once it resolves we should
+			// clear and update our state.
+			const lookup = inputRequiredLookup.read(reader);
+			if (lookup) {
+				const result = lookup.promiseResult.read(reader);
+				return transaction(tx => {
+					if (!result) {
+						// still ongoing
+					} else if (result.data) {
+						inputRequiredLookup.set(undefined, tx);
+						this._lastTaskState.set(result.data, tx);
+					} else {
+						inputRequiredLookup.set(undefined, tx);
+						if (result.error instanceof McpError && result.error.code === MCP.INVALID_PARAMS) {
+							this._lastTaskState.set({ ...current, status: 'cancelled' }, undefined);
+						} else {
+							// Maybe a connection error -- start polling again
+							this._lastTaskState.set({ ...current, status: 'working' }, undefined);
+						}
+					}
+				});
 			}
 
 			const handler = this._handler.read(reader);
@@ -729,7 +759,7 @@ export class McpTask<T extends MCP.Result> extends Disposable implements IMcpTas
 						if (e instanceof McpError && e.code === MCP.INVALID_PARAMS) {
 							return { ...current, status: 'cancelled' };
 						} else {
-							return undefined; // errors are already logged
+							return { ...current }; // errors are already logged, keep in current state
 						}
 					})
 					.then(r => {
@@ -740,27 +770,37 @@ export class McpTask<T extends MCP.Result> extends Disposable implements IMcpTas
 			}, pollInterval));
 		}));
 
-		// 2. Get the result once it's available (or propagate errors)
+		// 2. Get the result once it's available (or propagate errors). Trigger
+		// input_required handling as needed. Only react when the status itself changes.
+		const lastStatus = this._lastTaskState.map(task => task.status);
 		store.add(autorun(reader => {
-			const current = this._lastTaskState.read(reader);
-			if (!isTaskInTerminalState(current)) {
-				return;
-			}
-
-			if (current.status === 'failed') {
+			const status = lastStatus.read(reader);
+			if (status === 'failed') {
+				const current = this._lastTaskState.read(undefined);
 				this.promise.error(new Error(`Task ${current.taskId} failed: ${current.statusMessage ?? 'unknown error'}`));
-			} else if (current.status === 'cancelled') {
+				store.dispose();
+			} else if (status === 'cancelled') {
 				this.promise.cancel();
-			} else if (current.status === 'completed') {
+				store.dispose();
+			} else if (status === 'input_required') {
 				const handler = this._handler.read(reader);
-				if (!handler) {
-					return;
+				if (handler) {
+					const current = this._lastTaskState.read(undefined);
+					const cts = new CancellationTokenSource(_token);
+					reader.store.add(toDisposable(() => cts.dispose(true)));
+					inputRequiredLookup.set(new ObservablePromise<MCP.Task>(handler.getTask({ taskId: current.taskId }, cts.token)), undefined);
 				}
-
-				this.promise.settleWith(handler.getTaskResult({ taskId: current.taskId }, _token) as Promise<T>);
+			} else if (status === 'completed') {
+				const handler = this._handler.read(reader);
+				if (handler) {
+					this.promise.settleWith(handler.getTaskResult({ taskId: _task.taskId }, _token) as Promise<T>);
+					store.dispose();
+				}
+			} else if (status === 'working') {
+				// no-op
+			} else {
+				softAssertNever(status);
 			}
-
-			store.dispose();
 		}));
 	}
 

@@ -60,11 +60,11 @@ export namespace MCP {
 	export type Cursor = string;
 
 	/**
-	 * Common params for any request.
+	 * Common params for any task-augmented request.
 	 *
 	 * @internal
 	 */
-	export interface RequestParams {
+	export interface TaskAugmentedRequestParams extends RequestParams {
 		/**
 		 * If specified, the caller is requesting task-augmented execution for this request.
 		 * The request will return a CreateTaskResult immediately, and the actual result can be
@@ -74,7 +74,13 @@ export namespace MCP {
 		 * for task augmentation of specific request types in their capabilities.
 		 */
 		task?: TaskMetadata;
-
+	}
+	/**
+	 * Common params for any request.
+	 *
+	 * @internal
+	 */
+	export interface RequestParams {
 		/**
 		 * See [General fields: `_meta`](/specification/draft/basic/index#meta) for notes on `_meta` usage.
 		 */
@@ -238,11 +244,6 @@ export namespace MCP {
 		 * This MUST NOT be used for cancelling tasks (use the `tasks/cancel` request instead).
 		 */
 		requestId?: RequestId;
-
-		/**
-		 * Deprecated: Use the `tasks/cancel` request instead of this notification for task cancellation.
-		 */
-		taskId?: string;
 
 		/**
 		 * An optional string describing the reason for the cancellation. This MAY be logged or presented to the user.
@@ -1153,7 +1154,7 @@ export namespace MCP {
 	 *
 	 * @category `tools/call`
 	 */
-	export interface CallToolRequestParams extends RequestParams {
+	export interface CallToolRequestParams extends TaskAugmentedRequestParams {
 		/**
 		 * The name of the tool.
 		 */
@@ -1238,19 +1239,26 @@ export namespace MCP {
 		 * Default: true
 		 */
 		openWorldHint?: boolean;
+	}
 
+	/**
+	 * Execution-related properties for a tool.
+	 *
+	 * @category `tools/list`
+	 */
+	export interface ToolExecution {
 		/**
 		 * Indicates whether this tool supports task-augmented execution.
 		 * This allows clients to handle long-running operations through polling
 		 * the task system.
 		 *
-		 * - "never": Tool does not support task-augmented execution (default when absent)
+		 * - "forbidden": Tool does not support task-augmented execution (default when absent)
 		 * - "optional": Tool may support task-augmented execution
-		 * - "always": Tool requires task-augmented execution
+		 * - "required": Tool requires task-augmented execution
 		 *
-		 * Default: "never"
+		 * Default: "forbidden"
 		 */
-		taskHint?: "never" | "optional" | "always";
+		taskSupport?: "forbidden" | "optional" | "required";
 	}
 
 	/**
@@ -1275,6 +1283,11 @@ export namespace MCP {
 			properties?: { [key: string]: object };
 			required?: string[];
 		};
+
+		/**
+		 * Execution-related properties for this tool.
+		 */
+		execution?: ToolExecution;
 
 		/**
 		 * An optional JSON Schema object defining the structure of the tool's output returned in
@@ -1576,7 +1589,7 @@ export namespace MCP {
 	 *
 	 * @category `sampling/createMessage`
 	 */
-	export interface CreateMessageRequestParams extends RequestParams {
+	export interface CreateMessageRequestParams extends TaskAugmentedRequestParams {
 		messages: SamplingMessage[];
 		/**
 		 * The server's preferences for which model to select. The client MAY ignore these preferences.
@@ -1701,7 +1714,7 @@ export namespace MCP {
 	 */
 	export interface Annotations {
 		/**
-		 * Describes who the intended customer of this object or data is.
+		 * Describes who the intended audience of this object or data is.
 		 *
 		 * It can include multiple entries to indicate content useful for multiple audiences (e.g., `["user", "assistant"]`).
 		 */
@@ -1850,7 +1863,7 @@ export namespace MCP {
 		/**
 		 * The arguments to pass to the tool, conforming to the tool's input schema.
 		 */
-		input: object;
+		input: { [key: string]: unknown };
 
 		/**
 		 * Optional metadata about the tool use. Clients SHOULD preserve this field when
@@ -1889,7 +1902,7 @@ export namespace MCP {
 		 *
 		 * If the tool defined an outputSchema, this SHOULD conform to that schema.
 		 */
-		structuredContent?: object;
+		structuredContent?: { [key: string]: unknown };
 
 		/**
 		 * Whether the tool use resulted in an error.
@@ -2153,11 +2166,11 @@ export namespace MCP {
 	 *
 	 * @category `elicitation/create`
 	 */
-	export interface ElicitRequestFormParams extends RequestParams {
+	export interface ElicitRequestFormParams extends TaskAugmentedRequestParams {
 		/**
 		 * The elicitation mode.
 		 */
-		mode: "form";
+		mode?: "form";
 
 		/**
 		 * The message to present to the user describing what information is being requested.
@@ -2183,7 +2196,7 @@ export namespace MCP {
 	 *
 	 * @category `elicitation/create`
 	 */
-	export interface ElicitRequestURLParams extends RequestParams {
+	export interface ElicitRequestURLParams extends TaskAugmentedRequestParams {
 		/**
 		 * The elicitation mode.
 		 */

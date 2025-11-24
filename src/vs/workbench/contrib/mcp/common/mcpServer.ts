@@ -1032,9 +1032,9 @@ export class McpTool implements IMcpTool {
 				meta['vscode.requestId'] = context.chatRequestId;
 			}
 
-			const taskHint = this._definition.annotations?.taskHint;
+			const taskHint = this._definition.execution?.taskSupport;
 			const serverSupportsTasksForTools = h.capabilities.tasks?.requests?.tools?.call !== undefined;
-			const shouldUseTask = serverSupportsTasksForTools && (taskHint === 'always' || taskHint === 'optional');
+			const shouldUseTask = serverSupportsTasksForTools && (taskHint === 'required' || taskHint === 'optional');
 
 			try {
 				const result = await h.callTool({
