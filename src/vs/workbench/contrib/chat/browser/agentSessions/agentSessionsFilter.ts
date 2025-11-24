@@ -63,17 +63,29 @@ export class AgentSessionsFilter extends Disposable {
 
 	private updateExcludes(fromEvent: boolean): void {
 		const excludedTypesRaw = this.storageService.get(this.STORAGE_KEY, StorageScope.PROFILE);
-		this.excludes = excludedTypesRaw ? JSON.parse(excludedTypesRaw) as IAgentSessionsViewExcludes : {
-			providers: [...DEFAULT_EXCLUDES.providers],
-			states: [...DEFAULT_EXCLUDES.states],
-			archived: DEFAULT_EXCLUDES.archived,
-		};
+		if (excludedTypesRaw) {
+			try {
+				this.excludes = JSON.parse(excludedTypesRaw) as IAgentSessionsViewExcludes;
+			} catch {
+				this.resetExcludes();
+			}
+		} else {
+			this.resetExcludes();
+		}
 
 		this.updateFilterActions();
 
 		if (fromEvent) {
 			this._onDidChange.fire();
 		}
+	}
+
+	private resetExcludes(): void {
+		this.excludes = {
+			providers: [...DEFAULT_EXCLUDES.providers],
+			states: [...DEFAULT_EXCLUDES.states],
+			archived: DEFAULT_EXCLUDES.archived,
+		};
 	}
 
 	private storeExcludes(excludes: IAgentSessionsViewExcludes): void {
@@ -205,13 +217,9 @@ export class AgentSessionsFilter extends Disposable {
 				});
 			}
 			run(): void {
-				const excludes = {
-					providers: [...DEFAULT_EXCLUDES.providers],
-					states: [...DEFAULT_EXCLUDES.states],
-					archived: DEFAULT_EXCLUDES.archived,
-				};
+				that.resetExcludes();
 
-				that.storageService.store(that.STORAGE_KEY, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
+				that.storageService.store(that.STORAGE_KEY, JSON.stringify(that.excludes), StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}));
 	}
