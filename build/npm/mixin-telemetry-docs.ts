@@ -29,6 +29,6 @@ try {
 
 	console.log('Successfully cloned vscode-telemetry-docs repository.');
 } catch (error) {
-	console.error('Failed to clone vscode-telemetry-docs repository:', error.message);
+	console.error('Failed to clone vscode-telemetry-docs repository:', (error as Error).message);
 	process.exit(1);
 }
