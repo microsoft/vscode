@@ -39,7 +39,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
 import { AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
-import { defaultChat, canUseChat, isNewUser, isCompletionsEnabled } from './chatStatus.js';
+import { defaultChat, canUseChat, isNewUser, isCompletionsEnabled } from './common.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 
 interface ISettingsAccessor {

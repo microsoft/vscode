@@ -14,8 +14,6 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Color } from '../../../../../base/common/color.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import product from '../../../../../platform/product/common/product.js';
-import { isObject } from '../../../../../base/common/types.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
@@ -23,6 +21,7 @@ import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatStatusDashboard } from './chatStatusDashboard.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { disposableWindowInterval } from '../../../../../base/browser/dom.js';
+import { defaultChat, isNewUser, isCompletionsEnabled } from './common.js';
 
 const gaugeForeground = registerColor('gauge.foreground', {
 	dark: inputValidationInfoBorder,
@@ -74,16 +73,6 @@ registerColor('gauge.errorBackground', {
 }, localize('gaugeErrorBackground', "Gauge error background color."));
 
 //#endregion
-
-export const defaultChat = {
-	completionsEnablementSetting: product.defaultChatAgent?.completionsEnablementSetting ?? '',
-	nextEditSuggestionsSetting: product.defaultChatAgent?.nextEditSuggestionsSetting ?? '',
-	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
-	manageOverageUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
-	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
-	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
-	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
-};
 
 export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
 
@@ -269,38 +258,4 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this.entry?.dispose();
 		this.entry = undefined;
 	}
-}
-
-export function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
-	return !chatEntitlementService.sentiment.installed ||					// chat not installed
-		chatEntitlementService.entitlement === ChatEntitlement.Available;	// not yet signed up to chat
-}
-
-export function canUseChat(chatEntitlementService: IChatEntitlementService): boolean {
-	if (!chatEntitlementService.sentiment.installed || chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted) {
-		return false; // chat not installed or not enabled
-	}
-
-	if (chatEntitlementService.entitlement === ChatEntitlement.Unknown || chatEntitlementService.entitlement === ChatEntitlement.Available) {
-		return chatEntitlementService.anonymous; // signed out or not-yet-signed-up users can only use Chat if anonymous access is allowed
-	}
-
-	if (chatEntitlementService.entitlement === ChatEntitlement.Free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0) {
-		return false; // free user with no quota left
-	}
-
-	return true;
-}
-
-export function isCompletionsEnabled(configurationService: IConfigurationService, modeId: string = '*'): boolean {
-	const result = configurationService.getValue<Record<string, boolean>>(defaultChat.completionsEnablementSetting);
-	if (!isObject(result)) {
-		return false;
-	}
-
-	if (typeof result[modeId] !== 'undefined') {
-		return Boolean(result[modeId]); // go with setting if explicitly defined
-	}
-
-	return Boolean(result['*']); // fallback to global setting otherwise
 }
