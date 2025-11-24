@@ -242,7 +242,7 @@ export class ComputeAutomaticInstructions {
 		}
 		const tool = this._languageModelToolsService.getToolByName(referenceName);
 		if (tool && this._enabledTools.get(tool)) {
-			return { tool, variable: `#tool:${this._languageModelToolsService.getQualifiedToolName(tool)}` };
+			return { tool, variable: `#tool:${this._languageModelToolsService.getFullReferenceName(tool)}` };
 		}
 		return undefined;
 	}
