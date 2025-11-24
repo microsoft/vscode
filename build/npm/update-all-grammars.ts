@@ -8,8 +8,8 @@ import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
 import url from 'url';
 
-async function spawn(cmd, args, opts) {
-	return new Promise((c, e) => {
+async function spawn(cmd: string, args: string[], opts?: Parameters<typeof _spawn>[2]) {
+	return new Promise<void>((c, e) => {
 		const child = _spawn(cmd, args, { shell: true, stdio: 'inherit', env: process.env, ...opts });
 		child.on('close', code => code === 0 ? c() : e(`Returned ${code}`));
 	});

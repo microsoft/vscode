@@ -10,9 +10,9 @@ import * as os from 'os';
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	// Get the running Node.js version
 	const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
-	const majorNodeVersion = parseInt(nodeVersion[1]);
-	const minorNodeVersion = parseInt(nodeVersion[2]);
-	const patchNodeVersion = parseInt(nodeVersion[3]);
+	const majorNodeVersion = parseInt(nodeVersion![1]);
+	const minorNodeVersion = parseInt(nodeVersion![2]);
+	const patchNodeVersion = parseInt(nodeVersion![3]);
 
 	// Get the required Node.js version from .nvmrc
 	const nvmrcPath = path.join(import.meta.dirname, '..', '..', '.nvmrc');
@@ -78,7 +78,7 @@ function hasSupportedVisualStudioVersion() {
 		const vsTypes = ['Enterprise', 'Professional', 'Community', 'Preview', 'BuildTools', 'IntPreview'];
 		if (programFiles64Path) {
 			vsPath = `${programFiles64Path}/Microsoft Visual Studio/${version}`;
-			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
+			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath!, vsType)))) {
 				availableVersions.push(version);
 				break;
 			}
@@ -86,7 +86,7 @@ function hasSupportedVisualStudioVersion() {
 
 		if (programFiles86Path) {
 			vsPath = `${programFiles86Path}/Microsoft Visual Studio/${version}`;
-			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath, vsType)))) {
+			if (vsTypes.some(vsType => fs.existsSync(path.join(vsPath!, vsType)))) {
 				availableVersions.push(version);
 				break;
 			}
@@ -131,7 +131,7 @@ function installHeaders() {
 		const homedir = os.homedir();
 		const cachePath = process.env.XDG_CACHE_HOME || path.join(homedir, '.cache');
 		const nodeGypCache = path.join(cachePath, 'node-gyp');
-		const localHeaderPath = path.join(nodeGypCache, local.target, 'include', 'node');
+		const localHeaderPath = path.join(nodeGypCache, local!.target, 'include', 'node');
 		if (fs.existsSync(localHeaderPath)) {
 			console.log('Applying v8-source-location.patch to', localHeaderPath);
 			try {
@@ -139,19 +139,16 @@ function installHeaders() {
 					cwd: localHeaderPath
 				});
 			} catch (error) {
-				throw new Error(`Error applying v8-source-location.patch: ${error.message}`);
-			};
+				throw new Error(`Error applying v8-source-location.patch: ${(error as Error).message}`);
+			}
 		}
 	}
 }
 
-/**
- * @param {string} rcFile
- * @returns {{ disturl: string; target: string } | undefined}
- */
-function getHeaderInfo(rcFile) {
+function getHeaderInfo(rcFile: string): { disturl: string; target: string } | undefined {
 	const lines = fs.readFileSync(rcFile, 'utf8').split(/\r\n|\n/g);
-	let disturl, target;
+	let disturl: string | undefined;
+	let target: string | undefined;
 	for (const line of lines) {
 		let match = line.match(/\s*disturl=*\"(.*)\"\s*$/);
 		if (match !== null && match.length >= 1) {
