@@ -49,7 +49,7 @@ import { IWorkbenchIssueService } from '../../issue/common/issue.js';
 import { CodiconActionViewItem } from '../../notebook/browser/view/cellParts/cellActionView.js';
 import { annotateSpecialMarkdownContent } from '../common/annotations.js';
 import { checkModeOption } from '../common/chat.js';
-import { IChatAgentMetadata, IChatAgentService } from '../common/chatAgents.js';
+import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
@@ -218,7 +218,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService
 	) {
 		super();
 
