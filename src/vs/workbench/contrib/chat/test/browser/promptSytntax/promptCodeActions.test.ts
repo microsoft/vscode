@@ -52,7 +52,7 @@ suite('PromptCodeActionProvider', () => {
 		disposables.add(toolService.registerToolData(deprecatedTool));
 
 		// Mock deprecated tool names
-		toolService.getDeprecatedQualifiedToolNames = () => {
+		toolService.getDeprecatedFullReferenceNames = () => {
 			const map = new Map<string, Set<string>>();
 			map.set('oldTool', new Set(['newTool1', 'newTool2']));
 			map.set('singleDeprecated', new Set(['singleReplacement']));

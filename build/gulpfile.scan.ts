@@ -12,7 +12,6 @@ import * as electronConfigModule from './lib/electron.ts';
 import filter from 'gulp-filter';
 import * as deps from './lib/dependencies.ts';
 import { existsSync, readdirSync } from 'fs';
-import { fileURLToPath } from 'url';
 
 const { config } = electronConfigModule;
 
@@ -35,14 +34,14 @@ const excludedCheckList = [
 ];
 
 BUILD_TARGETS.forEach(buildTarget => {
-	const dashed = (/** @type {string | null} */ str) => (str ? `-${str}` : ``);
+	const dashed = (str: string | null) => (str ? `-${str}` : ``);
 	const platform = buildTarget.platform;
 	const arch = buildTarget.arch;
 
 	const destinationExe = path.join(path.dirname(root), 'scanbin', `VSCode${dashed(platform)}${dashed(arch)}`, 'bin');
 	const destinationPdb = path.join(path.dirname(root), 'scanbin', `VSCode${dashed(platform)}${dashed(arch)}`, 'pdb');
 
-	const tasks = [];
+	const tasks: task.Task[] = [];
 
 	// removal tasks
 	tasks.push(util.rimraf(destinationExe), util.rimraf(destinationPdb));
@@ -81,7 +80,7 @@ function getProductionDependencySources() {
 	return productionDependencies.map(d => path.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
 }
 
-function nodeModules(destinationExe, destinationPdb, platform) {
+function nodeModules(destinationExe: string, destinationPdb: string, platform: string): task.CallbackTask {
 
 	const exe = () => {
 		return gulp.src(getProductionDependencySources(), { base: '.', dot: true })
@@ -101,7 +100,7 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 				.pipe(gulp.dest(destinationPdb));
 		};
 
-		return gulp.parallel(exe, pdb);
+		return gulp.parallel(exe, pdb) as task.CallbackTask;
 	}
 
 	if (platform === 'linux') {
@@ -111,13 +110,13 @@ function nodeModules(destinationExe, destinationPdb, platform) {
 				.pipe(gulp.dest(destinationPdb));
 		};
 
-		return gulp.parallel(exe, pdb);
+		return gulp.parallel(exe, pdb) as task.CallbackTask;
 	}
 
 	return exe;
 }
 
-function confirmPdbsExist(destinationExe, destinationPdb) {
+function confirmPdbsExist(destinationExe: string, destinationPdb: string) {
 	readdirSync(destinationExe).forEach(file => {
 		if (excludedCheckList.includes(file)) {
 			return;

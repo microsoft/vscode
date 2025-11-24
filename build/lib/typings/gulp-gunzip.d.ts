@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module '@vscode/gulp-electron' {
+declare module 'gulp-gunzip' {
+	import type { Transform } from 'stream';
 
-	interface MainFunction {
-		(options: any): NodeJS.ReadWriteStream;
-		dest(destination: string, options: any): NodeJS.ReadWriteStream;
-	}
+	/**
+	 * Gunzip plugin for gulp
+	 */
+	function gunzip(): Transform;
 
-	const main: MainFunction;
-	export default main;
+	export = gunzip;
 }

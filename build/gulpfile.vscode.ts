@@ -14,37 +14,32 @@ import filter from 'gulp-filter';
 import electron from '@vscode/gulp-electron';
 import jsonEditor from 'gulp-json-editor';
 import * as util from './lib/util.ts';
-import * as getVersionModule from './lib/getVersion.ts';
-import * as dateModule from './lib/date.ts';
+import { getVersion } from './lib/getVersion.ts';
+import { readISODate } from './lib/date.ts';
 import * as task from './lib/task.ts';
 import buildfile from './buildfile.ts';
 import * as optimize from './lib/optimize.ts';
-import * as inlineMetaModule from './lib/inlineMeta.ts';
+import { inlineMeta } from './lib/inlineMeta.ts';
 import packageJson from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
 import * as crypto from 'crypto';
 import * as i18n from './lib/i18n.ts';
-import * as dependenciesModule from './lib/dependencies.ts';
-import * as electronModule from './lib/electron.ts';
-import * as asarModule from './lib/asar.ts';
+import { getProductionDependencies } from './lib/dependencies.ts';
+import { config } from './lib/electron.ts';
+import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
-import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.mjs';
-import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.mjs';
+import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
+import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
 import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
-import { fileURLToPath } from 'url';
 
-const { getVersion } = getVersionModule;
-const { readISODate } = dateModule;
-const { inlineMeta } = inlineMetaModule;
-const { getProductionDependencies } = dependenciesModule;
-const { config } = electronModule;
-const { createAsar } = asarModule;
+
 const glob = promisify(globCallback);
 const rcedit = promisify(rceditCallback);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
+const versionedResourcesFolder = (product as typeof product & { quality?: string })?.quality === 'insider' ? commit!.substring(0, 10) : '';
 
 // Build
 const vscodeEntryPoints = [
@@ -164,21 +159,21 @@ const minifyVSCodeTask = task.define('minify-vscode', task.series(
 gulp.task(minifyVSCodeTask);
 
 const coreCI = task.define('core-ci', task.series(
-	gulp.task('compile-build-with-mangling'),
+	gulp.task('compile-build-with-mangling') as task.Task,
 	task.parallel(
-		gulp.task('minify-vscode'),
-		gulp.task('minify-vscode-reh'),
-		gulp.task('minify-vscode-reh-web'),
+		gulp.task('minify-vscode') as task.Task,
+		gulp.task('minify-vscode-reh') as task.Task,
+		gulp.task('minify-vscode-reh-web') as task.Task,
 	)
 ));
 gulp.task(coreCI);
 
 const coreCIPR = task.define('core-ci-pr', task.series(
-	gulp.task('compile-build-without-mangling'),
+	gulp.task('compile-build-without-mangling') as task.Task,
 	task.parallel(
-		gulp.task('minify-vscode'),
-		gulp.task('minify-vscode-reh'),
-		gulp.task('minify-vscode-reh-web'),
+		gulp.task('minify-vscode') as task.Task,
+		gulp.task('minify-vscode-reh') as task.Task,
+		gulp.task('minify-vscode-reh-web') as task.Task,
 	)
 ));
 gulp.task(coreCIPR);
@@ -186,12 +181,12 @@ gulp.task(coreCIPR);
 /**
  * Compute checksums for some files.
  *
- * @param {string} out The out folder to read the file from.
- * @param {string[]} filenames The paths to compute a checksum for.
- * @return {Object} A map of paths to checksums.
+ * @param out The out folder to read the file from.
+ * @param filenames The paths to compute a checksum for.
+ * @return A map of paths to checksums.
  */
-function computeChecksums(out, filenames) {
-	const result = {};
+function computeChecksums(out: string, filenames: string[]): Record<string, string> {
+	const result: Record<string, string> = {};
 	filenames.forEach(function (filename) {
 		const fullPath = path.join(process.cwd(), out, filename);
 		result[filename] = computeChecksum(fullPath);
@@ -200,12 +195,12 @@ function computeChecksums(out, filenames) {
 }
 
 /**
- * Compute checksum for a file.
+ * Compute checksums for a file.
  *
- * @param {string} filename The absolute path to a filename.
- * @return {string} The checksum for `filename`.
+ * @param filename The absolute path to a filename.
+ * @return The checksum for `filename`.
  */
-function computeChecksum(filename) {
+function computeChecksum(filename: string): string {
 	const contents = fs.readFileSync(filename);
 
 	const hash = crypto
@@ -217,9 +212,7 @@ function computeChecksum(filename) {
 	return hash;
 }
 
-function packageTask(platform, arch, sourceFolderName, destinationFolderName, opts) {
-	opts = opts || {};
-
+function packageTask(platform: string, arch: string, sourceFolderName: string, destinationFolderName: string, _opts?: { stats?: boolean }) {
 	const destination = path.join(path.dirname(root), destinationFolderName);
 	platform = platform || process.platform;
 
@@ -236,15 +229,15 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		]);
 
 		const src = gulp.src(out + '/**', { base: '.' })
-			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
+			.pipe(rename(function (path) { path.dirname = path.dirname!.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
 		const platformSpecificBuiltInExtensionsExclusions = product.builtInExtensions.filter(ext => {
-			if (!ext.platforms) {
+			if (!(ext as { platforms?: string[] }).platforms) {
 				return false;
 			}
 
-			const set = new Set(ext.platforms);
+			const set = new Set((ext as { platforms?: string[] }).platforms);
 			return !set.has(platform);
 		}).map(ext => `!.build/extensions/${ext.name}/**`);
 
@@ -254,20 +247,20 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }));
 
 		let version = packageJson.version;
-		const quality = product.quality;
+		const quality = (product as { quality?: string }).quality;
 
 		if (quality && quality !== 'stable') {
 			version += '-' + quality;
 		}
 
 		const name = product.nameShort;
-		const packageJsonUpdates = { name, version };
+		const packageJsonUpdates: Record<string, unknown> = { name, version };
 
 		if (platform === 'linux') {
 			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;
 		}
 
-		let packageJsonContents;
+		let packageJsonContents: string;
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
 			.pipe(jsonEditor(packageJsonUpdates))
 			.pipe(es.through(function (file) {
@@ -275,7 +268,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				this.emit('data', file);
 			}));
 
-		let productJsonContents;
+		let productJsonContents: string;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(jsonEditor({ commit, date: readISODate('out-build'), checksums, version }))
 			.pipe(es.through(function (file) {
@@ -328,6 +321,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			deps
 		);
 
+		let customElectronConfig = {};
 		if (platform === 'win32') {
 			all = es.merge(all, gulp.src([
 				'resources/win32/bower.ico',
@@ -360,6 +354,12 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'resources/win32/code_70x70.png',
 				'resources/win32/code_150x150.png'
 			], { base: '.' }));
+			if (quality && quality === 'insider') {
+				customElectronConfig = {
+					createVersionedResources: true,
+					productVersionString: `${versionedResourcesFolder}`,
+				};
+			}
 		} else if (platform === 'linux') {
 			const policyDest = gulp.src('.build/policies/linux/**', { base: '.build/policies/linux' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
@@ -373,11 +373,11 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			all = es.merge(all, shortcut, policyDest);
 		}
 
-		let result = all
+		let result: NodeJS.ReadWriteStream = all
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
 			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/microsoft/vscode/issues/116523
-			.pipe(electron({ ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: false }))
+			.pipe(electron({ ...config, platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: false, ...customElectronConfig }))
 			.pipe(filter(['**', '!LICENSE', '!version'], { dot: true }));
 
 		if (platform === 'linux') {
@@ -393,19 +393,37 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		if (platform === 'win32') {
 			result = es.merge(result, gulp.src('resources/win32/bin/code.js', { base: 'resources/win32', allowEmpty: true }));
 
-			result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
-				.pipe(replace('@@NAME@@', product.nameShort))
-				.pipe(rename(function (f) { f.basename = product.applicationName; })));
+			if (quality && quality === 'insider') {
+				result = es.merge(result, gulp.src('resources/win32/insider/bin/code.cmd', { base: 'resources/win32/insider' })
+					.pipe(replace('@@NAME@@', product.nameShort))
+					.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder))
+					.pipe(rename(function (f) { f.basename = product.applicationName; })));
 
-			result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
-				.pipe(replace('@@NAME@@', product.nameShort))
-				.pipe(replace('@@PRODNAME@@', product.nameLong))
-				.pipe(replace('@@VERSION@@', version))
-				.pipe(replace('@@COMMIT@@', commit))
-				.pipe(replace('@@APPNAME@@', product.applicationName))
-				.pipe(replace('@@SERVERDATAFOLDER@@', product.serverDataFolderName || '.vscode-remote'))
-				.pipe(replace('@@QUALITY@@', quality))
-				.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
+				result = es.merge(result, gulp.src('resources/win32/insider/bin/code.sh', { base: 'resources/win32/insider' })
+					.pipe(replace('@@NAME@@', product.nameShort))
+					.pipe(replace('@@PRODNAME@@', product.nameLong))
+					.pipe(replace('@@VERSION@@', version))
+					.pipe(replace('@@COMMIT@@', String(commit)))
+					.pipe(replace('@@APPNAME@@', product.applicationName))
+					.pipe(replace('@@VERSIONFOLDER@@', versionedResourcesFolder))
+					.pipe(replace('@@SERVERDATAFOLDER@@', product.serverDataFolderName || '.vscode-remote'))
+					.pipe(replace('@@QUALITY@@', quality))
+					.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
+			} else {
+				result = es.merge(result, gulp.src('resources/win32/bin/code.cmd', { base: 'resources/win32' })
+					.pipe(replace('@@NAME@@', product.nameShort))
+					.pipe(rename(function (f) { f.basename = product.applicationName; })));
+
+				result = es.merge(result, gulp.src('resources/win32/bin/code.sh', { base: 'resources/win32' })
+					.pipe(replace('@@NAME@@', product.nameShort))
+					.pipe(replace('@@PRODNAME@@', product.nameLong))
+					.pipe(replace('@@VERSION@@', version))
+					.pipe(replace('@@COMMIT@@', String(commit)))
+					.pipe(replace('@@APPNAME@@', product.applicationName))
+					.pipe(replace('@@SERVERDATAFOLDER@@', product.serverDataFolderName || '.vscode-remote'))
+					.pipe(replace('@@QUALITY@@', String(quality)))
+					.pipe(rename(function (f) { f.basename = product.applicationName; f.extname = ''; })));
+			}
 
 			result = es.merge(result, gulp.src('resources/win32/VisualElementsManifest.xml', { base: 'resources/win32' })
 				.pipe(rename(product.nameShort + '.VisualElementsManifest.xml')));
@@ -425,7 +443,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 					.pipe(replace('@@ApplicationIdShort@@', product.win32RegValueName))
 					.pipe(replace('@@ApplicationExe@@', product.nameShort + '.exe'))
 					.pipe(replace('@@FileExplorerContextMenuID@@', quality === 'stable' ? 'OpenWithCode' : 'OpenWithCodeInsiders'))
-					.pipe(replace('@@FileExplorerContextMenuCLSID@@', product.win32ContextMenu[arch].clsid))
+					.pipe(replace('@@FileExplorerContextMenuCLSID@@', (product as { win32ContextMenu?: Record<string, { clsid: string }> }).win32ContextMenu![arch].clsid))
 					.pipe(replace('@@FileExplorerContextMenuDLL@@', `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`))
 					.pipe(rename(f => f.dirname = `appx/manifest`)));
 			}
@@ -448,13 +466,13 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 	return task;
 }
 
-function patchWin32DependenciesTask(destinationFolderName) {
+function patchWin32DependenciesTask(destinationFolderName: string) {
 	const cwd = path.join(path.dirname(root), destinationFolderName);
 
 	return async () => {
 		const deps = await glob('**/*.node', { cwd, ignore: 'extensions/node_modules/@parcel/watcher/**' });
-		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'package.json'), 'utf8'));
-		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, 'resources', 'app', 'product.json'), 'utf8'));
+		const packageJson = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'package.json'), 'utf8'));
+		const product = JSON.parse(await fs.promises.readFile(path.join(cwd, versionedResourcesFolder, 'resources', 'app', 'product.json'), 'utf8'));
 		const baseVersion = packageJson.version.replace(/-.*$/, '');
 
 		await Promise.all(deps.map(async dep => {
@@ -489,7 +507,7 @@ const BUILD_TARGETS = [
 	{ platform: 'linux', arch: 'arm64' },
 ];
 BUILD_TARGETS.forEach(buildTarget => {
-	const dashed = (str) => (str ? `-${str}` : ``);
+	const dashed = (str: string) => (str ? `-${str}` : ``);
 	const platform = buildTarget.platform;
 	const arch = buildTarget.arch;
 	const opts = buildTarget.opts;
@@ -532,7 +550,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 
 // #region nls
 
-const innoSetupConfig = {
+const innoSetupConfig: Record<string, { codePage: string; defaultInfo?: { name: string; id: string } }> = {
 	'zh-cn': { codePage: 'CP936', defaultInfo: { name: 'Simplified Chinese', id: '$0804', } },
 	'zh-tw': { codePage: 'CP950', defaultInfo: { name: 'Traditional Chinese', id: '$0404' } },
 	'ko': { codePage: 'CP949', defaultInfo: { name: 'Korean', id: '$0412' } },

@@ -13,9 +13,10 @@ import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { ChatSessionStatus, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -130,6 +131,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -189,7 +191,14 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				continue; // skip: not considered for resolving
 			}
 
-			const providerSessions = await provider.provideChatSessionItems(token);
+			let providerSessions: IChatSessionItem[];
+			try {
+				providerSessions = await provider.provideChatSessionItems(token);
+			} catch (error) {
+				this.logService.error(`Failed to resolve sessions for provider ${provider.chatSessionType}`, error);
+				continue; // skip: failed to resolve sessions for provider
+			}
+
 			resolvedProviders.add(provider.chatSessionType);
 
 			if (token.isCancellationRequested) {
@@ -282,6 +291,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		for (const [resource] of this.mapSessionToState) {
 			if (!sessions.has(resource)) {
 				this.mapSessionToState.delete(resource); // clean up tracking for removed sessions
+			}
+		}
+
+		for (const [resource] of this.sessionStates) {
+			if (!sessions.has(resource)) {
+				this.sessionStates.delete(resource); // clean up states for removed sessions
 			}
 		}
 
@@ -437,21 +452,19 @@ class AgentSessionsCache {
 
 	//#region States
 
-	private static readonly STATES_SCOPE = StorageScope.APPLICATION; // use application scope to track globally
-
 	saveSessionStates(states: ResourceMap<{ archived: boolean }>): void {
 		const serialized: ISerializedAgentSessionState[] = Array.from(states.entries()).map(([resource, state]) => ({
 			resource: resource.toJSON(),
 			archived: state.archived
 		}));
 
-		this.storageService.store(AgentSessionsCache.STATE_STORAGE_KEY, JSON.stringify(serialized), AgentSessionsCache.STATES_SCOPE, StorageTarget.MACHINE);
+		this.storageService.store(AgentSessionsCache.STATE_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	loadSessionStates(): ResourceMap<{ archived: boolean }> {
 		const states = new ResourceMap<{ archived: boolean }>();
 
-		const statesCache = this.storageService.get(AgentSessionsCache.STATE_STORAGE_KEY, AgentSessionsCache.STATES_SCOPE);
+		const statesCache = this.storageService.get(AgentSessionsCache.STATE_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (!statesCache) {
 			return states;
 		}

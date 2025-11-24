@@ -3,13 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module '@vscode/gulp-electron' {
+declare module 'gulp-untar' {
+	import type { Transform } from 'stream';
 
-	interface MainFunction {
-		(options: any): NodeJS.ReadWriteStream;
-		dest(destination: string, options: any): NodeJS.ReadWriteStream;
-	}
+	function untar(): Transform;
 
-	const main: MainFunction;
-	export default main;
+	export = untar;
 }
