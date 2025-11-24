@@ -1573,6 +1573,8 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}
 
+		this.searchResultModel?.updateChildren();
+
 		const firstVisibleElement = this.settingsTree.firstVisibleElement;
 		let anchorId: string | undefined;
 
@@ -1586,6 +1588,7 @@ export class SettingsEditor2 extends EditorPane {
 			this.refreshModels(resolvedSettingsRoot);
 
 			if (schemaChange && this.searchResultModel) {
+				// If an extension's settings were just loaded and a search is active, retrigger the search so it shows up
 				return await this.onSearchInputChanged(false);
 			}
 
@@ -1626,6 +1629,7 @@ export class SettingsEditor2 extends EditorPane {
 					try {
 						this.settingsTree.reveal(newElement, 0);
 					} catch (e) {
+						// Ignore the error 
 					}
 				}
 			}
