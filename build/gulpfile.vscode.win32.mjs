@@ -79,10 +79,10 @@ function buildWin32Setup(arch, target) {
 
 		const quality = product.quality || 'dev';
 		let versionedResourcesFolder = '';
-		let issPath = path.join(__dirname, 'win32', 'code.iss');
+		let issPath = path.join(import.meta.dirname, 'win32', 'code.iss');
 		if (quality && quality === 'insider') {
 			versionedResourcesFolder = commit.substring(0, 10);
-			issPath = path.join(__dirname, 'win32', 'code-insider.iss');
+			issPath = path.join(import.meta.dirname, 'win32', 'code-insider.iss');
 		}
 		const originalProductJsonPath = path.join(sourcePath, versionedResourcesFolder, 'resources/app/product.json');
 		const productJsonPath = path.join(outputPath, 'product.json');
