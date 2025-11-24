@@ -7694,6 +7694,7 @@ declare namespace monaco.languages {
 		typingIntervalCharacterCount: number;
 		selectedSuggestionInfo: boolean;
 		availableProviders: string;
+		sku: string | undefined;
 	};
 
 	export interface CodeAction {

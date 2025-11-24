@@ -741,6 +741,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					extensionId,
 					extensionVersion,
 					groupId,
+					sku: lifetimeSummary.sku,
 					availableProviders: lifetimeSummary.availableProviders,
 					partiallyAccepted: lifetimeSummary.partiallyAccepted,
 					partiallyAcceptedCountSinceOriginal: lifetimeSummary.partiallyAcceptedCountSinceOriginal,

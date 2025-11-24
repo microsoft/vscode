@@ -51,6 +51,7 @@ import { TypingInterval } from './typingSpeed.js';
 import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -65,6 +66,8 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _selectedInlineCompletionId = observableValue<string | undefined>(this, undefined);
 	public readonly primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
 	public readonly allPositions = derived(this, reader => this._positions.read(reader));
+
+	private readonly sku = observableValue<string | undefined>(this, undefined);
 
 	private _isAcceptingPartially = false;
 	private readonly _appearedInsideViewport = derived<boolean>(this, reader => {
@@ -114,7 +117,8 @@ export class InlineCompletionsModel extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IInlineCompletionsService private readonly _inlineCompletionsService: IInlineCompletionsService
+		@IInlineCompletionsService private readonly _inlineCompletionsService: IInlineCompletionsService,
+		@IDefaultAccountService defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 		this._source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue, this.primaryPosition));
@@ -138,6 +142,9 @@ export class InlineCompletionsModel extends Disposable {
 
 		const snippetController = SnippetController2.get(this._editor);
 		this._isInSnippetMode = snippetController?.isInSnippetObservable ?? constObservable(false);
+
+		defaultAccountService.getDefaultAccount().then(account => this.sku.set(account?.access_type_sku, undefined));
+		this._register(defaultAccountService.onDidChangeDefaultAccount(account => this.sku.set(account?.access_type_sku, undefined)));
 
 		this._typing = this._register(new TypingInterval(this.textModel));
 
@@ -399,6 +406,7 @@ export class InlineCompletionsModel extends Disposable {
 			typingInterval: typingInterval.averageInterval,
 			typingIntervalCharacterCount: typingInterval.characterCount,
 			availableProviders: [],
+			sku: this.sku.read(undefined),
 		};
 
 		let context: InlineCompletionContextWithoutUuid = {
