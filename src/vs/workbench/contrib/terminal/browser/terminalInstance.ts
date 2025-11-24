@@ -470,6 +470,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			switch (e.id) {
 				case TerminalCapability.CwdDetection: {
 					capabilityListeners.set(e.id, e.capability.onDidChangeCwd(e => {
+						this._logService.debug(`MYLOG TerminalInstance#onDidChangeCwd: cwd changed to "${e}", hasRemoteAuthority=${this.hasRemoteAuthority}, remoteAuthority=${this.remoteAuthority}`);
 						this._cwd = e;
 						this._setTitle(this.title, TitleEventSource.Config);
 					}));
@@ -556,6 +557,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Re-establish the title after reconnect
 			if (this.shellLaunchConfig.attachPersistentProcess) {
+				this._logService.debug(`MYLOG TerminalInstance: Setting cwd from attachPersistentProcess.cwd="${this.shellLaunchConfig.attachPersistentProcess.cwd}", previous _cwd="${this._cwd}"`);
 				this._cwd = this.shellLaunchConfig.attachPersistentProcess.cwd;
 				this._setTitle(this.shellLaunchConfig.attachPersistentProcess.title, this.shellLaunchConfig.attachPersistentProcess.titleSource);
 				this.setShellType(this.shellType);
@@ -876,7 +878,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 			xterm.raw.options.windowsPty = processTraits.windowsPty;
 		}));
-		this._register(this._processManager.onRestoreCommands(e => this.xterm?.shellIntegration.deserialize(e)));
+		this._register(this._processManager.onRestoreCommands(e => {
+			this._logService.debug(`MYLOG TerminalInstance#onRestoreCommands: Restoring commands, current _cwd="${this._cwd}", hasRemoteAuthority=${this.hasRemoteAuthority}`);
+			this.xterm?.shellIntegration.deserialize(e);
+			this._logService.debug(`MYLOG TerminalInstance#onRestoreCommands: After deserialize, _cwd="${this._cwd}"`);
+		}));
 
 		this._register(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
@@ -908,10 +914,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		if (this.xterm?.shellIntegration) {
+			this._logService.debug(`MYLOG TerminalInstance#_createXterm: Adding shell integration capabilities, hasRemoteAuthority=${this.hasRemoteAuthority}, current _cwd="${this._cwd}"`);
 			this.capabilities.add(this.xterm.shellIntegration.capabilities);
+			this._logService.debug(`MYLOG TerminalInstance#_createXterm: After adding shell integration capabilities, _cwd="${this._cwd}"`);
 		}
 
 		this._pathService.userHome().then(userHome => {
+			this._logService.debug(`MYLOG TerminalInstance#_createXterm: userHome resolved to "${userHome.fsPath}", current _cwd="${this._cwd}"`);
 			this._userHome = userHome.fsPath;
 		});
 
@@ -1530,13 +1539,16 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.isDisposed) {
 			return;
 		}
+		this._logService.debug(`MYLOG TerminalInstance#_createProcess: Starting process creation, _cwd="${this._cwd}", _userHome="${this._userHome}", hasRemoteAuthority=${this.hasRemoteAuthority}, remoteAuthority=${this.remoteAuthority}`);
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
+		this._logService.debug(`MYLOG TerminalInstance#_createProcess: activeWorkspaceRootUri=${activeWorkspaceRootUri?.toString()}`);
 		if (activeWorkspaceRootUri) {
 			const trusted = await this._trust();
 			if (!trusted) {
 				this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
 			}
 		} else if (this._cwd && this._userHome && this._cwd !== this._userHome) {
+			this._logService.debug(`MYLOG TerminalInstance#_createProcess: Empty workspace cwd mismatch detected - cwd="${this._cwd}", userHome="${this._userHome}", hasRemoteAuthority=${this.hasRemoteAuthority}`);
 			// something strange is going on if cwd is not userHome in an empty workspace
 			this._onProcessExit({
 				message: nls.localize('workspaceNotTrustedCreateTerminalCwd', "Cannot launch a terminal process in an untrusted workspace with cwd {0} and userHome {1}", this._cwd, this._userHome)
@@ -1548,6 +1560,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this.xterm?.resize(this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows);
 		}
 		const originalIcon = this.shellLaunchConfig.icon;
+		this._logService.debug(`MYLOG TerminalInstance#_createProcess: Creating process with shellLaunchConfig=${JSON.stringify(this._shellLaunchConfig)}, _cols=${this._cols}, _rows=${this._rows}`);
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols || Constants.DefaultCols, this._rows || Constants.DefaultRows).then(result => {
 			if (result) {
 				if (hasKey(result, { message: true })) {
@@ -1558,9 +1571,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		});
 		if (this.isDisposed) {
+			this._logService.debug(`MYLOG TerminalInstance#_createProcess: Disposed during process creation, skipping icon update`);
 			return;
 		}
 		if (originalIcon !== this.shellLaunchConfig.icon || this.shellLaunchConfig.color) {
+			this._logService.debug(`MYLOG TerminalInstance#_createProcess: Updating icon from originalIcon=${originalIcon} to icon=${this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon}`);
 			this._icon = this._shellLaunchConfig.attachPersistentProcess?.icon || this._shellLaunchConfig.icon;
 			this._onIconChanged.fire({ instance: this, userInitiated: false });
 		}

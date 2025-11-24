@@ -638,6 +638,7 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 	}
 
 	private _updateCwd(value: string) {
+		this._logService.debug(`MYLOG ShellIntegrationAddon#_updateCwd: updating cwd to "${value}"`);
 		value = sanitizeCwd(value);
 		this._createOrGetCwdDetection().updateCwd(value);
 		const commandDetection = this.capabilities.get(TerminalCapability.CommandDetection);
@@ -739,10 +740,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		if (!this._terminal) {
 			throw new Error('Cannot restore commands before addon is activated');
 		}
+		this._logService.debug(`MYLOG ShellIntegrationAddon#deserialize: deserializing command detection capability`);
 		const commandDetection = this._createOrGetCommandDetection(this._terminal);
 		commandDetection.deserialize(serialized);
 		if (commandDetection.cwd) {
 			// Cwd gets set when the command is deserialized, so we need to update it here
+			this._logService.debug(`MYLOG ShellIntegrationAddon#deserialize: updating cwd from deserialized commandDetection.cwd="${commandDetection.cwd}"`);
 			this._updateCwd(commandDetection.cwd);
 		}
 	}
