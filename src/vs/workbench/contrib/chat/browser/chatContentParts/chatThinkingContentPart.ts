@@ -144,9 +144,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	// @TODO: @justschen Convert to template for each setting?
 	protected override initContent(): HTMLElement {
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
-		// if (this.fixedScrollingMode) {
 		this.wrapper.classList.add('chat-thinking-streaming');
-		// }
 		if (this.currentThinkingValue) {
 			this.textContainer = $('.chat-thinking-item.markdown-content');
 			this.wrapper.appendChild(this.textContainer);
@@ -196,8 +194,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this._collapseButton.element.style.pointerEvents = clickable ? 'auto' : 'none';
 		}
 
-		// only set title to last extracted thinking part if not clickable (meaning title matches content) and streaming is completed.
-		// don't need LLM title generation if title matches content since it's the only thing.
 		if (!clickable && this.streamingCompleted) {
 			super.setTitle(this.lastExtractedTitle ?? this.currentTitle);
 		}
@@ -282,20 +278,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	public finalizeTitleIfDefault(agentService?: IChatAgentService, agentId?: string, sessionResource?: URI): void {
-		// let finalLabel: string;
-		// if (this.toolInvocationCount > 0) {
-		// 	finalLabel = localize('chat.thinking.finished.withTools', 'Finished thinking and invoked {0} tool{1}', this.toolInvocationCount, this.toolInvocationCount === 1 ? '' : 's');
-		// } else {
-		// 	finalLabel = localize('chat.thinking.finished', 'Finished Thinking');
-		// }
-
-		// this.currentTitle = finalLabel;
 		this.wrapper.classList.remove('chat-thinking-streaming');
 		this.streamingCompleted = true;
 
 		if (this._collapseButton) {
 			this._collapseButton.icon = Codicon.check;
-			// this._collapseButton.label = finalLabel;
 		}
 
 		this.updateDropdownClickability();
@@ -332,46 +319,27 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				if (this._collapseButton) {
 					this._collapseButton.label = generatedTitle;
 				}
-			} else {
-				// If title generation fails, the default title is already set
-				let finalLabel: string;
-				if (this.toolInvocationCount > 0) {
-					finalLabel = localize('chat.thinking.finished.withTools', 'Finished thinking and invoked {0} tool{1}', this.toolInvocationCount, this.toolInvocationCount === 1 ? '' : 's');
-				} else {
-					finalLabel = localize('chat.thinking.finished', 'Finished Thinking');
-				}
-
-				this.currentTitle = finalLabel;
-				this.wrapper.classList.remove('chat-thinking-streaming');
-				this.streamingCompleted = true;
-
-				if (this._collapseButton) {
-					this._collapseButton.icon = Codicon.check;
-					this._collapseButton.label = finalLabel;
-				}
-
-				this.updateDropdownClickability();
+				return;
 			}
 		} catch (error) {
-			// If title generation fails, the default title is already set
-			let finalLabel: string;
-			if (this.toolInvocationCount > 0) {
-				finalLabel = localize('chat.thinking.finished.withTools', 'Finished thinking and invoked {0} tool{1}', this.toolInvocationCount, this.toolInvocationCount === 1 ? '' : 's');
-			} else {
-				finalLabel = localize('chat.thinking.finished', 'Finished Thinking');
-			}
-
-			this.currentTitle = finalLabel;
-			this.wrapper.classList.remove('chat-thinking-streaming');
-			this.streamingCompleted = true;
-
-			if (this._collapseButton) {
-				this._collapseButton.icon = Codicon.check;
-				this._collapseButton.label = finalLabel;
-			}
-
-			this.updateDropdownClickability();
+			// fall through to default title
 		}
+
+		// Use default title when generation fails or returns empty
+		const finalLabel = this.toolInvocationCount > 0
+			? localize('chat.thinking.finished.withTools', 'Finished thinking and invoked {0} tool{1}', this.toolInvocationCount, this.toolInvocationCount === 1 ? '' : 's')
+			: localize('chat.thinking.finished', 'Finished Thinking');
+
+		this.currentTitle = finalLabel;
+		this.wrapper.classList.remove('chat-thinking-streaming');
+		this.streamingCompleted = true;
+
+		if (this._collapseButton) {
+			this._collapseButton.icon = Codicon.check;
+			this._collapseButton.label = finalLabel;
+		}
+
+		this.updateDropdownClickability();
 	}
 
 	public appendItem(content: HTMLElement, toolInvocationId?: string, toolInvocation?: IChatToolInvocation | IChatToolInvocationSerialized): void {

@@ -129,34 +129,29 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 		}
 	}
 
+
+	// Render collapsible dropdown title with widgets
 	protected setTitleWithWidgets(content: MarkdownString, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, chatContentMarkdownRenderer: IMarkdownRenderer): void {
 		if (this._store.isDisposed || !this._collapseButton) {
 			return;
 		}
 
-		// Dispose previous rendered title if it exists
 		if (this.renderedTitleWithWidgets) {
 			this.renderedTitleWithWidgets.dispose();
 			this.renderedTitleWithWidgets = undefined;
 		}
-
-		// Render the markdown (which may contain empty links for file widgets)
-		const result = this._register(chatContentMarkdownRenderer.render(content));
+		const result = chatContentMarkdownRenderer.render(content);
 		result.element.classList.add('collapsible-title-content');
 
-		// Transform empty links into file widget pills
 		renderFileWidgets(result.element, instantiationService, chatMarkdownAnchorService, this._store);
 
-		// Clear the label element and add the rendered content with widgets
 		const labelElement = this._collapseButton.labelElement;
 		labelElement.textContent = '';
 		labelElement.appendChild(result.element);
 
-		// Update aria label based on text content
 		const textContent = result.element.textContent || '';
 		this.updateAriaLabel(this._collapseButton.element, textContent, this.isExpanded());
 
-		// Store the rendered element for potential later use
 		this.renderedTitleWithWidgets = result;
 	}
 }
