@@ -40,7 +40,7 @@ import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } f
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { CountTokensCallback, createToolSchemaUri, GithubCopilotToolReference, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, GithubCopilotToolReference, ILanguageModelToolsService, IPreparedToolInvocation, IStreamedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolInvocationStreamContext, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
