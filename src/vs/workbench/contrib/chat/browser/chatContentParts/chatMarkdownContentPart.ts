@@ -77,6 +77,10 @@ export interface IChatMarkdownContentPartOptions {
 	};
 }
 
+interface IMarkdownPartCodeBlockInfo extends IChatCodeBlockInfo {
+	isStreamingEdit: boolean;
+}
+
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
 
 	private static ID_POOL = 0;
@@ -89,7 +93,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
-	readonly codeblocks: IChatCodeBlockInfo[] = [];
+	readonly codeblocks: IMarkdownPartCodeBlockInfo[] = [];
 
 	private readonly mathLayoutParticipants = new Set<() => void>();
 
@@ -217,12 +221,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 
 						const ownerMarkdownPartId = this.codeblocksPartId;
-						const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
+						const info = new class implements IMarkdownPartCodeBlockInfo {
 							readonly ownerMarkdownPartId = ownerMarkdownPartId;
 							readonly codeBlockIndex = globalIndex;
 							readonly elementId = element.id;
 							readonly chatSessionResource = element.sessionResource;
 							readonly languageId = languageId;
+							readonly isStreamingEdit = false;
 							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 							codemapperUri = undefined; // will be set async
 							get uri() {
@@ -251,12 +256,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 						}
 						this.allRefs.push(ref);
 						const ownerMarkdownPartId = this.codeblocksPartId;
-						const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
+						const info = new class implements IMarkdownPartCodeBlockInfo {
 							readonly ownerMarkdownPartId = ownerMarkdownPartId;
 							readonly codeBlockIndex = globalIndex;
 							readonly elementId = element.id;
 							readonly codemapperUri = codeblockEntry?.codemapperUri;
 							readonly chatSessionResource = element.sessionResource;
+							readonly isStreamingEdit = !isCodeBlockComplete;
 							get uri() {
 								return undefined;
 							}
@@ -372,8 +378,21 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		return other.kind === 'markdownContent' && !!(other.content.value === this.markdown.content.value
-			|| this.codeblocks.at(-1)?.codemapperUri !== undefined && other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```'));
+		if (other.kind !== 'markdownContent') {
+			return false;
+		}
+
+		if (other.content.value === this.markdown.content.value) {
+			return true;
+		}
+
+		// If we are streaming in code shown in an edit pill, do not re-render the entire content as long as it's coming in
+		const lastCodeblock = this.codeblocks.at(-1);
+		if (lastCodeblock && lastCodeblock.codemapperUri !== undefined && lastCodeblock.isStreamingEdit) {
+			return other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```');
+		}
+
+		return false;
 	}
 
 	layout(width: number): void {
