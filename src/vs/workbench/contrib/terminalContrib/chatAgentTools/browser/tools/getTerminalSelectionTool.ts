@@ -13,6 +13,7 @@ import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 export const GetTerminalSelectionToolData: IToolData = {
 	id: 'terminal_selection',
 	toolReferenceName: 'terminalSelection',
+	legacyToolReferenceFullNames: ['runCommands/terminalSelection'],
 	displayName: localize('terminalSelectionTool.displayName', 'Get Terminal Selection'),
 	modelDescription: 'Get the current selection in the active terminal.',
 	source: ToolDataSource.Internal,

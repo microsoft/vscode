@@ -66,6 +66,8 @@ declare module 'vscode' {
 		completeBracketPairs?: boolean;
 
 		warning?: InlineCompletionWarning;
+
+		supportsRename?: boolean;
 	}
 
 

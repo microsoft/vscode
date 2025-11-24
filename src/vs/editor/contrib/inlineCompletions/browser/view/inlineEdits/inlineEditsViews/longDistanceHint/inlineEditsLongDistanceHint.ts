@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { n, ObserverNode, ObserverNodeWithElement } from '../../../../../../../../base/browser/dom.js';
+import { ChildNode, n, ObserverNode, ObserverNodeWithElement } from '../../../../../../../../base/browser/dom.js';
 import { Event } from '../../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../../base/common/lifecycle.js';
 import { IObservable, IReader, autorun, constObservable, debouncedObservable2, derived, derivedDisposable } from '../../../../../../../../base/common/observable.js';
@@ -28,14 +28,16 @@ import { Point } from '../../../../../../../common/core/2d/point.js';
 import { Size2D } from '../../../../../../../common/core/2d/size.js';
 import { getMaxTowerHeightInAvailableArea } from '../../utils/towersLayout.js';
 import { IThemeService } from '../../../../../../../../platform/theme/common/themeService.js';
+import { IKeybindingService } from '../../../../../../../../platform/keybinding/common/keybinding.js';
 import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../../theme.js';
-import { asCssVariable, editorBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, descriptionForeground, editorBackground, editorWidgetBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
 import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
 import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
+import { jumpToNextInlineEditId } from '../../../../controller/commandIds.js';
 
 const BORDER_RADIUS = 4;
-const MAX_WIDGET_WIDTH = 400;
-const MIN_WIDGET_WIDTH = 200;
+const MAX_WIDGET_WIDTH = { EMPTY_SPACE: 425, OVERLAY: 375 };
+const MIN_WIDGET_WIDTH = 250;
 
 export class InlineEditsLongDistanceHint extends Disposable implements IInlineEditsView {
 
@@ -51,7 +53,8 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		private readonly _previewTextModel: ITextModel,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -98,7 +101,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			minContentWidthInPx: constObservable(0),
 		}));
 
-		this._widgetContent.keepUpdated(this._store);
+		this._widgetContent.get().keepUpdated(this._store);
 
 		this._register(autorun(reader => {
 			const layoutInfo = this._previewEditorLayoutInfo.read(reader);
@@ -113,7 +116,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 	private readonly _styles;
 
-	public get isHovered() { return this._widgetContent.didMouseMoveDuringHover; }
+	public get isHovered() { return this._widgetContent.get().didMouseMoveDuringHover; }
 
 	private readonly _hintTextPosition = derived(this, (reader) => {
 		const viewState = this._viewState.read(reader);
@@ -180,7 +183,6 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		const editorTrueContentWidth = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
 		const editorTrueContentRight = editorLayout.contentLeft + editorTrueContentWidth;
 
-
 		// drawEditorWidths(this._editor, reader);
 
 		const c = this._editorObs.cursorLineNumber.read(reader);
@@ -192,7 +194,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			const lineNumber = lineSizes.lineRange.startLineNumber + idx;
 			let linePaddingLeft = 20;
 			if (lineNumber === viewState.hint.lineNumber) {
-				linePaddingLeft = 100;
+				linePaddingLeft = 40;
 			}
 			return new Size2D(Math.max(0, editorTrueContentWidth - s.width - linePaddingLeft), s.height);
 		});
@@ -231,9 +233,13 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			const horizontalWidgetRange = OffsetRange.ofStartAndLength(editorTrueContentRight - maxWidth, maxWidth);
 			return { horizontalWidgetRange, verticalWidgetRange };
 		});
+
+		let position: 'overlay' | 'empty-space' = 'empty-space';
 		if (!possibleWidgetOutline) {
+			position = 'overlay';
+			const maxAvailableWidth = Math.min(editorLayout.width - editorLayout.contentLeft, MAX_WIDGET_WIDTH.OVERLAY);
 			possibleWidgetOutline = {
-				horizontalWidgetRange: OffsetRange.ofStartAndLength(editorTrueContentRight - MAX_WIDGET_WIDTH, MAX_WIDGET_WIDTH),
+				horizontalWidgetRange: OffsetRange.ofStartAndLength(editorTrueContentRight - maxAvailableWidth, maxAvailableWidth),
 				verticalWidgetRange: getWidgetVerticalOutline(viewState.hint.lineNumber + 2).delta(10),
 			};
 		}
@@ -252,12 +258,12 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			debugView(debugLogRects({ rectAvailableSpace }, this._editor.getDomNode()!), reader);
 		}
 
-		const maxWidgetWidth = Math.min(MAX_WIDGET_WIDTH, previewEditorContentLayout.maxEditorWidth + previewEditorMargin + widgetPadding);
+		const maxWidgetWidth = Math.min(position === 'overlay' ? MAX_WIDGET_WIDTH.OVERLAY : MAX_WIDGET_WIDTH.EMPTY_SPACE, previewEditorContentLayout.maxEditorWidth + previewEditorMargin + widgetPadding);
 
 		const layout = distributeFlexBoxLayout(rectAvailableSpace.width, {
 			spaceBefore: { min: 0, max: 10, priority: 1 },
 			content: { min: 50, rules: [{ max: 150, priority: 2 }, { max: maxWidgetWidth, priority: 1 }] },
-			spaceAfter: { min: 20 },
+			spaceAfter: { min: 10 },
 		});
 
 		if (!layout) {
@@ -319,74 +325,95 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		derived(this, _reader => [this._widgetContent]),
 	]);
 
-	private readonly _widgetContent = n.div({
-		style: {
-			position: 'absolute',
-			overflow: 'hidden',
-			cursor: 'pointer',
-			background: 'var(--vscode-editorWidget-background)',
-			padding: this._previewEditorLayoutInfo.map(i => i?.widgetPadding),
-			boxSizing: 'border-box',
-			borderRadius: BORDER_RADIUS,
-			border: derived(reader => `${this._previewEditorLayoutInfo.read(reader)?.widgetBorder}px solid ${this._styles.read(reader).border}`),
-			display: 'flex',
-			flexDirection: 'column',
-			opacity: derived(reader => this._viewState.read(reader)?.hint.isVisible ? '1' : '0'),
-			transition: 'opacity 200ms ease-in-out',
-			...rectToProps(reader => this._previewEditorLayoutInfo.read(reader)?.widgetRect)
-		},
-		onmousedown: e => {
-			e.preventDefault(); // This prevents that the editor loses focus
-		},
-		onclick: () => {
-			this._viewState.get()?.model.jump();
-		}
-	}, [
+	private readonly _widgetContent = derived(this, reader => // TODO@hediet: remove when n.div lazily creates previewEditor.element node
 		n.div({
-			class: ['editorContainer'],
+			class: 'inline-edits-long-distance-hint-widget',
 			style: {
+				position: 'absolute',
 				overflow: 'hidden',
-				padding: this._previewEditorLayoutInfo.map(i => i?.previewEditorMargin),
-				background: 'var(--vscode-editor-background)',
-				pointerEvents: 'none',
+				cursor: 'pointer',
+				background: asCssVariable(editorWidgetBackground),
+				padding: this._previewEditorLayoutInfo.map(i => i?.widgetPadding),
+				boxSizing: 'border-box',
+				borderRadius: BORDER_RADIUS,
+				border: derived(reader => `${this._previewEditorLayoutInfo.read(reader)?.widgetBorder}px solid ${this._styles.read(reader).border}`),
+				display: 'flex',
+				flexDirection: 'column',
+				opacity: derived(reader => this._viewState.read(reader)?.hint.isVisible ? '1' : '0'),
+				transition: 'opacity 200ms ease-in-out',
+				...rectToProps(reader => this._previewEditorLayoutInfo.read(reader)?.widgetRect)
 			},
+			onmousedown: e => {
+				e.preventDefault(); // This prevents that the editor loses focus
+			},
+			onclick: () => {
+				this._viewState.read(undefined)?.model.jump();
+			}
 		}, [
-			derived(this, r => this._previewEditor.element),
-		]),
-		n.div({ class: 'bar', style: { pointerEvents: 'none', margin: '0 4px', height: this._previewEditorLayoutInfo.map(i => i?.lowerBarHeight), display: 'flex', justifyContent: 'flex-start', alignItems: 'center' } }, [
-			derived(this, reader => {
-				const children: (HTMLElement | ObserverNode<HTMLDivElement>)[] = [];
-				const s = this._viewState.read(reader);
-				const source = this._originalOutlineSource.read(reader);
-				if (!s || !source) {
-					return [];
-				}
-				const items = source.getAt(s.edit.lineEdit.lineRange.startLineNumber, reader).slice(0, 1);
-
-				if (items.length > 0) {
-					for (let i = 0; i < items.length; i++) {
-						const item = items[i];
-						const icon = SymbolKinds.toIcon(item.kind);
-						children.push(n.div({
-							class: 'breadcrumb-item',
-							style: { display: 'flex', alignItems: 'center' },
-						}, [
-							renderIcon(icon),
-							'\u00a0',
-							item.name,
-							...(i === items.length - 1
-								? []
-								: [renderIcon(Codicon.chevronRight)]
-							)
-						]));
-						/*divItem.onclick = () => {
-						};*/
+			n.div({
+				class: ['editorContainer'],
+				style: {
+					overflow: 'hidden',
+					padding: this._previewEditorLayoutInfo.map(i => i?.previewEditorMargin),
+					background: asCssVariable(editorBackground),
+					pointerEvents: 'none',
+				},
+			}, [
+				derived(this, r => this._previewEditor.element), // --
+			]),
+			n.div({ class: 'bar', style: { color: asCssVariable(descriptionForeground), pointerEvents: 'none', margin: '0 4px', height: this._previewEditorLayoutInfo.map(i => i?.lowerBarHeight), display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }, [
+				derived(this, reader => {
+					const children: (HTMLElement | ObserverNode<HTMLDivElement>)[] = [];
+					const viewState = this._viewState.read(reader);
+					if (!viewState) {
+						return children;
 					}
-				}
-				return children;
-			})
-		]),
-	]);
+
+					// Outline Element
+					const source = this._originalOutlineSource.read(reader);
+					const outlineItems = source?.getAt(viewState.edit.lineEdit.lineRange.startLineNumber, reader).slice(0, 1) ?? [];
+					const outlineElements: ChildNode[] = [];
+					if (outlineItems.length > 0) {
+						for (let i = 0; i < outlineItems.length; i++) {
+							const item = outlineItems[i];
+							const icon = SymbolKinds.toIcon(item.kind);
+							outlineElements.push(n.div({
+								class: 'breadcrumb-item',
+								style: { display: 'flex', alignItems: 'center', flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+							}, [
+								renderIcon(icon),
+								'\u00a0',
+								item.name,
+								...(i === outlineItems.length - 1
+									? []
+									: [renderIcon(Codicon.chevronRight)]
+								)
+							]));
+						}
+					}
+					children.push(n.div({ class: 'outline-elements', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, outlineElements));
+
+					// Show Edit Direction
+					const arrowIcon = isEditBelowHint(viewState) ? Codicon.arrowDown : Codicon.arrowUp;
+					const keybinding = this._keybindingService.lookupKeybinding(jumpToNextInlineEditId);
+					let label = 'Go to suggestion';
+					if (keybinding && keybinding.getLabel() === 'Tab') {
+						label = 'Tab to suggestion';
+					}
+					children.push(n.div({
+						class: 'go-to-label',
+						style: { position: 'relative', display: 'flex', alignItems: 'center', flex: '0 0 auto', paddingLeft: '6px' },
+					}, [
+						label,
+						'\u00a0',
+						renderIcon(arrowIcon),
+					]));
+
+					return children;
+				})
+			]),
+		])
+	);
 
 	private readonly _originalOutlineSource = derivedDisposable(this, (reader) => {
 		const m = this._editorObs.model.read(reader);
@@ -419,7 +446,6 @@ function lengthsToOffsetRanges(lengths: number[], initialOffset = 0): OffsetRang
 	}
 	return result;
 }
-
 
 function stackSizesDown(at: Point, sizes: Size2D[], alignment: 'left' | 'right' = 'left'): Rect[] {
 	const rects: Rect[] = [];
@@ -468,6 +494,12 @@ function getSums<T>(array: T[], fn: (item: T) => number): number[] {
 		result.push(sum);
 	}
 	return result;
+}
+
+function isEditBelowHint(viewState: ILongDistanceViewState): boolean {
+	const hintLineNumber = viewState.hint.lineNumber;
+	const editStartLineNumber = viewState.diff[0]?.original.startLineNumber;
+	return hintLineNumber < editStartLineNumber;
 }
 
 export function drawEditorWidths(e: ICodeEditor, reader: IReader) {
