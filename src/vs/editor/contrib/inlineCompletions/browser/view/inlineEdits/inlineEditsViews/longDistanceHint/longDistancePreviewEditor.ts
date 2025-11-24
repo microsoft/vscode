@@ -61,6 +61,17 @@ export class LongDistancePreviewEditor extends Disposable {
 			return (state?.mode === 'original' ? decorations?.originalDecorations : decorations?.modifiedDecorations) ?? [];
 		})));
 
+		// Mirror the cursor position. Allows the gutter arrow to point in the correct direction.
+		this._register(autorun((reader) => {
+			if (!this._properties.read(reader)) {
+				return;
+			}
+			const cursorPosition = this._parentEditorObs.cursorPosition.read(reader);
+			if (cursorPosition) {
+				this.previewEditor.setPosition(this._previewTextModel.validatePosition(cursorPosition), 'longDistanceHintPreview');
+			}
+		}));
+
 		this._register(autorun(reader => {
 			const state = this._properties.read(reader);
 			if (!state) {
@@ -208,14 +219,13 @@ export class LongDistancePreviewEditor extends Disposable {
 
 		const firstCharacterChange = state.mode === 'modified' ? diff[0].innerChanges[0].modifiedRange : diff[0].innerChanges[0].originalRange;
 
-
 		// find the horizontal range we want to show.
-		// use 5 characters before the first change, at most 1 indentation
-		const left = this._previewEditorObs.getLeftOfPosition(firstCharacterChange.getStartPosition(), reader);
-		const right = this._previewEditorObs.getLeftOfPosition(firstCharacterChange.getEndPosition(), reader);
+		const preferredRange = growUntilVariableBoundaries(editor.getModel()!, firstCharacterChange, 5);
+		const left = this._previewEditorObs.getLeftOfPosition(preferredRange.getStartPosition(), reader);
+		const right = this._previewEditorObs.getLeftOfPosition(preferredRange.getEndPosition(), reader);
 
-		const indentCol = editor.getModel()!.getLineFirstNonWhitespaceColumn(firstCharacterChange.startLineNumber);
-		const indentationEnd = this._previewEditorObs.getLeftOfPosition(new Position(firstCharacterChange.startLineNumber, indentCol), reader);
+		const indentCol = editor.getModel()!.getLineFirstNonWhitespaceColumn(preferredRange.startLineNumber);
+		const indentationEnd = this._previewEditorObs.getLeftOfPosition(new Position(preferredRange.startLineNumber, indentCol), reader);
 
 		const preferredRangeToReveal = new OffsetRange(left, right);
 
@@ -302,4 +312,37 @@ export class LongDistancePreviewEditor extends Disposable {
 
 		return { originalDecorations, modifiedDecorations };
 	});
+}
+
+/*
+ * Grows the range on each ends until it includes a none-variable-name character
+ * or the next character would be a whitespace character
+ * or the maxGrow limit is reached
+ */
+function growUntilVariableBoundaries(textModel: ITextModel, range: Range, maxGrow: number): Range {
+	const startPosition = range.getStartPosition();
+	const endPosition = range.getEndPosition();
+	const line = textModel.getLineContent(startPosition.lineNumber);
+
+	function isVariableNameCharacter(col: number): boolean {
+		const char = line.charAt(col - 1);
+		return (/[a-zA-Z0-9_]/).test(char);
+	}
+
+	function isWhitespace(col: number): boolean {
+		const char = line.charAt(col - 1);
+		return char === ' ' || char === '\t';
+	}
+
+	let startColumn = startPosition.column;
+	while (startColumn > 1 && isVariableNameCharacter(startColumn) && !isWhitespace(startColumn - 1) && startPosition.column - startColumn < maxGrow) {
+		startColumn--;
+	}
+
+	let endColumn = endPosition.column - 1;
+	while (endColumn <= line.length && isVariableNameCharacter(endColumn) && !isWhitespace(endColumn + 1) && endColumn - endPosition.column < maxGrow) {
+		endColumn++;
+	}
+
+	return new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endColumn + 1);
 }

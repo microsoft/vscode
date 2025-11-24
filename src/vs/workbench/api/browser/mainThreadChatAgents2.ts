@@ -147,16 +147,14 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	$transferActiveChatSession(toWorkspace: UriComponents): void {
 		const widget = this._chatWidgetService.lastFocusedWidget;
-		const sessionId = widget?.viewModel?.model.sessionId;
-		if (!sessionId) {
+		const model = widget?.viewModel?.model;
+		if (!model) {
 			this._logService.error(`MainThreadChat#$transferActiveChatSession: No active chat session found`);
 			return;
 		}
 
-		const inputValue = widget?.inputEditor.getValue() ?? '';
 		const location = widget.location;
-		const mode = widget.input.currentModeKind;
-		this._chatService.transferChatSession({ sessionId, inputValue, location, mode }, URI.revive(toWorkspace));
+		this._chatService.transferChatSession({ sessionId: model.sessionId, inputState: model.inputModel.state.get(), location }, URI.revive(toWorkspace));
 	}
 
 	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {

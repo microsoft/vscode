@@ -525,27 +525,47 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		);
 
 		let inputDataDisposable: IDisposable = Disposable.None;
+		let instanceDisposedDisposable: IDisposable = Disposable.None;
 		const inputPromise = new Promise<boolean>(resolve => {
+			let settled = false;
+			const settle = (value: boolean, state: OutputMonitorState) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				part.hide();
+				inputDataDisposable.dispose();
+				instanceDisposedDisposable.dispose();
+				this._state = state;
+				resolve(value);
+			};
 			inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
 				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
-					part.hide();
-					inputDataDisposable.dispose();
-					this._state = OutputMonitorState.PollingForIdle;
 					this._outputMonitorTelemetryCounters.inputToolFreeFormInputCount++;
-					resolve(true);
+					settle(true, OutputMonitorState.PollingForIdle);
 				}
+			}));
+			instanceDisposedDisposable = this._register(execution.instance.onDisposed(() => {
+				settle(false, OutputMonitorState.Cancelled);
 			}));
 		});
 
+		const disposeListeners = () => {
+			inputDataDisposable.dispose();
+			instanceDisposedDisposable.dispose();
+		};
+
 		const result = await Promise.race([userPrompt, inputPromise]);
 		if (result === focusTerminalSelection) {
+			execution.instance.focus(true);
 			return await inputPromise;
 		}
 		if (result === undefined) {
-			inputDataDisposable.dispose();
+			disposeListeners();
 			// Prompt was dismissed without providing input
 			return false;
 		}
+		disposeListeners();
 		return !!result;
 	}
 
@@ -556,6 +576,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const focusTerminalSelection = Symbol('focusTerminalSelection');
 		let inputDataDisposable: IDisposable = Disposable.None;
+		let instanceDisposedDisposable: IDisposable = Disposable.None;
 		const { promise: userPrompt, part } = this._createElicitationPart<string | boolean | typeof focusTerminalSelection | undefined>(
 			token,
 			execution.sessionId,
@@ -583,27 +604,47 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			getMoreActions(suggestedOption, confirmationPrompt)
 		);
 		const inputPromise = new Promise<boolean>(resolve => {
-			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
+			let settled = false;
+			const settle = (value: boolean, state: OutputMonitorState) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
 				part.hide();
 				inputDataDisposable.dispose();
-				this._state = OutputMonitorState.PollingForIdle;
-				resolve(true);
+				instanceDisposedDisposable.dispose();
+				this._state = state;
+				resolve(value);
+			};
+			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
+				settle(true, OutputMonitorState.PollingForIdle);
+			}));
+			instanceDisposedDisposable = this._register(execution.instance.onDisposed(() => {
+				settle(false, OutputMonitorState.Cancelled);
 			}));
 		});
 
+		const disposeListeners = () => {
+			inputDataDisposable.dispose();
+			instanceDisposedDisposable.dispose();
+		};
+
 		const optionToRun = await Promise.race([userPrompt, inputPromise]);
 		if (optionToRun === focusTerminalSelection) {
+			execution.instance.focus(true);
 			return await inputPromise;
 		}
 		if (optionToRun === true) {
+			disposeListeners();
 			return true;
 		}
 		if (typeof optionToRun === 'string' && optionToRun.length) {
-			inputDataDisposable.dispose();
+			execution.instance.focus(true);
+			disposeListeners();
 			await execution.instance.sendText(optionToRun, true);
 			return optionToRun;
 		}
-		inputDataDisposable.dispose();
+		disposeListeners();
 		return optionToRun;
 	}
 

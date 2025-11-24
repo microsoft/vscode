@@ -752,6 +752,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 							: reason.kind === InlineCompletionEndOfLifeReasonKind.Ignored ? 'ignored' : undefined,
 					noSuggestionReason: undefined,
 					notShownReason: lifetimeSummary.notShownReason,
+					renameCreated: lifetimeSummary.renameCreated,
+					renameDuration: lifetimeSummary.renameDuration,
+					renameTimedOut: lifetimeSummary.renameTimedOut,
 					...forwardToChannelIf(isCopilotLikeExtension(extensionId)),
 				};
 

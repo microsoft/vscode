@@ -5,15 +5,15 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatViewId, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService.js';
 import { LocalChatSessionUri } from '../../../chat/common/chatUri.js';
-import { ChatAgentLocation } from '../../../chat/common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../../chat/common/constants.js';
 import { AbstractInline1ChatAction } from '../../../inlineChat/browser/inlineChatActions.js';
 import { isDetachedTerminalInstance, ITerminalChatService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { registerActiveXtermAction } from '../../../terminal/browser/terminalActions.js';
@@ -26,6 +26,10 @@ import { getIconId } from '../../../terminal/browser/terminalIcon.js';
 import { TerminalChatController } from './terminalChatController.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { isString } from '../../../../../base/common/types.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IPreferencesService, IOpenSettingsOptions } from '../../../../services/preferences/common/preferences.js';
+import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
+import { TerminalChatAgentToolsSettingId } from '../../chatAgentTools/common/terminalChatAgentToolsConfiguration.js';
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.Start,
@@ -425,3 +429,94 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		qp.show();
 	}
 });
+
+
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: TerminalChatCommandId.FocusMostRecentChatTerminal,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ChatContextKeys.inChatSession,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyT,
+	handler: async (accessor: ServicesAccessor) => {
+		const terminalChatService = accessor.get(ITerminalChatService);
+		const part = terminalChatService.getMostRecentProgressPart();
+		if (!part) {
+			return;
+		}
+		await part.focusTerminal();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: TerminalChatCommandId.FocusMostRecentChatTerminalOutput,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ChatContextKeys.inChatSession,
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyO,
+	handler: async (accessor: ServicesAccessor) => {
+		const terminalChatService = accessor.get(ITerminalChatService);
+		const part = terminalChatService.getMostRecentProgressPart();
+		if (!part) {
+			return;
+		}
+		await part.toggleOutputFromKeyboard();
+	}
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: TerminalChatCommandId.FocusMostRecentChatTerminal,
+		title: localize('chat.focusMostRecentTerminal', 'Chat: Focus Most Recent Terminal'),
+	},
+	when: ChatContextKeys.inChatSession
+});
+
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+	command: {
+		id: TerminalChatCommandId.FocusMostRecentChatTerminalOutput,
+		title: localize('chat.focusMostRecentTerminalOutput', 'Chat: Focus Most Recent Terminal Output'),
+	},
+	when: ChatContextKeys.inChatSession
+});
+
+
+CommandsRegistry.registerCommand(TerminalChatCommandId.OpenTerminalSettingsLink, async (accessor, scopeRaw: string) => {
+	const preferencesService = accessor.get(IPreferencesService);
+
+	if (scopeRaw === 'global') {
+		preferencesService.openSettings({
+			query: `@id:${ChatConfiguration.GlobalAutoApprove}`
+		});
+	} else {
+		const scope = parseInt(scopeRaw);
+		const target = !isNaN(scope) ? scope as ConfigurationTarget : undefined;
+		const options: IOpenSettingsOptions = {
+			jsonEditor: true,
+			revealSetting: {
+				key: TerminalChatAgentToolsSettingId.AutoApprove,
+			}
+		};
+		switch (target) {
+			case ConfigurationTarget.APPLICATION: preferencesService.openApplicationSettings(options); break;
+			case ConfigurationTarget.USER:
+			case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
+			case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
+			case ConfigurationTarget.WORKSPACE:
+			case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
+			default: {
+				// Fallback if something goes wrong
+				preferencesService.openSettings({
+					target: ConfigurationTarget.USER,
+					query: `@id:${TerminalChatAgentToolsSettingId.AutoApprove}`,
+				});
+				break;
+			}
+		}
+
+	}
+});
+
+CommandsRegistry.registerCommand(TerminalChatCommandId.DisableSessionAutoApproval, async (accessor, chatSessionId: string) => {
+	const terminalChatService = accessor.get(ITerminalChatService);
+	terminalChatService.setChatSessionAutoApproval(chatSessionId, false);
+});
+
