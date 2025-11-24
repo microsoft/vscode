@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import assert from 'assert';
 import * as cp from 'child_process';
 import * as util from './lib/util.ts';
+import * as getVersionModule from './lib/getVersion.ts';
 import * as task from './lib/task.ts';
 import pkg from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
@@ -15,11 +16,12 @@ import vfs from 'vinyl-fs';
 import rcedit from 'rcedit';
 import { createRequire } from 'module';
 
+const { getVersion } = getVersionModule;
 const require = createRequire(import.meta.url);
 const repoPath = path.dirname(import.meta.dirname);
+const commit = getVersion(repoPath);
 const buildPath = (/** @type {string} */ arch) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
 const setupDir = (/** @type {string} */ arch, /** @type {string} */ target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
-const issPath = path.join(import.meta.dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup'))), 'bin', 'ISCC.exe');
 const signWin32Path = path.join(repoPath, 'build', 'azure-pipelines', 'common', 'sign-win32.ts');
 
@@ -75,19 +77,26 @@ function buildWin32Setup(arch, target) {
 		const outputPath = setupDir(arch, target);
 		fs.mkdirSync(outputPath, { recursive: true });
 
-		const originalProductJsonPath = path.join(sourcePath, 'resources/app/product.json');
+		const quality = product.quality || 'dev';
+		let versionedResourcesFolder = '';
+		let issPath = path.join(import.meta.dirname, 'win32', 'code.iss');
+		if (quality && quality === 'insider') {
+			versionedResourcesFolder = commit.substring(0, 10);
+			issPath = path.join(import.meta.dirname, 'win32', 'code-insider.iss');
+		}
+		const originalProductJsonPath = path.join(sourcePath, versionedResourcesFolder, 'resources/app/product.json');
 		const productJsonPath = path.join(outputPath, 'product.json');
 		const productJson = JSON.parse(fs.readFileSync(originalProductJsonPath, 'utf8'));
 		productJson['target'] = target;
 		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
-		const quality = product.quality || 'dev';
 		const definitions = {
 			NameLong: product.nameLong,
 			NameShort: product.nameShort,
 			DirName: product.win32DirName,
 			Version: pkg.version,
 			RawVersion: pkg.version.replace(/-\w+$/, ''),
+			Commit: commit,
 			NameVersion: product.win32NameVersion + (target === 'user' ? ' (User)' : ''),
 			ExeBasename: product.nameShort,
 			RegValueName: product.win32RegValueName,
@@ -108,10 +117,11 @@ function buildWin32Setup(arch, target) {
 			OutputDir: outputPath,
 			InstallTarget: target,
 			ProductJsonPath: productJsonPath,
+			VersionedResourcesFolder: versionedResourcesFolder,
 			Quality: quality
 		};
 
-		if (quality !== 'exploration') {
+		if (quality === 'stable' || quality === 'insider') {
 			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
 			definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
 			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
