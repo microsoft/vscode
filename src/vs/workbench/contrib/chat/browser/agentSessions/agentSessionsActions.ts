@@ -21,6 +21,57 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IChatService } from '../../common/chatService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { resetFilter } from './agentSessionsViewFilter.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
+
+//#region New Chat Session Actions
+
+registerAction2(class NewBackgroundChatAction extends Action2 {
+	constructor() {
+		super({
+			id: `workbench.action.newBackgroundChat`,
+			title: localize2('interactiveSession.newBackgroundChatEditor', "New Background Chat"),
+			f1: true,
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.ChatNewMenu,
+				group: '3_new_special',
+				order: 1
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const commandService = accessor.get(ICommandService);
+		return commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Background}`);
+	}
+});
+
+registerAction2(class NewCloudChatAction extends Action2 {
+	constructor() {
+		super({
+			id: `workbench.action.newCloudChat`,
+			title: localize2('interactiveSession.newCloudChat', "New Cloud Chat"),
+			f1: true,
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			menu: {
+				id: MenuId.ChatNewMenu,
+				group: '3_new_special',
+				order: 2
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const commandService = accessor.get(ICommandService);
+		return commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Cloud}`);
+	}
+});
+
+//#endregion
 
 //#region Diff Statistics Action
 
@@ -85,14 +136,14 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 			hide(elements.filesSpan);
 		}
 
-		if (diff.insertions > 0) {
+		if (diff.insertions >= 0 /* render even `0` for more homogeneity */) {
 			elements.addedSpan.textContent = `+${diff.insertions}`;
 			show(elements.addedSpan);
 		} else {
 			hide(elements.addedSpan);
 		}
 
-		if (diff.deletions > 0) {
+		if (diff.deletions >= 0 /* render even `0` for more homogeneity */) {
 			elements.removedSpan.textContent = `-${diff.deletions}`;
 			show(elements.removedSpan);
 		} else {

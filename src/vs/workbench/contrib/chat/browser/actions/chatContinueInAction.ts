@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { h } from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable, markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename } from '../../../../../base/common/resources.js';
@@ -149,8 +150,9 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
 			description: `@${contrib.name}`,
-			label: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
-			tooltip: contrib.displayName,
+			label: getAgentSessionProviderName(provider),
+			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
+			category: { label: localize('continueIn', "Continue In"), order: 0 },
 			run: () => instantiationService.invokeFunction(accessor => {
 				if (location === ActionLocation.Editor) {
 					return new CreateRemoteAgentJobFromEditorAction().run(accessor, contrib);
@@ -166,8 +168,9 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 			enabled: true,
 			icon: getAgentSessionProviderIcon(provider),
 			class: undefined,
-			label: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
+			label: getAgentSessionProviderName(provider),
 			tooltip: localize('continueSessionIn', "Continue in {0}", getAgentSessionProviderName(provider)),
+			category: { label: localize('continueIn', "Continue In"), order: 0 },
 			run: () => instantiationService.invokeFunction(accessor => {
 				const commandService = accessor.get(ICommandService);
 				return commandService.executeCommand(CHAT_SETUP_ACTION_ID);
@@ -177,18 +180,11 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		if (this.location === ActionLocation.Editor) {
-			const container = document.createElement('span');
-			container.classList.add('action-widget-delegate-label');
-
-			const iconSpan = document.createElement('span');
-			iconSpan.classList.add(...ThemeIcon.asClassNameArray(Codicon.forward));
-			container.appendChild(iconSpan);
-
-			const textSpan = document.createElement('span');
-			textSpan.textContent = localize('delegate', "Delegate to...");
-			container.appendChild(textSpan);
-
-			element.appendChild(container);
+			const view = h('span.action-widget-delegate-label', [
+				h('span', { className: ThemeIcon.asClassName(Codicon.forward) }),
+				h('span', [localize('delegate', "Delegate to...")])
+			]);
+			element.appendChild(view.root);
 			return null;
 		} else {
 			const icon = this.contextKeyService.contextMatchesRules(ChatContextKeys.remoteJobCreating) ? Codicon.sync : Codicon.forward;
@@ -312,7 +308,7 @@ class CreateRemoteAgentJobFromEditorAction {
 			if (!model || !isITextModel(model)) {
 				return;
 			}
-			const fileUri = model.uri as URI;
+			const uri = model.uri;
 			const chatModelReference = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, {});
 			const { sessionResource } = chatModelReference.object;
 			if (!sessionResource) {
@@ -321,11 +317,9 @@ class CreateRemoteAgentJobFromEditorAction {
 			await editorService2.openEditor({ resource: sessionResource }, undefined);
 			const attachedContext: IChatRequestVariableEntry[] = [{
 				kind: 'file',
-				id: 'vscode.implicit.selection',
-				name: basename(fileUri),
-				value: {
-					uri: fileUri
-				},
+				id: 'editor.uri',
+				name: basename(uri),
+				value: uri
 			}];
 			await chatService.sendRequest(sessionResource, `Implement this.`, {
 				agentIdSilent: continuationTargetType,

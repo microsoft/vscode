@@ -838,6 +838,68 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}));
 	}
 
+	public getSessionDescription(chatModel: IChatModel): string | undefined {
+		const requests = chatModel.getRequests();
+		if (requests.length === 0) {
+			return undefined;
+		}
+
+		// Get the last request to check its response status
+		const lastRequest = requests.at(-1);
+		const response = lastRequest?.response;
+		if (!response) {
+			return undefined;
+		}
+
+		// If the response is complete, show Finished
+		if (response.isComplete) {
+			return undefined;
+		}
+
+		// Get the response parts to find tool invocations and progress messages
+		const responseParts = response.response.value;
+		let description: string = '';
+
+		for (let i = responseParts.length - 1; i >= 0; i--) {
+			const part = responseParts[i];
+			if (!description && part.kind === 'toolInvocation') {
+				const toolInvocation = part as IChatToolInvocation;
+				const state = toolInvocation.state.get();
+
+				if (state.type !== IChatToolInvocation.StateKind.Completed) {
+					const pastTenseMessage = toolInvocation.pastTenseMessage;
+					const invocationMessage = toolInvocation.invocationMessage;
+					const message = pastTenseMessage || invocationMessage;
+					description = typeof message === 'string' ? message : message?.value ?? '';
+
+					if (description) {
+						description = this.extractFileNameFromLink(description);
+					}
+					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+						const message = toolInvocation.confirmationMessages?.title && (typeof toolInvocation.confirmationMessages.title === 'string'
+							? toolInvocation.confirmationMessages.title
+							: toolInvocation.confirmationMessages.title.value);
+						description = message ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", description);
+					}
+				}
+			}
+			if (!description && part.kind === 'toolInvocationSerialized') {
+				description = typeof part.invocationMessage === 'string' ? part.invocationMessage : part.invocationMessage?.value || '';
+			}
+			if (!description && part.kind === 'progressMessage') {
+				description = part.content.value || '';
+			}
+		}
+
+		return description || localize('chat.sessions.description.working', "Working...");
+	}
+
+	private extractFileNameFromLink(filePath: string): string {
+		return filePath.replace(/\[(?<linkText>[^\]]*)\]\(file:\/\/\/(?<path>[^)]+)\)/g, (match: string, _p1: string, _p2: string, _offset: number, _string: string, groups?: { linkText?: string; path?: string }) => {
+			const fileName = groups?.path?.split('/').pop() || groups?.path || '';
+			return (groups?.linkText?.trim() || fileName);
+		});
+	}
 
 	/**
 	 * Creates a new chat session by delegating to the appropriate provider

@@ -1645,7 +1645,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; resource?: URI; sessionId?: string },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -1707,23 +1707,25 @@ export class ChatModel extends Disposable implements IChatModel {
 			return request?.response?.isInProgress.read(r) ?? false;
 		});
 
+		this.requestNeedsInput = lastRequest.map((request, r) => {
+			return !!request?.response?.isPendingConfirmation.read(r);
+		});
+
 		// Retain a reference to itself when a request is in progress, so the ChatModel stays alive in the background
 		// only while running a request. TODO also keep it alive for 5min or so so we don't have to dispose/restore too often?
-		if (this.initialLocation === ChatAgentLocation.Chat && configurationService.getValue<boolean>('chat.localBackgroundSessions')) {
+		if (this.initialLocation === ChatAgentLocation.Chat && configurationService.getValue<boolean>('chat.localBackgroundSessions') && !initialModelProps.disableBackgroundKeepAlive) {
 			const selfRef = this._register(new MutableDisposable<IChatModelReference>());
 			this._register(autorun(r => {
 				const inProgress = this.requestInProgress.read(r);
-				if (inProgress && !selfRef.value) {
+				const isWaitingForConfirmation = this.requestNeedsInput.read(r);
+				const shouldStayAlive = inProgress || isWaitingForConfirmation;
+				if (shouldStayAlive && !selfRef.value) {
 					selfRef.value = chatService.getActiveSessionReference(this._sessionResource);
-				} else if (!inProgress && selfRef.value) {
+				} else if (!shouldStayAlive && selfRef.value) {
 					selfRef.clear();
 				}
 			}));
 		}
-
-		this.requestNeedsInput = lastRequest.map((request, r) => {
-			return !!request?.response?.isPendingConfirmation.read(r);
-		});
 	}
 
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void {

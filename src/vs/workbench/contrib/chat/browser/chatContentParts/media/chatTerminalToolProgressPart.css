@@ -151,16 +151,18 @@
 .chat-terminal-output-container > .monaco-scrollable-element {
 	width: 100%;
 }
+.chat-terminal-output-container:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
 .chat-terminal-output-body {
 	padding: 4px 6px;
 	max-width: 100%;
-	height: 100%;
 	box-sizing: border-box;
+	min-height: 0;
 }
-.chat-terminal-output-content {
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
+.chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
+	display: none;
 }
 .chat-terminal-output {
 	margin: 0;
@@ -169,9 +171,17 @@
 }
 
 .chat-terminal-output-empty {
+	display: none;
 	font-style: italic;
 	color: var(--vscode-descriptionForeground);
 	line-height: normal;
+}
+.chat-terminal-output-terminal.chat-terminal-output-terminal-no-output ~ .chat-terminal-output-empty {
+	display: block;
+}
+
+.chat-terminal-output-container .xterm-scrollable-element .scrollbar {
+	display: none;
 }
 
 .chat-terminal-output div,
