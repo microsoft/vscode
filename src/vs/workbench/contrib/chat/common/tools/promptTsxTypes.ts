@@ -9,7 +9,7 @@
  * It should be kept in sync with the types in that file.
  */
 
-export declare const enum PromptNodeType {
+export const enum PromptNodeType {
 	Piece = 1,
 	Text = 2
 }
@@ -23,7 +23,7 @@ export interface TextJSON {
  * less descriptive than the actual constructor, as we only care to preserve
  * the element data that the renderer cares about.
  */
-export declare const enum PieceCtorKind {
+export const enum PieceCtorKind {
 	BaseChatMessage = 1,
 	Other = 2,
 	ImageChatMessage = 3

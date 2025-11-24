@@ -151,6 +151,13 @@ export async function waitForIdleWithPromptHeuristics(
 	}
 }
 
+const enum TerminalState {
+	Initial,
+	Prompt,
+	Executing,
+	PromptAfterExecuting,
+}
+
 /**
  * Tracks the terminal for being idle on a prompt input. This must be called before `executeCommand`
  * is called.
@@ -182,12 +189,6 @@ export async function trackIdleOnPrompt(
 	// and the terminal is idle. Note that D is treated as a signal for executed since shell
 	// integration sometimes lacks the C sequence either due to limitations in the integation or the
 	// required hooks aren't available.
-	const enum TerminalState {
-		Initial,
-		Prompt,
-		Executing,
-		PromptAfterExecuting,
-	}
 	store.add(onData(e => {
 		// Update state
 		// p10k fires C as `133;C;`

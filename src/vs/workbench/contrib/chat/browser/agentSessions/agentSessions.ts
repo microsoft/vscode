@@ -6,18 +6,19 @@
 import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
 
 export const AGENT_SESSIONS_VIEW_CONTAINER_ID = 'workbench.viewContainer.agentSessions';
+
 export const AGENT_SESSIONS_VIEW_ID = 'workbench.view.agentSessions';
 
 export enum AgentSessionProviders {
-	Local = localChatSessionType,
+	Local = 'local',
 	Background = 'copilotcli',
 	Cloud = 'copilot-cloud-agent',
 }
 
 export function getAgentSessionProviderName(provider: AgentSessionProviders): string {
+
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return localize('chat.session.providerLabel.local', "Local");

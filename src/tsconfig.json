@@ -7,7 +7,7 @@
 		"sourceMap": false,
 		"allowJs": true,
 		"resolveJsonModule": true,
-		"isolatedModules": false,
+		"isolatedModules": true,
 		"outDir": "../out/vs",
 		"types": [
 			"@webgpu/types",
