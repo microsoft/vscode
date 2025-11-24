@@ -34,7 +34,6 @@ import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 
-
 /**
  * Provides prompt services.
  */

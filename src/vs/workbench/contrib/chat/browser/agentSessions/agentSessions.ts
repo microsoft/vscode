@@ -8,7 +8,6 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 export const AGENT_SESSIONS_VIEW_CONTAINER_ID = 'workbench.viewContainer.agentSessions';
-
 export const AGENT_SESSIONS_VIEW_ID = 'workbench.view.agentSessions';
 
 export enum AgentSessionProviders {
@@ -18,7 +17,6 @@ export enum AgentSessionProviders {
 }
 
 export function getAgentSessionProviderName(provider: AgentSessionProviders): string {
-
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return localize('chat.session.providerLabel.local', "Local");
