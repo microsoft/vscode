@@ -33,6 +33,7 @@ import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { InlineCompletionContextWithoutUuid, InlineSuggestRequestInfo, provideInlineCompletions, runWhenCancelled } from './provideInlineCompletions.js';
+import { RenameSymbolProcessor } from './renameSmbolProcessor.js';
 
 export class InlineCompletionsSource extends Disposable {
 	private static _requestId = 0;
@@ -74,6 +75,8 @@ export class InlineCompletionsSource extends Disposable {
 
 	public readonly inlineCompletions = this._state.map(this, v => v.inlineCompletions);
 	public readonly suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
+
+	private readonly _renameProcessor = this._register(this._instantiationService.createInstance(RenameSymbolProcessor));
 
 	private _completionsEnabled: Record<string, boolean> | undefined = undefined;
 
@@ -225,7 +228,7 @@ export class InlineCompletionsSource extends Disposable {
 				let shouldStopEarly = false;
 				let producedSuggestion = false;
 
-				const suggestions: InlineSuggestionItem[] = [];
+				const providerSuggestions: InlineSuggestionItem[] = [];
 				for await (const list of providerResult.lists) {
 					if (!list) {
 						continue;
@@ -245,7 +248,7 @@ export class InlineCompletionsSource extends Disposable {
 						}
 
 						const i = InlineSuggestionItem.create(item, this._textModel);
-						suggestions.push(i);
+						providerSuggestions.push(i);
 						// Stop after first visible inline completion
 						if (!i.isInlineEdit && !i.showInlineEditMenu && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
 							if (i.isVisible(this._textModel, this._cursorPosition.get())) {
@@ -258,6 +261,10 @@ export class InlineCompletionsSource extends Disposable {
 						break;
 					}
 				}
+
+				const suggestions: InlineSuggestionItem[] = await Promise.all(providerSuggestions.map(async s => {
+					return this._renameProcessor.proposeRenameRefactoring(this._textModel, s);
+				}));
 
 				providerResult.cancelAndDispose({ kind: 'lostRace' });
 
@@ -440,6 +447,9 @@ export class InlineCompletionsSource extends Disposable {
 			disjointReplacements: undefined,
 			sameShapeReplacements: undefined,
 			notShownReason: undefined,
+			renameCreated: false,
+			renameDuration: undefined,
+			renameTimedOut: undefined,
 		};
 
 		const dataChannel = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
