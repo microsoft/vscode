@@ -947,6 +947,12 @@ export class InlineCompletionsModel extends Disposable {
 			// Reset before invoking the command, as the command might cause a follow up trigger (which we don't want to reset).
 			this.stop();
 
+			if (completion.renameCommand) {
+				await this._commandService
+					.executeCommand(completion.renameCommand.id, ...(completion.renameCommand.arguments || []))
+					.then(undefined, onUnexpectedExternalError);
+			}
+
 			if (completion.command) {
 				await this._commandService
 					.executeCommand(completion.command.id, ...(completion.command.arguments || []))

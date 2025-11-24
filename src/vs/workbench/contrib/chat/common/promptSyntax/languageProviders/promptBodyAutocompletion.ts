@@ -77,7 +77,7 @@ export class PromptBodyAutocompletion implements CompletionItemProvider {
 	}
 
 	private async collectToolCompletions(model: ITextModel, position: Position, toolRange: Range, suggestions: CompletionItem[]): Promise<void> {
-		for (const toolName of this.languageModelToolsService.getQualifiedToolNames()) {
+		for (const toolName of this.languageModelToolsService.getFullReferenceNames()) {
 			suggestions.push({
 				label: toolName,
 				kind: CompletionItemKind.Value,

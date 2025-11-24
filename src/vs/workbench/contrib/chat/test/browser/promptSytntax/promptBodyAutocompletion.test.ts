@@ -151,8 +151,12 @@ suite('PromptBodyAutocompletion', () => {
 						result: 'Use #tool:vscode to reference a tool.'
 					},
 					{
-						label: 'launch',
-						result: 'Use #tool:launch to reference a tool.'
+						label: 'execute',
+						result: 'Use #tool:execute to reference a tool.'
+					},
+					{
+						label: 'read',
+						result: 'Use #tool:read to reference a tool.'
 					},
 					{
 						label: 'tool1',
