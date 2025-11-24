@@ -151,7 +151,7 @@ export class PromptHoverProvider implements HoverProvider {
 	}
 
 	private getToolHoverByName(toolName: string, range: Range): Hover | undefined {
-		const tool = this.languageModelToolsService.getToolByQualifiedName(toolName);
+		const tool = this.languageModelToolsService.getToolByFullReferenceName(toolName);
 		if (tool !== undefined) {
 			if (tool instanceof ToolSet) {
 				return this.getToolsetHover(tool, range);

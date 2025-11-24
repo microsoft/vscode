@@ -26,7 +26,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { AGENTS_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 
-const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
+export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
 export class PromptValidator {
 	constructor(
@@ -94,8 +94,8 @@ export class PromptValidator {
 			const headerTarget = promptAST.header?.target;
 			const headerToolsMap = headerTools ? this.languageModelToolsService.toToolAndToolSetEnablementMap(headerTools, headerTarget) : undefined;
 
-			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
-			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
+			const available = new Set<string>(this.languageModelToolsService.getFullReferenceNames());
+			const deprecatedNames = this.languageModelToolsService.getDeprecatedFullReferenceNames();
 			for (const variable of body.variableReferences) {
 				if (!available.has(variable.name)) {
 					if (deprecatedNames.has(variable.name)) {
@@ -113,7 +113,7 @@ export class PromptValidator {
 						report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Warning));
 					}
 				} else if (headerToolsMap) {
-					const tool = this.languageModelToolsService.getToolByQualifiedName(variable.name);
+					const tool = this.languageModelToolsService.getToolByFullReferenceName(variable.name);
 					if (tool && headerToolsMap.get(tool) === false) {
 						report(toMarker(localize('promptValidator.disabledTool', "Tool or toolset '{0}' also needs to be enabled in the header.", variable.name), variable.range, MarkerSeverity.Warning));
 					}
@@ -344,8 +344,8 @@ export class PromptValidator {
 
 	private validateVSCodeTools(valueItem: IArrayValue, target: string | undefined, report: (markers: IMarkerData) => void) {
 		if (valueItem.items.length > 0) {
-			const available = new Set<string>(this.languageModelToolsService.getQualifiedToolNames());
-			const deprecatedNames = this.languageModelToolsService.getDeprecatedQualifiedToolNames();
+			const available = new Set<string>(this.languageModelToolsService.getFullReferenceNames());
+			const deprecatedNames = this.languageModelToolsService.getDeprecatedFullReferenceNames();
 			for (const item of valueItem.items) {
 				if (item.type !== 'string') {
 					report(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.107.0",
-  "distro": "70b452e51d85528e38164c11d783791ead374f43",
+  "distro": "81eb23fc5875b4661131f4591edd1e617cf3e86e",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -160,7 +160,7 @@
     "css-loader": "^6.9.1",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "39.2.0",
+    "electron": "39.2.3",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",
@@ -221,7 +221,7 @@
     "webpack-stream": "^7.0.0",
     "xml2js": "^0.5.0",
     "yaserver": "^0.4.0",
-    "zx": "^8.7.0"
+    "zx": "^8.8.5"
   },
   "overrides": {
     "node-gyp-build": "4.8.1",
