@@ -11,7 +11,6 @@ import { StringEdit } from '../../../common/core/edits/stringEdit.js';
 
 /**
 TODO: Find visual way to represent these tests
-TODO: Find way to unify the other method from which applyEdit was inspired from
 TODO: Polish the code
 TODO: Do thorough testing
  */

@@ -61,6 +61,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	) {
 		super();
 		this.tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
+			this._resolveAnnotations();
 			// TODO: combine the annotations and the heights into one map later
 			const lineNumberToHeight = new Map<number, number | null>();
 			const lineNumberToAnnotations = new Map<number, IAnnotationUpdate<IFontToken>[]>();
@@ -113,9 +114,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 
 	public handleDidChangeContent(change: IModelContentChangedEvent) {
 		this._queuedEdits = StringEdit.compose(change.changes.map((c) => {
-			const startOffset = this.textModel.getOffsetAt(new Position(c.range.startLineNumber, c.range.startColumn));
-			const endOffset = this.textModel.getOffsetAt(new Position(c.range.endLineNumber, c.range.endColumn));
-			const offsetRange = new OffsetRange(startOffset, endOffset);
+			const offsetRange = new OffsetRange(c.rangeOffset, c.rangeOffset + c.rangeLength);
 			return StringEdit.replace(offsetRange, c.text);
 		}));
 	}
@@ -123,7 +122,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	public handleDidChangeOptions(e: IModelOptionsChangedEvent): void { }
 
 	public getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
-		this._resolveDecorations();
+		this._resolveAnnotations();
 		const startOffsetOfRange = this.textModel.getOffsetAt(range.getStartPosition());
 		const endOffsetOfRange = this.textModel.getOffsetAt(range.getEndPosition());
 		const annotations = this._fontAnnotations.getAnnotationsIntersecting(new OffsetRange(startOffsetOfRange, endOffsetOfRange));
@@ -157,7 +156,11 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		);
 	}
 
-	private _resolveDecorations(): void {
+	private _resolveAnnotations(): void {
+		if (this._queuedEdits.isEmpty()) {
+			return;
+		}
 		this._fontAnnotations.applyEdit(this._queuedEdits);
+		this._queuedEdits = StringEdit.empty;
 	}
 }

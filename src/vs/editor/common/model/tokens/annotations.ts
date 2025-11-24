@@ -101,15 +101,12 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 
 	public applyEdit(edit: StringEdit): void {
-		const result = applyEditsToTypedRanges(
+		this._annotations = applyEditsToTypedRanges(
 			this._annotations,
 			(a) => a.range,
 			(a, range) => ({ range, annotation: a.annotation }),
 			edit
 		);
-
-		// Filtering for non-empty ranges
-		this._annotations = result.filter(a => !a.range.isEmpty);
 	}
 
 	public clone(): IAnnotatedString<T> {
