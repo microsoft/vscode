@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { binarySearch2 } from '../../../../base/common/arrays.js';
-import { StringEdit } from '../../core/edits/stringEdit.js';
+import { StringEdit, applyEditsToTypedRanges } from '../../core/edits/stringEdit.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
 
 export interface IAnnotation<T> {
@@ -101,76 +101,12 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 
 	public applyEdit(edit: StringEdit): void {
-		const result: IAnnotation<T>[] = [];
-		const sortedAnnotations = this._annotations.slice();
-		let offset = 0;
-
-		// iterating over all the edits
-		for (const e of edit.replacements) {
-			while (true) {
-				// Take the first annotation in the array
-				const a = sortedAnnotations[0];
-				// If there is no annotation, or if  a.range.endExclusive < e.replaceRange.start
-				// the second condition implies that the annotation is completely before the edit
-				if (!a || a.range.endExclusive >= e.replaceRange.start) {
-					break;
-				}
-				sortedAnnotations.shift();
-				// What is this offset?
-				result.push({ range: a.range.delta(offset), annotation: a.annotation });
-			}
-
-			// contains all the intersecting annotations
-			const intersecting: IAnnotation<T>[] = [];
-			while (true) {
-				const a = sortedAnnotations[0];
-				// If the annotation is not defined
-				// Or it does not intersect or touch the replace range, we break
-				if (!a || !a.range.intersectsOrTouches(e.replaceRange)) {
-					break;
-				}
-				sortedAnnotations.shift();
-				intersecting.push(a);
-			}
-
-			// Going down from the last intersecting annotation to the first one
-			for (let i = intersecting.length - 1; i >= 0; i--) {
-				const a = intersecting[i];
-				let r = a.range;
-
-				// It's the length of the overlap
-				const overlap = r.intersect(e.replaceRange)!.length;
-				r = r.deltaEnd(-overlap + (i === 0 ? e.newText.length : 0));
-
-				const rangeAheadOfReplaceRange = r.start - e.replaceRange.start;
-				if (rangeAheadOfReplaceRange > 0) {
-					r = r.delta(-rangeAheadOfReplaceRange);
-				}
-
-				if (i !== 0) {
-					r = r.delta(e.newText.length);
-				}
-
-				// We already took our offset into account.
-				// Because we add r back to the queue (which then adds offset again),
-				// we have to remove it here.
-				r = r.delta(-(e.newText.length - e.replaceRange.length));
-
-				sortedAnnotations.unshift({ range: r, annotation: a.annotation });
-			}
-
-			// Taking the offset and adding to it the different in the lengths of the edit
-			offset += e.newText.length - e.replaceRange.length;
-		}
-
-		while (true) {
-			const a = sortedAnnotations[0];
-			if (!a) {
-				break;
-			}
-			sortedAnnotations.shift();
-			result.push({ range: a.range.delta(offset), annotation: a.annotation });
-		}
+		const result = applyEditsToTypedRanges(
+			this._annotations,
+			(a) => a.range,
+			(a, range) => ({ range, annotation: a.annotation }),
+			edit
+		);
 
 		// Filtering for non-empty ranges
 		this._annotations = result.filter(a => !a.range.isEmpty);
