@@ -26,7 +26,7 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { AGENTS_SOURCE_FOLDER, LEGACY_MODE_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 
-const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
+export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
 export class PromptValidator {
 	constructor(
