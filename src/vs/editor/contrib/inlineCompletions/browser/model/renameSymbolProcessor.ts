@@ -111,7 +111,7 @@ export class RenameSymbolProcessor extends Disposable {
 			const range = Range.fromPositions(startPos, endPos);
 			const text = modifiedText.substring(change.modifiedStart, change.modifiedStart + change.modifiedLength);
 
-			const tokenInfo = getTokenAtposition(textModel, startPos);
+			const tokenInfo = getTokenAtPosition(textModel, startPos);
 			if (tokenInfo.type === StandardTokenType.Other) {
 				let identifier = textModel.getValueInRange(tokenInfo.range);
 				if (oldName === undefined) {
@@ -147,7 +147,7 @@ export class RenameSymbolProcessor extends Disposable {
 	}
 }
 
-function getTokenAtposition(textModel: ITextModel, position: Position): { type: StandardTokenType; range: Range } {
+function getTokenAtPosition(textModel: ITextModel, position: Position): { type: StandardTokenType; range: Range } {
 	textModel.tokenization.tokenizeIfCheap(position.lineNumber);
 	const tokens = textModel.tokenization.getLineTokens(position.lineNumber);
 	const idx = tokens.findTokenIndexAtOffset(position.column - 1);

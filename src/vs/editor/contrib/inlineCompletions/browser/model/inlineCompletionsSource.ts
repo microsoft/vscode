@@ -33,7 +33,7 @@ import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { InlineCompletionContextWithoutUuid, InlineSuggestRequestInfo, provideInlineCompletions, runWhenCancelled } from './provideInlineCompletions.js';
-import { RenameSymbolProcessor } from './renameSmbolProcessor.js';
+import { RenameSymbolProcessor } from './renameSymbolProcessor.js';
 
 export class InlineCompletionsSource extends Disposable {
 	private static _requestId = 0;
