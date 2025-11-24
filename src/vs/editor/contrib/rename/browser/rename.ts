@@ -128,6 +128,11 @@ export async function rename(registry: LanguageFeatureRegistry<RenameProvider>, 
 	return skeleton.provideRenameEdits(newName, CancellationToken.None);
 }
 
+export async function prepareRename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position): Promise<RenameLocation & Rejection | undefined> {
+	const skeleton = new RenameSkeleton(model, position, registry);
+	return skeleton.resolveRenameLocation(CancellationToken.None);
+}
+
 // ---  register actions and commands
 
 class RenameController implements IEditorContribution {

@@ -3,51 +3,66 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatStatus.css';
-import { safeIntl } from '../../../../base/common/date.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { language } from '../../../../base/common/platform.js';
-import { localize } from '../../../../nls.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
-import { $, addDisposableListener, append, clearNode, disposableWindowInterval, EventHelper, EventType, getWindow } from '../../../../base/browser/dom.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService, IQuotaSnapshot, isProUser } from '../../../services/chat/common/chatEntitlementService.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { Lazy } from '../../../../base/common/lazy.js';
-import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
-import { IHoverService, nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
-import { Color } from '../../../../base/common/color.js';
-import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import product from '../../../../platform/product/common/product.js';
-import { isObject } from '../../../../base/common/types.js';
-import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, IAction, toAction } from '../../../../base/common/actions.js';
-import { parseLinkedText } from '../../../../base/common/linkedText.js';
-import { Link } from '../../../../platform/opener/browser/link.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { $, append, EventType, addDisposableListener, EventHelper, disposableWindowInterval, getWindow } from '../../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
+import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
+import { IAction, toAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
+import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { safeIntl } from '../../../../../base/common/date.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { MutableDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { parseLinkedText } from '../../../../../base/common/linkedText.js';
+import { language } from '../../../../../base/common/platform.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isObject } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { localize } from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IHoverService, nativeHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { DomWidget } from '../../../../../platform/domWidget/browser/domWidget.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
+import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
+import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
+import { AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
+import { isNewUser, isCompletionsEnabled } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
-import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
-import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
-import { getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IInlineCompletionsService } from '../../../../editor/browser/services/inlineCompletionsService.js';
-import { IChatSessionsService } from '../common/chatSessionsService.js';
-import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../common/constants.js';
-import { AGENT_SESSIONS_VIEW_ID } from './agentSessions/agentSessions.js';
+import product from '../../../../../platform/product/common/product.js';
+import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { Color } from '../../../../../base/common/color.js';
+
+const defaultChat = product.defaultChatAgent;
+
+interface ISettingsAccessor {
+	readSetting: () => boolean;
+	writeSetting: (value: boolean) => Promise<void>;
+}
+type ChatSettingChangedClassification = {
+	owner: 'bpasero';
+	comment: 'Provides insight into chat settings changed from the chat status entry.';
+	settingIdentifier: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the setting that changed.' };
+	settingMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The optional editor language for which the setting changed.' };
+	settingEnablement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setting got enabled or disabled.' };
+};
+type ChatSettingChangedEvent = {
+	settingIdentifier: string;
+	settingMode?: string;
+	settingEnablement: 'enabled' | 'disabled';
+};
 
 const gaugeForeground = registerColor('gauge.foreground', {
 	dark: inputValidationInfoBorder,
@@ -98,251 +113,14 @@ registerColor('gauge.errorBackground', {
 	hcLight: Color.white
 }, localize('gaugeErrorBackground', "Gauge error background color."));
 
-//#endregion
+export class ChatStatusDashboard extends DomWidget {
 
-const defaultChat = {
-	completionsEnablementSetting: product.defaultChatAgent?.completionsEnablementSetting ?? '',
-	nextEditSuggestionsSetting: product.defaultChatAgent?.nextEditSuggestionsSetting ?? '',
-	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
-	manageOverageUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
-	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
-	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
-	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
-};
-
-export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.chatStatusBarEntry';
-
-	private entry: IStatusbarEntryAccessor | undefined = undefined;
-
-	private dashboard = new Lazy<ChatStatusDashboard>(() => this.instantiationService.createInstance(ChatStatusDashboard));
-
-	private readonly activeCodeEditorListener = this._register(new MutableDisposable());
-
-	constructor(
-		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IInlineCompletionsService private readonly completionsService: IInlineCompletionsService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-	) {
-		super();
-
-		this.update();
-		this.registerListeners();
-	}
-
-	private update(): void {
-		const sentiment = this.chatEntitlementService.sentiment;
-		if (!sentiment.hidden) {
-			const props = this.getEntryProps();
-			if (this.entry) {
-				this.entry.update(props);
-			} else {
-				this.entry = this.statusbarService.addEntry(props, 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
-			}
-		} else {
-			this.entry?.dispose();
-			this.entry = undefined;
-		}
-	}
-
-	private registerListeners(): void {
-		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.update()));
-		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.update()));
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.update()));
-		this._register(this.completionsService.onDidChangeIsSnoozing(() => this.update()));
-		this._register(this.chatSessionsService.onDidChangeInProgress(() => this.update()));
-
-		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
-
-		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(defaultChat.completionsEnablementSetting)) {
-				this.update();
-			}
-		}));
-	}
-
-	private onDidActiveEditorChange(): void {
-		this.update();
-
-		this.activeCodeEditorListener.clear();
-
-		// Listen to language changes in the active code editor
-		const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
-		if (activeCodeEditor) {
-			this.activeCodeEditorListener.value = activeCodeEditor.onDidChangeModelLanguage(() => {
-				this.update();
-			});
-		}
-	}
-
-	private getEntryProps(): IStatusbarEntry {
-		let text = '$(copilot)';
-		let ariaLabel = localize('chatStatusAria', "Copilot status");
-		let kind: StatusbarEntryKind | undefined;
-
-		if (isNewUser(this.chatEntitlementService)) {
-			const entitlement = this.chatEntitlementService.entitlement;
-
-			// Finish Setup
-			if (
-				this.chatEntitlementService.sentiment.later ||	// user skipped setup
-				entitlement === ChatEntitlement.Available ||	// user is entitled
-				isProUser(entitlement) ||						// user is already pro
-				entitlement === ChatEntitlement.Free			// user is already free
-			) {
-				const finishSetup = localize('finishSetup', "Finish Setup");
-
-				text = `$(copilot) ${finishSetup}`;
-				ariaLabel = finishSetup;
-				kind = 'prominent';
-			}
-		} else {
-			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
-			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
-			const chatSessionsInProgressCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
-
-			// Disabled
-			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
-				text = '$(copilot-unavailable)';
-				ariaLabel = localize('copilotDisabledStatus', "Copilot disabled");
-			}
-
-			// Sessions in progress
-			else if (chatSessionsInProgressCount > 0) {
-				text = '$(copilot-in-progress)';
-				if (chatSessionsInProgressCount > 1) {
-					ariaLabel = localize('chatSessionsInProgressStatus', "{0} agent sessions in progress", chatSessionsInProgressCount);
-				} else {
-					ariaLabel = localize('chatSessionInProgressStatus', "1 agent session in progress");
-				}
-			}
-
-			// Signed out
-			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
-				const signedOutWarning = localize('notSignedIn', "Signed out");
-
-				text = `${this.chatEntitlementService.anonymous ? '$(copilot)' : '$(copilot-not-connected)'} ${signedOutWarning}`;
-				ariaLabel = signedOutWarning;
-				kind = 'prominent';
-			}
-
-			// Free Quota Exceeded
-			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (chatQuotaExceeded || completionsQuotaExceeded)) {
-				let quotaWarning: string;
-				if (chatQuotaExceeded && !completionsQuotaExceeded) {
-					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
-				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
-					quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions quota reached");
-				} else {
-					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");
-				}
-
-				text = `$(copilot-warning) ${quotaWarning}`;
-				ariaLabel = quotaWarning;
-				kind = 'prominent';
-			}
-
-			// Completions Disabled
-			else if (this.editorService.activeTextEditorLanguageId && !isCompletionsEnabled(this.configurationService, this.editorService.activeTextEditorLanguageId)) {
-				text = '$(copilot-unavailable)';
-				ariaLabel = localize('completionsDisabledStatus', "Inline suggestions disabled");
-			}
-
-			// Completions Snoozed
-			else if (this.completionsService.isSnoozing()) {
-				text = '$(copilot-snooze)';
-				ariaLabel = localize('completionsSnoozedStatus', "Inline suggestions snoozed");
-			}
-		}
-
-		const baseResult = {
-			name: localize('chatStatus', "Copilot Status"),
-			text,
-			ariaLabel,
-			command: ShowTooltipCommand,
-			showInAllWindows: true,
-			kind,
-			tooltip: { element: (token: CancellationToken) => this.dashboard.value.show(token) }
-		};
-
-		return baseResult;
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		this.entry?.dispose();
-		this.entry = undefined;
-	}
-}
-
-function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
-	return !chatEntitlementService.sentiment.installed ||					// chat not installed
-		chatEntitlementService.entitlement === ChatEntitlement.Available;	// not yet signed up to chat
-}
-
-function canUseChat(chatEntitlementService: IChatEntitlementService): boolean {
-	if (!chatEntitlementService.sentiment.installed || chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted) {
-		return false; // chat not installed or not enabled
-	}
-
-	if (chatEntitlementService.entitlement === ChatEntitlement.Unknown || chatEntitlementService.entitlement === ChatEntitlement.Available) {
-		return chatEntitlementService.anonymous; // signed out or not-yet-signed-up users can only use Chat if anonymous access is allowed
-	}
-
-	if (chatEntitlementService.entitlement === ChatEntitlement.Free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0) {
-		return false; // free user with no quota left
-	}
-
-	return true;
-}
-
-function isCompletionsEnabled(configurationService: IConfigurationService, modeId: string = '*'): boolean {
-	const result = configurationService.getValue<Record<string, boolean>>(defaultChat.completionsEnablementSetting);
-	if (!isObject(result)) {
-		return false;
-	}
-
-	if (typeof result[modeId] !== 'undefined') {
-		return Boolean(result[modeId]); // go with setting if explicitly defined
-	}
-
-	return Boolean(result['*']); // fallback to global setting otherwise
-}
-
-interface ISettingsAccessor {
-	readSetting: () => boolean;
-	writeSetting: (value: boolean) => Promise<void>;
-}
-
-type ChatSettingChangedClassification = {
-	owner: 'bpasero';
-	comment: 'Provides insight into chat settings changed from the chat status entry.';
-	settingIdentifier: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the setting that changed.' };
-	settingMode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The optional editor language for which the setting changed.' };
-	settingEnablement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setting got enabled or disabled.' };
-};
-type ChatSettingChangedEvent = {
-	settingIdentifier: string;
-	settingMode?: string;
-	settingEnablement: 'enabled' | 'disabled';
-};
-
-class ChatStatusDashboard extends Disposable {
-
-	private readonly element = $('div.chat-status-bar-entry-tooltip');
+	readonly element = $('div.chat-status-bar-entry-tooltip');
 
 	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
 	private readonly dateTimeFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
 	private readonly quotaPercentageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 0 });
 	private readonly quotaOverageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
-
-	private readonly entryDisposables = this._register(new MutableDisposable());
 
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
@@ -357,16 +135,15 @@ class ChatStatusDashboard extends Disposable {
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInlineCompletionsService private readonly inlineCompletionsService: IInlineCompletionsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService
 	) {
 		super();
+
+		this.render();
 	}
 
-	show(token: CancellationToken): HTMLElement {
-		clearNode(this.element);
-
-		const disposables = this.entryDisposables.value = new DisposableStore();
-		disposables.add(token.onCancellationRequested(() => disposables.dispose()));
+	private render(): void {
+		const token = cancelOnDispose(this._store);
 
 		let needsSeparator = false;
 		const addSeparator = (label?: string, action?: IAction) => {
@@ -375,7 +152,7 @@ class ChatStatusDashboard extends Disposable {
 			}
 
 			if (label || action) {
-				this.renderHeader(this.element, disposables, label ?? '', action);
+				this.renderHeader(this.element, this._store, label ?? '', action);
 			}
 
 			needsSeparator = true;
@@ -384,7 +161,6 @@ class ChatStatusDashboard extends Disposable {
 		// Quota Indicator
 		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
 		if (chatQuota || completionsQuota || premiumChatQuota) {
-
 			addSeparator(localize('usageTitle', "Copilot Usage"), toAction({
 				id: 'workbench.action.manageCopilot',
 				label: localize('quotaLabel', "Manage Chat"),
@@ -393,18 +169,18 @@ class ChatStatusDashboard extends Disposable {
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
 
-			const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, completionsQuota, localize('completionsLabel', "Inline Suggestions"), false) : undefined;
-			const chatQuotaIndicator = chatQuota && (chatQuota.total > 0 || chatQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
+			const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, completionsQuota, localize('completionsLabel', "Inline Suggestions"), false) : undefined;
+			const chatQuotaIndicator = chatQuota && (chatQuota.total > 0 || chatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
+			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
 
 			if (resetDate) {
 				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", resetDateHasTime ? this.dateTimeFormatter.value.format(new Date(resetDate)) : this.dateFormatter.value.format(new Date(resetDate)))));
 			}
 
 			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
-				const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: canUseChat(this.chatEntitlementService) /* use secondary color when chat can still be used */ }));
+				const upgradeProButton = this._store.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: this.canUseChat() /* use secondary color when chat can still be used */ }));
 				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
-				disposables.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
+				this._store.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
 
 			(async () => {
@@ -426,12 +202,13 @@ class ChatStatusDashboard extends Disposable {
 			})();
 		}
 
+
 		// Anonymous Indicator
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
 
-			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('completionsLabel', "Inline Suggestions"), false);
-			this.createQuotaIndicator(this.element, disposables, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"), false);
+			this.createQuotaIndicator(this.element, this._store, localize('quotaLimited', "Limited"), localize('completionsLabel', "Inline Suggestions"), false);
+			this.createQuotaIndicator(this.element, this._store, localize('quotaLimited', "Limited"), localize('chatsLabel', "Chat messages"), false);
 		}
 
 		// Chat sessions
@@ -471,7 +248,7 @@ class ChatStatusDashboard extends Disposable {
 			};
 
 			updateStatus();
-			disposables.add(this.chatSessionsService.onDidChangeInProgress(updateStatus));
+			this._store.add(this.chatSessionsService.onDidChangeInProgress(updateStatus));
 		}
 
 		// Contributions
@@ -479,13 +256,13 @@ class ChatStatusDashboard extends Disposable {
 			for (const item of this.chatStatusItemService.getEntries()) {
 				addSeparator();
 
-				const itemDisposables = disposables.add(new MutableDisposable());
+				const itemDisposables = this._store.add(new MutableDisposable());
 
 				let rendered = this.renderContributedChatStatusItem(item);
 				itemDisposables.value = rendered.disposables;
 				this.element.appendChild(rendered.element);
 
-				disposables.add(this.chatStatusItemService.onDidChange(e => {
+				this._store.add(this.chatStatusItemService.onDidChange(e => {
 					if (e.entry.id === item.id) {
 						const previousElement = rendered.element;
 
@@ -509,13 +286,13 @@ class ChatStatusDashboard extends Disposable {
 				run: () => this.runCommandAndClose(() => this.commandService.executeCommand('workbench.action.openSettings', { query: `@id:${defaultChat.completionsEnablementSetting} @id:${defaultChat.nextEditSuggestionsSetting}` })),
 			}) : undefined);
 
-			this.createSettings(this.element, disposables);
+			this.createSettings(this.element, this._store);
 		}
 
 		// Completions Snooze
-		if (canUseChat(this.chatEntitlementService)) {
+		if (this.canUseChat()) {
 			const snooze = append(this.element, $('div.snooze-completions'));
-			this.createCompletionsSnooze(snooze, localize('settings.snooze', "Snooze"), disposables);
+			this.createCompletionsSnooze(snooze, localize('settings.snooze', "Snooze"), this._store);
 		}
 
 		// New to Chat / Signed out
@@ -563,16 +340,30 @@ class ChatStatusDashboard extends Disposable {
 				if (typeof descriptionText === 'string') {
 					this.element.appendChild($(`div${descriptionClass}`, undefined, descriptionText));
 				} else {
-					this.element.appendChild($(`div${descriptionClass}`, undefined, disposables.add(this.markdownRendererService.render(descriptionText)).element));
+					this.element.appendChild($(`div${descriptionClass}`, undefined, this._store.add(this.markdownRendererService.render(descriptionText)).element));
 				}
 
-				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));
+				const button = this._store.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));
 				button.label = buttonLabel;
-				disposables.add(button.onDidClick(() => this.runCommandAndClose(commandId)));
+				this._store.add(button.onDidClick(() => this.runCommandAndClose(commandId)));
 			}
 		}
+	}
 
-		return this.element;
+	private canUseChat(): boolean {
+		if (!this.chatEntitlementService.sentiment.installed || this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
+			return false; // chat not installed or not enabled
+		}
+
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown || this.chatEntitlementService.entitlement === ChatEntitlement.Available) {
+			return this.chatEntitlementService.anonymous; // signed out or not-yet-signed-up users can only use Chat if anonymous access is allowed
+		}
+
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && this.chatEntitlementService.quotas.chat?.percentRemaining === 0 && this.chatEntitlementService.quotas.completions?.percentRemaining === 0) {
+			return false; // free user with no quota left
+		}
+
+		return true;
 	}
 
 	private renderHeader(container: HTMLElement, disposables: DisposableStore, label: string, action?: IAction): void {
@@ -755,7 +546,7 @@ class ChatStatusDashboard extends Disposable {
 			}
 		}));
 
-		if (!canUseChat(this.chatEntitlementService)) {
+		if (!this.canUseChat()) {
 			container.classList.add('disabled');
 			checkbox.disable();
 			checkbox.checked = false;
@@ -809,7 +600,6 @@ class ChatStatusDashboard extends Disposable {
 
 		// enablement of NES depends on completions setting
 		// so we have to update our checkbox state accordingly
-
 		if (!completionsSettingAccessor.readSetting()) {
 			container.classList.add('disabled');
 			checkbox.disable();
@@ -817,7 +607,7 @@ class ChatStatusDashboard extends Disposable {
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(completionsSettingId)) {
-				if (completionsSettingAccessor.readSetting() && canUseChat(this.chatEntitlementService)) {
+				if (completionsSettingAccessor.readSetting() && this.canUseChat()) {
 					checkbox.enable();
 					container.classList.remove('disabled');
 				} else {
@@ -887,7 +677,7 @@ class ChatStatusDashboard extends Disposable {
 			timerDisposables.add(disposableWindowInterval(
 				getWindow(container),
 				() => update(enabled),
-				1_000,
+				1000
 			));
 		}
 		updateIntervalTimer();

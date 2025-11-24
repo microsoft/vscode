@@ -12,29 +12,28 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { ChatSessionStatus, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
-import { AgentSessionsViewFilter } from './agentSessionsViewFilter.js';
 
 //#region Interfaces, Types
 
-export interface IAgentSessionsViewModel {
+export interface IAgentSessionsModel {
 
 	readonly onWillResolve: Event<void>;
 	readonly onDidResolve: Event<void>;
 
 	readonly onDidChangeSessions: Event<void>;
 
-	readonly sessions: IAgentSessionViewModel[];
+	readonly sessions: IAgentSession[];
 
 	resolve(provider: string | string[] | undefined): Promise<void>;
 }
 
-export interface IAgentSessionViewModel {
+interface IAgentSessionData {
 
 	readonly providerType: string;
 	readonly providerLabel: string;
@@ -42,7 +41,6 @@ export interface IAgentSessionViewModel {
 	readonly resource: URI;
 
 	readonly status: ChatSessionStatus;
-	readonly archived: boolean;
 
 	readonly tooltip?: string | IMarkdownString;
 
@@ -65,29 +63,44 @@ export interface IAgentSessionViewModel {
 	};
 }
 
-export function isLocalAgentSessionItem(session: IAgentSessionViewModel): boolean {
+export interface IAgentSession extends IAgentSessionData {
+	isArchived(): boolean;
+	setArchived(archived: boolean): void;
+}
+
+interface IInternalAgentSessionData extends IAgentSessionData {
+
+	/**
+	 * The `archived` property is provided by the session provider
+	 * and will be used as the initial value if the user has not
+	 * changed the archived state for the session previously. It
+	 * is kept internal to not expose it publicly. Use `isArchived()`
+	 * and `setArchived()` methods instead.
+	 */
+	readonly archived: boolean | undefined;
+}
+
+interface IInternalAgentSession extends IAgentSession, IInternalAgentSessionData { }
+
+export function isLocalAgentSessionItem(session: IAgentSession): boolean {
 	return session.providerType === localChatSessionType;
 }
 
-export function isAgentSession(obj: IAgentSessionsViewModel | IAgentSessionViewModel): obj is IAgentSessionViewModel {
-	const session = obj as IAgentSessionViewModel | undefined;
+export function isAgentSession(obj: IAgentSessionsModel | IAgentSession): obj is IAgentSession {
+	const session = obj as IAgentSession | undefined;
 
 	return URI.isUri(session?.resource);
 }
 
-export function isAgentSessionsViewModel(obj: IAgentSessionsViewModel | IAgentSessionViewModel): obj is IAgentSessionsViewModel {
-	const sessionsViewModel = obj as IAgentSessionsViewModel | undefined;
+export function isAgentSessionsModel(obj: IAgentSessionsModel | IAgentSession): obj is IAgentSessionsModel {
+	const sessionsModel = obj as IAgentSessionsModel | undefined;
 
-	return Array.isArray(sessionsViewModel?.sessions);
+	return Array.isArray(sessionsModel?.sessions);
 }
 
 //#endregion
 
-export interface IAgentSessionsViewModelOptions {
-	readonly filterMenuId: MenuId;
-}
-
-export class AgentSessionsViewModel extends Disposable implements IAgentSessionsViewModel {
+export class AgentSessionsModel extends Disposable implements IAgentSessionsModel {
 
 	private readonly _onWillResolve = this._register(new Emitter<void>());
 	readonly onWillResolve = this._onWillResolve.event;
@@ -98,11 +111,8 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 	private readonly _onDidChangeSessions = this._register(new Emitter<void>());
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
 
-	private _sessions: IAgentSessionViewModel[] = [];
-
-	get sessions(): IAgentSessionViewModel[] {
-		return this._sessions.filter(session => !this.filter.exclude(session));
-	}
+	private _sessions: IInternalAgentSession[] = [];
+	get sessions(): IAgentSession[] { return this._sessions; }
 
 	private readonly resolver = this._register(new ThrottledDelayer<void>(100));
 	private readonly providersToResolve = new Set<string | undefined>();
@@ -114,24 +124,20 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		finishedOrFailedTime?: number;
 	}>();
 
-	private readonly filter: AgentSessionsViewFilter;
 	private readonly cache: AgentSessionsCache;
 
 	constructor(
-		options: IAgentSessionsViewModelOptions,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
-		this.filter = this._register(this.instantiationService.createInstance(AgentSessionsViewFilter, { filterMenuId: options.filterMenuId }));
-
 		this.cache = this.instantiationService.createInstance(AgentSessionsCache);
-		this._sessions = this.cache.loadCachedSessions();
-
-		this.resolve(undefined);
+		this._sessions = this.cache.loadCachedSessions().map(data => this.toAgentSession(data));
+		this.sessionStates = this.cache.loadSessionStates();
 
 		this.registerListeners();
 	}
@@ -140,8 +146,10 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType: provider }) => this.resolve(provider)));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
 		this._register(this.chatSessionsService.onDidChangeSessionItems(provider => this.resolve(provider)));
-		this._register(this.filter.onDidChange(() => this._onDidChangeSessions.fire()));
-		this._register(this.storageService.onWillSaveState(() => this.cache.saveCachedSessions(this._sessions)));
+		this._register(this.storageService.onWillSaveState(() => {
+			this.cache.saveCachedSessions(this._sessions);
+			this.cache.saveSessionStates(this.sessionStates);
+		}));
 	}
 
 	async resolve(provider: string | string[] | undefined): Promise<void> {
@@ -177,13 +185,20 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 		}
 
 		const resolvedProviders = new Set<string>();
-		const sessions = new ResourceMap<IAgentSessionViewModel>();
+		const sessions = new ResourceMap<IInternalAgentSession>();
 		for (const provider of this.chatSessionsService.getAllChatSessionItemProviders()) {
 			if (!providersToResolve.includes(undefined) && !providersToResolve.includes(provider.chatSessionType)) {
 				continue; // skip: not considered for resolving
 			}
 
-			const providerSessions = await provider.provideChatSessionItems(token);
+			let providerSessions: IChatSessionItem[];
+			try {
+				providerSessions = await provider.provideChatSessionItems(token);
+			} catch (error) {
+				this.logService.error(`Failed to resolve sessions for provider ${provider.chatSessionType}`, error);
+				continue; // skip: failed to resolve sessions for provider
+			}
+
 			resolvedProviders.add(provider.chatSessionType);
 
 			if (token.isCancellationRequested) {
@@ -243,7 +258,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					});
 				}
 
-				sessions.set(session.resource, {
+				sessions.set(session.resource, this.toAgentSession({
 					providerType: provider.chatSessionType,
 					providerLabel,
 					resource: session.resource,
@@ -252,7 +267,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 					icon,
 					tooltip: session.tooltip,
 					status,
-					archived: session.archived ?? false,
+					archived: session.archived,
 					timing: {
 						startTime: session.timing.startTime,
 						endTime: session.timing.endTime,
@@ -260,7 +275,7 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 						finishedOrFailedTime
 					},
 					statistics: session.statistics,
-				});
+				}));
 			}
 		}
 
@@ -279,13 +294,47 @@ export class AgentSessionsViewModel extends Disposable implements IAgentSessions
 			}
 		}
 
+		for (const [resource] of this.sessionStates) {
+			if (!sessions.has(resource)) {
+				this.sessionStates.delete(resource); // clean up states for removed sessions
+			}
+		}
+
 		this._onDidChangeSessions.fire();
 	}
+
+	private toAgentSession(data: IInternalAgentSessionData): IInternalAgentSession {
+		return {
+			...data,
+			isArchived: () => this.isArchived(data),
+			setArchived: (archived: boolean) => this.setArchived(data, archived)
+		};
+	}
+
+	//#region States
+
+	private readonly sessionStates: ResourceMap<{ archived: boolean }>;
+
+	private isArchived(session: IInternalAgentSessionData): boolean {
+		return this.sessionStates.get(session.resource)?.archived ?? Boolean(session.archived);
+	}
+
+	private setArchived(session: IInternalAgentSessionData, archived: boolean): void {
+		if (archived === this.isArchived(session)) {
+			return; // no change
+		}
+
+		this.sessionStates.set(session.resource, { archived });
+
+		this._onDidChangeSessions.fire();
+	}
+
+	//#endregion
 }
 
 //#region Sessions Cache
 
-interface ISerializedAgentSessionViewModel {
+interface ISerializedAgentSession {
 
 	readonly providerType: string;
 	readonly providerLabel: string;
@@ -300,7 +349,7 @@ interface ISerializedAgentSessionViewModel {
 	readonly tooltip?: string | IMarkdownString;
 
 	readonly status: ChatSessionStatus;
-	readonly archived: boolean;
+	readonly archived: boolean | undefined;
 
 	readonly timing: {
 		readonly startTime: number;
@@ -314,14 +363,24 @@ interface ISerializedAgentSessionViewModel {
 	};
 }
 
+interface ISerializedAgentSessionState {
+	readonly resource: UriComponents;
+	readonly archived: boolean;
+}
+
 class AgentSessionsCache {
 
-	private static readonly STORAGE_KEY = 'agentSessions.cache';
+	private static readonly SESSIONS_STORAGE_KEY = 'agentSessions.model.cache';
+	private static readonly STATE_STORAGE_KEY = 'agentSessions.state.cache';
 
-	constructor(@IStorageService private readonly storageService: IStorageService) { }
+	constructor(
+		@IStorageService private readonly storageService: IStorageService
+	) { }
 
-	saveCachedSessions(sessions: IAgentSessionViewModel[]): void {
-		const serialized: ISerializedAgentSessionViewModel[] = sessions
+	//#region Sessions
+
+	saveCachedSessions(sessions: IInternalAgentSessionData[]): void {
+		const serialized: ISerializedAgentSession[] = sessions
 			.filter(session =>
 				// Only consider providers that we own where we know that
 				// we can also invalidate the data after startup
@@ -351,17 +410,18 @@ class AgentSessionsCache {
 
 				statistics: session.statistics,
 			}));
-		this.storageService.store(AgentSessionsCache.STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+
+		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	loadCachedSessions(): IAgentSessionViewModel[] {
-		const sessionsCache = this.storageService.get(AgentSessionsCache.STORAGE_KEY, StorageScope.WORKSPACE);
+	loadCachedSessions(): IInternalAgentSessionData[] {
+		const sessionsCache = this.storageService.get(AgentSessionsCache.SESSIONS_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (!sessionsCache) {
 			return [];
 		}
 
 		try {
-			const cached = JSON.parse(sessionsCache) as ISerializedAgentSessionViewModel[];
+			const cached = JSON.parse(sessionsCache) as ISerializedAgentSession[];
 			return cached.map(session => ({
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
@@ -387,6 +447,42 @@ class AgentSessionsCache {
 			return []; // invalid data in storage, fallback to empty sessions list
 		}
 	}
+
+	//#endregion
+
+	//#region States
+
+	saveSessionStates(states: ResourceMap<{ archived: boolean }>): void {
+		const serialized: ISerializedAgentSessionState[] = Array.from(states.entries()).map(([resource, state]) => ({
+			resource: resource.toJSON(),
+			archived: state.archived
+		}));
+
+		this.storageService.store(AgentSessionsCache.STATE_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	loadSessionStates(): ResourceMap<{ archived: boolean }> {
+		const states = new ResourceMap<{ archived: boolean }>();
+
+		const statesCache = this.storageService.get(AgentSessionsCache.STATE_STORAGE_KEY, StorageScope.WORKSPACE);
+		if (!statesCache) {
+			return states;
+		}
+
+		try {
+			const cached = JSON.parse(statesCache) as ISerializedAgentSessionState[];
+
+			for (const entry of cached) {
+				states.set(URI.revive(entry.resource), { archived: entry.archived });
+			}
+		} catch {
+			// invalid data in storage, fallback to empty states
+		}
+
+		return states;
+	}
+
+	//#endregion
 }
 
 //#endregion

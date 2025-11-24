@@ -99,18 +99,43 @@ function injectBuiltinExtensionsPlugin(): Plugin {
 function createHotClassSupport(): Plugin {
 	return {
 		name: 'createHotClassSupport',
-		transform(code, id) {
-			if (id.endsWith('.ts')) {
-				if (code.includes('createHotClass')) {
-					code = code + `\n
+		transform: {
+			order: 'pre',
+			handler: (code, id) => {
+				if (id.endsWith('.ts')) {
+					let needsHMRAccept = false;
+					const hasCreateHotClass = code.includes('createHotClass');
+					const hasDomWidget = code.includes('DomWidget');
+
+					if (!hasCreateHotClass && !hasDomWidget) {
+						return undefined;
+					}
+
+					if (hasCreateHotClass) {
+						needsHMRAccept = true;
+					}
+
+					if (hasDomWidget) {
+						const matches = code.matchAll(/class\s+([a-zA-Z0-9_]+)\s+extends\s+DomWidget/g);
+						/// @ts-ignore
+						for (const match of matches) {
+							const className = match[1];
+							code = code + `\n${className}.registerWidgetHotReplacement(${JSON.stringify(id + '#' + className)});`;
+							needsHMRAccept = true;
+						}
+					}
+
+					if (needsHMRAccept) {
+						code = code + `\n
 if (import.meta.hot) {
 	import.meta.hot.accept();
 }`;
+					}
+					return code;
 				}
-				return code;
-			}
-			return undefined;
-		},
+				return undefined;
+			},
+		}
 	};
 }
 

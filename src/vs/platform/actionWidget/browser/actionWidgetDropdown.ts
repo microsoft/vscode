@@ -82,7 +82,18 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			});
 
 		for (let i = 0; i < sortedCategories.length; i++) {
-			const [, categoryActions] = sortedCategories[i];
+			const [categoryLabel, categoryActions] = sortedCategories[i];
+
+			// Add category header if label is not empty
+			if (categoryLabel) {
+				actionWidgetItems.push({
+					kind: ActionListItemKind.Header,
+					label: categoryLabel,
+					canPreview: false,
+					disabled: false,
+					hideIcon: false,
+				});
+			}
 
 			// Push actions for each category
 			for (const action of categoryActions) {
@@ -93,7 +104,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					kind: ActionListItemKind.Action,
 					canPreview: false,
 					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
-					disabled: false,
+					disabled: !action.enabled,
 					hideIcon: false,
 					label: action.label,
 					keybinding: this._options.showItemKeybindings ?
@@ -102,7 +113,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 				});
 			}
 
-			// Add separator at the end of each category except the last one
+			// Add separator after each category except the last one
 			if (i < sortedCategories.length - 1) {
 				actionWidgetItems.push({
 					label: '',
