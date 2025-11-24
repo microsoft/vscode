@@ -1454,7 +1454,6 @@ export interface IToolDataDto {
 	modelDescription: string;
 	source: Dto<ToolDataSource>;
 	inputSchema?: IJSONSchema;
-	supportedModels?: string[];
 }
 
 export interface MainThreadLanguageModelToolsShape extends IDisposable {
@@ -1474,6 +1473,7 @@ export interface ExtHostLanguageModelToolsShape {
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 
 	$prepareToolInvocation(toolId: string, context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	$supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {

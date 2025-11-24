@@ -490,12 +490,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const { request, location, history } = await this._createRequest(requestDto, context, detector.extension);
 
 		const model = await this.getModelForRequest(request, detector.extension);
+		const tools = await this.getToolsForRequest(detector.extension, request.userSelectedTools, model.id, token);
 		const extRequest = typeConvert.ChatAgentRequest.to(
 			request,
 			location,
 			model,
 			this.getDiagnosticsWhenEnabled(detector.extension),
-			this.getToolsForRequest(detector.extension, request.userSelectedTools, model.id),
+			tools,
 			detector.extension,
 			this._logService);
 
@@ -553,7 +554,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		}
 
 		request.extRequest.tools.clear();
-		for (const [k, v] of this.getToolsForRequest(request.extension, tools, request.extRequest.model.id)) {
+		const toolsMap = await this.getToolsForRequest(request.extension, tools, request.extRequest.model.id, CancellationToken.None);
+		for (const [k, v] of toolsMap) {
 			request.extRequest.tools.set(k, v);
 		}
 		this._onDidChangeChatRequestTools.fire(request.extRequest);
@@ -581,12 +583,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 
 			const model = await this.getModelForRequest(request, agent.extension);
+			const tools = await this.getToolsForRequest(agent.extension, request.userSelectedTools, model.id, token);
 			const extRequest = typeConvert.ChatAgentRequest.to(
 				request,
 				location,
 				model,
 				this.getDiagnosticsWhenEnabled(agent.extension),
-				this.getToolsForRequest(agent.extension, request.userSelectedTools, model.id),
+				tools,
 				agent.extension,
 				this._logService
 			);
@@ -663,13 +666,25 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._diagnostics.getDiagnostics();
 	}
 
-	private getToolsForRequest(extension: IExtensionDescription, tools: UserSelectedTools | undefined, modelId: string): Map<vscode.LanguageModelToolInformation, boolean> {
+	private async getToolsForRequest(extension: IExtensionDescription, tools: UserSelectedTools | undefined, modelId: string, token: CancellationToken): Promise<Map<vscode.LanguageModelToolInformation, boolean>> {
 		if (!tools) {
 			return new Map();
 		}
 		const result = new Map<vscode.LanguageModelToolInformation, boolean>();
-		for (const tool of this._tools.getTools(extension)) {
-			if (!this._tools.isToolAvailableForModel(tool.name, modelId)) {
+		const allTools = this._tools.getTools(extension);
+
+		// Check model support for all tools in parallel
+		const toolChecks = await Promise.all(
+			Array.from(allTools).map(async (tool) => {
+				const supports = await this._tools.supportsModel(tool.name, modelId, token);
+				// undefined means no supportsModel impl, treat as supported
+				// false means explicitly not supported
+				return { tool, supported: supports === true };
+			})
+		);
+
+		for (const { tool, supported } of toolChecks) {
+			if (!supported) {
 				continue;
 			}
 			if (typeof tools[tool.name] === 'boolean') {

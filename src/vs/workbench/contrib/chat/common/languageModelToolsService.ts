@@ -52,10 +52,6 @@ export interface IToolData {
 	readonly canRequestPreApproval?: boolean;
 	/** True if this tool might ask for post-approval */
 	readonly canRequestPostApproval?: boolean;
-	/**
-	 * If specified, restricts which models can use this tool.
-	 */
-	supportedModels?: string[];
 }
 
 export interface IToolProgressStep {
@@ -288,6 +284,7 @@ export interface IPreparedToolInvocation {
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
 	prepareToolInvocation?(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	supportsModel?(modelId: string, token: CancellationToken): Promise<boolean | undefined>;
 }
 
 export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | ToolSet, boolean>;
@@ -358,6 +355,7 @@ export interface ILanguageModelToolsService {
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
+	supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined>;
 	getTools(): Iterable<IToolData>;
 	readonly toolsObservable: IObservable<readonly IToolData[]>;
 	getTool(id: string): IToolData | undefined;
@@ -383,20 +381,6 @@ export interface ILanguageModelToolsService {
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
 
-/**
- * Check if a tool is available for a given model based on its supportedModels configuration.
- * @param tool The tool data to check
- * @param modelId The model id (e.g., 'gpt-4o', 'claude-3-5-sonnet')
- * @returns true if the tool is available for the model, false otherwise
- */
-export function isToolAvailableForModel(tool: IToolData, modelId?: string): boolean {
-	const supported = tool.supportedModels;
-	if (!supported || !modelId) {
-		return true;
-	}
-
-	return supported.includes(modelId);
-}
 
 export function createToolInputUri(toolCallId: string): URI {
 	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolCallId}/tool_input.json` });

@@ -171,18 +171,26 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			});
 	}
 
-	isToolAvailableForModel(toolId: string, modelId: string): boolean {
-		const tool = this._allTools.get(toolId);
-		if (!tool) {
-			return false;
+	/**
+	 * Check if a tool supports a specific model.
+	 * @returns `true` if supported, `false` if not, `undefined` if no supportsModel implementation (treat as supported)
+	 */
+	async supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined> {
+		const item = this._registeredTools.get(toolId);
+		if (!item) {
+			// Tool is not registered in this extension host, assume it supports all models
+			return undefined;
 		}
 
-		const supportedModels = tool.data.supportedModels;
-		if (!supportedModels) {
-			return true;
+		// supportsModel is a proposed API, cast to access it
+		const supportsModelFn = (item.tool as { supportsModel?: (modelId: string) => vscode.ProviderResult<boolean> }).supportsModel;
+		if (supportsModelFn) {
+			const result = await supportsModelFn(modelId);
+			return result ?? undefined;
 		}
 
-		return supportedModels.includes(modelId);
+		// No supportsModel method means tool supports all models
+		return undefined;
 	}
 
 	async $invokeTool(dto: Dto<IToolInvocation>, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
@@ -287,6 +295,22 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
 				presentation: result.presentation as ToolInvocationPresentation | undefined
 			};
+		}
+
+		return undefined;
+	}
+
+	async $supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined> {
+		const item = this._registeredTools.get(toolId);
+		if (!item) {
+			throw new Error(`Unknown tool ${toolId}`);
+		}
+
+		// supportsModel is a proposed API, cast to access it
+		const supportsModelFn = (item.tool as { supportsModel?: (modelId: string) => vscode.ProviderResult<boolean> }).supportsModel;
+		if (supportsModelFn) {
+			const result = await supportsModelFn(modelId);
+			return result ?? undefined;
 		}
 
 		return undefined;

@@ -61,6 +61,10 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		return Disposable.None;
 	}
 
+	async supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined> {
+		return undefined;
+	}
+
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable {
 		return Disposable.None;
 	}

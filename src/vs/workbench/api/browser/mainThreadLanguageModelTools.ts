@@ -43,7 +43,6 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 				modelDescription: tool.modelDescription,
 				inputSchema: tool.inputSchema,
 				source: tool.source,
-				supportedModels: tool.supportedModels,
 			} satisfies IToolDataDto));
 	}
 
@@ -94,6 +93,7 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 					}
 				},
 				prepareToolInvocation: (context, token) => this._proxy.$prepareToolInvocation(id, context, token),
+				supportsModel: (modelId, token) => this._proxy.$supportsModel(id, modelId, token),
 			});
 		this._tools.set(id, disposable);
 	}

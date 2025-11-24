@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { assertNever } from '../../../../../base/common/assert.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { createMarkdownCommandLink } from '../../../../../base/common/htmlContent.js';
@@ -23,7 +24,7 @@ import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, McpConnectionState, McpServerCacheState, McpServerEditorTab } from '../../../mcp/common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../../../mcp/common/mcpTypesUtils.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ILanguageModelToolsService, IToolData, isToolAvailableForModel, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { ConfigureToolSets } from '../tools/toolSetsContribution.js';
 
 const enum BucketOrdinal { User, BuiltIn, Mcp, Extension }
@@ -212,16 +213,40 @@ export async function showToolsPicker(
 		}
 	}
 
+	// Pre-compute which tools support the model (if modelId is provided)
+	const supportedTools = new Set<string>();
+	if (modelId) {
+		const allTools = Array.from(toolsService.getTools());
+		const checks = await Promise.all(
+			allTools.map(async (tool) => {
+				const supports = await toolsService.supportsModel(tool.id, modelId, CancellationToken.None);
+				// undefined means no supportsModel impl, treat as supported
+				// false means explicitly not supported
+				return { toolId: tool.id, supported: supports !== false };
+			})
+		);
+		for (const { toolId, supported } of checks) {
+			if (supported) {
+				supportedTools.add(toolId);
+			}
+		}
+	}
+
+	const isToolSupportedForModel = (toolId: string): boolean => {
+		// If no modelId specified, all tools are available
+		if (!modelId) {
+			return true;
+		}
+		return supportedTools.has(toolId);
+	};
+
 	function computeItems(previousToolsEntries?: ReadonlyMap<ToolSet | IToolData, boolean>) {
 		// Create default entries if none provided
 		let toolsEntries = getToolsEntries ? new Map(getToolsEntries()) : undefined;
 		if (!toolsEntries) {
 			const defaultEntries = new Map();
 			for (const tool of toolsService.getTools()) {
-				if (!isToolAvailableForModel(tool, modelId)) {
-					continue;
-				}
-				if (tool.canBeReferencedInPrompt) {
+				if (tool.canBeReferencedInPrompt && isToolSupportedForModel(tool.id)) {
 					defaultEntries.set(tool, false);
 				}
 			}
@@ -404,7 +429,7 @@ export async function showToolsPicker(
 				bucket.children.push(treeItem);
 				const children = [];
 				for (const tool of toolSet.getTools()) {
-					if (!isToolAvailableForModel(tool, modelId)) {
+					if (!isToolSupportedForModel(tool.id)) {
 						continue;
 					}
 					const toolChecked = toolSetChecked || toolsEntries.get(tool) === true;
@@ -420,7 +445,7 @@ export async function showToolsPicker(
 			if (!tool.canBeReferencedInPrompt || !toolsEntries.has(tool)) {
 				continue;
 			}
-			if (!isToolAvailableForModel(tool, modelId)) {
+			if (!isToolSupportedForModel(tool.id)) {
 				continue;
 			}
 			const bucket = getBucket(tool.source);

@@ -228,6 +228,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
+	async supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined> {
+		const entry = this._tools.get(toolId);
+		if (!entry?.impl?.supportsModel) {
+			return undefined;
+		}
+
+		return entry.impl.supportsModel(modelId, token);
+	}
+
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable {
 		return combinedDisposable(
 			this.registerToolData(toolData),
