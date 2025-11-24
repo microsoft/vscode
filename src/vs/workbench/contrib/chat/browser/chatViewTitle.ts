@@ -22,8 +22,6 @@ export interface IChatViewTitleDelegate {
 export class ChatViewTitleController extends Disposable {
 	private readonly viewContainerModel: IViewContainerModel | undefined;
 	private hasMultipleVisibleViews = false;
-	private showSecondaryTitleBar: boolean;
-	private secondarySideBarShowsLabels: boolean;
 	private currentPrimaryTitle: string;
 	private _secondaryTitleContainer: HTMLElement | undefined;
 	private _secondaryTitle: HTMLElement | undefined;
@@ -42,8 +40,6 @@ export class ChatViewTitleController extends Disposable {
 			this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(() => this.handleVisibleViewDescriptorsChanged()));
 			this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(() => this.handleVisibleViewDescriptorsChanged()));
 		}
-		this.showSecondaryTitleBar = this.shouldRenderSecondaryTitleBar();
-		this.secondarySideBarShowsLabels = this.computeSecondarySideBarLabelConfig();
 		this.currentPrimaryTitle = localize('chat', "Chat");
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
@@ -75,7 +71,7 @@ export class ChatViewTitleController extends Disposable {
 		this.currentPrimaryTitle = primaryTitle;
 
 		this.delegate.updatePrimaryTitle(primaryTitle);
-		if (!this.showSecondaryTitleBar) {
+		if (!this.shouldRenderSecondaryTitleBar()) {
 			this.setSecondaryTitle(undefined);
 			return;
 		}
@@ -88,7 +84,7 @@ export class ChatViewTitleController extends Disposable {
 	}
 
 	getSingleViewPaneContainerTitle(superTitle: string | undefined): string | undefined {
-		if (!this.showSecondaryTitleBar) {
+		if (!this.shouldRenderSecondaryTitleBar()) {
 			return this.currentPrimaryTitle;
 		}
 		return superTitle ?? this.currentPrimaryTitle;
@@ -123,23 +119,14 @@ export class ChatViewTitleController extends Disposable {
 	}
 
 	private updateSecondaryTitleVisibility(): void {
-		const previousValue = this.showSecondaryTitleBar;
-		this.showSecondaryTitleBar = this.shouldRenderSecondaryTitleBar();
-		if (previousValue === this.showSecondaryTitleBar) {
-			return;
-		}
-		if (!this.showSecondaryTitleBar) {
+		if (!this.shouldRenderSecondaryTitleBar()) {
 			this.setSecondaryTitle(undefined);
+			return;
 		}
 		this.update();
 	}
 
 	private updateViewTitleBasedOnShowLabelsConfig(): void {
-		const previousValue = this.secondarySideBarShowsLabels;
-		this.secondarySideBarShowsLabels = this.computeSecondarySideBarLabelConfig();
-		if (previousValue === this.secondarySideBarShowsLabels) {
-			return;
-		}
 		this.update();
 	}
 
@@ -162,7 +149,7 @@ export class ChatViewTitleController extends Disposable {
 		if (!this._secondaryTitleContainer || !this._secondaryTitle) {
 			return;
 		}
-		if (!this.showSecondaryTitleBar || !title) {
+		if (!this.shouldRenderSecondaryTitleBar() || !title) {
 			this._secondaryTitleContainer.style.display = 'none';
 		} else {
 			this._secondaryTitle.textContent = title;
@@ -172,7 +159,7 @@ export class ChatViewTitleController extends Disposable {
 	}
 
 	private shouldOmitChatPrefix(): boolean {
-		return this.showSecondaryTitleBar && this.secondarySideBarShowsLabels;
+		return this.shouldRenderSecondaryTitleBar() && this.computeSecondarySideBarLabelConfig();
 	}
 
 	private withChatPrefix(title: string | undefined): string | undefined {
