@@ -21,7 +21,7 @@ import { prepareRename, rename } from '../../../rename/browser/rename.js';
 import { renameSymbolCommandId } from '../controller/commandIds.js';
 import { InlineSuggestHint, InlineSuggestionItem } from './inlineSuggestionItem.js';
 
-type SingleEdits = {
+export type SingleEdits = {
 	renames: { edits: TextEdit[]; position: Position; oldName: string; newName: string };
 	others: { edits: TextEdit[] };
 };
@@ -53,7 +53,7 @@ export class RenameSymbolProcessor extends Disposable {
 
 		const start = Date.now();
 
-		const edits = this.createSingleEdits(textModel, suggestItem.editRange, suggestItem.insertText);
+		const edits = RenameSymbolProcessor.createSingleEdits(textModel, suggestItem.editRange, suggestItem.insertText);
 		if (edits === undefined || edits.renames.edits.length === 0) {
 			return suggestItem;
 		}
@@ -80,7 +80,7 @@ export class RenameSymbolProcessor extends Disposable {
 		return InlineSuggestionItem.create(suggestItem.withRename(command, hint), textModel);
 	}
 
-	private createSingleEdits(textModel: ITextModel, nesRange: Range, modifiedText: string): SingleEdits | undefined {
+	public static createSingleEdits(textModel: ITextModel, nesRange: Range, modifiedText: string): SingleEdits | undefined {
 		const others: TextEdit[] = [];
 		const renames: TextEdit[] = [];
 		let oldName: string | undefined = undefined;
@@ -112,7 +112,7 @@ export class RenameSymbolProcessor extends Disposable {
 			const range = Range.fromPositions(startPos, endPos);
 			const text = modifiedText.substring(change.modifiedStart, change.modifiedStart + change.modifiedLength);
 
-			const tokenInfo = getTokenAtPosition(textModel, startPos);
+			const tokenInfo = RenameSymbolProcessor.getTokenAtPosition(textModel, startPos);
 			if (tokenInfo.type === StandardTokenType.Other) {
 
 				let identifier = textModel.getValueInRange(tokenInfo.range);
@@ -153,14 +153,15 @@ export class RenameSymbolProcessor extends Disposable {
 			others: { edits: others }
 		};
 	}
+
+	private static getTokenAtPosition(textModel: ITextModel, position: Position): { type: StandardTokenType; range: Range } {
+		textModel.tokenization.tokenizeIfCheap(position.lineNumber);
+		const tokens = textModel.tokenization.getLineTokens(position.lineNumber);
+		const idx = tokens.findTokenIndexAtOffset(position.column - 1);
+		return {
+			type: tokens.getStandardTokenType(idx),
+			range: new Range(position.lineNumber, 1 + tokens.getStartOffset(idx), position.lineNumber, 1 + tokens.getEndOffset(idx))
+		};
+	}
 }
 
-function getTokenAtPosition(textModel: ITextModel, position: Position): { type: StandardTokenType; range: Range } {
-	textModel.tokenization.tokenizeIfCheap(position.lineNumber);
-	const tokens = textModel.tokenization.getLineTokens(position.lineNumber);
-	const idx = tokens.findTokenIndexAtOffset(position.column - 1);
-	return {
-		type: tokens.getStandardTokenType(idx),
-		range: new Range(position.lineNumber, 1 + tokens.getStartOffset(idx), position.lineNumber, 1 + tokens.getEndOffset(idx))
-	};
-}
