@@ -80,12 +80,16 @@ declare module 'vscode' {
 	}
 
 	export class ChatPrepareToolInvocationPart {
+		/**
+		 * Unique identifier for this tool call, used to correlate streaming updates.
+		 */
+		toolCallId: string;
 		toolName: string;
 		/**
 		 * Partial arguments that have streamed in for the tool invocation.
 		 */
 		streamData?: ChatToolInvocationStreamData;
-		constructor(toolName: string, streamData?: ChatToolInvocationStreamData);
+		constructor(toolCallId: string, toolName: string, streamData?: ChatToolInvocationStreamData);
 	}
 
 	export interface ChatToolInvocationStreamData {
@@ -362,8 +366,11 @@ declare module 'vscode' {
 		/**
 		 * Notifies the UI that a tool invocation is being prepared. Optional streaming data can be
 		 * provided to render partial arguments while the invocation input is still being generated.
+		 * @param toolCallId Unique identifier for this tool call, used to correlate streaming updates.
+		 * @param toolName The name of the tool being invoked.
+		 * @param streamData Optional streaming data with partial arguments.
 		 */
-		prepareToolInvocation(toolName: string, streamData?: ChatToolInvocationStreamData): void;
+		prepareToolInvocation(toolCallId: string, toolName: string, streamData?: ChatToolInvocationStreamData): void;
 
 		push(part: ExtendedChatResponsePart): void;
 

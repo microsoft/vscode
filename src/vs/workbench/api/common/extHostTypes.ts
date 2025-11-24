@@ -3338,15 +3338,18 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 }
 
 export class ChatPrepareToolInvocationPart {
+	toolCallId: string;
 	toolName: string;
 	streamData?: {
 		readonly partialInput?: unknown;
 	};
 	/**
+	 * @param toolCallId Unique identifier for this tool call.
 	 * @param toolName The name of the tool being prepared for invocation.
 	 * @param streamData Optional streaming data with partial arguments.
 	 */
-	constructor(toolName: string, streamData?: { readonly partialInput?: unknown }) {
+	constructor(toolCallId: string, toolName: string, streamData?: { readonly partialInput?: unknown }) {
+		this.toolCallId = toolCallId;
 		this.toolName = toolName;
 		this.streamData = streamData;
 	}

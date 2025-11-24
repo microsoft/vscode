@@ -174,11 +174,6 @@ export interface IChatMultiDiffData {
 export interface IChatProgressMessage {
 	content: IMarkdownString;
 	kind: 'progressMessage';
-	/**
-	 * If true, replaces the last progressMessage in the response instead of appending a new one.
-	 * This prevents duplicate progress messages from accumulating.
-	 */
-	replacesPreviousMessage?: boolean;
 }
 
 export interface IChatTask extends IChatTaskDto {
@@ -669,6 +664,7 @@ export class ChatMcpServersStarting implements IChatMcpServersStarting {
 
 export interface IChatPrepareToolInvocationPart {
 	readonly kind: 'prepareToolInvocation';
+	readonly toolCallId: string;
 	readonly toolName: string;
 	readonly streamData?: {
 		readonly partialInput?: unknown;

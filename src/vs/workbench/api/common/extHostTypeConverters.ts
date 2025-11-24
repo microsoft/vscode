@@ -2815,6 +2815,7 @@ export namespace ChatPrepareToolInvocationPart {
 	export function from(part: vscode.ChatPrepareToolInvocationPart): IChatPrepareToolInvocationPart {
 		return {
 			kind: 'prepareToolInvocation',
+			toolCallId: part.toolCallId,
 			toolName: part.toolName,
 			streamData: part.streamData ? {
 				partialInput: part.streamData.partialInput
@@ -2823,7 +2824,7 @@ export namespace ChatPrepareToolInvocationPart {
 	}
 
 	export function to(part: IChatPrepareToolInvocationPart): vscode.ChatPrepareToolInvocationPart {
-		return new types.ChatPrepareToolInvocationPart(part.toolName, part.streamData);
+		return new types.ChatPrepareToolInvocationPart(part.toolCallId, part.toolName, part.streamData);
 	}
 }
 

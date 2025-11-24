@@ -76,6 +76,7 @@ import { ChatExtensionsContentPart } from './chatContentParts/chatExtensionsCont
 import { ChatMarkdownContentPart } from './chatContentParts/chatMarkdownContentPart.js';
 import { ChatMcpServersInteractionContentPart } from './chatContentParts/chatMcpServersInteractionContentPart.js';
 import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
+import { ChatPrepareToolInvocationPart } from './chatContentParts/chatPrepareToolInvocationPart.js';
 import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestContentPart.js';
 import { ChatQuotaExceededPart } from './chatContentParts/chatQuotaExceededPart.js';
@@ -1361,6 +1362,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderMcpServersInteractionRequired(content, context, templateData);
 			} else if (content.kind === 'thinking') {
 				return this.renderThinkingPart(content, context, templateData);
+			} else if (content.kind === 'prepareToolInvocation') {
+				return this.instantiationService.createInstance(ChatPrepareToolInvocationPart, content, this.chatContentMarkdownRenderer, context);
 			}
 
 			return this.renderNoContent(other => content.kind === other.kind);
