@@ -136,14 +136,14 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 			hide(elements.filesSpan);
 		}
 
-		if (diff.insertions > 0) {
+		if (diff.insertions >= 0 /* render even `0` for more homogeneity */) {
 			elements.addedSpan.textContent = `+${diff.insertions}`;
 			show(elements.addedSpan);
 		} else {
 			hide(elements.addedSpan);
 		}
 
-		if (diff.deletions > 0) {
+		if (diff.deletions >= 0 /* render even `0` for more homogeneity */) {
 			elements.removedSpan.textContent = `-${diff.deletions}`;
 			show(elements.removedSpan);
 		} else {
