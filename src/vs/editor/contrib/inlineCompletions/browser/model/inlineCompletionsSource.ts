@@ -76,7 +76,7 @@ export class InlineCompletionsSource extends Disposable {
 	public readonly inlineCompletions = this._state.map(this, v => v.inlineCompletions);
 	public readonly suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
 
-	private readonly _renameProcessor = this._register(this._instantiationService.createInstance(RenameSymbolProcessor));
+	private readonly _renameProcessor: RenameSymbolProcessor;
 
 	private _completionsEnabled: Record<string, boolean> | undefined = undefined;
 
@@ -100,6 +100,8 @@ export class InlineCompletionsSource extends Disposable {
 		>(),
 			'editor.inlineSuggest.logFetch.commandId'
 		));
+
+		this._renameProcessor = this._store.add(this._instantiationService.createInstance(RenameSymbolProcessor));
 
 		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
 
