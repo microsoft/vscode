@@ -22,6 +22,7 @@ import { gitBashToWindowsPath, windowsToGitBashPath } from './terminalGitBashHel
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IRelativePattern, match } from '../../../../../base/common/glob.js';
+import { isString } from '../../../../../base/common/types.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -175,7 +176,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const providerConfig: { [key: string]: boolean } = this._configurationService.getValue(TerminalSuggestSettingId.Providers);
 		return providers.filter(p => {
 			const providerId = p.id;
-			return providerId && (!(providerId in providerConfig) || providerConfig[providerId] !== false);
+			return providerId && (!Object.prototype.hasOwnProperty.call(providerConfig, providerId) || providerConfig[providerId] !== false);
 		});
 	}
 
@@ -351,7 +352,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		// Early exit with basic completion if we don't know the resource
-		if (typeof lastWordFolderResource === 'string') {
+		if (isString(lastWordFolderResource)) {
 			resourceCompletions.push({
 				label: lastWordFolder,
 				provider,
@@ -563,7 +564,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 				label: '~',
 				provider,
 				kind: TerminalCompletionItemKind.Folder,
-				detail: typeof homeResource === 'string' ? homeResource : getFriendlyPath(this._labelService, homeResource, resourceOptions.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
+				detail: isString(homeResource) ? homeResource : getFriendlyPath(this._labelService, homeResource, resourceOptions.pathSeparator, TerminalCompletionItemKind.Folder, shellType),
 				replacementRange: [cursorPosition - lastWord.length, cursorPosition]
 			});
 		}

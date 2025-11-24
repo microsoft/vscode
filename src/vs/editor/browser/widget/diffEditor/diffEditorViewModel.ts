@@ -107,9 +107,9 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			const updatedLastUnchangedRegions = lastUnchangedRegions.regions.map((r, idx) =>
 				(!lastUnchangedRegionsOrigRanges[idx] || !lastUnchangedRegionsModRanges[idx]) ? undefined :
 					new UnchangedRegion(
-						lastUnchangedRegionsOrigRanges[idx]!.startLineNumber,
-						lastUnchangedRegionsModRanges[idx]!.startLineNumber,
-						lastUnchangedRegionsOrigRanges[idx]!.length,
+						lastUnchangedRegionsOrigRanges[idx].startLineNumber,
+						lastUnchangedRegionsModRanges[idx].startLineNumber,
+						lastUnchangedRegionsOrigRanges[idx].length,
 						r.visibleLineCountTop.read(reader),
 						r.visibleLineCountBottom.read(reader),
 					)).filter(isDefined);
@@ -174,10 +174,10 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 					lastUnchangedRegions.regions
 						.map((r, idx) => {
 							if (!lastUnchangedRegionsOrigRanges[idx] || !lastUnchangedRegionsModRanges[idx]) { return undefined; }
-							const length = lastUnchangedRegionsOrigRanges[idx]!.length;
+							const length = lastUnchangedRegionsOrigRanges[idx].length;
 							return new UnchangedRegion(
-								lastUnchangedRegionsOrigRanges[idx]!.startLineNumber,
-								lastUnchangedRegionsModRanges[idx]!.startLineNumber,
+								lastUnchangedRegionsOrigRanges[idx].startLineNumber,
+								lastUnchangedRegionsModRanges[idx].startLineNumber,
 								length,
 								// The visible area can shrink by edits -> we have to account for this
 								Math.min(r.visibleLineCountTop.get(), length),

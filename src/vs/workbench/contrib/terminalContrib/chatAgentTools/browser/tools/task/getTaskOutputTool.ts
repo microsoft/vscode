@@ -13,13 +13,14 @@ import { ITelemetryService } from '../../../../../../../platform/telemetry/commo
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
-import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
+import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks, tasksMatch } from '../../taskHelpers.js';
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
 	toolReferenceName: 'getTaskOutput',
+	legacyToolReferenceFullNames: ['runTasks/getTaskOutput'],
 	displayName: localize('getTaskOutputTool.displayName', 'Get Task Output'),
 	modelDescription: 'Get the output of a task',
 	source: ToolDataSource.Internal,
@@ -103,7 +104,8 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 			token,
 			store,
 			(terminalTask) => this._isTaskActive(terminalTask),
-			dependencyTasks
+			dependencyTasks,
+			this._tasksService
 		);
 		store.dispose();
 		for (const r of terminalResults) {
@@ -131,7 +133,7 @@ export class GetTaskOutputTool extends Disposable implements IToolImpl {
 		};
 	}
 	private async _isTaskActive(task: Task): Promise<boolean> {
-		const activeTasks = await this._tasksService.getActiveTasks();
-		return activeTasks?.some((t) => t._id === task._id);
+		const busyTasks = await this._tasksService.getBusyTasks();
+		return busyTasks?.some(t => tasksMatch(t, task)) ?? false;
 	}
 }

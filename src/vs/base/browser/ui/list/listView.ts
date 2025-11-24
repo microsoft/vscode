@@ -1118,9 +1118,9 @@ export class ListView<T> implements IListView<T> {
 	@memoize get onMouseOver(): Event<IListMouseEvent<T>> { return Event.map(this.disposables.add(new DomEmitter(this.domNode, 'mouseover')).event, e => this.toMouseEvent(e), this.disposables); }
 	@memoize get onMouseMove(): Event<IListMouseEvent<T>> { return Event.map(this.disposables.add(new DomEmitter(this.domNode, 'mousemove')).event, e => this.toMouseEvent(e), this.disposables); }
 	@memoize get onMouseOut(): Event<IListMouseEvent<T>> { return Event.map(this.disposables.add(new DomEmitter(this.domNode, 'mouseout')).event, e => this.toMouseEvent(e), this.disposables); }
-	@memoize get onContextMenu(): Event<IListMouseEvent<T> | IListGestureEvent<T>> { return Event.any<IListMouseEvent<any> | IListGestureEvent<any>>(Event.map(this.disposables.add(new DomEmitter(this.domNode, 'contextmenu')).event, e => this.toMouseEvent(e), this.disposables), Event.map(this.disposables.add(new DomEmitter(this.domNode, TouchEventType.Contextmenu)).event as Event<GestureEvent>, e => this.toGestureEvent(e), this.disposables)); }
+	@memoize get onContextMenu(): Event<IListMouseEvent<T> | IListGestureEvent<T>> { return Event.any<IListMouseEvent<any> | IListGestureEvent<any>>(Event.map(this.disposables.add(new DomEmitter(this.domNode, 'contextmenu')).event, e => this.toMouseEvent(e), this.disposables), Event.map(this.disposables.add(new DomEmitter(this.domNode, TouchEventType.Contextmenu)).event, e => this.toGestureEvent(e), this.disposables)); }
 	@memoize get onTouchStart(): Event<IListTouchEvent<T>> { return Event.map(this.disposables.add(new DomEmitter(this.domNode, 'touchstart')).event, e => this.toTouchEvent(e), this.disposables); }
-	@memoize get onTap(): Event<IListGestureEvent<T>> { return Event.map(this.disposables.add(new DomEmitter(this.rowsContainer, TouchEventType.Tap)).event, e => this.toGestureEvent(e as GestureEvent), this.disposables); }
+	@memoize get onTap(): Event<IListGestureEvent<T>> { return Event.map(this.disposables.add(new DomEmitter(this.rowsContainer, TouchEventType.Tap)).event, e => this.toGestureEvent(e), this.disposables); }
 
 	private toMouseEvent(browserEvent: MouseEvent): IListMouseEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target || null);
@@ -1366,7 +1366,7 @@ export class ListView<T> implements IListView<T> {
 			}
 
 			for (const index of feedback) {
-				const item = this.items[index]!;
+				const item = this.items[index];
 				item.dropTarget = true;
 
 				item.row?.domNode.classList.add(dragOverEffectPosition);
@@ -1374,7 +1374,7 @@ export class ListView<T> implements IListView<T> {
 
 			this.currentDragFeedbackDisposable = toDisposable(() => {
 				for (const index of feedback) {
-					const item = this.items[index]!;
+					const item = this.items[index];
 					item.dropTarget = false;
 
 					item.row?.domNode.classList.remove(dragOverEffectPosition);
@@ -1636,8 +1636,12 @@ export class ListView<T> implements IListView<T> {
 		if (item.row) {
 			item.row.domNode.style.height = '';
 			item.size = item.row.domNode.offsetHeight;
-			if (item.size === 0 && !isAncestor(item.row.domNode, getWindow(item.row.domNode).document.body)) {
-				console.warn('Measuring item node that is not in DOM! Add ListView to the DOM before measuring row height!', new Error().stack);
+			if (item.size === 0) {
+				if (!isAncestor(item.row.domNode, getWindow(item.row.domNode).document.body)) {
+					console.warn('Measuring item node that is not in DOM! Add ListView to the DOM before measuring row height!', new Error().stack);
+				} else {
+					console.warn('Measured item node at 0px- ensure that ListView is not display:none before measuring row height!', new Error().stack);
+				}
 			}
 			item.lastDynamicHeightWidth = this.renderWidth;
 			return item.size - size;

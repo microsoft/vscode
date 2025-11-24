@@ -18,7 +18,13 @@ export const enum TerminalChatCommandId {
 	InsertFirstCommand = 'workbench.action.terminal.chat.insertFirstCommand',
 	ViewInChat = 'workbench.action.terminal.chat.viewInChat',
 	RerunRequest = 'workbench.action.terminal.chat.rerunRequest',
-	ViewChatTerminals = 'workbench.action.terminal.chat.viewChatTerminals',
+	ViewHiddenChatTerminals = 'workbench.action.terminal.chat.viewHiddenChatTerminals',
+	OpenTerminalSettingsLink = 'workbench.action.terminal.chat.openTerminalSettingsLink',
+	DisableSessionAutoApproval = 'workbench.action.terminal.chat.disableSessionAutoApproval',
+	FocusMostRecentChatTerminalOutput = 'workbench.action.terminal.chat.focusMostRecentChatTerminalOutput',
+	FocusMostRecentChatTerminal = 'workbench.action.terminal.chat.focusMostRecentChatTerminal',
+	ToggleChatTerminalOutput = 'workbench.action.terminal.chat.toggleChatTerminalOutput',
+	FocusChatInstanceAction = 'workbench.action.terminal.chat.focusChatInstance',
 }
 
 export const MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR = MenuId.for('terminalChatWidget');

@@ -140,6 +140,10 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		}));
 
 		this._register(autorun(r => this.updateLineChangeCount(this._diffInfo.read(r))));
+
+		if (!originalModel.equalsTextBuffer(modifiedModel.getTextBuffer())) {
+			this._updateDiffInfoSeq();
+		}
 	}
 
 	private updateLineChangeCount(diff: IDocumentDiff) {
@@ -158,7 +162,9 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	}
 
 	public clearCurrentEditLineDecoration() {
-		this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, []);
+		if (!this.modifiedModel.isDisposed()) {
+			this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, []);
+		}
 	}
 
 	public async areOriginalAndModifiedIdentical(): Promise<boolean> {
@@ -283,6 +289,11 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	}
 
 	private _applyEdits(edits: ISingleEditOperation[], source: TextModelEditSource) {
+
+		if (edits.length === 0) {
+			return [];
+		}
+
 		try {
 			this._isEditFromUs = true;
 			// make the actual edit

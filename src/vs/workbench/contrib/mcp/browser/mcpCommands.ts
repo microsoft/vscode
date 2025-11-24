@@ -14,7 +14,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
 import { Event } from '../../../../base/common/event.js';
-import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedObservableWithCache, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -81,6 +81,7 @@ export class ListMcpServerCommand extends Action2 {
 			icon: Codicon.server,
 			category,
 			f1: true,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 			menu: [{
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.or(
@@ -88,7 +89,8 @@ export class ListMcpServerCommand extends Action2 {
 						McpContextKeys.hasServersWithErrors,
 					),
 					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
-					ChatContextKeys.lockedToCodingAgent.negate()
+					ChatContextKeys.lockedToCodingAgent.negate(),
+					ChatContextKeys.Setup.hidden.negate(),
 				),
 				id: MenuId.ChatInput,
 				group: 'navigation',
@@ -193,7 +195,7 @@ export class McpConfirmationServerOptionsCommand extends Action2 {
 			if (tool?.source.type === 'mcp') {
 				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, tool.source.definitionId);
 			}
-		} else if (arg.kind === 'elicitation') {
+		} else if (arg.kind === 'elicitation2') {
 			if (arg.source?.type === 'mcp') {
 				accessor.get(ICommandService).executeCommand(McpCommandIds.ServerOptions, arg.source.definitionId);
 			}
@@ -478,6 +480,8 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 			}
 		});
 
+		const actionItemState = displayedState.map(s => s.state);
+
 		this._store.add(actionViewItemService.register(MenuId.ChatInput, McpCommandIds.ListServer, (action, options) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
@@ -544,7 +548,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 				}
 
 				protected override getHoverContents({ state, servers } = displayedStateCurrent.get()): string | undefined | IManagedHoverTooltipHTMLElement {
-					const link = (s: IMcpServer) => markdownCommandLink({
+					const link = (s: IMcpServer) => createMarkdownCommandLink({
 						title: s.definition.label,
 						id: McpCommandIds.ServerOptions,
 						arguments: [s.definition.id],
@@ -642,7 +646,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 				}
 			}, action, { ...options, keybindingNotRenderedWithLabel: true });
 
-		}, Event.fromObservable(displayedState)));
+		}, Event.fromObservableLight(actionItemState)));
 	}
 }
 
@@ -653,7 +657,7 @@ export class ResetMcpTrustCommand extends Action2 {
 			title: localize2('mcp.resetTrust', "Reset Trust"),
 			category,
 			f1: true,
-			precondition: McpContextKeys.toolsCount.greater(0),
+			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
 		});
 	}
 
@@ -671,7 +675,7 @@ export class ResetMcpCachedTools extends Action2 {
 			title: localize2('mcp.resetCachedTools', "Reset Cached Tools"),
 			category,
 			f1: true,
-			precondition: McpContextKeys.toolsCount.greater(0),
+			precondition: ContextKeyExpr.and(McpContextKeys.toolsCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
 		});
 	}
 
@@ -691,11 +695,13 @@ export class AddConfigurationAction extends Action2 {
 			},
 			category,
 			f1: true,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 			menu: {
 				id: MenuId.EditorContent,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode[/\\]mcp\.json$/),
-					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID)
+					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
+					ChatContextKeys.Setup.hidden.negate(),
 				)
 			}
 		});
@@ -845,13 +851,15 @@ export class McpBrowseCommand extends Action2 {
 			tooltip: localize2('mcp.command.browse.tooltip', "Browse MCP Servers"),
 			category,
 			icon: Codicon.search,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 			menu: [{
 				id: extensionsFilterSubMenu,
 				group: '1_predefined',
 				order: 1,
+				when: ChatContextKeys.Setup.hidden.negate(),
 			}, {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledMcpServersViewId)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledMcpServersViewId), ChatContextKeys.Setup.hidden.negate()),
 				group: 'navigation',
 			}],
 		});
@@ -866,7 +874,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: McpCommandIds.Browse,
 		title: localize2('mcp.command.browse.mcp', "Browse MCP Servers"),
-		category
+		category,
+		precondition: ChatContextKeys.Setup.hidden.negate(),
 	},
 });
 
@@ -876,7 +885,7 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 			id: McpCommandIds.ShowInstalled,
 			title: localize2('mcp.command.show.installed', "Show Installed Servers"),
 			category,
-			precondition: HasInstalledMcpServersContext,
+			precondition: ContextKeyExpr.and(HasInstalledMcpServersContext, ChatContextKeys.Setup.hidden.negate()),
 			f1: true,
 		});
 	}
@@ -921,7 +930,8 @@ export class OpenUserMcpResourceCommand extends OpenMcpResourceCommand {
 			id: McpCommandIds.OpenUserMcp,
 			title: localize2('mcp.command.openUserMcp', "Open User Configuration"),
 			category,
-			f1: true
+			f1: true,
+			precondition: ChatContextKeys.Setup.hidden.negate(),
 		});
 	}
 
@@ -938,7 +948,10 @@ export class OpenRemoteUserMcpResourceCommand extends OpenMcpResourceCommand {
 			title: localize2('mcp.command.openRemoteUserMcp', "Open Remote User Configuration"),
 			category,
 			f1: true,
-			precondition: RemoteNameContext.notEqualsTo('')
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				RemoteNameContext.notEqualsTo('')
+			)
 		});
 	}
 
@@ -957,7 +970,10 @@ export class OpenWorkspaceFolderMcpResourceCommand extends Action2 {
 			title: localize2('mcp.command.openWorkspaceFolderMcp', "Open Workspace Folder MCP Configuration"),
 			category,
 			f1: true,
-			precondition: WorkspaceFolderCountContext.notEqualsTo(0)
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				WorkspaceFolderCountContext.notEqualsTo(0)
+			)
 		});
 	}
 
@@ -980,7 +996,10 @@ export class OpenWorkspaceMcpResourceCommand extends Action2 {
 			title: localize2('mcp.command.openWorkspaceMcp', "Open Workspace MCP Configuration"),
 			category,
 			f1: true,
-			precondition: WorkbenchStateContext.isEqualTo('workspace')
+			precondition: ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				WorkbenchStateContext.isEqualTo('workspace')
+			)
 		});
 	}
 
@@ -1000,7 +1019,7 @@ export class McpBrowseResourcesCommand extends Action2 {
 			id: McpCommandIds.BrowseResources,
 			title: localize2('mcp.browseResources', "Browse Resources..."),
 			category,
-			precondition: McpContextKeys.serverCount.greater(0),
+			precondition: ContextKeyExpr.and(McpContextKeys.serverCount.greater(0), ChatContextKeys.Setup.hidden.negate()),
 			f1: true,
 		});
 	}

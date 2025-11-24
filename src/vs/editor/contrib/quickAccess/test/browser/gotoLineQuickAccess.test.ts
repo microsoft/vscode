@@ -9,13 +9,19 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IEditor } from '../../../../common/editorCommon.js';
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { AbstractGotoLineQuickAccessProvider } from '../../browser/gotoLineQuickAccess.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 
 class TestGotoLineQuickAccessProvider extends AbstractGotoLineQuickAccessProvider {
 	protected override onDidActiveTextEditorControlChange = Event.None;
 	protected override activeTextEditorControl: IEditor | undefined;
-	constructor(useZeroBasedOffset?: { value: boolean }) {
-		super(useZeroBasedOffset);
+	constructor(private zeroBased: boolean) {
+		super();
 	}
+	protected override readonly storageService = {
+		getBoolean: () => this.zeroBased,
+		store: () => { }
+	} as unknown as IStorageService;
+
 	public parsePositionTest(editor: IEditor, value: string) {
 		return super.parsePosition(editor, value);
 	}
@@ -25,7 +31,7 @@ suite('AbstractGotoLineQuickAccessProvider', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function runTest(input: string, expectedLine: number, expectedColumn?: number, zeroBased = false) {
-		const provider = new TestGotoLineQuickAccessProvider({ value: zeroBased });
+		const provider = new TestGotoLineQuickAccessProvider(zeroBased);
 		withTestCodeEditor([
 			'line 1',
 			'line 2',

@@ -53,7 +53,7 @@ export class ManageModelsAction extends Action2 {
 		const vendors = languageModelsService.getVendors();
 		const store = new DisposableStore();
 
-		const quickPickItems: IVendorQuickPickItem[] = vendors.map(vendor => ({
+		const quickPickItems: IVendorQuickPickItem[] = vendors.sort((v1, v2) => v1.displayName.localeCompare(v2.displayName)).map(vendor => ({
 			label: vendor.displayName,
 			vendor: vendor.vendor,
 			managementCommand: vendor.managementCommand,
@@ -82,7 +82,7 @@ export class ManageModelsAction extends Action2 {
 						metadata: modelMetadata,
 						identifier: modelIdentifier,
 					};
-				}));
+				})).sort((m1, m2) => m1.metadata.name.localeCompare(m2.metadata.name));
 				await this.showModelSelectorQuickpick(models, quickInputService, languageModelsService);
 			}
 		}));

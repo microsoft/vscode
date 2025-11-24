@@ -415,7 +415,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		};
 	}
 
-	manageConfirmationPreferences(tools: Readonly<IToolData>[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void {
+	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void {
 		interface IToolTreeItem extends IQuickTreeItem {
 			type: 'tool' | 'server' | 'tool-pre' | 'tool-post' | 'server-pre' | 'server-post' | 'manage';
 			toolId?: string;
@@ -765,6 +765,11 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		}));
 
 		disposables.add(quickTree.onDidAccept(() => {
+			for (const item of quickTree.activeItems) {
+				if (item.type === 'manage') {
+					(item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidOpen?.();
+				}
+			}
 			quickTree.hide();
 		}));
 

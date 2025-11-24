@@ -1426,7 +1426,7 @@ class InlineCompletionAdapter {
 
 				const insertText = item.insertText;
 				return ({
-					insertText: insertText ? (typeof insertText === 'string' ? insertText : { snippet: insertText.value }) : undefined,
+					insertText: insertText === undefined ? undefined : (typeof insertText === 'string' ? insertText : { snippet: insertText.value }),
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					showRange: (this._isAdditionsProposedApiEnabled && item.showRange) ? typeConvert.Range.from(item.showRange) : undefined,
 					command,
@@ -1439,7 +1439,6 @@ class InlineCompletionAdapter {
 						range: typeConvert.Range.from(item.displayLocation.range),
 						content: item.displayLocation.label,
 						style: item.displayLocation.kind ? typeConvert.InlineCompletionHintStyle.from(item.displayLocation.kind) : languages.InlineCompletionHintStyle.Code,
-						jumpToEdit: item.displayLocation.jumpToEdit ?? false,
 					} : undefined,
 					warning: (item.warning && this._isAdditionsProposedApiEnabled) ? {
 						message: typeConvert.MarkdownString.from(item.warning.message),
@@ -1448,6 +1447,7 @@ class InlineCompletionAdapter {
 					correlationId: this._isAdditionsProposedApiEnabled ? item.correlationId : undefined,
 					suggestionId: undefined,
 					uri: (this._isAdditionsProposedApiEnabled && item.uri) ? item.uri : undefined,
+					supportsRename: this._isAdditionsProposedApiEnabled ? item.supportsRename : false,
 				});
 			}),
 			commands: commands.map(c => {

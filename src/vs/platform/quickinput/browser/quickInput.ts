@@ -463,7 +463,7 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 			// HACK: Filter out toggles here that are not concrete Toggle objects. This is to workaround
 			// a layering issue as quick input's interface is in common but Toggle is in browser and
 			// it requires a HTMLElement on its interface
-			const concreteToggles = this.toggles?.filter(opts => opts instanceof Toggle) as Toggle[] ?? [];
+			const concreteToggles = this.toggles?.filter(opts => opts instanceof Toggle) ?? [];
 			this.ui.inputBox.toggles = concreteToggles;
 			// Adjust count badge position based on number of toggles (each toggle is ~22px wide)
 			const toggleOffset = concreteToggles.length * 22;

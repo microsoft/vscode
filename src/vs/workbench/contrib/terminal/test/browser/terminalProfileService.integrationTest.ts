@@ -27,6 +27,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
+import type { SingleOrMany } from '../../../../../base/common/types.js';
 
 class TestTerminalProfileService extends TerminalProfileService implements Partial<ITerminalProfileService> {
 	hasRefreshedProfiles: Promise<void> | undefined;
@@ -68,7 +69,7 @@ class MockQuickInputService implements Partial<IQuickInputService> {
 	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: IPickOptions<IProfileQuickPickItem> & { canPickMany: true }, token?: CancellationToken): Promise<IProfileQuickPickItem[] | undefined>;
 	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: IPickOptions<IProfileQuickPickItem> & { canPickMany: false }, token?: CancellationToken): Promise<IProfileQuickPickItem | undefined>;
 	pick(picks: QuickPickInput<IProfileQuickPickItem>[] | Promise<QuickPickInput<IProfileQuickPickItem>[]>, options?: Omit<IPickOptions<IProfileQuickPickItem>, 'canPickMany'>, token?: CancellationToken): Promise<IProfileQuickPickItem | undefined>;
-	async pick(picks: any, options?: any, token?: any): Promise<IProfileQuickPickItem | IProfileQuickPickItem[] | undefined> {
+	async pick(picks: any, options?: any, token?: any): Promise<SingleOrMany<IProfileQuickPickItem> | undefined> {
 		Promise.resolve(picks);
 		return this._pick;
 	}

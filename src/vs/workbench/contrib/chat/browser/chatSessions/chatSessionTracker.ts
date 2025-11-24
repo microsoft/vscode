@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { GroupModelChangeKind } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { ChatSessionItemWithProvider, isChatSession } from './common.js';
 
 export class ChatSessionTracker extends Disposable {
 	private readonly _onDidChangeEditors = this._register(new Emitter<{ sessionType: string; kind: GroupModelChangeKind }>());
+	private readonly groupDisposables = this._register(new DisposableMap<number>());
 	readonly onDidChangeEditors = this._onDidChangeEditors.event;
 
 	constructor(
@@ -33,22 +33,31 @@ export class ChatSessionTracker extends Disposable {
 		this.editorGroupsService.groups.forEach(group => {
 			this.registerGroupListeners(group);
 		});
-
 		// Listen for new groups
 		this._register(this.editorGroupsService.onDidAddGroup(group => {
 			this.registerGroupListeners(group);
 		}));
+		// Listen for deleted groups
+		this._register(this.editorGroupsService.onDidRemoveGroup(group => {
+			this.groupDisposables.deleteAndDispose(group.id);
+		}));
 	}
 
 	private registerGroupListeners(group: IEditorGroup): void {
-		this._register(group.onDidModelChange(e => {
+		this.groupDisposables.set(group.id, group.onDidModelChange(e => {
 			if (!isChatSession(this.chatSessionsService.getContentProviderSchemes(), e.editor)) {
 				return;
 			}
 
-			const editor = e.editor as ChatEditorInput;
+			const editor = e.editor;
 			const sessionType = editor.getSessionType();
 
+			const model = editor.sessionResource && this.chatService.getSession(editor.sessionResource);
+			if (model) {
+				this.chatSessionsService.registerModelProgressListener(model, () => {
+					this.chatSessionsService.notifySessionItemsChanged(sessionType);
+				});
+			}
 			this.chatSessionsService.notifySessionItemsChanged(sessionType);
 
 			// Emit targeted event for this session type
@@ -102,9 +111,7 @@ export class ChatSessionTracker extends Disposable {
 				}
 			}
 
-			const parsed = LocalChatSessionUri.parse(editor.resource);
 			const hybridSession: ChatSessionItemWithProvider = {
-				id: parsed?.sessionId || editor.sessionId || `${provider.chatSessionType}-local-${index}`,
 				resource: editor.resource,
 				label: editor.getName(),
 				status: status,
@@ -130,7 +137,7 @@ export class ChatSessionTracker extends Disposable {
 	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
-		if (model.requestInProgress) {
+		if (model.requestInProgress.get()) {
 			return ChatSessionStatus.InProgress;
 		}
 		const requests = model.getRequests();

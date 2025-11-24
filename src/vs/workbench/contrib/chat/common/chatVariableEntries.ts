@@ -65,13 +65,37 @@ export interface IChatRequestToolSetEntry extends IBaseChatRequestVariableEntry 
 
 export type ChatRequestToolReferenceEntry = IChatRequestToolEntry | IChatRequestToolSetEntry;
 
+export interface StringChatContextValue {
+	value?: string;
+	name: string;
+	modelDescription?: string;
+	icon: ThemeIcon;
+	uri: URI;
+}
+
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'implicit';
 	readonly isFile: true;
-	readonly value: URI | Location | undefined;
+	readonly value: URI | Location | StringChatContextValue | undefined;
+	readonly uri: URI | undefined;
 	readonly isSelection: boolean;
 	enabled: boolean;
 }
+
+export interface IChatRequestStringVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'string';
+	readonly value: string | undefined;
+	readonly modelDescription?: string;
+	readonly icon: ThemeIcon;
+	readonly uri: URI;
+}
+
+export interface IChatRequestWorkspaceVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'workspace';
+	readonly value: string;
+	readonly modelDescription?: string;
+}
+
 
 export interface IChatRequestPasteVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'paste';
@@ -146,7 +170,7 @@ export namespace IDiagnosticVariableEntryFilterData {
 	}
 
 	export function id(data: IDiagnosticVariableEntryFilterData) {
-		return [data.filterUri, data.owner, data.filterSeverity, data.filterRange?.startLineNumber].join(':');
+		return [data.filterUri, data.owner, data.filterSeverity, data.filterRange?.startLineNumber, data.filterRange?.startColumn].join(':');
 	}
 
 	export function label(data: IDiagnosticVariableEntryFilterData) {
@@ -242,7 +266,8 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
-	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry;
+	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
+	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -263,12 +288,20 @@ export function isImplicitVariableEntry(obj: IChatRequestVariableEntry): obj is 
 	return obj.kind === 'implicit';
 }
 
+export function isStringVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestStringVariableEntry {
+	return obj.kind === 'string';
+}
+
 export function isTerminalVariableEntry(obj: IChatRequestVariableEntry): obj is ITerminalVariableEntry {
 	return obj.kind === 'terminalCommand';
 }
 
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {
 	return obj.kind === 'paste';
+}
+
+export function isWorkspaceVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestWorkspaceVariableEntry {
+	return obj.kind === 'workspace';
 }
 
 export function isImageVariableEntry(obj: IChatRequestVariableEntry): obj is IImageVariableEntry {
@@ -317,6 +350,18 @@ export function isSCMHistoryItemChangeVariableEntry(obj: IChatRequestVariableEnt
 
 export function isSCMHistoryItemChangeRangeVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemChangeRangeVariableEntry {
 	return obj.kind === 'scmHistoryItemChangeRange';
+}
+
+export function isStringImplicitContextValue(value: unknown): value is StringChatContextValue {
+	const asStringImplicitContextValue = value as Partial<StringChatContextValue>;
+	return (
+		typeof asStringImplicitContextValue === 'object' &&
+		asStringImplicitContextValue !== null &&
+		(typeof asStringImplicitContextValue.value === 'string' || typeof asStringImplicitContextValue.value === 'undefined') &&
+		typeof asStringImplicitContextValue.name === 'string' &&
+		ThemeIcon.isThemeIcon(asStringImplicitContextValue.icon) &&
+		URI.isUri(asStringImplicitContextValue.uri)
+	);
 }
 
 export enum PromptFileVariableKind {
@@ -437,4 +482,3 @@ export class ChatRequestVariableSet {
 		return this._entries.length;
 	}
 }
-

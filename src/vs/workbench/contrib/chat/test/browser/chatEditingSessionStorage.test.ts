@@ -19,7 +19,7 @@ import { ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditing
 
 suite('ChatEditingSessionStorage', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
-	const sessionId = generateUuid();
+	const sessionResource = URI.parse('chat://test-session');
 	let fs: FileService;
 	let storage: TestChatEditingSessionStorage;
 
@@ -34,7 +34,7 @@ suite('ChatEditingSessionStorage', () => {
 		ds.add(fs.registerProvider(TestEnvironmentService.workspaceStorageHome.scheme, ds.add(new InMemoryFileSystemProvider())));
 
 		storage = new TestChatEditingSessionStorage(
-			sessionId,
+			sessionResource,
 			fs,
 			TestEnvironmentService,
 			new NullLogService(),
@@ -49,7 +49,7 @@ suite('ChatEditingSessionStorage', () => {
 		return {
 			stopId,
 			entries: new ResourceMap([
-				[resource, { resource, languageId: 'javascript', snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionId, requestId, stopId, resource.path), original: `contents${before}}`, current: `contents${after}`, state: ModifiedFileEntryState.Modified, telemetryInfo: { agentId: 'agentId', command: 'cmd', requestId: generateUuid(), result: undefined, sessionId, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined } } satisfies ISnapshotEntry],
+				[resource, { resource, languageId: 'javascript', snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionResource, requestId, stopId, resource.path), original: `contents${before}}`, current: `contents${after}`, state: ModifiedFileEntryState.Modified, telemetryInfo: { agentId: 'agentId', command: 'cmd', requestId: generateUuid(), result: undefined, sessionResource: sessionResource, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined } } satisfies ISnapshotEntry],
 			]),
 		};
 	}

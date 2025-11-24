@@ -54,11 +54,11 @@ export interface ISubmenuItem {
 	};
 }
 
-export function isIMenuItem(item: any): item is IMenuItem {
+export function isIMenuItem(item: unknown): item is IMenuItem {
 	return (item as IMenuItem).command !== undefined;
 }
 
-export function isISubmenuItem(item: any): item is ISubmenuItem {
+export function isISubmenuItem(item: unknown): item is ISubmenuItem {
 	return (item as ISubmenuItem).submenu !== undefined;
 }
 
@@ -223,6 +223,9 @@ export class MenuId {
 	static readonly TimelineTitle = new MenuId('TimelineTitle');
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly TimelineFilterSubMenu = new MenuId('TimelineFilterSubMenu');
+	static readonly AgentSessionsTitle = new MenuId('AgentSessionsTitle');
+	static readonly AgentSessionsFilterSubMenu = new MenuId('AgentSessionsFilterSubMenu');
+	static readonly AgentSessionItemToolbar = new MenuId('AgentSessionItemToolbar');
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly SidebarTitle = new MenuId('SidebarTitle');
 	static readonly PanelTitle = new MenuId('PanelTitle');
@@ -247,7 +250,6 @@ export class MenuId {
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
-	static readonly ChatHistory = new MenuId('ChatHistory');
 	static readonly ChatWelcomeContext = new MenuId('ChatWelcomeContext');
 	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatExecute = new MenuId('ChatExecute');
@@ -309,7 +311,7 @@ export class MenuId {
 }
 
 export interface IMenuActionOptions {
-	arg?: any;
+	arg?: unknown;
 	shouldForwardArgs?: boolean;
 	renderShortTitle?: boolean;
 }
@@ -597,7 +599,7 @@ export class MenuItemAction implements IAction {
 	}
 
 	run(...args: unknown[]): Promise<void> {
-		let runArgs: any[] = [];
+		let runArgs: unknown[] = [];
 
 		if (this._options?.arg) {
 			runArgs = [...runArgs, this._options.arg];

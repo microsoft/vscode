@@ -11,11 +11,11 @@ import { getDebugDescriptionOfRange, Range } from './range.js';
 @es5ClassCompat
 export class Selection extends Range {
 
-	static isSelection(thing: any): thing is Selection {
+	static isSelection(thing: unknown): thing is Selection {
 		if (thing instanceof Selection) {
 			return true;
 		}
-		if (!thing) {
+		if (!thing || typeof thing !== 'object') {
 			return false;
 		}
 		return Range.isRange(thing)

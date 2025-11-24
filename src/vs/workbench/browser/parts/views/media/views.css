@@ -113,6 +113,13 @@
 	max-width: 300px;
 }
 
+.monaco-workbench .pane > .pane-body .tree-explorer-viewlet-tree-view > .message .button-container > .monaco-button span,
+.monaco-workbench .pane > .pane-body .tree-explorer-viewlet-tree-view > .message .button-container > .monaco-button span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .monaco-workbench .pane > .pane-body .welcome-view-content > p {
 	width: 100%;
 }
@@ -151,6 +158,9 @@
 	text-overflow: ellipsis;
 	overflow: hidden;
 	flex-wrap: nowrap;
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item.no-twisty {
 	padding-left: 3px;
 }
 

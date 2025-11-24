@@ -85,14 +85,10 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 			for (const change of changes) {
 				const sessionId = change.sessionId;
 				const session = this.chatService.getSession(LocalChatSessionUri.forSession(sessionId));
-				if (!session || !session.editingSessionObs) {
+				if (!session || !session.editingSession) {
 					continue;
 				}
-				const editSession = session.editingSessionObs.promiseResult.read(r)?.data;
-				if (!editSession) {
-					continue;
-				}
-				const diff = this.getCachedEntryDiffBetweenRequests(editSession, change.reference, firstRequestId, lastRequestId)?.read(r);
+				const diff = this.getCachedEntryDiffBetweenRequests(session.editingSession, change.reference, firstRequestId, lastRequestId)?.read(r);
 				if (!diff) {
 					continue;
 				}
@@ -339,6 +335,7 @@ class CollapsibleChangesSummaryListRenderer implements IListRenderer<IChatFileCh
 			title: data.reference.path
 		});
 		const labelElement = label.element;
+		// eslint-disable-next-line no-restricted-syntax
 		labelElement.querySelector(`.${CollapsibleChangesSummaryListRenderer.CHANGES_SUMMARY_CLASS_NAME}`)?.remove();
 		if (!data.additionalLabels) {
 			return;

@@ -613,7 +613,7 @@ interface FoldingArguments {
 	selectionLines?: number[];
 }
 
-function foldingArgumentsConstraint(args: any) {
+function foldingArgumentsConstraint(args: unknown) {
 	if (!types.isUndefined(args)) {
 		if (!types.isObject(args)) {
 			return false;
@@ -710,7 +710,7 @@ class UnFoldRecursivelyAction extends FoldingAction<void> {
 		});
 	}
 
-	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, _args: any): void {
+	invoke(_foldingController: FoldingController, foldingModel: FoldingModel, editor: ICodeEditor, _args: unknown): void {
 		setCollapseStateLevelsDown(foldingModel, false, Number.MAX_VALUE, this.getSelectedLines(editor));
 	}
 }
@@ -1302,7 +1302,7 @@ CommandsRegistry.registerCommand('_executeFoldingRangeProvider', async function 
 	const strategy = configurationService.getValue('editor.foldingStrategy', { resource });
 	const foldingLimitReporter = {
 		get limit() {
-			return <number>configurationService.getValue('editor.foldingMaximumRegions', { resource });
+			return configurationService.getValue<number>('editor.foldingMaximumRegions', { resource });
 		},
 		update: (computed: number, limited: number | false) => { }
 	};

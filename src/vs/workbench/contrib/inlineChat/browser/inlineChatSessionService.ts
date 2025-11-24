@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
@@ -11,9 +12,7 @@ import { Position } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { showChatView } from '../../chat/browser/chat.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatEditingSession } from '../../chat/common/chatEditingService.js';
 import { IChatModel, IChatRequestModel } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
@@ -74,11 +73,10 @@ export interface IInlineChatSessionService {
 
 export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined, resend: boolean) {
 
-	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
-	const layoutService = accessor.get(IWorkbenchLayoutService);
+	const widgetService = accessor.get(IChatWidgetService);
 
-	const widget = await showChatView(viewsService, layoutService);
+	const widget = await widgetService.revealWidget();
 
 	if (widget && widget.viewModel && model) {
 		let lastRequest: IChatRequestModel | undefined;
@@ -93,4 +91,29 @@ export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatMo
 
 		widget.focusResponseItem();
 	}
+}
+
+export async function askInPanelChat(accessor: ServicesAccessor, model: IChatRequestModel) {
+
+	const widgetService = accessor.get(IChatWidgetService);
+
+	const widget = await widgetService.revealWidget();
+
+	if (!widget) {
+		return;
+	}
+
+	if (!widget.viewModel) {
+		await raceTimeout(Event.toPromise(widget.onDidChangeViewModel), 1000);
+	}
+
+	if (model.attachedContext) {
+		widget.attachmentModel.addContext(...model.attachedContext);
+	}
+
+	widget.acceptInput(model.message.text, {
+		enableImplicitContext: true,
+		isVoiceInput: false,
+		noCommandDetection: true
+	});
 }

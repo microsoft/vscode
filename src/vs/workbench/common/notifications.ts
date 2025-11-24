@@ -467,7 +467,7 @@ export class NotificationViewItem extends Disposable implements INotificationVie
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
 	static create(notification: INotification, filter: INotificationsFilter): INotificationViewItem | undefined {
-		if (!notification || !notification.message || isCancellationError(notification.message)) {
+		if (!notification?.message || isCancellationError(notification.message)) {
 			return undefined; // we need a message to show
 		}
 

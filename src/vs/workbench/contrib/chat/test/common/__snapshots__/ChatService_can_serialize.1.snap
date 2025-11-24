@@ -1,6 +1,4 @@
 {
-  requesterUsername: "test",
-  requesterAvatarIconUri: undefined,
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
@@ -33,7 +31,7 @@
               extensionDisplayName: "",
               locations: [ "panel" ],
               modes: [ "ask" ],
-              metadata: { requester: { name: "test" } },
+              metadata: {  },
               slashCommands: [  ],
               disambiguation: [  ]
             },
@@ -58,21 +56,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
-      responseId: undefined,
       shouldBeRemovedOnSend: undefined,
-      result: { metadata: { metadataKey: "value" } },
-      responseMarkdownInfo: undefined,
-      followups: [
-        {
-          kind: "reply",
-          message: "Something else",
-          agentId: "",
-          tooltip: "a tooltip"
-        }
-      ],
-      isCanceled: false,
-      vote: undefined,
-      voteDownReason: undefined,
       agent: {
         name: "ChatProviderWithUsedContext",
         id: "ChatProviderWithUsedContext",
@@ -86,10 +70,31 @@
         extensionDisplayName: "",
         locations: [ "panel" ],
         modes: [ "ask" ],
-        metadata: { requester: { name: "test" } },
+        metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ]
       },
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined,
+      responseId: undefined,
+      result: { metadata: { metadataKey: "value" } },
+      responseMarkdownInfo: undefined,
+      followups: [
+        {
+          kind: "reply",
+          message: "Something else",
+          agentId: "",
+          tooltip: "a tooltip"
+        }
+      ],
+      modelState: {
+        value: 1,
+        completedAt: undefined
+      },
+      vote: undefined,
+      voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: {
         documents: [
@@ -110,10 +115,7 @@
       },
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined,
-      confirmation: undefined,
-      editedFileEvents: undefined,
-      modelId: undefined
+      timeSpentWaiting: 0
     },
     {
       requestId: undefined,
@@ -138,14 +140,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
-      responseId: undefined,
       shouldBeRemovedOnSend: undefined,
-      result: {  },
-      responseMarkdownInfo: undefined,
-      followups: [  ],
-      isCanceled: false,
-      vote: undefined,
-      voteDownReason: undefined,
       agent: {
         name: "testAgent",
         id: "testAgent",
@@ -159,19 +154,30 @@
         extensionDisplayName: "",
         locations: [ "panel" ],
         modes: [ "ask" ],
-        metadata: { requester: { name: "test" } },
+        metadata: {  },
         slashCommands: [  ],
         disambiguation: [  ],
         isDefault: true
       },
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined,
+      responseId: undefined,
+      result: {  },
+      responseMarkdownInfo: undefined,
+      followups: [  ],
+      modelState: {
+        value: 1,
+        completedAt: undefined
+      },
+      vote: undefined,
+      voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: undefined,
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined,
-      confirmation: undefined,
-      editedFileEvents: undefined,
-      modelId: undefined
+      timeSpentWaiting: 0
     }
   ]
 }

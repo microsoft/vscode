@@ -13,6 +13,7 @@ import { RunInTerminalTool } from './runInTerminalTool.js';
 export const GetTerminalOutputToolData: IToolData = {
 	id: 'get_terminal_output',
 	toolReferenceName: 'getTerminalOutput',
+	legacyToolReferenceFullNames: ['runCommands/getTerminalOutput'],
 	displayName: localize('getTerminalOutputTool.displayName', 'Get Terminal Output'),
 	modelDescription: 'Get the output of a terminal command previously started with run_in_terminal',
 	icon: Codicon.terminal,

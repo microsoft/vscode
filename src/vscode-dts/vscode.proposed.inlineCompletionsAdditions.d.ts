@@ -66,6 +66,8 @@ declare module 'vscode' {
 		completeBracketPairs?: boolean;
 
 		warning?: InlineCompletionWarning;
+
+		supportsRename?: boolean;
 	}
 
 
@@ -73,7 +75,6 @@ declare module 'vscode' {
 		range: Range;
 		kind: InlineCompletionDisplayLocationKind;
 		label: string;
-		jumpToEdit?: boolean;
 	}
 
 	export enum InlineCompletionDisplayLocationKind {

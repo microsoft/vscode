@@ -28,7 +28,7 @@ import { IMenuService, MenuId } from '../../../../platform/actions/common/action
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { autorun, IObservable, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
-import { Sequencer } from '../../../../base/common/async.js';
+import { Sequencer, Throttler } from '../../../../base/common/async.js';
 import { SCMArtifactGroupTreeElement, SCMArtifactTreeElement } from '../common/artifact.js';
 import { FuzzyScore } from '../../../../base/common/fuzzyScorer.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
@@ -42,8 +42,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
-import { ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/asyncDataTree.js';
+import { IAsyncDataTreeViewState, ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/asyncDataTree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 type TreeElement = ISCMRepository | SCMArtifactGroupTreeElement | SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>;
 
@@ -219,7 +220,7 @@ class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeEleme
 			const artifact = artifactOrFolder.artifact;
 			const provider = artifactOrFolder.repository.provider;
 			const repositoryMenus = this._scmViewService.menus.getRepositoryMenus(provider);
-			templateData.elementDisposables.add(connectPrimaryMenu(repositoryMenus.getArtifactMenu(artifactOrFolder.group), primary => {
+			templateData.elementDisposables.add(connectPrimaryMenu(repositoryMenus.getArtifactMenu(artifactOrFolder.group, artifact), primary => {
 				templateData.actionBar.setActions(primary);
 			}, 'inline', provider));
 			templateData.actionBar.context = artifact;
@@ -259,7 +260,27 @@ class RepositoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 
 		// Explorer mode
 		if (inputOrElement instanceof SCMViewService) {
-			return this.scmViewService.repositories;
+			// Get all top level repositories
+			const repositories = this.scmViewService.repositories
+				.filter(r => r.provider.parentId === undefined);
+
+			// Check whether there are any child repositories
+			if (repositories.length !== this.scmViewService.repositories.length) {
+				for (const repository of repositories) {
+					const childRepositories = this.scmViewService.repositories
+						.filter(r => r.provider.parentId === repository.provider.id);
+
+					if (childRepositories.length === 0) {
+						continue;
+					}
+
+					// Insert child repositories right after the parent
+					const repositoryIndex = repositories.indexOf(repository);
+					repositories.splice(repositoryIndex + 1, 0, ...childRepositories);
+				}
+			}
+
+			return repositories;
 		} else if (isSCMRepository(inputOrElement)) {
 			const artifactGroups = await inputOrElement.provider.artifactProvider.get()?.provideArtifactGroups() ?? [];
 			return artifactGroups.map(group => ({
@@ -354,6 +375,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	private treeDataSource!: RepositoryTreeDataSource;
 	private treeIdentityProvider!: RepositoryTreeIdentityProvider;
 	private readonly treeOperationSequencer = new Sequencer();
+	private readonly updateChildrenThrottler = new Throttler();
 
 	private readonly visibleCountObs: IObservable<number>;
 	private readonly providerCountBadgeObs: IObservable<'hidden' | 'auto' | 'visible'>;
@@ -373,12 +395,19 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService hoverService: IHoverService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super({ ...options, titleMenuId: MenuId.SCMSourceControlTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.visibleCountObs = observableConfigValue('scm.repositories.visible', 10, this.configurationService);
 		this.providerCountBadgeObs = observableConfigValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge', 'hidden', this.configurationService);
+
+		this.storageService.onWillSaveState(() => {
+			this.storeTreeViewState();
+		}, this, this._store);
+
+		this._register(this.updateChildrenThrottler);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -393,7 +422,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			treeContainer.classList.toggle('auto-provider-counts', providerCountBadge === 'auto');
 		}));
 
-		this.createTree(treeContainer);
+		const viewState = this.loadTreeViewState();
+		this.createTree(treeContainer, viewState);
 
 		this.onDidChangeBodyVisibility(async visible => {
 			if (!visible) {
@@ -403,7 +433,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 			this.treeOperationSequencer.queue(async () => {
 				// Initial rendering
-				await this.tree.setInput(this.scmViewService);
+				await this.tree.setInput(this.scmViewService, viewState);
 
 				// scm.repositories.visible setting
 				this.visibilityDisposables.add(autorun(reader => {
@@ -415,6 +445,12 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				this.visibilityDisposables.add(runOnChange(this.scmViewService.explorerEnabledConfig, async () => {
 					await this.updateChildren();
 					this.updateBodySize(this.tree.contentHeight);
+
+					// If we only have one repository, expand it
+					if (this.scmViewService.repositories.length === 1) {
+						await this.treeOperationSequencer.queue(() =>
+							this.tree.expand(this.scmViewService.repositories[0]));
+					}
 				}));
 
 				// Update tree selection
@@ -432,6 +468,17 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				for (const repository of this.scmService.repositories) {
 					this.onDidAddRepository(repository);
 				}
+
+				// Expand repository if there is only one
+				this.visibilityDisposables.add(autorun(async reader => {
+					const explorerEnabledConfig = this.scmViewService.explorerEnabledConfig.read(reader);
+					const didFinishLoadingRepositories = this.scmViewService.didFinishLoadingRepositories.read(reader);
+
+					if (viewState === undefined && explorerEnabledConfig && didFinishLoadingRepositories && this.scmViewService.repositories.length === 1) {
+						await this.treeOperationSequencer.queue(() =>
+							this.tree.expand(this.scmViewService.repositories[0]));
+					}
+				}));
 			});
 		}, this, this._store);
 	}
@@ -446,7 +493,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this.tree.domFocus();
 	}
 
-	private createTree(container: HTMLElement): void {
+	private createTree(container: HTMLElement, viewState?: IAsyncDataTreeViewState): void {
 		this.treeIdentityProvider = new RepositoryTreeIdentityProvider();
 		this.treeDataSource = this.instantiationService.createInstance(RepositoryTreeDataSource);
 		this._register(this.treeDataSource);
@@ -475,7 +522,10 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					}
 
 					// Explorer mode
-					if (isSCMArtifactNode(e)) {
+					if (viewState?.expanded && (isSCMRepository(e) || isSCMArtifactGroupTreeElement(e) || isSCMArtifactTreeElement(e))) {
+						// Only expand repositories/artifact groups/artifacts that were expanded before
+						return viewState.expanded.indexOf(this.treeIdentityProvider.getId(e)) === -1;
+					} else if (isSCMArtifactNode(e)) {
 						// Only expand artifact folders as they are compressed by default
 						return !(e.childrenCount === 1 && Iterable.first(e.children)?.element === undefined);
 					} else {
@@ -522,13 +572,27 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	private async onDidAddRepository(repository: ISCMRepository): Promise<void> {
 		const disposables = new DisposableStore();
 
+		// Artifact group changed
 		disposables.add(autorun(async reader => {
+			const explorerEnabled = this.scmViewService.explorerEnabledConfig.read(reader);
 			const artifactsProvider = repository.provider.artifactProvider.read(reader);
-			if (!artifactsProvider) {
+			if (!explorerEnabled || !artifactsProvider) {
 				return;
 			}
 
 			reader.store.add(artifactsProvider.onDidChangeArtifacts(async groups => {
+				await this.updateRepository(repository);
+			}));
+		}));
+
+		// HistoryItemRef changed
+		disposables.add(autorun(async reader => {
+			const historyProvider = repository.provider.historyProvider.read(reader);
+			if (!historyProvider) {
+				return;
+			}
+
+			reader.store.add(runOnChange(historyProvider.historyItemRef, async () => {
 				await this.updateRepository(repository);
 			}));
 		}));
@@ -574,7 +638,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			const artifact = e.element.artifact;
 
 			const menus = this.scmViewService.menus.getRepositoryMenus(provider);
-			const menu = menus.getArtifactMenu(e.element.group);
+			const menu = menus.getArtifactMenu(e.element.group, artifact);
 			const actions = collectContextMenuActions(menu, provider);
 
 			this.contextMenuService.showContextMenu({
@@ -626,13 +690,15 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	private async updateChildren(element?: TreeElement): Promise<void> {
-		await this.treeOperationSequencer.queue(async () => {
-			if (element && this.tree.hasNode(element)) {
-				await this.tree.updateChildren(element, true);
-			} else {
-				await this.tree.updateChildren(undefined, true);
-			}
-		});
+		return this.updateChildrenThrottler.queue(
+			() => this.treeOperationSequencer.queue(async () => {
+				if (element && this.tree.hasNode(element)) {
+					await this.tree.updateChildren(element, true);
+				} else {
+					await this.tree.updateChildren(undefined, true);
+				}
+			})
+		);
 	}
 
 	private async expand(element: TreeElement): Promise<void> {
@@ -677,6 +743,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			this.minimumBodySize = visibleCount === 0 ? 22 : size;
 			this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
 		} else {
+			this.minimumBodySize = 120;
 			this.maximumBodySize = Number.POSITIVE_INFINITY;
 		}
 	}
@@ -725,6 +792,26 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					throw new Error('Invalid tree element');
 				}
 			});
+	}
+
+	private loadTreeViewState(): IAsyncDataTreeViewState | undefined {
+		const storageViewState = this.storageService.get('scm.repositoriesViewState', StorageScope.WORKSPACE);
+		if (!storageViewState) {
+			return undefined;
+		}
+
+		try {
+			const treeViewState = JSON.parse(storageViewState);
+			return treeViewState;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private storeTreeViewState(): void {
+		if (this.tree) {
+			this.storageService.store('scm.repositoriesViewState', JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
 	}
 
 	override dispose(): void {
