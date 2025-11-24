@@ -285,6 +285,12 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			}
 		}
 
+		for (const [resource] of this.sessionStates) {
+			if (!sessions.has(resource)) {
+				this.sessionStates.delete(resource); // clean up states for removed sessions
+			}
+		}
+
 		this._onDidChangeSessions.fire();
 	}
 
@@ -437,21 +443,19 @@ class AgentSessionsCache {
 
 	//#region States
 
-	private static readonly STATES_SCOPE = StorageScope.APPLICATION; // use application scope to track globally
-
 	saveSessionStates(states: ResourceMap<{ archived: boolean }>): void {
 		const serialized: ISerializedAgentSessionState[] = Array.from(states.entries()).map(([resource, state]) => ({
 			resource: resource.toJSON(),
 			archived: state.archived
 		}));
 
-		this.storageService.store(AgentSessionsCache.STATE_STORAGE_KEY, JSON.stringify(serialized), AgentSessionsCache.STATES_SCOPE, StorageTarget.MACHINE);
+		this.storageService.store(AgentSessionsCache.STATE_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	loadSessionStates(): ResourceMap<{ archived: boolean }> {
 		const states = new ResourceMap<{ archived: boolean }>();
 
-		const statesCache = this.storageService.get(AgentSessionsCache.STATE_STORAGE_KEY, AgentSessionsCache.STATES_SCOPE);
+		const statesCache = this.storageService.get(AgentSessionsCache.STATE_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (!statesCache) {
 			return states;
 		}
