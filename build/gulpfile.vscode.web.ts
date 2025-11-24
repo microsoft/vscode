@@ -7,33 +7,28 @@ import gulp from 'gulp';
 import * as path from 'path';
 import es from 'event-stream';
 import * as util from './lib/util.ts';
-import * as getVersionModule from './lib/getVersion.ts';
+import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/task.ts';
 import * as optimize from './lib/optimize.ts';
-import * as dateModule from './lib/date.ts';
+import { readISODate } from './lib/date.ts';
 import product from '../product.json' with { type: 'json' };
 import rename from 'gulp-rename';
 import filter from 'gulp-filter';
-import * as dependenciesModule from './lib/dependencies.ts';
+import { getProductionDependencies } from './lib/dependencies.ts';
 import vfs from 'vinyl-fs';
 import packageJson from '../package.json' with { type: 'json' };
-import { compileBuildWithManglingTask } from './gulpfile.compile.mjs';
+import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import * as extensions from './lib/extensions.ts';
 import VinylFile from 'vinyl';
 import jsonEditor from 'gulp-json-editor';
 import buildfile from './buildfile.ts';
-import { fileURLToPath } from 'url';
-
-const { getVersion } = getVersionModule;
-const { readISODate } = dateModule;
-const { getProductionDependencies } = dependenciesModule;
 
 const REPO_ROOT = path.dirname(import.meta.dirname);
 const BUILD_ROOT = path.dirname(REPO_ROOT);
 const WEB_FOLDER = path.join(REPO_ROOT, 'remote', 'web');
 
 const commit = getVersion(REPO_ROOT);
-const quality = product.quality;
+const quality = (product as { quality?: string }).quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
 export const vscodeWebResourceIncludes = [
@@ -92,14 +87,10 @@ const vscodeWebEntryPoints = [
 
 /**
  * @param extensionsRoot {string} The location where extension will be read from
- * @param {object} product The parsed product.json file contents
+ * @param product The parsed product.json file contents
  */
-export const createVSCodeWebFileContentMapper = (extensionsRoot, product) => {
-	/**
-	 * @param {string} path
-	 * @returns {((content: string) => string) | undefined}
-	 */
-	return path => {
+export const createVSCodeWebFileContentMapper = (extensionsRoot: string, product: typeof import('../product.json')) => {
+	return (path: string): ((content: string) => string) | undefined => {
 		if (path.endsWith('vs/platform/product/common/product.js')) {
 			return content => {
 				const productConfiguration = JSON.stringify({
@@ -143,16 +134,12 @@ const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
 ));
 gulp.task(minifyVSCodeWebTask);
 
-/**
- * @param {string} sourceFolderName
- * @param {string} destinationFolderName
- */
-function packageTask(sourceFolderName, destinationFolderName) {
+function packageTask(sourceFolderName: string, destinationFolderName: string) {
 	const destination = path.join(BUILD_ROOT, destinationFolderName);
 
 	return () => {
 		const src = gulp.src(sourceFolderName + '/**', { base: '.' })
-			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + sourceFolderName), 'out'); }));
+			.pipe(rename(function (path) { path.dirname = path.dirname!.replace(new RegExp('^' + sourceFolderName), 'out'); }));
 
 		const extensions = gulp.src('.build/web/extensions/**', { base: '.build/web', dot: true });
 
@@ -218,7 +205,7 @@ const compileWebExtensionsBuildTask = task.define('compile-web-extensions-build'
 ));
 gulp.task(compileWebExtensionsBuildTask);
 
-const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
+const dashed = (str: string) => (str ? `-${str}` : ``);
 
 ['', 'min'].forEach(minified => {
 	const sourceFolderName = `out-vscode-web${dashed(minified)}`;

@@ -20,14 +20,12 @@ const { getVersion } = getVersionModule;
 const require = createRequire(import.meta.url);
 const repoPath = path.dirname(import.meta.dirname);
 const commit = getVersion(repoPath);
-const buildPath = (/** @type {string} */ arch) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
-const setupDir = (/** @type {string} */ arch, /** @type {string} */ target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
+const buildPath = (arch: string) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
+const setupDir = (arch: string, target: string) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup'))), 'bin', 'ISCC.exe');
 const signWin32Path = path.join(repoPath, 'build', 'azure-pipelines', 'common', 'sign-win32.ts');
 
-function packageInnoSetup(iss, options, cb) {
-	options = options || {};
-
+function packageInnoSetup(iss: string, options: { definitions?: Record<string, unknown> }, cb: (err?: Error | null) => void) {
 	const definitions = options.definitions || {};
 
 	if (process.argv.some(arg => arg === '--debug-inno')) {
@@ -60,16 +58,12 @@ function packageInnoSetup(iss, options, cb) {
 		});
 }
 
-/**
- * @param {string} arch
- * @param {string} target
- */
-function buildWin32Setup(arch, target) {
+function buildWin32Setup(arch: string, target: string) {
 	if (target !== 'system' && target !== 'user') {
 		throw new Error('Invalid setup target');
 	}
 
-	return cb => {
+	return (cb?: (err?: any) => void) => {
 		const x64AppId = target === 'system' ? product.win32x64AppId : product.win32x64UserAppId;
 		const arm64AppId = target === 'system' ? product.win32arm64AppId : product.win32arm64UserAppId;
 
@@ -77,11 +71,11 @@ function buildWin32Setup(arch, target) {
 		const outputPath = setupDir(arch, target);
 		fs.mkdirSync(outputPath, { recursive: true });
 
-		const quality = product.quality || 'dev';
+		const quality = (product as typeof product & { quality?: string }).quality || 'dev';
 		let versionedResourcesFolder = '';
 		let issPath = path.join(import.meta.dirname, 'win32', 'code.iss');
 		if (quality && quality === 'insider') {
-			versionedResourcesFolder = commit.substring(0, 10);
+			versionedResourcesFolder = commit!.substring(0, 10);
 			issPath = path.join(import.meta.dirname, 'win32', 'code-insider.iss');
 		}
 		const originalProductJsonPath = path.join(sourcePath, versionedResourcesFolder, 'resources/app/product.json');
@@ -90,7 +84,7 @@ function buildWin32Setup(arch, target) {
 		productJson['target'] = target;
 		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
-		const definitions = {
+		const definitions: Record<string, unknown> = {
 			NameLong: product.nameLong,
 			NameShort: product.nameShort,
 			DirName: product.win32DirName,
@@ -127,15 +121,11 @@ function buildWin32Setup(arch, target) {
 			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
 		}
 
-		packageInnoSetup(issPath, { definitions }, cb);
+		packageInnoSetup(issPath, { definitions }, cb as (err?: Error | null) => void);
 	};
 }
 
-/**
- * @param {string} arch
- * @param {string} target
- */
-function defineWin32SetupTasks(arch, target) {
+function defineWin32SetupTasks(arch: string, target: string) {
 	const cleanTask = util.rimraf(setupDir(arch, target));
 	gulp.task(task.define(`vscode-win32-${arch}-${target}-setup`, task.series(cleanTask, buildWin32Setup(arch, target))));
 }
@@ -145,20 +135,14 @@ defineWin32SetupTasks('arm64', 'system');
 defineWin32SetupTasks('x64', 'user');
 defineWin32SetupTasks('arm64', 'user');
 
-/**
- * @param {string} arch
- */
-function copyInnoUpdater(arch) {
+function copyInnoUpdater(arch: string) {
 	return () => {
 		return gulp.src('build/win32/{inno_updater.exe,vcruntime140.dll}', { base: 'build/win32' })
 			.pipe(vfs.dest(path.join(buildPath(arch), 'tools')));
 	};
 }
 
-/**
- * @param {string} executablePath
- */
-function updateIcon(executablePath) {
+function updateIcon(executablePath: string): task.CallbackTask {
 	return cb => {
 		const icon = path.join(repoPath, 'resources', 'win32', 'code.ico');
 		rcedit(executablePath, { icon }, cb);

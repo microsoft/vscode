@@ -8,35 +8,33 @@ import replace from 'gulp-replace';
 import rename from 'gulp-rename';
 import es from 'event-stream';
 import vfs from 'vinyl-fs';
-import * as utilModule from './lib/util.ts';
-import * as getVersionModule from './lib/getVersion.ts';
+import { rimraf } from './lib/util.ts';
+import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/task.ts';
 import packageJson from '../package.json' with { type: 'json' };
 import product from '../product.json' with { type: 'json' };
 import { getDependencies } from './linux/dependencies-generator.ts';
-import * as depLists from './linux/debian/dep-lists.ts';
+import { recommendedDeps as debianRecommendedDependencies } from './linux/debian/dep-lists.ts';
 import * as path from 'path';
 import * as cp from 'child_process';
 import { promisify } from 'util';
-import { fileURLToPath } from 'url';
 
-const { rimraf } = utilModule;
-const { getVersion } = getVersionModule;
-const { recommendedDeps: debianRecommendedDependencies } = depLists;
 const exec = promisify(cp.exec);
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
-/**
- * @param {string} arch
- */
-function getDebPackageArch(arch) {
-	return { x64: 'amd64', armhf: 'armhf', arm64: 'arm64' }[arch];
+function getDebPackageArch(arch: string): string {
+	switch (arch) {
+		case 'x64': return 'amd64';
+		case 'armhf': return 'armhf';
+		case 'arm64': return 'arm64';
+		default: throw new Error(`Unknown arch: ${arch}`);
+	}
 }
 
-function prepareDebPackage(arch) {
+function prepareDebPackage(arch: string) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const debArch = getDebPackageArch(arch);
 	const destination = '.build/linux/deb/' + debArch + '/' + product.applicationName + '-' + debArch;
@@ -94,7 +92,7 @@ function prepareDebPackage(arch) {
 					.pipe(replace('@@ARCHITECTURE@@', debArch))
 					.pipe(replace('@@DEPENDS@@', dependencies.join(', ')))
 					.pipe(replace('@@RECOMMENDS@@', debianRecommendedDependencies.join(', ')))
-					.pipe(replace('@@INSTALLEDSIZE@@', Math.ceil(size / 1024)))
+					.pipe(replace('@@INSTALLEDSIZE@@', Math.ceil(size / 1024).toString()))
 					.pipe(rename('DEBIAN/control'))
 					.pipe(es.through(function (f) { that.emit('data', f); }, function () { that.emit('end'); }));
 			}));
@@ -122,10 +120,7 @@ function prepareDebPackage(arch) {
 	};
 }
 
-/**
- * @param {string} arch
- */
-function buildDebPackage(arch) {
+function buildDebPackage(arch: string) {
 	const debArch = getDebPackageArch(arch);
 	const cwd = `.build/linux/deb/${debArch}`;
 
@@ -136,24 +131,20 @@ function buildDebPackage(arch) {
 	};
 }
 
-/**
- * @param {string} rpmArch
- */
-function getRpmBuildPath(rpmArch) {
+function getRpmBuildPath(rpmArch: string): string {
 	return '.build/linux/rpm/' + rpmArch + '/rpmbuild';
 }
 
-/**
- * @param {string} arch
- */
-function getRpmPackageArch(arch) {
-	return { x64: 'x86_64', armhf: 'armv7hl', arm64: 'aarch64' }[arch];
+function getRpmPackageArch(arch: string): string {
+	switch (arch) {
+		case 'x64': return 'x86_64';
+		case 'armhf': return 'armv7hl';
+		case 'arm64': return 'aarch64';
+		default: throw new Error(`Unknown arch: ${arch}`);
+	}
 }
 
-/**
- * @param {string} arch
- */
-function prepareRpmPackage(arch) {
+function prepareRpmPackage(arch: string) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const rpmArch = getRpmPackageArch(arch);
 	const stripBinary = process.env['STRIP'] ?? '/usr/bin/strip';
@@ -205,11 +196,11 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@NAME_LONG@@', product.nameLong))
 			.pipe(replace('@@ICON@@', product.linuxIconName))
 			.pipe(replace('@@VERSION@@', packageJson.version))
-			.pipe(replace('@@RELEASE@@', linuxPackageRevision))
+			.pipe(replace('@@RELEASE@@', linuxPackageRevision.toString()))
 			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
 			.pipe(replace('@@LICENSE@@', product.licenseName))
-			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
-			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
+			.pipe(replace('@@QUALITY@@', (product as typeof product & { quality?: string }).quality || '@@QUALITY@@'))
+			.pipe(replace('@@UPDATEURL@@', (product as typeof product & { updateUrl?: string }).updateUrl || '@@UPDATEURL@@'))
 			.pipe(replace('@@DEPENDENCIES@@', dependencies.join(', ')))
 			.pipe(replace('@@STRIP@@', stripBinary))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));
@@ -223,10 +214,7 @@ function prepareRpmPackage(arch) {
 	};
 }
 
-/**
- * @param {string} arch
- */
-function buildRpmPackage(arch) {
+function buildRpmPackage(arch: string) {
 	const rpmArch = getRpmPackageArch(arch);
 	const rpmBuildPath = getRpmBuildPath(rpmArch);
 	const rpmOut = `${rpmBuildPath}/RPMS/${rpmArch}`;
@@ -239,17 +227,11 @@ function buildRpmPackage(arch) {
 	};
 }
 
-/**
- * @param {string} arch
- */
-function getSnapBuildPath(arch) {
+function getSnapBuildPath(arch: string): string {
 	return `.build/linux/snap/${arch}/${product.applicationName}-${arch}`;
 }
 
-/**
- * @param {string} arch
- */
-function prepareSnapPackage(arch) {
+function prepareSnapPackage(arch: string) {
 	const binaryDir = '../VSCode-linux-' + arch;
 	const destination = getSnapBuildPath(arch);
 
@@ -279,7 +261,7 @@ function prepareSnapPackage(arch) {
 
 		const snapcraft = gulp.src('resources/linux/snap/snapcraft.yaml', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
-			.pipe(replace('@@VERSION@@', commit.substr(0, 8)))
+			.pipe(replace('@@VERSION@@', commit!.substr(0, 8)))
 			// Possible run-on values https://snapcraft.io/docs/architectures
 			.pipe(replace('@@ARCHITECTURE@@', arch === 'x64' ? 'amd64' : arch))
 			.pipe(rename('snap/snapcraft.yaml'));
@@ -293,10 +275,7 @@ function prepareSnapPackage(arch) {
 	};
 }
 
-/**
- * @param {string} arch
- */
-function buildSnapPackage(arch) {
+function buildSnapPackage(arch: string) {
 	const cwd = getSnapBuildPath(arch);
 	return () => exec('snapcraft', { cwd });
 }

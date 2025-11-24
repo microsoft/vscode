@@ -2,17 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-//@ts-check
+
 import gulp from 'gulp';
 import * as util from './lib/util.ts';
 import * as date from './lib/date.ts';
 import * as task from './lib/task.ts';
 import * as compilation from './lib/compilation.ts';
 
-/**
- * @param {boolean} disableMangle
- */
-function makeCompileBuildTask(disableMangle) {
+function makeCompileBuildTask(disableMangle: boolean) {
 	return task.series(
 		util.rimraf('out-build'),
 		date.writeISODate('out-build'),

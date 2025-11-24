@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-//@ts-check
+
 import gulp from 'gulp';
 import path from 'path';
 import * as util from './lib/util.ts';
@@ -84,10 +84,7 @@ const compileEditorESMTask = task.define('compile-editor-esm', () => {
 	);
 });
 
-/**
- * @param {string} contents
- */
-function toExternalDTS(contents) {
+function toExternalDTS(contents: string) {
 	const lines = contents.split(/\r\n|\r|\n/);
 	let killNextCloseCurlyBrace = false;
 	for (let i = 0; i < lines.length; i++) {
@@ -230,10 +227,7 @@ gulp.task('monacodts', task.define('monacodts', () => {
 
 //#region monaco type checking
 
-/**
- * @param {boolean} watch
- */
-function createTscCompileTask(watch) {
+function createTscCompileTask(watch: boolean) {
 	return () => {
 		return new Promise((resolve, reject) => {
 			const args = ['./node_modules/.bin/tsc', '-p', './src/tsconfig.monaco.json', '--noEmit'];
@@ -244,11 +238,10 @@ function createTscCompileTask(watch) {
 				cwd: path.join(import.meta.dirname, '..'),
 				// stdio: [null, 'pipe', 'inherit']
 			});
-			const errors = [];
+			const errors: string[] = [];
 			const reporter = createReporter('monaco');
 
-			/** @type {NodeJS.ReadWriteStream | undefined} */
-			let report;
+			let report: NodeJS.ReadWriteStream | undefined;
 			const magic = /[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g; // https://stackoverflow.com/questions/25245716/remove-all-ansi-colors-styles-from-strings
 
 			child.stdout.on('data', data => {
@@ -286,14 +279,13 @@ export const monacoTypecheckWatchTask = task.define('monaco-typecheck-watch', cr
 export const monacoTypecheckTask = task.define('monaco-typecheck', createTscCompileTask(false));
 
 //#endregion
-
 /**
  * Sets a field on an object only if it's not already set, otherwise throws an error
- * @param {any} obj - The object to modify
- * @param {string} field - The field name to set
- * @param {any} value - The value to set
+ * @param obj The object to modify
+ * @param field The field name to set
+ * @param value The value to set
  */
-function setUnsetField(obj, field, value) {
+function setUnsetField(obj: Record<string, unknown>, field: string, value: unknown) {
 	if (obj[field] !== undefined) {
 		throw new Error(`Field "${field}" is already set (but was expected to not be).`);
 	}

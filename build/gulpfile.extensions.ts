@@ -22,7 +22,6 @@ import plumber from 'gulp-plumber';
 import * as ext from './lib/extensions.ts';
 import * as tsb from './lib/tsb/index.ts';
 import sourcemaps from 'gulp-sourcemaps';
-import { fileURLToPath } from 'url';
 
 const { getVersion } = getVersionModule;
 const { createReporter } = reporterModule;
@@ -79,13 +78,13 @@ const compilations = [
 	'.vscode/extensions/vscode-selfhost-import-aid/tsconfig.json',
 ];
 
-const getBaseUrl = out => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;
+const getBaseUrl = (out: string) => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;
 
 const tasks = compilations.map(function (tsconfigFile) {
 	const absolutePath = path.join(root, tsconfigFile);
 	const relativeDirname = path.dirname(tsconfigFile.replace(/^(.*\/)?extensions\//i, ''));
 
-	const overrideOptions = {};
+	const overrideOptions: { sourceMap?: boolean; inlineSources?: boolean; base?: string } = {};
 	overrideOptions.sourceMap = true;
 
 	const name = relativeDirname.replace(/\//g, '-');
@@ -98,7 +97,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const out = path.join(srcRoot, 'out');
 	const baseUrl = getBaseUrl(out);
 
-	function createPipeline(build, emitError, transpileOnly) {
+	function createPipeline(build: boolean, emitError?: boolean, transpileOnly?: boolean) {
 		const reporter = createReporter('extensions');
 
 		overrideOptions.inlineSources = Boolean(build);
@@ -122,14 +121,14 @@ const tasks = compilations.map(function (tsconfigFile) {
 				.pipe(compilation())
 				.pipe(build ? util.stripSourceMappingURL() : es.through())
 				.pipe(sourcemaps.write('.', {
-					sourceMappingURL: !build ? null : f => `${baseUrl}/${f.relative}.map`,
+					sourceMappingURL: !build ? undefined : f => `${baseUrl}/${f.relative}.map`,
 					addComment: !!build,
 					includeContent: !!build,
 					// note: trailing slash is important, else the source URLs in V8's file coverage are incorrect
 					sourceRoot: '../src/',
 				}))
 				.pipe(tsFilter.restore)
-				.pipe(reporter.end(emitError));
+				.pipe(reporter.end(!!emitError));
 
 			return es.duplex(input, output);
 		};
@@ -266,10 +265,7 @@ gulp.task(compileWebExtensionsTask);
 export const watchWebExtensionsTask = task.define('watch-web', () => buildWebExtensions(true));
 gulp.task(watchWebExtensionsTask);
 
-/**
- * @param {boolean} isWatch
- */
-async function buildWebExtensions(isWatch) {
+async function buildWebExtensions(isWatch: boolean) {
 	const extensionsPath = path.join(root, 'extensions');
 	const webpackConfigLocations = await nodeUtil.promisify(glob)(
 		path.join(extensionsPath, '**', 'extension-browser.webpack.config.js'),
