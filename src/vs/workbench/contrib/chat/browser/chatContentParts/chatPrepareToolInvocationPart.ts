@@ -70,6 +70,7 @@ export class ChatPrepareToolInvocationPart extends ChatProgressContentPart imple
 		}
 
 		const streamContext: IToolInvocationStreamContext = {
+			toolCallId: prepareToolInvocation.toolCallId,
 			rawInput: prepareToolInvocation.streamData?.partialInput,
 			chatRequestId: isResponseVM(this.element) ? this.element.requestId : undefined,
 			chatSessionId: this.element.sessionId

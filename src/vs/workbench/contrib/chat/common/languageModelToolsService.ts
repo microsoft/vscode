@@ -273,6 +273,7 @@ export enum ToolInvocationPresentation {
 }
 
 export interface IToolInvocationStreamContext {
+	toolCallId: string;
 	rawInput: unknown;
 	chatRequestId?: string;
 	chatSessionId?: string;
