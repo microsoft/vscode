@@ -65,9 +65,11 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		return Disposable.None;
 	}
 
-	getTools(): Iterable<Readonly<IToolData>> {
+	getTools(): Iterable<IToolData> {
 		return [];
 	}
+
+	toolsObservable: IObservable<readonly IToolData[]> = constObservable([]);
 
 	getTool(id: string): IToolData | undefined {
 		return undefined;
@@ -109,23 +111,23 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	getQualifiedToolNames(): Iterable<string> {
+	getFullReferenceNames(): Iterable<string> {
 		throw new Error('Method not implemented.');
 	}
 
-	getToolByQualifiedName(qualifiedName: string): IToolData | ToolSet | undefined {
+	getToolByFullReferenceName(qualifiedName: string): IToolData | ToolSet | undefined {
 		throw new Error('Method not implemented.');
 	}
 
-	getQualifiedToolName(tool: IToolData, set?: ToolSet): string {
+	getFullReferenceName(tool: IToolData, set?: ToolSet): string {
 		throw new Error('Method not implemented.');
 	}
 
-	toQualifiedToolNames(map: IToolAndToolSetEnablementMap): string[] {
+	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[] {
 		throw new Error('Method not implemented.');
 	}
 
-	getDeprecatedQualifiedToolNames(): Map<string, Set<string>> {
+	getDeprecatedFullReferenceNames(): Map<string, Set<string>> {
 		throw new Error('Method not implemented.');
 	}
 }

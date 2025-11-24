@@ -202,7 +202,6 @@
 	// --- Workbench ---
 	// "application.experimental.rendererProfiling": true, // https://github.com/microsoft/vscode/issues/265654
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
-	"chat.emptyState.history.enabled": true,
 	"chat.promptFilesRecommendations": {
 		"plan-fast": true,
 		"plan-deep": true

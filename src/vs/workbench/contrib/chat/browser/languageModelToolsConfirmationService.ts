@@ -415,7 +415,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		};
 	}
 
-	manageConfirmationPreferences(tools: Readonly<IToolData>[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void {
+	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void {
 		interface IToolTreeItem extends IQuickTreeItem {
 			type: 'tool' | 'server' | 'tool-pre' | 'tool-post' | 'server-pre' | 'server-post' | 'manage';
 			toolId?: string;

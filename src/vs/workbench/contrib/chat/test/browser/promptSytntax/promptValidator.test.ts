@@ -18,7 +18,6 @@ import { IMarkerData, MarkerSeverity } from '../../../../../../platform/markers/
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../browser/languageModelToolsService.js';
 import { ChatMode, CustomChatMode, IChatModeService } from '../../../common/chatModes.js';
-import { IChatService } from '../../../common/chatService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/languageModelToolsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -28,7 +27,6 @@ import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
-import { MockChatService } from '../../common/mockChatService.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,8 +44,6 @@ suite('PromptValidator', () => {
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
 			configurationService: () => testConfigService
 		}, disposables);
-		const chatService = new MockChatService();
-		instaService.stub(IChatService, chatService);
 		instaService.stub(ILabelService, { getUriLabel: (resource) => resource.path });
 
 		const toolService = disposables.add(instaService.createInstance(LanguageModelToolsService));

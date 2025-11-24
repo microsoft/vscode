@@ -161,7 +161,7 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'HelloWorld' });
 
-		const modelRef = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
+		const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
 		const model = modelRef.object as ChatModel;
 		const session = model.editingSession;
 		if (!session) {
@@ -188,8 +188,6 @@ suite('ChatEditingService', function () {
 		await unset;
 
 		await entry.reject();
-
-		modelRef.dispose();
 	});
 
 	async function idleAfterEdit(session: IChatEditingSession, model: ChatModel, uri: URI, edits: TextEdit[]) {
