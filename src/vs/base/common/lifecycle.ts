@@ -505,8 +505,7 @@ export class DisposableStore implements IDisposable {
 		if (!o) {
 			return;
 		}
-		if (this._toDispose.has(o)) {
-			this._toDispose.delete(o);
+		if (this._toDispose.delete(o)) {
 			setParentOfDisposable(o, null);
 		}
 	}

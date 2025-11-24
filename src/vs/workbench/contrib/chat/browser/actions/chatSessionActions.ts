@@ -21,20 +21,17 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
-import { LEGACY_AGENT_SESSIONS_VIEW_ID, ChatConfiguration } from '../../common/constants.js';
+import { ChatConfiguration, LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
 import { AGENT_SESSIONS_VIEW_CONTAINER_ID, AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { findExistingChatEditorByUri } from '../chatSessions/common.js';
-import { ChatViewPane } from '../chatViewPane.js';
 import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 
 export interface IMarshalledChatSessionContext {
@@ -176,29 +173,14 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 			return;
 		}
 
-		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-
 		const uri = context.session.resource;
 
-		// Check if this session is already open in another editor
-		const existingEditor = findExistingChatEditorByUri(uri, editorGroupsService);
-		if (existingEditor) {
-			await editorService.openEditor(existingEditor.editor, existingEditor.group);
-			return;
-		} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
-			return;
-		} else {
-			const options: IChatEditorOptions = {
-				ignoreInView: true,
-				auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
-			};
-			await editorService.openEditor({
-				resource: uri,
-				options,
-			}, AUX_WINDOW_GROUP);
-		}
+		const options: IChatEditorOptions = {
+			ignoreInView: true,
+			auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
+		};
+		await chatWidgetService.openSession(uri, AUX_WINDOW_GROUP, options);
 	}
 }
 
@@ -222,29 +204,13 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 			return;
 		}
 
-		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
-
 		const uri = context.session.resource;
 
-		// Check if this session is already open in another editor
-		const existingEditor = findExistingChatEditorByUri(uri, editorGroupsService);
-		if (existingEditor) {
-			await editorService.openEditor(existingEditor.editor, existingEditor.group);
-			return;
-		} else if (chatWidgetService.getWidgetBySessionResource(uri)) {
-			// Already opened in chat widget
-			return;
-		} else {
-			const options: IChatEditorOptions = {
-				ignoreInView: true,
-			};
-			await editorService.openEditor({
-				resource: uri,
-				options,
-			}, SIDE_GROUP);
-		}
+		const options: IChatEditorOptions = {
+			ignoreInView: true,
+		};
+		await chatWidgetService.openSession(uri, SIDE_GROUP, options);
 	}
 }
 
@@ -264,10 +230,7 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const viewsService = accessor.get(IViewsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const editorGroupsService = accessor.get(IEditorGroupsService);
 
 		if (!context) {
 			return;
@@ -278,25 +241,8 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 			return;
 		}
 
-		// Check if this session is already open in another editor
-		// TODO: this feels strange. Should we prefer moving the editor to the sidebar instead?
-		const existingEditor = findExistingChatEditorByUri(context.session.resource, editorGroupsService);
-		if (existingEditor) {
-			await editorService.openEditor(existingEditor.editor, existingEditor.group);
-			return;
-		} else if (chatWidgetService.getWidgetBySessionResource(context.session.resource)) {
-			return;
-		}
-
-		// Open the chat view in the sidebar
-		const chatViewPane = await viewsService.openView(ChatViewId) as ChatViewPane;
-		if (chatViewPane) {
-			// Handle different session types
-			await chatViewPane.loadSession(context.session.resource);
-
-			// Focus the chat input
-			chatViewPane.focusInput();
-		}
+		// TODO: this feels strange. Should we prefer moving the editor to the sidebar instead? @osortega
+		await chatWidgetService.openSession(context.session.resource, ChatViewPaneTarget);
 	}
 }
 

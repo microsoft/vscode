@@ -446,9 +446,7 @@ export class ChatModelsViewModel extends Disposable {
 			return;
 		}
 		this.selectedEntry = viewModelEntry;
-		if (this.collapsedGroups.has(id)) {
-			this.collapsedGroups.delete(id);
-		} else {
+		if (!this.collapsedGroups.delete(id)) {
 			this.collapsedGroups.add(id);
 		}
 		this.filter(this.searchValue);

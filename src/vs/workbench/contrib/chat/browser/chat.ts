@@ -36,6 +36,10 @@ export interface IChatWidgetService {
 
 	/**
 	 * Returns the most recently focused widget if any.
+	 *
+	 * ⚠️ Consider carefully if this is appropriate for your use case. If you
+	 * can know what session you're interacting with, prefer {@link getWidgetBySessionResource}
+	 * or similar methods to work nicely with multiple chat widgets.
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
 

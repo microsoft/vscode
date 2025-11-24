@@ -61,7 +61,7 @@ steps:
       sudo service xvfb start
     displayName: Setup system services
 
-  - script: node build/setup-npm-registry.js $NPM_REGISTRY
+  - script: node build/setup-npm-registry.ts $NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
@@ -134,7 +134,7 @@ steps:
 
       # Run preinstall script before root dependencies are installed
       # so that v8 headers are patched correctly for native modules.
-      node build/npm/preinstall.js
+      node build/npm/preinstall.ts
 
       for i in {1..5}; do # try 5 times
         npm ci && break

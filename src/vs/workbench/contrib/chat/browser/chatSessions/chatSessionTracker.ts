@@ -49,10 +49,10 @@ export class ChatSessionTracker extends Disposable {
 				return;
 			}
 
-			const editor = e.editor as ChatEditorInput;
+			const editor = e.editor;
 			const sessionType = editor.getSessionType();
 
-			const model = this.chatService.getSession(editor.sessionResource!);
+			const model = editor.sessionResource && this.chatService.getSession(editor.sessionResource);
 			if (model) {
 				this.chatSessionsService.registerModelProgressListener(model, () => {
 					this.chatSessionsService.notifySessionItemsChanged(sessionType);

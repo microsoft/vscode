@@ -605,7 +605,7 @@ class StartParameterizedPromptAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 		const fileService = accessor.get(IFileService);
 
-		const chatWidget = widgetService.lastFocusedWidget;
+		const chatWidget = await widgetService.revealWidget(true);
 		if (!chatWidget) {
 			return;
 		}
