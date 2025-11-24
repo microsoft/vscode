@@ -34,7 +34,6 @@ import { IChatContentInlineReference, IChatContentReference, IChatFollowup, ICha
 import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
-
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
