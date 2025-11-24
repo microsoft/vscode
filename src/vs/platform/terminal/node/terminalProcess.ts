@@ -666,6 +666,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	override dispose() {
 		super.dispose();
 		this._ptyProcess = undefined;
+		this._processStartupComplete = undefined;
 	}
 }
 
