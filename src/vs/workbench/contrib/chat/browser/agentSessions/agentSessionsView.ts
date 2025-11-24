@@ -153,7 +153,7 @@ export class AgentSessionsView extends ViewPane {
 		}
 
 		const provider = await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
-		const contextOverlay = getSessionItemContextOverlay(session, provider, this.chatWidgetService, this.chatService, this.editorGroupsService);
+		const contextOverlay = getSessionItemContextOverlay(session, provider, this.chatService, this.editorGroupsService);
 		contextOverlay.push([ChatContextKeys.isCombinedSessionViewer.key, true]);
 		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(contextOverlay));
 

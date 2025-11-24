@@ -33,7 +33,7 @@ import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, ICha
 import { ChatModelStore, IStartSessionProps } from './chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
-import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
+import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
@@ -174,6 +174,9 @@ export class ChatService extends Disposable implements IChatService {
 					}
 				}
 			}
+		}));
+		this._register(this._sessionModels.onDidDisposeModel(model => {
+			this._onDidDisposeSession.fire({ sessionResource: model.sessionResource, reason: 'cleared' });
 		}));
 
 		this._chatServiceTelemetry = this.instantiationService.createInstance(ChatServiceTelemetry);
@@ -410,7 +413,7 @@ export class ChatService extends Disposable implements IChatService {
 		await this._chatSessionStore.clearAllSessions();
 	}
 
-	startSession(location: ChatAgentLocation, token: CancellationToken, options?: { canUseTools?: boolean }): IChatModelReference {
+	startSession(location: ChatAgentLocation, token: CancellationToken, options?: IChatSessionStartOptions): IChatModelReference {
 		this.trace('startSession');
 		const sessionId = generateUuid();
 		const sessionResource = LocalChatSessionUri.forSession(sessionId);
@@ -421,12 +424,13 @@ export class ChatService extends Disposable implements IChatService {
 			sessionResource,
 			sessionId,
 			canUseTools: options?.canUseTools ?? true,
+			disableBackgroundKeepAlive: options?.disableBackgroundKeepAlive
 		});
 	}
 
 	private _startSession(props: IStartSessionProps): ChatModel {
-		const { initialData, location, token, sessionResource, sessionId, canUseTools, transferEditingSession } = props;
-		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, sessionId });
+		const { initialData, location, token, sessionResource, sessionId, canUseTools, transferEditingSession, disableBackgroundKeepAlive } = props;
+		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, sessionId, disableBackgroundKeepAlive });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(true, transferEditingSession);
 		}
@@ -1250,21 +1254,6 @@ export class ChatService extends Disposable implements IChatService {
 		this.trace('cancelCurrentRequestForSession', `session: ${sessionResource}`);
 		this._pendingRequests.get(sessionResource)?.cancel();
 		this._pendingRequests.deleteAndDispose(sessionResource);
-	}
-
-	// TODO should not exist
-	async forceClearSession(sessionResource: URI): Promise<void> {
-		this.trace('clearSession', `session: ${sessionResource}`);
-		const model = this._sessionModels.get(sessionResource);
-		if (!model) {
-			throw new Error(`Unknown session: ${sessionResource}`);
-		}
-
-		// this._sessionModels.delete(sessionResource);
-		model.dispose();
-		this._pendingRequests.get(sessionResource)?.cancel();
-		this._pendingRequests.deleteAndDispose(sessionResource);
-		this._onDidDisposeSession.fire({ sessionResource, reason: 'cleared' });
 	}
 
 	public hasSessions(): boolean {

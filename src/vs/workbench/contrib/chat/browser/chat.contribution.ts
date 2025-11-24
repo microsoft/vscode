@@ -358,12 +358,6 @@ configurationRegistry.registerConfiguration({
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
 		},
-		[ChatConfiguration.EmptyStateHistoryEnabled]: {
-			type: 'boolean',
-			default: product.quality === 'insiders',
-			description: nls.localize('chat.emptyState.history.enabled', "Show recent chat history on the empty chat state."),
-			tags: ['preview']
-		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
 			default: true,

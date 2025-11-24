@@ -201,10 +201,12 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		const elements = dom.h('.chat-confirmation-widget-container@container', [
 			dom.h('.chat-confirmation-widget@root', [
 				dom.h('.chat-confirmation-widget-title@title'),
-				dom.h('.chat-confirmation-widget-message@message'),
-				dom.h('.chat-buttons-container@buttonsContainer', [
-					dom.h('.chat-buttons@buttons'),
-					dom.h('.chat-toolbar@toolbar'),
+				dom.h('.chat-confirmation-widget-message-container', [
+					dom.h('.chat-confirmation-widget-message@message'),
+					dom.h('.chat-buttons-container@buttonsContainer', [
+						dom.h('.chat-buttons@buttons'),
+						dom.h('.chat-toolbar@toolbar'),
+					]),
 				]),
 			]),
 		]);
