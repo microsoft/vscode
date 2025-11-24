@@ -182,8 +182,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			return undefined;
 		}
 
-		// supportsModel is a proposed API, cast to access it
-		const supportsModelFn = (item.tool as { supportsModel?: (modelId: string) => vscode.ProviderResult<boolean> }).supportsModel;
+		// supportsModel is a proposed API
+		const supportsModelFn = item.tool.supportsModel;
 		if (supportsModelFn) {
 			const result = await supportsModelFn(modelId);
 			return result ?? undefined;
@@ -306,8 +306,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new Error(`Unknown tool ${toolId}`);
 		}
 
-		// supportsModel is a proposed API, cast to access it
-		const supportsModelFn = (item.tool as { supportsModel?: (modelId: string) => vscode.ProviderResult<boolean> }).supportsModel;
+		// supportsModel is a proposed API
+		const supportsModelFn = item.tool.supportsModel;
 		if (supportsModelFn) {
 			const result = await supportsModelFn(modelId);
 			return result ?? undefined;
