@@ -136,7 +136,22 @@ export class BrowserEditor extends EditorPane {
 
 		// Create browser container (stub element for positioning)
 		this.browserContainer = $('.browser-container');
+		this.browserContainer.tabIndex = 0; // make focusable
 		root.appendChild(this.browserContainer);
+
+		this._register(addDisposableListener(this.browserContainer, EventType.FOCUS, () => {
+			if (this.model) {
+				void this.model.focus();
+			}
+		}));
+
+		this._register(addDisposableListener(this.browserContainer, EventType.BLUR, () => {
+			// When focus goes to another part of the workbench, make sure the workbench view becomes focused.
+			const focused = this.window.document.activeElement;
+			if (focused && focused !== this.browserContainer) {
+				this.window.focus();
+			}
+		}));
 
 		// Setup URL input handler
 		this._register(addDisposableListener(this.urlInput, EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -192,6 +207,13 @@ export class BrowserEditor extends EditorPane {
 			this.backAction.enabled = navEvent.canGoBack;
 			this.forwardAction.enabled = navEvent.canGoForward;
 			this.urlInput.value = navEvent.url;
+		}));
+
+		this.inputDisposables.add(this.model.onDidChangeFocus(({ focused }) => {
+			// When the view gets focused, make sure the container also has focus.
+			if (focused) {
+				this.browserContainer.focus();
+			}
 		}));
 
 		this.layout();

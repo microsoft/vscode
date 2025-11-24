@@ -152,4 +152,10 @@ export interface IBrowserViewService {
 	 * @param keyEvent The key event data
 	 */
 	dispatchKeyEvent(viewId: string, keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
+
+	/**
+	 * Focus the browser view
+	 * @param id The browser view identifier
+	 */
+	focus(id: string): Promise<void>;
 }

@@ -168,6 +168,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).setZoomFactor(zoomFactor);
 	}
 
+	async focus(id: string): Promise<void> {
+		return this._getBrowserView(id).focus();
+	}
+
 	override dispose(): void {
 		// Clean up all browser views
 		for (const view of this.browserViews.values()) {
@@ -355,6 +359,7 @@ export class BrowserView extends Disposable {
 	 * Set the visibility of this view
 	 */
 	setVisible(visible: boolean): void {
+		// If the view is focused, pass focus back to the window when hiding
 		if (!visible && this.view.webContents.isFocused()) {
 			this._window?.win?.webContents.focus();
 		}
@@ -461,6 +466,13 @@ export class BrowserView extends Disposable {
 	 */
 	async setZoomFactor(zoomFactor: number): Promise<void> {
 		await this.view.webContents.setZoomFactor(zoomFactor);
+	}
+
+	/**
+	 * Focus this view
+	 */
+	async focus(): Promise<void> {
+		this.view.webContents.focus();
 	}
 
 	/**

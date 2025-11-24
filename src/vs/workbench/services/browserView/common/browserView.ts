@@ -79,6 +79,7 @@ export interface IBrowserViewModel extends IDisposable {
 	reload(): Promise<void>;
 	captureScreenshot(quality?: number): Promise<string>;
 	dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
+	focus(): Promise<void>;
 }
 
 export class BrowserViewModel extends Disposable implements IBrowserViewModel {
@@ -196,6 +197,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void> {
 		return this.browserViewService.dispatchKeyEvent(this.id, keyEvent);
+	}
+
+	async focus(): Promise<void> {
+		return this.browserViewService.focus(this.id);
 	}
 
 	override dispose(): void {
