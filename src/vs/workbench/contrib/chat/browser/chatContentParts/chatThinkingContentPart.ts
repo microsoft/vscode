@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode } from '../../../../../base/browser/dom.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
-import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
-import { ThinkingDisplayMode, ChatAgentLocation } from '../../common/constants.js';
+import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { ThinkingDisplayMode } from '../../common/constants.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -22,7 +21,8 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
-import { IChatAgentService } from '../../common/chatAgents.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import './media/chatThinkingContent.css';
 
 
@@ -61,7 +61,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
-		@IChatAgentService private readonly chatAgentService: IChatAgentService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
@@ -287,37 +287,54 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		this.updateDropdownClickability();
-
-		// Generate a better title via LLM in the background without blocking
-		const agentId = isResponseVM(this.context.element) ? this.context.element.agent?.id : undefined;
-		const sessionResource = this.context.element.sessionResource;
-		if (this.extractedTitles.length > 0 && agentId && sessionResource) {
-			this.generateTitleViaLLM(agentId, sessionResource);
-		}
+		this.generateTitleViaLLM();
 	}
 
-	private async generateTitleViaLLM(agentId: string, sessionResource: URI): Promise<void> {
+	private async generateTitleViaLLM(): Promise<void> {
 		try {
-			const titlesContext = this.extractedTitles.join(', ');
-			const message = `Generate a concise header for thinking that contains the following thoughts: ${titlesContext}`;
-			const generatedTitle = await this.chatAgentService.getChatTitle(agentId, [{
-				request: {
-					sessionId: sessionResource.toString(), // Use toString as fallback
-					sessionResource: sessionResource,
-					requestId: this.id || '',
-					agentId: agentId,
-					message: message,
-					command: undefined,
-					variables: { variables: [] },
-					location: ChatAgentLocation.Chat,
-					editedFileEvents: [],
-				},
-				response: [],
-				result: {}
-			}], CancellationToken.None);
+			let models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', id: 'copilot-fast' });
+			if (!models.length) {
+				models = await this.languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
+			}
+			if (!models.length) {
+				this.setFallbackTitle();
+				return;
+			}
+
+			let context: string;
+			if (this.extractedTitles.length > 0) {
+				context = this.extractedTitles.join(', ');
+			} else {
+				context = this.currentThinkingValue.substring(0, 1000);
+			}
+
+			const prompt = `Generate a very concise header for thinking that contains the following thoughts: ${context}. Respond with only the header text, no quotes or punctuation.`;
+
+			const response = await this.languageModelsService.sendChatRequest(
+				models[0],
+				new ExtensionIdentifier('core'),
+				[{ role: ChatMessageRole.User, content: [{ type: 'text', value: prompt }] }],
+				{},
+				CancellationToken.None
+			);
+
+			let generatedTitle = '';
+			for await (const part of response.stream) {
+				if (Array.isArray(part)) {
+					for (const p of part) {
+						if (p.type === 'text') {
+							generatedTitle += p.value;
+						}
+					}
+				} else if (part.type === 'text') {
+					generatedTitle += part.value;
+				}
+			}
+
+			await response.result;
+			generatedTitle = generatedTitle.trim();
 
 			if (generatedTitle && !this._store.isDisposed) {
-				// Update the title with the generated one
 				this.currentTitle = generatedTitle;
 				if (this._collapseButton) {
 					this._collapseButton.label = generatedTitle;
@@ -328,7 +345,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			// fall through to default title
 		}
 
-		// Use default title when generation fails or returns empty
+		this.setFallbackTitle();
+	}
+
+	private setFallbackTitle(): void {
 		const finalLabel = this.toolInvocationCount > 0
 			? localize('chat.thinking.finished.withTools', 'Finished thinking and invoked {0} tool{1}', this.toolInvocationCount, this.toolInvocationCount === 1 ? '' : 's')
 			: localize('chat.thinking.finished', 'Finished Thinking');
