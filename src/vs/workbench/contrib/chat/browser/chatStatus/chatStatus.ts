@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatStatus.css';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { localize } from '../../../../nls.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../services/chat/common/chatEntitlementService.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
-import { Color } from '../../../../base/common/color.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import product from '../../../../platform/product/common/product.js';
-import { isObject } from '../../../../base/common/types.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { getCodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { IInlineCompletionsService } from '../../../../editor/browser/services/inlineCompletionsService.js';
-import { IChatSessionsService } from '../common/chatSessionsService.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { localize } from '../../../../../nls.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../../services/statusbar/browser/statusbar.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { Color } from '../../../../../base/common/color.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import product from '../../../../../platform/product/common/product.js';
+import { isObject } from '../../../../../base/common/types.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
+import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatStatusDashboard } from './chatStatusDashboard.js';
-import { mainWindow } from '../../../../base/browser/window.js';
-import { disposableWindowInterval } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
+import { disposableWindowInterval } from '../../../../../base/browser/dom.js';
 
 const gaugeForeground = registerColor('gauge.foreground', {
 	dark: inputValidationInfoBorder,

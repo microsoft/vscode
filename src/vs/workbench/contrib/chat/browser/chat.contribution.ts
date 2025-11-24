@@ -113,7 +113,7 @@ import { ChatTerminalOutputAccessibleView } from './chatTerminalOutputAccessible
 import { LocalChatSessionsProvider } from './chatSessions/localChatSessionsProvider.js';
 import { ChatSessionsView, ChatSessionsViewContrib } from './chatSessions/view/chatSessionsView.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js';
-import { ChatStatusBarEntry } from './chatStatus.js';
+import { ChatStatusBarEntry } from './chatStatus/chatStatus.js';
 import { ChatVariablesService } from './chatVariables.js';
 import { ChatWidget } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
