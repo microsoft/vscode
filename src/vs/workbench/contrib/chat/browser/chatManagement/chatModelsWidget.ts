@@ -19,10 +19,10 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IAction, toAction, Action, Separator } from '../../../../../base/common/actions.js';
+import { IAction, toAction, Action, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ChatModelsViewModel, IModelEntry, IModelItemEntry, IVendorItemEntry, SEARCH_SUGGESTIONS, isVendorEntry } from './chatModelsViewModel.js';
+import { ChatModelsViewModel, IModelEntry, IModelItemEntry, IVendorItemEntry, IGroupItemEntry, SEARCH_SUGGESTIONS, isVendorEntry, isGroupEntry, ChatModelGroup } from './chatModelsViewModel.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { Delayer } from '../../../../../base/common/async.js';
@@ -44,7 +44,7 @@ const HEADER_HEIGHT = 30;
 const VENDOR_ROW_HEIGHT = 30;
 const MODEL_ROW_HEIGHT = 26;
 
-type TableEntry = IModelItemEntry | IVendorItemEntry;
+type TableEntry = IModelItemEntry | IVendorItemEntry | IGroupItemEntry;
 
 export function getModelHoverContent(model: IModelEntry): MarkdownString {
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
@@ -151,6 +151,20 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 		);
 	}
 
+	private createGroupByAction(grouping: ChatModelGroup, label: string): IAction {
+		return {
+			id: `groupBy.${grouping}`,
+			label,
+			class: undefined,
+			enabled: true,
+			tooltip: localize('groupByTooltip', "Group by {0}", label),
+			checked: this.viewModel.groupBy === grouping,
+			run: () => {
+				this.viewModel.groupBy = grouping;
+			}
+		};
+	}
+
 	private createProviderAction(vendor: string, displayName: string): IAction {
 		const query = `@provider:"${displayName}"`;
 		const currentQuery = this.searchWidget.getValue();
@@ -229,6 +243,13 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 			actions.push(...configuredVendors.map(vendor => this.createProviderAction(vendor.vendor, vendor.vendorDisplayName)));
 		}
 
+		// Group By
+		actions.push(new Separator());
+		const groupByActions: IAction[] = [];
+		groupByActions.push(this.createGroupByAction(ChatModelGroup.Vendor, localize('groupBy.provider', 'Provider')));
+		groupByActions.push(this.createGroupByAction(ChatModelGroup.Visibility, localize('groupBy.visibility', 'Visibility')));
+		actions.push(new SubmenuAction('groupBy', localize('groupBy', "Group By"), groupByActions));
+
 		return actions;
 	}
 }
@@ -236,7 +257,7 @@ class ModelsSearchFilterDropdownMenuActionViewItem extends DropdownMenuActionVie
 class Delegate implements ITableVirtualDelegate<TableEntry> {
 	readonly headerRowHeight = HEADER_HEIGHT;
 	getHeight(element: TableEntry): number {
-		return isVendorEntry(element) ? VENDOR_ROW_HEIGHT : MODEL_ROW_HEIGHT;
+		return isVendorEntry(element) || isGroupEntry(element) ? VENDOR_ROW_HEIGHT : MODEL_ROW_HEIGHT;
 	}
 }
 
@@ -253,18 +274,22 @@ abstract class ModelsTableColumnRenderer<T extends IModelTableColumnTemplateData
 	renderElement(element: TableEntry, index: number, templateData: T): void {
 		templateData.elementDisposables.clear();
 		const isVendor = isVendorEntry(element);
+		const isGroup = isGroupEntry(element);
 		templateData.container.classList.add('models-table-column');
-		templateData.container.parentElement!.classList.toggle('models-vendor-row', isVendor);
-		templateData.container.parentElement!.classList.toggle('models-model-row', !isVendor);
-		templateData.container.parentElement!.classList.toggle('model-hidden', !isVendor && !element.modelEntry.metadata.isUserSelectable);
+		templateData.container.parentElement!.classList.toggle('models-vendor-row', isVendor || isGroup);
+		templateData.container.parentElement!.classList.toggle('models-model-row', !isVendor && !isGroup);
+		templateData.container.parentElement!.classList.toggle('model-hidden', !isVendor && !isGroup && !element.modelEntry.metadata.isUserSelectable);
 		if (isVendor) {
 			this.renderVendorElement(element, index, templateData);
+		} else if (isGroup) {
+			this.renderGroupElement(element, index, templateData);
 		} else {
 			this.renderModelElement(element, index, templateData);
 		}
 	}
 
 	abstract renderVendorElement(element: IVendorItemEntry, index: number, templateData: T): void;
+	abstract renderGroupElement(element: IGroupItemEntry, index: number, templateData: T): void;
 	abstract renderModelElement(element: IModelItemEntry, index: number, templateData: T): void;
 
 	disposeTemplate(templateData: T): void {
@@ -314,7 +339,11 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 		templateData.actionBar.push(this.createToggleCollapseAction(entry), { icon: true, label: false });
 	}
 
-	private createToggleCollapseAction(entry: IVendorItemEntry): IAction {
+	override renderGroupElement(entry: IGroupItemEntry, index: number, templateData: IToggleCollapseColumnTemplateData): void {
+		templateData.actionBar.push(this.createToggleCollapseAction(entry), { icon: true, label: false });
+	}
+
+	private createToggleCollapseAction(entry: IVendorItemEntry | IGroupItemEntry): IAction {
 		const label = entry.collapsed ? localize('expand', 'Expand') : localize('collapse', 'Collapse');
 		return {
 			id: 'toggleCollapse',
@@ -322,9 +351,7 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 			tooltip: label,
 			enabled: true,
 			class: ThemeIcon.asClassName(entry.collapsed ? Codicon.chevronRight : Codicon.chevronDown),
-			run: () => {
-				this.viewModel.toggleVendorCollapsed(entry);
-			}
+			run: () => this.viewModel.toggleCollapsed(entry)
 		};
 	}
 
@@ -385,6 +412,10 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 	override renderVendorElement(entry: IVendorItemEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		templateData.nameLabel.set(entry.vendorEntry.vendorDisplayName, undefined);
+	}
+
+	override renderGroupElement(entry: IGroupItemEntry, index: number, templateData: IModelNameColumnTemplateData): void {
+		templateData.nameLabel.set(entry.label, undefined);
 	}
 
 	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IModelNameColumnTemplateData): void {
@@ -456,6 +487,10 @@ class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColu
 		templateData.multiplierElement.textContent = '';
 	}
 
+	override renderGroupElement(entry: IGroupItemEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
+		templateData.multiplierElement.textContent = '';
+	}
+
 	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
 		templateData.multiplierElement.textContent = (entry.modelEntry.metadata.detail && entry.modelEntry.metadata.detail.trim().toLowerCase() !== entry.modelEntry.vendor.trim().toLowerCase()) ? entry.modelEntry.metadata.detail : '-';
 	}
@@ -494,6 +529,9 @@ class TokenLimitsColumnRenderer extends ModelsTableColumnRenderer<ITokenLimitsCo
 	}
 
 	override renderVendorElement(entry: IVendorItemEntry, index: number, templateData: ITokenLimitsColumnTemplateData): void {
+	}
+
+	override renderGroupElement(entry: IGroupItemEntry, index: number, templateData: ITokenLimitsColumnTemplateData): void {
 	}
 
 	override renderModelElement(entry: IModelItemEntry, index: number, templateData: ITokenLimitsColumnTemplateData): void {
@@ -564,6 +602,9 @@ class CapabilitiesColumnRenderer extends ModelsTableColumnRenderer<ICapabilities
 	}
 
 	override renderVendorElement(entry: IVendorItemEntry, index: number, templateData: ICapabilitiesColumnTemplateData): void {
+	}
+
+	override renderGroupElement(entry: IGroupItemEntry, index: number, templateData: ICapabilitiesColumnTemplateData): void {
 	}
 
 	override renderModelElement(entry: IModelItemEntry, index: number, templateData: ICapabilitiesColumnTemplateData): void {
@@ -652,10 +693,49 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 		}
 	}
 
+	override renderGroupElement(entry: IGroupItemEntry, index: number, templateData: IActionsColumnTemplateData): void {
+	}
+
 	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IActionsColumnTemplateData): void {
 		// Visibility action moved to name column
 	}
 }
+
+interface IProviderColumnTemplateData extends IModelTableColumnTemplateData {
+	readonly providerElement: HTMLElement;
+}
+
+class ProviderColumnRenderer extends ModelsTableColumnRenderer<IProviderColumnTemplateData> {
+	static readonly TEMPLATE_ID = 'provider';
+
+	readonly templateId: string = ProviderColumnRenderer.TEMPLATE_ID;
+
+	renderTemplate(container: HTMLElement): IProviderColumnTemplateData {
+		const disposables = new DisposableStore();
+		const elementDisposables = new DisposableStore();
+		const providerElement = DOM.append(container, $('.model-provider'));
+		return {
+			container,
+			providerElement,
+			disposables,
+			elementDisposables
+		};
+	}
+
+	override renderVendorElement(entry: IVendorItemEntry, index: number, templateData: IProviderColumnTemplateData): void {
+		templateData.providerElement.textContent = '';
+	}
+
+	override renderGroupElement(entry: IGroupItemEntry, index: number, templateData: IProviderColumnTemplateData): void {
+		templateData.providerElement.textContent = '';
+	}
+
+	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IProviderColumnTemplateData): void {
+		templateData.providerElement.textContent = entry.modelEntry.vendorDisplayName;
+	}
+}
+
+
 
 function formatTokenCount(count: number): string {
 	if (count >= 1000000) {
@@ -683,6 +763,8 @@ export class ChatModelsWidget extends Disposable {
 
 	private readonly searchFocusContextKey: IContextKey<boolean>;
 
+	private tableDisposables = this._register(new DisposableStore());
+
 	constructor(
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -701,7 +783,7 @@ export class ChatModelsWidget extends Disposable {
 		this.element = DOM.$('.models-widget');
 		this.create(this.element);
 
-		const loadingPromise = this.extensionService.whenInstalledExtensionsRegistered().then(() => this.viewModel.resolve());
+		const loadingPromise = this.extensionService.whenInstalledExtensionsRegistered().then(() => this.viewModel.refresh());
 		this.editorProgressService.showWhile(loadingPromise, 300);
 	}
 
@@ -806,14 +888,24 @@ export class ChatModelsWidget extends Disposable {
 		this.tableContainer = DOM.append(container, $('.models-table-container'));
 
 		// Create table
+		this.createTable();
+		this._register(this.viewModel.onDidChangeGrouping(() => this.createTable()));
+		return;
+	}
+
+	private createTable(): void {
+		this.tableDisposables.clear();
+		DOM.clearNode(this.tableContainer);
+
 		const gutterColumnRenderer = this.instantiationService.createInstance(GutterColumnRenderer, this.viewModel);
 		const modelNameColumnRenderer = this.instantiationService.createInstance(ModelNameColumnRenderer);
 		const costColumnRenderer = this.instantiationService.createInstance(MultiplierColumnRenderer);
 		const tokenLimitsColumnRenderer = this.instantiationService.createInstance(TokenLimitsColumnRenderer);
 		const capabilitiesColumnRenderer = this.instantiationService.createInstance(CapabilitiesColumnRenderer);
 		const actionsColumnRenderer = this.instantiationService.createInstance(ActionsColumnRenderer, this.viewModel);
+		const providerColumnRenderer = this.instantiationService.createInstance(ProviderColumnRenderer);
 
-		this._register(capabilitiesColumnRenderer.onDidClickCapability(capability => {
+		this.tableDisposables.add(capabilitiesColumnRenderer.onDidClickCapability(capability => {
 			const currentQuery = this.searchWidget.getValue();
 			const query = `@capability:${capability}`;
 			const newQuery = toggleFilter(currentQuery, query);
@@ -821,63 +913,79 @@ export class ChatModelsWidget extends Disposable {
 			this.searchWidget.focus();
 		}));
 
-		this.table = this._register(this.instantiationService.createInstance(
+		const columns = [
+			{
+				label: '',
+				tooltip: '',
+				weight: 0.05,
+				minimumWidth: 40,
+				maximumWidth: 40,
+				templateId: GutterColumnRenderer.TEMPLATE_ID,
+				project(row: TableEntry): TableEntry { return row; }
+			},
+			{
+				label: localize('modelName', 'Name'),
+				tooltip: '',
+				weight: 0.35,
+				minimumWidth: 200,
+				templateId: ModelNameColumnRenderer.TEMPLATE_ID,
+				project(row: TableEntry): TableEntry { return row; }
+			}
+		];
+
+		if (this.viewModel.groupBy === ChatModelGroup.Visibility) {
+			columns.push({
+				label: localize('provider', 'Provider'),
+				tooltip: '',
+				weight: 0.15,
+				minimumWidth: 100,
+				templateId: ProviderColumnRenderer.TEMPLATE_ID,
+				project(row: TableEntry): TableEntry { return row; }
+			});
+		}
+
+		columns.push(
+			{
+				label: localize('capabilities', 'Capabilities'),
+				tooltip: '',
+				weight: 0.25,
+				minimumWidth: 180,
+				templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
+				project(row: TableEntry): TableEntry { return row; }
+			},
+			{
+				label: localize('tokenLimits', 'Context Size'),
+				tooltip: '',
+				weight: 0.1,
+				minimumWidth: 140,
+				templateId: TokenLimitsColumnRenderer.TEMPLATE_ID,
+				project(row: TableEntry): TableEntry { return row; }
+			},
+			{
+				label: localize('cost', 'Multiplier'),
+				tooltip: '',
+				weight: 0.05,
+				minimumWidth: 60,
+				templateId: MultiplierColumnRenderer.TEMPLATE_ID,
+				project(row: TableEntry): TableEntry { return row; }
+			},
+			{
+				label: '',
+				tooltip: '',
+				weight: 0.05,
+				minimumWidth: 64,
+				maximumWidth: 64,
+				templateId: ActionsColumnRenderer.TEMPLATE_ID,
+				project(row: TableEntry): TableEntry { return row; }
+			}
+		);
+
+		this.table = this.tableDisposables.add(this.instantiationService.createInstance(
 			WorkbenchTable,
 			'ModelsWidget',
 			this.tableContainer,
 			new Delegate(),
-			[
-				{
-					label: '',
-					tooltip: '',
-					weight: 0.05,
-					minimumWidth: 40,
-					maximumWidth: 40,
-					templateId: GutterColumnRenderer.TEMPLATE_ID,
-					project(row: TableEntry): TableEntry { return row; }
-				},
-				{
-					label: localize('modelName', 'Name'),
-					tooltip: '',
-					weight: 0.40,
-					minimumWidth: 200,
-					templateId: ModelNameColumnRenderer.TEMPLATE_ID,
-					project(row: TableEntry): TableEntry { return row; }
-				},
-				{
-					label: localize('capabilities', 'Capabilities'),
-					tooltip: '',
-					weight: 0.30,
-					minimumWidth: 180,
-					templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
-					project(row: TableEntry): TableEntry { return row; }
-				},
-				{
-					label: localize('tokenLimits', 'Context Size'),
-					tooltip: '',
-					weight: 0.1,
-					minimumWidth: 140,
-					templateId: TokenLimitsColumnRenderer.TEMPLATE_ID,
-					project(row: TableEntry): TableEntry { return row; }
-				},
-				{
-					label: localize('cost', 'Multiplier'),
-					tooltip: '',
-					weight: 0.1,
-					minimumWidth: 60,
-					templateId: MultiplierColumnRenderer.TEMPLATE_ID,
-					project(row: TableEntry): TableEntry { return row; }
-				},
-				{
-					label: '',
-					tooltip: '',
-					weight: 0.05,
-					minimumWidth: 64,
-					maximumWidth: 64,
-					templateId: ActionsColumnRenderer.TEMPLATE_ID,
-					project(row: TableEntry): TableEntry { return row; }
-				},
-			],
+			columns,
 			[
 				gutterColumnRenderer,
 				modelNameColumnRenderer,
@@ -885,6 +993,7 @@ export class ChatModelsWidget extends Disposable {
 				tokenLimitsColumnRenderer,
 				capabilitiesColumnRenderer,
 				actionsColumnRenderer,
+				providerColumnRenderer
 			],
 			{
 				identityProvider: { getId: (e: TableEntry) => e.id },
@@ -893,6 +1002,8 @@ export class ChatModelsWidget extends Disposable {
 					getAriaLabel: (e: TableEntry) => {
 						if (isVendorEntry(e)) {
 							return localize('vendor.ariaLabel', '{0} provider', e.vendorEntry.vendorDisplayName);
+						} else if (isGroupEntry(e)) {
+							return e.label;
 						}
 						return localize('model.ariaLabel', '{0} from {1}', e.modelEntry.metadata.name, e.modelEntry.vendorDisplayName);
 					},
@@ -905,7 +1016,7 @@ export class ChatModelsWidget extends Disposable {
 			}
 		)) as WorkbenchTable<TableEntry>;
 
-		this._register(this.table.onContextMenu(e => {
+		this.tableDisposables.add(this.table.onContextMenu(e => {
 			if (!e.element) {
 				return;
 			}
@@ -917,7 +1028,7 @@ export class ChatModelsWidget extends Disposable {
 						label: localize('models.manageProvider', 'Manage {0}...', entry.vendorEntry.vendorDisplayName),
 						run: async () => {
 							await this.commandService.executeCommand(entry.vendorEntry.managementCommand!, entry.vendorEntry.vendor);
-							await this.viewModel.resolve();
+							await this.viewModel.refresh();
 						}
 					})
 				];
@@ -929,7 +1040,7 @@ export class ChatModelsWidget extends Disposable {
 		}));
 
 		this.table.splice(0, this.table.length, this.viewModel.viewModelEntries);
-		this._register(this.viewModel.onDidChange(({ at, removed, added }) => {
+		this.tableDisposables.add(this.viewModel.onDidChange(({ at, removed, added }) => {
 			this.table.splice(at, removed, added);
 			if (this.viewModel.selectedEntry) {
 				const selectedEntryIndex = this.viewModel.viewModelEntries.indexOf(this.viewModel.selectedEntry);
@@ -953,18 +1064,26 @@ export class ChatModelsWidget extends Disposable {
 			}));
 		}));
 
-		this._register(this.table.onDidOpen(async ({ element, browserEvent }) => {
+		this.tableDisposables.add(this.table.onDidOpen(async ({ element, browserEvent }) => {
 			if (!element) {
 				return;
 			}
-			if (isVendorEntry(element)) {
-				this.viewModel.toggleVendorCollapsed(element);
+			if (isVendorEntry(element) || isGroupEntry(element)) {
+				this.viewModel.toggleCollapsed(element);
 			} else if (!DOM.isMouseEvent(browserEvent) || browserEvent.detail === 2) {
 				this.viewModel.toggleVisibility(element);
 			}
 		}));
 
-		this._register(this.table.onDidChangeSelection(e => this.viewModel.selectedEntry = e.elements[0]));
+		this.tableDisposables.add(this.table.onDidChangeSelection(e => this.viewModel.selectedEntry = e.elements[0]));
+
+		this.tableDisposables.add(this.table.onDidBlur(() => {
+			if (this.viewModel.shouldRefilter()) {
+				this.viewModel.filter(this.searchWidget.getValue());
+			}
+		}));
+
+		this.layout(this.element.clientHeight, this.element.clientWidth);
 	}
 
 	private filterModels(): void {
@@ -975,7 +1094,7 @@ export class ChatModelsWidget extends Disposable {
 
 	private async enableProvider(vendorId: string): Promise<void> {
 		await this.languageModelsService.selectLanguageModels({ vendor: vendorId }, true);
-		await this.viewModel.resolve();
+		await this.viewModel.refresh();
 	}
 
 	public layout(height: number, width: number): void {
@@ -997,6 +1116,12 @@ export class ChatModelsWidget extends Disposable {
 
 	public clearSearch(): void {
 		this.searchWidget.setValue('');
+	}
+
+	public render(): void {
+		if (this.viewModel.shouldRefilter()) {
+			this.viewModel.filter(this.searchWidget.getValue());
+		}
 	}
 
 }

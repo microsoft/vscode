@@ -8,6 +8,7 @@ import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -273,6 +274,7 @@ export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
 
 export interface IToggleChatModeArgs {
 	modeId: ChatModeKind | string;
+	sessionResource: URI | undefined;
 }
 
 type ChatModeChangeClassification = {
@@ -319,23 +321,30 @@ class ToggleChatModeAction extends Action2 {
 		const instaService = accessor.get(IInstantiationService);
 		const modeService = accessor.get(IChatModeService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 
-		const context = getEditingSessionContext(accessor, args);
-		if (!context?.chatWidget) {
+		const arg = args.at(0) as IToggleChatModeArgs | undefined;
+		let widget: IChatWidget | undefined;
+		if (arg?.sessionResource) {
+			widget = chatWidgetService.getWidgetBySessionResource(arg.sessionResource);
+		} else {
+			widget = getEditingSessionContext(accessor, args)?.chatWidget;
+		}
+
+		if (!widget) {
 			return;
 		}
 
-		const arg = args.at(0) as IToggleChatModeArgs | undefined;
-		const chatSession = context.chatWidget.viewModel?.model;
+		const chatSession = widget.viewModel?.model;
 		const requestCount = chatSession?.getRequests().length ?? 0;
-		const switchToMode = (arg && modeService.findModeById(arg.modeId)) ?? this.getNextMode(context.chatWidget, requestCount, configurationService, modeService);
+		const switchToMode = (arg && modeService.findModeById(arg.modeId)) ?? this.getNextMode(widget, requestCount, configurationService, modeService);
 
-		const currentMode = context.chatWidget.input.currentModeObs.get();
+		const currentMode = widget.input.currentModeObs.get();
 		if (switchToMode.id === currentMode.id) {
 			return;
 		}
 
-		const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, context.chatWidget.input.currentModeKind, switchToMode.kind, requestCount, context.editingSession);
+		const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, widget.input.currentModeKind, switchToMode.kind, requestCount, widget.viewModel?.model.editingSession);
 		if (!chatModeCheck) {
 			return;
 		}
@@ -356,7 +365,7 @@ class ToggleChatModeAction extends Action2 {
 			handoffsCount
 		});
 
-		context.chatWidget.input.setChatMode(switchToMode.id);
+		widget.input.setChatMode(switchToMode.id);
 
 		if (chatModeCheck.needToClearSession) {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);

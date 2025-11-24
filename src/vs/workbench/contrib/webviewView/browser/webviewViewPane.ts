@@ -53,7 +53,7 @@ export class WebviewViewPane extends ViewPane {
 
 	private _container?: HTMLElement;
 	private _rootContainer?: HTMLElement;
-	private _resizeObserver?: any;
+	private _resizeObserver?: ResizeObserver;
 
 	private readonly defaultTitle: string;
 	private setTitle: string | undefined;
@@ -138,7 +138,7 @@ export class WebviewViewPane extends ViewPane {
 			});
 
 			this._register(toDisposable(() => {
-				this._resizeObserver.disconnect();
+				this._resizeObserver?.disconnect();
 			}));
 			this._resizeObserver.observe(container);
 		}

@@ -281,6 +281,11 @@ declare module 'vscode' {
 		 * Use this when an option is set but cannot be hot-swapped (e.g., model already initialized).
 		 */
 		readonly locked?: boolean;
+
+		/**
+		 * An icon for the option item shown in UI.
+		 */
+		readonly icon?: ThemeIcon;
 	}
 
 	/**

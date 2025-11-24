@@ -41,7 +41,7 @@ steps:
           archiveFilePatterns: $(Build.BinariesDirectory)/pkg/${{ target }}/*.zip
           destinationFolder: $(Build.BinariesDirectory)/sign/${{ target }}
 
-  - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath sign-windows $(Build.BinariesDirectory)/sign "*.exe"
+  - powershell: node build\azure-pipelines\common\sign.ts $env:EsrpCliDllPath sign-windows $(Build.BinariesDirectory)/sign "*.exe"
     env:
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: ✍️ Codesign
