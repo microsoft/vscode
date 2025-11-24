@@ -5,14 +5,11 @@
 
 import { fromNow } from '../../../../../base/common/date.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { isEqual } from '../../../../../base/common/resources.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionItemProvider, localChatSessionType } from '../../common/chatSessionsService.js';
-import { IChatWidgetService } from '../chat.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 
 
@@ -39,20 +36,6 @@ export function isChatSession(schemes: readonly string[], editor?: EditorInput):
 	}
 
 	return true;
-}
-
-/**
- * Find existing chat editors that have the same session URI (for external providers)
- */
-export function findExistingChatEditorByUri(sessionUri: URI, editorGroupsService: IEditorGroupsService): { editor: ChatEditorInput; group: IEditorGroup } | undefined {
-	for (const group of editorGroupsService.groups) {
-		for (const editor of group.editors) {
-			if (editor instanceof ChatEditorInput && isEqual(editor.sessionResource, sessionUri)) {
-				return { editor, group };
-			}
-		}
-	}
-	return undefined;
 }
 
 // Helper function to update relative time for chat sessions (similar to timeline)
@@ -124,7 +107,6 @@ export function processSessionsWithTimeGrouping(sessions: ChatSessionItemWithPro
 export function getSessionItemContextOverlay(
 	session: IChatSessionItem,
 	provider?: IChatSessionItemProvider,
-	chatWidgetService?: IChatWidgetService,
 	chatService?: IChatService,
 	editorGroupsService?: IEditorGroupsService
 ): [string, any][] {
@@ -142,15 +124,8 @@ export function getSessionItemContextOverlay(
 	if (!session.archived && provider?.chatSessionType === localChatSessionType) {
 		// Local non-history sessions are always active
 		isActiveSession = true;
-	} else if (session.archived && chatWidgetService && chatService && editorGroupsService) {
-		// Check if session is open in a chat widget
-		const widget = chatWidgetService.getWidgetBySessionResource(session.resource);
-		if (widget) {
-			isActiveSession = true;
-		} else {
-			// Check if session is open in any editor
-			isActiveSession = !!findExistingChatEditorByUri(session.resource, editorGroupsService);
-		}
+	} else if (session.archived && chatService && editorGroupsService) {
+		isActiveSession = !!chatService.getSession(session.resource);
 	}
 
 	overlay.push([ChatContextKeys.isActiveSession.key, isActiveSession]);

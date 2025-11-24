@@ -45,7 +45,6 @@ import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSes
 import { LocalChatSessionUri } from '../../../common/chatUri.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IMarshalledChatSessionContext } from '../../actions/chatSessionActions.js';
-import { IChatWidgetService } from '../../chat.js';
 import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
 import '../../media/chatSessions.css';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
@@ -141,7 +140,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -360,7 +358,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		const contextOverlay = getSessionItemContextOverlay(
 			session,
 			session.provider,
-			this.chatWidgetService,
 			this.chatService,
 			this.editorGroupsService
 		);
