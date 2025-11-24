@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { WebContentsView, webContents, session } from 'electron';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IBrowserViewBounds, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent } from '../common/browserView.js';
 import { IBrowserViewMainService } from './browserView.js';
@@ -189,8 +189,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
  */
 export class BrowserView extends Disposable {
 	private readonly view: WebContentsView;
-	private readonly viewDisposables = this._register(new DisposableStore());
-	private readonly faviconCache = new Map<string, string>();
+	private readonly faviconRequestCache = new Map<string, Promise<string>>();
 	private _window: IBaseWindow | undefined;
 	private _isSendingKeyEvent = false;
 
@@ -234,7 +233,7 @@ export class BrowserView extends Disposable {
 		this.setupEventListeners();
 
 		// Create and register plugins for this web contents
-		this.viewDisposables.add(new ThemePlugin(this.view.webContents, this.themeMainService, this.logService));
+		this._register(new ThemePlugin(this.view, this.themeMainService, this.logService));
 	}
 
 	private setupEventListeners(): void {
@@ -246,24 +245,36 @@ export class BrowserView extends Disposable {
 				return;
 			}
 
-			let found = favicons.find(f => this.faviconCache.get(f));
-			if (!found) {
-				found = favicons[0];
-				try {
-					const firstImage = await webContents.session.fetch(found, {
-						cache: 'force-cache'
-					});
-					const type = await firstImage.headers.get('content-type');
-					const buffer = await firstImage.arrayBuffer();
-					const favicon = `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
-					this.faviconCache.set(found, favicon);
-				} catch (error) {
-					this.logService.warn('browserView.fetchFaviconFailed', error);
-					return;
-				}
+			const found = favicons.find(f => this.faviconRequestCache.get(f));
+			if (found) {
+				// already have a cached request for this favicon, use it
+				this._onDidChangeFavicon.fire({ favicon: await this.faviconRequestCache.get(found)! });
+				return;
 			}
 
-			this._onDidChangeFavicon.fire({ favicon: this.faviconCache.get(found)! });
+			// try each url in order until one works
+			for (const url of favicons) {
+				const request = (async () => {
+					const response = await webContents.session.fetch(url, {
+						cache: 'force-cache'
+					});
+					const type = await response.headers.get('content-type');
+					const buffer = await response.arrayBuffer();
+
+					return `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
+				})();
+
+				this.faviconRequestCache.set(url, request);
+
+				try {
+					this._onDidChangeFavicon.fire({ favicon: await request });
+					// On success, leave the promise in the cache and stop looping
+					return;
+				} catch (e) {
+					this.faviconRequestCache.delete(url);
+					// On failure, try the next one
+				}
+			}
 		});
 
 		// Title events
@@ -285,8 +296,9 @@ export class BrowserView extends Disposable {
 
 		// Loading state events
 		webContents.on('did-start-loading', () => fireLoadingEvent(true));
-		webContents.on('did-finish-load', () => fireLoadingEvent(false));
+		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
 		webContents.on('did-fail-load', () => fireLoadingEvent(false));
+		webContents.on('did-finish-load', () => fireLoadingEvent(false));
 
 		// Navigation events (when URL actually changes)
 		webContents.on('did-navigate', fireNavigationEvent);

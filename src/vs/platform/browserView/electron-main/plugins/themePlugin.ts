@@ -8,79 +8,61 @@ import { IThemeMainService } from '../../../theme/electron-main/themeMainService
 import { ILogService } from '../../../log/common/log.js';
 
 /**
- * Plugin that handles theming for a specific WebContents by detecting
- * VS Code's current theme and injecting appropriate CSS to override
- * the prefers-color-scheme media query in web content.
+ * Plugin that handles theming for a WebContentsView by syncing VS Code's theme
+ * to the web content via CSS injection and background color.
  */
 export class ThemePlugin extends Disposable {
-	private _colorScheme: 'dark' | 'light';
 	private readonly webContents: Electron.WebContents;
 	private injectedCSSKey?: string;
 
-	constructor(webContents: Electron.WebContents, private readonly themeMainService: IThemeMainService, private readonly logService: ILogService) {
+	constructor(
+		private readonly view: Electron.WebContentsView,
+		private readonly themeMainService: IThemeMainService,
+		private readonly logService: ILogService
+	) {
 		super();
-		this.webContents = webContents;
+		this.webContents = view.webContents;
 
-		// Auto-detect initial color scheme from VS Code theme
-		this._colorScheme = this.detectVSCodeColorScheme();
-
-		// Set up theming for this web contents
-		this.setupTheming();
-	}
-
-	/**
-	 * Detect the current VS Code color scheme using the main theme service
-	 */
-	private detectVSCodeColorScheme(): 'dark' | 'light' {
-		return this.themeMainService.getColorScheme().dark ? 'dark' : 'light';
-	}
-
-	/**
-	 * Set up theming for the web contents
-	 */
-	private setupTheming(): void {
-		// Apply initial theme
-		const applyThemeStyle = () => {
-			if (!this.webContents.isDestroyed()) {
-				this.injectThemeStyle(this.webContents, this._colorScheme);
-			}
-		};
+		// Set view background to match editor background
+		this.applyBackgroundColor();
 
 		// Apply theme when page loads
-		this.webContents.on('did-finish-load', applyThemeStyle);
+		this.webContents.on('did-finish-load', () => this.applyTheme());
 
-		// Listen for VS Code theme changes and update this web contents
-		const updateColorScheme = () => {
-			const newColorScheme = this.detectVSCodeColorScheme();
-			if (newColorScheme !== this._colorScheme && !this.webContents.isDestroyed()) {
-				this._colorScheme = newColorScheme;
-				this.injectThemeStyle(this.webContents, this._colorScheme);
-			}
-		};
-
-		this._register(this.themeMainService.onDidChangeColorScheme(updateColorScheme));
+		// Update theme when VS Code theme changes
+		this._register(this.themeMainService.onDidChangeColorScheme(() => {
+			this.applyBackgroundColor();
+			this.applyTheme();
+		}));
 	}
 
-	private async injectThemeStyle(webContents: Electron.WebContents, colorScheme: 'dark' | 'light'): Promise<void> {
-		if (webContents.isDestroyed()) {
+	private applyBackgroundColor(): void {
+		const backgroundColor = this.themeMainService.getBackgroundColor();
+		this.view.setBackgroundColor(backgroundColor);
+	}
+
+	private async applyTheme(): Promise<void> {
+		if (this.webContents.isDestroyed()) {
 			return;
 		}
 
+		const colorScheme = this.themeMainService.getColorScheme().dark ? 'dark' : 'light';
+
 		try {
-			// Remove previous VS Code theme CSS if it exists
+			// Remove previous theme CSS if it exists
 			if (this.injectedCSSKey) {
-				await webContents.removeInsertedCSS(this.injectedCSSKey);
+				await this.webContents.removeInsertedCSS(this.injectedCSSKey);
 			}
 
 			// Insert new theme CSS
-			this.injectedCSSKey = await webContents.insertCSS(`
+			this.injectedCSSKey = await this.webContents.insertCSS(`
 				/* VS Code theme override */
 				:root {
 					color-scheme: ${colorScheme};
 				}
 			`);
 		} catch (error) {
-			this.logService.error('browserView.theme.injectCSSFailed', error);
+			this.logService.error('ThemePlugin: Failed to inject CSS', error);
 		}
 	}
 }

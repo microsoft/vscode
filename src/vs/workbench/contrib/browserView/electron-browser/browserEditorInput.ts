@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { BrowserViewUri } from './browserUri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -14,6 +14,7 @@ import { TAB_ACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IBrowserViewWorkbenchService, IBrowserViewModel } from '../../../services/browserView/common/browserView.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -86,11 +87,7 @@ export class BrowserEditorInput extends EditorInput {
 
 	override get resource(): URI {
 		const url = this._model?.url ?? this._initialData.url ?? '';
-		return URI.from({
-			scheme: Schemas.vscodeBrowser,
-			path: this._id,
-			query: `url=${encodeURIComponent(url)}`
-		});
+		return BrowserViewUri.forUrl(url, this._id);
 	}
 
 	override getIcon(): ThemeIcon | URI | undefined {
@@ -144,6 +141,14 @@ export class BrowserEditorInput extends EditorInput {
 
 		if (otherInput instanceof BrowserEditorInput) {
 			return this._id === otherInput._id;
+		}
+
+		// Check if it's an untyped input with a browser view resource
+		if (hasKey(otherInput, { resource: true }) && otherInput.resource?.scheme === BrowserViewUri.scheme) {
+			const parsed = BrowserViewUri.parse(otherInput.resource);
+			if (parsed) {
+				return this._id === parsed.id;
+			}
 		}
 
 		return false;

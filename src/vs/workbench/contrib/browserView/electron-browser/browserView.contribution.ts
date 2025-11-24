@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { BrowserEditor } from './browserEditor.js';
 import { BrowserEditorInput, BrowserEditorSerializer } from './browserEditorInput.js';
+import { BrowserViewUri } from './browserUri.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -21,8 +21,10 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { workbenchConfigurationNodeBase } from '../../../common/configuration.js';
 import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from '../../../../editor/browser/editorExtensions.js';
 import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/clipboard/browser/clipboard.js';
+import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { Schemas } from '../../../../base/common/network.js';
 
-// Register editor pane
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		BrowserEditor,
@@ -34,13 +36,55 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 
-// Register editor serializer
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
 	BrowserEditorInput.ID,
 	BrowserEditorSerializer
 );
 
-// Register command to open integrated browser
+class BrowserEditorResolverContribution implements IWorkbenchContribution {
+	static readonly ID = 'workbench.contrib.browserEditorResolver';
+
+	constructor(
+		@IEditorResolverService editorResolverService: IEditorResolverService,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		editorResolverService.registerEditor(
+			`${Schemas.vscodeBrowser}:/**`,
+			{
+				id: BrowserEditor.ID,
+				label: localize('browserEditor', "Browser"),
+				priority: RegisteredEditorPriority.exclusive
+			},
+			{
+				canSupportResource: resource => resource.scheme === Schemas.vscodeBrowser,
+				singlePerResource: true
+			},
+			{
+				createEditorInput: ({ resource }) => {
+					const parsed = BrowserViewUri.parse(resource);
+					if (!parsed) {
+						throw new Error(`Invalid browser view resource: ${resource.toString()}`);
+					}
+
+					const browserInput = instantiationService.createInstance(BrowserEditorInput, {
+						id: parsed.id,
+						url: parsed.url
+					});
+
+					return {
+						editor: browserInput,
+						options: {
+							pinned: true
+						}
+					};
+				}
+			}
+		);
+	}
+}
+
+registerWorkbenchContribution2(BrowserEditorResolverContribution.ID, BrowserEditorResolverContribution, WorkbenchPhase.BlockStartup);
+
 class OpenIntegratedBrowserAction extends Action2 {
 	constructor() {
 		super({
@@ -53,25 +97,16 @@ class OpenIntegratedBrowserAction extends Action2 {
 
 	async run(accessor: ServicesAccessor, url?: string): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const resource = BrowserViewUri.forUrl(url);
 
-		// Create a new browser editor input with a unique ID
-		const id = generateUuid();
-		const instantiationService = accessor.get(IInstantiationService);
-		const browserInput = instantiationService.createInstance(BrowserEditorInput, {
-			id,
-			url: url || 'https://github.com/microsoft/vscode'
-		});
-
-		await editorService.openEditor(browserInput);
+		await editorService.openEditor({ resource });
 	}
 }
 
 registerAction2(OpenIntegratedBrowserAction);
 
-// Register overlay manager service
 registerSingleton(IBrowserOverlayManager, BrowserOverlayManager, InstantiationType.Delayed);
 
-// Register browser data storage configuration
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	...workbenchConfigurationNodeBase,
 	properties: {

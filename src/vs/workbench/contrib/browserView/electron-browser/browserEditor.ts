@@ -156,8 +156,10 @@ export class BrowserEditor extends EditorPane {
 		this.browserContainer.tabIndex = 0; // make focusable
 		root.appendChild(this.browserContainer);
 
-		this._register(addDisposableListener(this.browserContainer, EventType.FOCUS, () => {
-			if (this.model) {
+		this._register(addDisposableListener(this.browserContainer, EventType.FOCUS, (event) => {
+			// When the browser container gets focus, make sure the browser view also gets focused.
+			// But only if focus was already in the workbench (and not e.g. clicking back into the workbench from the browser view).
+			if (event.relatedTarget && this.model) {
 				void this.model.focus();
 			}
 		}));
@@ -212,6 +214,11 @@ export class BrowserEditor extends EditorPane {
 		this.backAction.enabled = this.model.canGoBack;
 		this.forwardAction.enabled = this.model.canGoForward;
 		this.urlInput.value = this.model.url;
+
+		if (context.newInGroup) {
+			this.urlInput.select();
+			this.urlInput.focus();
+		}
 
 		// Listen to model events for UI updates
 		this.inputDisposables.add(this.model.onDidKeyCommand(keyEvent => {
