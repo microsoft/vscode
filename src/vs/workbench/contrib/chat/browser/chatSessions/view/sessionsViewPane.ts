@@ -494,7 +494,6 @@ export class SessionsViewPane extends ViewPane {
 		const contextOverlay = getSessionItemContextOverlay(
 			session,
 			sessionWithProvider.provider,
-			this.chatWidgetService,
 			this.chatService,
 			this.editorGroupsService
 		);
@@ -512,7 +511,8 @@ export class SessionsViewPane extends ViewPane {
 		// Get actions and filter for context menu (all actions that are NOT inline)
 		const actions = menu.getActions({ arg: marshalledSession, shouldForwardArgs: true });
 
-		const { secondary } = getActionBarActions(actions, 'inline'); this.contextMenuService.showContextMenu({
+		const { secondary } = getActionBarActions(actions, 'inline');
+		this.contextMenuService.showContextMenu({
 			getActions: () => secondary,
 			getAnchor: () => e.anchor,
 			getActionsContext: () => marshalledSession,

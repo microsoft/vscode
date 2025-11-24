@@ -29,7 +29,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestStringVariableEntry, isStringImplicitContextValue } from '../../common/chatVariableEntries.js';
-import { IChatWidgetService } from '../chat.js';
+import { IChatWidget } from '../chat.js';
 import { ChatAttachmentModel } from '../chatAttachmentModel.js';
 import { IChatContextService } from '../chatContextService.js';
 
@@ -39,6 +39,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	constructor(
+		private readonly widgetRef: () => IChatWidget | undefined,
 		private readonly attachment: IChatRequestImplicitVariableEntry,
 		private readonly resourceLabels: ResourceLabels,
 		private readonly attachmentModel: ChatAttachmentModel,
@@ -50,7 +51,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IModelService private readonly modelService: IModelService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@IChatContextService private readonly chatContextService: IChatContextService,
 	) {
@@ -205,6 +205,6 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			const file = URI.isUri(this.attachment.value) ? this.attachment.value : this.attachment.value.uri;
 			this.attachmentModel.addFile(file);
 		}
-		this.chatWidgetService.lastFocusedWidget?.focusInput();
+		this.widgetRef()?.focusInput();
 	}
 }

@@ -7,20 +7,22 @@ import es from 'event-stream';
 import fs from 'fs';
 import gulp from 'gulp';
 import path from 'path';
-import * as monacodts from './monaco-api';
-import * as nls from './nls';
-import { createReporter } from './reporter';
-import * as util from './util';
+import * as monacodts from './monaco-api.ts';
+import * as nls from './nls.ts';
+import { createReporter } from './reporter.ts';
+import * as util from './util.ts';
 import fancyLog from 'fancy-log';
 import ansiColors from 'ansi-colors';
 import os from 'os';
 import File from 'vinyl';
-import * as task from './task';
-import { Mangler } from './mangle/index';
-import { RawSourceMap } from 'source-map';
+import * as task from './task.ts';
+import { Mangler } from './mangle/index.ts';
+import type { RawSourceMap } from 'source-map';
 import ts from 'typescript';
-import watch from './watch';
+import watch from './watch/index.ts';
 import bom from 'gulp-bom';
+import * as tsb from './tsb/index.ts';
+import sourcemaps from 'gulp-sourcemaps';
 
 
 // --- gulp-tsb: compile and transpile --------------------------------
@@ -28,7 +30,7 @@ import bom from 'gulp-bom';
 const reporter = createReporter();
 
 function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
-	const rootDir = path.join(__dirname, `../../${src}`);
+	const rootDir = path.join(import.meta.dirname, `../../${src}`);
 	const options: ts.CompilerOptions = {};
 	options.verbose = false;
 	options.sourceMap = true;
@@ -38,7 +40,7 @@ function getTypeScriptCompilerOptions(src: string): ts.CompilerOptions {
 	options.rootDir = rootDir;
 	options.baseUrl = rootDir;
 	options.sourceRoot = util.toFileUri(rootDir);
-	options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 0 : 1;
+	options.newLine = /\r\n/.test(fs.readFileSync(import.meta.filename, 'utf8')) ? 0 : 1;
 	return options;
 }
 
@@ -50,11 +52,7 @@ interface ICompileTaskOptions {
 }
 
 export function createCompile(src: string, { build, emitError, transpileOnly, preserveEnglish }: ICompileTaskOptions) {
-	const tsb = require('./tsb') as typeof import('./tsb');
-	const sourcemaps = require('gulp-sourcemaps') as typeof import('gulp-sourcemaps');
-
-
-	const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
+	const projectPath = path.join(import.meta.dirname, '../../', src, 'tsconfig.json');
 	const overrideOptions = { ...getTypeScriptCompilerOptions(src), inlineSources: Boolean(build) };
 	if (!build) {
 		overrideOptions.inlineSourceMap = true;
@@ -138,7 +136,7 @@ export function compileTask(src: string, out: string, build: boolean, options: {
 			const newContentsByFileName = ts2tsMangler.computeNewFileContents(new Set(['saveState']));
 			mangleStream = es.through(async function write(data: File & { sourceMap?: RawSourceMap }) {
 				type TypeScriptExt = typeof ts & { normalizePath(path: string): string };
-				const tsNormalPath = (<TypeScriptExt>ts).normalizePath(data.path);
+				const tsNormalPath = (ts as TypeScriptExt).normalizePath(data.path);
 				const newContents = (await newContentsByFileName).get(tsNormalPath);
 				if (newContents !== undefined) {
 					data.contents = Buffer.from(newContents.out);
@@ -185,7 +183,7 @@ export function watchTask(out: string, build: boolean, srcPath: string = 'src'):
 	return task;
 }
 
-const REPO_SRC_FOLDER = path.join(__dirname, '../../src');
+const REPO_SRC_FOLDER = path.join(import.meta.dirname, '../../src');
 
 class MonacoGenerator {
 	private readonly _isWatch: boolean;

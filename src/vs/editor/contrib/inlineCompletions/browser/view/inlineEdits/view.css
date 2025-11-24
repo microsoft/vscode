@@ -217,3 +217,13 @@
 		}
 	}
 }
+
+.go-to-label::before {
+	content: '';
+	position: absolute;
+	left: -12px;
+	top: 0;
+	width: 12px;
+	height: 100%;
+	background: linear-gradient(to left, var(--vscode-editorWidget-background) 0, transparent 12px);
+}
