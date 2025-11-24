@@ -468,6 +468,17 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				for (const repository of this.scmService.repositories) {
 					this.onDidAddRepository(repository);
 				}
+
+				// Expand repository if there is only one
+				this.visibilityDisposables.add(autorun(async reader => {
+					const explorerEnabledConfig = this.scmViewService.explorerEnabledConfig.read(reader);
+					const didFinishLoadingRepositories = this.scmViewService.didFinishLoadingRepositories.read(reader);
+
+					if (viewState === undefined && explorerEnabledConfig && didFinishLoadingRepositories && this.scmViewService.repositories.length === 1) {
+						await this.treeOperationSequencer.queue(() =>
+							this.tree.expand(this.scmViewService.repositories[0]));
+					}
+				}));
 			});
 		}, this, this._store);
 	}
