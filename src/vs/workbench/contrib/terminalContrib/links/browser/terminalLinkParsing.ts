@@ -90,8 +90,7 @@ function generateLinkSuffixRegex(eolOnly: boolean) {
 		// "foo",339.12
 		// "foo",339.12-789
 		// "foo",339.12-341.789
-		// Negative lookbehind, support ISO 8601   [#247568]
-		`(?<!\\d{4}-\\d{2}-\\d{2}T\\d{1,2}(?::\\d{1,2}){0,2}(?:[+-]\\d{2})?)(?::|#| |['"],|, )${r()}([:.]${c()}(?:-(?:${re()}\\.)?${ce()})?)?` + eolSuffix,
+		`(?::|#| |['"],|, )${r()}([:.]${c()}(?:-(?:${re()}\\.)?${ce()})?)?` + eolSuffix,
 		// The quotes below are optional           [#171652]
 		// "foo", line 339                         [#40468]
 		// "foo", line 339, col 12
