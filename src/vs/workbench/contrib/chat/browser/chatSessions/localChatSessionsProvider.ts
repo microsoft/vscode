@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
+import { localize } from '../../../../../nls.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel } from '../../common/chatModel.js';
@@ -131,11 +132,12 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 			let status: ChatSessionStatus | undefined;
 			let startTime: number | undefined;
 			let endTime: number | undefined;
+			let description: string | undefined;
 			const model = this.chatService.getSession(sessionDetail.sessionResource);
 			if (model) {
 				status = this.modelToStatus(model);
 				startTime = model.timestamp;
-
+				description = this.chatSessionsService.getSessionDescription(model);
 				const lastResponse = model.getRequests().at(-1)?.response;
 				if (lastResponse) {
 					endTime = lastResponse.completedAt ?? lastResponse.timestamp;
@@ -152,7 +154,8 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 					startTime: startTime ?? Date.now(), // TODO@osortega this is not so good
 					endTime
 				},
-				statistics
+				statistics,
+				description: description || localize('chat.localSessionDescription.finished', "Finished"),
 			};
 			sessionsByResource.add(sessionDetail.sessionResource);
 			sessions.push(editorSession);
