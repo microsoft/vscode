@@ -216,9 +216,9 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			else if (chatSessionsInProgressCount > 0) {
 				text = '$(copilot-in-progress)';
 				if (chatSessionsInProgressCount > 1) {
-					ariaLabel = localize('chatSessionsInProgressStatus', "{0} agent sessions in progress", chatSessionsInProgressCount);
+					ariaLabel = localize('chatSessionsInProgressStatus', "{0} agents in progress", chatSessionsInProgressCount);
 				} else {
-					ariaLabel = localize('chatSessionInProgressStatus', "1 agent session in progress");
+					ariaLabel = localize('chatSessionInProgressStatus', "1 agent in progress");
 				}
 			}
 
@@ -442,10 +442,9 @@ class ChatStatusDashboard extends Disposable {
 				const inProgress = this.chatSessionsService.getInProgress();
 				if (inProgress.some(item => item.count > 0)) {
 
-					addSeparator(localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
+					addSeparator(localize('chatAgentSessionsTitle', "Agents"), toAction({
 						id: 'workbench.view.chat.status.sessions',
-						label: localize('viewChatSessionsLabel', "View Agent Sessions"),
-						tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
+						label: localize('viewChatSessionsLabel', "View Agents"),
 						class: ThemeIcon.asClassName(Codicon.eye),
 						run: () => {
 							// TODO@bpasero remove this check once settled

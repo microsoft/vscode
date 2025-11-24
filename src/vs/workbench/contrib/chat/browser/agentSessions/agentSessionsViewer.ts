@@ -308,7 +308,7 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<IAgentSes
 export class AgentSessionsAccessibilityProvider implements IListAccessibilityProvider<IAgentSession> {
 
 	getWidgetAriaLabel(): string {
-		return localize('agentSessions', "Agent Sessions");
+		return localize('agentSessions', "Agents");
 	}
 
 	getAriaLabel(element: IAgentSession): string | null {
@@ -419,7 +419,7 @@ export class AgentSessionsDragAndDrop extends Disposable implements ITreeDragAnd
 			return elements[0].label;
 		}
 
-		return localize('agentSessions.dragLabel', "{0} agent sessions", elements.length);
+		return localize('agentSessions.dragLabel', "{0} agents", elements.length);
 	}
 
 	onDragOver(data: IDragAndDropData, targetElement: IAgentSession | undefined, targetIndex: number | undefined, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {

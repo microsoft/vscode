@@ -13,12 +13,12 @@
 		min-height: 0;
 	}
 
-	.agent-sessions-new-session-container {
+	.agent-sessions-new-agent-container {
 		padding: 6px 12px;
 		flex: 0 0 auto !important;
 	}
 
-	.agent-sessions-new-session-container .monaco-dropdown-button {
+	.agent-sessions-new-agent-container .monaco-dropdown-button {
 		padding: 0 4px;
 	}
 }

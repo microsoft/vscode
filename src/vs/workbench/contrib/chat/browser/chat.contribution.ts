@@ -524,7 +524,7 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
 			enum: ['disabled', 'view', 'single-view'],
-			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
+			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions list."),
 			default: product.quality === 'stable' ? 'view' : 'single-view',
 			tags: ['experimental'],
 			experiment: {
@@ -779,7 +779,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.hideNewButtonInAgentSessionsView': { // TODO@bpasero remove me eventually
 			type: 'boolean',
-			description: nls.localize('chat.hideNewButtonInAgentSessionsView', "Controls whether the new session button is hidden in the Agent Sessions view."),
+			description: nls.localize('chat.hideNewButtonInAgentSessionsView', "Controls whether the new session button is hidden in the Agents view."),
 			default: false,
 			tags: ['preview']
 		},

@@ -283,7 +283,7 @@ export class ToggleAgentSessionsViewLocationAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleAgentSessionsViewLocationAction.id,
-			title: localize('chatSessions.toggleViewLocation.label', "Combined Sessions View"),
+			title: localize('chatSessions.toggleViewLocation.label', "Combined Agents View"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.AgentSessionsViewLocation}`, 'single-view'),

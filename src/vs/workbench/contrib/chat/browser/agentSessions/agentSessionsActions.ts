@@ -217,7 +217,7 @@ registerAction2(class extends ViewAction<AgentSessionsView> {
 	constructor() {
 		super({
 			id: 'agentSessionsView.refresh',
-			title: localize2('refresh', "Refresh Agent Sessions"),
+			title: localize2('refresh', "Refresh Agents"),
 			icon: Codicon.refresh,
 			menu: {
 				id: MenuId.AgentSessionsTitle,
@@ -236,7 +236,7 @@ registerAction2(class extends ViewAction<AgentSessionsView> {
 	constructor() {
 		super({
 			id: 'agentSessionsView.find',
-			title: localize2('find', "Find Agent Session"),
+			title: localize2('find', "Find Agent"),
 			icon: Codicon.search,
 			menu: {
 				id: MenuId.AgentSessionsTitle,
@@ -253,7 +253,7 @@ registerAction2(class extends ViewAction<AgentSessionsView> {
 
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsTitle, {
 	submenu: MenuId.AgentSessionsFilterSubMenu,
-	title: localize('filterAgentSessions', "Filter Agent Sessions"),
+	title: localize('filterAgentSessions', "Filter Agents"),
 	group: 'navigation',
 	order: 100,
 	icon: Codicon.filter

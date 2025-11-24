@@ -87,7 +87,7 @@ export class AgentSessionsView extends ViewPane {
 
 		// New Session
 		if (!this.configurationService.getValue('chat.hideNewButtonInAgentSessionsView')) {
-			this.createNewSessionButton(container);
+			this.createNewAgentButton(container);
 		}
 
 		// Sessions List
@@ -169,52 +169,52 @@ export class AgentSessionsView extends ViewPane {
 
 	//#endregion
 
-	//#region New Session Controls
+	//#region New Agent Controls
 
-	private newSessionContainer: HTMLElement | undefined;
+	private newAgentContainer: HTMLElement | undefined;
 
-	private createNewSessionButton(container: HTMLElement): void {
-		this.newSessionContainer = append(container, $('.agent-sessions-new-session-container'));
+	private createNewAgentButton(container: HTMLElement): void {
+		this.newAgentContainer = append(container, $('.agent-sessions-new-agent-container'));
 
-		const newSessionButton = this._register(new ButtonWithDropdown(this.newSessionContainer, {
-			title: localize('agentSessions.newSession', "New Session"),
-			ariaLabel: localize('agentSessions.newSessionAriaLabel', "New Session"),
+		const newAgentButton = this._register(new ButtonWithDropdown(this.newAgentContainer, {
+			title: localize('agentSessions.newAgent', "New Agent"),
+			ariaLabel: localize('agentSessions.newAgentAriaLabel', "New Agent"),
 			contextMenuProvider: this.contextMenuService,
 			actions: {
 				getActions: () => {
-					return this.getNewSessionActions();
+					return this.getNewAgentActions();
 				}
 			},
 			addPrimaryActionToDropdown: false,
 			...defaultButtonStyles,
 		}));
 
-		newSessionButton.label = localize('agentSessions.newSession', "New Session");
+		newAgentButton.label = localize('agentSessions.newAgent', "New Agent");
 
-		this._register(newSessionButton.onDidClick(() => this.commandService.executeCommand(ACTION_ID_OPEN_CHAT)));
+		this._register(newAgentButton.onDidClick(() => this.commandService.executeCommand(ACTION_ID_OPEN_CHAT)));
 	}
 
-	private getNewSessionActions(): IAction[] {
+	private getNewAgentActions(): IAction[] {
 		const actions: IAction[] = [];
 
 		// Default action
 		actions.push(toAction({
-			id: 'newChatSession.default',
-			label: localize('newChatSessionDefault', "New Local Session"),
+			id: 'newChatAgent.default',
+			label: localize('newChatAgentDefault', "New Local Agent"),
 			run: () => this.commandService.executeCommand(ACTION_ID_OPEN_CHAT)
 		}));
 
 		// Background (CLI)
 		actions.push(toAction({
-			id: 'newChatSessionFromProvider.background',
-			label: localize('newBackgroundSession', "New Background Session"),
+			id: 'newChatAgent.background',
+			label: localize('newBackgroundAgent', "New Background Agent"),
 			run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Background}`)
 		}));
 
 		// Cloud
 		actions.push(toAction({
-			id: 'newChatSessionFromProvider.cloud',
-			label: localize('newCloudSession', "New Cloud Session"),
+			id: 'newChatAgent.cloud',
+			label: localize('newCloudAgent', "New Cloud Agent"),
 			run: () => this.commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Cloud}`)
 		}));
 
@@ -254,7 +254,7 @@ export class AgentSessionsView extends ViewPane {
 		actions.push(new Separator());
 		actions.push(toAction({
 			id: 'install-extensions',
-			label: localize('chatSessions.installExtensions', "Install Chat Extensions..."),
+			label: localize('chatSessions.installExtensions', "Install Agent Extensions..."),
 			run: () => this.commandService.executeCommand('chat.sessions.gettingStarted')
 		}));
 
@@ -319,7 +319,7 @@ export class AgentSessionsView extends ViewPane {
 			this.progressService.withProgress(
 				{
 					location: this.id,
-					title: localize('agentSessions.refreshing', 'Refreshing agent sessions...'),
+					title: localize('agentSessions.refreshing', 'Refreshing agents...'),
 					delay: 500
 				},
 				() => didResolve.p
@@ -347,7 +347,7 @@ export class AgentSessionsView extends ViewPane {
 		super.layoutBody(height, width);
 
 		let treeHeight = height;
-		treeHeight -= this.newSessionContainer?.offsetHeight ?? 0;
+		treeHeight -= this.newAgentContainer?.offsetHeight ?? 0;
 
 		this.list?.layout(treeHeight, width);
 	}
@@ -363,9 +363,9 @@ export class AgentSessionsView extends ViewPane {
 
 //#region View Registration
 
-const chatAgentsIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View');
+const chatAgentsIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agents View');
 
-const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Agent Sessions");
+const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Agents");
 
 const agentSessionsViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: AGENT_SESSIONS_VIEW_CONTAINER_ID,
