@@ -13,18 +13,16 @@ import * as nodeUtil from 'util';
 import es from 'event-stream';
 import filter from 'gulp-filter';
 import * as util from './lib/util.ts';
-import * as getVersionModule from './lib/getVersion.ts';
+import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/task.ts';
 import watcher from './lib/watch/index.ts';
-import * as reporterModule from './lib/reporter.ts';
+import { createReporter } from './lib/reporter.ts';
 import glob from 'glob';
 import plumber from 'gulp-plumber';
 import * as ext from './lib/extensions.ts';
 import * as tsb from './lib/tsb/index.ts';
 import sourcemaps from 'gulp-sourcemaps';
 
-const { getVersion } = getVersionModule;
-const { createReporter } = reporterModule;
 const root = path.dirname(import.meta.dirname);
 const commit = getVersion(root);
 

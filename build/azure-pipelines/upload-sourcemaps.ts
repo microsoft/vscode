@@ -65,7 +65,7 @@ function main(): Promise<void> {
 				prefix: `sourcemaps/${commit}/`
 			}))
 			.on('end', () => c())
-			.on('error', (err: any) => e(err));
+			.on('error', (err) => e(err));
 	});
 }
 
