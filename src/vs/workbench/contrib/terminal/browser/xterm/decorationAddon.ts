@@ -309,7 +309,6 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 				return;
 			}
 			if (!this._decorations.get(decoration.marker.id)) {
-				decoration.onDispose(() => this._decorations.deleteAndDispose(decoration.marker.id));
 				store.add(this._createDisposables(element, command, markProperties));
 				this._decorations.set(decoration.marker.id,
 					{
