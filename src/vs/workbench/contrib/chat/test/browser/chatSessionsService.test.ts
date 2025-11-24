@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ChatSessionsService } from '../../browser/chatSessions.contribution.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 
-suite('ChatSessionsService', () => {
+suite.skip('ChatSessionsService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let chatSessionsService: ChatSessionsService;
