@@ -20,11 +20,11 @@ import { getPositionOffsetTransformerFromTextModel } from '../../../../common/co
 import { PositionOffsetTransformerBase } from '../../../../common/core/text/positionToOffset.js';
 import { TextLength } from '../../../../common/core/text/textLength.js';
 import { linesDiffComputers } from '../../../../common/diff/linesDiffComputers.js';
-import { Command, InlineCompletion, InlineCompletionHintStyle, InlineCompletionEndOfLifeReason, InlineCompletionTriggerKind, InlineCompletionWarning, PartialAcceptInfo, InlineCompletionHint } from '../../../../common/languages.js';
+import { Command, InlineCompletion, InlineCompletionHintStyle, InlineCompletionEndOfLifeReason, InlineCompletionTriggerKind, InlineCompletionWarning, PartialAcceptInfo, IInlineCompletionHint } from '../../../../common/languages.js';
 import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
-import { InlineSuggestData, InlineSuggestionList, PartialAcceptance, SnippetInfo } from './provideInlineCompletions.js';
+import { InlineSuggestData, InlineSuggestionList, PartialAcceptance, RenameInfo, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
 export type InlineSuggestionItem = InlineEditItem | InlineCompletionItem;
@@ -63,6 +63,8 @@ abstract class InlineSuggestionItemBase {
 	public get semanticId(): string { return this.hash; }
 	public get action(): Command | undefined { return this._sourceInlineCompletion.gutterMenuLinkAction; }
 	public get command(): Command | undefined { return this._sourceInlineCompletion.command; }
+	public get supportsRename(): boolean { return this._data.supportsRename; }
+	public get renameCommand(): Command | undefined { return this._data.renameCommand; }
 	public get warning(): InlineCompletionWarning | undefined { return this._sourceInlineCompletion.warning; }
 	public get showInlineEditMenu(): boolean { return !!this._sourceInlineCompletion.showInlineEditMenu; }
 	public get hash() {
@@ -133,6 +135,14 @@ abstract class InlineSuggestionItemBase {
 	public getSourceCompletion(): InlineCompletion {
 		return this._sourceInlineCompletion;
 	}
+
+	public setRenameProcessingInfo(info: RenameInfo): void {
+		this._data.setRenameProcessingInfo(info);
+	}
+
+	public withRename(command: Command, hint: InlineSuggestHint): InlineSuggestData {
+		return this._data.withRename(command, hint);
+	}
 }
 
 export class InlineSuggestionIdentity {
@@ -166,11 +176,11 @@ export class InlineSuggestionIdentity {
 
 export class InlineSuggestHint {
 
-	public static create(displayLocation: InlineCompletionHint) {
+	public static create(hint: IInlineCompletionHint) {
 		return new InlineSuggestHint(
-			Range.lift(displayLocation.range),
-			displayLocation.content,
-			displayLocation.style,
+			Range.lift(hint.range),
+			hint.content,
+			hint.style,
 		);
 	}
 
