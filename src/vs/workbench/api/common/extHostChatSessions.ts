@@ -25,6 +25,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 
 class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
@@ -404,19 +405,20 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
-	private convertReferenceToVariable(ref: vscode.ChatPromptReference) {
+	private convertReferenceToVariable(ref: vscode.ChatPromptReference): IChatRequestVariableEntry {
 		const value = ref.value && typeof ref.value === 'object' && 'uri' in ref.value && 'range' in ref.value
 			? typeConvert.Location.from(ref.value as vscode.Location)
 			: ref.value;
 		const range = ref.range ? { start: ref.range[0], endExclusive: ref.range[1] } : undefined;
 		const isFile = URI.isUri(value) || (value && typeof value === 'object' && 'uri' in value);
+		const isFolder = isFile && URI.isUri(value) && value.path.endsWith('/');
 		return {
 			id: ref.id,
 			name: ref.id,
 			value,
 			modelDescription: ref.modelDescription,
 			range,
-			kind: isFile ? 'file' as const : 'generic' as const
+			kind: isFolder ? 'directory' as const : isFile ? 'file' as const : 'generic' as const
 		};
 	}
 
