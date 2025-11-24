@@ -105,19 +105,21 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			// If the path ends with an ISO 8601 timestamp pattern and has a suffix,
 			// the suffix is likely part of the timestamp, not a line:col. Extend the path to include it.
 			let pathForCandidate = parsedLink.path.text;
-			let extendedLength = 0;
+			let additionalLength = 0;
 			if (parsedLink.suffix && parsedLink.path.text.match(/\d{4}-\d{2}-\d{2}T\d{2}$/)) {
 				const suffixEnd = parsedLink.suffix.suffix.index + parsedLink.suffix.suffix.text.length;
 				const afterSuffix = text.substring(suffixEnd).match(/^[^\s]*/)?.[0] || '';
 				pathForCandidate = parsedLink.path.text + parsedLink.suffix.suffix.text + afterSuffix;
-				extendedLength = parsedLink.suffix.suffix.text.length + afterSuffix.length;
+				additionalLength = afterSuffix.length;
 			}
 
 			// Convert the link text's string index into a wrapped buffer range
 			const bufferRange = convertLinkRangeToBuffer(lines, this.xterm.cols, {
 				startColumn: (parsedLink.prefix?.index ?? parsedLink.path.index) + 1,
 				startLineNumber: 1,
-				endColumn: parsedLink.path.index + parsedLink.path.text.length + extendedLength + 1,
+				endColumn: parsedLink.suffix
+					? parsedLink.suffix.suffix.index + parsedLink.suffix.suffix.text.length + additionalLength + 1
+					: parsedLink.path.index + parsedLink.path.text.length + 1,
 				endLineNumber: 1
 			}, startLine);
 
