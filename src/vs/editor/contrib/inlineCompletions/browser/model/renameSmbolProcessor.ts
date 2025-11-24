@@ -101,7 +101,7 @@ export class RenameSymbolProcessor extends Disposable {
 			const startPos = textModel.getPositionAt(startOffset);
 			const wordRange = textModel.getWordAtPosition(startPos);
 			// If we don't have a word range at the start position of the current document then we
-			// don't treat it as as rename assuming that the rename refactoring will fail as well since
+			// don't treat it as a rename assuming that the rename refactoring will fail as well since
 			// there can't be an identifier at that position.
 			if (wordRange === null) {
 				return undefined;
