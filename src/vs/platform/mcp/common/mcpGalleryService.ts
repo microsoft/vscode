@@ -939,7 +939,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			}
 		}
 
-		let url = `${mcpGalleryUrl}?limit=${query.pageSize}`;
+		let url = `${mcpGalleryUrl}?limit=${query.pageSize}&version=latest`;
 		if (query.cursor) {
 			url += `&cursor=${query.cursor}`;
 		}
