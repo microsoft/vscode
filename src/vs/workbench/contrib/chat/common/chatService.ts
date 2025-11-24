@@ -945,7 +945,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken, options?: { canUseTools?: boolean }): IChatModelReference;
+	startSession(location: ChatAgentLocation, token: CancellationToken, options?: IChatSessionStartOptions): IChatModelReference;
 
 	/**
 	 * Get an active session without holding a reference to it.
@@ -979,7 +979,6 @@ export interface IChatService {
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionResource: URI): void;
-	forceClearSession(sessionResource: URI): Promise<void>;
 	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	setChatSessionTitle(sessionResource: URI, title: string): void;
 	getLocalSessionHistory(): Promise<IChatDetail[]>;
@@ -1015,3 +1014,8 @@ export interface IChatSessionContext {
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';
+
+export interface IChatSessionStartOptions {
+	canUseTools?: boolean;
+	disableBackgroundKeepAlive?: boolean;
+}

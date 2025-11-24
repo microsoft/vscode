@@ -7,6 +7,7 @@ import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
@@ -43,7 +44,6 @@ import { IChatVariablesService } from '../../common/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { MockChatService } from './mockChatService.js';
 import { MockChatVariablesService } from './mockChatVariables.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 
 const chatAgentWithUsedContextId = 'ChatProviderWithUsedContext';
 const chatAgentWithUsedContext: IChatAgent = {
@@ -396,6 +396,23 @@ suite('ChatService', () => {
 		const chatModel2 = chatModel2Ref.object;
 
 		await assertSnapshot(toSnapshotExportData(chatModel2));
+	});
+
+	test('onDidDisposeSession', async () => {
+		const testService = createChatService();
+		const modelRef = testService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
+		const model = modelRef.object;
+
+		let disposed = false;
+		testDisposables.add(testService.onDidDisposeSession(e => {
+			if (e.sessionResource.toString() === model.sessionResource.toString()) {
+				disposed = true;
+			}
+		}));
+
+		modelRef.dispose();
+		await testService.waitForModelDisposals();
+		assert.strictEqual(disposed, true);
 	});
 });
 
