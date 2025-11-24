@@ -894,7 +894,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return description || localize('chat.sessions.description.working', "Working...");
 	}
 
-	private extractFileNameFromLink(filePath: string): string {
+	public extractFileNameFromLink(filePath: string): string {
 		return filePath.replace(/\[(?<linkText>[^\]]*)\]\(file:\/\/\/(?<path>[^)]+)\)/g, (match: string, _p1: string, _p2: string, _offset: number, _string: string, groups?: { linkText?: string; path?: string }) => {
 			const fileName = groups?.path?.split('/').pop() || groups?.path || '';
 			return (groups?.linkText?.trim() || fileName);
