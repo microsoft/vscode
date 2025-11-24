@@ -39,7 +39,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
 import { AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
-import { canUseChat, isNewUser, isCompletionsEnabled } from './chatStatus.js';
+import { isNewUser, isCompletionsEnabled } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 import product from '../../../../../platform/product/common/product.js';
 import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
@@ -178,7 +178,7 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 
 			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
-				const upgradeProButton = this._store.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: canUseChat(this.chatEntitlementService) /* use secondary color when chat can still be used */ }));
+				const upgradeProButton = this._store.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: this.canUseChat() /* use secondary color when chat can still be used */ }));
 				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
 				this._store.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
@@ -290,7 +290,7 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		// Completions Snooze
-		if (canUseChat(this.chatEntitlementService)) {
+		if (this.canUseChat()) {
 			const snooze = append(this.element, $('div.snooze-completions'));
 			this.createCompletionsSnooze(snooze, localize('settings.snooze', "Snooze"), this._store);
 		}
@@ -348,6 +348,22 @@ export class ChatStatusDashboard extends DomWidget {
 				this._store.add(button.onDidClick(() => this.runCommandAndClose(commandId)));
 			}
 		}
+	}
+
+	private canUseChat(): boolean {
+		if (!this.chatEntitlementService.sentiment.installed || this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
+			return false; // chat not installed or not enabled
+		}
+
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown || this.chatEntitlementService.entitlement === ChatEntitlement.Available) {
+			return this.chatEntitlementService.anonymous; // signed out or not-yet-signed-up users can only use Chat if anonymous access is allowed
+		}
+
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && this.chatEntitlementService.quotas.chat?.percentRemaining === 0 && this.chatEntitlementService.quotas.completions?.percentRemaining === 0) {
+			return false; // free user with no quota left
+		}
+
+		return true;
 	}
 
 	private renderHeader(container: HTMLElement, disposables: DisposableStore, label: string, action?: IAction): void {
@@ -530,7 +546,7 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 		}));
 
-		if (!canUseChat(this.chatEntitlementService)) {
+		if (!this.canUseChat()) {
 			container.classList.add('disabled');
 			checkbox.disable();
 			checkbox.checked = false;
@@ -591,7 +607,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(completionsSettingId)) {
-				if (completionsSettingAccessor.readSetting() && canUseChat(this.chatEntitlementService)) {
+				if (completionsSettingAccessor.readSetting() && this.canUseChat()) {
 					checkbox.enable();
 					container.classList.remove('disabled');
 				} else {

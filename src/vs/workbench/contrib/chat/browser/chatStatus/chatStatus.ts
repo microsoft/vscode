@@ -13,22 +13,6 @@ export function isNewUser(chatEntitlementService: IChatEntitlementService): bool
 		chatEntitlementService.entitlement === ChatEntitlement.Available;	// not yet signed up to chat
 }
 
-export function canUseChat(chatEntitlementService: IChatEntitlementService): boolean {
-	if (!chatEntitlementService.sentiment.installed || chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted) {
-		return false; // chat not installed or not enabled
-	}
-
-	if (chatEntitlementService.entitlement === ChatEntitlement.Unknown || chatEntitlementService.entitlement === ChatEntitlement.Available) {
-		return chatEntitlementService.anonymous; // signed out or not-yet-signed-up users can only use Chat if anonymous access is allowed
-	}
-
-	if (chatEntitlementService.entitlement === ChatEntitlement.Free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0) {
-		return false; // free user with no quota left
-	}
-
-	return true;
-}
-
 export function isCompletionsEnabled(configurationService: IConfigurationService, modeId: string = '*'): boolean {
 	const result = configurationService.getValue<Record<string, boolean>>(product.defaultChatAgent.completionsEnablementSetting);
 	if (!isObject(result)) {
