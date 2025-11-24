@@ -39,8 +39,13 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
 import { AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
-import { defaultChat, canUseChat, isNewUser, isCompletionsEnabled } from './common.js';
+import { canUseChat, isNewUser, isCompletionsEnabled } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
+import product from '../../../../../platform/product/common/product.js';
+import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { Color } from '../../../../../base/common/color.js';
+
+const defaultChat = product.defaultChatAgent;
 
 interface ISettingsAccessor {
 	readSetting: () => boolean;
@@ -59,7 +64,57 @@ type ChatSettingChangedEvent = {
 	settingEnablement: 'enabled' | 'disabled';
 };
 
+const gaugeForeground = registerColor('gauge.foreground', {
+	dark: inputValidationInfoBorder,
+	light: inputValidationInfoBorder,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('gaugeForeground', "Gauge foreground color."));
+
+registerColor('gauge.background', {
+	dark: transparent(gaugeForeground, 0.3),
+	light: transparent(gaugeForeground, 0.3),
+	hcDark: Color.white,
+	hcLight: Color.white
+}, localize('gaugeBackground', "Gauge background color."));
+
+registerColor('gauge.border', {
+	dark: null,
+	light: null,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('gaugeBorder', "Gauge border color."));
+
+const gaugeWarningForeground = registerColor('gauge.warningForeground', {
+	dark: inputValidationWarningBorder,
+	light: inputValidationWarningBorder,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('gaugeWarningForeground', "Gauge warning foreground color."));
+
+registerColor('gauge.warningBackground', {
+	dark: transparent(gaugeWarningForeground, 0.3),
+	light: transparent(gaugeWarningForeground, 0.3),
+	hcDark: Color.white,
+	hcLight: Color.white
+}, localize('gaugeWarningBackground', "Gauge warning background color."));
+
+const gaugeErrorForeground = registerColor('gauge.errorForeground', {
+	dark: inputValidationErrorBorder,
+	light: inputValidationErrorBorder,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('gaugeErrorForeground', "Gauge error foreground color."));
+
+registerColor('gauge.errorBackground', {
+	dark: transparent(gaugeErrorForeground, 0.3),
+	light: transparent(gaugeErrorForeground, 0.3),
+	hcDark: Color.white,
+	hcLight: Color.white
+}, localize('gaugeErrorBackground', "Gauge error background color."));
+
 export class ChatStatusDashboard extends DomWidget {
+
 	readonly element = $('div.chat-status-bar-entry-tooltip');
 
 	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
@@ -84,10 +139,10 @@ export class ChatStatusDashboard extends DomWidget {
 	) {
 		super();
 
-		this._render();
+		this.render();
 	}
 
-	private _render(): void {
+	private render(): void {
 		const token = cancelOnDispose(this._store);
 
 		let needsSeparator = false;
