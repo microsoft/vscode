@@ -416,12 +416,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		if (other.kind !== 'markdownContent') {
 			return false;
 		}
-		const lastCodeblock = this._codeblocks.at(-1);
-		if (other.content.value === this.markdown.content.value && !lastCodeblock) {
+		const allCodeblocksComplete = this._codeblocks.every(cb => cb.codemapperUri !== undefined && !cb.isStreamingEdit);
+		if (other.content.value === this.markdown.content.value && allCodeblocksComplete) {
 			return true;
 		}
 
 		// If we are streaming in code shown in an edit pill, do not re-render the entire content as long as it's coming in
+		const lastCodeblock = this._codeblocks.at(-1);
 		if (lastCodeblock && lastCodeblock.codemapperUri !== undefined && lastCodeblock.isStreamingEdit) {
 			return other.content.value.lastIndexOf('```') === this.markdown.content.value.lastIndexOf('```');
 		}
