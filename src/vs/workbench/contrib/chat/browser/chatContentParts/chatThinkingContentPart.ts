@@ -64,7 +64,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	) {
 		const initialText = extractTextFromPart(content);
 		const extractedTitle = extractTitleFromThinkingContent(initialText)
-			?? localize('chat.thinking.header', 'Thinking...');
+			?? 'Thinking...';
 
 		super(extractedTitle, context);
 
@@ -350,9 +350,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 			if (toolInvocation?.invocationMessage) {
 				const message = typeof toolInvocation.invocationMessage === 'string' ? toolInvocation.invocationMessage : toolInvocation.invocationMessage.value;
-				toolCallLabel = localize('chat.thinking.called.tool.withMessage', '{0}', message);
+				toolCallLabel = message;
 			} else {
-				toolCallLabel = localize('chat.thinking.called.tool', 'Invoked `{0}`', toolInvocationId);
+				toolCallLabel = `Invoked \`${toolInvocationId}\``;
 			}
 
 			// Add tool call to extracted titles for LLM title generation
@@ -395,7 +395,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.currentTitle = title;
 			return;
 		}
-		const thinkingLabel = localize('chat.thinking.fixed.progress.withHeader', 'Thinking: {0}', title);
+		const thinkingLabel = `Thinking: ${title}`;
 		this.lastExtractedTitle = title;
 		this.currentTitle = thinkingLabel;
 		this.setTitleWithWidgets(new MarkdownString(thinkingLabel), this.instantiationService, this.chatMarkdownAnchorService, this.chatContentMarkdownRenderer);
