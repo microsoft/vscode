@@ -2226,267 +2226,260 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.currentRequest = undefined;
 		});
 
-		if (this.viewModel?.editing) {
-			this.finishedEditing(true);
-			this.viewModel.model?.setCheckpoint(undefined);
-		}
 		return result.responseCreatedPromise;
 	}
-}
-return undefined;
+
+	getModeRequestOptions(): Partial<IChatSendRequestOptions> {
+		return {
+			modeInfo: this.input.currentModeInfo,
+			userSelectedTools: this.input.selectedToolsModel.userSelectedTools,
+		};
 	}
 
-getModeRequestOptions(): Partial < IChatSendRequestOptions > {
-	return {
-		modeInfo: this.input.currentModeInfo,
-		userSelectedTools: this.input.selectedToolsModel.userSelectedTools,
-	};
-}
-
-getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
-	return this.renderer.getCodeBlockInfosForResponse(response);
-}
-
-getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
-	return this.renderer.getCodeBlockInfoForEditor(uri);
-}
-
-getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[] {
-	return this.renderer.getFileTreeInfosForResponse(response);
-}
-
-getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined {
-	return this.renderer.getLastFocusedFileTreeForResponse(response);
-}
-
-focusResponseItem(lastFocused ?: boolean): void {
-	if(!this.viewModel) {
-	return;
-}
-const items = this.tree.getNode(null).children;
-let item;
-if (lastFocused) {
-	item = items[this._mostRecentlyFocusedItemIndex] ?? items[items.length - 1];
-} else {
-	item = items[items.length - 1];
-}
-if (!item) {
-	return;
-}
-
-this.tree.setFocus([item.element]);
-this.tree.domFocus();
+	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
+		return this.renderer.getCodeBlockInfosForResponse(response);
 	}
 
-layout(height: number, width: number): void {
-	width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
-	const heightUpdated = this.bodyDimension && this.bodyDimension.height !== height;
-	this.bodyDimension = new dom.Dimension(width, height);
-
-	const layoutHeight = this._dynamicMessageLayoutData?.enabled ? this._dynamicMessageLayoutData.maxHeight : height;
-	if(this.viewModel?.editing) {
-	this.inlineInputPart?.layout(layoutHeight, width);
-}
-
-this.inputPart.layout(layoutHeight, width);
-
-const inputHeight = this.inputPart.inputPartHeight;
-const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
-const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
-const lastItem = this.viewModel?.getItems().at(-1);
-
-const contentHeight = Math.max(0, height - inputHeight - chatSuggestNextWidgetHeight);
-if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
-	this.listContainer.style.removeProperty('--chat-current-response-min-height');
-} else {
-	this.listContainer.style.setProperty('--chat-current-response-min-height', contentHeight * .75 + 'px');
-	if (heightUpdated && lastItem && this.visible) {
-		this.tree.updateElementHeight(lastItem, undefined);
-	}
-}
-this.tree.layout(contentHeight, width);
-
-// Push the welcome message down so it doesn't change position
-// when followups, attachments, working set, todo list, or suggest next widget appear
-let welcomeOffset = 100;
-if (this.viewOptions.renderFollowups) {
-	welcomeOffset = Math.max(welcomeOffset - this.input.followupsHeight, 0);
-}
-if (this.viewOptions.enableWorkingSet) {
-	welcomeOffset = Math.max(welcomeOffset - this.input.editSessionWidgetHeight, 0);
-}
-welcomeOffset = Math.max(welcomeOffset - this.input.todoListWidgetHeight, 0);
-welcomeOffset = Math.max(welcomeOffset - this.input.attachmentsHeight, 0);
-this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
-this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;
-
-this.renderer.layout(width);
-
-const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
-if (lastElementVisible && (!lastResponseIsRendering || checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll))) {
-	this.scrollToEnd();
-}
-this.listContainer.style.height = `${contentHeight}px`;
-
-this._onDidChangeHeight.fire(height);
+	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
+		return this.renderer.getCodeBlockInfoForEditor(uri);
 	}
 
-	private _dynamicMessageLayoutData ?: { numOfMessages: number; maxHeight: number; enabled: boolean };
+	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[] {
+		return this.renderer.getFileTreeInfosForResponse(response);
+	}
 
-// An alternative to layout, this allows you to specify the number of ChatTreeItems
-// you want to show, and the max height of the container. It will then layout the
-// tree to show that many items.
-// TODO@TylerLeonhardt: This could use some refactoring to make it clear which layout strategy is being used
-setDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
-	this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight, enabled: true };
-	this._register(this.renderer.onDidChangeItemHeight(() => this.layoutDynamicChatTreeItemMode()));
+	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined {
+		return this.renderer.getLastFocusedFileTreeForResponse(response);
+	}
 
-	const mutableDisposable = this._register(new MutableDisposable());
-	this._register(this.tree.onDidScroll((e) => {
-		// TODO@TylerLeonhardt this should probably just be disposed when this is disabled
-		// and then set up again when it is enabled again
-		if (!this._dynamicMessageLayoutData?.enabled) {
+	focusResponseItem(lastFocused?: boolean): void {
+		if (!this.viewModel) {
 			return;
 		}
-		mutableDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
-			if (!e.scrollTopChanged || e.heightChanged || e.scrollHeightChanged) {
-				return;
-			}
-			const renderHeight = e.height;
-			const diff = e.scrollHeight - renderHeight - e.scrollTop;
-			if (diff === 0) {
-				return;
-			}
+		const items = this.tree.getNode(null).children;
+		let item;
+		if (lastFocused) {
+			item = items[this._mostRecentlyFocusedItemIndex] ?? items[items.length - 1];
+		} else {
+			item = items[items.length - 1];
+		}
+		if (!item) {
+			return;
+		}
 
-			const possibleMaxHeight = (this._dynamicMessageLayoutData?.maxHeight ?? maxHeight);
-			const width = this.bodyDimension?.width ?? this.container.offsetWidth;
-			this.input.layout(possibleMaxHeight, width);
-			const inputPartHeight = this.input.inputPartHeight;
-			const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
-			const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight - chatSuggestNextWidgetHeight);
-			this.layout(newHeight + inputPartHeight + chatSuggestNextWidgetHeight, width);
-		});
-	}));
-}
-
-updateDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
-	this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight, enabled: true };
-	let hasChanged = false;
-	let height = this.bodyDimension!.height;
-	let width = this.bodyDimension!.width;
-	if (maxHeight < this.bodyDimension!.height) {
-		height = maxHeight;
-		hasChanged = true;
-	}
-	const containerWidth = this.container.offsetWidth;
-	if (this.bodyDimension?.width !== containerWidth) {
-		width = containerWidth;
-		hasChanged = true;
-	}
-	if (hasChanged) {
-		this.layout(height, width);
-	}
-}
-
-	get isDynamicChatTreeItemLayoutEnabled(): boolean {
-	return this._dynamicMessageLayoutData?.enabled ?? false;
-}
-
-	set isDynamicChatTreeItemLayoutEnabled(value: boolean) {
-	if (!this._dynamicMessageLayoutData) {
-		return;
-	}
-	this._dynamicMessageLayoutData.enabled = value;
-}
-
-layoutDynamicChatTreeItemMode(): void {
-	if(!this.viewModel || !this._dynamicMessageLayoutData?.enabled) {
-	return;
-}
-
-const width = this.bodyDimension?.width ?? this.container.offsetWidth;
-this.input.layout(this._dynamicMessageLayoutData.maxHeight, width);
-const inputHeight = this.input.inputPartHeight;
-const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
-
-const totalMessages = this.viewModel.getItems();
-// grab the last N messages
-const messages = totalMessages.slice(-this._dynamicMessageLayoutData.numOfMessages);
-
-const needsRerender = messages.some(m => m.currentRenderedHeight === undefined);
-const listHeight = needsRerender
-	? this._dynamicMessageLayoutData.maxHeight
-	: messages.reduce((acc, message) => acc + message.currentRenderedHeight!, 0);
-
-this.layout(
-	Math.min(
-		// we add an additional 18px in order to show that there is scrollable content
-		inputHeight + chatSuggestNextWidgetHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
-		this._dynamicMessageLayoutData.maxHeight
-	),
-	width
-);
-
-if (needsRerender || !listHeight) {
-	this.scrollToEnd();
-}
+		this.tree.setFocus([item.element]);
+		this.tree.domFocus();
 	}
 
-saveState(): void {
-	// no-op
-}
+	layout(height: number, width: number): void {
+		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
+		const heightUpdated = this.bodyDimension && this.bodyDimension.height !== height;
+		this.bodyDimension = new dom.Dimension(width, height);
 
-getViewState(): IChatModelInputState | undefined {
-	return this.input.getCurrentInputState();
-}
+		const layoutHeight = this._dynamicMessageLayoutData?.enabled ? this._dynamicMessageLayoutData.maxHeight : height;
+		if (this.viewModel?.editing) {
+			this.inlineInputPart?.layout(layoutHeight, width);
+		}
 
-	private updateChatInputContext() {
-	const currentAgent = this.parsedInput.parts.find(part => part instanceof ChatRequestAgentPart);
-	this.agentInInput.set(!!currentAgent);
-}
+		this.inputPart.layout(layoutHeight, width);
 
-	private async _switchToAgentByName(agentName: string): Promise < void> {
-	const currentAgent = this.input.currentModeObs.get();
+		const inputHeight = this.inputPart.inputPartHeight;
+		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
+		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
+		const lastItem = this.viewModel?.getItems().at(-1);
 
-	// switch to appropriate agent if needed
-	if(agentName !== currentAgent.name.get()) {
-	// Find the mode object to get its kind
-	const agent = this.chatModeService.findModeByName(agentName);
-	if (agent) {
-		if (currentAgent.kind !== agent.kind) {
-			const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentAgent.kind, agent.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
-			if (!chatModeCheck) {
-				return;
-			}
-
-			if (chatModeCheck.needToClearSession) {
-				await this.clear();
+		const contentHeight = Math.max(0, height - inputHeight - chatSuggestNextWidgetHeight);
+		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
+			this.listContainer.style.removeProperty('--chat-current-response-min-height');
+		} else {
+			this.listContainer.style.setProperty('--chat-current-response-min-height', contentHeight * .75 + 'px');
+			if (heightUpdated && lastItem && this.visible) {
+				this.tree.updateElementHeight(lastItem, undefined);
 			}
 		}
-		this.input.setChatMode(agent.id);
+		this.tree.layout(contentHeight, width);
+
+		// Push the welcome message down so it doesn't change position
+		// when followups, attachments, working set, todo list, or suggest next widget appear
+		let welcomeOffset = 100;
+		if (this.viewOptions.renderFollowups) {
+			welcomeOffset = Math.max(welcomeOffset - this.input.followupsHeight, 0);
+		}
+		if (this.viewOptions.enableWorkingSet) {
+			welcomeOffset = Math.max(welcomeOffset - this.input.editSessionWidgetHeight, 0);
+		}
+		welcomeOffset = Math.max(welcomeOffset - this.input.todoListWidgetHeight, 0);
+		welcomeOffset = Math.max(welcomeOffset - this.input.attachmentsHeight, 0);
+		this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
+		this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;
+
+		this.renderer.layout(width);
+
+		const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
+		if (lastElementVisible && (!lastResponseIsRendering || checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll))) {
+			this.scrollToEnd();
+		}
+		this.listContainer.style.height = `${contentHeight}px`;
+
+		this._onDidChangeHeight.fire(height);
 	}
-}
+
+	private _dynamicMessageLayoutData?: { numOfMessages: number; maxHeight: number; enabled: boolean };
+
+	// An alternative to layout, this allows you to specify the number of ChatTreeItems
+	// you want to show, and the max height of the container. It will then layout the
+	// tree to show that many items.
+	// TODO@TylerLeonhardt: This could use some refactoring to make it clear which layout strategy is being used
+	setDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
+		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight, enabled: true };
+		this._register(this.renderer.onDidChangeItemHeight(() => this.layoutDynamicChatTreeItemMode()));
+
+		const mutableDisposable = this._register(new MutableDisposable());
+		this._register(this.tree.onDidScroll((e) => {
+			// TODO@TylerLeonhardt this should probably just be disposed when this is disabled
+			// and then set up again when it is enabled again
+			if (!this._dynamicMessageLayoutData?.enabled) {
+				return;
+			}
+			mutableDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
+				if (!e.scrollTopChanged || e.heightChanged || e.scrollHeightChanged) {
+					return;
+				}
+				const renderHeight = e.height;
+				const diff = e.scrollHeight - renderHeight - e.scrollTop;
+				if (diff === 0) {
+					return;
+				}
+
+				const possibleMaxHeight = (this._dynamicMessageLayoutData?.maxHeight ?? maxHeight);
+				const width = this.bodyDimension?.width ?? this.container.offsetWidth;
+				this.input.layout(possibleMaxHeight, width);
+				const inputPartHeight = this.input.inputPartHeight;
+				const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
+				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight - chatSuggestNextWidgetHeight);
+				this.layout(newHeight + inputPartHeight + chatSuggestNextWidgetHeight, width);
+			});
+		}));
 	}
 
-	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise < void> {
+	updateDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
+		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight, enabled: true };
+		let hasChanged = false;
+		let height = this.bodyDimension!.height;
+		let width = this.bodyDimension!.width;
+		if (maxHeight < this.bodyDimension!.height) {
+			height = maxHeight;
+			hasChanged = true;
+		}
+		const containerWidth = this.container.offsetWidth;
+		if (this.bodyDimension?.width !== containerWidth) {
+			width = containerWidth;
+			hasChanged = true;
+		}
+		if (hasChanged) {
+			this.layout(height, width);
+		}
+	}
 
-	if(tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent) {
-	agent = ChatMode.Agent.name.get();
-}
-// switch to appropriate agent if needed
-if (agent) {
-	this._switchToAgentByName(agent);
-}
+	get isDynamicChatTreeItemLayoutEnabled(): boolean {
+		return this._dynamicMessageLayoutData?.enabled ?? false;
+	}
 
-// if not tools to enable are present, we are done
-if (tools !== undefined && this.input.currentModeKind === ChatModeKind.Agent) {
-	const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, Target.VSCode);
-	this.input.selectedToolsModel.set(enablementMap, true);
-}
+	set isDynamicChatTreeItemLayoutEnabled(value: boolean) {
+		if (!this._dynamicMessageLayoutData) {
+			return;
+		}
+		this._dynamicMessageLayoutData.enabled = value;
+	}
 
-if (model !== undefined) {
-	this.input.switchModelByQualifiedName(model);
-}
+	layoutDynamicChatTreeItemMode(): void {
+		if (!this.viewModel || !this._dynamicMessageLayoutData?.enabled) {
+			return;
+		}
+
+		const width = this.bodyDimension?.width ?? this.container.offsetWidth;
+		this.input.layout(this._dynamicMessageLayoutData.maxHeight, width);
+		const inputHeight = this.input.inputPartHeight;
+		const chatSuggestNextWidgetHeight = this.chatSuggestNextWidget.height;
+
+		const totalMessages = this.viewModel.getItems();
+		// grab the last N messages
+		const messages = totalMessages.slice(-this._dynamicMessageLayoutData.numOfMessages);
+
+		const needsRerender = messages.some(m => m.currentRenderedHeight === undefined);
+		const listHeight = needsRerender
+			? this._dynamicMessageLayoutData.maxHeight
+			: messages.reduce((acc, message) => acc + message.currentRenderedHeight!, 0);
+
+		this.layout(
+			Math.min(
+				// we add an additional 18px in order to show that there is scrollable content
+				inputHeight + chatSuggestNextWidgetHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
+				this._dynamicMessageLayoutData.maxHeight
+			),
+			width
+		);
+
+		if (needsRerender || !listHeight) {
+			this.scrollToEnd();
+		}
+	}
+
+	saveState(): void {
+		// no-op
+	}
+
+	getViewState(): IChatModelInputState | undefined {
+		return this.input.getCurrentInputState();
+	}
+
+	private updateChatInputContext() {
+		const currentAgent = this.parsedInput.parts.find(part => part instanceof ChatRequestAgentPart);
+		this.agentInInput.set(!!currentAgent);
+	}
+
+	private async _switchToAgentByName(agentName: string): Promise<void> {
+		const currentAgent = this.input.currentModeObs.get();
+
+		// switch to appropriate agent if needed
+		if (agentName !== currentAgent.name.get()) {
+			// Find the mode object to get its kind
+			const agent = this.chatModeService.findModeByName(agentName);
+			if (agent) {
+				if (currentAgent.kind !== agent.kind) {
+					const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentAgent.kind, agent.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
+					if (!chatModeCheck) {
+						return;
+					}
+
+					if (chatModeCheck.needToClearSession) {
+						await this.clear();
+					}
+				}
+				this.input.setChatMode(agent.id);
+			}
+		}
+	}
+
+	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
+
+		if (tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent) {
+			agent = ChatMode.Agent.name.get();
+		}
+		// switch to appropriate agent if needed
+		if (agent) {
+			this._switchToAgentByName(agent);
+		}
+
+		// if not tools to enable are present, we are done
+		if (tools !== undefined && this.input.currentModeKind === ChatModeKind.Agent) {
+			const enablementMap = this.toolsService.toToolAndToolSetEnablementMap(tools, Target.VSCode);
+			this.input.selectedToolsModel.set(enablementMap, true);
+		}
+
+		if (model !== undefined) {
+			this.input.switchModelByQualifiedName(model);
+		}
 	}
 
 	/**
@@ -2495,15 +2488,15 @@ if (model !== undefined) {
 	 * - instructions referenced in the copilot settings 'copilot-instructions'
 	 * - instructions referenced in an already included instruction file
 	 */
-	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise < void> {
-	this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
-	const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.entriesMap.get() : undefined;
+	private async _autoAttachInstructions({ attachedContext }: IChatRequestInputOptions): Promise<void> {
+		this.logService.debug(`ChatWidget#_autoAttachInstructions: prompt files are always enabled`);
+		const enabledTools = this.input.currentModeKind === ChatModeKind.Agent ? this.input.selectedToolsModel.entriesMap.get() : undefined;
 
-	const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, enabledTools);
-	await computer.collect(attachedContext, CancellationToken.None);
-}
+		const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, enabledTools);
+		await computer.collect(attachedContext, CancellationToken.None);
+	}
 
-delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
-	this.tree.delegateScrollFromMouseWheelEvent(browserEvent);
-}
+	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
+		this.tree.delegateScrollFromMouseWheelEvent(browserEvent);
+	}
 }
