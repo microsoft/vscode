@@ -479,10 +479,22 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const handle = ExtHostChatAgents2._customAgentsProviderIdPool++;
 		this._customAgentsProviders.set(handle, { extension, provider });
 		this._proxy.$registerCustomAgentsProvider(handle, extension.identifier);
-		return toDisposable(() => {
+
+		const disposables = new DisposableStore();
+
+		// Listen to provider change events and notify main thread
+		if (provider.onDidChangeCustomAgents) {
+			disposables.add(provider.onDidChangeCustomAgents(() => {
+				this._proxy.$onDidChangeCustomAgents(handle);
+			}));
+		}
+
+		disposables.add(toDisposable(() => {
 			this._customAgentsProviders.delete(handle);
 			this._proxy.$unregisterCustomAgentsProvider(handle);
-		});
+		}));
+
+		return disposables;
 	}
 
 	async $provideRelatedFiles(handle: number, request: IChatRequestDraft, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined> {

@@ -1396,6 +1396,7 @@ export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDi
 	$unregisterRelatedFilesProvider(handle: number): void;
 	$registerCustomAgentsProvider(handle: number, extension: ExtensionIdentifier): void;
 	$unregisterCustomAgentsProvider(handle: number): void;
+	$onDidChangeCustomAgents(handle: number): void;
 	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
@@ -1460,7 +1461,7 @@ export interface ExtHostChatAgentsShape2 {
 	$releaseSession(sessionId: string): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$provideRelatedFiles(handle: number, request: Dto<IChatRequestDraft>, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined>;
-	$provideCustomAgents(handle: number, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<IExternalCustomAgent[] | undefined>;
+	$provideCustomAgents(handle: number, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<Dto<IExternalCustomAgent>[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 }
 export interface IChatParticipantMetadata {

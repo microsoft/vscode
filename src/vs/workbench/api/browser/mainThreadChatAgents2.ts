@@ -98,6 +98,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private readonly _chatRelatedFilesProviders = this._register(new DisposableMap<number, IDisposable>());
 
 	private readonly _customAgentsProviders = this._register(new DisposableMap<number, IDisposable>());
+	private readonly _customAgentsProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
 
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
@@ -439,9 +440,21 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			return;
 		}
 
+		const emitter = new Emitter<void>();
+		this._customAgentsProviderEmitters.set(handle, emitter);
+
 		const disposable = this._promptsService.registerCustomAgentsProvider(extension, {
+			onDidChangeCustomAgents: emitter.event,
 			provideCustomAgents: async (options: ICustomAgentQueryOptions, token: CancellationToken) => {
-				return await this._proxy.$provideCustomAgents(handle, options, token);
+				const agents = await this._proxy.$provideCustomAgents(handle, options, token);
+				if (!agents) {
+					return undefined;
+				}
+				// Convert UriComponents to URI
+				return agents.map(agent => ({
+					...agent,
+					uri: URI.revive(agent.uri)
+				}));
 			}
 		});
 
@@ -450,6 +463,14 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	$unregisterCustomAgentsProvider(handle: number): void {
 		this._customAgentsProviders.deleteAndDispose(handle);
+		this._customAgentsProviderEmitters.deleteAndDispose(handle);
+	}
+
+	$onDidChangeCustomAgents(handle: number): void {
+		const emitter = this._customAgentsProviderEmitters.get(handle);
+		if (emitter) {
+			emitter.fire();
+		}
 	}
 }
 

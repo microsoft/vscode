@@ -313,48 +313,23 @@ declare module 'vscode' {
 	// #region CustomAgentsProvider
 
 	/**
-	 * Represents a custom agent available for a repository.
+	 * Represents a custom agent resource file (e.g., .agent.md or .prompt.md) available for a repository.
 	 */
-	export interface CustomAgent {
+	export interface CustomAgentResource {
 		/**
-		 * The unique identifier/name of the custom agent.
+		 * The unique identifier/name of the custom agent resource.
 		 */
 		readonly name: string;
 
 		/**
-		 * The display name of the custom agent shown in the UI.
-		 */
-		readonly displayName: string;
-
-		/**
-		 * A description of what the custom agent does.
+		 * A description of what the custom agent resource does.
 		 */
 		readonly description: string;
 
 		/**
-		 * The tools enabled for this agent. ['*'] means all tools are enabled.
+		 * The URI to the agent or prompt resource file.
 		 */
-		readonly tools: readonly string[];
-
-		/**
-		 * Optional hint text for the agent's argument.
-		 */
-		readonly argumentHint?: string;
-
-		/**
-		 * Optional metadata key-value pairs.
-		 */
-		readonly metadata?: Readonly<Record<string, string>>;
-
-		/**
-		 * Optional target environment (e.g., 'vscode', 'github-copilot').
-		 */
-		readonly target?: string;
-
-		/**
-		 * Optional configuration error if the agent config is invalid.
-		 */
-		readonly configError?: string;
+		readonly uri: Uri;
 	}
 
 	/**
@@ -376,18 +351,21 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A provider that supplies custom agents for repositories.
+	 * A provider that supplies custom agent resources (from .agent.md and .prompt.md files) for repositories.
 	 */
 	export interface CustomAgentsProvider {
 		/**
-		 * Provide the list of custom agents available for a given repository.
-		 * @param repoOwner The repository owner.
-		 * @param repoName The repository name.
+		 * An optional event to signal that custom agents have changed.
+		 */
+		onDidChangeCustomAgents?: Event<void>;
+
+		/**
+		 * Provide the list of custom agent resources available for a given repository.
 		 * @param options Optional query parameters.
 		 * @param token A cancellation token.
-		 * @returns An array of custom agents or a promise that resolves to such.
+		 * @returns An array of custom agent resources or a promise that resolves to such.
 		 */
-		provideCustomAgents(options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgent[]>;
+		provideCustomAgents(options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgentResource[]>;
 	}
 
 	export namespace chat {

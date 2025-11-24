@@ -34,48 +34,23 @@ export interface ICustomAgentQueryOptions {
 }
 
 /**
- * Represents a custom agent from an external provider.
+ * Represents a custom agent resource from an external provider.
  */
 export interface IExternalCustomAgent {
 	/**
-	 * The unique identifier/name of the custom agent.
+	 * The unique identifier/name of the custom agent resource.
 	 */
 	readonly name: string;
 
 	/**
-	 * The display name of the custom agent shown in the UI.
-	 */
-	readonly displayName: string;
-
-	/**
-	 * A description of what the custom agent does.
+	 * A description of what the custom agent resource does.
 	 */
 	readonly description: string;
 
 	/**
-	 * The tools enabled for this agent. ['*'] means all tools are enabled.
+	 * The URI to the agent or prompt resource file.
 	 */
-	readonly tools: readonly string[];
-
-	/**
-	 * Optional hint text for the agent's argument.
-	 */
-	readonly argumentHint?: string;
-
-	/**
-	 * Optional metadata key-value pairs.
-	 */
-	readonly metadata?: Readonly<Record<string, string>>;
-
-	/**
-	 * Optional target environment (e.g., 'vscode', 'github-copilot').
-	 */
-	readonly target?: string;
-
-	/**
-	 * Optional configuration error if the agent config is invalid.
-	 */
-	readonly configError?: string;
+	readonly uri: URI;
 }
 
 /**
@@ -337,10 +312,11 @@ export interface IPromptsService extends IDisposable {
 	 * Registers a CustomAgentsProvider that can provide custom agents for repositories.
 	 * This is part of the proposed API and requires the chatParticipantPrivate proposal.
 	 * @param extension The extension registering the provider.
-	 * @param provider The provider implementation.
+	 * @param provider The provider implementation with optional change event.
 	 * @returns A disposable that unregisters the provider when disposed.
 	 */
 	registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
+		onDidChangeCustomAgents?: Event<void>;
 		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
 	}): IDisposable;
 
