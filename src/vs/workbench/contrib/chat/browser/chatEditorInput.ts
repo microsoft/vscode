@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqual } from '../../../../base/common/resources.js';
@@ -25,6 +24,7 @@ import { IChatSessionsService, localChatSessionType } from '../common/chatSessio
 import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
+import { showCloseActiveChatNotification } from './agentSessions/chatCloseNotification.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
@@ -77,6 +77,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		@IChatService private readonly chatService: IChatService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -316,12 +317,18 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		}
 		return false;
 	}
+
+	override dispose(): void {
+		// Check if we're disposing a model with an active request
+		if (this.modelRef.value?.object.requestInProgress.get()) {
+			this.instantiationService.invokeFunction(showCloseActiveChatNotification);
+		}
+
+		super.dispose();
+	}
 }
 
 export class ChatEditorModel extends Disposable {
-	private _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
-
 	private _isResolved = false;
 
 	constructor(
