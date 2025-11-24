@@ -28,6 +28,9 @@ import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 export class BrowserEditor extends EditorPane {
 	static readonly ID = 'workbench.editor.browser';
@@ -40,6 +43,7 @@ export class BrowserEditor extends EditorPane {
 	private backAction!: Action;
 	private forwardAction!: Action;
 	private reloadAction!: Action;
+	private hoverDelegate: WorkbenchHoverDelegate;
 
 	private model: IBrowserViewModel | undefined;
 	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
@@ -53,9 +57,19 @@ export class BrowserEditor extends EditorPane {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IBrowserOverlayManager private readonly overlayManager: IBrowserOverlayManager,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
+
+		this.hoverDelegate = this._register(
+			this.instantiationService.createInstance(
+				WorkbenchHoverDelegate,
+				'element',
+				undefined,
+				{ position: { hoverPosition: HoverPosition.ABOVE } }
+			)
+		);
 
 		this._register(this.overlayManager.onDidChangeOverlayState(() => {
 			if (!this.model) {
@@ -122,7 +136,10 @@ export class BrowserEditor extends EditorPane {
 
 		// Create action bar
 		const navContainer = $('.browser-nav-buttons');
-		this.actionBar = this._register(new ActionBar(navContainer));
+		this.actionBar = this._register(new ActionBar(navContainer, {
+			// Show tooltips above the buttons so we don't have to blur the view when hovering
+			hoverDelegate: this.hoverDelegate
+		}));
 		this.actionBar.push([this.backAction, this.forwardAction, this.reloadAction], { icon: true, label: false });
 
 		toolbar.appendChild(navContainer);
