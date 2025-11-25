@@ -154,10 +154,15 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseUp = disposables.add(new Emitter<MouseEvent>());
 		const onMouseMove = disposables.add(new Emitter<MouseEvent>());
 
-		function registerContainerListeners(container: HTMLElement, disposables: DisposableStore): void {
-			disposables.add(disposables.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
+		function registerContainerListeners(container: HTMLElement, windowDisposables: DisposableStore): void {
+			const store = new DisposableStore();
+			store.add(store.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
+			store.add(store.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
+			store.add(store.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
+			windowDisposables.add(store);
+			disposables.add(toDisposable(() => {
+				windowDisposables.delete(store);
+			}));
 		}
 
 		for (const { window, disposables } of getWindows()) {
