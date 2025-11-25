@@ -228,14 +228,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 
 				for (const agent of agents) {
-					// If the agent is marked as read-only, set it as read-only in the session
-					if (agent.isReadOnly) {
-						try {
-							await this.filesConfigService.updateReadonly(agent.uri, true);
-						} catch (e) {
-							const msg = e instanceof Error ? e.message : String(e);
-							this.logger.error(`[listCustomAgentsFromProvider] Failed to make agent file readonly: ${agent.uri}`, msg);
-						}
+					try {
+						await this.filesConfigService.updateReadonly(agent.uri, true);
+					} catch (e) {
+						const msg = e instanceof Error ? e.message : String(e);
+						this.logger.error(`[listCustomAgentsFromProvider] Failed to make agent file readonly: ${agent.uri}`, msg);
 					}
 
 					result.push({

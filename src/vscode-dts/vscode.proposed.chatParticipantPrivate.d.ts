@@ -330,11 +330,6 @@ declare module 'vscode' {
 		 * The URI to the agent or prompt resource file.
 		 */
 		readonly uri: Uri;
-
-		/**
-		 * Whether the agent resource should be opened in read-only mode when configured.
-		 */
-		readonly isReadOnly?: boolean;
 	}
 
 	/**
