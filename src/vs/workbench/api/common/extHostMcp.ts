@@ -438,7 +438,7 @@ export class McpHTTPHandle extends Disposable {
 			scopesChallenge ??= resourceMetadata.scopes_supported;
 			resource = resourceMetadata;
 		} catch (e) {
-			this._log(LogLevel.Debug, `Could not fetch resource metadata: ${String(e)}`);
+			this._log(LogLevel.Warning, `Could not fetch resource metadata: ${String(e)}`);
 		}
 
 		const baseUrl = new URL(originalResponse.url).origin;

@@ -3,17 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.agent-sessions-view {
-
-	display: flex;
-	flex-direction: column;
-
-	.agent-sessions-new-session-container {
-		padding: 6px 12px;
-		flex: 0 0 auto !important;
-	}
-
-	.agent-sessions-new-session-container .monaco-dropdown-button {
-		padding: 0 4px;
-	}
+declare module 'rcedit' {
+	export default function rcedit(exePath, options, cb): Promise<void>;
 }

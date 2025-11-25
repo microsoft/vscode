@@ -209,7 +209,7 @@ function bundleESMTask(opts: IBundleESMTaskOpts): NodeJS.ReadWriteStream {
 		}));
 }
 
-export interface IBundleESMTaskOpts {
+export interface IBundleTaskOpts {
 	/**
 	 * Destination folder for the bundled files.
 	 */
@@ -220,7 +220,7 @@ export interface IBundleESMTaskOpts {
 	esm: IBundleESMTaskOpts;
 }
 
-export function bundleTask(opts: IBundleESMTaskOpts): () => NodeJS.ReadWriteStream {
+export function bundleTask(opts: IBundleTaskOpts): () => NodeJS.ReadWriteStream {
 	return function () {
 		return bundleESMTask(opts.esm).pipe(gulp.dest(opts.out));
 	};

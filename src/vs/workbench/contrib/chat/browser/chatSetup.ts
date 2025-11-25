@@ -71,8 +71,7 @@ import { IChatRequestToolEntry } from '../common/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from './actions/chatActions.js';
-import { ChatViewId, IChatWidgetService } from './chat.js';
-import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
+import { ChatViewId, ChatViewContainerId, IChatWidgetService } from './chat.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { chatViewsWelcomeRegistry } from './viewsWelcome/chatViewsWelcome.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
@@ -1673,7 +1672,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.AuxiliaryBar).filter(
 			container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0
 		);
-		const hasChatView = activeContainers.some(container => container.id === CHAT_SIDEBAR_PANEL_ID);
+		const hasChatView = activeContainers.some(container => container.id === ChatViewContainerId);
 		const hasAgentSessionsView = activeContainers.some(container => container.id === AGENT_SESSIONS_VIEW_CONTAINER_ID);
 		if (
 			(activeContainers.length === 0) ||  										// chat view is already gone but we know it was there before
@@ -1796,7 +1795,7 @@ class ChatSetupController extends Disposable {
 	async setup(options: IChatSetupControllerOptions = {}): Promise<ChatSetupResultValue> {
 		const watch = new StopWatch(false);
 		const title = localize('setupChatProgress', "Getting chat ready...");
-		const badge = this.activityService.showViewContainerActivity(CHAT_SIDEBAR_PANEL_ID, {
+		const badge = this.activityService.showViewContainerActivity(ChatViewContainerId, {
 			badge: new ProgressBadge(() => title),
 		});
 

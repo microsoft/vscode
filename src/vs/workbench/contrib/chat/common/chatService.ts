@@ -318,6 +318,7 @@ export interface IChatThinkingPart {
 	value?: string | string[];
 	id?: string;
 	metadata?: { readonly [key: string]: any };
+	generatedTitle?: string;
 }
 
 export interface IChatTerminalToolInvocationData {

@@ -7497,6 +7497,16 @@ declare namespace monaco.languages {
 		readonly earliestShownDateTime: number;
 	}
 
+	export interface IInlineCompletionModelInfo {
+		models: IInlineCompletionModel[];
+		currentModelId: string;
+	}
+
+	export interface IInlineCompletionModel {
+		name: string;
+		id: string;
+	}
+
 	export class SelectedSuggestionInfo {
 		readonly range: IRange;
 		readonly text: string;
@@ -7641,6 +7651,9 @@ declare namespace monaco.languages {
 		excludesGroupIds?: InlineCompletionProviderGroupId[];
 		displayName?: string;
 		debounceDelayMs?: number;
+		modelInfo?: IInlineCompletionModelInfo;
+		onDidModelInfoChange?: IEvent<void>;
+		setModelId?(modelId: string): Promise<void>;
 		toString?(): string;
 	}
 

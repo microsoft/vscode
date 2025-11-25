@@ -198,6 +198,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			chatSessionResource,
 			this._getTimelineDelegate(),
 		);
+
 		this.canRedo = this._timeline.canRedo.map((hasHistory, reader) =>
 			hasHistory && this._state.read(reader) === ChatEditingSessionState.Idle);
 		this.canUndo = this._timeline.canUndo.map((hasHistory, reader) =>
@@ -314,6 +315,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	public getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string) {
 		return this._timeline.getEntryDiffBetweenRequests(uri, startRequestId, stopRequestId);
+	}
+
+	public getDiffsForFilesInSession() {
+		return this._timeline.getDiffsForFilesInSession();
+	}
+
+	public getDiffForSession() {
+		return this._timeline.getDiffForSession();
 	}
 
 	public createSnapshot(requestId: string, undoStop: string | undefined): void {

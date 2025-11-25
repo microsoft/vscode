@@ -9,11 +9,11 @@ import { assertNever } from '../../../../../base/common/assert.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
+import { mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { equals as objectsEqual } from '../../../../../base/common/objects.js';
-import { derived, derivedOpts, IObservable, IReader, ITransaction, ObservablePromise, observableSignalFromEvent, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { constObservable, derived, derivedOpts, IObservable, IReader, ITransaction, ObservablePromise, observableSignalFromEvent, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
-import { Mutable } from '../../../../../base/common/types.js';
+import { isDefined, Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { CellEditType, CellUri, INotebookTextModel } from '../../../notebook/common/notebookCommon.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { IEditSessionEntryDiff, IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
+import { IEditSessionDiffStats, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
 import { IChatRequestDisablement } from '../../common/chatModel.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
 import { FileOperation, FileOperationType, IChatEditingTimelineState, ICheckpoint, IFileBaseline, IReconstructedFileExistsState, IReconstructedFileNotExistsState, IReconstructedFileState } from './chatEditingOperations.js';
@@ -830,6 +830,64 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 				}
 			}
 			return entryDiff;
+		});
+	}
+
+	public getDiffsForFilesInSession(): IObservable<readonly IEditSessionEntryDiff[]> {
+		const startEpochs = derivedOpts<ResourceMap<number>>({ equalsFn: mapsStrictEqualIgnoreOrder }, reader => {
+			const uris = new ResourceMap<number>();
+			for (const baseline of this._fileBaselines.values()) {
+				uris.set(baseline.uri, Math.min(baseline.epoch, uris.get(baseline.uri) ?? Number.MAX_SAFE_INTEGER));
+			}
+			for (const operation of this._operations.read(reader)) {
+				if (operation.type === FileOperationType.Create) {
+					uris.set(operation.uri, 0);
+				}
+			}
+
+			return uris;
+		});
+
+		// URIs are never removed from the set and we never adjust baselines backwards
+		// (history is immutable) so we can easily cache to avoid regenerating diffs when new files are added
+		const prevDiffs = new ResourceMap<IObservable<IEditSessionEntryDiff | undefined>>();
+
+		const perFileDiffs = derived(this, reader => {
+			const checkpoints = this._checkpoints.read(reader);
+			const firstCheckpoint = checkpoints[0];
+			if (!firstCheckpoint) {
+				return [];
+			}
+
+			const uris = startEpochs.read(reader);
+			const diffs: IObservable<IEditSessionEntryDiff | undefined>[] = [];
+
+			for (const [uri, epoch] of uris) {
+				const obs = prevDiffs.get(uri) ?? this._getEntryDiffBetweenEpochs(uri,
+					constObservable({ start: checkpoints.findLast(cp => cp.epoch <= epoch) || firstCheckpoint, end: undefined }));
+				prevDiffs.set(uri, obs);
+				diffs.push(obs);
+			}
+
+			return diffs;
+		});
+
+		return perFileDiffs.map((diffs, reader) => {
+			return diffs.flatMap(d => d.read(reader)).filter(isDefined);
+		});
+	}
+
+	public getDiffForSession(): IObservable<IEditSessionDiffStats> {
+		const fileDiffs = this.getDiffsForFilesInSession();
+		return derived(reader => {
+			const diffs = fileDiffs.read(reader);
+			let added = 0;
+			let removed = 0;
+			for (const diff of diffs) {
+				added += diff.added;
+				removed += diff.removed;
+			}
+			return { added, removed };
 		});
 	}
 }

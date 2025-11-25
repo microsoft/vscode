@@ -6,10 +6,9 @@
 import { spawn as _spawn } from 'child_process';
 import { readdirSync, readFileSync } from 'fs';
 import { join } from 'path';
-import url from 'url';
 
-async function spawn(cmd, args, opts) {
-	return new Promise((c, e) => {
+async function spawn(cmd: string, args: string[], opts?: Parameters<typeof _spawn>[2]) {
+	return new Promise<void>((c, e) => {
 		const child = _spawn(cmd, args, { shell: true, stdio: 'inherit', env: process.env, ...opts });
 		child.on('close', code => code === 0 ? c() : e(`Returned ${code}`));
 	});
@@ -40,9 +39,11 @@ async function main() {
 	}
 }
 
-if (import.meta.url === url.pathToFileURL(process.argv[1]).href) {
-	main().catch(err => {
+if (import.meta.main) {
+	try {
+		await main();
+	} catch (err) {
 		console.error(err);
 		process.exit(1);
-	});
+	}
 }

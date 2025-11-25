@@ -3,17 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.agent-sessions-view {
+declare module 'gulp-gunzip' {
+	import type { Transform } from 'stream';
 
-	display: flex;
-	flex-direction: column;
+	/**
+	 * Gunzip plugin for gulp
+	 */
+	function gunzip(): Transform;
 
-	.agent-sessions-new-session-container {
-		padding: 6px 12px;
-		flex: 0 0 auto !important;
-	}
-
-	.agent-sessions-new-session-container .monaco-dropdown-button {
-		padding: 0 4px;
-	}
+	export = gunzip;
 }
