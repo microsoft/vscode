@@ -747,7 +747,7 @@ export class ChatStatusDashboard extends DomWidget {
 		}));
 
 		const selected = await this.quickInputService.pick(items, {
-			placeHolder: localize('selectModel', "Select a model for {0}", provider.displayName || 'inline completions'),
+			placeHolder: localize('selectModelFor', "Select a model for {0}", provider.displayName || 'inline completions'),
 			canPickMany: false
 		});
 
