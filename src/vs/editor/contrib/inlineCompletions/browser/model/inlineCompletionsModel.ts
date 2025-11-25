@@ -1130,7 +1130,7 @@ export class InlineCompletionsModel extends Disposable {
 	}
 
 	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData): Promise<void> {
-		await inlineCompletion.reportInlineEditShown(this._commandService, viewKind, viewData);
+		await inlineCompletion.reportInlineEditShown(this._commandService, viewKind, viewData, this.textModel);
 	}
 }
 
