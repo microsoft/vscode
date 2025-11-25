@@ -661,7 +661,10 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
+		if (providedSession.progressObs && providedSession.interruptActiveResponseCallback) {
+			// Set up cancellation infrastructure for sessions with active response callbacks.
+			// This allows the stop button to trigger the interruptActiveResponseCallback even if
+			// there's no previous request history.
 			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
 			this._pendingRequests.set(model.sessionResource, initialCancellationRequest);
 			const cancellationListener = disposables.add(new MutableDisposable());
@@ -681,26 +684,37 @@ export class ChatService extends Disposable implements IChatService {
 
 			cancellationListener.value = createCancellationListener(initialCancellationRequest.cancellationTokenSource.token);
 
-			let lastProgressLength = 0;
-			disposables.add(autorun(reader => {
-				const progressArray = providedSession.progressObs?.read(reader) ?? [];
-				const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
+			// Only track progress if there's a request to associate it with
+			if (lastRequest) {
+				let lastProgressLength = 0;
+				disposables.add(autorun(reader => {
+					const progressArray = providedSession.progressObs?.read(reader) ?? [];
+					const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
 
-				// Process only new progress items
-				if (progressArray.length > lastProgressLength) {
-					const newProgress = progressArray.slice(lastProgressLength);
-					for (const progress of newProgress) {
-						model?.acceptResponseProgress(lastRequest, progress);
+					// Process only new progress items
+					if (progressArray.length > lastProgressLength) {
+						const newProgress = progressArray.slice(lastProgressLength);
+						for (const progress of newProgress) {
+							model?.acceptResponseProgress(lastRequest, progress);
+						}
+						lastProgressLength = progressArray.length;
 					}
-					lastProgressLength = progressArray.length;
-				}
 
-				// Handle completion
-				if (isComplete) {
-					lastRequest.response?.complete();
-					cancellationListener.clear();
-				}
-			}));
+					// Handle completion
+					if (isComplete) {
+						lastRequest.response?.complete();
+						cancellationListener.clear();
+					}
+				}));
+			} else {
+				// No request to track progress against, but still listen for completion to clean up
+				disposables.add(autorun(reader => {
+					const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
+					if (isComplete) {
+						cancellationListener.clear();
+					}
+				}));
+			}
 		} else {
 			if (lastRequest) {
 				lastRequest.response?.complete();
