@@ -347,7 +347,9 @@ export class GettingStartedPage extends EditorPane {
 
 	override async setInput(newInput: GettingStartedInput, options: GettingStartedEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		await super.setInput(newInput, options, context, token);
-		await this.applyInput(options);
+		const selectedCategory = options?.selectedCategory ?? newInput.selectedCategory;
+		const selectedStep = options?.selectedStep ?? newInput.selectedStep;
+		await this.applyInput({ ...options, selectedCategory, selectedStep });
 	}
 
 	override async setOptions(options: GettingStartedEditorOptions | undefined): Promise<void> {
