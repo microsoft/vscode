@@ -51,6 +51,11 @@ export interface IExternalCustomAgent {
 	 * The URI to the agent or prompt resource file.
 	 */
 	readonly uri: URI;
+
+	/**
+	 * Whether the agent resource should be opened in read-only mode when configured.
+	 */
+	readonly isReadOnly?: boolean;
 }
 
 /**
@@ -180,6 +185,11 @@ export interface ICustomAgent {
 	 * Hand-offs defined in the custom agent file.
 	 */
 	readonly handOffs?: readonly IHandOff[];
+
+	/**
+	 * Whether the agent resource should be opened in read-only mode when configured.
+	 */
+	readonly isReadOnly?: boolean;
 
 	/**
 	 * Where the agent was loaded from.
