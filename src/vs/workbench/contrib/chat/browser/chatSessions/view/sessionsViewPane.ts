@@ -45,7 +45,7 @@ import { IChatWidgetService } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ChatSessionItemWithProvider, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
-import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
+import { LocalAgentsSessionsProvider } from '../../agentSessions/localAgentSessionsProvider.js';
 import { ArchivedSessionItems, GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
 // Identity provider for session items
@@ -105,7 +105,7 @@ export class SessionsViewPane extends ViewPane {
 		this.minimumBodySize = 44;
 
 		// Listen for changes in the provider if it's a LocalChatSessionsProvider
-		if (provider instanceof LocalChatSessionsProvider) {
+		if (provider instanceof LocalAgentsSessionsProvider) {
 			this._register(provider.onDidChange(() => {
 				if (this.tree && this.isBodyVisible()) {
 					this.refreshTreeWithProgress();

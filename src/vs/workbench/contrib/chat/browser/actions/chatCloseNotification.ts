@@ -4,23 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../../nls.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
-
-const STORAGE_KEY = 'chat.closeWithActiveResponse.doNotShowAgain2';
+import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
+import { AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
 
 /**
  * Shows a notification when closing a chat with an active response, informing the user
  * that the chat will continue running in the background. The notification includes a button
  * to open the Agent Sessions view and a "Don't Show Again" option.
  */
-export function showCloseActiveChatNotification(
-	accessor: ServicesAccessor
-): void {
+export function showCloseActiveChatNotification(accessor: ServicesAccessor): void {
 	const notificationService = accessor.get(INotificationService);
-	const viewsService = accessor.get(IViewsService);
+	const configurationService = accessor.get(IConfigurationService);
+	const commandService = accessor.get(ICommandService);
 
 	notificationService.prompt(
 		Severity.Info,
@@ -29,13 +28,18 @@ export function showCloseActiveChatNotification(
 			{
 				label: nls.localize('chat.openAgentSessions', "Open Agent Sessions"),
 				run: async () => {
-					await viewsService.openView(AGENT_SESSIONS_VIEW_ID, true);
+					// TODO@bpasero remove this check once settled
+					if (configurationService.getValue('chat.agentSessionsViewLocation') === 'single-view') {
+						commandService.executeCommand(AGENT_SESSIONS_VIEW_ID);
+					} else {
+						commandService.executeCommand(LEGACY_AGENT_SESSIONS_VIEW_ID);
+					}
 				}
 			}
 		],
 		{
 			neverShowAgain: {
-				id: STORAGE_KEY,
+				id: 'chat.closeWithActiveResponse.doNotShowAgain',
 				scope: NeverShowAgainScope.APPLICATION
 			}
 		}
