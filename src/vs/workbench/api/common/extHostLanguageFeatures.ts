@@ -1447,6 +1447,7 @@ class InlineCompletionAdapter {
 					correlationId: this._isAdditionsProposedApiEnabled ? item.correlationId : undefined,
 					suggestionId: undefined,
 					uri: (this._isAdditionsProposedApiEnabled && item.uri) ? item.uri : undefined,
+					supportsRename: this._isAdditionsProposedApiEnabled ? item.supportsRename : false,
 				});
 			}),
 			commands: commands.map(c => {

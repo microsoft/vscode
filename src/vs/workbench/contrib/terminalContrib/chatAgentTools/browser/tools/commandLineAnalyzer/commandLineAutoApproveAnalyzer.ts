@@ -13,7 +13,6 @@ import { IInstantiationService } from '../../../../../../../platform/instantiati
 import { ITerminalChatService } from '../../../../../terminal/browser/terminal.js';
 import { IStorageService, StorageScope } from '../../../../../../../platform/storage/common/storage.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { openTerminalSettingsLinkCommandId } from '../../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolProgressPart.js';
 import { ChatConfiguration } from '../../../../../chat/common/constants.js';
 import type { ToolConfirmationAction } from '../../../../../chat/common/languageModelToolsService.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
@@ -22,6 +21,7 @@ import { dedupeRules, generateAutoApproveActions, isPowerShell } from '../../run
 import type { RunInTerminalToolTelemetry } from '../../runInTerminalToolTelemetry.js';
 import { type TreeSitterCommandParser } from '../../treeSitterCommandParser.js';
 import type { ICommandLineAnalyzer, ICommandLineAnalyzerOptions, ICommandLineAnalyzerResult } from './commandLineAnalyzer.js';
+import { TerminalChatCommandId } from '../../../../chat/browser/terminalChat.js';
 
 const promptInjectionWarningCommandsLower = [
 	'curl',
@@ -53,10 +53,10 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 	async analyze(options: ICommandLineAnalyzerOptions): Promise<ICommandLineAnalyzerResult> {
 		if (options.chatSessionId && this._terminalChatService.hasChatSessionAutoApproval(options.chatSessionId)) {
 			this._log('Session has auto approval enabled, auto approving command');
-			const disableUri = createCommandUri('_chat.disableSessionAutoApproval', options.chatSessionId);
+			const disableUri = createCommandUri(TerminalChatCommandId.DisableSessionAutoApproval, options.chatSessionId);
 			const mdTrustSettings = {
 				isTrusted: {
-					enabledCommands: ['_chat.disableSessionAutoApproval']
+					enabledCommands: [TerminalChatCommandId.DisableSessionAutoApproval]
 				}
 			};
 			return {
@@ -191,21 +191,21 @@ export class CommandLineAutoApproveAnalyzer extends Disposable implements IComma
 	): IMarkdownString | undefined {
 		const formatRuleLinks = (result: SingleOrMany<{ result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string }>): string => {
 			return asArray(result).map(e => {
-				const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, e.rule!.sourceTarget);
+				const settingsUri = createCommandUri(TerminalChatCommandId.OpenTerminalSettingsLink, e.rule!.sourceTarget);
 				return `[\`${e.rule!.sourceText}\`](${settingsUri.toString()} "${localize('ruleTooltip', 'View rule in settings')}")`;
 			}).join(', ');
 		};
 
 		const mdTrustSettings = {
 			isTrusted: {
-				enabledCommands: [openTerminalSettingsLinkCommandId]
+				enabledCommands: [TerminalChatCommandId.OpenTerminalSettingsLink]
 			}
 		};
 
 		const config = this._configurationService.inspect<boolean | Record<string, boolean>>(ChatConfiguration.GlobalAutoApprove);
 		const isGlobalAutoApproved = config?.value ?? config.defaultValue;
 		if (isGlobalAutoApproved) {
-			const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, 'global');
+			const settingsUri = createCommandUri(TerminalChatCommandId.OpenTerminalSettingsLink, 'global');
 			return new MarkdownString(`${localize('autoApprove.global', 'Auto approved by setting {0}', `[\`${ChatConfiguration.GlobalAutoApprove}\`](${settingsUri.toString()} "${localize('ruleTooltip.global', 'View settings')}")`)}`, mdTrustSettings);
 		}
 

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { StringEnumPolicy } from '../policies/stringEnumPolicy.js';
-import { LanguageTranslations, PolicyType } from '../policies/types.js';
-import { CategoryDto, PolicyDto } from '../policies/policyDto.js';
+import { StringEnumPolicy } from '../policies/stringEnumPolicy.ts';
+import { PolicyType, type LanguageTranslations } from '../policies/types.ts';
+import type { CategoryDto, PolicyDto } from '../policies/policyDto.ts';
 
 suite('StringEnumPolicy', () => {
 	const mockCategory: CategoryDto = {

@@ -3411,9 +3411,7 @@ export class CommandCenter {
 		}
 
 		await repository.migrateChanges(worktreeRepository.root, {
-			confirmation: true,
-			deleteFromSource: false,
-			untracked: true
+			confirmation: true, deleteFromSource: true, untracked: true
 		});
 	}
 

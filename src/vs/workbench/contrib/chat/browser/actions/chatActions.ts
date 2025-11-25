@@ -66,12 +66,12 @@ import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '..
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
-import { AGENT_SESSIONS_VIEWLET_ID, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -428,7 +428,7 @@ export function getOpenChatActionIdForMode(mode: IChatMode): string {
 	return `workbench.action.chat.open${mode.name.get()}`;
 }
 
-abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
+export abstract class ModeOpenChatGlobalAction extends OpenChatGlobalAction {
 	constructor(mode: IChatMode, keybinding?: ICommandPaletteOptions['keybinding']) {
 		super({
 			id: getOpenChatActionIdForMode(mode),
@@ -512,21 +512,13 @@ export function registerChatActions() {
 				menu: [
 					{
 						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.and(
-							ContextKeyExpr.equals('view', ChatViewId),
-							ChatContextKeys.inEmptyStateWithHistoryEnabled.negate()
-						),
-						group: 'navigation',
-						order: 2
+						when: ContextKeyExpr.equals('view', ChatViewId),
+						group: '2_history',
+						order: 1
 					},
 					{
 						id: MenuId.EditorTitle,
 						when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-					},
-					{
-						id: MenuId.ChatHistory,
-						when: ChatContextKeys.inEmptyStateWithHistoryEnabled,
-						group: 'navigation',
 					}
 				],
 				category: CHAT_CATEGORY,
@@ -541,6 +533,7 @@ export function registerChatActions() {
 			quickInputService: IQuickInputService,
 			commandService: ICommandService,
 			editorService: IEditorService,
+			chatWidgetService: IChatWidgetService,
 			view: ChatViewPane
 		) => {
 			const clearChatHistoryButton: IQuickInputButton = {
@@ -608,10 +601,7 @@ export function registerChatActions() {
 			}));
 			store.add(picker.onDidTriggerItemButton(async context => {
 				if (context.button === openInEditorButton) {
-					editorService.openEditor({
-						resource: context.item.chat.sessionResource,
-						options: { pinned: true }
-					}, ACTIVE_GROUP);
+					chatWidgetService.openSession(context.item.chat.sessionResource, ACTIVE_GROUP, { pinned: true });
 					picker.hide();
 				} else if (context.button === deleteButton) {
 					chatService.removeHistoryEntry(context.item.chat.sessionResource);
@@ -623,13 +613,13 @@ export function registerChatActions() {
 					}
 
 					// The quick input hides the picker, it gets disposed, so we kick it off from scratch
-					await this.showLegacyPicker(chatService, quickInputService, commandService, editorService, view);
+					await this.showLegacyPicker(chatService, quickInputService, commandService, editorService, chatWidgetService, view);
 				}
 			}));
 			store.add(picker.onDidAccept(async () => {
 				try {
 					const item = picker.selectedItems[0];
-					await view.loadSession(item.chat.sessionResource);
+					await chatWidgetService.openSession(item.chat.sessionResource, ChatViewPaneTarget);
 				} finally {
 					picker.hide();
 				}
@@ -758,7 +748,7 @@ export function registerChatActions() {
 									// Create agent pick from the session content
 									const agentPick: ICodingAgentPickerItem = {
 										label: session.label,
-										description: '',
+										description: chatSessionType,
 										session: session,
 										chat: {
 											sessionResource: session.resource,
@@ -774,11 +764,7 @@ export function registerChatActions() {
 									if (existingIndex >= 0) {
 										agentPicks[existingIndex] = agentPick;
 									} else {
-										// Respect show limits
-										const maxToShow = showAllAgents ? Number.MAX_SAFE_INTEGER : 5;
-										if (agentPicks.length < maxToShow) {
-											agentPicks.push(agentPick);
-										}
+										agentPicks.push(agentPick);
 									}
 								}
 							}
@@ -792,10 +778,16 @@ export function registerChatActions() {
 									type: 'separator',
 									label: 'Chat Sessions',
 								});
-								currentPicks.push(...agentPicks);
+
+								const defaultMaxToShow = 5;
+								const maxToShow = showAllAgents ? Number.MAX_SAFE_INTEGER : defaultMaxToShow;
+								currentPicks.push(
+									...agentPicks
+										.toSorted((a, b) => (b.session.timing.endTime ?? b.session.timing.startTime) - (a.session.timing.endTime ?? a.session.timing.startTime))
+										.slice(0, maxToShow));
 
 								// Add "Show more..." if needed and not showing all agents
-								if (!showAllAgents && providerNSessions.length > 5) {
+								if (!showAllAgents && agentPicks.length > defaultMaxToShow) {
 									currentPicks.push(showMoreAgentsPick);
 								}
 							}
@@ -863,10 +855,7 @@ export function registerChatActions() {
 
 				if (context.button === openInEditorButton) {
 					const options: IChatEditorOptions = { pinned: true };
-					editorService.openEditor({
-						resource: context.item.chat.sessionResource,
-						options,
-					}, ACTIVE_GROUP);
+					chatWidgetService.openSession(context.item.chat.sessionResource, ACTIVE_GROUP, options);
 					picker.hide();
 				} else if (context.button === deleteButton) {
 					chatService.removeHistoryEntry(context.item.chat.sessionResource);
@@ -970,10 +959,10 @@ export function registerChatActions() {
 					} else if (isCodingAgentPickerItem(item)) {
 						// TODO: This is a temporary change that will be replaced by opening a new chat instance
 						if (item.session) {
-							await this.showChatSessionInEditor(item.session, editorService);
+							await this.showChatSessionInEditor(item.session, chatWidgetService);
 						}
 					} else if (isChatPickerItem(item)) {
-						await view.loadSession(item.chat.sessionResource);
+						await chatWidgetService.openSession(item.chat.sessionResource, ChatViewPaneTarget);
 					}
 				} finally {
 					picker.hide();
@@ -1026,16 +1015,13 @@ export function registerChatActions() {
 					menuService
 				);
 			} else {
-				await this.showLegacyPicker(chatService, quickInputService, commandService, editorService, view);
+				await this.showLegacyPicker(chatService, quickInputService, commandService, editorService, chatWidgetService, view);
 			}
 		}
 
-		private async showChatSessionInEditor(session: IChatSessionItem, editorService: IEditorService) {
+		private async showChatSessionInEditor(session: IChatSessionItem, chatWidgetService: IChatWidgetService) {
 			// Open the chat editor
-			await editorService.openEditor({
-				resource: session.resource,
-				options: {} satisfies IChatEditorOptions
-			});
+			await chatWidgetService.openSession(session.resource, undefined, {} satisfies IChatEditorOptions);
 		}
 	});
 
@@ -1071,8 +1057,8 @@ export function registerChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor) {
-			const editorService = accessor.get(IEditorService);
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions });
+			const widgetService = accessor.get(IChatWidgetService);
+			await widgetService.openSession(ChatEditorInput.getNewEditorUri(), undefined, { pinned: true } satisfies IChatEditorOptions);
 		}
 	});
 
@@ -1097,8 +1083,8 @@ export function registerChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor) {
-			const editorService = accessor.get(IEditorService);
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } satisfies IChatEditorOptions }, AUX_WINDOW_GROUP);
+			const widgetService = accessor.get(IChatWidgetService);
+			await widgetService.openSession(ChatEditorInput.getNewEditorUri(), AUX_WINDOW_GROUP, { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } satisfies IChatEditorOptions);
 		}
 	});
 
@@ -1114,20 +1100,17 @@ export function registerChatActions() {
 					id: MenuId.ViewTitle,
 					group: 'submenu',
 					order: 1,
-					when: ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.local`),
+					when: ContextKeyExpr.equals('view', `${LEGACY_AGENT_SESSIONS_VIEW_ID}.local`),
 				}
 			});
 		}
 
 		async run(accessor: ServicesAccessor) {
-			const editorService = accessor.get(IEditorService);
-			await editorService.openEditor({
-				resource: ChatEditorInput.getNewEditorUri(),
-				options: {
-					pinned: true,
-					auxiliary: { compact: false }
-				}
-			}, AUX_WINDOW_GROUP);
+			const widgetService = accessor.get(IChatWidgetService);
+			await widgetService.openSession(ChatEditorInput.getNewEditorUri(), AUX_WINDOW_GROUP, {
+				pinned: true,
+				auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
+			});
 		}
 	});
 
@@ -1143,7 +1126,7 @@ export function registerChatActions() {
 					id: MenuId.ViewTitle,
 					group: 'submenu',
 					order: 1,
-					when: ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.local`),
+					when: ContextKeyExpr.equals('view', `${LEGACY_AGENT_SESSIONS_VIEW_ID}.local`),
 				}
 			});
 		}
@@ -1178,13 +1161,13 @@ export function registerChatActions() {
 					id: MenuId.ViewTitle,
 					group: 'submenu',
 					order: 1,
-					when: ContextKeyExpr.equals('view', `${AGENT_SESSIONS_VIEWLET_ID}.local`),
+					when: ContextKeyExpr.equals('view', `${LEGACY_AGENT_SESSIONS_VIEW_ID}.local`),
 				}
 			});
 		}
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
-			const editorService = accessor.get(IEditorService);
+			const widgetService = accessor.get(IChatWidgetService);
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
 			// Create a new editor group to the right
@@ -1192,10 +1175,7 @@ export function registerChatActions() {
 			editorGroupService.activateGroup(newGroup);
 
 			// Open a new chat editor in the new group
-			await editorService.openEditor(
-				{ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } },
-				newGroup.id
-			);
+			await widgetService.openSession(ChatEditorInput.getNewEditorUri(), newGroup.id, { pinned: true });
 		}
 	});
 
@@ -1844,29 +1824,5 @@ registerAction2(class EditToolApproval extends Action2 {
 		const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		confirmationService.manageConfirmationPreferences([...toolsService.getTools()], scope ? { defaultScope: scope } : undefined);
-	}
-});
-
-// Register actions for chat welcome history context menu
-registerAction2(class ToggleChatHistoryVisibilityAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.toggleChatHistoryVisibility',
-			title: localize2('chat.toggleChatHistoryVisibility.label', "Chat History"),
-			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled,
-			toggled: ContextKeyExpr.equals('config.chat.emptyState.history.enabled', true),
-			menu: {
-				id: MenuId.ChatWelcomeContext,
-				group: '1_modify',
-				order: 1
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-		const current = configurationService.getValue<boolean>('chat.emptyState.history.enabled');
-		await configurationService.updateValue('chat.emptyState.history.enabled', !current);
 	}
 });

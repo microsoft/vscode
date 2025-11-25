@@ -24,7 +24,7 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append } from '../../../../../base/browser/dom.js';
-import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel, isLocalAgentSessionItem } from './agentSessionViewModel.js';
+import { IAgentSession, IAgentSessionsModel, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionsSorter } from './agentSessionsViewer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
@@ -44,17 +44,18 @@ import { Event } from '../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { getActionBarActions, getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatWidgetService } from '../chat.js';
 import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID, AgentSessionProviders } from './agentSessions.js';
 import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
+import { distinct } from '../../../../../base/common/arrays.js';
+import { IAgentSessionsService } from './agentSessionsService.js';
+import { AgentSessionsFilter } from './agentSessionsFilter.js';
 
 export class AgentSessionsView extends ViewPane {
-
-	private sessionsViewModel: IAgentSessionsViewModel | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -74,6 +75,7 @@ export class AgentSessionsView extends ViewPane {
 		@IChatService private readonly chatService: IChatService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super({ ...options, titleMenuId: MenuId.AgentSessionsTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 	}
@@ -95,17 +97,10 @@ export class AgentSessionsView extends ViewPane {
 	}
 
 	private registerListeners(): void {
-
-		// Sessions List
 		const list = assertReturnsDefined(this.list);
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (!visible || this.sessionsViewModel) {
-				return;
-			}
 
-			if (!this.sessionsViewModel) {
-				this.createViewModel();
-			} else {
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			if (visible) {
 				this.list?.updateChildren();
 			}
 		}));
@@ -125,7 +120,7 @@ export class AgentSessionsView extends ViewPane {
 		}));
 	}
 
-	private async openAgentSession(e: IOpenEvent<IAgentSessionViewModel | undefined>): Promise<void> {
+	private async openAgentSession(e: IOpenEvent<IAgentSession | undefined>): Promise<void> {
 		const session = e.element;
 		if (!session) {
 			return;
@@ -152,24 +147,19 @@ export class AgentSessionsView extends ViewPane {
 		await this.chatWidgetService.openSession(session.resource, group, options);
 	}
 
-	private async showContextMenu({ element: session, anchor }: ITreeContextMenuEvent<IAgentSessionViewModel>): Promise<void> {
+	private async showContextMenu({ element: session, anchor }: ITreeContextMenuEvent<IAgentSession>): Promise<void> {
 		if (!session) {
 			return;
 		}
 
 		const provider = await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
-
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(getSessionItemContextOverlay(
-			session,
-			provider,
-			this.chatWidgetService,
-			this.chatService,
-			this.editorGroupsService
-		)));
+		const contextOverlay = getSessionItemContextOverlay(session, provider, this.chatService, this.editorGroupsService);
+		contextOverlay.push([ChatContextKeys.isCombinedSessionViewer.key, true]);
+		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(contextOverlay));
 
 		const marshalledSession: IMarshalledChatSessionContext = { session, $mid: MarshalledId.ChatSessionContext };
-		const { secondary } = getActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }), 'inline'); this.contextMenuService.showContextMenu({
-			getActions: () => secondary,
+		this.contextMenuService.showContextMenu({
+			getActions: () => distinct(getFlatActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true })), action => action.id),
 			getAnchor: () => anchor,
 			getActionsContext: () => marshalledSession,
 		});
@@ -276,9 +266,14 @@ export class AgentSessionsView extends ViewPane {
 	//#region Sessions List
 
 	private listContainer: HTMLElement | undefined;
-	private list: WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore> | undefined;
+	private list: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, IAgentSession, FuzzyScore> | undefined;
+	private listFilter: AgentSessionsFilter | undefined;
 
 	private createList(container: HTMLElement): void {
+		this.listFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
+			filterMenuId: MenuId.AgentSessionsFilterSubMenu,
+		}));
+
 		this.listContainer = append(container, $('.agent-sessions-viewer'));
 
 		this.list = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
@@ -289,7 +284,7 @@ export class AgentSessionsView extends ViewPane {
 			[
 				this.instantiationService.createInstance(AgentSessionRenderer)
 			],
-			new AgentSessionsDataSource(),
+			new AgentSessionsDataSource(this.listFilter),
 			{
 				accessibilityProvider: new AgentSessionsAccessibilityProvider(),
 				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
@@ -299,27 +294,27 @@ export class AgentSessionsView extends ViewPane {
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
-				sorter: new AgentSessionsSorter(),
+				sorter: this.instantiationService.createInstance(AgentSessionsSorter),
 				paddingBottom: AgentSessionsListDelegate.ITEM_HEIGHT,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}
-		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore>;
-	}
+		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, IAgentSession, FuzzyScore>;
 
-	private createViewModel(): void {
-		const sessionsViewModel = this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel, { filterMenuId: MenuId.AgentSessionsFilterSubMenu }));
-		this.list?.setInput(sessionsViewModel);
+		const model = this.agentSessionsService.model;
 
-		this._register(sessionsViewModel.onDidChangeSessions(() => {
+		this._register(Event.any(
+			this.listFilter.onDidChange,
+			model.onDidChangeSessions
+		)(() => {
 			if (this.isBodyVisible()) {
 				this.list?.updateChildren();
 			}
 		}));
 
 		const didResolveDisposable = this._register(new MutableDisposable());
-		this._register(sessionsViewModel.onWillResolve(() => {
+		this._register(model.onWillResolve(() => {
 			const didResolve = new DeferredPromise<void>();
-			didResolveDisposable.value = Event.once(sessionsViewModel.onDidResolve)(() => didResolve.complete());
+			didResolveDisposable.value = Event.once(model.onDidResolve)(() => didResolve.complete());
 
 			this.progressService.withProgress(
 				{
@@ -330,6 +325,8 @@ export class AgentSessionsView extends ViewPane {
 				() => didResolve.p
 			);
 		}));
+
+		this.list?.setInput(model);
 	}
 
 	//#endregion
@@ -341,7 +338,7 @@ export class AgentSessionsView extends ViewPane {
 	}
 
 	refresh(): void {
-		this.sessionsViewModel?.resolve(undefined);
+		this.agentSessionsService.model.resolve(undefined);
 	}
 
 	//#endregion

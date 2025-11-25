@@ -28,14 +28,16 @@ import { Point } from '../../../../../../../common/core/2d/point.js';
 import { Size2D } from '../../../../../../../common/core/2d/size.js';
 import { getMaxTowerHeightInAvailableArea } from '../../utils/towersLayout.js';
 import { IThemeService } from '../../../../../../../../platform/theme/common/themeService.js';
+import { IKeybindingService } from '../../../../../../../../platform/keybinding/common/keybinding.js';
 import { getEditorBlendedColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorsuccessfulBackground } from '../../theme.js';
-import { asCssVariable, descriptionForeground, editorBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, descriptionForeground, editorBackground, editorWidgetBackground } from '../../../../../../../../platform/theme/common/colorRegistry.js';
 import { ILongDistancePreviewProps, LongDistancePreviewEditor } from './longDistancePreviewEditor.js';
 import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from '../../components/gutterIndicatorView.js';
+import { jumpToNextInlineEditId } from '../../../../controller/commandIds.js';
 
 const BORDER_RADIUS = 4;
-const MAX_WIDGET_WIDTH = 400;
-const MIN_WIDGET_WIDTH = 200;
+const MAX_WIDGET_WIDTH = { EMPTY_SPACE: 425, OVERLAY: 375 };
+const MIN_WIDGET_WIDTH = 250;
 
 export class InlineEditsLongDistanceHint extends Disposable implements IInlineEditsView {
 
@@ -52,6 +54,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
@@ -191,7 +194,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			const lineNumber = lineSizes.lineRange.startLineNumber + idx;
 			let linePaddingLeft = 20;
 			if (lineNumber === viewState.hint.lineNumber) {
-				linePaddingLeft = 100;
+				linePaddingLeft = 40;
 			}
 			return new Size2D(Math.max(0, editorTrueContentWidth - s.width - linePaddingLeft), s.height);
 		});
@@ -230,9 +233,13 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			const horizontalWidgetRange = OffsetRange.ofStartAndLength(editorTrueContentRight - maxWidth, maxWidth);
 			return { horizontalWidgetRange, verticalWidgetRange };
 		});
+
+		let position: 'overlay' | 'empty-space' = 'empty-space';
 		if (!possibleWidgetOutline) {
+			position = 'overlay';
+			const maxAvailableWidth = Math.min(editorLayout.width - editorLayout.contentLeft, MAX_WIDGET_WIDTH.OVERLAY);
 			possibleWidgetOutline = {
-				horizontalWidgetRange: OffsetRange.ofStartAndLength(editorTrueContentRight - MAX_WIDGET_WIDTH, MAX_WIDGET_WIDTH),
+				horizontalWidgetRange: OffsetRange.ofStartAndLength(editorTrueContentRight - maxAvailableWidth, maxAvailableWidth),
 				verticalWidgetRange: getWidgetVerticalOutline(viewState.hint.lineNumber + 2).delta(10),
 			};
 		}
@@ -251,12 +258,12 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			debugView(debugLogRects({ rectAvailableSpace }, this._editor.getDomNode()!), reader);
 		}
 
-		const maxWidgetWidth = Math.min(MAX_WIDGET_WIDTH, previewEditorContentLayout.maxEditorWidth + previewEditorMargin + widgetPadding);
+		const maxWidgetWidth = Math.min(position === 'overlay' ? MAX_WIDGET_WIDTH.OVERLAY : MAX_WIDGET_WIDTH.EMPTY_SPACE, previewEditorContentLayout.maxEditorWidth + previewEditorMargin + widgetPadding);
 
 		const layout = distributeFlexBoxLayout(rectAvailableSpace.width, {
 			spaceBefore: { min: 0, max: 10, priority: 1 },
 			content: { min: 50, rules: [{ max: 150, priority: 2 }, { max: maxWidgetWidth, priority: 1 }] },
-			spaceAfter: { min: 20 },
+			spaceAfter: { min: 10 },
 		});
 
 		if (!layout) {
@@ -318,13 +325,14 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		derived(this, _reader => [this._widgetContent]),
 	]);
 
-	private readonly _widgetContent = derived(this, reader => // TODO how to not use derived but not move into constructor?
+	private readonly _widgetContent = derived(this, reader => // TODO@hediet: remove when n.div lazily creates previewEditor.element node
 		n.div({
+			class: 'inline-edits-long-distance-hint-widget',
 			style: {
 				position: 'absolute',
 				overflow: 'hidden',
 				cursor: 'pointer',
-				background: 'var(--vscode-editorWidget-background)',
+				background: asCssVariable(editorWidgetBackground),
 				padding: this._previewEditorLayoutInfo.map(i => i?.widgetPadding),
 				boxSizing: 'border-box',
 				borderRadius: BORDER_RADIUS,
@@ -347,7 +355,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 				style: {
 					overflow: 'hidden',
 					padding: this._previewEditorLayoutInfo.map(i => i?.previewEditorMargin),
-					background: 'var(--vscode-editor-background)',
+					background: asCssVariable(editorBackground),
 					pointerEvents: 'none',
 				},
 			}, [
@@ -371,7 +379,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 							const icon = SymbolKinds.toIcon(item.kind);
 							outlineElements.push(n.div({
 								class: 'breadcrumb-item',
-								style: { display: 'flex', alignItems: 'center', flex: '1 1 auto', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+								style: { display: 'flex', alignItems: 'center', flex: '1 1 auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
 							}, [
 								renderIcon(icon),
 								'\u00a0',
@@ -383,15 +391,20 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 							]));
 						}
 					}
-					children.push(n.div({ class: 'outline-elements' }, outlineElements));
+					children.push(n.div({ class: 'outline-elements', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, outlineElements));
 
 					// Show Edit Direction
 					const arrowIcon = isEditBelowHint(viewState) ? Codicon.arrowDown : Codicon.arrowUp;
+					const keybinding = this._keybindingService.lookupKeybinding(jumpToNextInlineEditId);
+					let label = 'Go to suggestion';
+					if (keybinding && keybinding.getLabel() === 'Tab') {
+						label = 'Tab to suggestion';
+					}
 					children.push(n.div({
 						class: 'go-to-label',
-						style: { display: 'flex', alignItems: 'center', flex: '0 0 auto', marginLeft: '14px' },
+						style: { position: 'relative', display: 'flex', alignItems: 'center', flex: '0 0 auto', paddingLeft: '6px' },
 					}, [
-						'Go To Edit',
+						label,
 						'\u00a0',
 						renderIcon(arrowIcon),
 					]));

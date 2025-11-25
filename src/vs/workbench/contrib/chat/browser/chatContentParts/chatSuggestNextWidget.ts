@@ -4,14 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
+import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IChatMode } from '../../common/chatModes.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IHandOff } from '../../common/promptSyntax/promptFileParser.js';
+import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 
 export interface INextPromptSelection {
 	readonly handoff: IHandOff;
+	readonly agentId?: string;
 }
 
 export class ChatSuggestNextWidget extends Disposable {
@@ -26,8 +32,12 @@ export class ChatSuggestNextWidget extends Disposable {
 	private promptsContainer!: HTMLElement;
 	private titleElement!: HTMLElement;
 	private _currentMode: IChatMode | undefined;
+	private buttonDisposables = new Map<HTMLElement, DisposableStore>();
 
-	constructor() {
+	constructor(
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService
+	) {
 		super();
 		this.domNode = this.createSuggestNextWidget();
 	}
@@ -74,10 +84,14 @@ export class ChatSuggestNextWidget extends Disposable {
 			childrenToRemove.push(this.promptsContainer.children[i] as HTMLElement);
 		}
 		for (const child of childrenToRemove) {
+			const disposables = this.buttonDisposables.get(child);
+			if (disposables) {
+				disposables.dispose();
+				this.buttonDisposables.delete(child);
+			}
 			this.promptsContainer.removeChild(child);
 		}
 
-		// Create prompt buttons using welcome view classes
 		for (const handoff of handoffs) {
 			const promptButton = this.createPromptButton(handoff);
 			this.promptsContainer.appendChild(promptButton);
@@ -88,28 +102,88 @@ export class ChatSuggestNextWidget extends Disposable {
 	}
 
 	private createPromptButton(handoff: IHandOff): HTMLElement {
-		// Reuse welcome view prompt button class
+		const disposables = new DisposableStore();
+
 		const button = dom.$('.chat-welcome-view-suggested-prompt');
 		button.setAttribute('tabindex', '0');
 		button.setAttribute('role', 'button');
 		button.setAttribute('aria-label', localize('chat.suggestNext.item', '{0}', handoff.label));
 
-		// Title element using welcome view class
 		const titleElement = dom.append(button, dom.$('.chat-welcome-view-suggested-prompt-title'));
 		titleElement.textContent = handoff.label;
 
-		// Click handler
-		this._register(dom.addDisposableListener(button, 'click', () => {
-			this._onDidSelectPrompt.fire({ handoff });
-		}));
+		// Optional showContinueOn behaves like send: only present if specified
+		const showContinueOn = handoff.showContinueOn ?? true;
 
-		// Keyboard handler
-		this._register(dom.addDisposableListener(button, 'keydown', (e) => {
+		// Get chat session contributions to show in chevron dropdown
+		const contributions = this.chatSessionsService.getAllChatSessionContributions();
+		const availableContributions = contributions.filter(c => c.canDelegate !== false);
+
+		if (showContinueOn && availableContributions.length > 0) {
+			const separator = dom.append(button, dom.$('.chat-suggest-next-separator'));
+			separator.setAttribute('aria-hidden', 'true');
+			const chevron = dom.append(button, dom.$('.codicon.codicon-chevron-down.dropdown-chevron'));
+			chevron.setAttribute('tabindex', '0');
+			chevron.setAttribute('role', 'button');
+			chevron.setAttribute('aria-label', localize('chat.suggestNext.moreOptions', 'More options for {0}', handoff.label));
+			chevron.setAttribute('aria-haspopup', 'true');
+
+			const showContextMenu = (e: MouseEvent | KeyboardEvent, anchor?: HTMLElement) => {
+				e.preventDefault();
+				e.stopPropagation();
+
+				const actions = availableContributions.map(contrib => {
+					const provider = contrib.type === AgentSessionProviders.Background ? AgentSessionProviders.Background : AgentSessionProviders.Cloud;
+					const icon = getAgentSessionProviderIcon(provider);
+					const name = getAgentSessionProviderName(provider);
+					return new Action(
+						contrib.type,
+						localize('continueIn', "Continue in {0}", name),
+						ThemeIcon.isThemeIcon(icon) ? ThemeIcon.asClassName(icon) : undefined,
+						true,
+						() => {
+							this._onDidSelectPrompt.fire({ handoff, agentId: contrib.name });
+						}
+					);
+				});
+
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => anchor || button,
+					getActions: () => actions,
+					autoSelectFirstItem: true,
+				});
+			};
+
+			disposables.add(dom.addDisposableListener(chevron, 'click', (e: MouseEvent) => {
+				showContextMenu(e, chevron);
+			}));
+
+			disposables.add(dom.addDisposableListener(chevron, 'keydown', (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					showContextMenu(e, chevron);
+				}
+			}));
+			disposables.add(dom.addDisposableListener(button, 'click', (e: MouseEvent) => {
+				if ((e.target as HTMLElement).classList.contains('dropdown-chevron')) {
+					return;
+				}
+				this._onDidSelectPrompt.fire({ handoff });
+			}));
+		} else {
+			disposables.add(dom.addDisposableListener(button, 'click', () => {
+				this._onDidSelectPrompt.fire({ handoff });
+			}));
+		}
+
+		disposables.add(dom.addDisposableListener(button, 'keydown', (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				this._onDidSelectPrompt.fire({ handoff });
 			}
 		}));
+
+		// Store disposables for this button so they can be disposed when the button is removed
+		this.buttonDisposables.set(button, disposables);
 
 		return button;
 	}
@@ -120,5 +194,14 @@ export class ChatSuggestNextWidget extends Disposable {
 			this.domNode.style.display = 'none';
 			this._onDidChangeHeight.fire();
 		}
+	}
+
+	public override dispose(): void {
+		// Dispose all button disposables
+		for (const disposables of this.buttonDisposables.values()) {
+			disposables.dispose();
+		}
+		this.buttonDisposables.clear();
+		super.dispose();
 	}
 }
