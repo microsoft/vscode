@@ -178,8 +178,8 @@ div.chat-welcome-view {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		height: 24px;
-		padding: 0 8px;
+		height: 20px;
+		padding: 0 6px;
 		border-radius: 4px;
 		background-color: var(--vscode-editorWidget-background);
 		cursor: pointer;
