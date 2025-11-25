@@ -171,6 +171,12 @@ export interface IExtensionsWorkbenchService {
 	isExtensionIgnoredToSync(extension: IExtension): boolean;
 	toggleExtensionIgnoredToSync(extension: IExtension): Promise<void>;
 	toggleApplyExtensionToAllProfiles(extension: IExtension): Promise<void>;
+
+	// Favorites APIs
+	readonly onDidChangeFavorites: Event<void>;
+	isFavorite(extension: IExtension): boolean;
+	toggleFavorite(extension: IExtension): Promise<void>;
+	getFavorites(): string[];
 }
 
 export const enum ExtensionEditorTab {
