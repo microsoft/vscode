@@ -38,3 +38,6 @@ export const infoIcon = registerIcon('extensions-info-message', Codicon.info, lo
 
 export const trustIcon = registerIcon('extension-workspace-trust', Codicon.shield, localize('trustIcon', 'Icon shown with a workspace trust message in the extension editor.'));
 export const activationTimeIcon = registerIcon('extension-activation-time', Codicon.history, localize('activationtimeIcon', 'Icon shown with a activation time message in the extension editor.'));
+
+export const favoriteIcon = registerIcon('extensions-favorite', Codicon.heart, localize('favoriteIcon', 'Icon to indicate that an extension is not a favorite.'));
+export const favoriteFilledIcon = registerIcon('extensions-favorite-filled', Codicon.heartFilled, localize('favoriteFilledIcon', 'Icon to indicate that an extension is a favorite.'));
