@@ -55,6 +55,7 @@ import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGr
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/chatVariableEntries.js';
+import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
@@ -1322,7 +1323,12 @@ export class InlineChatController2 implements IEditorContribution {
 					enableImplicitContext: false,
 					renderInputOnTop: false,
 					renderInputToolbarBelowInput: true,
-					filter: _item => false, // filter ALL items
+					filter: item => {
+						if (!isResponseVM(item)) {
+							return false;
+						}
+						return !!item.model.isPendingConfirmation.get();
+					},
 					menus: {
 						telemetrySource: 'inlineChatWidget',
 						executeToolbar: MenuId.ChatEditorInlineExecute,
