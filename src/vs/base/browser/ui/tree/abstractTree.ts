@@ -304,11 +304,12 @@ export enum RenderIndentGuides {
 	Always = 'always'
 }
 
-interface ITreeRendererOptions {
+interface ITreeRendererOptions<T> {
 	readonly indent?: number;
 	readonly renderIndentGuides?: RenderIndentGuides;
 	// TODO@joao replace this with collapsible: boolean | 'ondemand'
 	readonly hideTwistiesOfChildlessElements?: boolean;
+	readonly twistieAdditionalCssClass?: (element: T) => string | undefined;
 }
 
 interface Collection<T> {
@@ -343,6 +344,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	private renderedNodes = new Map<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>>();
 	private indent: number = TreeRenderer.DefaultIndent;
 	private hideTwistiesOfChildlessElements: boolean = false;
+	private twistieAdditionalCssClass?: (element: T) => string | undefined;
 
 	private shouldRenderIndentGuides: boolean = false;
 	private activeIndentNodes = new Set<ITreeNode<T, TFilterData>>();
@@ -356,7 +358,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		onDidChangeCollapseState: Event<ICollapseStateChangeEvent<T, TFilterData>>,
 		private readonly activeNodes: Collection<ITreeNode<T, TFilterData>>,
 		private readonly renderedIndentGuides: SetMap<ITreeNode<T, TFilterData>, HTMLDivElement>,
-		options: ITreeRendererOptions = {}
+		options: ITreeRendererOptions<T> = {}
 	) {
 		this.templateId = renderer.templateId;
 		this.updateOptions(options);
@@ -365,7 +367,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		renderer.onDidChangeTwistieState?.(this.onDidChangeTwistieState, this, this.disposables);
 	}
 
-	updateOptions(options: ITreeRendererOptions = {}): void {
+	updateOptions(options: ITreeRendererOptions<T> = {}): void {
 		if (typeof options.indent !== 'undefined') {
 			const indent = clamp(options.indent, 0, 40);
 
@@ -403,6 +405,10 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 		if (typeof options.hideTwistiesOfChildlessElements !== 'undefined') {
 			this.hideTwistiesOfChildlessElements = options.hideTwistiesOfChildlessElements;
+		}
+
+		if (typeof options.twistieAdditionalCssClass !== 'undefined') {
+			this.twistieAdditionalCssClass = options.twistieAdditionalCssClass;
 		}
 	}
 
@@ -462,6 +468,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 
 	private renderTreeElement(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>): void {
+		templateData.twistie.className = templateData.twistie.classList.item(0)!;
 		templateData.twistie.style.paddingLeft = `${templateData.indentSize}px`;
 		templateData.indent.style.width = `${templateData.indentSize + this.indent - 16}px`;
 
@@ -488,6 +495,14 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 			templateData.twistie.classList.toggle('collapsed', node.collapsed);
 		} else {
 			templateData.twistie.classList.remove('collapsible', 'collapsed');
+		}
+
+		// Additional twistie class
+		if (this.twistieAdditionalCssClass) {
+			const additionalClass = this.twistieAdditionalCssClass(node.element);
+			if (additionalClass) {
+				templateData.twistie.classList.add(additionalClass);
+			}
 		}
 
 		this._renderIndentGuides(node, templateData);
@@ -1170,7 +1185,7 @@ export class FindController<T, TFilterData> extends AbstractFindController<T, TF
 		this.disposables.add(this.tree.onWillRefilter(() => this.filter.reset()));
 	}
 
-	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
+	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate<T> = {}): void {
 		if (optionsUpdate.defaultFindMode !== undefined) {
 			this.mode = optionsUpdate.defaultFindMode;
 		}
@@ -1618,7 +1633,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		return this._widget.focusedLast();
 	}
 
-	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
+	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate<T> = {}): void {
 		if (optionsUpdate.paddingTop !== undefined) {
 			this.paddingTop = optionsUpdate.paddingTop;
 		}
@@ -1632,7 +1647,7 @@ class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		}
 	}
 
-	validateStickySettings(options: IAbstractTreeOptionsUpdate): { stickyScrollMaxItemCount: number } {
+	validateStickySettings(options: IAbstractTreeOptionsUpdate<T>): { stickyScrollMaxItemCount: number } {
 		let stickyScrollMaxItemCount = 7;
 		if (typeof options.stickyScrollMaxItemCount === 'number') {
 			stickyScrollMaxItemCount = Math.max(options.stickyScrollMaxItemCount, 1);
@@ -2172,7 +2187,7 @@ function asTreeContextMenuEvent<T, TFilterData = void>(event: IListContextMenuEv
 	};
 }
 
-export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
+export interface IAbstractTreeOptionsUpdate<T> extends ITreeRendererOptions<T> {
 	readonly multipleSelectionSupport?: boolean;
 	readonly typeNavigationEnabled?: boolean;
 	readonly typeNavigationMode?: TypeNavigationMode;
@@ -2185,13 +2200,13 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly mouseWheelScrollSensitivity?: number;
 	readonly fastScrollSensitivity?: number;
 	readonly expandOnDoubleClick?: boolean;
-	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is the tree element (T)
+	readonly expandOnlyOnTwistieClick?: boolean | ((e: T) => boolean);
 	readonly enableStickyScroll?: boolean;
 	readonly stickyScrollMaxItemCount?: number;
 	readonly paddingTop?: number;
 }
 
-export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
+export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate<T>, IListOptions<T> {
 	readonly contextViewProvider?: IContextViewProvider;
 	readonly collapseByDefault?: boolean; // defaults to false
 	readonly allowNonCollapsibleParents?: boolean; // defaults to false
@@ -2694,7 +2709,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.getHTMLElement().classList.toggle('always', this._options.renderIndentGuides === RenderIndentGuides.Always);
 	}
 
-	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate = {}): void {
+	updateOptions(optionsUpdate: IAbstractTreeOptionsUpdate<T> = {}): void {
 		this._options = { ...this._options, ...optionsUpdate };
 
 		for (const renderer of this.renderers) {
@@ -2714,7 +2729,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		return this._options;
 	}
 
-	private updateStickyScroll(optionsUpdate: IAbstractTreeOptionsUpdate) {
+	private updateStickyScroll(optionsUpdate: IAbstractTreeOptionsUpdate<T>) {
 		if (!this.stickyScrollController && this._options.enableStickyScroll) {
 			this.stickyScrollController = new StickyScrollController(this, this.model, this.view, this.renderers, this.treeDelegate, this._options);
 			this.onDidChangeStickyScrollFocused = this.stickyScrollController.onDidChangeHasFocus;
@@ -3202,7 +3217,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		// a nice to have UI feature.
 		const activeNodesEmitter = this.modelDisposables.add(new Emitter<ITreeNode<T, TFilterData>[]>());
 		const activeNodesDebounce = this.modelDisposables.add(new Delayer(0));
-		this.modelDisposables.add(Event.any<any>(onDidModelSplice, this.focus.onDidChange, this.selection.onDidChange)(() => {
+		this.modelDisposables.add(Event.any(onDidModelSplice, this.focus.onDidChange, this.selection.onDidChange)(() => {
 			activeNodesDebounce.trigger(() => {
 				const set = new Set<ITreeNode<T, TFilterData>>();
 
@@ -3241,12 +3256,12 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 }
 
-interface ITreeNavigatorView<T extends NonNullable<any>, TFilterData> {
+interface ITreeNavigatorView<T, TFilterData> {
 	readonly length: number;
 	element(index: number): ITreeNode<T, TFilterData>;
 }
 
-class TreeNavigator<T extends NonNullable<any>, TFilterData, TRef> implements ITreeNavigator<T> {
+class TreeNavigator<T, TFilterData, TRef> implements ITreeNavigator<T> {
 
 	private index: number;
 

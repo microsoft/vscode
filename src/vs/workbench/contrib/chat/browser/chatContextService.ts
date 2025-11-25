@@ -7,9 +7,9 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { LanguageSelector, score } from '../../../../editor/common/languageSelector.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatContextPicker, IChatContextPickerItem, IChatContextPickService } from './chatContextPickService.js';
-import { IChatContextItem, IChatContextProvider } from '../../../services/chat/common/chatContext.js';
+import { IChatContextItem, IChatContextProvider } from '../common/chatContext.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IGenericChatRequestVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatRequestWorkspaceVariableEntry, IGenericChatRequestVariableEntry, StringChatContextValue } from '../common/chatVariableEntries.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -22,7 +22,7 @@ export interface IChatContextService extends ChatContextService { }
 interface IChatContextProviderEntry {
 	picker?: { title: string; icon: ThemeIcon };
 	chatContextProvider?: {
-		selector: LanguageSelector;
+		selector: LanguageSelector | undefined;
 		provider: IChatContextProvider;
 	};
 }
@@ -31,7 +31,9 @@ export class ChatContextService extends Disposable {
 	_serviceBrand: undefined;
 
 	private readonly _providers = new Map<string, IChatContextProviderEntry>();
+	private readonly _workspaceContext = new Map<string, IChatContextItem[]>();
 	private readonly _registeredPickers = this._register(new DisposableMap<string, IDisposable>());
+	private _lastResourceContext: Map<StringChatContextValue, { originalItem: IChatContextItem; provider: IChatContextProvider }> = new Map();
 
 	constructor(
 		@IChatContextPickService private readonly _contextPickService: IChatContextPickService,
@@ -52,10 +54,11 @@ export class ChatContextService extends Disposable {
 		if (!providerEntry || !providerEntry.picker || !providerEntry.chatContextProvider) {
 			return;
 		}
-		this._registeredPickers.set(id, this._contextPickService.registerChatContextItem(this._asPicker(providerEntry.picker.title, providerEntry.picker.icon, id)));
+		const title = `${providerEntry.picker.title.replace(/\.+$/, '')}...`;
+		this._registeredPickers.set(id, this._contextPickService.registerChatContextItem(this._asPicker(title, providerEntry.picker.icon, id)));
 	}
 
-	registerChatContextProvider(id: string, selector: LanguageSelector, provider: IChatContextProvider): void {
+	registerChatContextProvider(id: string, selector: LanguageSelector | undefined, provider: IChatContextProvider): void {
 		const providerEntry = this._providers.get(id) ?? { picker: undefined };
 		providerEntry.chatContextProvider = { selector, provider };
 		this._providers.set(id, providerEntry);
@@ -67,10 +70,37 @@ export class ChatContextService extends Disposable {
 		this._registeredPickers.deleteAndDispose(id);
 	}
 
-	async contextForResource(uri: URI): Promise<IChatContextItem | undefined> {
+	updateWorkspaceContextItems(id: string, items: IChatContextItem[]): void {
+		this._workspaceContext.set(id, items);
+	}
+
+	getWorkspaceContextItems(): IChatRequestWorkspaceVariableEntry[] {
+		const items: IChatRequestWorkspaceVariableEntry[] = [];
+		for (const workspaceContexts of this._workspaceContext.values()) {
+			for (const item of workspaceContexts) {
+				if (!item.value) {
+					continue;
+				}
+				items.push({
+					value: item.value,
+					name: item.label,
+					modelDescription: item.modelDescription,
+					id: item.label,
+					kind: 'workspace'
+				});
+			}
+		}
+		return items;
+	}
+
+	async contextForResource(uri: URI): Promise<StringChatContextValue | undefined> {
+		return this._contextForResource(uri, false);
+	}
+
+	private async _contextForResource(uri: URI, withValue: boolean): Promise<StringChatContextValue | undefined> {
 		const scoredProviders: Array<{ score: number; provider: IChatContextProvider }> = [];
 		for (const providerEntry of this._providers.values()) {
-			if (!providerEntry.chatContextProvider?.provider.provideChatContextForResource) {
+			if (!providerEntry.chatContextProvider?.provider.provideChatContextForResource || (providerEntry.chatContextProvider.selector === undefined)) {
 				continue;
 			}
 			const matchScore = score(providerEntry.chatContextProvider.selector, uri, '', true, undefined, undefined);
@@ -80,7 +110,41 @@ export class ChatContextService extends Disposable {
 		if (scoredProviders.length === 0 || scoredProviders[0].score <= 0) {
 			return;
 		}
-		const context = (await scoredProviders[0].provider.provideChatContextForResource!(uri, {}, CancellationToken.None));
+		const context = (await scoredProviders[0].provider.provideChatContextForResource!(uri, withValue, CancellationToken.None));
+		if (!context) {
+			return;
+		}
+		const contextValue: StringChatContextValue = {
+			value: undefined,
+			name: context.label,
+			icon: context.icon,
+			uri: uri,
+			modelDescription: context.modelDescription
+		};
+		this._lastResourceContext.clear();
+		this._lastResourceContext.set(contextValue, { originalItem: context, provider: scoredProviders[0].provider });
+		return contextValue;
+	}
+
+	async resolveChatContext(context: StringChatContextValue): Promise<StringChatContextValue> {
+		if (context.value !== undefined) {
+			return context;
+		}
+
+		const item = this._lastResourceContext.get(context);
+		if (!item) {
+			const resolved = await this._contextForResource(context.uri, true);
+			context.value = resolved?.value;
+			context.modelDescription = resolved?.modelDescription;
+			return context;
+		} else if (item.provider.resolveChatContext) {
+			const resolved = await item.provider.resolveChatContext(item.originalItem, CancellationToken.None);
+			if (resolved) {
+				context.value = resolved.value;
+				context.modelDescription = resolved.modelDescription;
+				return context;
+			}
+		}
 		return context;
 	}
 

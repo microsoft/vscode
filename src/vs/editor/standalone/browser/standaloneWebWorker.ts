@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../base/common/uri.js';
+import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
 import { EditorWorkerClient } from '../../browser/services/editorWorkerService.js';
 import { IModelService } from '../../common/services/model.js';
 
@@ -11,8 +12,8 @@ import { IModelService } from '../../common/services/model.js';
  * Create a new web worker that has model syncing capabilities built in.
  * Specify an AMD module to load that will `create` an object that will be proxied.
  */
-export function createWebWorker<T extends object>(modelService: IModelService, opts: IInternalWebWorkerOptions): MonacoWebWorker<T> {
-	return new MonacoWebWorkerImpl<T>(modelService, opts);
+export function createWebWorker<T extends object>(modelService: IModelService, webWorkerService: IWebWorkerService, opts: IInternalWebWorkerOptions): MonacoWebWorker<T> {
+	return new MonacoWebWorkerImpl<T>(modelService, webWorkerService, opts);
 }
 
 /**
@@ -55,8 +56,8 @@ class MonacoWebWorkerImpl<T extends object> extends EditorWorkerClient implement
 	private readonly _foreignModuleHost: { [method: string]: Function } | null;
 	private _foreignProxy: Promise<T>;
 
-	constructor(modelService: IModelService, opts: IInternalWebWorkerOptions) {
-		super(opts.worker, opts.keepIdleModels || false, modelService);
+	constructor(modelService: IModelService, webWorkerService: IWebWorkerService, opts: IInternalWebWorkerOptions) {
+		super(opts.worker, opts.keepIdleModels || false, modelService, webWorkerService);
 		this._foreignModuleHost = opts.host || null;
 		this._foreignProxy = this._getProxy().then(proxy => {
 			return new Proxy({}, {

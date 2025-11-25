@@ -63,8 +63,8 @@ import { killTerminalIcon, newTerminalIcon } from './terminalIcons.js';
 import { ITerminalQuickPickItem } from './terminalProfileQuickpick.js';
 import { TerminalTabList } from './terminalTabsList.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
+import { SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 
-export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
 
 const category = terminalStrings.actionCategory;
@@ -1409,7 +1409,7 @@ export function registerTerminalActions() {
 			if (!item) {
 				return;
 			}
-			if (item === switchTerminalActionViewItemSeparator) {
+			if (item === SeparatorSelectOption.text) {
 				c.service.refreshActiveGroup();
 				return;
 			}

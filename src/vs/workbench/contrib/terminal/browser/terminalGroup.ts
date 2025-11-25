@@ -16,7 +16,7 @@ import { TerminalStatus } from './terminalStatusList.js';
 import { getWindow } from '../../../../base/browser/dom.js';
 import { getPartByLocation } from '../../../services/views/browser/viewsService.js';
 import { asArray } from '../../../../base/common/arrays.js';
-import { hasKey, type SingleOrMany } from '../../../../base/common/types.js';
+import { hasKey, isNumber, type SingleOrMany } from '../../../../base/common/types.js';
 
 const enum Constants {
 	/**
@@ -132,7 +132,7 @@ class SplitPaneContainer extends Disposable {
 	private _addChild(instance: ITerminalInstance, index: number): void {
 		const child = new SplitPane(instance, this.orientation === Orientation.HORIZONTAL ? this._height : this._width);
 		child.orientation = this.orientation;
-		if (typeof index === 'number') {
+		if (isNumber(index)) {
 			this._children.splice(index, 0, child);
 		} else {
 			this._children.push(child);
@@ -338,7 +338,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	}
 
 	getLayoutInfo(isActive: boolean): ITerminalTabLayoutInfoById {
-		const instances = this.terminalInstances.filter(instance => typeof instance.persistentProcessId === 'number' && instance.shouldPersist);
+		const instances = this.terminalInstances.filter(instance => isNumber(instance.persistentProcessId) && instance.shouldPersist);
 		const totalSize = instances.map(t => this._splitPaneContainer?.getPaneSize(t) || 0).reduce((total, size) => total += size, 0);
 		return {
 			isActive: isActive,

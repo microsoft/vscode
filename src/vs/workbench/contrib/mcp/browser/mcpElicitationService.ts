@@ -4,21 +4,62 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from '../../../../base/common/actions.js';
-import { assertNever } from '../../../../base/common/assert.js';
+import { assertNever, softAssertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { ChatElicitationRequestPart } from '../../chat/browser/chatElicitationRequestPart.js';
 import { ChatModel } from '../../chat/common/chatModel.js';
-import { IChatService } from '../../chat/common/chatService.js';
+import { ElicitationState, IChatService } from '../../chat/common/chatService.js';
 import { LocalChatSessionUri } from '../../chat/common/chatUri.js';
-import { IMcpElicitationService, IMcpServer, IMcpToolCallContext } from '../common/mcpTypes.js';
+import { ElicitationKind, ElicitResult, IFormModeElicitResult, IMcpElicitationService, IMcpServer, IMcpToolCallContext, IUrlModeElicitResult, McpConnectionState, MpcResponseError } from '../common/mcpTypes.js';
 import { mcpServerToSourceData } from '../common/mcpTypesUtils.js';
 import { MCP } from '../common/modelContextProtocol.js';
 
 const noneItem: IQuickPickItem = { id: undefined, label: localize('mcp.elicit.enum.none', 'None'), description: localize('mcp.elicit.enum.none.description', 'No selection'), alwaysShow: true };
+
+type Pre20251125ElicitationParams = Omit<MCP.ElicitRequestFormParams, 'mode'> & { mode?: undefined };
+
+function isFormElicitation(params: MCP.ElicitRequest['params'] | Pre20251125ElicitationParams): params is (MCP.ElicitRequestFormParams | Pre20251125ElicitationParams) {
+	return params.mode === 'form' || (params.mode === undefined && !!(params as Pre20251125ElicitationParams).requestedSchema);
+}
+
+function isUrlElicitation(params: MCP.ElicitRequest['params']): params is MCP.ElicitRequestURLParams {
+	return params.mode === 'url';
+}
+
+function isLegacyTitledEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.LegacyTitledEnumSchema & { enumNames: string[] } {
+	const cast = schema as MCP.LegacyTitledEnumSchema;
+	return cast.type === 'string' && Array.isArray(cast.enum) && Array.isArray(cast.enumNames);
+}
+
+function isUntitledEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.LegacyTitledEnumSchema | MCP.UntitledSingleSelectEnumSchema {
+	const cast = schema as MCP.LegacyTitledEnumSchema | MCP.UntitledSingleSelectEnumSchema;
+	return cast.type === 'string' && Array.isArray(cast.enum);
+}
+
+function isTitledSingleEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.TitledSingleSelectEnumSchema {
+	const cast = schema as MCP.TitledSingleSelectEnumSchema;
+	return cast.type === 'string' && Array.isArray(cast.oneOf);
+}
+
+function isUntitledMultiEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.UntitledMultiSelectEnumSchema {
+	const cast = schema as MCP.UntitledMultiSelectEnumSchema;
+	return cast.type === 'array' && !!cast.items?.enum;
+}
+
+function isTitledMultiEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.TitledMultiSelectEnumSchema {
+	const cast = schema as MCP.TitledMultiSelectEnumSchema;
+	return cast.type === 'array' && !!cast.items?.anyOf;
+}
 
 export class McpElicitationService implements IMcpElicitationService {
 	declare readonly _serviceBrand: undefined;
@@ -27,11 +68,23 @@ export class McpElicitationService implements IMcpElicitationService {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IChatService private readonly _chatService: IChatService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	public elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<MCP.ElicitResult> {
+	public elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<ElicitResult> {
+		if (isFormElicitation(elicitation)) {
+			return this._elicitForm(server, context, elicitation, token);
+		} else if (isUrlElicitation(elicitation)) {
+			return this._elicitUrl(server, context, elicitation, token);
+		} else {
+			softAssertNever(elicitation);
+			return Promise.reject(new MpcResponseError('Unsupported elicitation type', MCP.INVALID_PARAMS, undefined));
+		}
+	}
+
+	private async _elicitForm(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequestFormParams | Pre20251125ElicitationParams, token: CancellationToken): Promise<IFormModeElicitResult> {
 		const store = new DisposableStore();
-		return new Promise<MCP.ElicitResult>(resolve => {
+		const value = await new Promise<MCP.ElicitResult>(resolve => {
 			const chatModel = context?.chatSessionId && this._chatService.getSession(LocalChatSessionUri.forSession(context.chatSessionId));
 			if (chatModel instanceof ChatModel) {
 				const request = chatModel.getRequests().at(-1);
@@ -43,16 +96,15 @@ export class McpElicitationService implements IMcpElicitationService {
 						localize('mcp.elicit.accept', 'Respond'),
 						localize('mcp.elicit.reject', 'Cancel'),
 						async () => {
-							const p = this._doElicit(elicitation, token);
+							const p = this._doElicitForm(elicitation, token);
 							resolve(p);
 							const result = await p;
-							part.state = result.action === 'accept' ? 'accepted' : 'rejected';
 							part.acceptedResult = result.content;
+							return result.action === 'accept' ? ElicitationState.Accepted : ElicitationState.Rejected;
 						},
 						() => {
 							resolve({ action: 'decline' });
-							part.state = 'rejected';
-							return Promise.resolve();
+							return Promise.resolve(ElicitationState.Rejected);
 						},
 						mcpServerToSourceData(server),
 					);
@@ -64,7 +116,7 @@ export class McpElicitationService implements IMcpElicitationService {
 					source: localize('mcp.elicit.source', 'MCP Server ({0})', server.definition.label),
 					severity: Severity.Info,
 					actions: {
-						primary: [store.add(new Action('mcp.elicit.give', localize('mcp.elicit.give', 'Respond'), undefined, true, () => resolve(this._doElicit(elicitation, token))))],
+						primary: [store.add(new Action('mcp.elicit.give', localize('mcp.elicit.give', 'Respond'), undefined, true, () => resolve(this._doElicitForm(elicitation, token))))],
 						secondary: [store.add(new Action('mcp.elicit.cancel', localize('mcp.elicit.cancel', 'Cancel'), undefined, true, () => resolve({ action: 'decline' })))],
 					}
 				});
@@ -73,16 +125,106 @@ export class McpElicitationService implements IMcpElicitationService {
 			}
 
 		}).finally(() => store.dispose());
+
+		return { kind: ElicitationKind.Form, value, dispose: () => { } };
 	}
 
-	private async _doElicit(elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<MCP.ElicitResult> {
+	private async _elicitUrl(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequestURLParams, token: CancellationToken): Promise<IUrlModeElicitResult> {
+		const promiseStore = new DisposableStore();
+
+		// We create this ahead of time in case e.g. a user manually opens the URL beforehand
+		const completePromise = new Promise<void>((resolve, reject) => {
+			promiseStore.add(token.onCancellationRequested(() => reject(new CancellationError())));
+			promiseStore.add(autorun(reader => {
+				const cnx = server.connection.read(reader);
+				const handler = cnx?.handler.read(reader);
+				if (handler) {
+					reader.store.add(handler.onDidReceiveElicitationCompleteNotification(e => {
+						if (e.params.elicitationId === elicitation.elicitationId) {
+							resolve();
+						}
+					}));
+				} else if (!McpConnectionState.isRunning(server.connectionState.read(reader))) {
+					reject(new CancellationError());
+				}
+			}));
+		}).finally(() => promiseStore.dispose());
+
+		const store = new DisposableStore();
+		const value = await new Promise<MCP.ElicitResult>(resolve => {
+			const chatModel = context?.chatSessionId && this._chatService.getSession(LocalChatSessionUri.forSession(context.chatSessionId));
+			if (chatModel instanceof ChatModel) {
+				const request = chatModel.getRequests().at(-1);
+				if (request) {
+					const part = new ChatElicitationRequestPart(
+						localize('mcp.elicit.url.title', 'Authorization Required'),
+						new MarkdownString().appendText(elicitation.message)
+							.appendMarkdown('\n\n' + localize('mcp.elicit.url.instruction', 'Open this URL?'))
+							.appendCodeblock('', elicitation.url),
+						localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
+						localize('mcp.elicit.url.open', 'Open {0}', URI.parse(elicitation.url).authority),
+						localize('mcp.elicit.reject', 'Cancel'),
+						async () => {
+							const result = await this._doElicitUrl(elicitation, token);
+							resolve(result);
+							completePromise.then(() => part.hide());
+							return result.action === 'accept' ? ElicitationState.Accepted : ElicitationState.Rejected;
+						},
+						() => {
+							resolve({ action: 'decline' });
+							return Promise.resolve(ElicitationState.Rejected);
+						},
+						mcpServerToSourceData(server),
+					);
+					chatModel.acceptResponseProgress(request, part);
+				}
+			} else {
+				const handle = this._notificationService.notify({
+					message: elicitation.message + ' ' + localize('mcp.elicit.url.instruction2', 'This will open {0}', elicitation.url),
+					source: localize('mcp.elicit.source', 'MCP Server ({0})', server.definition.label),
+					severity: Severity.Info,
+					actions: {
+						primary: [store.add(new Action('mcp.elicit.url.open2', localize('mcp.elicit.url.open2', 'Open URL'), undefined, true, () => resolve(this._doElicitUrl(elicitation, token))))],
+						secondary: [store.add(new Action('mcp.elicit.cancel', localize('mcp.elicit.cancel', 'Cancel'), undefined, true, () => resolve({ action: 'decline' })))],
+					}
+				});
+				store.add(handle.onDidClose(() => resolve({ action: 'cancel' })));
+				store.add(token.onCancellationRequested(() => resolve({ action: 'cancel' })));
+			}
+		}).finally(() => store.dispose());
+
+		return {
+			kind: ElicitationKind.URL,
+			value,
+			wait: completePromise,
+			dispose: () => promiseStore.dispose(),
+		};
+	}
+
+	private async _doElicitUrl(elicitation: MCP.ElicitRequestURLParams, token: CancellationToken): Promise<MCP.ElicitResult> {
+		if (token.isCancellationRequested) {
+			return { action: 'cancel' };
+		}
+
+		try {
+			if (await this._openerService.open(elicitation.url, { allowCommands: false })) {
+				return { action: 'accept' };
+			}
+		} catch {
+			// ignored
+		}
+
+		return { action: 'decline' };
+	}
+
+	private async _doElicitForm(elicitation: MCP.ElicitRequestFormParams | Pre20251125ElicitationParams, token: CancellationToken): Promise<MCP.ElicitResult> {
 		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
 		const store = new DisposableStore();
 
 		try {
 			const properties = Object.entries(elicitation.requestedSchema.properties);
 			const requiredFields = new Set(elicitation.requestedSchema.required || []);
-			const results: Record<string, string | number | boolean> = {};
+			const results: Record<string, string | number | boolean | string[]> = {};
 			const backSnapshots: { value: string; validationMessage?: string }[] = [];
 
 			quickPick.title = elicitation.message;
@@ -102,12 +244,20 @@ export class McpElicitationService implements IMcpElicitationService {
 				quickPick.validationMessage = '';
 				quickPick.buttons = i > 0 ? [this._quickInputService.backButton] : [];
 
-				let result: { type: 'value'; value: string | number | boolean | undefined } | { type: 'back' } | { type: 'cancel' };
+				let result: { type: 'value'; value: string | number | boolean | undefined | string[] } | { type: 'back' } | { type: 'cancel' };
 				if (schema.type === 'boolean') {
-					result = await this._handleEnumField(quickPick, { ...schema, type: 'string', enum: ['true', 'false'], default: schema.default ? String(schema.default) : undefined }, isRequired, store, token);
+					result = await this._handleEnumField(quickPick, { enum: [{ const: 'true' }, { const: 'false' }], default: schema.default ? String(schema.default) : undefined }, isRequired, store, token);
 					if (result.type === 'value') { result.value = result.value === 'true' ? true : false; }
-				} else if (schema.type === 'string' && 'enum' in schema) {
-					result = await this._handleEnumField(quickPick, schema, isRequired, store, token);
+				} else if (isLegacyTitledEnumSchema(schema)) {
+					result = await this._handleEnumField(quickPick, { enum: schema.enum.map((v, i) => ({ const: v, title: schema.enumNames[i] })), default: schema.default }, isRequired, store, token);
+				} else if (isUntitledEnumSchema(schema)) {
+					result = await this._handleEnumField(quickPick, { enum: schema.enum.map(v => ({ const: v })), default: schema.default }, isRequired, store, token);
+				} else if (isTitledSingleEnumSchema(schema)) {
+					result = await this._handleEnumField(quickPick, { enum: schema.oneOf, default: schema.default }, isRequired, store, token);
+				} else if (isTitledMultiEnumSchema(schema)) {
+					result = await this._handleMultiEnumField(quickPick, { enum: schema.items.anyOf, default: schema.default }, isRequired, store, token);
+				} else if (isUntitledMultiEnumSchema(schema)) {
+					result = await this._handleMultiEnumField(quickPick, { enum: schema.items.enum.map(v => ({ const: v })), default: schema.default }, isRequired, store, token);
 				} else {
 					result = await this._handleInputField(quickPick, schema, isRequired, store, token);
 					if (result.type === 'value' && (schema.type === 'number' || schema.type === 'integer')) {
@@ -152,23 +302,23 @@ export class McpElicitationService implements IMcpElicitationService {
 
 	private async _handleEnumField(
 		quickPick: IQuickPick<IQuickPickItem>,
-		schema: MCP.EnumSchema,
+		schema: { default?: string; enum: { const: string; title?: string }[] },
 		required: boolean,
 		store: DisposableStore,
 		token: CancellationToken
 	) {
-		const items: IQuickPickItem[] = schema.enum.map((value, index) => ({
+		const items: IQuickPickItem[] = schema.enum.map(({ const: value, title }) => ({
 			id: value,
 			label: value,
-			description: schema.enumNames?.[index],
+			description: title,
 		}));
 
 		if (!required) {
 			items.push(noneItem);
 		}
 
-		quickPick.items = items;
 		quickPick.canSelectMany = false;
+		quickPick.items = items;
 		if (schema.default !== undefined) {
 			quickPick.activeItems = items.filter(item => item.id === schema.default);
 		}
@@ -179,6 +329,45 @@ export class McpElicitationService implements IMcpElicitationService {
 				const selected = quickPick.selectedItems[0];
 				if (selected) {
 					resolve({ type: 'value', value: selected.id });
+				}
+			}));
+			store.add(quickPick.onDidTriggerButton(() => resolve({ type: 'back' })));
+			store.add(quickPick.onDidHide(() => resolve({ type: 'cancel' })));
+
+			quickPick.show();
+		});
+	}
+
+	private async _handleMultiEnumField(
+		quickPick: IQuickPick<IQuickPickItem>,
+		schema: { default?: string[]; enum: { const: string; title?: string }[] },
+		required: boolean,
+		store: DisposableStore,
+		token: CancellationToken
+	) {
+		const items: IQuickPickItem[] = schema.enum.map(({ const: value, title }) => ({
+			id: value,
+			label: value,
+			description: title,
+			picked: !!schema.default?.includes(value),
+			pickable: true,
+		}));
+
+		if (!required) {
+			items.push(noneItem);
+		}
+
+		quickPick.canSelectMany = true;
+		quickPick.items = items;
+
+		return new Promise<{ type: 'value'; value: string[] | undefined } | { type: 'back' } | { type: 'cancel' }>(resolve => {
+			store.add(token.onCancellationRequested(() => resolve({ type: 'cancel' })));
+			store.add(quickPick.onDidAccept(() => {
+				const selected = quickPick.selectedItems[0];
+				if (selected.id === undefined) {
+					resolve({ type: 'value', value: undefined });
+				} else {
+					resolve({ type: 'value', value: quickPick.selectedItems.map(i => i.id).filter(isDefined) });
 				}
 			}));
 			store.add(quickPick.onDidTriggerButton(() => resolve({ type: 'back' })));

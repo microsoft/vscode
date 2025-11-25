@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.agent-sessions-viewer .agent-session-item .agent-session-toolbar {
+.agent-sessions-viewer .agent-session-item .agent-session-details-toolbar {
 
 	.monaco-action-bar .actions-container .action-item .action-label {
 		padding: 0;
@@ -15,6 +15,7 @@
 		display: flex;
 		gap: 4px;
 		padding: 0 4px; /* to make space for hover effect */
+		font-variant-numeric: tabular-nums;
 	}
 
 	.agent-session-diff-files {
@@ -30,7 +31,7 @@
 	}
 }
 
-.monaco-list-row.selected .agent-session-item .agent-session-toolbar {
+.monaco-list-row.selected .agent-session-item .agent-session-details-toolbar {
 
 	.agent-session-diff-files,
 	.agent-session-diff-added,

@@ -128,6 +128,11 @@ export async function rename(registry: LanguageFeatureRegistry<RenameProvider>, 
 	return skeleton.provideRenameEdits(newName, CancellationToken.None);
 }
 
+export async function prepareRename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position): Promise<RenameLocation & Rejection | undefined> {
+	const skeleton = new RenameSkeleton(model, position, registry);
+	return skeleton.resolveRenameLocation(CancellationToken.None);
+}
+
 // ---  register actions and commands
 
 class RenameController implements IEditorContribution {
@@ -295,7 +300,7 @@ class RenameController implements IEditorContribution {
 				code: 'undoredo.rename',
 				quotableLabel: nls.localize('quotableLabel', "Renaming {0} to {1}", loc?.text, inputFieldResult.newName),
 				respectAutoSaveConfig: true,
-				reason: EditSources.rename(),
+				reason: EditSources.rename(loc?.text, inputFieldResult.newName),
 			}).then(result => {
 				trace('edits applied');
 				if (result.ariaSummary) {

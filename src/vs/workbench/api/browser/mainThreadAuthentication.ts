@@ -7,7 +7,7 @@ import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWwwAuthenticateRequest, IAuthenticationConstraint, IAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
-import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
+import { ExtHostAuthenticationShape, ExtHostContext, IRegisterAuthenticationProviderDetails, IRegisterDynamicAuthenticationProviderDetails, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
@@ -55,6 +55,7 @@ class MainThreadAuthenticationProvider extends Disposable implements IAuthentica
 		public readonly label: string,
 		public readonly supportsMultipleAccounts: boolean,
 		public readonly authorizationServers: ReadonlyArray<URI>,
+		public readonly resourceServer: URI | undefined,
 		onDidChangeSessionsEmitter: Emitter<AuthenticationSessionsChangeEvent>,
 	) {
 		super();
@@ -82,6 +83,7 @@ class MainThreadAuthenticationProviderWithChallenges extends MainThreadAuthentic
 		label: string,
 		supportsMultipleAccounts: boolean,
 		authorizationServers: ReadonlyArray<URI>,
+		resourceServer: URI | undefined,
 		onDidChangeSessionsEmitter: Emitter<AuthenticationSessionsChangeEvent>,
 	) {
 		super(
@@ -90,6 +92,7 @@ class MainThreadAuthenticationProviderWithChallenges extends MainThreadAuthentic
 			label,
 			supportsMultipleAccounts,
 			authorizationServers,
+			resourceServer,
 			onDidChangeSessionsEmitter
 		);
 	}
@@ -177,7 +180,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}));
 	}
 
-	async $registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedAuthorizationServer: UriComponents[] = [], supportsChallenges?: boolean): Promise<void> {
+	async $registerAuthenticationProvider({ id, label, supportsMultipleAccounts, resourceServer, supportedAuthorizationServers, supportsChallenges }: IRegisterAuthenticationProviderDetails): Promise<void> {
 		if (!this.authenticationService.declaredProviders.find(p => p.id === id)) {
 			// If telemetry shows that this is not happening much, we can instead throw an error here.
 			this.logService.warn(`Authentication provider ${id} was not declared in the Extension Manifest.`);
@@ -190,11 +193,27 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		}
 		const emitter = new Emitter<AuthenticationSessionsChangeEvent>();
 		this._registrations.set(id, emitter);
-		const supportedAuthorizationServerUris = supportedAuthorizationServer.map(i => URI.revive(i));
+		const supportedAuthorizationServerUris = (supportedAuthorizationServers ?? []).map(i => URI.revive(i));
 		const provider =
 			supportsChallenges
-				? new MainThreadAuthenticationProviderWithChallenges(this._proxy, id, label, supportsMultipleAccounts, supportedAuthorizationServerUris, emitter)
-				: new MainThreadAuthenticationProvider(this._proxy, id, label, supportsMultipleAccounts, supportedAuthorizationServerUris, emitter);
+				? new MainThreadAuthenticationProviderWithChallenges(
+					this._proxy,
+					id,
+					label,
+					supportsMultipleAccounts,
+					supportedAuthorizationServerUris,
+					resourceServer ? URI.revive(resourceServer) : undefined,
+					emitter
+				)
+				: new MainThreadAuthenticationProvider(
+					this._proxy,
+					id,
+					label,
+					supportsMultipleAccounts,
+					supportedAuthorizationServerUris,
+					resourceServer ? URI.revive(resourceServer) : undefined,
+					emitter
+				);
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 
@@ -267,9 +286,15 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return deferredPromise.p;
 	}
 
-	async $registerDynamicAuthenticationProvider(id: string, label: string, authorizationServer: UriComponents, clientId: string, clientSecret?: string): Promise<void> {
-		await this.$registerAuthenticationProvider(id, label, true, [authorizationServer]);
-		await this.dynamicAuthProviderStorageService.storeClientRegistration(id, URI.revive(authorizationServer).toString(true), clientId, clientSecret, label);
+	async $registerDynamicAuthenticationProvider(details: IRegisterDynamicAuthenticationProviderDetails): Promise<void> {
+		await this.$registerAuthenticationProvider({
+			id: details.id,
+			label: details.label,
+			supportsMultipleAccounts: true,
+			supportedAuthorizationServers: [details.authorizationServer],
+			resourceServer: details.resourceServer,
+		});
+		await this.dynamicAuthProviderStorageService.storeClientRegistration(details.id, URI.revive(details.authorizationServer).toString(true), details.clientId, details.clientSecret, details.label);
 	}
 
 	async $setSessionsForDynamicAuthProvider(authProviderId: string, clientId: string, sessions: (IAuthorizationTokenResponse & { created_at: number })[]): Promise<void> {

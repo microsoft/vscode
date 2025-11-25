@@ -28,10 +28,7 @@ export namespace LocalChatSessionUri {
 		return parsed?.chatSessionType === localChatSessionType ? parsed.sessionId : undefined;
 	}
 
-	/**
-	 * @deprecated Legacy parser that supports non-local sessions.
-	 */
-	export function parse(resource: URI): ChatSessionIdentifier | undefined {
+	function parse(resource: URI): ChatSessionIdentifier | undefined {
 		if (resource.scheme !== scheme) {
 			return undefined;
 		}
