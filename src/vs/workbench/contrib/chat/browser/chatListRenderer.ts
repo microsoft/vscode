@@ -156,8 +156,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly templateDataByRequestId = new Map<string, IChatListItemTemplate>();
 
-	private readonly generatedThinkingTitles = new Map<string, string>();
-
 	private readonly chatContentMarkdownRenderer: IMarkdownRenderer;
 	private readonly markdownDecorationsRenderer: ChatMarkdownDecorationsRenderer;
 	protected readonly _onDidClickFollowup = this._register(new Emitter<IChatFollowup>());
@@ -1710,7 +1708,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						lastThinkingPart.setupThinkingContainer({ ...content, value: item }, context);
 					} else {
 						const itemContent = { ...content, value: item };
-						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context, this.chatContentMarkdownRenderer, this.generatedThinkingTitles);
+						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context, this.chatContentMarkdownRenderer);
 						itemPart.addDisposable(itemPart.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 						lastPart = itemPart;
 					}
@@ -1724,7 +1722,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				lastActiveThinking.setupThinkingContainer(content, context);
 				return lastActiveThinking;
 			} else {
-				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context, this.chatContentMarkdownRenderer, this.generatedThinkingTitles);
+				const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context, this.chatContentMarkdownRenderer);
 				part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 				return part;
 			}
