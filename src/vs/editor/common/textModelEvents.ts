@@ -162,7 +162,7 @@ export interface IModelTokensFontChangedEvent {
 /**
  * @internal
  */
-export type FontTokensUpdate = AnnotationsUpdate<IFontToken>;
+export type FontTokensUpdate = AnnotationsUpdate<IFontToken | undefined>;
 
 /**
  * @internal
