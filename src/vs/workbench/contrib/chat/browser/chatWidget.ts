@@ -1005,11 +1005,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		let title: string;
 		if (this.input.currentModeKind === ChatModeKind.Ask) {
-			title = localize('chatDescription', "Ask");
+			title = localize('chatDescription', "Ask about your code");
 		} else if (this.input.currentModeKind === ChatModeKind.Edit) {
-			title = localize('editsTitle', "Edit");
+			title = localize('editsTitle', "Edit in context");
 		} else {
-			title = localize('agentTitle', "Agent");
+			title = localize('agentTitle', "Build with Agent");
 		}
 
 		return {
