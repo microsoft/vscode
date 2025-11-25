@@ -631,6 +631,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private _registerAgent(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): IDisposable {
 		const { type: id, name, displayName, description } = contribution;
+		const storedIcon = this._sessionTypeIcons.get(id);
+		const icons = ThemeIcon.isThemeIcon(storedIcon)
+			? { themeIcon: storedIcon, icon: undefined, iconDark: undefined }
+			: storedIcon
+				? { icon: storedIcon.light, iconDark: storedIcon.dark }
+				: { themeIcon: Codicon.sendToRemoteAgent };
+
 		const agentData: IChatAgentData = {
 			id,
 			name,
@@ -644,8 +651,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask],
 			disambiguation: [],
 			metadata: {
-				themeIcon: Codicon.sendToRemoteAgent,
-				isSticky: false,
+				...icons,
 			},
 			capabilities: contribution.capabilities,
 			canAccessPreviousChatHistory: true,
@@ -961,7 +967,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		return session;
 	}
-
 
 	public hasAnySessionOptions(sessionResource: URI): boolean {
 		const session = this._sessions.get(sessionResource);

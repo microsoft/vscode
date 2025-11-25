@@ -1450,6 +1450,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			renameCreated: lifetimeSummary.renameCreated,
 			renameDuration: lifetimeSummary.renameDuration,
 			renameTimedOut: lifetimeSummary.renameTimedOut,
+			editKind: lifetimeSummary.editKind,
 			...forwardToChannelIf(isCopilotLikeExtension(this.providerId.extensionId!)),
 		};
 

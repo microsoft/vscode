@@ -55,6 +55,8 @@ export type InlineCompletionEndOfLifeEvent = {
 	sameShapeReplacements: boolean | undefined;
 	// empty
 	noSuggestionReason: string | undefined;
+	// shape
+	editKind: string | undefined;
 };
 
 type InlineCompletionsEndOfLifeClassification = {
@@ -100,4 +102,5 @@ type InlineCompletionsEndOfLifeClassification = {
 	noSuggestionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why no inline completion was provided' };
 	notShownReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why the inline completion was not shown' };
 	performanceMarkers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Performance markers for the inline completion lifecycle' };
+	editKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of edit made by the inline completion' };
 };

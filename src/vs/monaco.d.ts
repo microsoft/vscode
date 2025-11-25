@@ -7712,6 +7712,7 @@ declare namespace monaco.languages {
 		renameCreated: boolean;
 		renameDuration?: number;
 		renameTimedOut: boolean;
+		editKind: string | undefined;
 	};
 
 	export interface CodeAction {
