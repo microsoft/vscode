@@ -735,7 +735,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (lastThinking?.domNode) {
 				lastThinking.finalizeTitleIfDefault();
 				lastThinking.markAsInactive();
-				this.updateItemHeight(templateData);
 			}
 		}
 
@@ -1547,9 +1546,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 				if (thinkingPart instanceof ChatThinkingContentPart) {
 					thinkingPart.appendItem(part?.domNode, toolInvocation.toolId, toolInvocation);
+					thinkingPart.addDisposable(part.onDidChangeHeight(() => {
+						this.updateItemHeight(templateData);
+					}));
 				}
-
-				this.updateItemHeight(templateData);
 
 				return thinkingPart;
 			}
