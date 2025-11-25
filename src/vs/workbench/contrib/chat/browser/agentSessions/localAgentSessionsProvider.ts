@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { coalesce } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -149,7 +148,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 
 		if (!token.isCancellationRequested) {
 			const history = await this.getHistoryItems();
-			sessions.push(...history.filter(h => !sessionsByResource.has(h.resource)));
+			sessions.push(...history.filter(historyItem => !sessionsByResource.has(historyItem.resource)));
 		}
 
 		return sessions;
@@ -157,24 +156,20 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 
 	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
 		try {
-			const allHistory = await this.chatService.getHistorySessionItems();
-			return coalesce(allHistory.map(history => this.toChatSessionItem(history)));
+			const historyItems = await this.chatService.getHistorySessionItems();
+			return historyItems.map(history => this.toChatSessionItem(history));
 		} catch (error) {
 			return [];
 		}
 	}
 
-	private toChatSessionItem(chat: IChatDetail): ChatSessionItemWithProvider | undefined {
+	private toChatSessionItem(chat: IChatDetail): ChatSessionItemWithProvider {
 		const model = this.chatService.getSession(chat.sessionResource);
 
 		let description: string | undefined;
 		let startTime: number | undefined;
 		let endTime: number | undefined;
 		if (model) {
-			if (!model.hasRequests) {
-				return undefined; // ignore sessions without requests
-			}
-
 			const lastResponse = model.getRequests().at(-1)?.response;
 
 			description = this.chatSessionsService.getSessionDescription(model);
