@@ -27,7 +27,7 @@ export interface DOMEventMap extends HTMLElementEventMap, DocumentEventMap, Wind
 
 export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
 
-	private emitter: Emitter<DOMEventMap[K]>;
+	private readonly emitter: Emitter<DOMEventMap[K]>;
 
 	get event(): BaseEvent<DOMEventMap[K]> {
 		return this.emitter.event;
@@ -39,13 +39,12 @@ export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
 	constructor(element: EventHandler, type: K, useCapture?: boolean) {
 		const fn = (e: Event) => this.emitter.fire(e as DOMEventMap[K]);
 		this.emitter = new Emitter({
-			onWillAddFirstListener: () => element.addEventListener(type, fn, false),
-			onDidRemoveLastListener: () => element.removeEventListener(type, fn, false)
+			onWillAddFirstListener: () => element.addEventListener(type, fn, useCapture),
+			onDidRemoveLastListener: () => element.removeEventListener(type, fn, useCapture)
 		});
 	}
 
 	dispose(): void {
 		this.emitter.dispose();
-		this.emitter = undefined!;
 	}
 }
