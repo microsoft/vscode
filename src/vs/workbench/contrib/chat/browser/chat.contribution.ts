@@ -358,6 +358,12 @@ configurationRegistry.registerConfiguration({
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
 		},
+		[ChatConfiguration.EmptyChatViewSessionsEnabled]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			description: nls.localize('chat.emptyState.history.enabled', "Show agent sessions on the empty chat state."),
+			tags: ['preview', 'experimental']
+		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
 			default: true,
