@@ -17,6 +17,7 @@ import { StandardTokenType } from '../../../../common/encodedTokenAttributes.js'
 import { Command, InlineCompletionHintStyle } from '../../../../common/languages.js';
 import { ITextModel } from '../../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
+import { EditSources, TextModelEditSource } from '../../../../common/textModelEditSource.js';
 import { prepareRename, rename } from '../../../rename/browser/rename.js';
 import { renameSymbolCommandId } from '../controller/commandIds.js';
 import { InlineSuggestHint, InlineSuggestionItem } from './inlineSuggestionItem.js';
@@ -33,16 +34,12 @@ export class RenameSymbolProcessor extends Disposable {
 		@IBulkEditService bulkEditService: IBulkEditService,
 	) {
 		super();
-		this._register(CommandsRegistry.registerCommand(renameSymbolCommandId, async (_: ServicesAccessor, textModel: ITextModel, position: Position, newName: string) => {
-			try {
-				const result = await rename(this._languageFeaturesService.renameProvider, textModel, position, newName);
-				if (result.rejectReason) {
-					return;
-				}
-				bulkEditService.apply(result);
-			} catch (error) {
-				// The actual rename failed we should log this.
+		this._register(CommandsRegistry.registerCommand(renameSymbolCommandId, async (_: ServicesAccessor, textModel: ITextModel, position: Position, newName: string, source: TextModelEditSource) => {
+			const result = await rename(this._languageFeaturesService.renameProvider, textModel, position, newName);
+			if (result.rejectReason) {
+				return;
 			}
+			bulkEditService.apply(result, { reason: source });
 		}));
 	}
 
@@ -61,7 +58,7 @@ export class RenameSymbolProcessor extends Disposable {
 		const { oldName, newName, position } = edits.renames;
 		let timedOut = false;
 		const loc = await raceTimeout(prepareRename(this._languageFeaturesService.renameProvider, textModel, position), 1000, () => { timedOut = true; });
-		const renamePossible = loc !== undefined && !loc.rejectReason;
+		const renamePossible = loc !== undefined && !loc.rejectReason && loc.text === oldName;
 
 		suggestItem.setRenameProcessingInfo({ createdRename: renamePossible, duration: Date.now() - start, timedOut });
 
@@ -69,12 +66,18 @@ export class RenameSymbolProcessor extends Disposable {
 			return suggestItem;
 		}
 
+		const source = EditSources.inlineCompletionAccept({
+			nes: suggestItem.isInlineEdit,
+			requestUuid: suggestItem.requestUuid,
+			providerId: suggestItem.source.provider.providerId,
+			languageId: textModel.getLanguageId(),
+		});
 		const hintRange = edits.renames.edits[0].replacements[0].range;
 		const label = localize('renameSymbol', "Rename '{0}' to '{1}'", oldName, newName);
 		const command: Command = {
 			id: renameSymbolCommandId,
 			title: label,
-			arguments: [textModel, position, newName],
+			arguments: [textModel, position, newName, source],
 		};
 		const hint = InlineSuggestHint.create({ range: hintRange, content: label, style: InlineCompletionHintStyle.Code });
 		return InlineSuggestionItem.create(suggestItem.withRename(command, hint), textModel);

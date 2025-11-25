@@ -111,7 +111,7 @@ import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
 import { ChatTerminalOutputAccessibleView } from './chatTerminalOutputAccessibleView.js';
-import { LocalChatSessionsProvider } from './chatSessions/localChatSessionsProvider.js';
+import { LocalAgentsSessionsProvider } from './agentSessions/localAgentSessionsProvider.js';
 import { ChatSessionsView, ChatSessionsViewContrib } from './chatSessions/view/chatSessionsView.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
@@ -357,6 +357,12 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
+		},
+		[ChatConfiguration.EmptyChatViewSessionsEnabled]: {
+			type: 'boolean',
+			default: product.quality !== 'stable',
+			description: nls.localize('chat.emptyState.history.enabled', "Show agent sessions on the empty chat state."),
+			tags: ['preview', 'experimental']
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
@@ -1139,7 +1145,7 @@ registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribu
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(LocalChatSessionsProvider.ID, LocalChatSessionsProvider, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(LocalAgentsSessionsProvider.ID, LocalAgentsSessionsProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatSessionsViewContrib.ID, ChatSessionsViewContrib, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);

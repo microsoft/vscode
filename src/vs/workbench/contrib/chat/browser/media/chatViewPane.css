@@ -3,17 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.agent-sessions-view {
-
+.chat-viewpane {
 	display: flex;
 	flex-direction: column;
 
-	.agent-sessions-new-session-container {
-		padding: 6px 12px;
-		flex: 0 0 auto !important;
-	}
+	.agent-sessions-container {
+		display: flex;
+		flex-direction: column;
 
-	.agent-sessions-new-session-container .monaco-dropdown-button {
-		padding: 0 4px;
+		.agent-sessions-viewer {
+			height: calc(3 * 44px); /* TODO@bpasero revisit: show at most 3 sessions */
+		}
+
+		.agent-sessions-link-container {
+			padding: 4px 12px;
+			font-size: 12px;
+			text-align: center;
+		}
 	}
 }
