@@ -321,7 +321,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	override dispose(): void {
 		// Check if we're disposing a model with an active request
 		if (this.modelRef.value?.object.requestInProgress.get()) {
-			this.instantiationService.invokeFunction(showCloseActiveChatNotification);
+			const closingSessionResource = this.modelRef.value.object.sessionResource;
+			this.instantiationService.invokeFunction(showCloseActiveChatNotification, closingSessionResource);
 		}
 
 		super.dispose();
