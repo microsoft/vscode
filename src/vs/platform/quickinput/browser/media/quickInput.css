@@ -141,14 +141,6 @@
 	margin-left: 6px;
 }
 
-.quick-input-action .monaco-text-button {
-	font-size: 11px;
-	padding: 0 6px;
-	display: flex;
-	height: 25px;
-	align-items: center;
-}
-
 .quick-input-message {
 	margin-top: -1px;
 	padding: 5px;
