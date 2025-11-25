@@ -39,7 +39,7 @@ fi
 if [ $IN_WSL = true ]; then
 
 	export WSLENV="ELECTRON_RUN_AS_NODE/w:$WSLENV"
-	CLI=$(wslpath -m "$VSCODE_PATH/resources/app/out/cli.js")
+	CLI=$(wslpath -m "$VSCODE_PATH/$VERSIONFOLDER/resources/app/out/cli.js")
 
 	# use the Remote WSL extension if installed
 	WSL_EXT_ID="ms-vscode-remote.remote-wsl"
