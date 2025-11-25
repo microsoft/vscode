@@ -1548,11 +1548,24 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
 			}
 		} else if (this._cwd && this._userHome && this._cwd !== this._userHome) {
-			this._logService.debug(`MYLOG TerminalInstance#_createProcess: Empty workspace cwd mismatch detected - cwd="${this._cwd}", userHome="${this._userHome}", hasRemoteAuthority=${this.hasRemoteAuthority}`);
-			// something strange is going on if cwd is not userHome in an empty workspace
-			this._onProcessExit({
-				message: nls.localize('workspaceNotTrustedCreateTerminalCwd', "Cannot launch a terminal process in an untrusted workspace with cwd {0} and userHome {1}", this._cwd, this._userHome)
-			});
+			// For the trust check in empty workspaces, we need to be careful about comparing
+			// paths from different filesystem contexts. In remote scenarios (like WSL), the
+			// cwd may be a remote path (e.g., /mnt/c/...) while userHome is from a different
+			// context. Additionally, if the shellLaunchConfig has an explicit cwd, this is
+			// a legitimate task/terminal request that should be allowed.
+			const hasExplicitCwd = !!this._shellLaunchConfig.cwd;
+			this._logService.debug(`MYLOG TerminalInstance#_createProcess: Empty workspace cwd mismatch detected - cwd="${this._cwd}", userHome="${this._userHome}", hasRemoteAuthority=${this.hasRemoteAuthority}, hasExplicitCwd=${hasExplicitCwd}`);
+
+			// Skip trust check if:
+			// 1. This is a remote terminal (cwd and userHome are in different filesystem contexts)
+			// 2. The shellLaunchConfig explicitly specifies a cwd (legitimate task/terminal request)
+			if (!this.hasRemoteAuthority && !hasExplicitCwd) {
+				// something strange is going on if cwd is not userHome in an empty workspace
+				// and no explicit cwd was requested and this is not a remote terminal
+				this._onProcessExit({
+					message: nls.localize('workspaceNotTrustedCreateTerminalCwd', "Cannot launch a terminal process in an untrusted workspace with cwd {0} and userHome {1}", this._cwd, this._userHome)
+				});
+			}
 		}
 		// Re-evaluate dimensions if the container has been set since the xterm instance was created
 		if (this._container && this._cols === 0 && this._rows === 0) {
