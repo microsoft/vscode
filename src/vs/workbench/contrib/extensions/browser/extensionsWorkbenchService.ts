@@ -3254,4 +3254,36 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.storageService.store(EXTENSIONS_DISMISSED_NOTIFICATIONS_KEY, value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
+	//#region Favorites
+
+	private readonly _onDidChangeFavorites = this._register(new Emitter<void>());
+	readonly onDidChangeFavorites = this._onDidChangeFavorites.event;
+
+	isFavorite(extension: IExtension): boolean {
+		const favorites = this.getFavorites();
+		return favorites.some(id => areSameExtensions({ id }, extension.identifier));
+	}
+
+	async toggleFavorite(extension: IExtension): Promise<void> {
+		const favorites = this.getFavorites();
+		const extensionId = extension.identifier.id.toLowerCase();
+		const index = favorites.findIndex(id => id.toLowerCase() === extensionId);
+
+		if (index >= 0) {
+			favorites.splice(index, 1);
+		} else {
+			favorites.push(extension.identifier.id);
+		}
+
+		await this.configurationService.updateValue('extensions.favorites', favorites);
+		this._onDidChangeFavorites.fire();
+	}
+
+	getFavorites(): string[] {
+		const favorites = this.configurationService.getValue<string[]>('extensions.favorites');
+		return Array.isArray(favorites) ? favorites : [];
+	}
+
+	//#endregion
+
 }
