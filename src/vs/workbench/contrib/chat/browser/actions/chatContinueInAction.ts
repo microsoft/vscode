@@ -38,7 +38,6 @@ import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IChatWidgetService } from '../chat.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 
@@ -298,11 +297,9 @@ class CreateRemoteAgentJobFromEditorAction {
 	async run(accessor: ServicesAccessor, continuationTarget: IChatSessionsExtensionPoint) {
 
 		try {
-			const chatService = accessor.get(IChatService);
-			const continuationTargetType = continuationTarget.type;
 			const editorService = accessor.get(IEditorService);
 			const activeEditor = editorService.activeTextEditorControl;
-			const editorService2 = accessor.get(IEditorService);
+			const commandService = accessor.get(ICommandService);
 
 			if (!activeEditor) {
 				return;
@@ -312,17 +309,8 @@ class CreateRemoteAgentJobFromEditorAction {
 				return;
 			}
 			const uri = model.uri;
-			const chatModelReference = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, {});
-			const { sessionResource } = chatModelReference.object;
-			if (!sessionResource) {
-				return;
-			}
-			await editorService2.openEditor({ resource: sessionResource }, undefined);
 			const attachedContext = [toPromptFileVariableEntry(uri, PromptFileVariableKind.PromptFile, undefined, false, [])];
-			await chatService.sendRequest(sessionResource, `Implement this.`, {
-				agentIdSilent: continuationTargetType,
-				attachedContext
-			});
+			await commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`, { prompt: `Implement this.`, attachedContext });
 		} catch (e) {
 			console.error('Error creating remote agent job from editor', e);
 			throw e;
