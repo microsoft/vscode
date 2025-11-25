@@ -248,7 +248,7 @@ export class AgentSessionsView extends ViewPane {
 
 const chatAgentsIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View');
 
-const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Agent Sessions");
+const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Agents");
 
 const agentSessionsViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: AGENT_SESSIONS_VIEW_CONTAINER_ID,
