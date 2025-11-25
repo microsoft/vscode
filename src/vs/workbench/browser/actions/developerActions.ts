@@ -155,6 +155,7 @@ class ToggleScreencastModeAction extends Action2 {
 			store.add(store.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
 			store.add(store.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
 			windowDisposables.add(store);
+			disposables.add(store);
 			disposables.add(toDisposable(() => {
 				windowDisposables.delete(store);
 			}));
@@ -249,11 +250,17 @@ class ToggleScreencastModeAction extends Action2 {
 		const onCompositionUpdate = disposables.add(new Emitter<CompositionEvent>());
 		const onCompositionEnd = disposables.add(new Emitter<CompositionEvent>());
 
-		function registerWindowListeners(window: Window, disposables: DisposableStore): void {
-			disposables.add(disposables.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
+		function registerWindowListeners(window: Window, windowDisposables: DisposableStore): void {
+			const store = new DisposableStore();
+			store.add(store.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
+			store.add(store.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
+			store.add(store.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
+			store.add(store.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
+			windowDisposables.add(store);
+			disposables.add(store);
+			disposables.add(toDisposable(() => {
+				windowDisposables.delete(store);
+			}));
 		}
 
 		for (const { window, disposables } of getWindows()) {
