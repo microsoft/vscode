@@ -452,6 +452,7 @@ export class InlineCompletionsSource extends Disposable {
 			renameCreated: false,
 			renameDuration: undefined,
 			renameTimedOut: false,
+			editKind: undefined,
 		};
 
 		const dataChannel = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
