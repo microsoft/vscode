@@ -333,9 +333,20 @@ class RepositoryItem implements QuickPickItem {
 class StashItem implements QuickPickItem {
 	get label(): string { return `#${this.stash.index}: ${this.stash.description}`; }
 
-	get description(): string | undefined { return this.stash.branchName; }
+	private readonly _description: string | undefined;
+	get description(): string | undefined { return this._description; }
 
-	constructor(readonly stash: Stash) { }
+	constructor(readonly stash: Stash) {
+		const descriptionSegments: string[] = [];
+		if (this.stash.commitDate) {
+			descriptionSegments.push(fromNow(this.stash.commitDate));
+		}
+		if (this.stash.branchName) {
+			descriptionSegments.push(this.stash.branchName);
+		}
+
+		this._description = descriptionSegments.join(' \u2022 ');
+	}
 }
 
 interface ScmCommandOptions {

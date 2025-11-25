@@ -147,12 +147,22 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			} else if (group === 'stashes') {
 				const stashes = await this.repository.getStashes();
 
-				return stashes.map(s => ({
-					id: `stash@{${s.index}}`,
-					name: s.description,
-					description: s.branchName ?? '',
-					icon: new ThemeIcon('git-stash')
-				}));
+				return stashes.map(s => {
+					const descriptionSegments: string[] = [];
+					if (s.commitDate) {
+						descriptionSegments.push(fromNow(s.commitDate));
+					}
+					if (s.branchName) {
+						descriptionSegments.push(s.branchName);
+					}
+
+					return {
+						id: `stash@{${s.index}}`,
+						name: s.description,
+						description: descriptionSegments.join(' \u2022 '),
+						icon: new ThemeIcon('git-stash')
+					};
+				});
 			}
 		} catch (err) {
 			this.logger.error(`[GitArtifactProvider][provideArtifacts] Error while providing artifacts for group '${group}': `, err);
