@@ -139,4 +139,36 @@ suite('renameSymbolProcessor', () => {
 		assert.strictEqual(result?.renames.oldName, 'abcfooxyz');
 		assert.strictEqual(result?.renames.newName, 'ABCfooXYZ');
 	});
+
+	test('Prefix and suffix rename - replacement', () => {
+		const model = createTextModel([
+			'const abcfooxyz = 1;',
+		].join('\n'), 'typescript', {});
+		disposables.add(model);
+		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 16) }]);
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 7, 1, 16), 'ABCfooXYZ');
+		assert.strictEqual(result?.renames.edits.length, 1);
+		assert.strictEqual(result?.renames.oldName, 'abcfooxyz');
+		assert.strictEqual(result?.renames.newName, 'ABCfooXYZ');
+	});
+
+	test('No rename - different identifiers - replacement', () => {
+		const model = createTextModel([
+			'const foo bar = 1;',
+		].join('\n'), 'typescript', {});
+		disposables.add(model);
+		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 15) }]);
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 7, 1, 15), 'faz baz');
+		assert.ok(result === undefined);
+	});
+
+	test('No rename - different identifiers - full line', () => {
+		const model = createTextModel([
+			'const foo bar = 1;',
+		].join('\n'), 'typescript', {});
+		disposables.add(model);
+		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 15) }]);
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 18), 'const faz baz = 1;');
+		assert.ok(result === undefined);
+	});
 });

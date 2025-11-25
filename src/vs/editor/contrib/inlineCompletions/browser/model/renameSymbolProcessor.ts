@@ -57,7 +57,7 @@ export class RenameInferenceEngine {
 			return undefined;
 		}
 
-		// Fold the changes to larger changes if the gap between to changes is a full word. This covers cases like renaming
+		// Fold the changes to larger changes if the gap between two changes is a full word. This covers cases like renaming
 		// `foo` to `abcfoobar`
 		const changes: typeof originalChanges = [];
 		for (const change of originalChanges) {
@@ -77,8 +77,9 @@ export class RenameInferenceEngine {
 				if (wordRange) {
 					const wordStartOffset = textModel.getOffsetAt(new Position(gapStartPos.lineNumber, wordRange.startColumn));
 					const wordEndOffset = textModel.getOffsetAt(new Position(gapStartPos.lineNumber, wordRange.endColumn));
+					const gapEndOffset = gapStartOffset + gapOriginalLength;
 
-					if (gapStartOffset === wordStartOffset && (gapStartOffset + gapOriginalLength) === wordEndOffset) {
+					if (wordStartOffset <= gapStartOffset && gapEndOffset <= wordEndOffset && wordStartOffset <= gapEndOffset && gapEndOffset <= wordEndOffset) {
 						lastChange.originalLength = (change.originalStart + change.originalLength) - lastChange.originalStart;
 						lastChange.modifiedLength = (change.modifiedStart + change.modifiedLength) - lastChange.modifiedStart;
 						continue;
@@ -91,10 +92,16 @@ export class RenameInferenceEngine {
 
 		let tokenDiff: number = 0;
 		for (const change of changes) {
-			const insertedText = modifiedText.substring(change.modifiedStart, change.modifiedStart + change.modifiedLength);
+			const originalTextSegment = originalText.substring(change.originalStart, change.originalStart + change.originalLength);
+			// If the original text segment contains a whitespace character we don't consider this a rename since
+			// identifiers in programming languages can't contain whitespace characters usually
+			if (/\s/.test(originalTextSegment)) {
+				return undefined;
+			}
+			const insertedTextSegment = modifiedText.substring(change.modifiedStart, change.modifiedStart + change.modifiedLength);
 			// If the inserted text contains a whitespace character we don't consider this a rename since identifiers in
 			// programming languages can't contain whitespace characters usually
-			if (/\s/.test(insertedText)) {
+			if (/\s/.test(insertedTextSegment)) {
 				return undefined;
 			}
 
@@ -123,7 +130,7 @@ export class RenameInferenceEngine {
 				}
 
 				// We assume that the new name starts at the same position as the old name from a token range perspective.
-				const diff = insertedText.length - change.originalLength;
+				const diff = insertedTextSegment.length - change.originalLength;
 				const tokenStartPos = textModel.getOffsetAt(tokenInfo.range.getStartPosition()) - nesOffset + tokenDiff;
 				const tokenEndPos = textModel.getOffsetAt(tokenInfo.range.getEndPosition()) - nesOffset + tokenDiff;
 				identifier = modifiedText.substring(tokenStartPos, tokenEndPos + diff);
@@ -137,10 +144,10 @@ export class RenameInferenceEngine {
 					position = tokenInfo.range.getStartPosition();
 				}
 
-				renames.push(TextEdit.replace(range, insertedText));
+				renames.push(TextEdit.replace(range, insertedTextSegment));
 				tokenDiff += diff;
 			} else {
-				others.push(TextEdit.replace(range, insertedText));
+				others.push(TextEdit.replace(range, insertedTextSegment));
 			}
 		}
 
