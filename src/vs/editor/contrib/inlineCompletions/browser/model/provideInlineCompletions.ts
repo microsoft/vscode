@@ -340,6 +340,7 @@ export class InlineSuggestData {
 		if (this._didShow) {
 			return;
 		}
+		this.addPerformanceMarker('shown');
 		this._didShow = true;
 		this._viewData.viewKind = viewKind;
 		this._viewData.renderData = viewData;
@@ -408,6 +409,7 @@ export class InlineSuggestData {
 				requestReason: this._requestInfo.reason,
 				viewKind: this._viewData.viewKind,
 				notShownReason: this._notShownReason,
+				performanceMarkers: this.performance.toString(),
 				renameCreated: this._renameInfo?.createdRename ?? false,
 				renameDuration: this._renameInfo?.duration,
 				renameTimedOut: this._renameInfo?.timedOut ?? false,
@@ -497,6 +499,31 @@ export class InlineSuggestData {
 			this._providerRequestInfo,
 			this._correlationId,
 		);
+	}
+
+	private performance = new Performance();
+	public addPerformanceMarker(marker: string): void {
+		this.performance.mark(marker);
+	}
+}
+
+class Performance {
+	private markers: { name: string; timeStamp: number }[] = [];
+	constructor() {
+		this.markers.push({ name: 'start', timeStamp: Date.now() });
+	}
+
+	mark(marker: string): void {
+		this.markers.push({ name: marker, timeStamp: Date.now() });
+	}
+
+	toString(): string {
+		const deltas = [];
+		for (let i = 1; i < this.markers.length; i++) {
+			const delta = this.markers[i].timeStamp - this.markers[i - 1].timeStamp;
+			deltas.push({ [this.markers[i].name]: delta });
+		}
+		return JSON.stringify(deltas);
 	}
 }
 

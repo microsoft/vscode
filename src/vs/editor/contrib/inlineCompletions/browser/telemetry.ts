@@ -42,6 +42,7 @@ export type InlineCompletionEndOfLifeEvent = {
 	renameCreated: boolean;
 	renameDuration: number | undefined;
 	renameTimedOut: boolean;
+	performanceMarkers: string | undefined;
 	// rendering
 	viewKind: string | undefined;
 	cursorColumnDistance: number | undefined;
@@ -98,4 +99,5 @@ type InlineCompletionsEndOfLifeClassification = {
 	sameShapeReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether all inner replacements are the same shape' };
 	noSuggestionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why no inline completion was provided' };
 	notShownReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why the inline completion was not shown' };
+	performanceMarkers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Performance markers for the inline completion lifecycle' };
 };
