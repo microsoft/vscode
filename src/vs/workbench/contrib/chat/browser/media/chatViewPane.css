@@ -11,7 +11,7 @@
 		display: flex;
 		flex-direction: column;
 		flex-grow: 1;
-		padding: 4px 8px 4px 8px;
+		padding: 4px 8px;
 
 		.agent-sessions-viewer .monaco-list .monaco-list-row {
 			border-radius: 3px;
