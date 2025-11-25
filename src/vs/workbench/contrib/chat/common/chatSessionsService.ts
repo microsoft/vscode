@@ -79,6 +79,7 @@ export interface IChatSessionItem {
 	};
 	archived?: boolean;
 	// TODO:@osortega remove once the single-view is default
+	/** @deprecated */
 	history?: boolean;
 }
 
