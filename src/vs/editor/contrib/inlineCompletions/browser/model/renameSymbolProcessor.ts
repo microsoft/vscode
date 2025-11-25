@@ -22,12 +22,161 @@ import { prepareRename, rename } from '../../../rename/browser/rename.js';
 import { renameSymbolCommandId } from '../controller/commandIds.js';
 import { InlineSuggestHint, InlineSuggestionItem } from './inlineSuggestionItem.js';
 
-type SingleEdits = {
+export type RenameEdits = {
 	renames: { edits: TextEdit[]; position: Position; oldName: string; newName: string };
 	others: { edits: TextEdit[] };
 };
 
+export class RenameInferenceEngine {
+
+	public constructor() {
+	}
+
+	public inferRename(textModel: ITextModel, editRange: Range, insertText: string): RenameEdits | undefined {
+
+		// Extend the edit range to full lines to capture prefix/suffix renames
+		const extendedRange = new Range(editRange.startLineNumber, 1, editRange.endLineNumber, textModel.getLineMaxColumn(editRange.endLineNumber));
+		const startDiff = editRange.startColumn - extendedRange.startColumn;
+		const endDiff = extendedRange.endColumn - editRange.endColumn;
+
+		const originalText = textModel.getValueInRange(extendedRange);
+		const modifiedText =
+			textModel.getValueInRange(new Range(extendedRange.startLineNumber, extendedRange.startColumn, extendedRange.startLineNumber, extendedRange.startColumn + startDiff)) +
+			insertText +
+			textModel.getValueInRange(new Range(extendedRange.endLineNumber, extendedRange.endColumn - endDiff, extendedRange.endLineNumber, extendedRange.endColumn));
+
+		const others: TextEdit[] = [];
+		const renames: TextEdit[] = [];
+		let oldName: string | undefined = undefined;
+		let newName: string | undefined = undefined;
+		let position: Position | undefined = undefined;
+
+		const nesOffset = textModel.getOffsetAt(extendedRange.getStartPosition());
+
+		const { changes: originalChanges } = (new LcsDiff(new StringDiffSequence(originalText), new StringDiffSequence(modifiedText))).ComputeDiff(true);
+		if (originalChanges.length === 0) {
+			return undefined;
+		}
+
+		// Fold the changes to larger changes if the gap between two changes is a full word. This covers cases like renaming
+		// `foo` to `abcfoobar`
+		const changes: typeof originalChanges = [];
+		for (const change of originalChanges) {
+			if (changes.length === 0) {
+				changes.push(change);
+				continue;
+			}
+
+			const lastChange = changes[changes.length - 1];
+			const gapOriginalLength = change.originalStart - (lastChange.originalStart + lastChange.originalLength);
+
+			if (gapOriginalLength > 0) {
+				const gapStartOffset = nesOffset + lastChange.originalStart + lastChange.originalLength;
+				const gapStartPos = textModel.getPositionAt(gapStartOffset);
+				const wordRange = textModel.getWordAtPosition(gapStartPos);
+
+				if (wordRange) {
+					const wordStartOffset = textModel.getOffsetAt(new Position(gapStartPos.lineNumber, wordRange.startColumn));
+					const wordEndOffset = textModel.getOffsetAt(new Position(gapStartPos.lineNumber, wordRange.endColumn));
+					const gapEndOffset = gapStartOffset + gapOriginalLength;
+
+					if (wordStartOffset <= gapStartOffset && gapEndOffset <= wordEndOffset && wordStartOffset <= gapEndOffset && gapEndOffset <= wordEndOffset) {
+						lastChange.originalLength = (change.originalStart + change.originalLength) - lastChange.originalStart;
+						lastChange.modifiedLength = (change.modifiedStart + change.modifiedLength) - lastChange.modifiedStart;
+						continue;
+					}
+				}
+			}
+
+			changes.push(change);
+		}
+
+		let tokenDiff: number = 0;
+		for (const change of changes) {
+			const originalTextSegment = originalText.substring(change.originalStart, change.originalStart + change.originalLength);
+			// If the original text segment contains a whitespace character we don't consider this a rename since
+			// identifiers in programming languages can't contain whitespace characters usually
+			if (/\s/.test(originalTextSegment)) {
+				return undefined;
+			}
+			const insertedTextSegment = modifiedText.substring(change.modifiedStart, change.modifiedStart + change.modifiedLength);
+			// If the inserted text contains a whitespace character we don't consider this a rename since identifiers in
+			// programming languages can't contain whitespace characters usually
+			if (/\s/.test(insertedTextSegment)) {
+				return undefined;
+			}
+
+			const startOffset = nesOffset + change.originalStart;
+			const startPos = textModel.getPositionAt(startOffset);
+			const wordRange = textModel.getWordAtPosition(startPos);
+			// If we don't have a word range at the start position of the current document then we
+			// don't treat it as a rename assuming that the rename refactoring will fail as well since
+			// there can't be an identifier at that position.
+			if (wordRange === null) {
+				return undefined;
+			}
+
+			const endOffset = startOffset + change.originalLength;
+			const endPos = textModel.getPositionAt(endOffset);
+			const range = Range.fromPositions(startPos, endPos);
+
+			const tokenInfo = this.getTokenAtPosition(textModel, startPos);
+			if (tokenInfo.type === StandardTokenType.Other) {
+
+				let identifier = textModel.getValueInRange(tokenInfo.range);
+				if (oldName === undefined) {
+					oldName = identifier;
+				} else if (oldName !== identifier) {
+					return undefined;
+				}
+
+				// We assume that the new name starts at the same position as the old name from a token range perspective.
+				const diff = insertedTextSegment.length - change.originalLength;
+				const tokenStartPos = textModel.getOffsetAt(tokenInfo.range.getStartPosition()) - nesOffset + tokenDiff;
+				const tokenEndPos = textModel.getOffsetAt(tokenInfo.range.getEndPosition()) - nesOffset + tokenDiff;
+				identifier = modifiedText.substring(tokenStartPos, tokenEndPos + diff);
+				if (newName === undefined) {
+					newName = identifier;
+				} else if (newName !== identifier) {
+					return undefined;
+				}
+
+				if (position === undefined) {
+					position = tokenInfo.range.getStartPosition();
+				}
+
+				renames.push(TextEdit.replace(range, insertedTextSegment));
+				tokenDiff += diff;
+			} else {
+				others.push(TextEdit.replace(range, insertedTextSegment));
+			}
+		}
+
+		if (oldName === undefined || newName === undefined || position === undefined) {
+			return undefined;
+		}
+
+		return {
+			renames: { edits: renames, position, oldName, newName },
+			others: { edits: others }
+		};
+	}
+
+
+	protected getTokenAtPosition(textModel: ITextModel, position: Position): { type: StandardTokenType; range: Range } {
+		textModel.tokenization.tokenizeIfCheap(position.lineNumber);
+		const tokens = textModel.tokenization.getLineTokens(position.lineNumber);
+		const idx = tokens.findTokenIndexAtOffset(position.column - 1);
+		return {
+			type: tokens.getStandardTokenType(idx),
+			range: new Range(position.lineNumber, 1 + tokens.getStartOffset(idx), position.lineNumber, 1 + tokens.getEndOffset(idx))
+		};
+	}
+}
+
 export class RenameSymbolProcessor extends Disposable {
+
+	private readonly _renameInferenceEngine = new RenameInferenceEngine();
 
 	constructor(
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
@@ -50,7 +199,7 @@ export class RenameSymbolProcessor extends Disposable {
 
 		const start = Date.now();
 
-		const edits = this.createSingleEdits(textModel, suggestItem.editRange, suggestItem.insertText);
+		const edits = this._renameInferenceEngine.inferRename(textModel, suggestItem.editRange, suggestItem.insertText);
 		if (edits === undefined || edits.renames.edits.length === 0) {
 			return suggestItem;
 		}
@@ -82,88 +231,4 @@ export class RenameSymbolProcessor extends Disposable {
 		const hint = InlineSuggestHint.create({ range: hintRange, content: label, style: InlineCompletionHintStyle.Code });
 		return InlineSuggestionItem.create(suggestItem.withRename(command, hint), textModel);
 	}
-
-	private createSingleEdits(textModel: ITextModel, nesRange: Range, modifiedText: string): SingleEdits | undefined {
-		const others: TextEdit[] = [];
-		const renames: TextEdit[] = [];
-		let oldName: string | undefined = undefined;
-		let newName: string | undefined = undefined;
-		let position: Position | undefined = undefined;
-
-		const originalText = textModel.getValueInRange(nesRange);
-		const nesOffset = textModel.getOffsetAt(nesRange.getStartPosition());
-
-		const { changes } = (new LcsDiff(new StringDiffSequence(originalText), new StringDiffSequence(modifiedText))).ComputeDiff(true);
-		if (changes.length === 0) {
-			return undefined;
-		}
-
-		let tokenDiff: number = 0;
-		for (const change of changes) {
-			const startOffset = nesOffset + change.originalStart;
-			const startPos = textModel.getPositionAt(startOffset);
-			const wordRange = textModel.getWordAtPosition(startPos);
-			// If we don't have a word range at the start position of the current document then we
-			// don't treat it as a rename assuming that the rename refactoring will fail as well since
-			// there can't be an identifier at that position.
-			if (wordRange === null) {
-				return undefined;
-			}
-
-			const endOffset = startOffset + change.originalLength;
-			const endPos = textModel.getPositionAt(endOffset);
-			const range = Range.fromPositions(startPos, endPos);
-			const text = modifiedText.substring(change.modifiedStart, change.modifiedStart + change.modifiedLength);
-
-			const tokenInfo = getTokenAtPosition(textModel, startPos);
-			if (tokenInfo.type === StandardTokenType.Other) {
-
-				let identifier = textModel.getValueInRange(tokenInfo.range);
-				if (oldName === undefined) {
-					oldName = identifier;
-				} else if (oldName !== identifier) {
-					return undefined;
-				}
-
-				// We assume that the new name starts at the same position as the old name from a token range perspective.
-				const diff = text.length - change.originalLength;
-				const tokenStartPos = textModel.getOffsetAt(tokenInfo.range.getStartPosition()) - nesOffset + tokenDiff;
-				const tokenEndPos = textModel.getOffsetAt(tokenInfo.range.getEndPosition()) - nesOffset + tokenDiff;
-				identifier = modifiedText.substring(tokenStartPos, tokenEndPos + diff);
-				if (newName === undefined) {
-					newName = identifier;
-				} else if (newName !== identifier) {
-					return undefined;
-				}
-
-				if (position === undefined) {
-					position = tokenInfo.range.getStartPosition();
-				}
-
-				renames.push(TextEdit.replace(range, text));
-				tokenDiff += diff;
-			} else {
-				others.push(TextEdit.replace(range, text));
-			}
-		}
-
-		if (oldName === undefined || newName === undefined || position === undefined) {
-			return undefined;
-		}
-
-		return {
-			renames: { edits: renames, position, oldName, newName },
-			others: { edits: others }
-		};
-	}
-}
-
-function getTokenAtPosition(textModel: ITextModel, position: Position): { type: StandardTokenType; range: Range } {
-	textModel.tokenization.tokenizeIfCheap(position.lineNumber);
-	const tokens = textModel.tokenization.getLineTokens(position.lineNumber);
-	const idx = tokens.findTokenIndexAtOffset(position.column - 1);
-	return {
-		type: tokens.getStandardTokenType(idx),
-		range: new Range(position.lineNumber, 1 + tokens.getStartOffset(idx), position.lineNumber, 1 + tokens.getEndOffset(idx))
-	};
 }
