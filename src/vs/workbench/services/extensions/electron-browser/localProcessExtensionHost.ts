@@ -145,7 +145,6 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		this._extensionHostProcess = null;
 		this._messageProtocol = null;
 
-		this._register(this._onExit);
 		this._register(this._lifecycleService.onWillShutdown(e => this._onWillShutdown(e)));
 		this._register(this._extensionHostDebugService.onClose(event => {
 			if (this._isExtensionDevHost && this._environmentService.debugExtensionHost.debugId === event.sessionId) {
