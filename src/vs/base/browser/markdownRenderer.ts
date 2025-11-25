@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from '../../nls.js';
 import { onUnexpectedError } from '../common/errors.js';
 import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from '../common/htmlContent.js';
 import { markdownEscapeEscapedIcons } from '../common/iconLabels.js';
@@ -12,7 +13,7 @@ import { Lazy } from '../common/lazy.js';
 import { DisposableStore, IDisposable } from '../common/lifecycle.js';
 import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
-import { FileAccess, Schemas } from '../common/network.js';
+import { FileAccess, matchesScheme, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
 import { dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
@@ -101,8 +102,20 @@ const defaultMarkedRenderers = Object.freeze({
 			text = removeMarkdownEscapes(text);
 		}
 
-		title = typeof title === 'string' ? escapeDoubleQuotes(removeMarkdownEscapes(title)) : '';
+		title = typeof title === 'string' ? removeMarkdownEscapes(title) : '';
 		href = removeMarkdownEscapes(href);
+
+		// Try adding a basic title for command uris if none exists
+		if (!title) {
+			try {
+				const uri = URI.parse(href);
+				if (matchesScheme(uri, Schemas.command)) {
+					title = localize('markdown.commandLinkTitle', "Run command: '{0}'", uri.path);
+				}
+			} catch {
+				// Noop
+			}
+		}
 
 		// HTML Encode href
 		href = href.replace(/&/g, '&amp;')
@@ -111,7 +124,7 @@ const defaultMarkedRenderers = Object.freeze({
 			.replace(/"/g, '&quot;')
 			.replace(/'/g, '&#39;');
 
-		return `<a href="${href}" title="${title || href}" draggable="false">${text}</a>`;
+		return `<a href="${escapeDoubleQuotes(href)}" title="${escapeDoubleQuotes(title || href)}" draggable="false">${text}</a>`;
 	},
 });
 
