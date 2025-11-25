@@ -132,7 +132,7 @@ declare module 'vscode' {
 			 * Session start timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 			 * @deprecated Use `created` and `lastRequestStarted` instead.
 			 */
-			startTime: number;
+			startTime?: number;
 
 			/**
 			 * Session end timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.

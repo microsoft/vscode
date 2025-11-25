@@ -601,6 +601,12 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 					chatSessionItem: {
 						resource: URI.revive(context.chatSessionContext.chatSessionResource),
 						label: context.chatSessionContext.isUntitled ? 'Untitled Session' : 'Session',
+						// TODO@mjbvz: what is the correct value for these?
+						timing: {
+							created: Date.now(),
+							lastRequestEnded: undefined,
+							lastRequestStarted: undefined,
+						}
 					},
 					isUntitled: context.chatSessionContext.isUntitled,
 				};

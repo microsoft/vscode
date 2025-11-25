@@ -129,26 +129,15 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 		const sessions: ChatSessionItemWithProvider[] = [];
 		const sessionsByResource = new ResourceSet();
 		this.chatService.getLiveSessionItems().forEach(sessionDetail => {
-			let status: ChatSessionStatus | undefined;
-			let startTime: number | undefined;
-			let endTime: number | undefined;
-			let description: string | undefined;
 			const model = this.chatService.getSession(sessionDetail.sessionResource);
-			if (model) {
-				status = this.modelToStatus(model);
-				startTime = model.timestamp;
-				description = this.chatSessionsService.getSessionDescription(model);
-				const lastResponse = model.getRequests().at(-1)?.response;
-				if (lastResponse) {
-					endTime = lastResponse.completedAt ?? lastResponse.timestamp;
-				}
-			}
+			const lastResponse = model?.getRequests().at(-1)?.response;
+
 			const statistics = model ? this.getSessionStatistics(model) : undefined;
 			const editorSession: ChatSessionItemWithProvider = {
 				resource: sessionDetail.sessionResource,
 				label: sessionDetail.title,
 				iconPath: Codicon.chatSparkle,
-				status,
+				status: model ? this.modelToStatus(model) : undefined,
 				provider: this,
 				timing: {
 					created: model?.timestamp ?? Date.now(), // TODO@osortega this is not so good
@@ -156,7 +145,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 					lastRequestEnded: lastResponse?.completedAt
 				},
 				statistics,
-				description: description || localize('chat.localSessionDescription.finished', "Finished"),
+				description: model ? this.chatSessionsService.getSessionDescription(model) : localize('chat.localSessionDescription.finished', "Finished"),
 			};
 			sessionsByResource.add(sessionDetail.sessionResource);
 			sessions.push(editorSession);
