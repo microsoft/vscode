@@ -348,10 +348,7 @@ interface ISerializedAgentSession {
 	readonly status: ChatSessionStatus;
 	readonly archived: boolean | undefined;
 
-	readonly timing: {
-		readonly startTime: number;
-		readonly endTime?: number;
-	} | IChatSessionItem['timing'];
+	readonly timing: IChatSessionItem['timing'];
 
 	readonly statistics?: {
 		readonly files: number;
@@ -368,6 +365,8 @@ interface ISerializedAgentSessionState {
 class AgentSessionsCache {
 
 	private static readonly SESSIONS_STORAGE_KEY = 'agentSessions.model.cache';
+	private static readonly SESSIONS_STORAGE_VERSION = 2;
+
 	private static readonly STATE_STORAGE_KEY = 'agentSessions.state.cache';
 
 	constructor(
@@ -386,7 +385,7 @@ class AgentSessionsCache {
 				session.providerType === AgentSessionProviders.Background ||
 				session.providerType === AgentSessionProviders.Cloud
 			)
-			.map((session): ISerializedAgentSessionViewModel => ({
+			.map((session): ISerializedAgentSession => ({
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
 
@@ -400,12 +399,19 @@ class AgentSessionsCache {
 				status: session.status,
 				archived: session.archived,
 
-				timing: session.timing,
+				timing: {
+					created: session.timing.created,
+					lastRequestStarted: session.timing.lastRequestStarted,
+					lastRequestEnded: session.timing.lastRequestEnded,
+				},
 
 				statistics: session.statistics,
 			}));
 
-		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, JSON.stringify({
+			version: AgentSessionsCache.SESSIONS_STORAGE_VERSION,
+			sessions: serialized
+		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	loadCachedSessions(): IInternalAgentSessionData[] {
@@ -415,8 +421,12 @@ class AgentSessionsCache {
 		}
 
 		try {
-			const cached = JSON.parse(sessionsCache) as ISerializedAgentSessionViewModel[];
-			return cached.map(session => ({
+			const cached = JSON.parse(sessionsCache) as ISerializedAgentSession[] | { version: number; sessions: ISerializedAgentSession[] };
+			if (!hasKey(cached, { 'version': true }) || cached.version !== AgentSessionsCache.SESSIONS_STORAGE_VERSION) {
+				return [];
+			}
+
+			return cached.sessions.map(session => ({
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
 
@@ -430,10 +440,10 @@ class AgentSessionsCache {
 				status: session.status,
 				archived: session.archived,
 
-				timing: hasKey(session.timing, { created: true }) ? session.timing : {
-					created: session.timing.startTime,
-					lastRequestStarted: session.timing.startTime,
-					lastRequestEnded: session.timing.endTime,
+				timing: {
+					created: session.timing.created,
+					lastRequestStarted: session.timing.lastRequestStarted,
+					lastRequestEnded: session.timing.lastRequestEnded,
 				},
 
 				statistics: session.statistics,

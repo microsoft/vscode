@@ -11,11 +11,13 @@ import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
+import { upcast } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { ChatSessionStatus, IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ChatSessionDto, ExtHostChatSessionsShape, IChatAgentProgressShape, IChatSessionProviderOptions, MainContext, MainThreadChatSessionsShape } from './extHost.protocol.js';
@@ -25,7 +27,6 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 
 class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
@@ -168,7 +169,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 
 	private convertChatSessionItem(sessionType: string, sessionContent: vscode.ChatSessionItem): IChatSessionItem {
 		// Was optional in older API versions
-		const timing: typeof sessionContent.timing | undefined = sessionContent.timing;
+		const timing = upcast<typeof sessionContent.timing | undefined>(sessionContent.timing);
 
 		return {
 			resource: sessionContent.resource,
@@ -179,7 +180,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			timing: {
 				created: timing?.created ?? timing?.startTime ?? 0,
 				lastRequestStarted: timing?.lastRequestStarted ?? undefined,
-				lastRequestEnded: timing?.lastRequestEnded ?? timing.endTime ?? undefined,
+				lastRequestEnded: timing?.lastRequestEnded ?? timing?.endTime ?? undefined,
 			},
 			statistics: sessionContent.statistics ? {
 				files: sessionContent.statistics?.files ?? 0,
