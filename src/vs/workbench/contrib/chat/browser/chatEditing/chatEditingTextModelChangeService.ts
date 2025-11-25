@@ -33,7 +33,7 @@ import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IAttributedRangeDTO, IModifiedEntryTelemetryInfo, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { AgentAttribution, AttributedEdits, AttributedRange, AttributedStringEdit, CombinedAttribution, getAttributedRanges } from './chatEditingAttribution.js';
+import { AgentAttribution, AttributedEdits, AttributedRange, AttributedStringEdit, CombinedAttribution, getAttributedRanges, UserEditAttribution } from './chatEditingAttribution.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 
@@ -503,6 +503,88 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		this._originalToModifiedEdit = AttributedEdits.empty;
 		this._diffInfo.set(nullDocumentDiff, undefined);
 		this._didUserEditModelFired = false;
+	}
+
+	/**
+	 * Merges attributed edits from serialized DTOs into the existing tracking state.
+	 * This is used when restoring a session - it adds the restored ranges alongside
+	 * any existing ranges from other sessions that may already be active.
+	 *
+	 * @param attributedRanges The serialized attributed ranges from the snapshot
+	 */
+	public mergeAttributedEdits(attributedRanges: readonly IAttributedRangeDTO[]): void {
+		if (attributedRanges.length === 0) {
+			return;
+		}
+
+		// Build an AttributedStringEdit from the DTOs
+		const currentContent = this.modifiedModel.getValue();
+		const sortedRanges = [...attributedRanges].sort((a, b) => a.start - b.start);
+		const newReplacements: AnnotatedStringReplacement<CombinedAttribution>[] = [];
+
+		for (const range of sortedRanges) {
+			// Create attribution based on whether it's a user edit
+			const attribution = range.isUserEdit
+				? new CombinedAttribution(UserEditAttribution.instance)
+				: new CombinedAttribution(new AgentAttribution(
+					range.telemetryInfo,
+					range.requestId,
+					range.undoStopId,
+				));
+
+			// The newText is the content at that range in the current document
+			const newText = currentContent.substring(range.start, range.end);
+
+			newReplacements.push(new AnnotatedStringReplacement(
+				new OffsetRange(range.start, range.end),
+				newText,
+				attribution,
+			));
+		}
+
+		const restoredEdit = new AnnotatedStringEdit(newReplacements);
+
+		// Merge with existing attributions rather than replacing them
+		// This handles the case where another session is already active
+		if (this._originalToModifiedEdit.isEmpty()) {
+			this._originalToModifiedEdit = restoredEdit;
+		} else {
+			// Combine the existing and restored edits
+			// We need to be careful about overlapping ranges - the existing edit takes precedence
+			// since it represents the current live session state
+			const existingRanges = getAttributedRanges(this._originalToModifiedEdit);
+			const existingOffsets = new Set<string>();
+
+			// Build a set of existing range keys for quick lookup
+			for (const { range } of existingRanges) {
+				existingOffsets.add(`${range.start}-${range.endExclusive}`);
+			}
+
+			// Filter out any restored ranges that overlap with existing ones
+			const nonOverlappingReplacements = newReplacements.filter(replacement => {
+				const key = `${replacement.replaceRange.start}-${replacement.replaceRange.endExclusive}`;
+				if (existingOffsets.has(key)) {
+					return false; // Skip - existing edit takes precedence
+				}
+				// Also check for any overlap (not just exact match)
+				for (const { range } of existingRanges) {
+					if (replacement.replaceRange.intersects(range)) {
+						return false; // Skip overlapping ranges
+					}
+				}
+				return true;
+			});
+
+			if (nonOverlappingReplacements.length > 0) {
+				// Merge the non-overlapping restored ranges with existing ones
+				const allReplacements = [
+					...this._originalToModifiedEdit.replacements,
+					...nonOverlappingReplacements,
+				].sort((a, b) => a.replaceRange.start - b.replaceRange.start);
+
+				this._originalToModifiedEdit = new AnnotatedStringEdit(allReplacements);
+			}
+		}
 	}
 
 	public async resetDocumentValues(newOriginal: string | ITextSnapshot | undefined, newModified: string | undefined): Promise<void> {

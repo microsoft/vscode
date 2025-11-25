@@ -31,10 +31,11 @@ import { IFilesConfigurationService } from '../../../../services/filesConfigurat
 import { ITextFileService, isTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IAttributedRangeDTO, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
+import { filterRangesBySession, generateConflictMarkers, IRebaseConflict, IRebaseResult, rebaseAttributedRanges } from './chatEditingAttribution.js';
 import { AbstractChatEditingModifiedFileEntry, getTelemetryInfoForModel } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
 import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
@@ -205,6 +206,10 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 	}
 
 	createSnapshot(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
+		// Filter attributed ranges to only include those from this session
+		const allRanges = this._textModelChangeService.getAttributedRangesDTO();
+		const sessionRanges = filterRangesBySession(allRanges, chatSessionResource);
+
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
@@ -212,7 +217,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
 			state: this.state.get(),
-			attributedRanges: this._textModelChangeService.getAttributedRangesDTO(),
+			attributedRanges: sessionRanges,
 		};
 	}
 
@@ -226,7 +231,96 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 
 	async restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk = true) {
 		this._stateObs.set(snapshot.state, undefined);
-		await this._textModelChangeService.resetDocumentValues(snapshot.original, restoreToDisk ? snapshot.current : undefined);
+
+		// Check if the file has changed since the snapshot was saved
+		// This can happen if another session modified the file, or if external edits occurred
+		const currentContent = this.modifiedModel.getValue();
+		const hasContentChanges = snapshot.current !== currentContent;
+
+		if (hasContentChanges && snapshot.attributedRanges && snapshot.attributedRanges.length > 0) {
+			// Content changed - need to rebase attributed ranges to current positions
+			const rebaseResult = await this._rebaseAttributedRangesForExternalChanges(
+				snapshot.attributedRanges,
+				snapshot.current,
+				currentContent,
+			);
+
+			// Don't reset the original model if there might be other sessions active -
+			// just merge the attributed ranges. The original model should already be
+			// in sync if another session set it up.
+			if (this.originalModel.getValue() !== snapshot.original) {
+				// Original model differs - this is the first session restoring this file
+				await this._textModelChangeService.resetDocumentValues(snapshot.original, undefined);
+			}
+
+			// Handle conflicts by inserting conflict markers
+			if (rebaseResult.conflicts.length > 0) {
+				await this._insertConflictMarkers(rebaseResult.conflicts, currentContent);
+			}
+
+			// Merge rebased attributed edits with any existing attributions
+			if (rebaseResult.ranges.length > 0) {
+				this._textModelChangeService.mergeAttributedEdits(rebaseResult.ranges);
+			}
+		} else {
+			// No content changes - restore normally but still merge attributions
+			// to avoid clobbering any existing session's attributions
+			await this._textModelChangeService.resetDocumentValues(snapshot.original, restoreToDisk ? snapshot.current : undefined);
+
+			// Merge attributed edits if present (don't replace existing ones)
+			if (snapshot.attributedRanges && snapshot.attributedRanges.length > 0) {
+				this._textModelChangeService.mergeAttributedEdits(snapshot.attributedRanges);
+			}
+		}
+	}
+
+	/**
+	 * Rebases attributed ranges when the file has changed externally.
+	 */
+	private async _rebaseAttributedRangesForExternalChanges(
+		ranges: readonly IAttributedRangeDTO[],
+		storedContent: string,
+		currentContent: string,
+	): Promise<IRebaseResult> {
+		// Compute the diff between stored content and current content
+		const externalEdit = await this._editorWorkerService.computeStringEditFromDiff(
+			storedContent,
+			currentContent,
+			{ maxComputationTimeMs: 5000 },
+			'advanced'
+		);
+
+		if (externalEdit.isEmpty()) {
+			// No meaningful diff - content might be identical after normalization
+			return { ranges: [...ranges], conflicts: [] };
+		}
+
+		return rebaseAttributedRanges(ranges, storedContent, currentContent, externalEdit);
+	}
+
+	/**
+	 * Inserts Git-style conflict markers for ranges that couldn't be rebased.
+	 */
+	private async _insertConflictMarkers(conflicts: IRebaseConflict[], currentContent: string): Promise<void> {
+		// Sort conflicts by position (descending) so we can insert from the end
+		const sortedConflicts = [...conflicts].sort((a, b) => b.approximateStart - a.approximateStart);
+
+		let newContent = currentContent;
+		for (const conflict of sortedConflicts) {
+			const markers = generateConflictMarkers(conflict);
+			// Insert conflict markers at the approximate location
+			const before = newContent.substring(0, conflict.approximateStart);
+			const after = newContent.substring(conflict.approximateEnd);
+			newContent = before + markers + after;
+		}
+
+		// Update the modified model with conflict markers
+		this.modifiedModel.pushStackElement();
+		this.modifiedModel.applyEdits([{
+			range: this.modifiedModel.getFullModelRange(),
+			text: newContent
+		}]);
+		this.modifiedModel.pushStackElement();
 	}
 
 	async resetToInitialContent() {
