@@ -191,7 +191,7 @@ div.chat-welcome-view {
 		flex: 0 0 auto;
 
 		& > .chat-welcome-view-suggested-prompt-title {
-			font-size: 11px;
+			font-size: 12px;
 			color: var(--vscode-editorWidget-foreground);
 			white-space: nowrap;
 		}
