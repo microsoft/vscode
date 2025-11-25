@@ -80,7 +80,7 @@ interface BundledFormat {
 
 type NLSKeysFormat = [string /* module ID */, string[] /* keys */];
 
-function isNLSKeysFormat(value: any): value is NLSKeysFormat {
+function isNLSKeysFormat(value: unknown): value is NLSKeysFormat {
 	if (value === undefined) {
 		return false;
 	}
@@ -239,7 +239,7 @@ export class XLF {
 
 			const files: { messages: Record<string, string>; name: string; language: string }[] = [];
 
-			parser.parseString(xlfString, function (err: any, result: any) {
+			parser.parseString(xlfString, function (err: Error | undefined, result: any) {
 				if (err) {
 					reject(new Error(`XLF parsing error: Failed to parse XLIFF string. ${err}`));
 				}
