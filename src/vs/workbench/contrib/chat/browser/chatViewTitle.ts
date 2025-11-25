@@ -55,9 +55,12 @@ export class ChatViewTitleController extends Disposable {
 		if (this._secondaryTitleContainer) {
 			return;
 		}
-		this._secondaryTitleContainer = h('div.chat-view-secondary-title-container').root;
-		this._secondaryTitle = h('span.chat-view-secondary-title-text').root;
-		append(this._secondaryTitleContainer, this._secondaryTitle);
+
+		const elements = h('div.chat-view-secondary-title-container', [
+			h('span.chat-view-secondary-title-text@text')
+		]);
+		this._secondaryTitleContainer = elements.root;
+		this._secondaryTitle = elements.text;
 		append(parent, this._secondaryTitleContainer);
 	}
 
