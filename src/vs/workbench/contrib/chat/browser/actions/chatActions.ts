@@ -512,7 +512,19 @@ export function registerChatActions() {
 				menu: [
 					{
 						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.equals('view', ChatViewId),
+						when: ContextKeyExpr.and(
+							ContextKeyExpr.equals('view', ChatViewId),
+							ContextKeyExpr.equals(`config.${ChatConfiguration.EmptyChatViewSessionsEnabled}`, false)
+						),
+						group: 'navigation',
+						order: 2
+					},
+					{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.and(
+							ContextKeyExpr.equals('view', ChatViewId),
+							ContextKeyExpr.equals(`config.${ChatConfiguration.EmptyChatViewSessionsEnabled}`, true)
+						),
 						group: '2_history',
 						order: 1
 					},
