@@ -2300,7 +2300,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listContainer.style.removeProperty('--chat-current-response-min-height');
 		} else {
 			this.listContainer.style.setProperty('--chat-current-response-min-height', contentHeight * .75 + 'px');
-			if (heightUpdated && lastItem && this.visible) {
+			if (heightUpdated && lastItem && this.visible && this.tree.hasElement(lastItem)) {
 				this.tree.updateElementHeight(lastItem, undefined);
 			}
 		}
