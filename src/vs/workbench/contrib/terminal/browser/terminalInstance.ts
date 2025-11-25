@@ -1548,11 +1548,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
 			}
 		} else if (this._cwd && this._userHome && this._cwd !== this._userHome) {
-			// For the trust check in empty workspaces, we need to be careful about comparing
-			// paths from different filesystem contexts. In remote scenarios (like WSL), the
-			// cwd may be a remote path (e.g., /mnt/c/...) while userHome is from a different
-			// context. Additionally, if the shellLaunchConfig has an explicit cwd, this is
-			// a legitimate task/terminal request that should be allowed.
 			const hasExplicitCwd = !!this._shellLaunchConfig.cwd;
 			this._logService.debug(`MYLOG TerminalInstance#_createProcess: Empty workspace cwd mismatch detected - cwd="${this._cwd}", userHome="${this._userHome}", hasRemoteAuthority=${this.hasRemoteAuthority}, hasExplicitCwd=${hasExplicitCwd}`);
 
