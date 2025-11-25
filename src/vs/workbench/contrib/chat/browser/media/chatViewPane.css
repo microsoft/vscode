@@ -7,7 +7,18 @@
 	display: flex;
 	flex-direction: column;
 
-	.chat-viewpane-sessions-container {
-		height: calc(3 * 44px); /* TODO@bpasero revisit: show at most 3 sessions */
+	.agent-sessions-container {
+		display: flex;
+		flex-direction: column;
+
+		.agent-sessions-viewer {
+			height: calc(3 * 44px); /* TODO@bpasero revisit: show at most 3 sessions */
+		}
+
+		.agent-sessions-link-container {
+			padding: 4px 12px;
+			font-size: 12px;
+			text-align: center;
+		}
 	}
 }
