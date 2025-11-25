@@ -194,6 +194,7 @@ export interface IChatUndoStop {
 
 export interface IChatExternalEditsDto {
 	kind: 'externalEdits';
+	undoStopId: string;
 	start: boolean; /** true=start, false=stop */
 	resources: UriComponents[];
 }
@@ -228,6 +229,7 @@ export interface IChatResponseCodeblockUriPart {
 	kind: 'codeblockUri';
 	uri: URI;
 	isEdit?: boolean;
+	undoStopId?: string;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {

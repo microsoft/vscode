@@ -3225,6 +3225,7 @@ export interface MainThreadChatStatusShape {
 }
 
 export type IChatSessionHistoryItemDto = {
+	id?: string;
 	type: 'request';
 	prompt: string;
 	participant: string;
