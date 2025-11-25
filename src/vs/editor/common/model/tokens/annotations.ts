@@ -9,12 +9,12 @@ import { OffsetRange } from '../../core/ranges/offsetRange.js';
 
 export interface IAnnotation<T> {
 	range: OffsetRange;
-	annotation: T;
+	annotation: T | undefined;
 }
 
 export interface IAnnotationUpdate<T> {
 	range: OffsetRange;
-	annotation: T;
+	annotation: T | undefined;
 }
 
 export interface IAnnotatedString<T> {
@@ -117,7 +117,7 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 }
 
-export type ISerializedProperty = { [property: string]: string | number };
+export type ISerializedProperty = { [property: string]: string | number } | undefined;
 
 export type ISerializedAnnotation = {
 	range: [number, number];
@@ -147,7 +147,7 @@ export class AnnotationsUpdate<T> {
 		this._annotatedString.applyEdit(edit);
 	}
 
-	static serialize<T>(update: AnnotationsUpdate<T>, serializingFunc: (annotation: T) => ISerializedProperty): ISerializedAnnotation[] {
+	static serialize<T>(update: AnnotationsUpdate<T>, serializingFunc: (annotation: T | undefined) => ISerializedProperty): ISerializedAnnotation[] {
 		return update.annotations.map(annotation => {
 			return {
 				range: [annotation.range.start, annotation.range.endExclusive],

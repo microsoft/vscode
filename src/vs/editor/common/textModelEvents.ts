@@ -167,8 +167,11 @@ export type FontTokensUpdate = AnnotationsUpdate<IFontToken>;
 /**
  * @internal
  */
-export function serializeFontToken(): (annotation: IFontToken) => ISerializedProperty {
-	return (annotation: IFontToken) => {
+export function serializeFontToken(): (annotation: IFontToken | undefined) => ISerializedProperty {
+	return (annotation: IFontToken | undefined) => {
+		if (!annotation) {
+			return undefined;
+		}
 		return {
 			fontFamily: annotation.fontFamily ?? '',
 			fontSize: annotation.fontSize ?? '',
@@ -180,8 +183,11 @@ export function serializeFontToken(): (annotation: IFontToken) => ISerializedPro
 /**
  * @internal
  */
-export function deserializeFontToken(): (annotation: ISerializedProperty) => IFontToken {
+export function deserializeFontToken(): (annotation: ISerializedProperty) => IFontToken | undefined {
 	return (annotation: ISerializedProperty) => {
+		if (!annotation) {
+			return undefined;
+		}
 		return {
 			fontFamily: annotation.fontFamily ? String(annotation.fontFamily) : undefined,
 			fontSize: annotation.fontSize ? String(annotation.fontSize) : undefined,
