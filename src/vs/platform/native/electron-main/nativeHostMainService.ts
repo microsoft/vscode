@@ -1040,11 +1040,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		this.openChildWindow(parentWindow.win, url);
 	}
 
-	private openChildWindow(parentWindow: BrowserWindow | null, url: string): BrowserWindow {
+	private openChildWindow(parentWindow: BrowserWindow | null, url: string, overrideWindowOptions: Electron.BrowserWindowConstructorOptions = {}): BrowserWindow {
 		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true });
-		options.parent = parentWindow ?? undefined;
 
-		const window = new BrowserWindow(options);
+		const windowOptions: Electron.BrowserWindowConstructorOptions = {
+			...options,
+			parent: parentWindow ?? undefined,
+			...overrideWindowOptions
+		};
+
+		const window = new BrowserWindow(windowOptions);
 		window.setMenuBarVisibility(false);
 		window.loadURL(url);
 
@@ -1073,6 +1078,26 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			}
 			window?.focus();
 		}
+	}
+
+	async openContentTracingWindow(): Promise<void> {
+		const contentTracingWindow = this.openChildWindow(null, 'chrome://tracing', {
+			paintWhenInitiallyHidden: false,
+			webPreferences: {
+				backgroundThrottling: false
+			}
+		});
+		contentTracingWindow.webContents.once('did-finish-load', async () => {
+			// Mock window.prompt to support save action from the tracing UI
+			// since Electron by default doesn't provide the api.
+			// See requestFilename_ implementation under
+			// https://source.chromium.org/chromium/chromium/src/+/main:third_party/catapult/tracing/tracing/ui/extras/about_tracing/profiling_view.html;l=334-379
+			await contentTracingWindow.webContents.executeJavaScript(`
+				window.prompt = () => '';
+				null
+			`);
+			contentTracingWindow.show();
+		});
 	}
 
 	async stopTracing(windowId: number | undefined): Promise<void> {
