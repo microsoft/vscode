@@ -562,7 +562,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 
 				const notebookUri = CellUri.parse(resource)?.notebook || resource;
-				progress.push(...createOpeningEditCodeBlock(resource, this._notebookService.hasSupportedNotebooks(notebookUri),undoStopId));
+				progress.push(...createOpeningEditCodeBlock(resource, this._notebookService.hasSupportedNotebooks(notebookUri), undoStopId));
 
 				// Save to disk to ensure disk state is current before external edits
 				await entry?.save();

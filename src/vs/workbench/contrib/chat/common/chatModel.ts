@@ -2062,7 +2062,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			// Maybe something went wrong?
 			return;
 		}
-
+		request.response.setFollowups(followups);
 	}
 
 	setResponseModel(request: ChatRequestModel, response: ChatResponseModel): void {
