@@ -39,7 +39,7 @@ import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProv
 import { IChatWidgetService } from '../chat.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
+import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
 
 export const enum ActionLocation {
 	ChatWidget = 'chatWidget',
@@ -315,12 +315,7 @@ class CreateRemoteAgentJobFromEditorAction {
 				return;
 			}
 			await editorService2.openEditor({ resource: sessionResource }, undefined);
-			const attachedContext: IChatRequestVariableEntry[] = [{
-				kind: 'file',
-				id: 'editor.uri',
-				name: basename(uri),
-				value: uri
-			}];
+			const attachedContext = [toPromptFileVariableEntry(uri, PromptFileVariableKind.PromptFile, undefined, true, [])];
 			await chatService.sendRequest(sessionResource, `Implement this.`, {
 				agentIdSilent: continuationTargetType,
 				attachedContext
