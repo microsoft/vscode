@@ -1133,29 +1133,22 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// No Folder: return early
 		const folders = this.contextService.getWorkspace().folders;
-		this.logService.debug(`MYLOG getLastActiveWorkspaceRoot: workspace folders=${folders.length}, schemeFilter=${schemeFilter}, authorityFilter=${authorityFilter}`);
-		this.logService.debug(`MYLOG getLastActiveWorkspaceRoot Folders: ${folders.map(f => f.uri.toString()).join(', ')}`);
 		if (folders.length === 0) {
-			this.logService.debug(`MYLOG getLastActiveWorkspaceRoot: no workspace folders found`);
 			return undefined;
 		}
 
 		// Single Folder: return early
 		if (folders.length === 1) {
 			const resource = folders[0].uri;
-			this.logService.debug(`MYLOG getLastActiveWorkspaceRoot: 1 workspace folder found: ${resource.toString()}`);
 			if ((!schemeFilter || resource.scheme === schemeFilter) && (!authorityFilter || resource.authority === authorityFilter)) {
-				this.logService.debug(`MYLOG getLastActiveWorkspaceRoot: returning the single workspace folder`);
-				this.logService.debug(`MYLOG getLastActiveWorkspaceRoot: Value of schemeFilter: ${schemeFilter}, authorityFilter: ${authorityFilter}, resource.scheme: ${resource.scheme}, resource.authority: ${resource.authority}`);
 				return resource;
 			}
-			this.logService.debug(`MYLOG getLastActiveWorkspaceRoot: single workspace folder did not match filters, returning undefined`);
+
 			return undefined;
 		}
 
 		// Multiple folders: find the last active one
 		for (const input of this.getHistory()) {
-			this.logService.debug(`MYLOG getLastActiveWorkspaceRoot: checking history entry: ${isEditorInput(input) ? 'editor input' : input.resource.toString()}`);
 			if (isEditorInput(input)) {
 				continue;
 			}
@@ -1170,22 +1163,18 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			const resourceWorkspace = this.contextService.getWorkspaceFolder(input.resource);
 			if (resourceWorkspace) {
-				this.logService.debug(`MYLOG getLastActiveWorkspaceRoot: found matching workspace folder from history: ${resourceWorkspace.uri.toString()}`);
 				return resourceWorkspace.uri;
 			}
 		}
 
 		// Fallback to first workspace matching scheme filter if any
 		for (const folder of folders) {
-			this.logService.debug(`MYLOG getLastActiveWorkspaceRoot: checking workspace folder: ${folder.uri.toString()}`);
 			const resource = folder.uri;
 			if ((!schemeFilter || resource.scheme === schemeFilter) && (!authorityFilter || resource.authority === authorityFilter)) {
-				this.logService.debug(`MYLOG getLastActiveWorkspaceRoot: Returning resource: ${resource} value of schemeFilter: ${schemeFilter}, authorityFilter: ${authorityFilter}, resource.scheme: ${resource.scheme}, resource.authority: ${resource.authority}`);
 				return resource;
 			}
 		}
 
-		this.logService.debug(`MYLOG getLastActiveWorkspaceRoot: no matching workspace folder found at all, returning undefined`);
 		return undefined;
 	}
 
