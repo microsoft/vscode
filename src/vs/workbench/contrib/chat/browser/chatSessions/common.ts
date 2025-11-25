@@ -18,7 +18,7 @@ export const NEW_CHAT_SESSION_ACTION_ID = 'workbench.action.chat.openNewSessionE
 export type ChatSessionItemWithProvider = IChatSessionItem & {
 	readonly provider: IChatSessionItemProvider;
 
-	// no :(
+	// TODO@mjbvz: remove these. They should be computed by the view
 	relativeTime?: string;
 	relativeTimeFullWord?: string;
 	hideRelativeTime?: boolean;
