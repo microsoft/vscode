@@ -45,7 +45,8 @@ export class AgentSessionsControl extends Disposable {
 	private visible: boolean = true;
 
 	constructor(
-		private readonly options: IAgentSessionsControlOptions,
+		private readonly container: HTMLElement,
+		private readonly options: IAgentSessionsControlOptions | undefined,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -58,12 +59,8 @@ export class AgentSessionsControl extends Disposable {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
-	}
 
-	render(container: HTMLElement): void {
-		container.classList.add('agent-sessions-view');
-
-		this.createList(container);
+		this.createList(this.container);
 	}
 
 	private createList(container: HTMLElement): void {
@@ -77,7 +74,7 @@ export class AgentSessionsControl extends Disposable {
 			[
 				this.instantiationService.createInstance(AgentSessionRenderer)
 			],
-			new AgentSessionsDataSource(this.options.filter),
+			new AgentSessionsDataSource(this.options?.filter),
 			{
 				accessibilityProvider: new AgentSessionsAccessibilityProvider(),
 				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
@@ -88,7 +85,7 @@ export class AgentSessionsControl extends Disposable {
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter: this.instantiationService.createInstance(AgentSessionsSorter),
-				paddingBottom: this.options.allowNewSessionFromEmptySpace ? AgentSessionsListDelegate.ITEM_HEIGHT : undefined,
+				paddingBottom: this.options?.allowNewSessionFromEmptySpace ? AgentSessionsListDelegate.ITEM_HEIGHT : undefined,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}
 		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, IAgentSession, FuzzyScore>;
@@ -96,7 +93,7 @@ export class AgentSessionsControl extends Disposable {
 		const model = this.agentSessionsService.model;
 
 		this._register(Event.any(
-			this.options.filter?.onDidChange ?? Event.None,
+			this.options?.filter?.onDidChange ?? Event.None,
 			model.onDidChangeSessions
 		)(() => {
 			if (this.visible) {
@@ -112,7 +109,7 @@ export class AgentSessionsControl extends Disposable {
 			this.openAgentSession(e);
 		}));
 
-		if (this.options.allowNewSessionFromEmptySpace) {
+		if (this.options?.allowNewSessionFromEmptySpace) {
 			this._register(list.onMouseDblClick(({ element }) => {
 				if (element === null) {
 					this.commandService.executeCommand(ACTION_ID_OPEN_CHAT);

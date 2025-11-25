@@ -200,12 +200,14 @@ export class AgentSessionsView extends ViewPane {
 			filterMenuId: MenuId.AgentSessionsFilterSubMenu,
 		}));
 
-		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, {
-			filter: sessionsFilter,
-			allowNewSessionFromEmptySpace: true,
-		}));
+		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl,
+			container,
+			{
+				filter: sessionsFilter,
+				allowNewSessionFromEmptySpace: true,
+			}
+		));
 		this.sessionsControl.setVisible(this.isBodyVisible());
-		this.sessionsControl.render(container);
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			this.sessionsControl?.setVisible(visible);

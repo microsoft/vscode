@@ -1826,3 +1826,27 @@ registerAction2(class EditToolApproval extends Action2 {
 		confirmationService.manageConfirmationPreferences([...toolsService.getTools()], scope ? { defaultScope: scope } : undefined);
 	}
 });
+
+registerAction2(class ToggleChatHistoryVisibilityAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleEmptyChatViewSessions',
+			title: localize2('chat.toggleEmptyChatViewSessions.label', "Show Agent Sessions"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			toggled: ContextKeyExpr.equals(`config${ChatConfiguration.EmptyChatViewSessionsEnabled}`, true),
+			menu: {
+				id: MenuId.ChatWelcomeContext,
+				group: '1_modify',
+				order: 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const emptyChatViewSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewSessionsEnabled);
+		await configurationService.updateValue(ChatConfiguration.EmptyChatViewSessionsEnabled, !emptyChatViewSessionsEnabled);
+	}
+});
