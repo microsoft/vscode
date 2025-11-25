@@ -101,4 +101,8 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 	$unregisterTool(name: string): void {
 		this._tools.deleteAndDispose(name);
 	}
+
+	$supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined> {
+		return this._languageModelToolsService.supportsModel(toolId, modelId, token);
+	}
 }
