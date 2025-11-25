@@ -142,13 +142,13 @@ registerAction2(class AcceptAction extends WorkingSetAction {
 			title: localize2('accept.file', 'Keep'),
 			icon: Codicon.check,
 			menu: [{
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key), ChatContextKeys.lockedToCodingAgent.negate()),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 0,
 				group: 'navigation',
 			}, {
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified), ChatContextKeys.lockedToCodingAgent.negate()),
 				order: 0,
 				group: 'navigation'
 			}],
@@ -167,13 +167,13 @@ registerAction2(class DiscardAction extends WorkingSetAction {
 			title: localize2('discard.file', 'Undo'),
 			icon: Codicon.discard,
 			menu: [{
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key)),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('resourceScheme', CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME), ContextKeyExpr.notIn(chatEditingResourceContextKey.key, decidedChatEditingResourceContextKey.key), ChatContextKeys.lockedToCodingAgent.negate()),
 				id: MenuId.MultiDiffEditorFileToolbar,
 				order: 2,
 				group: 'navigation',
 			}, {
 				id: MenuId.ChatEditingWidgetModifiedFilesToolbar,
-				when: ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified), ChatContextKeys.lockedToCodingAgent.negate()),
 				order: 1,
 				group: 'navigation'
 			}],

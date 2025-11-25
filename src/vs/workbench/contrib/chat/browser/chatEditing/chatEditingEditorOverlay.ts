@@ -33,6 +33,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import * as arrays from '../../../../../base/common/arrays.js';
 import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 
 class ChatEditorOverlayWidget extends Disposable {
 
@@ -379,6 +380,17 @@ class ChatEditingOverlayController {
 			return chatModel.requestInProgress.read(r);
 		});
 
+
+		const isLocalChat = derived(r => {
+
+			const session = sessionAndEntry.read(r)?.session;
+			if (!session) {
+				return false;
+			}
+			const chatModel = chatService.getSession(session.chatSessionResource)!;
+			return LocalChatSessionUri.parseLocalSessionId(chatModel.sessionResource);
+		});
+
 		this._store.add(autorun(r => {
 
 			const data = sessionAndEntry.read(r);
@@ -397,8 +409,11 @@ class ChatEditingOverlayController {
 			}
 
 			if (
-				entry?.state.read(r) === ModifiedFileEntryState.Modified // any entry changing
-				|| (!session.isGlobalEditingSession && isInProgress.read(r)) // inline chat request
+				isLocalChat.read(r) // display widget only for local chat sessions
+				&& (
+					entry?.state.read(r) === ModifiedFileEntryState.Modified // any entry changing
+					|| (!session.isGlobalEditingSession && isInProgress.read(r)) // inline chat request
+				)
 			) {
 				// any session with changes
 				const editorPane = group.activeEditorPane;
