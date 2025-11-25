@@ -86,7 +86,7 @@ const vscodeWebEntryPoints = [
 ].flat();
 
 /**
- * @param extensionsRoot {string} The location where extension will be read from
+ * @param extensionsRoot The location where extension will be read from
  * @param product The parsed product.json file contents
  */
 export const createVSCodeWebFileContentMapper = (extensionsRoot: string, product: typeof import('../product.json')) => {
