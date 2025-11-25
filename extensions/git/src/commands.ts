@@ -4555,7 +4555,7 @@ export class CommandCenter {
 			return;
 		}
 
-		await this._stashDrop(repository, stash);
+		await this._stashDrop(repository, stash.index, stash.description);
 	}
 
 	@command('git.stashDropAll', { repository: true })
@@ -4588,15 +4588,15 @@ export class CommandCenter {
 			return;
 		}
 
-		if (await this._stashDrop(result.repository, result.stash)) {
+		if (await this._stashDrop(result.repository, result.stash.index, result.stash.description)) {
 			await commands.executeCommand('workbench.action.closeActiveEditor');
 		}
 	}
 
-	async _stashDrop(repository: Repository, stash: Stash): Promise<boolean> {
+	async _stashDrop(repository: Repository, index: number, description: string): Promise<boolean> {
 		const yes = l10n.t('Yes');
 		const result = await window.showWarningMessage(
-			l10n.t('Are you sure you want to drop the stash: {0}?', stash.description),
+			l10n.t('Are you sure you want to drop the stash: {0}?', description),
 			{ modal: true },
 			yes
 		);
@@ -4604,7 +4604,7 @@ export class CommandCenter {
 			return false;
 		}
 
-		await repository.dropStash(stash.index);
+		await repository.dropStash(index);
 		return true;
 	}
 
@@ -5286,6 +5286,22 @@ export class CommandCenter {
 
 		const stashIndex = parseInt(match[1]);
 		await repository.popStash(stashIndex);
+	}
+
+	@command('git.repositories.stashDrop', { repository: true })
+	async artifactStashDrop(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		// Extract stash index from artifact id
+		const regex = /^stash@\{(\d+)\}$/;
+		const match = regex.exec(artifact.id);
+		if (!match) {
+			return;
+		}
+
+		await this._stashDrop(repository, parseInt(match[1]), artifact.name);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

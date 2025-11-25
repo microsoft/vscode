@@ -1110,6 +1110,13 @@
         "icon": "$(git-stash-pop)",
         "category": "Git",
         "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.repositories.stashDrop",
+        "title": "%command.stashDropEditor%",
+        "icon": "$(trash)",
+        "category": "Git",
+        "enablement": "!operationInProgress"
       }
     ],
     "continueEditSession": [
@@ -1785,6 +1792,10 @@
         {
           "command": "git.repositories.stashPop",
           "when": "false"
+        },
+        {
+          "command": "git.repositories.stashDrop",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -2022,6 +2033,11 @@
         {
           "command": "git.repositories.stashPop",
           "group": "2_apply@2",
+          "when": "scmProvider == git && scmArtifactGroupId == stashes"
+        },
+        {
+          "command": "git.repositories.stashDrop",
+          "group": "3_drop@3",
           "when": "scmProvider == git && scmArtifactGroupId == stashes"
         },
         {
