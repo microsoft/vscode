@@ -124,6 +124,7 @@ class ToggleScreencastModeAction extends Action2 {
 		});
 	}
 
+
 	run(accessor: ServicesAccessor): void {
 		if (ToggleScreencastModeAction.disposable) {
 			ToggleScreencastModeAction.disposable.dispose();
