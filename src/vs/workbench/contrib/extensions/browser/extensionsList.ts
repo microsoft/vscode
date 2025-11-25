@@ -14,7 +14,7 @@ import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService, IExtensionsViewState } from '../common/extensions.js';
 import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction } from './extensionsActions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
-import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionRuntimeStatusWidget, PreReleaseBookmarkWidget, PublisherWidget, ExtensionKindIndicatorWidget, ExtensionIconWidget } from './extensionsWidgets.js';
+import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionRuntimeStatusWidget, PreReleaseBookmarkWidget, PublisherWidget, ExtensionKindIndicatorWidget, ExtensionIconWidget, FavoriteWidget } from './extensionsWidgets.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -70,6 +70,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 	renderTemplate(root: HTMLElement): ITemplateData {
 		const recommendationWidget = this.instantiationService.createInstance(RecommendationWidget, append(root, $('.extension-bookmark-container')));
 		const preReleaseWidget = this.instantiationService.createInstance(PreReleaseBookmarkWidget, append(root, $('.extension-bookmark-container')));
+		const favoriteWidget = this.instantiationService.createInstance(FavoriteWidget, append(root, $('.extension-bookmark-container')));
 		const element = append(root, $('.extension-list-item'));
 		const iconContainer = append(element, $('.icon-container'));
 		const iconWidget = this.instantiationService.createInstance(ExtensionIconWidget, iconContainer);
@@ -133,6 +134,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			iconWidget,
 			recommendationWidget,
 			preReleaseWidget,
+			favoriteWidget,
 			iconRemoteBadgeWidget,
 			extensionPackBadgeWidget,
 			publisherWidget,
