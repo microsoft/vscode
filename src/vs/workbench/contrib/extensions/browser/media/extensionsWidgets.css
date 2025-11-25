@@ -87,3 +87,20 @@
 	border-top-color: var(--vscode-extensionButton-prominentBackground);
 	color: var(--vscode-extensionButton-prominentForeground);
 }
+
+.extension-bookmark > .favorite {
+	border-right: 20px solid transparent;
+	border-top: 20px solid;
+	box-sizing: border-box;
+	position: relative;
+	border-top-color: #e74c3c;
+	color: #ffffff;
+}
+
+.extension-bookmark > .favorite > .codicon {
+	position: absolute;
+	bottom: 9px;
+	left: 1px;
+	color: inherit;
+	font-size: 80% !important;
+}
