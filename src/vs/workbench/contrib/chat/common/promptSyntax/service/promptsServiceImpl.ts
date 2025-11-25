@@ -29,8 +29,10 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IUserPromptPath, PromptsStorage } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 
 /**
  * Provides prompt services.
@@ -91,6 +93,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IFileService private readonly fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 
@@ -171,6 +174,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private async getExtensionContributions(type: PromptsType): Promise<IPromptPath[]> {
+		await this.extensionService.whenInstalledExtensionsRegistered();
 		return Promise.all(this.contributedFiles[type].values());
 	}
 
@@ -227,7 +231,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}
 		}
 		for (const model of this.modelService.getModels()) {
-			if (model.getLanguageId() === PROMPT_LANGUAGE_ID && !seen.has(model.uri)) {
+			if (model.getLanguageId() === PROMPT_LANGUAGE_ID && model.uri.scheme === Schemas.untitled && !seen.has(model.uri)) {
 				const parsedPromptFile = this.getParsedPromptFile(model);
 				result.push(this.asChatPromptSlashCommand(parsedPromptFile, { uri: model.uri, storage: PromptsStorage.local, type: PromptsType.prompt }));
 			}
@@ -245,8 +249,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private asChatPromptSlashCommand(parsedPromptFile: ParsedPromptFile, promptPath: IPromptPath): IChatPromptSlashCommand {
+		let name = parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri);
+		name = name.replace(/[^\p{L}\d_\-\.]+/gu, '-'); // replace spaces with dashes
 		return {
-			name: parsedPromptFile?.header?.name ?? promptPath.name ?? getCleanPromptName(promptPath.uri),
+			name: name,
 			description: parsedPromptFile?.header?.description ?? promptPath.description,
 			argumentHint: parsedPromptFile?.header?.argumentHint,
 			parsedPromptFile,
@@ -320,8 +326,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				if (!ast.header) {
 					return { uri, name, agentInstructions, source };
 				}
-				const { description, model, tools, handOffs, argumentHint, target } = ast.header;
-				return { uri, name, description, model, tools, handOffs, argumentHint, target, agentInstructions, source };
+				const { description, model, tools, handOffs, argumentHint, target, infer } = ast.header;
+				return { uri, name, description, model, tools, handOffs, argumentHint, target, infer, agentInstructions, source };
 			})
 		);
 		return customAgents;
@@ -358,6 +364,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		bucket.set(uri, entryPromise);
 
 		const flushCachesIfRequired = () => {
+			this.cachedFileLocations[type] = undefined;
 			switch (type) {
 				case PromptsType.agent:
 					this.cachedCustomAgents.refresh();
@@ -417,7 +424,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	// --- Enabled Prompt Files -----------------------------------------------------------
 
-
 	private readonly disabledPromptsStorageKeyPrefix = 'chat.disabledPromptFiles.';
 
 	public getDisabledPromptFiles(type: PromptsType): ResourceSet {
@@ -448,6 +454,35 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (type === PromptsType.agent) {
 			this.cachedCustomAgents.refresh();
 		}
+	}
+
+	// Claude skills
+
+	public async findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined> {
+		const useClaudeSkills = this.configurationService.getValue(PromptsConfig.USE_CLAUDE_SKILLS);
+		if (useClaudeSkills) {
+			const result: IClaudeSkill[] = [];
+			const process = async (uri: URI, type: 'personal' | 'project'): Promise<void> => {
+				try {
+					const parsedFile = await this.parseNew(uri, token);
+					const name = parsedFile.header?.name;
+					if (name) {
+						result.push({ uri, type, name, description: parsedFile.header?.description } satisfies IClaudeSkill);
+					} else {
+						this.logger.error(`[findClaudeSkills] Claude skill file missing name attribute: ${uri}`);
+					}
+				} catch (e) {
+					this.logger.error(`[findClaudeSkills] Failed to parse Claude skill file: ${uri}`, e instanceof Error ? e.message : String(e));
+				}
+			};
+
+			const workspaceSkills = await this.fileLocator.findClaudeSkillsInWorkspace(token);
+			await Promise.all(workspaceSkills.map(uri => process(uri, 'project')));
+			const userSkills = await this.fileLocator.findClaudeSkillsInUserHome(token);
+			await Promise.all(userSkills.map(uri => process(uri, 'personal')));
+			return result;
+		}
+		return undefined;
 	}
 }
 

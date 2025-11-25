@@ -199,6 +199,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 					}
 					return suggestions;
 				}
+				break;
 			case PromptHeaderAttributes.target:
 				if (promptType === PromptsType.agent) {
 					return ['vscode', 'github-copilot'];
@@ -213,6 +214,12 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 				if (promptType === PromptsType.prompt || promptType === PromptsType.agent) {
 					return this.getModelNames(promptType === PromptsType.agent);
 				}
+				break;
+			case PromptHeaderAttributes.infer:
+				if (promptType === PromptsType.agent) {
+					return ['true', 'false'];
+				}
+				break;
 		}
 		return [];
 	}
@@ -237,7 +244,7 @@ export class PromptHeaderAutocompletion implements CompletionItemProvider {
 		}
 		const getSuggestions = (toolRange: Range) => {
 			const suggestions: CompletionItem[] = [];
-			const toolNames = isGitHubTarget ? Object.keys(knownGithubCopilotTools) : this.languageModelToolsService.getQualifiedToolNames();
+			const toolNames = isGitHubTarget ? Object.keys(knownGithubCopilotTools) : this.languageModelToolsService.getFullReferenceNames();
 			for (const toolName of toolNames) {
 				let insertText: string;
 				if (!toolRange.isEmpty()) {

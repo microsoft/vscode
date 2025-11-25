@@ -42,12 +42,13 @@ import { IWorkbenchLayoutService, Position } from '../../../../../services/layou
 import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 import { IChatService } from '../../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../../../common/chatUri.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IChatWidgetService } from '../../chat.js';
+import { IMarshalledChatSessionContext } from '../../actions/chatSessionActions.js';
 import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
 import '../../media/chatSessions.css';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
-import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, isLocalChatSessionItem, processSessionsWithTimeGrouping } from '../common.js';
+import { ChatSessionItemWithProvider, extractTimestamp, getSessionItemContextOverlay, processSessionsWithTimeGrouping } from '../common.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -139,7 +140,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -230,7 +230,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		const session = element.element as ChatSessionItemWithProvider;
 		// Add CSS class for local sessions
 		let editableData: IEditableData | undefined;
-		if (isLocalChatSessionItem(session)) {
+		if (LocalChatSessionUri.parseLocalSessionId(session.resource)) {
 			templateData.container.classList.add('local-session');
 			editableData = this.chatSessionsService.getEditableData(session.resource);
 		} else {
@@ -257,7 +257,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			iconTheme = session.iconPath;
 		}
 
-		const renderDescriptionOnSecondRow = this.configurationService.getValue<boolean>(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== localChatSessionType;
+		const renderDescriptionOnSecondRow = this.configurationService.getValue<boolean>(ChatConfiguration.ShowAgentSessionsViewDescription);
 
 		if (renderDescriptionOnSecondRow && session.description) {
 			templateData.container.classList.toggle('multiline', true);
@@ -358,7 +358,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		const contextOverlay = getSessionItemContextOverlay(
 			session,
 			session.provider,
-			this.chatWidgetService,
 			this.chatService,
 			this.editorGroupsService
 		);
@@ -375,7 +374,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			templateData.actionBar.clear();
 
 			// Create marshalled context for command execution
-			const marshalledSession = {
+			const marshalledSession: IMarshalledChatSessionContext = {
 				session: session,
 				$mid: MarshalledId.ChatSessionContext
 			};
@@ -621,9 +620,9 @@ export class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWit
 
 	constructor(private readonly configurationService: IConfigurationService) { }
 
-	getHeight(element: ChatSessionItemWithProvider): number {
+	getHeight(element: ChatSessionItemWithProvider | ArchivedSessionItems): number {
 		// Return consistent height for all items (single-line layout)
-		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && element.provider.chatSessionType !== localChatSessionType) {
+		if (this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && !(element instanceof ArchivedSessionItems) && element.description) {
 			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;
 		} else {
 			return SessionsDelegate.ITEM_HEIGHT;

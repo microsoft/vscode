@@ -898,8 +898,6 @@
 		"--background-light",
 		"--chat-editing-last-edit-shift",
 		"--chat-current-response-min-height",
-		"--dropdown-padding-bottom",
-		"--dropdown-padding-top",
 		"--inline-chat-frame-progress",
 		"--insert-border-color",
 		"--last-tab-margin-right",

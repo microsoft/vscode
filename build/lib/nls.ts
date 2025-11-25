@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as ts from 'typescript';
+import * as ts from 'typescript';
 import lazy from 'lazy.js';
-import { duplex, through } from 'event-stream';
+import eventStream from 'event-stream';
 import File from 'vinyl';
 import sm from 'source-map';
 import path from 'path';
@@ -13,12 +13,14 @@ import sort from 'gulp-sort';
 
 type FileWithSourcemap = File & { sourceMap: sm.RawSourceMap };
 
-enum CollectStepResult {
-	Yes,
-	YesAndRecurse,
-	No,
-	NoAndRecurse
-}
+const CollectStepResult = Object.freeze({
+	Yes: 'Yes',
+	YesAndRecurse: 'YesAndRecurse',
+	No: 'No',
+	NoAndRecurse: 'NoAndRecurse'
+});
+
+type CollectStepResult = typeof CollectStepResult[keyof typeof CollectStepResult];
 
 function collect(ts: typeof import('typescript'), node: ts.Node, fn: (node: ts.Node) => CollectStepResult): ts.Node[] {
 	const result: ts.Node[] = [];
@@ -52,10 +54,10 @@ function clone<T extends object>(object: T): T {
  */
 export function nls(options: { preserveEnglish: boolean }): NodeJS.ReadWriteStream {
 	let base: string;
-	const input = through();
+	const input = eventStream.through();
 	const output = input
 		.pipe(sort()) // IMPORTANT: to ensure stable NLS metadata generation, we must sort the files because NLS messages are globally extracted and indexed across all files
-		.pipe(through(function (f: FileWithSourcemap) {
+		.pipe(eventStream.through(function (f: FileWithSourcemap) {
 			if (!f.sourceMap) {
 				return this.emit('error', new Error(`File ${f.relative} does not have sourcemaps.`));
 			}
@@ -112,19 +114,19 @@ globalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(_nls.allNLSMessages)};`),
 			this.emit('end');
 		}));
 
-	return duplex(input, output);
+	return eventStream.duplex(input, output);
 }
 
 function isImportNode(ts: typeof import('typescript'), node: ts.Node): boolean {
 	return node.kind === ts.SyntaxKind.ImportDeclaration || node.kind === ts.SyntaxKind.ImportEqualsDeclaration;
 }
 
-module _nls {
+const _nls = (() => {
 
-	export const moduleToNLSKeys: { [name: string /* module ID */]: ILocalizeKey[] /* keys */ } = {};
-	export const moduleToNLSMessages: { [name: string /* module ID */]: string[] /* messages */ } = {};
-	export const allNLSMessages: string[] = [];
-	export const allNLSModulesAndKeys: Array<[string /* module ID */, string[] /* keys */]> = [];
+	const moduleToNLSKeys: { [name: string /* module ID */]: ILocalizeKey[] /* keys */ } = {};
+	const moduleToNLSMessages: { [name: string /* module ID */]: string[] /* messages */ } = {};
+	const allNLSMessages: string[] = [];
+	const allNLSModulesAndKeys: Array<[string /* module ID */, string[] /* keys */]> = [];
 	let allNLSMessagesIndex = 0;
 
 	type ILocalizeKey = string | { key: string }; // key might contain metadata for translators and then is not just a string
@@ -178,8 +180,12 @@ module _nls {
 
 		private file: ts.IScriptSnapshot;
 		private lib: ts.IScriptSnapshot;
+		private options: ts.CompilerOptions;
+		private filename: string;
 
-		constructor(ts: typeof import('typescript'), private options: ts.CompilerOptions, private filename: string, contents: string) {
+		constructor(ts: typeof import('typescript'), options: ts.CompilerOptions, filename: string, contents: string) {
+			this.options = options;
+			this.filename = filename;
 			this.file = ts.ScriptSnapshot.fromString(contents);
 			this.lib = ts.ScriptSnapshot.fromString('');
 		}
@@ -227,14 +233,14 @@ module _nls {
 		// import nls = require('vs/nls');
 		const importEqualsDeclarations = imports
 			.filter(n => n.kind === ts.SyntaxKind.ImportEqualsDeclaration)
-			.map(n => <ts.ImportEqualsDeclaration>n)
+			.map(n => n as ts.ImportEqualsDeclaration)
 			.filter(d => d.moduleReference.kind === ts.SyntaxKind.ExternalModuleReference)
-			.filter(d => (<ts.ExternalModuleReference>d.moduleReference).expression.getText().endsWith(`/nls.js'`));
+			.filter(d => (d.moduleReference as ts.ExternalModuleReference).expression.getText().endsWith(`/nls.js'`));
 
 		// import ... from 'vs/nls';
 		const importDeclarations = imports
 			.filter(n => n.kind === ts.SyntaxKind.ImportDeclaration)
-			.map(n => <ts.ImportDeclaration>n)
+			.map(n => n as ts.ImportDeclaration)
 			.filter(d => d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral)
 			.filter(d => d.moduleSpecifier.getText().endsWith(`/nls.js'`))
 			.filter(d => !!d.importClause && !!d.importClause.namedBindings);
@@ -242,7 +248,7 @@ module _nls {
 		// `nls.localize(...)` calls
 		const nlsLocalizeCallExpressions = importDeclarations
 			.filter(d => !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport))
-			.map(d => (<ts.NamespaceImport>d.importClause!.namedBindings).name)
+			.map(d => (d.importClause!.namedBindings as ts.NamespaceImport).name)
 			.concat(importEqualsDeclarations.map(d => d.name))
 
 			// find read-only references to `nls`
@@ -254,15 +260,15 @@ module _nls {
 			.map(r => collect(ts, sourceFile, n => isCallExpressionWithinTextSpanCollectStep(ts, r.textSpan, n)))
 			.map(a => lazy(a).last())
 			.filter(n => !!n)
-			.map(n => <ts.CallExpression>n)
+			.map(n => n as ts.CallExpression)
 
 			// only `localize` calls
-			.filter(n => n.expression.kind === ts.SyntaxKind.PropertyAccessExpression && (<ts.PropertyAccessExpression>n.expression).name.getText() === functionName);
+			.filter(n => n.expression.kind === ts.SyntaxKind.PropertyAccessExpression && (n.expression as ts.PropertyAccessExpression).name.getText() === functionName);
 
 		// `localize` named imports
 		const allLocalizeImportDeclarations = importDeclarations
 			.filter(d => !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports))
-			.map(d => ([] as any[]).concat((<ts.NamedImports>d.importClause!.namedBindings!).elements))
+			.map(d => (d.importClause!.namedBindings! as ts.NamedImports).elements)
 			.flatten();
 
 		// `localize` read-only references
@@ -274,7 +280,7 @@ module _nls {
 
 		// custom named `localize` read-only references
 		const namedLocalizeReferences = allLocalizeImportDeclarations
-			.filter(d => d.propertyName && d.propertyName.getText() === functionName)
+			.filter(d => !!d.propertyName && d.propertyName.getText() === functionName)
 			.map(n => service.getReferencesAtPosition(filename, n.name.pos + 1) ?? [])
 			.flatten()
 			.filter(r => !r.isWriteAccess);
@@ -285,7 +291,7 @@ module _nls {
 			.map(r => collect(ts, sourceFile, n => isCallExpressionWithinTextSpanCollectStep(ts, r.textSpan, n)))
 			.map(a => lazy(a).last())
 			.filter(n => !!n)
-			.map(n => <ts.CallExpression>n);
+			.map(n => n as ts.CallExpression);
 
 		// collect everything
 		const localizeCalls = nlsLocalizeCallExpressions
@@ -492,8 +498,7 @@ module _nls {
 		return { javascript, sourcemap, nlsKeys, nlsMessages };
 	}
 
-	export function patchFile(javascriptFile: File, typescript: string, options: { preserveEnglish: boolean }): File {
-		const ts = require('typescript') as typeof import('typescript');
+	function patchFile(javascriptFile: File, typescript: string, options: { preserveEnglish: boolean }): File {
 		// hack?
 		const moduleId = javascriptFile.relative
 			.replace(/\.js$/, '')
@@ -522,4 +527,12 @@ module _nls {
 
 		return result;
 	}
-}
+
+	return {
+		moduleToNLSKeys,
+		moduleToNLSMessages,
+		allNLSMessages,
+		allNLSModulesAndKeys,
+		patchFile
+	};
+})();

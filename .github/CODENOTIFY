@@ -41,6 +41,8 @@ src/vs/platform/secrets/** @TylerLeonhardt
 src/vs/platform/sharedProcess/** @bpasero
 src/vs/platform/state/** @bpasero
 src/vs/platform/storage/** @bpasero
+src/vs/platform/terminal/electron-main/** @Tyriar
+src/vs/platform/terminal/node/** @Tyriar
 src/vs/platform/utilityProcess/** @bpasero
 src/vs/platform/window/** @bpasero
 src/vs/platform/windows/** @bpasero
@@ -110,9 +112,10 @@ src/vs/workbench/contrib/authentication/** @TylerLeonhardt
 src/vs/workbench/contrib/files/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
 src/vs/workbench/contrib/chat/browser/chatSetup.ts @bpasero
-src/vs/workbench/contrib/chat/browser/chatStatus.ts @bpasero
+src/vs/workbench/contrib/chat/browser/chatStatus/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatInputPart.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatWidget.ts @bpasero
+src/vs/workbench/contrib/chat/browser/chatViewPane.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatManagement/chatUsageWidget.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatManagement/media/chatUsageWidget.css @bpasero
 src/vs/workbench/contrib/chat/browser/agentSessions/** @bpasero

@@ -12,9 +12,7 @@ import { Position } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { showChatView } from '../../chat/browser/chat.js';
+import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatEditingSession } from '../../chat/common/chatEditingService.js';
 import { IChatModel, IChatRequestModel } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
@@ -75,11 +73,10 @@ export interface IInlineChatSessionService {
 
 export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined, resend: boolean) {
 
-	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
-	const layoutService = accessor.get(IWorkbenchLayoutService);
+	const widgetService = accessor.get(IChatWidgetService);
 
-	const widget = await showChatView(viewsService, layoutService);
+	const widget = await widgetService.revealWidget();
 
 	if (widget && widget.viewModel && model) {
 		let lastRequest: IChatRequestModel | undefined;
@@ -98,10 +95,9 @@ export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatMo
 
 export async function askInPanelChat(accessor: ServicesAccessor, model: IChatRequestModel) {
 
-	const viewsService = accessor.get(IViewsService);
-	const layoutService = accessor.get(IWorkbenchLayoutService);
+	const widgetService = accessor.get(IChatWidgetService);
 
-	const widget = await showChatView(viewsService, layoutService);
+	const widget = await widgetService.revealWidget();
 
 	if (!widget) {
 		return;

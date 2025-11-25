@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
@@ -46,6 +47,26 @@ export function getTaskRepresentation(task: IConfiguredTask | Task): string {
 		return isString(task.command) ? task.command : task.command.name?.toString() || '';
 	}
 	return '';
+}
+
+export function getTaskKey(task: Task): string {
+	return task.getKey() ?? task.getMapKey();
+}
+
+export function tasksMatch(a: Task, b: Task): boolean {
+	if (!a || !b) {
+		return false;
+	}
+
+	if (getTaskKey(a) === getTaskKey(b)) {
+		return true;
+	}
+
+	if (a.getCommonTaskId?.() === b.getCommonTaskId?.()) {
+		return true;
+	}
+
+	return a._id === b._id;
 }
 
 export async function getTaskForTool(id: string | undefined, taskDefinition: { taskLabel?: string; taskType?: string }, workspaceFolder: string, configurationService: IConfigurationService, taskService: ITaskService, allowParentTask?: boolean): Promise<Task | undefined> {
@@ -156,7 +177,8 @@ export async function collectTerminalResults(
 	token: CancellationToken,
 	disposableStore: DisposableStore,
 	isActive?: (task: Task) => Promise<boolean>,
-	dependencyTasks?: Task[]
+	dependencyTasks?: Task[],
+	taskService?: ITaskService
 ): Promise<Array<{
 	name: string;
 	output: string;
@@ -218,6 +240,19 @@ export async function collectTerminalResults(
 			dependencyTasks,
 			sessionId: invocationContext.sessionId
 		};
+
+		// For tasks with problem matchers, wait until the task becomes busy before creating the output monitor
+		if (terminalTask.configurationProperties.problemMatchers && terminalTask.configurationProperties.problemMatchers.length > 0 && taskService) {
+			const maxWaitTime = 1000; // Wait up to 1 second
+			const startTime = Date.now();
+			while (!token.isCancellationRequested && Date.now() - startTime < maxWaitTime) {
+				const busyTasks = await taskService.getBusyTasks();
+				if (busyTasks.some(t => tasksMatch(t, terminalTask))) {
+					break;
+				}
+				await timeout(100);
+			}
+		}
 
 		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn, invocationContext, token, task._label));
 		await Event.toPromise(outputMonitor.onDidFinishCommand);

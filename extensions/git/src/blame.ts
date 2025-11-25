@@ -15,7 +15,7 @@ import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } 
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { AvatarQuery, AvatarQueryCommit } from './api/git';
 import { LRUCache } from './cache';
-import { AVATAR_SIZE, getHistoryItemHover, getHistoryItemHoverCommitHashCommands, processHistoryItemRemoteHoverCommands } from './historyProvider';
+import { AVATAR_SIZE, getCommitHover, getHoverCommitHashCommands, processHoverRemoteCommands } from './hover';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -251,8 +251,8 @@ export class GitBlameController {
 
 		// Commands
 		const commands: Command[][] = [
-			getHistoryItemHoverCommitHashCommands(documentUri, hash),
-			processHistoryItemRemoteHoverCommands(remoteHoverCommands, hash)
+			getHoverCommitHashCommands(documentUri, hash),
+			processHoverRemoteCommands(remoteHoverCommands, hash)
 		];
 
 		commands.push([{
@@ -262,7 +262,7 @@ export class GitBlameController {
 			arguments: ['git.blame']
 		}] satisfies Command[]);
 
-		return getHistoryItemHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, commands);
+		return getCommitHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, commands);
 	}
 
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {

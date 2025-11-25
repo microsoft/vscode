@@ -6,9 +6,9 @@
 import { TSESTree } from '@typescript-eslint/utils';
 import * as eslint from 'eslint';
 import * as visitorKeys from 'eslint-visitor-keys';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 
-export = new class NoObservableGetInReactiveContext implements eslint.Rule.RuleModule {
+export default new class NoObservableGetInReactiveContext implements eslint.Rule.RuleModule {
 	meta: eslint.Rule.RuleMetaData = {
 		type: 'problem',
 		docs: {

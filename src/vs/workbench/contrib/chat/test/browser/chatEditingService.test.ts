@@ -11,6 +11,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -46,7 +47,6 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { NullLanguageModelsService } from '../common/languageModels.js';
 import { MockChatVariablesService } from '../common/mockChatVariables.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -107,6 +107,7 @@ suite('ChatEditingService', function () {
 		chatService = insta.get(IChatService);
 
 		store.add(insta.get(IChatSessionsService) as ChatSessionsService); // Needs to be disposed in between test runs to clear extensionPoint contribution
+		store.add(chatService as ChatService);
 
 		const chatAgentService = insta.get(IChatAgentService);
 
@@ -129,8 +130,9 @@ suite('ChatEditingService', function () {
 		}));
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		store.clear();
+		await chatService.waitForModelDisposals();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -138,19 +140,20 @@ suite('ChatEditingService', function () {
 	test('create session', async function () {
 		assert.ok(editingService);
 
-		const model = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
-		const session = await editingService.createEditingSession(model, true);
+		const modelRef = chatService.startSession(ChatAgentLocation.EditorInline, CancellationToken.None);
+		const model = modelRef.object as ChatModel;
+		const session = editingService.createEditingSession(model, true);
 
-		assert.strictEqual(session.chatSessionId, model.sessionId);
+		assert.strictEqual(session.chatSessionResource.toString(), model.sessionResource.toString());
 		assert.strictEqual(session.isGlobalEditingSession, true);
 
 		await assertThrowsAsync(async () => {
 			// DUPE not allowed
-			await editingService.createEditingSession(model);
+			editingService.createEditingSession(model);
 		});
 
 		session.dispose();
-		model.dispose();
+		modelRef.dispose();
 	});
 
 	test('create session, file entry & isCurrentlyBeingModifiedBy', async function () {
@@ -158,8 +161,9 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'HelloWorld' });
 
-		const model = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
-		const session = await model.editingSessionObs?.promise;
+		const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+		const model = modelRef.object as ChatModel;
+		const session = model.editingSession;
 		if (!session) {
 			assert.fail('session not created');
 		}
@@ -184,8 +188,6 @@ suite('ChatEditingService', function () {
 		await unset;
 
 		await entry.reject();
-
-		model.dispose();
 	});
 
 	async function idleAfterEdit(session: IChatEditingSession, model: ChatModel, uri: URI, edits: TextEdit[]) {
@@ -216,8 +218,9 @@ suite('ChatEditingService', function () {
 
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-			const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
-			const session = await model.editingSessionObs?.promise;
+			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+			const model = modelRef.object as ChatModel;
+			const session = model.editingSession;
 			assertType(session, 'session not created');
 
 			const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'FarBoo\n' }]);
@@ -249,8 +252,9 @@ suite('ChatEditingService', function () {
 
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-			const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
-			const session = await model.editingSessionObs?.promise;
+			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+			const model = modelRef.object as ChatModel;
+			const session = model.editingSession;
 			assertType(session, 'session not created');
 
 			const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'FarBoo\n' }]);
@@ -282,8 +286,9 @@ suite('ChatEditingService', function () {
 
 			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-			const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
-			const session = await model.editingSessionObs?.promise;
+			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+			const model = modelRef.object as ChatModel;
+			const session = model.editingSession;
 			assertType(session, 'session not created');
 
 			const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'FarBoo\n' }]);
@@ -317,8 +322,9 @@ suite('ChatEditingService', function () {
 
 			const modified = store.add(await textModelService.createModelReference(uri)).object.textEditorModel;
 
-			const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
-			const session = await model.editingSessionObs?.promise;
+			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
+			const model = modelRef.object as ChatModel;
+			const session = model.editingSession;
 			assertType(session, 'session not created');
 
 			modified.setValue('');

@@ -24,6 +24,8 @@ import { Range } from '../../../../common/core/range.js';
 import { TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
+import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
+import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -242,14 +244,24 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					playSignal: async () => { },
 					isSoundEnabled(signal: unknown) { return false; },
 				} as any);
+				options.serviceCollection.set(IBulkEditService, {
+					apply: async () => { throw new Error('IBulkEditService.apply not implemented'); },
+					hasPreviewHandler: () => { throw new Error('IBulkEditService.hasPreviewHandler not implemented'); },
+					setPreviewHandler: () => { throw new Error('IBulkEditService.setPreviewHandler not implemented'); },
+					_serviceBrand: undefined,
+				});
+
 				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);
 			}
 
 			let result: T;
 			await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
+				instantiationService.stubInstance(InlineSuggestionsView, {
+					shouldShowHoverAtViewZone: () => false,
+					dispose: () => { },
+				});
 				const controller = instantiationService.createInstance(InlineCompletionsController, editor);
-				controller.testOnlyDisableUi();
 				const model = controller.model.get()!;
 				const context = new GhostTextContext(model, editor);
 				try {
