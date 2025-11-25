@@ -194,16 +194,16 @@ class ToggleScreencastModeAction extends Action2 {
 			mouseMarker.style.transform = `scale(${1})`;
 			mouseMarker.style.transition = 'transform 0.1s';
 
-			const mouseMoveListener = disposables.add(onMouseMove.event(e => {
+			const mouseMoveListener = onMouseMove.event(e => {
 				mouseMarker.style.top = `${e.clientY - mouseIndicatorSize / 2}px`;
 				mouseMarker.style.left = `${e.clientX - mouseIndicatorSize / 2}px`;
 				mouseMarker.style.transform = `scale(${.8})`;
-			}));
+			});
 
-			disposables.add(Event.once(onMouseUp.event)(() => {
+			Event.once(onMouseUp.event)(() => {
 				mouseMarker.style.display = 'none';
 				mouseMoveListener.dispose();
-			}));
+			});
 		}));
 
 		const updateKeyboardFontSize = () => {
