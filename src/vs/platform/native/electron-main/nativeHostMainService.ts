@@ -1020,6 +1020,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Development
 
 	private gpuInfoWindowId: number | undefined;
+	private contentTracingWindowId: number | undefined;
 
 	async openDevTools(windowId: number | undefined, options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
@@ -1081,23 +1082,37 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async openContentTracingWindow(): Promise<void> {
-		const contentTracingWindow = this.openChildWindow(null, 'chrome://tracing', {
-			paintWhenInitiallyHidden: false,
-			webPreferences: {
-				backgroundThrottling: false
+		if (typeof this.contentTracingWindowId !== 'number') {
+			// Disable ready-to-show event with paintWhenInitiallyHidden to
+			// customize content tracing window below.
+			const contentTracingWindow = this.openChildWindow(null, 'chrome://tracing', {
+				paintWhenInitiallyHidden: false,
+				webPreferences: {
+					backgroundThrottling: false
+				}
+			});
+			contentTracingWindow.webContents.once('did-finish-load', async () => {
+				// Mock window.prompt to support save action from the tracing UI
+				// since Electron by default doesn't provide the api.
+				// See requestFilename_ implementation under
+				// https://source.chromium.org/chromium/chromium/src/+/main:third_party/catapult/tracing/tracing/ui/extras/about_tracing/profiling_view.html;l=334-379
+				await contentTracingWindow.webContents.executeJavaScript(`
+					window.prompt = () => '';
+					null
+				`);
+				contentTracingWindow.show();
+			});
+			contentTracingWindow.once('close', () => this.contentTracingWindowId = undefined);
+			this.contentTracingWindowId = contentTracingWindow.id;
+		}
+
+		if (typeof this.contentTracingWindowId === 'number') {
+			const window = BrowserWindow.fromId(this.contentTracingWindowId);
+			if (window?.isMinimized()) {
+				window?.restore();
 			}
-		});
-		contentTracingWindow.webContents.once('did-finish-load', async () => {
-			// Mock window.prompt to support save action from the tracing UI
-			// since Electron by default doesn't provide the api.
-			// See requestFilename_ implementation under
-			// https://source.chromium.org/chromium/chromium/src/+/main:third_party/catapult/tracing/tracing/ui/extras/about_tracing/profiling_view.html;l=334-379
-			await contentTracingWindow.webContents.executeJavaScript(`
-				window.prompt = () => '';
-				null
-			`);
-			contentTracingWindow.show();
-		});
+			window?.focus();
+		}
 	}
 
 	async stopTracing(windowId: number | undefined): Promise<void> {
