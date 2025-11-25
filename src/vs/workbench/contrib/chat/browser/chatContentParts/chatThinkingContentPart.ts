@@ -41,6 +41,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	public readonly codeblocksPartId: undefined;
 
 	private id: string | undefined;
+	private readonly elementId: string;
+	private cacheKey: string | undefined;
 	private currentThinkingValue: string;
 	private currentTitle: string;
 	private defaultTitle = localize('chat.thinking.header', 'Thinking...');
@@ -58,6 +60,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		content: IChatThinkingPart,
 		context: IChatContentPartRenderContext,
 		private readonly chatContentMarkdownRenderer: IMarkdownRenderer,
+		private readonly generatedTitlesCache: Map<string, string>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
@@ -70,6 +73,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		super(extractedTitle, context);
 
 		this.id = content.id;
+		this.elementId = context.element.id;
 		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
 
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
@@ -287,6 +291,36 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		this.updateDropdownClickability();
+
+		// if exactly one actual extracted title and no tool invocations, use that as the final title.
+		if (this.extractedTitles.length === 1 && this.toolInvocationCount === 0) {
+			const title = this.extractedTitles[0];
+			this.currentTitle = title;
+			if (this._collapseButton) {
+				this._collapseButton.label = title;
+			}
+			return;
+		}
+
+		// cache key based on extracted titles and response id.
+		if (!this.cacheKey) {
+			const fingerprint = this.extractedTitles.length > 0
+				? this.extractedTitles.join(',').substring(0, 100)
+				: this.currentThinkingValue.substring(0, 100);
+			this.cacheKey = `${this.elementId}:${fingerprint}`;
+		}
+
+		if (this.generatedTitlesCache.has(this.cacheKey)) {
+			const cachedTitle = this.generatedTitlesCache.get(this.cacheKey)!;
+			this.currentTitle = cachedTitle;
+			if (this._collapseButton) {
+				this._collapseButton.label = cachedTitle;
+			}
+			return;
+		}
+
+
+
 		this.generateTitleViaLLM();
 	}
 
@@ -338,6 +372,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				this.currentTitle = generatedTitle;
 				if (this._collapseButton) {
 					this._collapseButton.label = generatedTitle;
+				}
+				if (this.cacheKey) {
+					this.generatedTitlesCache.set(this.cacheKey, generatedTitle);
 				}
 				return;
 			}
