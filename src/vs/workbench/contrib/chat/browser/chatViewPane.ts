@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewPane.css';
-import { $, getWindow } from '../../../../base/browser/dom.js';
+import { $, append, getWindow } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
@@ -36,11 +36,15 @@ import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatModelReference, IChatService } from '../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../common/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, LEGACY_AGENT_SESSIONS_VIEW_ID } from '../common/constants.js';
+import { AGENT_SESSIONS_VIEW_ID } from './agentSessions/agentSessions.js';
 import { showCloseActiveChatNotification } from './actions/chatCloseNotification.js';
 import { ChatWidget } from './chatWidget.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { localize } from '../../../../nls.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -64,6 +68,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private sessionsContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
+	private sessionsLinkContainer: HTMLElement | undefined;
 
 	private restoringSession: Promise<void> | undefined;
 
@@ -88,6 +93,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -247,8 +253,23 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private createSessionsControl(parent: HTMLElement): void {
-		this.sessionsContainer = parent.appendChild($('.chat-viewpane-sessions-container'));
+
+		// Sessions Control
+		this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsContainer, undefined));
+
+		// Link to Sessions View
+		this.sessionsLinkContainer = append(this.sessionsContainer, $('.agent-sessions-link-container'));
+		this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, { label: localize('openAgentSessionsView', "Show All Sessions"), href: '', }, {
+			opener: () => {
+				// TODO@bpasero remove this check once settled
+				if (this.configurationService.getValue('chat.agentSessionsViewLocation') === 'single-view') {
+					this.commandService.executeCommand(AGENT_SESSIONS_VIEW_ID);
+				} else {
+					this.commandService.executeCommand(LEGACY_AGENT_SESSIONS_VIEW_ID);
+				}
+			}
+		}));
 
 		this.updateSessionsControlVisibility(false);
 
@@ -373,14 +394,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.lastDimensions = { height, width };
 
-		let widgetHeight = height;
+		let remainingHeight = height;
 
 		// Sessions Control
-		const sessionsControlHeight = this.sessionsContainer?.offsetHeight ?? 0;
-		widgetHeight -= sessionsControlHeight;
-		this.sessionsControl?.layout(sessionsControlHeight, width);
+		const sessionsContainerHeight = this.sessionsContainer?.offsetHeight ?? 0;
+		remainingHeight -= sessionsContainerHeight;
 
-		this._widget.layout(widgetHeight, width);
+		const sessionsLinkHeight = this.sessionsLinkContainer?.offsetHeight ?? 0;
+		this.sessionsControl?.layout(sessionsContainerHeight - sessionsLinkHeight, width);
+
+		// Chat Widget
+		this._widget.layout(remainingHeight, width);
 	}
 
 	override saveState(): void {
