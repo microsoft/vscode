@@ -182,7 +182,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		if (this.location === ActionLocation.Editor) {
 			const view = h('span.action-widget-delegate-label', [
 				h('span', { className: ThemeIcon.asClassName(Codicon.forward) }),
-				h('span', [localize('delegate', "Delegate to...")])
+				h('span', [localize('continueInEllipsis', "Continue in...")])
 			]);
 			element.appendChild(view.root);
 			return null;
