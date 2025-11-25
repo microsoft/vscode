@@ -45,6 +45,7 @@ import { localize } from '../../../../nls.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { Event } from '../../../../base/common/event.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -253,11 +254,23 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private createSessionsControl(parent: HTMLElement): void {
+		const that = this;
 
 		// Sessions Control
 		this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsContainer, {
 			allowOpenSessionsInPanel: true,
+			filter: {
+				onDidChange: Event.None,
+				exclude(session) {
+					const model = that.chatService.getSession(session.resource);
+					if (model && !model.hasRequests) {
+						return true; // exclude sessions without requests
+					}
+
+					return false;
+				},
+			}
 		}));
 
 		// Link to Sessions View
