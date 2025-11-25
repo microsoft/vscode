@@ -129,7 +129,7 @@ export class InlineSuggestionEditKind {
 
 export function computeEditKind(edit: StringEdit, textModel: ITextModel, cursorPosition?: Position): InlineSuggestionEditKind | undefined {
 	if (edit.replacements.length === 0) {
-		// Empty edit - treat as insert with empty text
+		// Empty edit - return undefined as there's no edit to classify
 		return undefined;
 	}
 
