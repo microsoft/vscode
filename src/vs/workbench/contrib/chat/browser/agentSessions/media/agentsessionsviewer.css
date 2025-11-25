@@ -5,6 +5,9 @@
 
 .agent-sessions-viewer {
 
+	flex: 1 1 auto !important;
+	min-height: 0;
+
 	.monaco-list-row .force-no-twistie {
 		display: none !important;
 	}

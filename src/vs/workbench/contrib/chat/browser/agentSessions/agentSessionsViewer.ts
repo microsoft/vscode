@@ -42,6 +42,7 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { Event } from '../../../../../base/common/event.js';
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -316,14 +317,17 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 	}
 }
 
-export interface IAgentSessionsDataFilter {
+export interface IAgentSessionsFilter {
+
+	readonly onDidChange: Event<void>;
+
 	exclude(session: IAgentSession): boolean;
 }
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, IAgentSession> {
 
 	constructor(
-		private readonly filter: IAgentSessionsDataFilter
+		private readonly filter: IAgentSessionsFilter | undefined
 	) { }
 
 	hasChildren(element: IAgentSessionsModel | IAgentSession): boolean {
@@ -335,7 +339,7 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 			return [];
 		}
 
-		return element.sessions.filter(session => !this.filter.exclude(session));
+		return element.sessions.filter(session => !this.filter?.exclude(session));
 	}
 }
 
