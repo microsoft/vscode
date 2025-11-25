@@ -43,10 +43,11 @@ import { INotebookEditorModelResolverService } from '../../../notebook/common/no
 import { INotebookLoggingService } from '../../../notebook/common/notebookLoggingService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../../notebook/common/services/notebookWorkerService.js';
-import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { ChatEditKind, IAttributedRangeDTO, IModifiedEntryTelemetryInfo, IModifiedFileEntryEditorIntegration, INotebookStructureAttributionDTO, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
+import { filterRangesBySession } from './chatEditingAttribution.js';
+import { AbstractChatEditingModifiedFileEntry, getTelemetryInfoForModel } from './chatEditingModifiedFileEntry.js';
 import { createSnapshot, deserializeSnapshot, getNotebookSnapshotFileURI, restoreSnapshot, SnapshotComparer } from './notebook/chatEditingModifiedNotebookSnapshot.js';
 import { ChatEditingNewNotebookContentEdits } from './notebook/chatEditingNewNotebookContentEdits.js';
 import { ChatEditingNotebookCellEntry } from './notebook/chatEditingNotebookCellEntry.js';
@@ -58,6 +59,23 @@ import { countChanges, ICellDiffInfo, sortCellChanges } from './notebook/noteboo
 
 const SnapshotLanguageId = 'VSCodeChatNotebookSnapshotLanguage';
 
+/**
+ * Attribution for notebook structure edits (insert/delete/move cells).
+ * Uses cell internalId for stable identification across serialization.
+ */
+interface INotebookStructureEditAttribution {
+	/** The type of structure edit */
+	readonly editType: 'insert' | 'delete' | 'move';
+	/** The cell's internal ID (stable across serialization) */
+	readonly cellInternalId: string;
+	/** The telemetry info for the agent that made this edit */
+	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
+	/** The request ID that made this edit */
+	readonly requestId: string;
+	/** The undo stop ID */
+	readonly undoStopId: string | undefined;
+}
+
 export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifiedFileEntry {
 	static NewModelCounter: number = 0;
 	private readonly modifiedModel: NotebookTextModel;
@@ -65,9 +83,30 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 	readonly lastModifyingRequestId = ''; // todo
 
+	/**
+	 * Tracks attributions for notebook structure edits (insert/delete/move cells).
+	 */
+	private readonly _structureEditAttributions: INotebookStructureEditAttribution[] = [];
+
+	/**
+	 * Current edit context set by acceptStreamingEditsStart.
+	 */
+	private _currentEditContext: { telemetryInfo: IModifiedEntryTelemetryInfo; requestId: string; undoStopId: string | undefined } | undefined;
+
 	wasModifiedByRequest(requestId: string): boolean {
-		// TODO: Implement proper request tracking for notebooks
-		// For now, notebooks don't track which requests modified them
+		// Check structure edit attributions
+		if (this._structureEditAttributions.some(attr => attr.requestId === requestId)) {
+			return true;
+		}
+
+		// Check cell content attributions from all cell entries
+		for (const cellEntry of this.cellEntryMap.values()) {
+			const attributions = cellEntry.getUniqueAgentAttributions();
+			if (attributions.some(attr => attr.requestId === requestId)) {
+				return true;
+			}
+		}
+
 		return false;
 	}
 
@@ -93,18 +132,50 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 	/**
 	 * A set of all chat sessions that have unresolved edits in this file.
-	 * TODO: For notebooks, implement proper session tracking across cells.
+	 * Aggregates from both cell content attributions and notebook structure attributions.
 	 */
 	get participatingSessions(): IObservable<ResourceSet> {
 		return derivedOpts<ResourceSet>({ equalsFn: setsEqual }, _reader => {
-			// For now, return empty set - notebook attribution is tracked differently
-			return new ResourceSet();
+			const sessions = new ResourceSet();
+
+			// Collect from structure edit attributions
+			for (const attr of this._structureEditAttributions) {
+				if (attr.telemetryInfo.sessionResource) {
+					sessions.add(attr.telemetryInfo.sessionResource);
+				}
+			}
+
+			// Collect from cell content attributions
+			for (const cellEntry of this.cellEntryMap.values()) {
+				const attributions = cellEntry.getUniqueAgentAttributions();
+				for (const attr of attributions) {
+					if (attr.telemetryInfo.sessionResource) {
+						sessions.add(attr.telemetryInfo.sessionResource);
+					}
+				}
+			}
+
+			return sessions;
 		});
 	}
 
 	protected override _getNotifySessionTelemetryInfo(): IModifiedEntryTelemetryInfo[] {
-		// For now, return empty array - notebook attribution is tracked differently
-		return [];
+		const telemetryInfos: IModifiedEntryTelemetryInfo[] = [];
+
+		// Collect from structure edit attributions
+		for (const attr of this._structureEditAttributions) {
+			telemetryInfos.push(attr.telemetryInfo);
+		}
+
+		// Collect from cell content attributions
+		for (const cellEntry of this.cellEntryMap.values()) {
+			const attributions = cellEntry.getUniqueAgentAttributions();
+			for (const attr of attributions) {
+				telemetryInfos.push(attr.telemetryInfo);
+			}
+		}
+
+		return telemetryInfos;
 	}
 
 	private readonly cellEntryMap = new ResourceMap<ChatEditingNotebookCellEntry>();
@@ -500,6 +571,22 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.cellEntryMap.forEach(entry => !entry.isDisposed && entry.clearCurrentEditLineDecoration());
 	}
 
+	public override acceptStreamingEditsStart(responseModel: IChatResponseModel, undoStopId: string | undefined, tx: ITransaction | undefined): void {
+		super.acceptStreamingEditsStart(responseModel, undoStopId, tx);
+		// Set edit context for structure edit attribution tracking
+		this._currentEditContext = {
+			telemetryInfo: getTelemetryInfoForModel(responseModel),
+			requestId: responseModel.requestId,
+			undoStopId,
+		};
+	}
+
+	public override async acceptStreamingEditsEnd(): Promise<void> {
+		await super.acceptStreamingEditsEnd();
+		// Clear edit context
+		this._currentEditContext = undefined;
+	}
+
 	protected override _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement | undefined {
 		const request = response.session.getRequests().find(req => req.id === response.requestId);
 		const label = request?.message.text ? localize('chatNotebookEdit1', "Chat Edit: '{0}'", request.message.text) : localize('chatNotebookEdit2', "Chat Edit");
@@ -660,6 +747,37 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (edit.editType !== CellEditType.Replace) {
 			return;
 		}
+
+		// Track structure edit attributions if we have an edit context
+		if (this._currentEditContext) {
+			const replaceEdit = edit as ICellReplaceEdit;
+			if (replaceEdit.count === 0 && replaceEdit.cells.length > 0) {
+				// Insert operation - track each inserted cell
+				for (let i = 0; i < replaceEdit.cells.length; i++) {
+					const cell = this.modifiedModel.cells[replaceEdit.index + i];
+					const internalId = cell?.internalMetadata.internalId ?? generateCellHash(cell.uri);
+					this._structureEditAttributions.push({
+						editType: 'insert',
+						cellInternalId: internalId,
+						telemetryInfo: this._currentEditContext.telemetryInfo,
+						requestId: this._currentEditContext.requestId,
+						undoStopId: this._currentEditContext.undoStopId,
+					});
+				}
+			} else if (replaceEdit.count > 0 && replaceEdit.cells.length === 0) {
+				// Delete operation - we track deleted cells by their original index
+				// Note: This is trickier since we don't have the internalId after deletion
+				// For now, we'll track delete operations without specific cell IDs
+				this._structureEditAttributions.push({
+					editType: 'delete',
+					cellInternalId: `deleted-at-${replaceEdit.index}`,
+					telemetryInfo: this._currentEditContext.telemetryInfo,
+					requestId: this._currentEditContext.requestId,
+					undoStopId: this._currentEditContext.undoStopId,
+				});
+			}
+		}
+
 		// Ensure cells have internal Ids.
 		edit.cells.forEach((_, i) => {
 			const index = edit.index + i;
@@ -939,6 +1057,30 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	override createSnapshot(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
+		// Collect cell content attributions, filtered by session
+		const notebookCellAttributions: { [cellInternalId: string]: IAttributedRangeDTO[] } = {};
+		for (const [cellUri, cellEntry] of this.cellEntryMap) {
+			const cell = this.modifiedModel.cells.find(c => isEqual(c.uri, cellUri));
+			if (cell?.internalMetadata.internalId) {
+				const allRanges = cellEntry.getAttributedRangesDTO();
+				const sessionRanges = filterRangesBySession(allRanges, chatSessionResource);
+				if (sessionRanges.length > 0) {
+					notebookCellAttributions[cell.internalMetadata.internalId] = sessionRanges;
+				}
+			}
+		}
+
+		// Filter structure attributions by session
+		const notebookStructureAttributions: INotebookStructureAttributionDTO[] = this._structureEditAttributions
+			.filter(attr => attr.telemetryInfo.sessionResource.toString() === chatSessionResource.toString())
+			.map(attr => ({
+				editType: attr.editType,
+				cellInternalId: attr.cellInternalId,
+				telemetryInfo: attr.telemetryInfo,
+				requestId: attr.requestId,
+				undoStopId: attr.undoStopId,
+			}));
+
 		return {
 			resource: this.modifiedURI,
 			languageId: SnapshotLanguageId,
@@ -946,6 +1088,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			original: createSnapshot(this.originalModel, this.transientOptions, this.configurationService),
 			current: createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService),
 			state: this.state.get(),
+			notebookCellAttributions: Object.keys(notebookCellAttributions).length > 0 ? notebookCellAttributions : undefined,
+			notebookStructureAttributions: notebookStructureAttributions.length > 0 ? notebookStructureAttributions : undefined,
 		};
 	}
 
@@ -965,7 +1109,62 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (restoreToDisk) {
 			this.restoreSnapshotInModifiedModel(snapshot.current);
 		}
-		this.initializeModelsFromDiff();
+		await this.initializeModelsFromDiff();
+
+		// Restore attributions after models are set up
+		await this._restoreAttributionsFromSnapshot(snapshot);
+	}
+
+	/**
+	 * Restores attributions from a snapshot, merging with any existing attributions.
+	 */
+	private async _restoreAttributionsFromSnapshot(snapshot: ISnapshotEntry): Promise<void> {
+		// Restore structure edit attributions (merge, don't replace)
+		if (snapshot.notebookStructureAttributions) {
+			for (const attr of snapshot.notebookStructureAttributions) {
+				// Check if we already have this attribution (by cellInternalId and requestId)
+				const exists = this._structureEditAttributions.some(
+					existing => existing.cellInternalId === attr.cellInternalId &&
+						existing.requestId === attr.requestId
+				);
+				if (!exists) {
+					this._structureEditAttributions.push({
+						editType: attr.editType,
+						cellInternalId: attr.cellInternalId,
+						telemetryInfo: attr.telemetryInfo,
+						requestId: attr.requestId,
+						undoStopId: attr.undoStopId,
+					});
+				}
+			}
+		}
+
+		// Restore cell content attributions
+		if (snapshot.notebookCellAttributions) {
+			// Build a map of internalId to cell for quick lookup
+			const cellByInternalId = new Map<string, NotebookCellTextModel>();
+			for (const cell of this.modifiedModel.cells) {
+				if (cell.internalMetadata.internalId) {
+					cellByInternalId.set(cell.internalMetadata.internalId, cell);
+				}
+			}
+
+			for (const [cellInternalId, attributedRanges] of Object.entries(snapshot.notebookCellAttributions)) {
+				const cell = cellByInternalId.get(cellInternalId);
+				if (!cell) {
+					// Cell no longer exists in the notebook - skip
+					continue;
+				}
+
+				const cellEntry = this.cellEntryMap.get(cell.uri);
+				if (cellEntry) {
+					// Merge attributed ranges into the cell entry
+					// Note: We don't handle content change rebasing for notebooks yet
+					// (deferred as mentioned in the plan)
+					cellEntry.mergeAttributedEdits(attributedRanges);
+				}
+			}
+		}
 	}
 
 	override async resetToInitialContent(): Promise<void> {

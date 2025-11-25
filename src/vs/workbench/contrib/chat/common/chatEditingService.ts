@@ -187,6 +187,26 @@ export interface ISnapshotEntry {
 	readonly hunkTelemetry?: readonly IHunkTelemetryInfoDTO[];
 	/** Fine-grained attribution for all edit regions */
 	readonly attributedRanges?: readonly IAttributedRangeDTO[];
+	/**
+	 * For notebooks: attributions for cell content edits, keyed by cell internalId.
+	 * Each entry contains attributed ranges for that cell's text content.
+	 */
+	readonly notebookCellAttributions?: { readonly [cellInternalId: string]: readonly IAttributedRangeDTO[] };
+	/**
+	 * For notebooks: attributions for structure edits (insert/delete/move cells).
+	 */
+	readonly notebookStructureAttributions?: readonly INotebookStructureAttributionDTO[];
+}
+
+/**
+ * Serialized structure edit attribution for notebook snapshots.
+ */
+export interface INotebookStructureAttributionDTO {
+	readonly editType: 'insert' | 'delete' | 'move';
+	readonly cellInternalId: string;
+	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
+	readonly requestId: string;
+	readonly undoStopId: string | undefined;
 }
 
 export interface IChatEditingSession extends IDisposable {

@@ -16,8 +16,9 @@ import { CellEditState } from '../../../../notebook/browser/notebookBrowser.js';
 import { INotebookEditorService } from '../../../../notebook/browser/services/notebookEditorService.js';
 import { NotebookCellTextModel } from '../../../../notebook/common/model/notebookCellTextModel.js';
 import { CellKind } from '../../../../notebook/common/notebookCommon.js';
-import { ModifiedFileEntryState } from '../../../common/chatEditingService.js';
+import { IAttributedRangeDTO, ModifiedFileEntryState } from '../../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../../common/chatModel.js';
+import { AgentAttribution } from '../chatEditingAttribution.js';
 import { ChatEditingTextModelChangeService } from '../chatEditingTextModelChangeService.js';
 
 
@@ -123,5 +124,26 @@ export class ChatEditingNotebookCellEntry extends Disposable {
 
 	public async undo(change: DetailedLineRangeMapping): Promise<boolean> {
 		return this._textModelChangeService.diffInfo.get().undo(change);
+	}
+
+	/**
+	 * Gets all unique agent attributions for this cell's edits.
+	 */
+	public getUniqueAgentAttributions(): AgentAttribution[] {
+		return this._textModelChangeService.getUniqueAgentAttributions();
+	}
+
+	/**
+	 * Gets all attributed ranges as DTOs for serialization.
+	 */
+	public getAttributedRangesDTO(): IAttributedRangeDTO[] {
+		return this._textModelChangeService.getAttributedRangesDTO();
+	}
+
+	/**
+	 * Merges attributed edits from serialized DTOs into the cell's tracking state.
+	 */
+	public mergeAttributedEdits(attributedRanges: readonly IAttributedRangeDTO[]): void {
+		this._textModelChangeService.mergeAttributedEdits(attributedRanges);
 	}
 }
