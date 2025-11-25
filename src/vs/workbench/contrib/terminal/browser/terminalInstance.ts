@@ -1531,9 +1531,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		const trusted = await this._trust();
+		this._logService.debug(`MYLOG TerminalInstance#_createProcess (instanceId: ${this.instanceId}, trusted: ${trusted})`);
 		if (!trusted) {
 			this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
 		} else if (this._cwd && this._userHome && this._cwd !== this._userHome) {
+			this._logService.debug(`MYLOG TerminalInstance#_createProcess This should only happen for empty workspace, cwd: ${this._cwd}, userHome: ${this._userHome}`);
 			// something strange is going on if cwd is not userHome in an empty workspace
 			this._onProcessExit({
 				message: nls.localize('workspaceNotTrustedCreateTerminalCwd', "Cannot launch a terminal process in an untrusted workspace with cwd {0} and userHome {1}", this._cwd, this._userHome)
