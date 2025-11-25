@@ -403,6 +403,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	group: 'inline',
 	order: 2,
 	when: ContextKeyExpr.and(
+		ChatContextKeys.sessionType.isEqualTo(localChatSessionType),
 		ChatContextKeys.isArchivedItem.isEqualTo(true),
 		ChatContextKeys.isActiveSession.isEqualTo(false)
 	)
@@ -415,6 +416,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'navigation',
 	order: 1,
+	when: ChatContextKeys.sessionType.isEqualTo(localChatSessionType),
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
@@ -424,6 +426,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'navigation',
 	order: 2,
+	when: ChatContextKeys.sessionType.isEqualTo(localChatSessionType),
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
