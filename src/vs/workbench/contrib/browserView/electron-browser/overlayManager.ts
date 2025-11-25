@@ -6,7 +6,8 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { getDomNodePagePosition, getActiveWindow } from '../../../../base/browser/dom.js';
+import { getDomNodePagePosition, IDomNodePagePosition } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export const IBrowserOverlayManager = createDecorator<IBrowserOverlayManager>('browserOverlayManager');
 
@@ -24,19 +25,29 @@ export interface IBrowserOverlayManager {
 	isOverlappingWithOverlays(element: HTMLElement): boolean;
 }
 
-interface IRect {
-	left: number;
-	top: number;
-	width: number;
-	height: number;
-}
-
 export class BrowserOverlayManager extends Disposable implements IBrowserOverlayManager {
 	declare readonly _serviceBrand: undefined;
-	private readonly _onDidChangeOverlayState = this._register(new Emitter<void>());
-	readonly onDidChangeOverlayState = this._onDidChangeOverlayState.event;
 
-	private readonly overlaySelectors: string[] = [
+	private readonly _onDidChangeOverlayState = this._register(new Emitter<void>({
+		onWillAddFirstListener: () => {
+			// Start observing the document for structural changes
+			this.observerIsConnected = true;
+			this.structuralObserver.observe(mainWindow.document.body, {
+				childList: true,
+				subtree: true
+			});
+			this.updateTrackedElements();
+		},
+		onDidRemoveLastListener: () => {
+			// Stop observing when no listeners are present
+			this.observerIsConnected = false;
+			this.structuralObserver.disconnect();
+			this.stopTrackingElements();
+		}
+	}));
+	public readonly onDidChangeOverlayState = this._onDidChangeOverlayState.event;
+
+	private readonly overlayClasses: string[] = [
 		'monaco-menu-container',
 		'quick-input-widget',
 		'monaco-hover',
@@ -46,91 +57,87 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	];
 
 	private readonly overlayCollections = new Map<string, HTMLCollectionOf<Element>>();
-	private readonly overlayRectangles = new WeakMap<HTMLElement, IRect>();
-	private readonly elementObservers = new WeakMap<HTMLElement, MutationObserver>();
-	private structuralObserver: MutationObserver | null = null;
+	private overlayRectangles = new WeakMap<HTMLElement, IDomNodePagePosition>();
+	private elementObservers = new WeakMap<HTMLElement, MutationObserver>();
+	private structuralObserver: MutationObserver;
+	private observerIsConnected: boolean = false;
 
 	constructor() {
 		super();
 
-		this.initializeOverlayTracking();
-	}
-
-	private initializeOverlayTracking(): void {
-		const activeWindow = getActiveWindow();
-
 		// Initialize live collections for each overlay selector
-		for (const selector of this.overlaySelectors) {
+		for (const className of this.overlayClasses) {
 			// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
 			// eslint-disable-next-line no-restricted-syntax
-			this.overlayCollections.set(selector, activeWindow.document.getElementsByClassName(selector));
+			this.overlayCollections.set(className, mainWindow.document.getElementsByClassName(className));
 		}
 
 		// Setup structural observer to watch for element additions/removals
 		this.structuralObserver = new MutationObserver((mutations) => {
 			let didRemove = false;
 			for (const mutation of mutations) {
-				if (mutation.type === 'childList') {
-					for (const node of mutation.removedNodes) {
-						if (this.elementObservers.delete(node as HTMLElement)) {
-							didRemove = true;
-						}
-						if (this.overlayRectangles.delete(node as HTMLElement)) {
-							didRemove = true;
-						}
+				for (const node of mutation.removedNodes) {
+					if (this.elementObservers.has(node as HTMLElement)) {
+						const observer = this.elementObservers.get(node as HTMLElement);
+						observer?.disconnect();
+						this.elementObservers.delete(node as HTMLElement);
+						didRemove = true;
+					}
+
+					if (this.overlayRectangles.delete(node as HTMLElement)) {
+						didRemove = true;
 					}
 				}
 			}
 			this.updateTrackedElements(didRemove);
 		});
-
-		// Start observing the document for structural changes
-		this.structuralObserver.observe(activeWindow.document.body, {
-			childList: true,
-			subtree: true
-		});
-
-		// Initial element tracking setup
-		this.updateTrackedElements();
 	}
 
-	private updateTrackedElements(emit = false): void {
-		// Scan all overlay collections for elements and ensure they have observers
+	private *overlays(): Iterable<HTMLElement> {
 		for (const collection of this.overlayCollections.values()) {
 			for (const element of collection) {
-				const htmlElement = element as HTMLElement;
+				yield element as HTMLElement;
+			}
+		}
+	}
 
-				// Create a new observer for this specific element if we don't already have one
-				if (!this.elementObservers.has(htmlElement)) {
-					const observer = new MutationObserver(() => {
-						this.overlayRectangles.delete(htmlElement);
-						this._onDidChangeOverlayState.fire();
-					});
+	private updateTrackedElements(shouldEmit = false): void {
+		// Scan all overlay collections for elements and ensure they have observers
+		for (const overlay of this.overlays()) {
+			// Create a new observer for this specific element if we don't already have one
+			if (!this.elementObservers.has(overlay)) {
+				const observer = new MutationObserver(() => {
+					this.overlayRectangles.delete(overlay);
+					this._onDidChangeOverlayState.fire();
+				});
 
-					// Store the observer in the WeakMap
-					this.elementObservers.set(htmlElement, observer);
+				// Store the observer in the WeakMap
+				this.elementObservers.set(overlay, observer);
 
-					// Start observing this element
-					observer.observe(htmlElement, {
-						attributes: true,
-						attributeFilter: ['style', 'class'],
-						childList: true,
-						subtree: true
-					});
+				// Start observing this element
+				observer.observe(overlay, {
+					attributes: true,
+					attributeFilter: ['style', 'class'],
+					childList: true,
+					subtree: true
+				});
 
-					emit = true;
-				}
+				shouldEmit = true;
 			}
 		}
 
-		if (emit) {
+		if (shouldEmit) {
 			this._onDidChangeOverlayState.fire();
 		}
 	}
 
-	private getRect(element: HTMLElement): IRect {
+	private getRect(element: HTMLElement): IDomNodePagePosition {
 		if (!this.overlayRectangles.has(element)) {
 			const rect = getDomNodePagePosition(element);
+			// If the observer is not connected (no listeners), do not cache rectangles as we won't know when they change.
+			if (!this.observerIsConnected) {
+				return rect;
+			}
 			this.overlayRectangles.set(element, rect);
 		}
 		return this.overlayRectangles.get(element)!;
@@ -140,33 +147,42 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		const elementRect = getDomNodePagePosition(element);
 
 		// Check against all precomputed overlay rectangles
-		for (const collection of this.overlayCollections.values()) {
-			for (const element of collection) {
-				const overlayRect = this.getRect(element as HTMLElement);
-				if (overlayRect && this.isRectanglesOverlapping(elementRect, overlayRect)) {
-					return true;
-				}
+		for (const overlay of this.overlays()) {
+			const overlayRect = this.getRect(overlay);
+			if (overlayRect && this.isRectanglesOverlapping(elementRect, overlayRect)) {
+				return true;
 			}
 		}
 
 		return false;
 	}
 
-	private isRectanglesOverlapping(rect1: IRect, rect2: IRect): boolean {
+	private isRectanglesOverlapping(rect1: IDomNodePagePosition, rect2: IDomNodePagePosition): boolean {
+		// If elements are offscreen or set to zero size, consider them non-overlapping
+		if (rect1.width === 0 || rect1.height === 0 || rect2.width === 0 || rect2.height === 0) {
+			return false;
+		}
+
 		return !(rect1.left + rect1.width <= rect2.left ||
 			rect2.left + rect2.width <= rect1.left ||
 			rect1.top + rect1.height <= rect2.top ||
 			rect2.top + rect2.height <= rect1.top);
 	}
 
-	override dispose(): void {
-		if (this.structuralObserver) {
-			this.structuralObserver.disconnect();
-			this.structuralObserver = null;
+	private stopTrackingElements(): void {
+		for (const overlay of this.overlays()) {
+			const observer = this.elementObservers.get(overlay);
+			observer?.disconnect();
 		}
+		this.overlayRectangles = new WeakMap();
+		this.elementObservers = new WeakMap();
+	}
 
-		// Note: Individual element observers will be cleaned up automatically
-		// when their elements are garbage collected due to WeakMap usage
+	override dispose(): void {
+		this.observerIsConnected = false;
+		this.structuralObserver.disconnect();
+		this.stopTrackingElements();
+
 		super.dispose();
 	}
 }

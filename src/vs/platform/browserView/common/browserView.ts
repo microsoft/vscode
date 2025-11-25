@@ -20,6 +20,8 @@ export interface IBrowserViewState {
 	canGoBack: boolean;
 	canGoForward: boolean;
 	loading: boolean;
+	lastScreenshot: string | undefined;
+	lastFavicon: string | undefined;
 }
 
 export interface IBrowserViewNavigationEvent {

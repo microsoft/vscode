@@ -59,12 +59,11 @@
 	background-image: none;
 	background-size: cover;
 	filter: blur(0px);
-	transition: opacity 500ms ease-out, filter 500ms ease-out;
+	transition: opacity 300ms ease-out, filter 300ms ease-out;
 	opacity: 1.0;
 }
 
-/* Apply blur when view is hidden by overlays */
-.browser-container.overlay-visible {
-	opacity: 0.6;
+.browser-container.view-hidden {
+	opacity: 0.8;
 	filter: blur(2px);
 }

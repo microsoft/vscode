@@ -190,6 +190,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 export class BrowserView extends Disposable {
 	private readonly view: WebContentsView;
 	private readonly faviconRequestCache = new Map<string, Promise<string>>();
+
+	private _lastScreenshot: string | undefined = undefined;
+	private _lastFavicon: string | undefined = undefined;
+
 	private _window: IBaseWindow | undefined;
 	private _isSendingKeyEvent = false;
 
@@ -248,7 +252,8 @@ export class BrowserView extends Disposable {
 			const found = favicons.find(f => this.faviconRequestCache.get(f));
 			if (found) {
 				// already have a cached request for this favicon, use it
-				this._onDidChangeFavicon.fire({ favicon: await this.faviconRequestCache.get(found)! });
+				this._lastFavicon = await this.faviconRequestCache.get(found)!;
+				this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
 				return;
 			}
 
@@ -267,7 +272,8 @@ export class BrowserView extends Disposable {
 				this.faviconRequestCache.set(url, request);
 
 				try {
-					this._onDidChangeFavicon.fire({ favicon: await request });
+					this._lastFavicon = await request;
+					this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
 					// On success, leave the promise in the cache and stop looping
 					return;
 				} catch (e) {
@@ -341,7 +347,9 @@ export class BrowserView extends Disposable {
 			title: webContents.getTitle(),
 			canGoBack: webContents.navigationHistory.canGoBack(),
 			canGoForward: webContents.navigationHistory.canGoForward(),
-			loading: webContents.isLoading()
+			loading: webContents.isLoading(),
+			lastScreenshot: this._lastScreenshot,
+			lastFavicon: this._lastFavicon
 		};
 	}
 
@@ -441,7 +449,8 @@ export class BrowserView extends Disposable {
 			stayAwake: true
 		});
 		const buffer = image.toJPEG(quality);
-		return `data:image/jpeg;base64,${buffer.toString('base64')}`;
+		this._lastScreenshot = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+		return this._lastScreenshot;
 	}
 
 	/**

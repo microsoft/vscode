@@ -24,7 +24,6 @@ import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IBrowserOverlayManager } from './overlayManager.js';
-import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { getZoomFactor, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -38,6 +37,7 @@ export class BrowserEditor extends EditorPane {
 	private urlInput!: HTMLInputElement;
 	private browserContainer!: HTMLElement;
 	private overlayVisible = false;
+	private editorVisible = false;
 
 	private actionBar!: ActionBar;
 	private backAction!: Action;
@@ -54,7 +54,6 @@ export class BrowserEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IBrowserOverlayManager private readonly overlayManager: IBrowserOverlayManager,
 		@ILogService private readonly logService: ILogService,
@@ -70,35 +69,6 @@ export class BrowserEditor extends EditorPane {
 				{ position: { hoverPosition: HoverPosition.ABOVE } }
 			)
 		);
-
-		this._register(this.overlayManager.onDidChangeOverlayState(() => {
-			if (!this.model) {
-				return;
-			}
-
-			// Check if any overlay is overlapping with our browser container
-			const hasOverlappingOverlay = this.overlayManager.isOverlappingWithOverlays(this.browserContainer);
-			if (hasOverlappingOverlay !== this.overlayVisible) {
-				this.overlayVisible = hasOverlappingOverlay;
-
-				this.browserContainer.classList.toggle('overlay-visible', hasOverlappingOverlay);
-				void this.model.setVisible(!hasOverlappingOverlay);
-			}
-		}));
-
-		// Capture screenshot periodically (once per second) to keep background updated
-		this._register(disposableWindowInterval(
-			this.window,
-			() => this.capturePlaceholderSnapshot(),
-			1000
-		));
-
-		// Listen for zoom level changes and update browser view zoom factor
-		this._register(onDidChangeZoomLevel(targetWindowId => {
-			if (targetWindowId === this.window.vscodeWindowId) {
-				this.layout();
-			}
-		}));
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -181,14 +151,6 @@ export class BrowserEditor extends EditorPane {
 				}
 			}
 		}));
-
-		this._register(this.lifecycleService.onWillShutdown(() => {
-			// Ensure browser view is destroyed on shutdown
-			if (this.model) {
-				this.model.dispose();
-			}
-			this.dispose();
-		}));
 	}
 
 	override async setInput(input: BrowserEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -208,12 +170,13 @@ export class BrowserEditor extends EditorPane {
 		// Clean up on input disposal
 		input.onWillDispose(() => {
 			this.model = undefined;
-		});
+		}, null, this.inputDisposables);
 
 		// Initialize UI state from model
 		this.backAction.enabled = this.model.canGoBack;
 		this.forwardAction.enabled = this.model.canGoForward;
 		this.urlInput.value = this.model.url;
+		this.browserContainer.style.backgroundImage = this.model.screenshot ? `url('${this.model.screenshot}')` : '';
 
 		if (context.newInGroup) {
 			this.urlInput.select();
@@ -221,33 +184,71 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		// Listen to model events for UI updates
-		this.inputDisposables.add(this.model.onDidKeyCommand(keyEvent => {
+		this.model.onDidKeyCommand(keyEvent => {
 			// Handle like webview does - convert to webview KeyEvent format
 			this.handleKeyEventFromBrowserView(keyEvent);
-		}));
+		}, null, this.inputDisposables);
 
-		this.inputDisposables.add(this.model.onDidNavigate((navEvent: IBrowserViewNavigationEvent) => {
+		this.model.onDidNavigate((navEvent: IBrowserViewNavigationEvent) => {
 			this.group.pinEditor(this.input); // pin editor on navigation
 
 			// Update UI state from model
 			this.backAction.enabled = navEvent.canGoBack;
 			this.forwardAction.enabled = navEvent.canGoForward;
 			this.urlInput.value = navEvent.url;
-		}));
+		}, null, this.inputDisposables);
 
-		this.inputDisposables.add(this.model.onDidChangeFocus(({ focused }) => {
+		this.model.onDidChangeFocus(({ focused }) => {
 			// When the view gets focused, make sure the container also has focus.
 			if (focused) {
 				this.browserContainer.focus();
 			}
-		}));
+		}, null, this.inputDisposables);
+
+		this.overlayManager.onDidChangeOverlayState(() => {
+			this.checkOverlays();
+		}, null, this.inputDisposables);
+
+		// Listen for zoom level changes and update browser view zoom factor
+		onDidChangeZoomLevel(targetWindowId => {
+			if (targetWindowId === this.window.vscodeWindowId) {
+				this.layout();
+			}
+		}, null, this.inputDisposables);
+
+		// Capture screenshot periodically (once per second) to keep background updated
+		this.inputDisposables.add(disposableWindowInterval(
+			this.window,
+			() => this.capturePlaceholderSnapshot(),
+			1000
+		));
 
 		this.layout();
-		await this.model.setVisible(true);
+		await this.model.setVisible(this.shouldShowView);
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
-		void this.model?.setVisible(visible);
+		this.editorVisible = visible;
+		this.updateVisibility();
+	}
+
+	private updateVisibility(): void {
+		if (this.model) {
+			this.browserContainer.classList.toggle('view-hidden', !this.shouldShowView);
+			void this.model.setVisible(this.shouldShowView);
+		}
+	}
+
+	private checkOverlays(): void {
+		const hasOverlappingOverlay = this.overlayManager.isOverlappingWithOverlays(this.browserContainer);
+		if (hasOverlappingOverlay !== this.overlayVisible) {
+			this.overlayVisible = hasOverlappingOverlay;
+			this.updateVisibility();
+		}
+	}
+
+	private get shouldShowView(): boolean {
+		return this.editorVisible && !this.overlayVisible;
 	}
 
 	private async navigateToUrl(url: string): Promise<void> {
@@ -317,6 +318,8 @@ export class BrowserEditor extends EditorPane {
 
 	override layout(): void {
 		if (this.model) {
+			this.checkOverlays();
+
 			const containerRect = this.browserContainer.getBoundingClientRect();
 			void this.model.layout({
 				windowId: this.group.windowId,
@@ -326,19 +329,6 @@ export class BrowserEditor extends EditorPane {
 				height: containerRect.height,
 				zoomFactor: getZoomFactor(this.window)
 			});
-
-			// After layout, check for overlay overlaps again
-			const hasOverlappingOverlay = this.overlayManager.isOverlappingWithOverlays(this.browserContainer);
-			if (hasOverlappingOverlay !== this.overlayVisible) {
-				this.overlayVisible = hasOverlappingOverlay;
-
-				if (hasOverlappingOverlay) {
-					this.capturePlaceholderSnapshot();
-				}
-
-				this.browserContainer.classList.toggle('overlay-visible', hasOverlappingOverlay);
-				void this.model.setVisible(!hasOverlappingOverlay);
-			}
 		}
 	}
 

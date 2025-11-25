@@ -58,6 +58,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly url: string;
 	readonly title: string;
 	readonly favicon: string | undefined;
+	readonly screenshot: string | undefined;
 	readonly loading: boolean;
 	readonly canGoBack: boolean;
 	readonly canGoForward: boolean;
@@ -86,6 +87,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _url: string = '';
 	private _title: string = '';
 	private _favicon: string | undefined = undefined;
+	private _screenshot: string | undefined = undefined;
 	private _loading: boolean = false;
 	private _canGoBack: boolean = false;
 	private _canGoForward: boolean = false;
@@ -106,6 +108,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get loading(): boolean { return this._loading; }
 	get canGoBack(): boolean { return this._canGoBack; }
 	get canGoForward(): boolean { return this._canGoForward; }
+	get screenshot(): string | undefined { return this._screenshot; }
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
 		return this.browserViewService.onDynamicDidNavigate(this.id);
@@ -141,11 +144,14 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	async initialize(): Promise<void> {
 		const workspaceId = this.workspaceContextService.getWorkspace().id;
 		const state = await this.browserViewService.getOrCreateBrowserView(this.id, workspaceId);
+
 		this._url = state.url;
 		this._title = state.title;
 		this._loading = state.loading;
 		this._canGoBack = state.canGoBack;
 		this._canGoForward = state.canGoForward;
+		this._screenshot = state.lastScreenshot;
+		this._favicon = state.lastFavicon;
 
 		// Set up state synchronization
 		this._register(this.onDidNavigate(e => {
@@ -192,7 +198,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async captureScreenshot(quality?: number): Promise<string> {
-		return this.browserViewService.captureScreenshot(this.id, quality);
+		const result = await this.browserViewService.captureScreenshot(this.id, quality);
+		this._screenshot = result;
+		return result;
 	}
 
 	async dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void> {

@@ -15,6 +15,7 @@ import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IBrowserViewWorkbenchService, IBrowserViewModel } from '../../../services/browserView/common/browserView.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -30,6 +31,7 @@ export interface IBrowserEditorInputData {
 	readonly url?: string;
 	readonly title?: string;
 	readonly favicon?: string;
+	readonly screenshot?: string;
 }
 
 export class BrowserEditorInput extends EditorInput {
@@ -43,11 +45,24 @@ export class BrowserEditorInput extends EditorInput {
 	constructor(
 		options: IBrowserEditorInputData,
 		@IThemeService private readonly themeService: IThemeService,
-		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService
+		@IBrowserViewWorkbenchService private readonly browserViewWorkbenchService: IBrowserViewWorkbenchService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super();
 		this._id = options.id;
 		this._initialData = options;
+
+		this._register(this.lifecycleService.onWillShutdown((e) => {
+			if (this._model) {
+				// For reloads, we simply hide / re-show the view.
+				if (e.reason === ShutdownReason.RELOAD) {
+					this._model.setVisible(false);
+				} else {
+					this._model.dispose();
+					this._model = undefined;
+				}
+			}
+		}));
 	}
 
 	override async resolve(): Promise<IBrowserViewModel> {
@@ -176,7 +191,8 @@ export class BrowserEditorInput extends EditorInput {
 			id: this._id,
 			url: this._model ? this._model.url : this._initialData.url,
 			title: this._model ? this._model.title : this._initialData.title,
-			favicon: this._model ? this._model.favicon : this._initialData.favicon
+			favicon: this._model ? this._model.favicon : this._initialData.favicon,
+			screenshot: this._model ? this._model.screenshot : this._initialData.screenshot
 		};
 	}
 }
