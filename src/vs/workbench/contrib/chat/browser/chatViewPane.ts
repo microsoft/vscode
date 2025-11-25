@@ -88,17 +88,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.titleController = this._register(new ChatViewTitleController(
 			options.id,
 			{
-				getCurrentModel: () => this._widget?.viewModel?.model,
-				updatePrimaryTitle: title => this.updateTitle(title),
-				requestLayout: () => {
-					if (this._lastLayout) {
-						this.layoutBody(this._lastLayout.height, this._lastLayout.width);
-					}
-				}
+				updatePrimaryTitle: title => this.updateTitle(title)
 			},
 			configurationService,
 			viewDescriptorService,
 		));
+		this._register(this.titleController.onDidChangeHeight(() => {
+			if (this._lastLayout) {
+				this.layoutBody(this._lastLayout.height, this._lastLayout.width);
+			}
+		}));
 
 		if (this.chatOptions.location === ChatAgentLocation.Chat && !this.viewState.hasMigratedCurrentSession) {
 			const editsMemento = new Memento<IViewPaneState>('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);

@@ -6,6 +6,7 @@
 import './chatViewTitle.css';
 
 import { h, append } from '../../../../base/browser/dom.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -14,16 +15,18 @@ import { ActivityBarPosition, LayoutSettings } from '../../../services/layout/br
 import { IChatModel } from '../common/chatModel.js';
 
 export interface IChatViewTitleDelegate {
-	getCurrentModel(): IChatModel | undefined;
 	updatePrimaryTitle(title: string): void;
-	requestLayout(): void;
 }
 
 export class ChatViewTitleController extends Disposable {
 	private readonly viewContainerModel: IViewContainerModel | undefined;
 	private currentPrimaryTitle: string;
+	private currentModel: IChatModel | undefined;
 	private _secondaryTitleContainer: HTMLElement | undefined;
 	private _secondaryTitle: HTMLElement | undefined;
+	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
+	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
+	private lastKnownHeight = 0;
 
 	constructor(
 		private readonly viewId: string,
@@ -35,14 +38,14 @@ export class ChatViewTitleController extends Disposable {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(this.viewId);
 		if (viewContainer) {
 			this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-			this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(() => this.update()));
-			this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(() => this.update()));
+			this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(() => this.applyUpdate()));
+			this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(() => this.applyUpdate()));
 		}
 		this.currentPrimaryTitle = localize('chat', "Chat");
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) ||
 				e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
-				this.update();
+				this.applyUpdate();
 			}
 		}));
 	}
@@ -60,8 +63,13 @@ export class ChatViewTitleController extends Disposable {
 		append(parent, this._secondaryTitleContainer);
 	}
 
-	update(model?: IChatModel): void {
-		model = model ?? this.delegate.getCurrentModel();
+	update(model: IChatModel | undefined): void {
+		this.currentModel = model;
+		this.applyUpdate();
+	}
+
+	private applyUpdate(): void {
+		const model = this.currentModel;
 		const hasCustomTitle = !!(model && model.hasCustomTitle);
 		const customTitle = hasCustomTitle ? model!.title : undefined;
 		const prefixedCustomTitle = customTitle ? this.withChatPrefix(customTitle) : undefined;
@@ -114,7 +122,11 @@ export class ChatViewTitleController extends Disposable {
 			this._secondaryTitle.textContent = title;
 			this._secondaryTitleContainer.style.display = 'flex';
 		}
-		this.delegate.requestLayout();
+		const currentHeight = this.getSecondaryTitleHeight();
+		if (currentHeight !== this.lastKnownHeight) {
+			this.lastKnownHeight = currentHeight;
+			this._onDidChangeHeight.fire();
+		}
 	}
 
 	private shouldOmitChatPrefix(): boolean {
