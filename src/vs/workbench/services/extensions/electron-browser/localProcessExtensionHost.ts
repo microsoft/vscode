@@ -164,6 +164,7 @@ export class NativeLocalProcessExtensionHost extends Disposable implements IExte
 		}
 		this._terminating = true;
 		super.dispose();
+		this._messageProtocol = null;
 	}
 
 	public start(): Promise<IMessagePassingProtocol> {
