@@ -2099,7 +2099,8 @@ export class ChatModel extends Disposable implements IChatModel {
 									kind: 'thinking',
 									value: item.value,
 									id: item.id,
-									metadata: item.metadata
+									metadata: item.metadata,
+									generatedTitle: item.generatedTitle
 								};
 							} else if (item.kind === 'confirmation') {
 								return { ...item, isLive: false };
