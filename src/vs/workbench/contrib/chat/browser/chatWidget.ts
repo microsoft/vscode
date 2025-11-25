@@ -210,6 +210,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _onDidChangeContentHeight = new Emitter<void>();
 	readonly onDidChangeContentHeight: Event<void> = this._onDidChangeContentHeight.event;
 
+	private _onDidChangeEmptyState = this._register(new Emitter<void>());
+	readonly onDidChangeEmptyState = this._onDidChangeEmptyState.event;
+
 	contribs: ReadonlyArray<IChatWidgetContrib> = [];
 
 	private listContainer!: HTMLElement;
@@ -849,7 +852,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	/**
 	 * Updates the DOM visibility of welcome view and chat list immediately
-	 * @internal
 	 */
 	private updateChatViewVisibility(): void {
 		if (!this.viewModel) {
@@ -859,6 +861,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const numItems = this.viewModel.getItems().length;
 		dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
 		dom.setVisibility(numItems !== 0, this.listContainer);
+
+		this._onDidChangeEmptyState.fire();
+	}
+
+	isEmpty(): boolean {
+		return (this.viewModel?.getItems().length ?? 0) === 0;
 	}
 
 	/**
@@ -866,7 +874,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 *
 	 * Note: Do not call this method directly. Instead, use `this._welcomeRenderScheduler.schedule()`
 	 * to ensure proper debouncing and avoid potential cyclic calls
-	 * @internal
 	 */
 	private renderWelcomeViewContentIfNeeded() {
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal' || this.lifecycleService.willShutdown) {
@@ -2293,7 +2300,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listContainer.style.removeProperty('--chat-current-response-min-height');
 		} else {
 			this.listContainer.style.setProperty('--chat-current-response-min-height', contentHeight * .75 + 'px');
-			if (heightUpdated && lastItem && this.visible) {
+			if (heightUpdated && lastItem && this.visible && this.tree.hasElement(lastItem)) {
 				this.tree.updateElementHeight(lastItem, undefined);
 			}
 		}
