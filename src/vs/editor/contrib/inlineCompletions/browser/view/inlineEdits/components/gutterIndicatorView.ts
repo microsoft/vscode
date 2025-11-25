@@ -29,7 +29,7 @@ import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicat
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
 import { assertNever } from '../../../../../../../base/common/assert.js';
-import { Command, InlineCompletionCommand } from '../../../../../../common/languages.js';
+import { Command, InlineCompletionCommand, IInlineCompletionModelInfo } from '../../../../../../common/languages.js';
 import { InlineSuggestionItem } from '../../../model/inlineSuggestionItem.js';
 import { localize } from '../../../../../../../nls.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
@@ -48,6 +48,8 @@ export class InlineSuggestionGutterMenuData {
 			suggestion.action,
 			suggestion.source.provider.displayName ?? localize('inlineSuggestion', "Inline Suggestion"),
 			suggestion.source.inlineSuggestions.commands ?? [],
+			suggestion.source.provider.modelInfo,
+			suggestion.source.provider.setModelId?.bind(suggestion.source.provider),
 		);
 	}
 
@@ -55,6 +57,8 @@ export class InlineSuggestionGutterMenuData {
 		readonly action: Command | undefined,
 		readonly displayName: string,
 		readonly extensionCommands: InlineCompletionCommand[],
+		readonly modelInfo: IInlineCompletionModelInfo | undefined,
+		readonly setModelId: ((modelId: string) => Promise<void>) | undefined,
 	) { }
 }
 

@@ -7,12 +7,12 @@ import * as fs from 'fs';
 import path from 'path';
 import * as os from 'os';
 import * as child_process from 'child_process';
-import { dirs } from './dirs.js';
+import { dirs } from './dirs.ts';
 
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const root = path.dirname(path.dirname(import.meta.dirname));
 
-function log(dir, message) {
+function log(dir: string, message: string) {
 	if (process.stdout.isTTY) {
 		console.log(`\x1b[34m[${dir}]\x1b[0m`, message);
 	} else {
@@ -20,8 +20,8 @@ function log(dir, message) {
 	}
 }
 
-function run(command, args, opts) {
-	log(opts.cwd || '.', '$ ' + command + ' ' + args.join(' '));
+function run(command: string, args: string[], opts: child_process.SpawnSyncOptions) {
+	log(opts.cwd as string || '.', '$ ' + command + ' ' + args.join(' '));
 
 	const result = child_process.spawnSync(command, args, opts);
 
@@ -34,11 +34,7 @@ function run(command, args, opts) {
 	}
 }
 
-/**
- * @param {string} dir
- * @param {*} [opts]
- */
-function npmInstall(dir, opts) {
+function npmInstall(dir: string, opts?: child_process.SpawnSyncOptions) {
 	opts = {
 		env: { ...process.env },
 		...(opts ?? {}),
@@ -75,7 +71,7 @@ function npmInstall(dir, opts) {
 	removeParcelWatcherPrebuild(dir);
 }
 
-function setNpmrcConfig(dir, env) {
+function setNpmrcConfig(dir: string, env: NodeJS.ProcessEnv) {
 	const npmrcPath = path.join(root, dir, '.npmrc');
 	const lines = fs.readFileSync(npmrcPath, 'utf8').split('\n');
 
@@ -113,7 +109,7 @@ function setNpmrcConfig(dir, env) {
 	}
 }
 
-function removeParcelWatcherPrebuild(dir) {
+function removeParcelWatcherPrebuild(dir: string) {
 	const parcelModuleFolder = path.join(root, dir, 'node_modules', '@parcel');
 	if (!fs.existsSync(parcelModuleFolder)) {
 		return;
@@ -129,27 +125,27 @@ function removeParcelWatcherPrebuild(dir) {
 	}
 }
 
-for (let dir of dirs) {
+for (const dir of dirs) {
 
 	if (dir === '') {
 		removeParcelWatcherPrebuild(dir);
 		continue; // already executed in root
 	}
 
-	let opts;
+	let opts: child_process.SpawnSyncOptions | undefined;
 
 	if (dir === 'build') {
 		opts = {
 			env: {
 				...process.env
 			},
-		}
-		if (process.env['CC']) { opts.env['CC'] = 'gcc'; }
-		if (process.env['CXX']) { opts.env['CXX'] = 'g++'; }
-		if (process.env['CXXFLAGS']) { opts.env['CXXFLAGS'] = ''; }
-		if (process.env['LDFLAGS']) { opts.env['LDFLAGS'] = ''; }
+		};
+		if (process.env['CC']) { opts.env!['CC'] = 'gcc'; }
+		if (process.env['CXX']) { opts.env!['CXX'] = 'g++'; }
+		if (process.env['CXXFLAGS']) { opts.env!['CXXFLAGS'] = ''; }
+		if (process.env['LDFLAGS']) { opts.env!['LDFLAGS'] = ''; }
 
-		setNpmrcConfig('build', opts.env);
+		setNpmrcConfig('build', opts.env!);
 		npmInstall('build', opts);
 		continue;
 	}
@@ -160,25 +156,25 @@ for (let dir of dirs) {
 			env: {
 				...process.env
 			},
-		}
+		};
 		if (process.env['VSCODE_REMOTE_CC']) {
-			opts.env['CC'] = process.env['VSCODE_REMOTE_CC'];
+			opts.env!['CC'] = process.env['VSCODE_REMOTE_CC'];
 		} else {
-			delete opts.env['CC'];
+			delete opts.env!['CC'];
 		}
 		if (process.env['VSCODE_REMOTE_CXX']) {
-			opts.env['CXX'] = process.env['VSCODE_REMOTE_CXX'];
+			opts.env!['CXX'] = process.env['VSCODE_REMOTE_CXX'];
 		} else {
-			delete opts.env['CXX'];
+			delete opts.env!['CXX'];
 		}
-		if (process.env['CXXFLAGS']) { delete opts.env['CXXFLAGS']; }
-		if (process.env['CFLAGS']) { delete opts.env['CFLAGS']; }
-		if (process.env['LDFLAGS']) { delete opts.env['LDFLAGS']; }
-		if (process.env['VSCODE_REMOTE_CXXFLAGS']) { opts.env['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
-		if (process.env['VSCODE_REMOTE_LDFLAGS']) { opts.env['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
-		if (process.env['VSCODE_REMOTE_NODE_GYP']) { opts.env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
+		if (process.env['CXXFLAGS']) { delete opts.env!['CXXFLAGS']; }
+		if (process.env['CFLAGS']) { delete opts.env!['CFLAGS']; }
+		if (process.env['LDFLAGS']) { delete opts.env!['LDFLAGS']; }
+		if (process.env['VSCODE_REMOTE_CXXFLAGS']) { opts.env!['CXXFLAGS'] = process.env['VSCODE_REMOTE_CXXFLAGS']; }
+		if (process.env['VSCODE_REMOTE_LDFLAGS']) { opts.env!['LDFLAGS'] = process.env['VSCODE_REMOTE_LDFLAGS']; }
+		if (process.env['VSCODE_REMOTE_NODE_GYP']) { opts.env!['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
-		setNpmrcConfig('remote', opts.env);
+		setNpmrcConfig('remote', opts.env!);
 		npmInstall(dir, opts);
 		continue;
 	}

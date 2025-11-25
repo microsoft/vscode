@@ -762,6 +762,16 @@ export interface InlineCompletionContext {
 	readonly earliestShownDateTime: number;
 }
 
+export interface IInlineCompletionModelInfo {
+	models: IInlineCompletionModel[];
+	currentModelId: string;
+}
+
+export interface IInlineCompletionModel {
+	name: string;
+	id: string;
+}
+
 export class SelectedSuggestionInfo {
 	constructor(
 		public readonly range: IRange,
@@ -939,6 +949,10 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	displayName?: string;
 
 	debounceDelayMs?: number;
+
+	modelInfo?: IInlineCompletionModelInfo;
+	onDidModelInfoChange?: Event<void>;
+	setModelId?(modelId: string): Promise<void>;
 
 	toString?(): string;
 }

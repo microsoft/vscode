@@ -1167,6 +1167,8 @@ export interface IChatModel extends IDisposable {
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void;
 	/** Input model for managing input state */
 	readonly inputModel: IInputModel;
+	readonly hasRequests: boolean;
+	readonly lastRequest: IChatRequestModel | undefined;
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
 
@@ -2092,13 +2094,6 @@ export class ChatModel extends Disposable implements IChatModel {
 								return item.treeData;
 							} else if (item.kind === 'markdownContent') {
 								return item.content;
-							} else if (item.kind === 'thinking') {
-								return {
-									kind: 'thinking',
-									value: item.value,
-									id: item.id,
-									metadata: item.metadata
-								};
 							} else if (item.kind === 'confirmation') {
 								return { ...item, isLive: false };
 							} else {
