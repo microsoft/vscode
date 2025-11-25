@@ -142,6 +142,20 @@ suite('Editor Model - Model', () => {
 		]);
 	});
 
+	// FIX and this will fix the rendering in the editor
+	test('getAnnotationsIntersecting 5', () => {
+		const annotatedString = new AnnotatedString<string>([
+			createAnnotation(0, 9),
+			createAnnotation(10, 13),
+			createAnnotation(14, 16),
+		]);
+		assert.deepStrictEqual(annotatedString.getAnnotationsIntersecting(new OffsetRange(1, 16)), [
+			createAnnotation(0, 9),
+			createAnnotation(10, 13),
+			createAnnotation(14, 16),
+		]);
+	});
+
 	test('applyEdit 1 - deletion within annotation', () => {
 		const annotatedString = new AnnotatedString<string>([
 			createAnnotation(0, 5),

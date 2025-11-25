@@ -151,15 +151,25 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 				tokenBuilder.add(lineToTokenize.lineNumber, r.tokens);
 
 				this._ensureLineStarts();
-				for (const fontInfo of r.fontInfo) {
+				if (r.fontInfo.length) {
+					for (const fontInfo of r.fontInfo) {
+						const offsetAtLineStart = lineToTokenize.lineNumber - 1 > 0 ? this._lineStarts!.getPrefixSum(lineToTokenize.lineNumber - 2) : 0;
+						fontTokensUpdate.push({
+							range: new OffsetRange(offsetAtLineStart + fontInfo.startIndex, offsetAtLineStart + fontInfo.endIndex),
+							annotation: {
+								fontFamily: fontInfo.fontFamily ?? undefined,
+								fontSize: fontInfo.fontSize ?? undefined,
+								lineHeight: fontInfo.lineHeight ?? undefined
+							}
+						});
+					}
+				} else {
 					const offsetAtLineStart = lineToTokenize.lineNumber - 1 > 0 ? this._lineStarts!.getPrefixSum(lineToTokenize.lineNumber - 2) : 0;
+					const prefixSum = this._lineStarts!.getPrefixSum(lineToTokenize.lineNumber - 1);
+					const offsetAtLineEnd = prefixSum > 0 ? prefixSum - 1 : 0;
 					fontTokensUpdate.push({
-						range: new OffsetRange(offsetAtLineStart + fontInfo.startIndex, offsetAtLineStart + fontInfo.endIndex),
-						annotation: {
-							fontFamily: fontInfo.fontFamily ?? undefined,
-							fontSize: fontInfo.fontSize ?? undefined,
-							lineHeight: fontInfo.lineHeight ?? undefined
-						}
+						range: new OffsetRange(offsetAtLineStart, offsetAtLineEnd),
+						annotation: undefined
 					});
 				}
 

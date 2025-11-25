@@ -107,6 +107,7 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 			(a, range) => ({ range, annotation: a.annotation }),
 			edit
 		);
+		this._annotations = this._annotations.filter(a => !a.range.isEmpty);
 	}
 
 	public clone(): IAnnotatedString<T> {
