@@ -1319,16 +1319,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const shouldKeepThinkingForCreateTool = collapsedToolsMode !== CollapsedToolsDisplayMode.Off && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
 
 			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+			const isResponseElement = isResponseVM(context.element);
+			const isThinkingContent = content.kind === 'working' || content.kind === 'thinking';
+			const isToolStreamingContent = isResponseElement && this.shouldPinPart(content, isResponseElement ? context.element : undefined);
 			if (!shouldKeepThinkingForCreateTool && lastThinking && lastThinking.getIsActive()) {
-				const isResponseElement = isResponseVM(context.element);
-				const isThinkingContent = content.kind === 'working' || content.kind === 'thinking';
-				const isToolStreamingContent = isResponseElement && this.shouldPinPart(content, isResponseElement ? context.element : undefined);
-
 				if (!isThinkingContent && !isToolStreamingContent) {
 					const followsThinkingPart = previousContent?.kind === 'thinking' || previousContent?.kind === 'toolInvocation' || previousContent?.kind === 'prepareToolInvocation' || previousContent?.kind === 'toolInvocationSerialized';
 
 					if (content.kind !== 'textEditGroup' && (context.element.isComplete || followsThinkingPart)) {
 						this.finalizeCurrentThinkingPart(context, templateData);
+					}
+				}
+			}
+
+			// sometimes content is rendered out of order on re-renders so instead of looking at the current chat content part's
+			// context and templateData, we have to look globally to find the active thinking part.
+			if (context.element.isComplete && !isThinkingContent && !this.shouldPinPart(content, isResponseElement ? context.element : undefined)) {
+				for (const templateData of this.templateDataByRequestId.values()) {
+					if (templateData.renderedParts) {
+						const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+						if (lastThinking?.getIsActive()) {
+							this.finalizeCurrentThinkingPart(context, templateData);
+						}
 					}
 				}
 			}
