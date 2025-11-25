@@ -295,14 +295,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private createTitleControl(parent: HTMLElement): void {
-		this.titleControl = this._register(new ChatViewTitleControl(
+		this.titleControl = this._register(this.instantiationService.createInstance(ChatViewTitleControl,
 			this.id,
 			{
 				updatePrimaryTitle: title => this.updateTitle(title)
 			},
-			this.configurationService,
-			this.viewDescriptorService,
 		));
+
 		this._register(this.titleControl.onDidChangeHeight(() => {
 			if (this.lastDimensions) {
 				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
@@ -415,7 +414,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsControl?.layout(sessionsControlHeight, width);
 
 		// Title Control
-		widgetHeight -= this.titleControl?.getSecondaryTitleHeight() ?? 0;
+		widgetHeight -= this.titleControl?.getHeight() ?? 0;
 
 		this._widget.layout(widgetHeight, width);
 	}

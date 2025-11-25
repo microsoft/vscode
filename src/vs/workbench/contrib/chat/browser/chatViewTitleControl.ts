@@ -18,13 +18,17 @@ export interface IChatViewTitleDelegate {
 }
 
 export class ChatViewTitleControl extends Disposable {
+
 	private readonly viewContainerModel: IViewContainerModel | undefined;
-	private currentPrimaryTitle: string;
-	private currentModel: IChatModel | undefined;
-	private _secondaryTitleContainer: HTMLElement | undefined;
-	private _secondaryTitle: HTMLElement | undefined;
+
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
+
+	private currentPrimaryTitle: string;
+	private currentModel: IChatModel | undefined;
+	private secondaryTitleContainer: HTMLElement | undefined;
+	private secondaryTitle: HTMLElement | undefined;
+
 	private lastKnownHeight = 0;
 
 	constructor(
@@ -34,6 +38,7 @@ export class ChatViewTitleControl extends Disposable {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
+
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(this.viewId);
 		if (viewContainer) {
 			this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
@@ -50,20 +55,22 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	render(parent: HTMLElement): void {
-		if (this._secondaryTitleContainer) {
+		if (this.secondaryTitleContainer) {
 			return;
 		}
 
 		const elements = h('div.chat-view-secondary-title-container', [
 			h('span.chat-view-secondary-title-text@text')
 		]);
-		this._secondaryTitleContainer = elements.root;
-		this._secondaryTitle = elements.text;
-		append(parent, this._secondaryTitleContainer);
+
+		this.secondaryTitleContainer = elements.root;
+		this.secondaryTitle = elements.text;
+		append(parent, this.secondaryTitleContainer);
 	}
 
 	update(model: IChatModel | undefined): void {
 		this.currentModel = model;
+
 		this.applyUpdate();
 	}
 
@@ -81,6 +88,7 @@ export class ChatViewTitleControl extends Disposable {
 			this.setSecondaryTitle(undefined);
 			return;
 		}
+
 		if (customTitle) {
 			const secondaryTitle = this.shouldOmitChatPrefix() ? customTitle : this.withChatPrefix(customTitle);
 			this.setSecondaryTitle(secondaryTitle);
@@ -93,35 +101,40 @@ export class ChatViewTitleControl extends Disposable {
 		if (!this.shouldRenderSecondaryTitleBar()) {
 			return this.currentPrimaryTitle;
 		}
+
 		return descriptorTitle ?? this.currentPrimaryTitle;
 	}
 
-	getSecondaryTitleHeight(): number {
-		if (!this._secondaryTitleContainer || this._secondaryTitleContainer.style.display === 'none') {
+	getHeight(): number {
+		if (!this.secondaryTitleContainer || this.secondaryTitleContainer.style.display === 'none') {
 			return 0;
 		}
-		return this._secondaryTitleContainer.offsetHeight;
+
+		return this.secondaryTitleContainer.offsetHeight;
 	}
 
 	private shouldRenderSecondaryTitleBar(): boolean {
 		if (this.viewContainerModel && this.viewContainerModel.visibleViewDescriptors.length > 1) {
 			return false;
 		}
+
 		const location = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		return location !== ActivityBarPosition.TOP && location !== ActivityBarPosition.BOTTOM && location !== ActivityBarPosition.HIDDEN;
 	}
 
 	private setSecondaryTitle(title: string | undefined): void {
-		if (!this._secondaryTitleContainer || !this._secondaryTitle) {
+		if (!this.secondaryTitleContainer || !this.secondaryTitle) {
 			return;
 		}
+
 		if (!this.shouldRenderSecondaryTitleBar() || !title) {
-			this._secondaryTitleContainer.style.display = 'none';
+			this.secondaryTitleContainer.style.display = 'none';
 		} else {
-			this._secondaryTitle.textContent = title;
-			this._secondaryTitleContainer.style.display = 'flex';
+			this.secondaryTitle.textContent = title;
+			this.secondaryTitleContainer.style.display = 'flex';
 		}
-		const currentHeight = this.getSecondaryTitleHeight();
+
+		const currentHeight = this.getHeight();
 		if (currentHeight !== this.lastKnownHeight) {
 			this.lastKnownHeight = currentHeight;
 			this._onDidChangeHeight.fire();
@@ -132,9 +145,11 @@ export class ChatViewTitleControl extends Disposable {
 		if (!this.shouldRenderSecondaryTitleBar()) {
 			return false;
 		}
+
 		if (this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT) {
 			return false;
 		}
+
 		return this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
 	}
 
@@ -142,10 +157,12 @@ export class ChatViewTitleControl extends Disposable {
 		if (!title) {
 			return undefined;
 		}
+
 		const localizedPrefix = localize('chatViewTitle.prefixLabel', "Chat: ");
 		if (title.startsWith(localizedPrefix) || title.startsWith('Chat: ')) {
 			return title;
 		}
+
 		return localize('chatViewTitle.prefixedTitle', "Chat: {0}", title);
 	}
 }
