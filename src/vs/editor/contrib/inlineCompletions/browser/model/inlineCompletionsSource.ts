@@ -313,7 +313,7 @@ export class InlineCompletionsSource extends Disposable {
 					await wait(remainingTimeToWait, source.token);
 				}
 
-				providerSuggestions.forEach(s => s.addPerformanceMarker('minShowDelayPassed'));
+				suggestions.forEach(s => s.addPerformanceMarker('minShowDelayPassed'));
 
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId
 					|| userJumpedToActiveCompletion.get()  /* In the meantime the user showed interest for the active completion so dont hide it */) {
