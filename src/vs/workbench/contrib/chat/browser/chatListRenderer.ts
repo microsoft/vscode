@@ -735,7 +735,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (lastThinking?.domNode) {
 				lastThinking.finalizeTitleIfDefault();
 				lastThinking.markAsInactive();
-				this.updateItemHeight(templateData);
 			}
 		}
 
@@ -1236,6 +1235,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
+		// Don't pin terminal tools
+		const isTerminalTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal';
+		if (isTerminalTool) {
+			return false;
+		}
+
 		if (part.kind === 'toolInvocation') {
 			return !part.confirmationMessages;
 		}
@@ -1553,9 +1558,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 				if (thinkingPart instanceof ChatThinkingContentPart) {
 					thinkingPart.appendItem(part?.domNode, toolInvocation.toolId, toolInvocation);
+					thinkingPart.addDisposable(part.onDidChangeHeight(() => {
+						this.updateItemHeight(templateData);
+					}));
 				}
-
-				this.updateItemHeight(templateData);
 
 				return thinkingPart;
 			}

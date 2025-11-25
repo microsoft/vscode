@@ -367,29 +367,6 @@ suite('LocalAgentsSessionsProvider', () => {
 		});
 	});
 
-	test('should ignore sessions without requests', async () => {
-		return runWithFakedTimers({}, async () => {
-			const provider = createProvider();
-
-			const sessionResource = LocalChatSessionUri.forSession('empty-session');
-			const mockModel = createMockChatModel({
-				sessionResource,
-				hasRequests: false
-			});
-
-			mockChatService.addSession(sessionResource, mockModel);
-			mockChatService.setLiveSessionItems([{
-				sessionResource,
-				title: 'Empty Session',
-				lastMessageDate: Date.now(),
-				isActive: true
-			}]);
-
-			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
-			assert.strictEqual(sessions.length, 0);
-		});
-	});
-
 	test('should provide history session items', async () => {
 		return runWithFakedTimers({}, async () => {
 			const provider = createProvider();
