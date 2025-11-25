@@ -626,7 +626,14 @@ export class InlineCompletionsModel extends Disposable {
 			let edit = inlineEditResult.getSingleTextEdit();
 			edit = singleTextRemoveCommonPrefix(edit, model);
 
+			const cursorPos = this.primaryPosition.read(reader);
 			const cursorAtInlineEdit = this.primaryPosition.map(cursorPos => LineRange.fromRangeInclusive(inlineEditResult.targetRange).addMargin(1, 1).contains(cursorPos.lineNumber));
+
+			// Check if cursor is within showRange (if specified)
+			const cursorInsideShowRange = cursorAtInlineEdit.get() || (inlineEditResult.showRange?.containsPosition(cursorPos) ?? true);
+			if (!cursorInsideShowRange && !this._inAcceptFlow.read(reader)) {
+				return undefined;
+			}
 
 			const commands = inlineEditResult.source.inlineSuggestions.commands;
 			const inlineEdit = new InlineEdit(edit, commands ?? [], inlineEditResult);
