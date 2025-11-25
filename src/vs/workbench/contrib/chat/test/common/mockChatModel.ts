@@ -7,8 +7,12 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IChatAgentCommand, IChatAgentData, UserSelectedTools } from '../../common/chatAgents.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
-import { IChatChangeEvent, IChatModel, IChatRequestModel, IExportableChatData, IInputModel, ISerializableChatData } from '../../common/chatModel.js';
+import { IChatChangeEvent, IChatModel, IChatRequestModel, IChatRequestModeInfo, IChatRequestVariableData, IExportableChatData, IInputModel, ISerializableChatData } from '../../common/chatModel.js';
+import { IParsedChatRequest } from '../../common/chatParserTypes.js';
+import { IChatLocationData } from '../../common/chatService.js';
+import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatModel extends Disposable implements IChatModel {
@@ -47,6 +51,9 @@ export class MockChatModel extends Disposable implements IChatModel {
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void { }
 	getRequests(): IChatRequestModel[] { return []; }
 	setCheckpoint(requestId: string | undefined): void { }
+	addRequest(_message: IParsedChatRequest, _variableData: IChatRequestVariableData, _attempt: number, _modeInfo?: IChatRequestModeInfo, _chatAgent?: IChatAgentData, _slashCommand?: IChatAgentCommand, _confirmation?: string, _locationData?: IChatLocationData, _attachments?: IChatRequestVariableEntry[], _isCompleteAddedRequest?: boolean, _modelId?: string, _userSelectedTools?: UserSelectedTools): IChatRequestModel {
+		throw new Error('Method not implemented.');
+	}
 	toExport(): IExportableChatData {
 		return {
 			initialLocation: this.initialLocation,

@@ -1171,6 +1171,7 @@ export interface IChatModel extends IDisposable {
 	readonly lastRequest: IChatRequestModel | undefined;
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools): IChatRequestModel;
 
 	toExport(): IExportableChatData;
 	toJSON(): ISerializableChatData;
