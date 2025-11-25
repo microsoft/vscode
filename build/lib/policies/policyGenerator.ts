@@ -15,6 +15,7 @@ import { StringEnumPolicy } from './stringEnumPolicy.ts';
 import { StringPolicy } from './stringPolicy.ts';
 import { type Version, type LanguageTranslations, type Policy, type Translations, Languages, type ProductJson } from './types.ts';
 import { renderGP, renderJsonPolicies, renderMacOSPolicy } from './render.ts';
+import { validatePolicyFiles } from './validateADMX.ts';
 
 const product: ProductJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../../product.json'), 'utf8'));
 const packageJson = JSON.parse(fs.readFileSync(path.join(import.meta.dirname, '../../../package.json'), 'utf8'));
@@ -170,6 +171,38 @@ async function getTranslations(): Promise<Translations> {
 async function windowsMain(policies: Policy[], translations: Translations) {
 	const root = '.build/policies/win32';
 	const { admx, adml } = renderGP(product, policies, translations);
+
+	// Validate ADMX and ADML files before writing
+	const validationResult = validatePolicyFiles(admx, adml);
+
+	// Check for validation errors
+	let hasErrors = false;
+
+	if (!validationResult.admx.valid) {
+		console.error(`ADMX validation failed with ${validationResult.admx.errors.length} error(s):`);
+		for (const error of validationResult.admx.errors) {
+			console.error(`  Line ${error.line}, Column ${error.column}: ${error.message}`);
+			console.error(`    Value: ${error.value}`);
+		}
+		hasErrors = true;
+	}
+
+	for (const { languageId, result } of validationResult.adml) {
+		if (!result.valid) {
+			console.error(`ADML (${languageId}) validation failed with ${result.errors.length} error(s):`);
+			for (const error of result.errors) {
+				console.error(`  Line ${error.line}, Column ${error.column}: ${error.message}`);
+				console.error(`    Value: ${error.value}`);
+			}
+			hasErrors = true;
+		}
+	}
+
+	if (hasErrors) {
+		throw new Error('Policy file validation failed. See errors above.');
+	}
+
+	console.log('ADMX/ADML validation passed.');
 
 	await fs.promises.rm(root, { recursive: true, force: true });
 	await fs.promises.mkdir(root, { recursive: true });
