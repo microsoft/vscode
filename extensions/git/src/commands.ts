@@ -4606,36 +4606,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const stashChanges = await repository.showStash(stash.index);
-		if (!stashChanges || stashChanges.length === 0) {
-			return;
-		}
-
-		// A stash commit can have up to 3 parents:
-		// 1. The first parent is the commit that was HEAD when the stash was created.
-		// 2. The second parent is the commit that represents the index when the stash was created.
-		// 3. The third parent (when present) represents the untracked files when the stash was created.
-		const stashFirstParentCommit = stash.parents.length > 0 ? stash.parents[0] : `${stash.hash}^`;
-		const stashUntrackedFilesParentCommit = stash.parents.length === 3 ? stash.parents[2] : undefined;
-		const stashUntrackedFiles: string[] = [];
-
-		if (stashUntrackedFilesParentCommit) {
-			const untrackedFiles = await repository.getObjectFiles(stashUntrackedFilesParentCommit);
-			stashUntrackedFiles.push(...untrackedFiles.map(f => path.join(repository.root, f.file)));
-		}
-
-		const title = `Git Stash #${stash.index}: ${stash.description}`;
-		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
-
-		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
-		for (const change of stashChanges) {
-			const isChangeUntracked = !!stashUntrackedFiles.find(f => pathEquals(f, change.uri.fsPath));
-			const modifiedUriRef = !isChangeUntracked ? stash.hash : stashUntrackedFilesParentCommit ?? stash.hash;
-
-			resources.push(toMultiFileDiffEditorUris(change, stashFirstParentCommit, modifiedUriRef));
-		}
-
-		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
+		await this._viewStash(repository, stash);
 	}
 
 	private async pickStash(repository: Repository, placeHolder: string): Promise<Stash | undefined> {
@@ -4678,6 +4649,39 @@ export class CommandCenter {
 		}
 
 		return { repository, stash };
+	}
+
+	private async _viewStash(repository: Repository, stash: Stash): Promise<void> {
+		const stashChanges = await repository.showStash(stash.index);
+		if (!stashChanges || stashChanges.length === 0) {
+			return;
+		}
+
+		// A stash commit can have up to 3 parents:
+		// 1. The first parent is the commit that was HEAD when the stash was created.
+		// 2. The second parent is the commit that represents the index when the stash was created.
+		// 3. The third parent (when present) represents the untracked files when the stash was created.
+		const stashFirstParentCommit = stash.parents.length > 0 ? stash.parents[0] : `${stash.hash}^`;
+		const stashUntrackedFilesParentCommit = stash.parents.length === 3 ? stash.parents[2] : undefined;
+		const stashUntrackedFiles: string[] = [];
+
+		if (stashUntrackedFilesParentCommit) {
+			const untrackedFiles = await repository.getObjectFiles(stashUntrackedFilesParentCommit);
+			stashUntrackedFiles.push(...untrackedFiles.map(f => path.join(repository.root, f.file)));
+		}
+
+		const title = `Git Stash #${stash.index}: ${stash.description}`;
+		const multiDiffSourceUri = toGitUri(Uri.file(repository.root), `stash@{${stash.index}}`, { scheme: 'git-stash' });
+
+		const resources: { originalUri: Uri | undefined; modifiedUri: Uri | undefined }[] = [];
+		for (const change of stashChanges) {
+			const isChangeUntracked = !!stashUntrackedFiles.find(f => pathEquals(f, change.uri.fsPath));
+			const modifiedUriRef = !isChangeUntracked ? stash.hash : stashUntrackedFilesParentCommit ?? stash.hash;
+
+			resources.push(toMultiFileDiffEditorUris(change, stashFirstParentCommit, modifiedUriRef));
+		}
+
+		commands.executeCommand('_workbench.openMultiDiffEditor', { multiDiffSourceUri, title, resources });
 	}
 
 	@command('git.timeline.openDiff', { repository: false })
@@ -5215,6 +5219,62 @@ export class CommandCenter {
 		}
 
 		await repository.deleteTag(artifact.name);
+	}
+
+	@command('git.repositories.stashView', { repository: true })
+	async artifactStashView(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		// Extract stash index from artifact id
+		const regex = /^stash@\{(\d+)\}$/;
+		const match = regex.exec(artifact.id);
+		if (!match) {
+			return;
+		}
+
+		const stashes = await repository.getStashes();
+		const stash = stashes.find(s => s.index === parseInt(match[1]));
+		if (!stash) {
+			return;
+		}
+
+		await this._viewStash(repository, stash);
+	}
+
+	@command('git.repositories.stashApply', { repository: true })
+	async artifactStashApply(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		// Extract stash index from artifact id (format: "stash@{index}")
+		const regex = /^stash@\{(\d+)\}$/;
+		const match = regex.exec(artifact.id);
+		if (!match) {
+			return;
+		}
+
+		const stashIndex = parseInt(match[1]);
+		await repository.applyStash(stashIndex);
+	}
+
+	@command('git.repositories.stashPop', { repository: true })
+	async artifactStashPop(repository: Repository, artifact: SourceControlArtifact): Promise<void> {
+		if (!repository || !artifact) {
+			return;
+		}
+
+		// Extract stash index from artifact id (format: "stash@{index}")
+		const regex = /^stash@\{(\d+)\}$/;
+		const match = regex.exec(artifact.id);
+		if (!match) {
+			return;
+		}
+
+		const stashIndex = parseInt(match[1]);
+		await repository.popStash(stashIndex);
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
