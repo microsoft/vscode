@@ -176,8 +176,9 @@ suite('Agent Sessions', () => {
 
 		test('should handle session with all properties', async () => {
 			return runWithFakedTimers({}, async () => {
-				const startTime = Date.now();
-				const endTime = startTime + 1000;
+				const created = Date.now();
+				const lastRequestStarted = created + 1000;
+				const lastRequestEnded = created + 1000;
 
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'test-type',
@@ -190,7 +191,7 @@ suite('Agent Sessions', () => {
 							status: ChatSessionStatus.Completed,
 							tooltip: 'Session tooltip',
 							iconPath: ThemeIcon.fromId('check'),
-							timing: { startTime, endTime },
+							timing: { created, lastRequestStarted, lastRequestEnded },
 							statistics: { files: 1, insertions: 10, deletions: 5 }
 						}
 					]
@@ -210,8 +211,9 @@ suite('Agent Sessions', () => {
 					assert.strictEqual(session.description.value, '**Bold** description');
 				}
 				assert.strictEqual(session.status, ChatSessionStatus.Completed);
-				assert.strictEqual(session.timing.startTime, startTime);
-				assert.strictEqual(session.timing.endTime, endTime);
+				assert.strictEqual(session.timing.created, created);
+				assert.strictEqual(session.timing.lastRequestStarted, lastRequestStarted);
+				assert.strictEqual(session.timing.lastRequestEnded, lastRequestEnded);
 				assert.deepStrictEqual(session.statistics, { files: 1, insertions: 10, deletions: 5 });
 			});
 		});
@@ -698,7 +700,7 @@ suite('Agent Sessions', () => {
 		});
 
 		test('isAgentSession should identify session view models', () => {
-			const session: IAgentSessionViewModel = {
+			const session: IAgentSession = {
 				providerType: 'test',
 				providerLabel: 'Local',
 				icon: Codicon.chatSparkle,
@@ -720,7 +722,7 @@ suite('Agent Sessions', () => {
 		});
 
 		test('isAgentSessionsViewModel should identify sessions view models', () => {
-			const session: IAgentSessionViewModel = {
+			const session: IAgentSession = {
 				providerType: 'test',
 				providerLabel: 'Local',
 				icon: Codicon.chatSparkle,
@@ -781,6 +783,8 @@ suite('Agent Sessions', () => {
 		ensureNoDisposablesAreLeakedInTestSuite();
 
 		test('should initialize with default excludes', () => {
+			const storageService = instantiationService.get(IStorageService);
+
 			const filter = disposables.add(instantiationService.createInstance(
 				AgentSessionsFilter,
 				{ filterMenuId: MenuId.ViewTitle }
@@ -798,27 +802,19 @@ suite('Agent Sessions', () => {
 				provideChatSessionItems: async () => []
 			};
 
-			const session1: IAgentSessionViewModel = {
+			const session1 = createSession({
 				providerType: provider1.chatSessionType,
 				providerLabel: 'Provider 1',
-				icon: Codicon.chatSparkle,
 				resource: URI.parse('test://session-1'),
 				label: 'Session 1',
-				timing: { startTime: Date.now() },
-				archived: false,
-				status: ChatSessionStatus.Completed
-			};
+			});
 
-			const session2: IAgentSessionViewModel = {
+			const session2 = createSession({
 				providerType: provider2.chatSessionType,
 				providerLabel: 'Provider 2',
-				icon: Codicon.chatSparkle,
 				resource: URI.parse('test://session-2'),
 				label: 'Session 2',
-				timing: { startTime: Date.now() },
-				archived: false,
-				status: ChatSessionStatus.Completed
-			};
+			});
 
 			// Initially, no sessions should be filtered by provider
 			assert.strictEqual(filter.exclude(session1), false);
@@ -850,27 +846,20 @@ suite('Agent Sessions', () => {
 				provideChatSessionItems: async () => []
 			};
 
-			const archivedSession: IAgentSessionViewModel = {
+			const archivedSession = createSession({
 				providerType: provider.chatSessionType,
 				providerLabel: 'Test Provider',
-				icon: Codicon.chatSparkle,
 				resource: URI.parse('test://archived-session'),
 				label: 'Archived Session',
-				timing: { startTime: Date.now() },
-				archived: true,
-				status: ChatSessionStatus.Completed
-			};
+				isArchived: () => true
+			});
 
-			const activeSession: IAgentSessionViewModel = {
+			const activeSession = createSession({
 				providerType: provider.chatSessionType,
 				providerLabel: 'Test Provider',
-				icon: Codicon.chatSparkle,
 				resource: URI.parse('test://active-session'),
 				label: 'Active Session',
-				timing: { startTime: Date.now() },
-				archived: false,
-				status: ChatSessionStatus.Completed
-			};
+			});
 
 			// By default, archived sessions should be filtered (archived: true in default excludes)
 			assert.strictEqual(filter.exclude(archivedSession), true);
@@ -902,38 +891,28 @@ suite('Agent Sessions', () => {
 				provideChatSessionItems: async () => []
 			};
 
-			const failedSession: IAgentSessionViewModel = {
+			const failedSession = createSession({
 				providerType: provider.chatSessionType,
 				providerLabel: 'Test Provider',
-				icon: Codicon.chatSparkle,
 				resource: URI.parse('test://failed-session'),
 				label: 'Failed Session',
-				timing: { startTime: Date.now() },
-				archived: false,
 				status: ChatSessionStatus.Failed
-			};
+			});
 
-			const completedSession: IAgentSessionViewModel = {
+			const completedSession = createSession({
 				providerType: provider.chatSessionType,
 				providerLabel: 'Test Provider',
-				icon: Codicon.chatSparkle,
 				resource: URI.parse('test://completed-session'),
 				label: 'Completed Session',
-				timing: { startTime: Date.now() },
-				archived: false,
-				status: ChatSessionStatus.Completed
-			};
+			});
 
-			const inProgressSession: IAgentSessionViewModel = {
+			const inProgressSession = createSession({
 				providerType: provider.chatSessionType,
 				providerLabel: 'Test Provider',
-				icon: Codicon.chatSparkle,
 				resource: URI.parse('test://inprogress-session'),
 				label: 'In Progress Session',
-				timing: { startTime: Date.now() },
-				archived: false,
 				status: ChatSessionStatus.InProgress
-			};
+			});
 
 			// Initially, no sessions should be filtered by status (archived is default exclude)
 			assert.strictEqual(filter.exclude(failedSession), false);
@@ -1816,6 +1795,8 @@ function makeSimpleSessionItem(id: string, overrides?: Partial<IChatSessionItem>
 
 function makeNewSessionTiming(): IChatSessionItem['timing'] {
 	return {
-		startTime: Date.now(),
+		created: Date.now(),
+		lastRequestStarted: undefined,
+		lastRequestEnded: undefined,
 	};
 }
