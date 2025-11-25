@@ -41,7 +41,6 @@ import { showCloseActiveChatNotification } from './agentSessions/chatCloseNotifi
 import { ChatWidget } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
-import { Event } from '../../../../base/common/event.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -227,9 +226,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.telemetryService.publicLog2<{}, ChatViewPaneOpenedClassification>('chatViewPaneOpened');
 
 		this.createControls(parent);
+
+		this.applyModel();
 	}
 
-	private async createControls(parent: HTMLElement): Promise<void> {
+	private createControls(parent: HTMLElement): void {
 		parent.classList.add('chat-viewpane');
 
 		// Sessions Control
@@ -239,6 +240,45 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
 
 		// Chat Widget
+		this.createChatWidget(parent, welcomeController);
+
+		// Sessions control visibility is impacted by chat widget empty state
+		this._register(this._widget.onDidChangeEmptyState(() => this.updateSessionsControlVisibility(true)));
+	}
+
+	private createSessionsControl(parent: HTMLElement): void {
+		this.sessionsContainer = parent.appendChild($('.chat-viewpane-sessions-container'));
+		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsContainer, undefined));
+
+		this.updateSessionsControlVisibility(false);
+
+		this._register(this.onDidChangeBodyVisibility(() => this.updateSessionsControlVisibility(true)));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.EmptyChatViewSessionsEnabled)) {
+				this.updateSessionsControlVisibility(true);
+			}
+		}));
+	}
+
+	private updateSessionsControlVisibility(fromEvent: boolean): void {
+		if (!this.sessionsContainer || !this.sessionsControl) {
+			return;
+		}
+
+		const sessionsControlVisible =
+			this.configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewSessionsEnabled) &&	// enabled in settings
+			this.isBodyVisible() &&																			// view expanded
+			(!this._widget || this._widget?.isEmpty());														// chat widget empty
+
+		this.sessionsContainer.style.display = sessionsControlVisible ? '' : 'none';
+		this.sessionsControl.setVisible(sessionsControlVisible);
+
+		if (fromEvent && this.lastDimensions) {
+			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+		}
+	}
+
+	private createChatWidget(parent: HTMLElement, welcomeController: ChatViewWelcomeController): void {
 		const locationBasedColors = this.getLocationBasedColors();
 
 		const editorOverflowWidgetsDomNode = this.layoutService.getContainer(getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
@@ -275,10 +315,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}));
 		this._widget.render(parent);
 
-		const updateWidgetVisibility = (r?: IReader) => this._widget.setVisible(this.isBodyVisible() && !welcomeController.isShowingWelcome.read(r));
+		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !welcomeController.isShowingWelcome.read(reader));
 		this._register(this.onDidChangeBodyVisibility(() => updateWidgetVisibility()));
-		this._register(autorun(r => updateWidgetVisibility(r)));
+		this._register(autorun(reader => updateWidgetVisibility(reader)));
+	}
 
+	private async applyModel(): Promise<void> {
 		const info = this.getTransferredOrPersistedSessionInfo();
 		const modelRef = info.sessionId ? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(info.sessionId)) : undefined;
 		if (modelRef && info.inputState) {
@@ -286,23 +328,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		await this.updateModel(modelRef);
-	}
-
-	private createSessionsControl(parent: HTMLElement): void {
-		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.chat-viewpane-sessions-container'));
-
-		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, sessionsContainer, undefined));
-		this.sessionsControl.setVisible(this.isBodyVisible());
-		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));
-
-		this._register(Event.runAndSubscribe(this.configurationService.onDidChangeConfiguration, e => {
-			if (!e || e.affectsConfiguration(ChatConfiguration.EmptyChatViewSessionsEnabled)) {
-				sessionsContainer.style.display = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewSessionsEnabled) ? '' : 'none';
-				if (this.lastDimensions) {
-					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-				}
-			}
-		}));
 	}
 
 	private async clear(): Promise<void> {

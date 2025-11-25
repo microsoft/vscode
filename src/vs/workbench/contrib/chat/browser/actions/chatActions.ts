@@ -1834,7 +1834,7 @@ registerAction2(class ToggleChatHistoryVisibilityAction extends Action2 {
 			title: localize2('chat.toggleEmptyChatViewSessions.label', "Show Agent Sessions"),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
-			toggled: ContextKeyExpr.equals(`config${ChatConfiguration.EmptyChatViewSessionsEnabled}`, true),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.EmptyChatViewSessionsEnabled}`, true),
 			menu: {
 				id: MenuId.ChatWelcomeContext,
 				group: '1_modify',
