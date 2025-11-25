@@ -172,6 +172,17 @@ export interface IChatEditingSession extends IDisposable {
 	 */
 	getEntryDiffBetweenRequests(uri: URI, startRequestIs: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined>;
 
+	/**
+	 * Gets the diff of each file modified in this session, comparing the initial
+	 * baseline to the current state.
+	 */
+	getDiffsForFilesInSession(): IObservable<readonly IEditSessionEntryDiff[]>;
+
+	/**
+	 * Gets the aggregated diff stats for all files modified in this session.
+	 */
+	getDiffForSession(): IObservable<IEditSessionDiffStats>;
+
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
@@ -190,7 +201,14 @@ export function chatEditingSessionIsReady(session: IChatEditingSession): Promise
 	});
 }
 
-export interface IEditSessionEntryDiff {
+export interface IEditSessionDiffStats {
+	/** Added data (e.g. line numbers) to show in the UI */
+	added: number;
+	/** Removed data (e.g. line numbers) to show in the UI */
+	removed: number;
+}
+
+export interface IEditSessionEntryDiff extends IEditSessionDiffStats {
 	/** LHS and RHS of a diff editor, if opened: */
 	originalURI: URI;
 	modifiedURI: URI;
@@ -201,11 +219,6 @@ export interface IEditSessionEntryDiff {
 
 	/** True if nothing else will be added to this diff. */
 	isFinal: boolean;
-
-	/** Added data (e.g. line numbers) to show in the UI */
-	added: number;
-	/** Removed data (e.g. line numbers) to show in the UI */
-	removed: number;
 }
 
 export const enum ModifiedFileEntryState {

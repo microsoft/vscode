@@ -6,7 +6,7 @@
 import gulp from 'gulp';
 import path from 'path';
 import * as util from './lib/util.ts';
-import * as getVersionModule from './lib/getVersion.ts';
+import { getVersion } from './lib/getVersion.ts';
 import * as task from './lib/task.ts';
 import es from 'event-stream';
 import File from 'vinyl';
@@ -17,11 +17,9 @@ import * as compilation from './lib/compilation.ts';
 import * as monacoapi from './lib/monaco-api.ts';
 import * as fs from 'fs';
 import filter from 'gulp-filter';
-import * as reporterModule from './lib/reporter.ts';
+import { createReporter } from './lib/reporter.ts';
 import monacoPackage from './monaco/package.json' with { type: 'json' };
 
-const { getVersion } = getVersionModule;
-const { createReporter } = reporterModule;
 const root = path.dirname(import.meta.dirname);
 const sha1 = getVersion(root);
 const semver = monacoPackage.version;

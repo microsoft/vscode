@@ -60,7 +60,6 @@
 		"**/yarn.lock": true,
 		"**/package-lock.json": true,
 		"**/Cargo.lock": true,
-		"build/**/*.js": true,
 		"out/**": true,
 		"out-build/**": true,
 		"out-vscode/**": true,
@@ -71,12 +70,6 @@
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true
-	},
-	"files.readonlyExclude": {
-		"build/builtin/*.js": true,
-		"build/monaco/*.js": true,
-		"build/npm/*.js": true,
-		"build/*.js": true
 	},
 	// --- Search ---
 	"search.exclude": {

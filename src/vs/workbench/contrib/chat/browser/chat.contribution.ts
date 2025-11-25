@@ -747,14 +747,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.agent.thinking.collapsedTools': {
 			type: 'string',
-			default: 'readOnly',
-			enum: ['none', 'all', 'readOnly'],
+			default: product.quality !== 'stable' ? 'always' : 'withThinking',
+			enum: ['off', 'withThinking', 'always'],
 			enumDescriptions: [
-				nls.localize('chat.agent.thinking.collapsedTools.none', "No tool calls are added into the collapsible thinking section."),
-				nls.localize('chat.agent.thinking.collapsedTools.all', "All tool calls are added into the collapsible thinking section."),
-				nls.localize('chat.agent.thinking.collapsedTools.readOnly', "Only read-only tool calls are added into the collapsible thinking section."),
+				nls.localize('chat.agent.thinking.collapsedTools.off', "Tool calls are shown separately, not collapsed into thinking."),
+				nls.localize('chat.agent.thinking.collapsedTools.withThinking', "Tool calls are collapsed into thinking sections when thinking is present."),
+				nls.localize('chat.agent.thinking.collapsedTools.always', "Tool calls are always collapsed, even without thinking."),
 			],
-			markdownDescription: nls.localize('chat.agent.thinking.collapsedTools', "When enabled, tool calls are added into the collapsible thinking section according to the selected mode."),
+			markdownDescription: nls.localize('chat.agent.thinking.collapsedTools', "Controls how tool calls are displayed in relation to thinking sections."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {
