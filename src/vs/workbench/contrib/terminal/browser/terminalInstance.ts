@@ -1540,17 +1540,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 		this._logService.debug(`MYLOG TerminalInstance#_createProcess: Starting process creation, _cwd="${this._cwd}", _userHome="${this._userHome}", hasRemoteAuthority=${this.hasRemoteAuthority}, remoteAuthority=${this.remoteAuthority}`);
-		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
-		this._logService.debug(`MYLOG TerminalInstance#_createProcess: activeWorkspaceRootUri=${activeWorkspaceRootUri?.toString()}`);
-		if (activeWorkspaceRootUri) {
-			this._logService.debug(`MYLOG TerminalInstance#_createProcess: Active Workspace at:  ${activeWorkspaceRootUri.toString()}`);
-			const trusted = await this._trust();
-			this._logService.debug(`MYLOG TerminalInstance#_createProcess: Workspace trust for active workspace is ${trusted}`);
-			if (!trusted) {
-				this._logService.debug(`MYLOG TerminalInstance#_createProcess: Workspace is not trusted - terminating process creation`);
-				this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
-			}
-		} else if (this._cwd && this._userHome && this._cwd !== this._userHome) {
+
+		const trusted = await this._trust();
+		this._logService.debug(`MYLOG TerminalInstance#_createProcess: Workspace trust for active workspace is ${trusted}`);
+		if (!trusted) {
+			this._logService.debug(`MYLOG TerminalInstance#_createProcess: Workspace is not trusted - terminating process creation`);
+			this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
+		}
+		if (this._cwd && this._userHome && this._cwd !== this._userHome) {
 			const hasExplicitCwd = !!this._shellLaunchConfig.cwd;
 			this._logService.debug(`MYLOG TerminalInstance#_createProcess: Empty workspace cwd mismatch detected - cwd="${this._cwd}", userHome="${this._userHome}", hasRemoteAuthority=${this.hasRemoteAuthority}, hasExplicitCwd=${hasExplicitCwd}`);
 
