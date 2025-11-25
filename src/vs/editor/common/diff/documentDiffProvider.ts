@@ -77,7 +77,7 @@ export interface IDocumentDiff {
 }
 
 
-export const nullDocumentDiff: IDocumentDiff = Object.freeze({
+export const nullDocumentDiff: IDocumentDiff & { changes: readonly never[] } = Object.freeze({
 	identical: true,
 	quitEarly: false,
 	changes: Object.freeze([]),

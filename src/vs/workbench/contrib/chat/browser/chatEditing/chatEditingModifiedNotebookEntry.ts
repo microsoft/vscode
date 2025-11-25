@@ -7,15 +7,15 @@ import { streamToBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { DisposableStore, IReference, thenRegisterOrDispose } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet, setsEqual } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { ITransaction, IObservable, observableValue, autorun, transaction, ObservablePromise } from '../../../../../base/common/observable.js';
+import { autorun, derivedOpts, IObservable, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { Location, TextEdit } from '../../../../../editor/common/languages.js';
@@ -30,6 +30,7 @@ import { IUndoRedoElement, IUndoRedoService, UndoRedoElementType } from '../../.
 import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
+import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { NotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditor.js';
 import { INotebookTextDiffEditor } from '../../../notebook/browser/diff/notebookDiffEditorBrowser.js';
 import { CellDiffInfo } from '../../../notebook/browser/diff/notebookDiffViewModel.js';
@@ -53,7 +54,6 @@ import { ChatEditingNotebookDiffEditorIntegration, ChatEditingNotebookEditorInte
 import { ChatEditingNotebookFileSystemProvider } from './notebook/chatEditingNotebookFileSystemProvider.js';
 import { adjustCellDiffAndOriginalModelBasedOnCellAddDelete, adjustCellDiffAndOriginalModelBasedOnCellMovements, adjustCellDiffForKeepingAnInsertedCell, adjustCellDiffForRevertingADeletedCell, adjustCellDiffForRevertingAnInsertedCell, calculateNotebookRewriteRatio, getCorrespondingOriginalCellIndex, isTransientIPyNbExtensionEvent } from './notebook/helpers.js';
 import { countChanges, ICellDiffInfo, sortCellChanges } from './notebook/notebookCellChanges.js';
-import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 
 
 const SnapshotLanguageId = 'VSCodeChatNotebookSnapshotLanguage';
@@ -62,6 +62,15 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	static NewModelCounter: number = 0;
 	private readonly modifiedModel: NotebookTextModel;
 	private readonly originalModel: NotebookTextModel;
+
+	readonly lastModifyingRequestId = ''; // todo
+
+	wasModifiedByRequest(requestId: string): boolean {
+		// TODO: Implement proper request tracking for notebooks
+		// For now, notebooks don't track which requests modified them
+		return false;
+	}
+
 	override originalURI: URI;
 	/**
 	 * JSON stringified version of the original notebook.
@@ -81,6 +90,22 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	private _allEditsAreFromUs: boolean = true;
 	private readonly _changesCount = observableValue<number>(this, 0);
 	override changesCount: IObservable<number> = this._changesCount;
+
+	/**
+	 * A set of all chat sessions that have unresolved edits in this file.
+	 * TODO: For notebooks, implement proper session tracking across cells.
+	 */
+	get participatingSessions(): IObservable<ResourceSet> {
+		return derivedOpts<ResourceSet>({ equalsFn: setsEqual }, _reader => {
+			// For now, return empty set - notebook attribution is tracked differently
+			return new ResourceSet();
+		});
+	}
+
+	protected override _getNotifySessionTelemetryInfo(): IModifiedEntryTelemetryInfo[] {
+		// For now, return empty array - notebook attribution is tracked differently
+		return [];
+	}
 
 	private readonly cellEntryMap = new ResourceMap<ChatEditingNotebookCellEntry>();
 	private modifiedToOriginalCell = new ResourceMap<URI>();
@@ -102,14 +127,15 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	 */
 	private readonly editedCells = new ResourceSet();
 
-	public static async create(uri: URI, _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void }, telemetryInfo: IModifiedEntryTelemetryInfo, chatKind: ChatEditKind, initialContent: string | undefined, instantiationService: IInstantiationService): Promise<AbstractChatEditingModifiedFileEntry> {
+	public static async create(uri: URI, chatKind: ChatEditKind, initialContent: string | undefined, instantiationService: IInstantiationService): Promise<AbstractChatEditingModifiedFileEntry> {
 		return instantiationService.invokeFunction(async accessor => {
 			const notebookService = accessor.get(INotebookService);
 			const resolver = accessor.get(INotebookEditorModelResolverService);
 			const configurationServie = accessor.get(IConfigurationService);
 			const resourceRef: IReference<IResolvedNotebookEditorModel> = await resolver.resolve(uri);
 			const notebook = resourceRef.object.notebook;
-			const originalUri = getNotebookSnapshotFileURI(telemetryInfo.sessionResource, telemetryInfo.requestId, generateUuid(), notebook.uri.scheme === Schemas.untitled ? `/${notebook.uri.path}` : notebook.uri.path, notebook.viewType);
+			// Generate a unique URI for the original model using a UUID
+			const originalUri = getNotebookSnapshotFileURI(uri, generateUuid(), generateUuid(), notebook.uri.scheme === Schemas.untitled ? `/${notebook.uri.path}` : notebook.uri.path, notebook.viewType);
 			const [options, buffer] = await Promise.all([
 				notebookService.withNotebookDataProvider(resourceRef.object.notebook.notebookType),
 				notebookService.createNotebookTextDocumentSnapshot(notebook.uri, SnapshotContext.Backup, CancellationToken.None).then(s => streamToBuffer(s))
@@ -141,7 +167,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 				resourceRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 				originalRef.object.notebook.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 			}
-			const instance = instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, _multiDiffEntryDelegate, options.serializer.options, telemetryInfo, chatKind, initialContent);
+			const instance = instantiationService.createInstance(ChatEditingModifiedNotebookEntry, resourceRef, originalRef, options.serializer.options, chatKind, initialContent);
 			instance._register(disposables);
 			return instance;
 		});
@@ -173,9 +199,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	constructor(
 		private readonly modifiedResourceRef: IReference<IResolvedNotebookEditorModel>,
 		originalResourceRef: IReference<IResolvedNotebookEditorModel>,
-		private readonly _multiDiffEntryDelegate: { collapse: (transaction: ITransaction | undefined) => void },
 		private readonly transientOptions: TransientOptions | undefined,
-		telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
 		initialContent: string,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -191,7 +215,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		@INotebookEditorModelResolverService private readonly notebookResolver: INotebookEditorModelResolverService,
 		@IAiEditTelemetryService aiEditTelemetryService: IAiEditTelemetryService,
 	) {
-		super(modifiedResourceRef.object.notebook.uri, telemetryInfo, kind, configurationService, fileConfigService, chatService, fileService, undoRedoService, instantiationService, aiEditTelemetryService);
+		super(modifiedResourceRef.object.notebook.uri, kind, configurationService, fileConfigService, chatService, fileService, undoRedoService, instantiationService, aiEditTelemetryService);
 		this.initialContentComparer = new SnapshotComparer(initialContent);
 		this.modifiedModel = this._register(modifiedResourceRef).object.notebook;
 		this.originalModel = this._register(originalResourceRef).object.notebook;
@@ -420,7 +444,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		const snapshot = createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 		restoreSnapshot(this.originalModel, snapshot);
 		this.initializeModelsFromDiff();
-		await this._collapse(undefined);
 
 		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
 		if (this.modifiedModel.uri.scheme !== Schemas.untitled && (!config.autoSave || !this.notebookResolver.isDirty(this.modifiedURI))) {
@@ -441,31 +464,27 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 
 	protected override async _doReject(): Promise<void> {
 		this.updateCellDiffInfo([], undefined);
-		if (this.createdInRequestId === this._telemetryInfo.requestId) {
+		await this._applyEdits(async () => {
+			const snapshot = createSnapshot(this.originalModel, this.transientOptions, this.configurationService);
+			this.restoreSnapshotInModifiedModel(snapshot);
+		});
+		this.initializeModelsFromDiff();
+
+		// If the notebook is now empty after rejection, delete it
+		if (this.modifiedModel.cells.length === 0) {
 			await this._applyEdits(async () => {
 				await this.modifiedResourceRef.object.revert({ soft: true });
-				await this._fileService.del(this.modifiedURI);
+				await this._fileService.del(this.modifiedURI).catch(_err => {
+					// don't block if file is already deleted
+				});
 			});
 			this._onDidDelete.fire();
-		} else {
-			await this._applyEdits(async () => {
-				const snapshot = createSnapshot(this.originalModel, this.transientOptions, this.configurationService);
-				this.restoreSnapshotInModifiedModel(snapshot);
-				if (this._allEditsAreFromUs && Array.from(this.cellEntryMap.values()).every(entry => entry.allEditsAreFromUs)) {
-					// save the file after discarding so that the dirty indicator goes away
-					// and so that an intermediate saved state gets reverted
-					await this.modifiedResourceRef.object.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
-				}
-			});
-			this.initializeModelsFromDiff();
-			await this._collapse(undefined);
+		} else if (this._allEditsAreFromUs && Array.from(this.cellEntryMap.values()).every(entry => entry.allEditsAreFromUs)) {
+			// save the file after discarding so that the dirty indicator goes away
+			// and so that an intermediate saved state gets reverted
+			await this.modifiedResourceRef.object.save({ reason: SaveReason.EXPLICIT, skipSaveParticipants: true });
 		}
 	}
-
-	private async _collapse(transaction: ITransaction | undefined): Promise<void> {
-		this._multiDiffEntryDelegate.collapse(transaction);
-	}
-
 	protected override _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration {
 		const notebookEditor = getNotebookEditorFromEditorPane(editor);
 		if (!notebookEditor && editor.getId() === NotebookTextDiffEditor.ID) {
@@ -927,7 +946,6 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			original: createSnapshot(this.originalModel, this.transientOptions, this.configurationService),
 			current: createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService),
 			state: this.state.get(),
-			telemetryInfo: this.telemetryInfo,
 		};
 	}
 

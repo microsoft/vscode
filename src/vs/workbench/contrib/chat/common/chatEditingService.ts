@@ -25,6 +25,40 @@ import { IChatProgress } from './chatService.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
 
+/**
+ * Coordinator interface for managing shared state between chat editing sessions.
+ * This allows multiple sessions to coordinate access to shared resources like file entries and edit locks.
+ */
+export interface IChatEditingSessionCoordinator {
+	/**
+	 * All file entries across all editing sessions.
+	 */
+	readonly entriesObs: IObservable<readonly IModifiedFileEntry[]>;
+
+	/**
+	 * Gets or creates a modified file entry for the given resource.
+	 * If the entry already exists (from this or another session), it will be returned.
+	 * @param resource The URI of the file to edit
+	 * @param chatSessionResource The chat session requesting the entry
+	 * @param initialContent Optional initial content if creating a new file
+	 */
+	getOrCreateModifiedFileEntry(resource: URI, chatSessionResource: URI, initialContent?: string): Promise<IModifiedFileEntry | undefined>;
+
+	/**
+	 * Acquires an exclusive lock for editing the given resource.
+	 * This ensures only one session can edit a file at a time.
+	 * @param resource The URI to lock
+	 * @returns A promise that resolves when the lock is acquired
+	 */
+	acquireEditLock(resource: URI): Promise<void>;
+
+	/**
+	 * Releases the edit lock for the given resource.
+	 * @param resource The URI to unlock
+	 */
+	releaseEditLock(resource: URI): void;
+}
+
 export interface IChatEditingService {
 
 	_serviceBrand: undefined;
@@ -101,6 +135,47 @@ export interface IModifiedEntryTelemetryInfo {
 	readonly feature: 'sideBarChat' | 'inlineChat' | undefined;
 }
 
+/**
+ * Metadata tracked for each diff hunk.
+ * This allows us to know which session/request created which changes.
+ */
+export interface IHunkTelemetryInfo {
+	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
+	readonly requestId: string;
+	readonly undoStopId: string | undefined;
+}
+
+/**
+ * DTO for serializing attributed edit ranges to snapshots.
+ * Uses offset-based ranges for precise tracking.
+ */
+export interface IAttributedRangeDTO {
+	/** Start offset in the document */
+	readonly start: number;
+	/** End offset (exclusive) in the document */
+	readonly end: number;
+	/** The telemetry info for the agent that made this edit */
+	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
+	/** The request ID */
+	readonly requestId: string;
+	/** The undo stop ID */
+	readonly undoStopId: string | undefined;
+	/** Whether this is a user edit (vs agent edit) */
+	readonly isUserEdit: boolean;
+}
+
+/**
+ * DTO for serializing hunk telemetry to snapshots
+ * @deprecated Use IAttributedRangeDTO instead for new code
+ */
+export interface IHunkTelemetryInfoDTO {
+	readonly telemetryInfo: IModifiedEntryTelemetryInfo;
+	readonly requestId: string;
+	readonly undoStopId: string | undefined;
+	readonly originalContentHash?: string;
+	readonly modifiedContentHash?: string;
+}
+
 export interface ISnapshotEntry {
 	readonly resource: URI;
 	readonly languageId: string;
@@ -108,7 +183,10 @@ export interface ISnapshotEntry {
 	readonly original: string;
 	readonly current: string;
 	readonly state: ModifiedFileEntryState;
-	telemetryInfo: IModifiedEntryTelemetryInfo;
+	/** @deprecated Use attributedRanges instead */
+	readonly hunkTelemetry?: readonly IHunkTelemetryInfoDTO[];
+	/** Fine-grained attribution for all edit regions */
+	readonly attributedRanges?: readonly IAttributedRangeDTO[];
 }
 
 export interface IChatEditingSession extends IDisposable {
@@ -275,13 +353,12 @@ export interface IModifiedFileEntry {
 	readonly originalURI: URI;
 	readonly modifiedURI: URI;
 
-	readonly lastModifyingRequestId: string;
+	wasModifiedByRequest(requestId: string): boolean;
 
 	readonly state: IObservable<ModifiedFileEntryState>;
 	readonly isCurrentlyBeingModifiedBy: IObservable<{ responseModel: IChatResponseModel; undoStopId: string | undefined } | undefined>;
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined>;
 	readonly rewriteRatio: IObservable<number>;
-
 	readonly waitsForLastEdits: IObservable<boolean>;
 
 	accept(): Promise<void>;

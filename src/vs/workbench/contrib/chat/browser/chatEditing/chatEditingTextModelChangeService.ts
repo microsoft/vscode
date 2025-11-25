@@ -14,9 +14,10 @@ import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { EditOperation, ISingleEditOperation } from '../../../../../editor/common/core/editOperation.js';
-import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
+import { AnnotatedStringEdit, AnnotatedStringReplacement, StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
 import { TextEdit, VersionedExtensionId } from '../../../../../editor/common/languages.js';
@@ -29,14 +30,36 @@ import { IModelContentChangedEvent } from '../../../../../editor/common/textMode
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { editorSelectionBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IAttributedRangeDTO, IModifiedEntryTelemetryInfo, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { AgentAttribution, AttributedEdits, AttributedRange, AttributedStringEdit, CombinedAttribution, getAttributedRanges } from './chatEditingAttribution.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 
 type affectedLines = { linesAdded: number; linesRemoved: number; lineCount: number; hasRemainingEdits: boolean };
 type acceptedOrRejectedLines = affectedLines & { state: 'accepted' | 'rejected' };
+
+export class SourceAnnotatedDetailedLineRangeMapping extends DetailedLineRangeMapping {
+	constructor(
+		inner: DetailedLineRangeMapping,
+		/**
+		 * The primary telemetry info for this hunk (typically the first agent that touched it).
+		 */
+		public readonly chatTelemetryInfo: IModifiedEntryTelemetryInfo | undefined,
+		/**
+		 * Fine-grained attribution for sub-regions within this hunk.
+		 * Each entry represents a portion of the modified range that was edited by a specific agent.
+		 */
+		public readonly attributedRanges: readonly AttributedRange[] = []
+	) {
+		super(inner.original, inner.modified, inner.innerChanges);
+	}
+}
+
+export interface ChatEditingDocumentDiff extends Omit<IDocumentDiff2, 'changes'> {
+	readonly changes: readonly SourceAnnotatedDetailedLineRangeMapping[];
+}
 
 export class ChatEditingTextModelChangeService extends Disposable {
 
@@ -80,19 +103,34 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		return this._allEditsAreFromUs;
 	}
 	private _isExternalEditInProgress: (() => boolean) | undefined;
+
+	/**
+	 * Current editing context - tracks which session/request is making edits.
+	 * This is set before agent edits begin and cleared after they complete.
+	 */
+	private _currentEditContext: {
+		attribution: AgentAttribution;
+	} | undefined;
+
+	/**
+	 * Observable of the most recent request ID that modified this document.
+	 */
+	private readonly _lastModifyingRequestIdObs = observableValue<string>(this, '');
+	public readonly lastModifyingRequestId: IObservable<string> = this._lastModifyingRequestIdObs;
 	private _diffOperation: Promise<IDocumentDiff | undefined> | undefined;
 	private _diffOperationIds: number = 0;
 
-	private readonly _diffInfo = observableValue<IDocumentDiff>(this, nullDocumentDiff);
+	private readonly _diffInfo = observableValue<IDocumentDiff & { changes: readonly SourceAnnotatedDetailedLineRangeMapping[] }>(this, nullDocumentDiff);
+
 	public get diffInfo() {
-		return this._diffInfo.map(value => {
+		return this._diffInfo.map((value): ChatEditingDocumentDiff => {
 			return {
 				...value,
 				originalModel: this.originalModel,
 				modifiedModel: this.modifiedModel,
 				keep: changes => this._keepHunk(changes),
 				undo: changes => this._undoHunk(changes)
-			} satisfies IDocumentDiff2;
+			};
 		});
 	}
 
@@ -115,7 +153,12 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	private readonly _didUserEditModel = this._register(new Emitter<void>());
 	public readonly onDidUserEditModel = this._didUserEditModel.event;
 
-	private _originalToModifiedEdit: StringEdit = StringEdit.empty;
+	/**
+	 * Tracks the cumulative edit from original document to modified document,
+	 * with attribution data for each edit region.
+	 * This allows us to know which agent made which edits.
+	 */
+	private _originalToModifiedEdit: AttributedStringEdit = AttributedEdits.empty;
 
 	private lineChangeCount: number = 0;
 	private linesAdded: number = 0;
@@ -165,6 +208,132 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		if (!this.modifiedModel.isDisposed()) {
 			this._editDecorations = this.modifiedModel.deltaDecorations(this._editDecorations, []);
 		}
+	}
+
+	/**
+	 * Gets the attributed ranges for all tracked edits.
+	 * This returns information about which agents edited which regions.
+	 */
+	public getAttributedRanges(): readonly AttributedRange[] {
+		return getAttributedRanges(this._originalToModifiedEdit);
+	}
+
+	/**
+	 * Gets the attributed ranges as DTOs for serialization.
+	 */
+	public getAttributedRangesDTO(): IAttributedRangeDTO[] {
+		const ranges = this.getAttributedRanges();
+		return ranges.map(({ range, attribution }): IAttributedRangeDTO => {
+			const agentAttribution = attribution.agentAttribution;
+			return {
+				start: range.start,
+				end: range.endExclusive,
+				telemetryInfo: agentAttribution?.telemetryInfo ?? {
+					agentId: undefined,
+					command: undefined,
+					sessionResource: this.modifiedModel.uri,
+					requestId: '',
+					result: undefined,
+					modelId: undefined,
+					modeId: undefined,
+					applyCodeBlockSuggestionId: undefined,
+					feature: undefined
+				},
+				requestId: agentAttribution?.requestId ?? '',
+				undoStopId: agentAttribution?.undoStopId,
+				isUserEdit: attribution.isUserEdit
+			};
+		});
+	}
+
+	/**
+	 * Gets unique agent attributions from all tracked edits.
+	 */
+	public getUniqueAgentAttributions(): AgentAttribution[] {
+		const seen = new Set<string>();
+		const result: AgentAttribution[] = [];
+		for (const r of this._originalToModifiedEdit.replacements) {
+			const agent = r.data.agentAttribution;
+			if (agent) {
+				const key = agent.toKey();
+				if (!seen.has(key)) {
+					seen.add(key);
+					result.push(agent);
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Sets the current editing context for tracking edits.
+	 * All edits made while this context is active will be attributed to the given agent.
+	 */
+	public setEditContext(telemetryInfo: IModifiedEntryTelemetryInfo, requestId: string, undoStopId: string | undefined): void {
+		this._currentEditContext = {
+			attribution: new AgentAttribution(telemetryInfo, requestId, undoStopId)
+		};
+	}
+
+	/**
+	 * Clears the current editing context.
+	 */
+	public async clearEditContext(): Promise<void> {
+		if (this._currentEditContext) {
+			await this._diffOperation; // ensure diff finishes
+			this._lastModifyingRequestIdObs.set(this._currentEditContext.attribution.requestId, undefined);
+		}
+		this._currentEditContext = undefined;
+	}
+
+	/**
+	 * Gets the primary attribution for a diff hunk by finding the first agent attribution
+	 * that overlaps with the hunk's modified range.
+	 */
+	private _getHunkAttribution(change: DetailedLineRangeMapping): IModifiedEntryTelemetryInfo | undefined {
+		// Convert line range to offset range
+		const modifiedStartOffset = this.modifiedModel.getOffsetAt({
+			lineNumber: change.modified.startLineNumber,
+			column: 1
+		});
+		const modifiedEndOffset = change.modified.isEmpty
+			? modifiedStartOffset
+			: this.modifiedModel.getOffsetAt({
+				lineNumber: change.modified.endLineNumberExclusive - 1,
+				column: this.modifiedModel.getLineMaxColumn(change.modified.endLineNumberExclusive - 1)
+			});
+		const hunkRange = new OffsetRange(modifiedStartOffset, modifiedEndOffset);
+
+		// Find the first agent attribution that overlaps with this hunk
+		const attributedRanges = getAttributedRanges(this._originalToModifiedEdit);
+		for (const { range, attribution } of attributedRanges) {
+			if (range.intersects(hunkRange) && attribution.isAgentEdit) {
+				return attribution.agentAttribution?.telemetryInfo;
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Gets all attributed ranges that overlap with a diff hunk's modified range.
+	 */
+	private _getHunkAttributedRanges(change: DetailedLineRangeMapping): AttributedRange[] {
+		// Convert line range to offset range
+		const modifiedStartOffset = this.modifiedModel.getOffsetAt({
+			lineNumber: change.modified.startLineNumber,
+			column: 1
+		});
+		const modifiedEndOffset = change.modified.isEmpty
+			? modifiedStartOffset
+			: this.modifiedModel.getOffsetAt({
+				lineNumber: change.modified.endLineNumberExclusive - 1,
+				column: this.modifiedModel.getLineMaxColumn(change.modified.endLineNumberExclusive - 1)
+			});
+		const hunkRange = new OffsetRange(modifiedStartOffset, modifiedEndOffset);
+
+		// Find all attributed ranges that overlap with this hunk
+		const attributedRanges = getAttributedRanges(this._originalToModifiedEdit);
+		return attributedRanges.filter(({ range }) => range.intersects(hunkRange));
 	}
 
 	public async areOriginalAndModifiedIdentical(): Promise<boolean> {
@@ -331,7 +500,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	}
 
 	private _reset() {
-		this._originalToModifiedEdit = StringEdit.empty;
+		this._originalToModifiedEdit = AttributedEdits.empty;
 		this._diffInfo.set(nullDocumentDiff, undefined);
 		this._didUserEditModelFired = false;
 	}
@@ -359,14 +528,26 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		const isExternalEdit = this._isExternalEditInProgress?.();
 
 		if (this._isEditFromUs || isExternalEdit) {
+			// Agent edit: attribute to current context and compose
+			const attribution = this._currentEditContext?.attribution;
+			const combinedAttribution = attribution
+				? new CombinedAttribution(attribution)
+				: new CombinedAttribution(new AgentAttribution(
+					// Fallback for external edits without context
+					{ agentId: undefined, command: undefined, sessionResource: this.modifiedModel.uri, requestId: '', result: undefined, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined },
+					'external',
+					undefined
+				));
+
 			const e_sum = this._originalToModifiedEdit;
-			const e_ai = edit;
+			const e_ai = edit.mapData(() => combinedAttribution);
 			this._originalToModifiedEdit = e_sum.compose(e_ai);
 			if (isExternalEdit) {
 				this._updateDiffInfoSeq();
 			}
 		} else {
-
+			// User edit: need to rebase while preserving attributions
+			//
 			//           e_ai
 			//   d0 ---------------> s0
 			//   |                   |
@@ -379,21 +560,34 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			//
 			// d0 - document snapshot
 			// s0 - document
-			// e_ai - ai edits
+			// e_ai - ai edits (attributed)
 			// e_user - user edits
 			//
 			const e_ai = this._originalToModifiedEdit;
 			const e_user = edit;
 
-			const e_user_r = e_user.tryRebase(e_ai.inverse(this.originalModel.getValue()));
+			const e_user_r = e_user.tryRebase(e_ai.toStringEdit().inverse(this.originalModel.getValue()));
 
 			if (e_user_r === undefined) {
-				// user edits overlaps/conflicts with AI edits
-				this._originalToModifiedEdit = e_ai.compose(e_user);
+				// User edit overlaps/conflicts with AI edits - compose but retain original AI attributions.
+				// The user edit will be attributed to user, and AI attributions will be preserved
+				// for the portions that don't overlap.
+				const userAttribution = new CombinedAttribution(AttributedEdits.fromUserEdit(e_user).replacements[0]?.data.attribution ?? new AgentAttribution(
+					{ agentId: undefined, command: undefined, sessionResource: this.modifiedModel.uri, requestId: '', result: undefined, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined },
+					'user-conflict',
+					undefined
+				));
+				const attributedUserEdit = edit.mapData(() => userAttribution);
+				this._originalToModifiedEdit = e_ai.compose(attributedUserEdit);
 			} else {
+				// No conflict: apply user edit to original document, rebase AI edit
 				const edits = offsetEditToEditOperations(e_user_r, this.originalModel);
 				this.originalModel.applyEdits(edits);
-				this._originalToModifiedEdit = e_ai.rebaseSkipConflicting(e_user_r);
+
+				// Rebase the attributed edit, preserving attributions
+				const rebasedEdit = e_ai.rebaseSkipConflicting(e_user_r);
+				// Map the rebased StringEdit back to AttributedStringEdit, preserving data
+				this._originalToModifiedEdit = this._rebaseAttributedEdit(e_ai, rebasedEdit);
 			}
 
 			this._allEditsAreFromUs = false;
@@ -403,6 +597,48 @@ export class ChatEditingTextModelChangeService extends Disposable {
 				this._didUserEditModel.fire();
 			}
 		}
+	}
+
+	/**
+	 * Rebases an attributed edit while preserving attribution data.
+	 * When the underlying StringEdit is rebased, we need to map the attributions
+	 * from the original edit to the new positions.
+	 */
+	private _rebaseAttributedEdit(original: AttributedStringEdit, rebased: StringEdit): AttributedStringEdit {
+		// For each replacement in the rebased edit, find the corresponding
+		// replacement in the original edit and copy its attribution
+		const newReplacements: AnnotatedStringReplacement<CombinedAttribution>[] = [];
+
+		for (const rebasedReplacement of rebased.replacements) {
+			// Find the original replacement that this rebased replacement came from
+			// by matching on the newText content (since that's preserved through rebase)
+			let attribution: CombinedAttribution | undefined;
+			for (const origReplacement of original.replacements) {
+				// Match by comparing the new text - this is a heuristic that works
+				// because rebase doesn't change the replacement text
+				if (origReplacement.newText === rebasedReplacement.newText) {
+					attribution = origReplacement.data;
+					break;
+				}
+			}
+
+			// If we couldn't find a matching attribution, create a default one
+			if (!attribution) {
+				attribution = new CombinedAttribution(new AgentAttribution(
+					{ agentId: undefined, command: undefined, sessionResource: this.modifiedModel.uri, requestId: '', result: undefined, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined },
+					'rebased-unknown',
+					undefined
+				));
+			}
+
+			newReplacements.push(AnnotatedStringReplacement.replace(
+				rebasedReplacement.replaceRange,
+				rebasedReplacement.newText,
+				attribution
+			));
+		}
+
+		return AnnotatedStringEdit.create(newReplacements);
 	}
 
 	private async _keepHunk(change: DetailedLineRangeMapping): Promise<boolean> {
@@ -478,7 +714,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 		if (this.state.get() !== ModifiedFileEntryState.Modified) {
 			this._diffInfo.set(nullDocumentDiff, undefined);
-			this._originalToModifiedEdit = StringEdit.empty;
+			this._originalToModifiedEdit = AttributedEdits.empty;
 			return nullDocumentDiff;
 		}
 
@@ -503,10 +739,78 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		// only update the diff if the documents didn't change in the meantime
 		if (this.modifiedModel.getVersionId() === docVersionNow && this.originalModel.getVersionId() === snapshotVersionNow) {
 			const diff2 = diff ?? nullDocumentDiff;
-			this._diffInfo.set(diff2, undefined);
-			this._originalToModifiedEdit = offsetEditFromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
+
+			// Map each diff hunk to its attribution using our tracked edit ranges
+			this._diffInfo.set({
+				...diff2,
+				changes: diff2.changes.map(change => new SourceAnnotatedDetailedLineRangeMapping(
+					change,
+					this._getHunkAttribution(change),
+					this._getHunkAttributedRanges(change)
+				))
+			}, undefined);
+
+			// Rebuild the attributed edit from the diff, preserving existing attributions where possible
+			const newEdit = offsetEditFromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
+			this._originalToModifiedEdit = this._mergeAttributionsFromDiff(newEdit, diff2.changes);
 			return diff2;
 		}
 		return undefined;
+	}
+
+	/**
+	 * Merges attribution data from the previous tracked edit into a new edit derived from diff.
+	 * This preserves agent attribution when the diff is recomputed.
+	 */
+	private _mergeAttributionsFromDiff(newEdit: StringEdit, _changes: readonly DetailedLineRangeMapping[]): AttributedStringEdit {
+		// Get the current attributed ranges
+		const currentRanges = getAttributedRanges(this._originalToModifiedEdit);
+
+		// If we have no existing attributions, just return an empty attributed edit
+		if (currentRanges.length === 0 || this._originalToModifiedEdit.isEmpty()) {
+			// Map all replacements to a default attribution (likely this is initial state)
+			return newEdit.mapData(() => new CombinedAttribution(new AgentAttribution(
+				{ agentId: undefined, command: undefined, sessionResource: this.modifiedModel.uri, requestId: '', result: undefined, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined },
+				'diff-initial',
+				undefined
+			)));
+		}
+
+		// For each replacement in the new edit, find overlapping attributions from the old edit
+		const newReplacements: AnnotatedStringReplacement<CombinedAttribution>[] = [];
+
+		for (const replacement of newEdit.replacements) {
+			// Find the best matching attribution from current ranges
+			let bestAttribution: CombinedAttribution | undefined;
+			let bestOverlap = 0;
+
+			for (const { range, attribution } of currentRanges) {
+				const overlapStart = Math.max(replacement.replaceRange.start, range.start);
+				const overlapEnd = Math.min(replacement.replaceRange.endExclusive, range.endExclusive);
+				const overlap = Math.max(0, overlapEnd - overlapStart);
+
+				if (overlap > bestOverlap) {
+					bestOverlap = overlap;
+					bestAttribution = attribution;
+				}
+			}
+
+			// Use the best matching attribution, or create a default one
+			if (!bestAttribution) {
+				bestAttribution = new CombinedAttribution(new AgentAttribution(
+					{ agentId: undefined, command: undefined, sessionResource: this.modifiedModel.uri, requestId: '', result: undefined, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined },
+					'diff-unattributed',
+					undefined
+				));
+			}
+
+			newReplacements.push(AnnotatedStringReplacement.replace(
+				replacement.replaceRange,
+				replacement.newText,
+				bestAttribution
+			));
+		}
+
+		return AnnotatedStringEdit.create(newReplacements);
 	}
 }

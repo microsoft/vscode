@@ -229,7 +229,7 @@ export function registerChatTitleActions() {
 				}
 
 				// Prompt if the last request modified the working set and the user hasn't already disabled the dialog
-				const entriesModifiedInLastRequest = currentEditingSession.entries.get().filter((entry) => entry.lastModifyingRequestId === item.requestId);
+				const entriesModifiedInLastRequest = currentEditingSession.entries.get().filter((entry) => entry.wasModifiedByRequest(item.requestId));
 				const shouldPrompt = entriesModifiedInLastRequest.length > 0 && configurationService.getValue('chat.editing.confirmEditRequestRetry') === true;
 				const confirmation = shouldPrompt
 					? await dialogService.confirm({

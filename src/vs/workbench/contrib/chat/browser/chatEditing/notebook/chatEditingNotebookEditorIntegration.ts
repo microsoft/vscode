@@ -162,16 +162,18 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			}
 		}));
 
-		// INIT when not streaming nor diffing the response anymore, once per request, and when having changes
-		let lastModifyingRequestId: string | undefined;
+
+		// INIT when not streaming nor diffing the response anymore, and when having changes
+		let wasBeingModified = _entry.isCurrentlyBeingModifiedBy.get();
 		this._store.add(autorun(r => {
 
-			if (!_entry.isCurrentlyBeingModifiedBy.read(r)
+			const isCurrentlyBeingModified = _entry.isCurrentlyBeingModifiedBy.read(r);
+			if (!isCurrentlyBeingModified
+				&& wasBeingModified
 				&& !_entry.isProcessingResponse.read(r)
-				&& lastModifyingRequestId !== _entry.lastModifyingRequestId
 				&& cellChanges.read(r).some(c => c.type !== 'unchanged' && !c.diff.read(r).identical)
 			) {
-				lastModifyingRequestId = _entry.lastModifyingRequestId;
+				wasBeingModified = isCurrentlyBeingModified;
 				// Check if any of the changes are visible, if not, reveal the first change.
 				const visibleChange = this.sortedCellChanges.find(c => {
 					if (c.type === 'unchanged') {

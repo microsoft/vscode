@@ -136,16 +136,17 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			this._diffLineDecorations.set(data);
 		}));
 
-		// INIT current index when: enabled, not streaming anymore, once per request, and when having changes
-		let lastModifyingRequestId: string | undefined;
+		// INIT current index when: enabled, not streaming anymore, and when having changes
+		let wasBeingModified = _entry.isCurrentlyBeingModifiedBy.get();
 		this._store.add(autorun(r => {
 
+			const isCurrentlyBeingModified = _entry.isCurrentlyBeingModifiedBy.read(r);
 			if (enabledObs.read(r)
-				&& !_entry.isCurrentlyBeingModifiedBy.read(r)
-				&& lastModifyingRequestId !== _entry.lastModifyingRequestId
+				&& !isCurrentlyBeingModified
+				&& wasBeingModified
 				&& !documentDiffInfo.read(r).identical
 			) {
-				lastModifyingRequestId = _entry.lastModifyingRequestId;
+				wasBeingModified = isCurrentlyBeingModified;
 				const position = _editor.getPosition() ?? new Position(1, 1);
 				const ranges = this._diffLineDecorations.getRanges();
 				let initialIndex = ranges.findIndex(r => r.containsPosition(position));

@@ -6,6 +6,7 @@
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
@@ -26,6 +27,7 @@ import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatUserAction, IChatService } from '../../common/chatService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -38,6 +40,29 @@ class AutoAcceptControl {
 export const pendingRewriteMinimap = registerColor('minimap.chatEditHighlight',
 	transparent(editorBackground, 0.6),
 	localize('editorSelectionBackground', "Color of pending edit regions in the minimap"));
+
+export function getTelemetryInfoForModel(responseModel: IChatResponseModel): IModifiedEntryTelemetryInfo {
+	// Make these getters because the response result is not available when the file first starts to be edited
+	return new class implements IModifiedEntryTelemetryInfo {
+		get agentId() { return responseModel.agent?.id; }
+		get modelId() { return responseModel.request?.modelId; }
+		get modeId() { return responseModel.request?.modeInfo?.modeId; }
+		get command() { return responseModel.slashCommand?.name; }
+		get sessionResource() { return responseModel.session.sessionResource; }
+		get requestId() { return responseModel.requestId; }
+		get result() { return responseModel.result; }
+		get applyCodeBlockSuggestionId() { return responseModel.request?.modeInfo?.applyCodeBlockSuggestionId; }
+
+		get feature(): 'sideBarChat' | 'inlineChat' | undefined {
+			if (responseModel.session.initialLocation === ChatAgentLocation.Chat) {
+				return 'sideBarChat';
+			} else if (responseModel.session.initialLocation === ChatAgentLocation.EditorInline) {
+				return 'inlineChat';
+			}
+			return undefined;
+		}
+	};
+}
 
 
 export abstract class AbstractChatEditingModifiedFileEntry extends Disposable implements IModifiedFileEntry {
@@ -84,15 +109,16 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	protected readonly _autoAcceptTimeout: IObservable<number>;
 
-	get telemetryInfo(): IModifiedEntryTelemetryInfo {
-		return this._telemetryInfo;
-	}
+	/**
+	 * Last request ID that modified this file.
+	 * Subclasses should override to provide the actual value from their tracking mechanism.
+	 */
+	abstract wasModifiedByRequest(requestId: string): boolean;
 
-	readonly createdInRequestId: string | undefined;
-
-	get lastModifyingRequestId() {
-		return this._telemetryInfo.requestId;
-	}
+	/**
+	 * A set of all chat sessions that have unresolved edits in this file.
+	 */
+	abstract readonly participatingSessions: IObservable<ResourceSet>;
 
 	private _refCounter: number = 1;
 
@@ -102,7 +128,6 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	constructor(
 		readonly modifiedURI: URI,
-		protected _telemetryInfo: IModifiedEntryTelemetryInfo,
 		kind: ChatEditKind,
 		@IConfigurationService configService: IConfigurationService,
 		@IFilesConfigurationService protected _fileConfigService: IFilesConfigurationService,
@@ -113,10 +138,6 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		@IAiEditTelemetryService private readonly _aiEditTelemetryService: IAiEditTelemetryService,
 	) {
 		super();
-
-		if (kind === ChatEditKind.Created) {
-			this.createdInRequestId = this._telemetryInfo.requestId;
-		}
 
 		if (this.modifiedURI.scheme !== Schemas.untitled && this.modifiedURI.scheme !== Schemas.vscodeNotebookCell) {
 			this._register(this._fileService.watch(this.modifiedURI));
@@ -216,10 +237,6 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		this._store.add(cleanup);
 	}
 
-	updateTelemetryInfo(telemetryInfo: IModifiedEntryTelemetryInfo) {
-		this._telemetryInfo = telemetryInfo;
-	}
-
 	async accept(): Promise<void> {
 		const callback = await this.acceptDeferred();
 		if (callback) {
@@ -259,12 +276,12 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			return undefined;
 		}
 
-		this._notifySessionAction('rejected');
 		await this._doReject();
 
 		return (tx: ITransaction) => {
 			this._stateObs.set(ModifiedFileEntryState.Rejected, tx);
 			this._autoAcceptCtrl.set(undefined, tx);
+			this._notifySessionAction('rejected');
 		};
 	}
 
@@ -274,37 +291,41 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		this._notifyAction({ kind: 'chatEditingSessionAction', uri: this.modifiedURI, hasRemainingEdits: false, outcome });
 	}
 
+	protected abstract _getNotifySessionTelemetryInfo(): IModifiedEntryTelemetryInfo[];
+
 	protected _notifyAction(action: ChatUserAction) {
-		if (action.kind === 'chatEditingHunkAction') {
-			this._aiEditTelemetryService.handleCodeAccepted({
-				suggestionId: undefined, // TODO@hediet try to figure this out
-				acceptanceMethod: 'accept',
-				presentation: 'highlightedEdit',
-				modelId: this._telemetryInfo.modelId,
-				modeId: this._telemetryInfo.modeId,
-				applyCodeBlockSuggestionId: this._telemetryInfo.applyCodeBlockSuggestionId,
-				editDeltaInfo: new EditDeltaInfo(
-					action.linesAdded,
-					action.linesRemoved,
-					-1,
-					-1,
-				),
-				feature: this._telemetryInfo.feature,
-				languageId: action.languageId,
-				source: undefined,
+		for (const telemetryInfo of this._getNotifySessionTelemetryInfo()) {
+			if (action.kind === 'chatEditingHunkAction') {
+				this._aiEditTelemetryService.handleCodeAccepted({
+					suggestionId: undefined, // TODO@hediet try to figure this out
+					acceptanceMethod: 'accept',
+					presentation: 'highlightedEdit',
+					modelId: telemetryInfo.modelId,
+					modeId: telemetryInfo.modeId,
+					applyCodeBlockSuggestionId: telemetryInfo.applyCodeBlockSuggestionId,
+					editDeltaInfo: new EditDeltaInfo(
+						action.linesAdded,
+						action.linesRemoved,
+						-1,
+						-1,
+					),
+					feature: telemetryInfo.feature,
+					languageId: action.languageId,
+					source: undefined,
+				});
+			}
+
+			this._chatService.notifyUserAction({
+				action,
+				agentId: telemetryInfo.agentId,
+				modelId: telemetryInfo.modelId,
+				modeId: telemetryInfo.modeId,
+				command: telemetryInfo.command,
+				sessionResource: telemetryInfo.sessionResource,
+				requestId: telemetryInfo.requestId,
+				result: telemetryInfo.result
 			});
 		}
-
-		this._chatService.notifyUserAction({
-			action,
-			agentId: this._telemetryInfo.agentId,
-			modelId: this._telemetryInfo.modelId,
-			modeId: this._telemetryInfo.modeId,
-			command: this._telemetryInfo.command,
-			sessionResource: this._telemetryInfo.sessionResource,
-			requestId: this._telemetryInfo.requestId,
-			result: this._telemetryInfo.result
-		});
 	}
 
 	private readonly _editorIntegrations = this._register(new DisposableMap<IEditorPane, IModifiedFileEntryEditorIntegration>());
