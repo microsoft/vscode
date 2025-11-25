@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable } from 'vscode';
-import { dispose, fromNow, IDisposable } from './util';
+import { dispose, filterEvent, fromNow, getStashDescription, IDisposable } from './util';
 import { Repository } from './repository';
 import { Ref, RefType } from './api/git';
+import { OperationKind } from './operation';
 
 function getArtifactDescription(ref: Ref, shortCommitLength: number): string {
 	const segments: string[] = [];
@@ -82,6 +83,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 	) {
 		this._groups = [
 			{ id: 'branches', name: l10n.t('Branches'), icon: new ThemeIcon('git-branch') },
+			{ id: 'stashes', name: l10n.t('Stashes'), icon: new ThemeIcon('git-stash') },
 			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag') }
 		];
 
@@ -97,6 +99,15 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			}
 
 			this._onDidChangeArtifacts.fire(Array.from(groups));
+		}));
+
+		const onDidRunWriteOperation = filterEvent(
+			repository.onDidRunOperation, e => !e.operation.readOnly);
+
+		this._disposables.push(onDidRunWriteOperation(result => {
+			if (result.operation.kind === OperationKind.Stash) {
+				this._onDidChangeArtifacts.fire(['stashes']);
+			}
 		}));
 	}
 
@@ -132,6 +143,15 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 					icon: this.repository.HEAD?.type === RefType.Tag && r.name === this.repository.HEAD?.name
 						? new ThemeIcon('target')
 						: new ThemeIcon('tag')
+				}));
+			} else if (group === 'stashes') {
+				const stashes = await this.repository.getStashes();
+
+				return stashes.map(s => ({
+					id: `stash@{${s.index}}`,
+					name: s.description,
+					description: getStashDescription(s),
+					icon: new ThemeIcon('git-stash')
 				}));
 			}
 		} catch (err) {
