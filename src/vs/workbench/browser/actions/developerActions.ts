@@ -261,11 +261,11 @@ class ToggleScreencastModeAction extends Action2 {
 		let composing: Element | undefined = undefined;
 		let imeBackSpace = false;
 
-		const clearKeyboardScheduler = new RunOnceScheduler(() => {
+		const clearKeyboardScheduler = disposables.add(new RunOnceScheduler(() => {
 			keyboardMarker.textContent = '';
 			composing = undefined;
 			length = 0;
-		}, keyboardMarkerTimeout);
+		}, keyboardMarkerTimeout));
 
 		disposables.add(onCompositionStart.event(e => {
 			imeBackSpace = true;
