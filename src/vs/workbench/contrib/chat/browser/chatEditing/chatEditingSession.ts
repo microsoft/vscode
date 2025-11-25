@@ -199,11 +199,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			this._getTimelineDelegate(),
 		);
 
-		const diffsForFiles = this._timeline.getDiffsForFilesInSession();
-		autorun(reader => {
-			console.log('file diffs', diffsForFiles.read(reader));
-		});
-
 		this.canRedo = this._timeline.canRedo.map((hasHistory, reader) =>
 			hasHistory && this._state.read(reader) === ChatEditingSessionState.Idle);
 		this.canUndo = this._timeline.canUndo.map((hasHistory, reader) =>
