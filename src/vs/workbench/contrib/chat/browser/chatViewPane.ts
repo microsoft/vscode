@@ -41,7 +41,7 @@ import { showCloseActiveChatNotification } from './actions/chatCloseNotification
 import { ChatWidget } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
-import { ChatViewTitleController } from './chatViewTitle.js';
+import { ChatViewTitleControl } from './chatViewTitleControl.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -66,7 +66,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
 
-	private titleController: ChatViewTitleController | undefined;
+	private titleControl: ChatViewTitleControl | undefined;
 	private readonly modelDisposables = this._register(new DisposableStore());
 
 	private restoringSession: Promise<void> | undefined;
@@ -213,11 +213,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (model) {
 			this.modelDisposables.add(model.onDidChange(e => {
 				if (e.kind === 'setCustomTitle' || e.kind === 'addRequest') {
-					this.titleController?.update(model);
+					this.titleControl?.update(model);
 				}
 			}));
 		}
-		this.titleController?.update(model);
+		this.titleControl?.update(model);
 
 		return model;
 	}
@@ -295,7 +295,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private createTitleControl(parent: HTMLElement): void {
-		this.titleController = this._register(new ChatViewTitleController(
+		this.titleControl = this._register(new ChatViewTitleControl(
 			this.id,
 			{
 				updatePrimaryTitle: title => this.updateTitle(title)
@@ -303,13 +303,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.configurationService,
 			this.viewDescriptorService,
 		));
-		this._register(this.titleController.onDidChangeHeight(() => {
+		this._register(this.titleControl.onDidChangeHeight(() => {
 			if (this.lastDimensions) {
 				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 			}
 		}));
 
-		this.titleController.render(parent);
+		this.titleControl.render(parent);
 	}
 
 	private createChatWidget(parent: HTMLElement, welcomeController: ChatViewWelcomeController): void {
@@ -415,7 +415,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsControl?.layout(sessionsControlHeight, width);
 
 		// Title Control
-		widgetHeight -= this.titleController?.getSecondaryTitleHeight() ?? 0;
+		widgetHeight -= this.titleControl?.getSecondaryTitleHeight() ?? 0;
 
 		this._widget.layout(widgetHeight, width);
 	}
@@ -445,6 +445,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	override get singleViewPaneContainerTitle(): string | undefined {
-		return this.titleController?.getSingleViewPaneContainerTitle(super.singleViewPaneContainerTitle);
+		return this.titleControl?.getSingleViewPaneContainerTitle(super.singleViewPaneContainerTitle);
 	}
 }

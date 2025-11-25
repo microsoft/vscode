@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './chatViewTitle.css';
-
+import './media/chatViewTitle.css';
 import { h, append } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -18,7 +17,7 @@ export interface IChatViewTitleDelegate {
 	updatePrimaryTitle(title: string): void;
 }
 
-export class ChatViewTitleController extends Disposable {
+export class ChatViewTitleControl extends Disposable {
 	private readonly viewContainerModel: IViewContainerModel | undefined;
 	private currentPrimaryTitle: string;
 	private currentModel: IChatModel | undefined;
