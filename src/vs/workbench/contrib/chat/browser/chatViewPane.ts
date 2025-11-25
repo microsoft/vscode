@@ -38,7 +38,7 @@ import { IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType
 import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, LEGACY_AGENT_SESSIONS_VIEW_ID } from '../common/constants.js';
 import { AGENT_SESSIONS_VIEW_ID } from './agentSessions/agentSessions.js';
-import { showCloseActiveChatNotification } from './agentSessions/chatCloseNotification.js';
+import { showCloseActiveChatNotification } from './actions/chatCloseNotification.js';
 import { ChatWidget } from './chatWidget.js';
 import { Link } from '../../../../platform/opener/browser/link.js';
 import { localize } from '../../../../nls.js';

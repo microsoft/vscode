@@ -61,7 +61,7 @@ export class RenameSymbolProcessor extends Disposable {
 		const { oldName, newName, position } = edits.renames;
 		let timedOut = false;
 		const loc = await raceTimeout(prepareRename(this._languageFeaturesService.renameProvider, textModel, position), 1000, () => { timedOut = true; });
-		const renamePossible = loc !== undefined && !loc.rejectReason;
+		const renamePossible = loc !== undefined && !loc.rejectReason && loc.text === oldName;
 
 		suggestItem.setRenameProcessingInfo({ createdRename: renamePossible, duration: Date.now() - start, timedOut });
 

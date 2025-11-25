@@ -24,7 +24,7 @@ import { IChatSessionsService, localChatSessionType } from '../common/chatSessio
 import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
-import { showCloseActiveChatNotification } from './agentSessions/chatCloseNotification.js';
+import { showCloseActiveChatNotification } from './actions/chatCloseNotification.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
