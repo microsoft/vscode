@@ -1556,7 +1556,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// 2. The shellLaunchConfig explicitly specifies a cwd (legitimate task/terminal request)
 			if (!this.hasRemoteAuthority && !hasExplicitCwd) {
 				// something strange is going on if cwd is not userHome in an empty workspace
-				// and no explicit cwd was requested and this is not a remote terminal
 				this._onProcessExit({
 					message: nls.localize('workspaceNotTrustedCreateTerminalCwd', "Cannot launch a terminal process in an untrusted workspace with cwd {0} and userHome {1}", this._cwd, this._userHome)
 				});
