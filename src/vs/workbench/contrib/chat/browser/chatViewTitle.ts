@@ -21,7 +21,6 @@ export interface IChatViewTitleDelegate {
 
 export class ChatViewTitleController extends Disposable {
 	private readonly viewContainerModel: IViewContainerModel | undefined;
-	private hasMultipleVisibleViews = false;
 	private currentPrimaryTitle: string;
 	private _secondaryTitleContainer: HTMLElement | undefined;
 	private _secondaryTitle: HTMLElement | undefined;
@@ -36,17 +35,14 @@ export class ChatViewTitleController extends Disposable {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(this.viewId);
 		if (viewContainer) {
 			this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-			this.hasMultipleVisibleViews = this.viewContainerModel.visibleViewDescriptors.length > 1;
-			this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(() => this.handleVisibleViewDescriptorsChanged()));
-			this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(() => this.handleVisibleViewDescriptorsChanged()));
+			this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(() => this.update()));
+			this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(() => this.update()));
 		}
 		this.currentPrimaryTitle = localize('chat', "Chat");
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
-				this.handleActivityBarLocationChange();
-			}
-			if (e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
-				this.handleSecondarySideBarShowLabelsChange();
+			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) ||
+				e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
+				this.update();
 			}
 		}));
 	}
@@ -100,52 +96,12 @@ export class ChatViewTitleController extends Disposable {
 		return this._secondaryTitleContainer.offsetHeight;
 	}
 
-	private handleActivityBarLocationChange(): void {
-		this.updateViewTitleBasedOnShowLabelsConfig();
-		this.updateSecondaryTitleVisibility();
-	}
-
-	private handleSecondarySideBarShowLabelsChange(): void {
-		this.updateViewTitleBasedOnShowLabelsConfig();
-	}
-
-	private handleVisibleViewDescriptorsChanged(): void {
-		if (!this.viewContainerModel) {
-			return;
-		}
-		const hasMultiple = this.viewContainerModel.visibleViewDescriptors.length > 1;
-		if (hasMultiple === this.hasMultipleVisibleViews) {
-			return;
-		}
-		this.hasMultipleVisibleViews = hasMultiple;
-		this.updateSecondaryTitleVisibility();
-	}
-
-	private updateSecondaryTitleVisibility(): void {
-		if (!this.shouldRenderSecondaryTitleBar()) {
-			this.setSecondaryTitle(undefined);
-			return;
-		}
-		this.update();
-	}
-
-	private updateViewTitleBasedOnShowLabelsConfig(): void {
-		this.update();
-	}
-
 	private shouldRenderSecondaryTitleBar(): boolean {
-		if (this.hasMultipleVisibleViews) {
+		if (this.viewContainerModel && this.viewContainerModel.visibleViewDescriptors.length > 1) {
 			return false;
 		}
 		const location = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
 		return location !== ActivityBarPosition.TOP && location !== ActivityBarPosition.BOTTOM && location !== ActivityBarPosition.HIDDEN;
-	}
-
-	private computeSecondarySideBarLabelConfig(): boolean {
-		if (this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT) {
-			return false;
-		}
-		return this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
 	}
 
 	private setSecondaryTitle(title: string | undefined): void {
@@ -162,7 +118,13 @@ export class ChatViewTitleController extends Disposable {
 	}
 
 	private shouldOmitChatPrefix(): boolean {
-		return this.shouldRenderSecondaryTitleBar() && this.computeSecondarySideBarLabelConfig();
+		if (!this.shouldRenderSecondaryTitleBar()) {
+			return false;
+		}
+		if (this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT) {
+			return false;
+		}
+		return this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
 	}
 
 	private withChatPrefix(title: string | undefined): string | undefined {
