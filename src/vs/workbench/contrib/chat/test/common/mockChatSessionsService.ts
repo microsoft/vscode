@@ -218,9 +218,10 @@ export class MockChatSessionsService implements IChatSessionsService {
 	}
 
 	registerModelProgressListener(model: IChatModel, callback: () => void): void {
-		throw new Error('Method not implemented.');
+		// No-op implementation for testing
 	}
+
 	getSessionDescription(chatModel: IChatModel): string | undefined {
-		throw new Error('Method not implemented.');
+		return undefined;
 	}
 }
