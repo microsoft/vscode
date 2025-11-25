@@ -138,11 +138,7 @@ class ToggleScreencastModeAction extends Action2 {
 
 		const disposables = new DisposableStore();
 
-		let container = layoutService.activeContainer;
-
-		disposables.add(toDisposable(() => {
-			container = undefined!;
-		}));
+		const container = layoutService.activeContainer;
 
 		const mouseMarker = append(container, $('.screencast-mouse'));
 		disposables.add(toDisposable(() => mouseMarker.remove()));
