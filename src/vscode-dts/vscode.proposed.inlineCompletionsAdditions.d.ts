@@ -137,7 +137,8 @@ declare module 'vscode' {
 
 		readonly modelInfo?: InlineCompletionModelInfo;
 		readonly onDidChangeModelInfo?: Event<void>;
-		setCurrentModelId?(modelId: string): Promise<void>;
+		// eslint-disable-next-line local/vscode-dts-provider-naming
+		setCurrentModelId?(modelId: string): Thenable<void>;
 
 
 		// #region Deprecated methods
