@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { localize } from '../../../../../nls.js';
@@ -23,7 +23,7 @@ export class LocalChatSessionsProvider extends Disposable implements IChatSessio
 	readonly chatSessionType = localChatSessionType;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
-	readonly onDidChange: Event<void> = this._onDidChange.event;
+	public get onDidChange() { return this._onDidChange.event; }
 
 	readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
 	public get onDidChangeChatSessionItems() { return this._onDidChangeChatSessionItems.event; }
