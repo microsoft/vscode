@@ -321,13 +321,19 @@ export interface IAgentSessionsFilter {
 
 	readonly onDidChange: Event<void>;
 
+	/**
+	 * Optional limit on the number of sessions to show.
+	 */
+	readonly limitResults?: number;
+
 	exclude(session: IAgentSession): boolean;
 }
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, IAgentSession> {
 
 	constructor(
-		private readonly filter: IAgentSessionsFilter | undefined
+		private readonly filter: IAgentSessionsFilter | undefined,
+		private readonly sorter: ITreeSorter<IAgentSession>,
 	) { }
 
 	hasChildren(element: IAgentSessionsModel | IAgentSession): boolean {
@@ -339,7 +345,16 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 			return [];
 		}
 
-		return element.sessions.filter(session => !this.filter?.exclude(session));
+		// Apply filter if configured
+		const filteredSessions = element.sessions.filter(session => !this.filter?.exclude(session));
+
+		// Apply limiter if configured
+		if (this.filter?.limitResults !== undefined) {
+			filteredSessions.sort(this.sorter.compare.bind(this.sorter));
+			return filteredSessions.slice(0, this.filter.limitResults);
+		}
+
+		return filteredSessions;
 	}
 }
 

@@ -250,7 +250,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.createChatWidget(parent, welcomeController);
 
 		// Sessions control visibility is impacted by chat widget empty state
-		this._register(this._widget.onDidChangeEmptyState(() => this.updateSessionsControlVisibility(true)));
+		this._register(this._widget.onDidChangeEmptyState(() => {
+			this.sessionsControl?.clearFocus();
+			this.updateSessionsControlVisibility(true);
+		}));
 	}
 
 	private createSessionsControl(parent: HTMLElement): void {
@@ -262,7 +265,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			allowOpenSessionsInPanel: true,
 			filter: {
 				onDidChange: Event.None,
+				limitResults: 3, // Limit to 3 sessions
 				exclude(session) {
+					if (session.isArchived()) {
+						return true; // exclude archived sessions
+					}
+
 					const model = that.chatService.getSession(session.resource);
 					if (model && !model.hasRequests) {
 						return true; // exclude sessions without requests
