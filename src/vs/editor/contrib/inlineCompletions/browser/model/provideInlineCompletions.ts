@@ -501,13 +501,13 @@ export class InlineSuggestData {
 		);
 	}
 
-	private performance = new Performance();
+	private performance = new InlineSuggestionsPerformance();
 	public addPerformanceMarker(marker: string): void {
 		this.performance.mark(marker);
 	}
 }
 
-class Performance {
+class InlineSuggestionsPerformance {
 	private markers: { name: string; timeStamp: number }[] = [];
 	constructor() {
 		this.markers.push({ name: 'start', timeStamp: Date.now() });
