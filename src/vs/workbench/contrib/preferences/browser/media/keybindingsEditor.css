@@ -232,6 +232,8 @@
 
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table.focused .monaco-list-row.selected .monaco-table-tr .monaco-table-td .monaco-keybinding-key {
 	color: var(--vscode-list-activeSelectionForeground);
+	border-color: inherit !important;
+	opacity: 0.8;
 }
 
 .keybindings-editor > .keybindings-body > .keybindings-table-container .monaco-table .monaco-list-row:hover:not(.selected):not(.focused) .monaco-table-tr .monaco-table-td .monaco-keybinding-key {

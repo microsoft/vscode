@@ -1363,10 +1363,32 @@ class InlineCompletionAdapter {
 			);
 	}
 
+	public get supportsSetModelId(): boolean {
+		return isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions')
+			&& typeof this._provider.setCurrentModelId === 'function';
+	}
+
 	private readonly languageTriggerKindToVSCodeTriggerKind: Record<languages.InlineCompletionTriggerKind, InlineCompletionTriggerKind> = {
 		[languages.InlineCompletionTriggerKind.Automatic]: InlineCompletionTriggerKind.Automatic,
 		[languages.InlineCompletionTriggerKind.Explicit]: InlineCompletionTriggerKind.Invoke,
 	};
+
+	public get modelInfo(): extHostProtocol.IInlineCompletionModelInfoDto | undefined {
+		if (!this._isAdditionsProposedApiEnabled) {
+			return undefined;
+		}
+		return this._provider.modelInfo ? {
+			models: this._provider.modelInfo.models,
+			currentModelId: this._provider.modelInfo.currentModelId
+		} : undefined;
+	}
+
+	setCurrentModelId(modelId: string): void {
+		if (!this._isAdditionsProposedApiEnabled) {
+			return;
+		}
+		this._provider.setCurrentModelId?.(modelId);
+	}
 
 	async provideInlineCompletions(resource: URI, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
 		const doc = this._documents.getDocument(resource);
@@ -2589,16 +2611,21 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	// --- ghost text
 
 	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider, metadata: vscode.InlineCompletionItemProviderMetadata | undefined): vscode.Disposable {
-		const eventHandle = typeof provider.onDidChange === 'function' && isProposedApiEnabled(extension, 'inlineCompletionsAdditions') ? this._nextHandle() : undefined;
 		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter);
 		const handle = this._addNewAdapter(adapter, extension);
 		let result = this._createDisposable(handle);
 
-		if (eventHandle !== undefined) {
-			const subscription = provider.onDidChange!(_ => this._proxy.$emitInlineCompletionsChange(eventHandle));
+		const supportsOnDidChange = isProposedApiEnabled(extension, 'inlineCompletionsAdditions') && typeof provider.onDidChange === 'function';
+		if (supportsOnDidChange) {
+			const subscription = provider.onDidChange!(_ => this._proxy.$emitInlineCompletionsChange(handle));
 			result = Disposable.from(result, subscription);
 		}
 
+		const supportsOnDidChangeModelInfo = isProposedApiEnabled(extension, 'inlineCompletionsAdditions') && typeof provider.onDidChangeModelInfo === 'function';
+		if (supportsOnDidChangeModelInfo) {
+			const subscription = provider.onDidChangeModelInfo!(_ => this._proxy.$emitInlineCompletionModelInfoChange(handle, adapter.modelInfo));
+			result = Disposable.from(result, subscription);
+		}
 		this._proxy.$registerInlineCompletionsSupport(
 			handle,
 			this._transformDocumentSelector(selector, extension),
@@ -2610,7 +2637,10 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 			metadata?.displayName,
 			metadata?.debounceDelayMs,
 			metadata?.excludes?.map(extId => ExtensionIdentifier.toKey(extId)) || [],
-			eventHandle,
+			supportsOnDidChange,
+			adapter.supportsSetModelId,
+			adapter.modelInfo,
+			supportsOnDidChangeModelInfo,
 		);
 		return result;
 	}
@@ -2650,6 +2680,12 @@ export class ExtHostLanguageFeatures extends CoreDisposable implements extHostPr
 	$acceptInlineCompletionsUnificationState(state: IInlineCompletionsUnificationState): void {
 		this._inlineCompletionsUnificationState = state;
 		this._onDidChangeInlineCompletionsUnificationState.fire();
+	}
+
+	$handleInlineCompletionSetCurrentModelId(handle: number, modelId: string): void {
+		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
+			adapter.setCurrentModelId(modelId);
+		}, undefined, undefined);
 	}
 
 	// --- parameter hints
