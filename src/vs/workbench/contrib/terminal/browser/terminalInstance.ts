@@ -1543,8 +1543,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
 		this._logService.debug(`MYLOG TerminalInstance#_createProcess: activeWorkspaceRootUri=${activeWorkspaceRootUri?.toString()}`);
 		if (activeWorkspaceRootUri) {
+			this._logService.debug(`MYLOG TerminalInstance#_createProcess: Active Workspace at:  ${activeWorkspaceRootUri.toString()}`);
 			const trusted = await this._trust();
+			this._logService.debug(`MYLOG TerminalInstance#_createProcess: Workspace trust for active workspace is ${trusted}`);
 			if (!trusted) {
+				this._logService.debug(`MYLOG TerminalInstance#_createProcess: Workspace is not trusted - terminating process creation`);
 				this._onProcessExit({ message: nls.localize('workspaceNotTrustedCreateTerminal', "Cannot launch a terminal process in an untrusted workspace") });
 			}
 		} else if (this._cwd && this._userHome && this._cwd !== this._userHome) {
