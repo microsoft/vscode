@@ -13,7 +13,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { IFontToken, IModelContentChangedEvent, IModelOptionsChangedEvent } from '../../textModelEvents.js';
 import { classNameForFont } from '../../languages/supports/tokenization.js';
 import { Position } from '../../core/position.js';
-import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotationUpdate } from './annotations.js';
+import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotation, IAnnotationUpdate } from './annotations.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
 import { StringEdit } from '../../core/edits/stringEdit.js';
 
@@ -44,7 +44,14 @@ export class LineFontChangingDecoration {
 	) { }
 }
 
+export interface IFontTokenDecoration {
+	fontToken: IFontToken;
+	decorationId: string;
+}
+
 export class TokenizationFontDecorationProvider extends Disposable implements DecorationProvider {
+
+	static DECORATION_COUNT = 0;
 
 	private readonly _onDidChangeLineHeight = new Emitter<Set<LineHeightChangingDecoration>>();
 	public readonly onDidChangeLineHeight = this._onDidChangeLineHeight.event;
@@ -52,7 +59,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	private readonly _onDidChangeFont = new Emitter<Set<LineFontChangingDecoration>>();
 	public readonly onDidChangeFont = this._onDidChangeFont.event;
 
-	private _fontAnnotations: IAnnotatedString<IFontToken> = new AnnotatedString<IFontToken>();
+	private _fontAnnotations: IAnnotatedString<IFontTokenDecoration> = new AnnotatedString<IFontTokenDecoration>();
 	private _queuedEdits: StringEdit = StringEdit.empty;
 
 	constructor(
@@ -62,9 +69,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		super();
 		this.tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
 			this._resolveAnnotations();
-			// TODO: combine the annotations and the heights into one map later
-			const lineNumberToHeight = new Map<number, number | null>();
-			const lineNumberToAnnotations = new Map<number, IAnnotationUpdate<IFontToken>[]>();
+			const lineNumberToAnnotations = new Map<number, IAnnotationUpdate<IFontTokenDecoration>[]>();
 
 			for (const annotation of fontChanges.changes.annotations) {
 
@@ -77,19 +82,20 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 				}
 
 				const lineNumber = startPosition.lineNumber;
-				if (lineNumberToAnnotations.has(lineNumber)) {
-					lineNumberToAnnotations.get(lineNumber)!.push(annotation);
-				} else {
-					lineNumberToAnnotations.set(lineNumber, [annotation]);
-				}
+				const fontTokenDecoration: IFontTokenDecoration = {
+					fontToken: annotation.annotation,
+					decorationId: `tokenization-font-decoration-${TokenizationFontDecorationProvider.DECORATION_COUNT}`
+				};
+				const fontTokenAnnotation: IAnnotation<IFontTokenDecoration> = {
+					range: annotation.range,
+					annotation: fontTokenDecoration
+				};
+				TokenizationFontDecorationProvider.DECORATION_COUNT++;
 
-				if (lineNumberToHeight.has(lineNumber)) {
-					const currentLineHeight = lineNumberToHeight.get(lineNumber);
-					if (!currentLineHeight || (annotation.annotation.lineHeight && annotation.annotation.lineHeight > currentLineHeight)) {
-						lineNumberToHeight.set(lineNumber, annotation.annotation.lineHeight!); // we take the maximum line height
-					}
+				if (lineNumberToAnnotations.has(lineNumber)) {
+					lineNumberToAnnotations.get(lineNumber)!.push(fontTokenAnnotation);
 				} else {
-					lineNumberToHeight.set(lineNumber, annotation.annotation.lineHeight!);
+					lineNumberToAnnotations.set(lineNumber, [fontTokenAnnotation]);
 				}
 			}
 
@@ -100,12 +106,21 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			}
 
 			const affectedLineHeights = new Set<LineHeightChangingDecoration>();
-			for (const [lineNumber, lineHeight] of lineNumberToHeight) {
-				affectedLineHeights.add(new LineHeightChangingDecoration(0, `tokenization-line-decoration-${lineNumber}`, lineNumber, lineHeight));
-			}
 			const affectedLineFonts = new Set<LineFontChangingDecoration>();
-			for (const lineNumber of lineNumberToAnnotations.keys()) {
-				affectedLineFonts.add(new LineFontChangingDecoration(0, `tokenization-line-decoration-${lineNumber}`, lineNumber));
+			for (const [lineNumber, annotationUpdates] of lineNumberToAnnotations.entries()) {
+				const decorationsOnLine = this.textModel.getDecorationsInRange(new Range(lineNumber, 1, lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
+				for (const decoration of decorationsOnLine) {
+					if (decoration.id.startsWith('tokenization-line-decoration')) {
+						affectedLineHeights.add(new LineHeightChangingDecoration(0, decoration.id, lineNumber, null));
+						affectedLineFonts.add(new LineFontChangingDecoration(0, decoration.id, lineNumber));
+					}
+				}
+				for (const annotationUpdate of annotationUpdates) {
+					if (annotationUpdate.annotation.fontToken.lineHeight) {
+						affectedLineHeights.add(new LineHeightChangingDecoration(0, annotationUpdate.annotation.decorationId, lineNumber, annotationUpdate.annotation.fontToken.lineHeight));
+						affectedLineFonts.add(new LineFontChangingDecoration(0, annotationUpdate.annotation.decorationId, lineNumber));
+					}
+				}
 			}
 			this._onDidChangeLineHeight.fire(affectedLineHeights);
 			this._onDidChangeFont.fire(affectedLineFonts);
@@ -132,8 +147,8 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			const annotationStartPosition = this.textModel.getPositionAt(annotation.range.start);
 			const annotationEndPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
 			const range = Range.fromPositions(annotationStartPosition, annotationEndPosition);
-			const className = classNameForFont(annotation.annotation.fontFamily ?? '', annotation.annotation.fontSize ?? '');
-			const id = `font-decoration-${annotation.range.start}-${annotation.range.endExclusive}`;
+			const className = classNameForFont(annotation.annotation.fontToken.fontFamily ?? '', annotation.annotation.fontToken.fontSize ?? '');
+			const id = annotation.annotation.decorationId;
 			decorations.push({
 				id: id,
 				options: {
