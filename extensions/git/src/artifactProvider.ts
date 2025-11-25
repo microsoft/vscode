@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable } from 'vscode';
-import { dispose, filterEvent, fromNow, IDisposable } from './util';
+import { dispose, filterEvent, fromNow, getStashDescription, IDisposable } from './util';
 import { Repository } from './repository';
 import { Ref, RefType } from './api/git';
 import { OperationKind } from './operation';
@@ -83,8 +83,8 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 	) {
 		this._groups = [
 			{ id: 'branches', name: l10n.t('Branches'), icon: new ThemeIcon('git-branch') },
-			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag') },
-			{ id: 'stashes', name: l10n.t('Stashes'), icon: new ThemeIcon('git-stash') }
+			{ id: 'stashes', name: l10n.t('Stashes'), icon: new ThemeIcon('git-stash') },
+			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag') }
 		];
 
 		this._disposables.push(this._onDidChangeArtifacts);
@@ -147,22 +147,12 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 			} else if (group === 'stashes') {
 				const stashes = await this.repository.getStashes();
 
-				return stashes.map(s => {
-					const descriptionSegments: string[] = [];
-					if (s.commitDate) {
-						descriptionSegments.push(fromNow(s.commitDate));
-					}
-					if (s.branchName) {
-						descriptionSegments.push(s.branchName);
-					}
-
-					return {
-						id: `stash@{${s.index}}`,
-						name: s.description,
-						description: descriptionSegments.join(' \u2022 '),
-						icon: new ThemeIcon('git-stash')
-					};
-				});
+				return stashes.map(s => ({
+					id: `stash@{${s.index}}`,
+					name: s.description,
+					description: getStashDescription(s),
+					icon: new ThemeIcon('git-stash')
+				}));
 			}
 		} catch (err) {
 			this.logger.error(`[GitArtifactProvider][provideArtifacts] Error while providing artifacts for group '${group}': `, err);

@@ -14,7 +14,7 @@ import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
-import { DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
+import { DiagnosticSeverityConfig, dispose, fromNow, getHistoryItemDisplayName, getStashDescription, grep, isDefined, isDescendant, isLinuxSnap, isRemote, isWindows, pathEquals, relativePath, subject, toDiagnosticSeverity, truncate } from './util';
 import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
@@ -333,20 +333,9 @@ class RepositoryItem implements QuickPickItem {
 class StashItem implements QuickPickItem {
 	get label(): string { return `#${this.stash.index}: ${this.stash.description}`; }
 
-	private readonly _description: string | undefined;
-	get description(): string | undefined { return this._description; }
+	get description(): string | undefined { return getStashDescription(this.stash); }
 
-	constructor(readonly stash: Stash) {
-		const descriptionSegments: string[] = [];
-		if (this.stash.commitDate) {
-			descriptionSegments.push(fromNow(this.stash.commitDate));
-		}
-		if (this.stash.branchName) {
-			descriptionSegments.push(this.stash.branchName);
-		}
-
-		this._description = descriptionSegments.join(' \u2022 ');
-	}
+	constructor(readonly stash: Stash) { }
 }
 
 interface ScmCommandOptions {
