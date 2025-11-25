@@ -90,11 +90,11 @@ export class ChatViewTitleController extends Disposable {
 		}
 	}
 
-	getSingleViewPaneContainerTitle(superTitle: string | undefined): string | undefined {
+	getSingleViewPaneContainerTitle(descriptorTitle: string | undefined): string | undefined {
 		if (!this.shouldRenderSecondaryTitleBar()) {
 			return this.currentPrimaryTitle;
 		}
-		return superTitle ?? this.currentPrimaryTitle;
+		return descriptorTitle ?? this.currentPrimaryTitle;
 	}
 
 	getSecondaryTitleHeight(): number {
