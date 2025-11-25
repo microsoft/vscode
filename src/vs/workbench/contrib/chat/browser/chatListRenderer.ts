@@ -1236,6 +1236,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
+		// Don't pin terminal tools
+		const isTerminalTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal';
+		if (isTerminalTool) {
+			return false;
+		}
+
 		if (part.kind === 'toolInvocation') {
 			return !part.confirmationMessages;
 		}
