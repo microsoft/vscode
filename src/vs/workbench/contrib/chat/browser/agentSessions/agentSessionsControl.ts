@@ -67,6 +67,7 @@ export class AgentSessionsControl extends Disposable {
 	private createList(container: HTMLElement): void {
 		this.sessionsContainer = append(container, $('.agent-sessions-viewer'));
 
+		const sorter = new AgentSessionsSorter();
 		const list = this.sessionsList = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
 			'AgentSessionsView',
 			this.sessionsContainer,
@@ -75,7 +76,7 @@ export class AgentSessionsControl extends Disposable {
 			[
 				this.instantiationService.createInstance(AgentSessionRenderer)
 			],
-			new AgentSessionsDataSource(this.options?.filter),
+			new AgentSessionsDataSource(this.options?.filter, sorter),
 			{
 				accessibilityProvider: new AgentSessionsAccessibilityProvider(),
 				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
@@ -85,7 +86,7 @@ export class AgentSessionsControl extends Disposable {
 				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
-				sorter: this.instantiationService.createInstance(AgentSessionsSorter),
+				sorter,
 				paddingBottom: this.options?.allowNewSessionFromEmptySpace ? AgentSessionsListDelegate.ITEM_HEIGHT : undefined,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}
@@ -202,5 +203,10 @@ export class AgentSessionsControl extends Disposable {
 		if (this.sessionsList?.getFocus().length) {
 			this.sessionsList.domFocus();
 		}
+	}
+
+	clearFocus(): void {
+		this.sessionsList?.setFocus([]);
+		this.sessionsList?.setSelection([]);
 	}
 }
