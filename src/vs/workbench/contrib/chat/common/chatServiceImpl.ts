@@ -664,7 +664,7 @@ export class ChatService extends Disposable implements IChatService {
 		if (providedSession.progressObs && providedSession.interruptActiveResponseCallback) {
 			// Set up cancellation infrastructure for sessions with active response callbacks.
 			// This allows the stop button to trigger the interruptActiveResponseCallback even if
-			// there's no previous request history.
+			// there are no requests in the session history.
 			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
 			this._pendingRequests.set(model.sessionResource, initialCancellationRequest);
 			const cancellationListener = disposables.add(new MutableDisposable());
@@ -707,7 +707,7 @@ export class ChatService extends Disposable implements IChatService {
 					}
 				}));
 			} else {
-				// No request to track progress against, but still listen for completion to clean up
+				// No request to track progress for, but still listen for completion to clean up the cancellation listener
 				disposables.add(autorun(reader => {
 					const isComplete = providedSession.isCompleteObs?.read(reader) ?? false;
 					if (isComplete) {
