@@ -60,7 +60,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
 			const isDisabledViaPolicy =
 				mode.kind === ChatModeKind.Agent &&
-				this.configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled).policyValue === false;
+				agentModeDisabledViaPolicy;
 
 			const tooltip = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 
