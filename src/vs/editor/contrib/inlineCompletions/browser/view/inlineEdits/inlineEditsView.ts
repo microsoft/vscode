@@ -22,7 +22,7 @@ import { TextLength } from '../../../../../common/core/text/textLength.js';
 import { DetailedLineRangeMapping, lineRangeMappingFromRangeMappings, RangeMapping } from '../../../../../common/diff/rangeMapping.js';
 import { ITextModel } from '../../../../../common/model.js';
 import { TextModel } from '../../../../../common/model/textModel.js';
-import { InlineEditItem, InlineSuggestionIdentity } from '../../model/inlineSuggestionItem.js';
+import { InlineSuggestionIdentity } from '../../model/inlineSuggestionItem.js';
 import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from './components/gutterIndicatorView.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
 import { ModelPerInlineEdit } from './inlineEditsModel.js';
@@ -38,6 +38,7 @@ import { InlineEditsWordReplacementView } from './inlineEditsViews/inlineEditsWo
 import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from './inlineEditsViews/originalEditorInlineDiffView.js';
 import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils/utils.js';
 import './view.css';
+import { JumpToView } from './inlineEditsViews/jumpToView.js';
 
 export class InlineEditsView extends Disposable {
 	private readonly _editorObs: ObservableCodeEditor;
@@ -140,7 +141,7 @@ export class InlineEditsView extends Disposable {
 		this._inlineDiffViewState = derived<IOriginalEditorInlineDiffViewState | undefined>(this, reader => {
 			const e = this._uiState.read(reader);
 			if (!e || !e.state) { return undefined; }
-			if (e.state.kind === 'wordReplacements' || e.state.kind === 'insertionMultiLine' || e.state.kind === 'collapsed' || e.state.kind === 'custom') {
+			if (e.state.kind === 'wordReplacements' || e.state.kind === 'insertionMultiLine' || e.state.kind === 'collapsed' || e.state.kind === 'custom' || e.state.kind === 'jumpTo') {
 				return undefined;
 			}
 			return {
@@ -152,6 +153,13 @@ export class InlineEditsView extends Disposable {
 			};
 		});
 		this._inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
+		this._jumpToView = this._register(this._instantiationService.createInstance(JumpToView, this._editorObs, derived(reader => {
+			const s = this._uiState.read(reader);
+			if (s?.state?.kind === InlineCompletionViewKind.JumpTo) {
+				return { jumpToPosition: s.state.position };
+			}
+			return undefined;
+		})));
 		const wordReplacements = derivedOpts({
 			equalsFn: itemsEquals(itemEquals())
 		}, reader => {
@@ -267,6 +275,9 @@ export class InlineEditsView extends Disposable {
 		if (model.inlineEdit.inlineCompletion.identity.jumpedTo.read(reader)) {
 			return undefined;
 		}
+		if (model.inlineEdit.action?.kind !== 'edit') {
+			return undefined;
+		}
 		if (this._currentInlineEditCache?.inlineSuggestionIdentity !== model.inlineEdit.inlineCompletion.identity) {
 			this._currentInlineEditCache = {
 				inlineSuggestionIdentity: model.inlineEdit.inlineCompletion.identity,
@@ -297,9 +308,21 @@ export class InlineEditsView extends Disposable {
 		}
 
 		const inlineEdit = model.inlineEdit;
-		let mappings = RangeMapping.fromEdit(inlineEdit.edit);
-		let newText = inlineEdit.edit.apply(inlineEdit.originalText);
-		let diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, new StringText(newText));
+		let diff: DetailedLineRangeMapping[];
+		let mappings: RangeMapping[];
+
+		let newText: string | undefined = undefined;
+
+		if (inlineEdit.edit) {
+			mappings = RangeMapping.fromEdit(inlineEdit.edit);
+			newText = inlineEdit.edit.apply(inlineEdit.originalText);
+			diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, new StringText(newText));
+		} else {
+			mappings = [];
+			diff = [];
+			newText = inlineEdit.originalText.getValue();
+		}
+
 
 		let state = this._determineRenderState(model, reader, diff, new StringText(newText));
 		if (!state) {
@@ -375,6 +398,8 @@ export class InlineEditsView extends Disposable {
 
 	protected readonly _lineReplacementView;
 
+	protected readonly _jumpToView;
+
 	public readonly gutterIndicatorOffset = derived<number>(this, reader => {
 		// TODO: have a better way to tell the gutter indicator view where the edit is inside a viewzone
 		if (this._uiState.read(reader)?.state?.kind === 'insertionMultiLine') {
@@ -401,7 +426,8 @@ export class InlineEditsView extends Disposable {
 			return this._previousView!.view;
 		}
 
-		if (model.inlineEdit.inlineCompletion instanceof InlineEditItem && model.inlineEdit.inlineCompletion.uri) {
+		const uri = model.inlineEdit.inlineCompletion.action?.kind === 'edit' ? model.inlineEdit.inlineCompletion.action.uri : undefined;
+		if (uri !== undefined) {
 			return InlineCompletionViewKind.Custom;
 		}
 
@@ -482,6 +508,14 @@ export class InlineEditsView extends Disposable {
 	}
 
 	private _determineRenderState(model: ModelPerInlineEdit, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText) {
+		if (model.inlineEdit.action?.kind === 'jumpTo') {
+			return {
+				kind: InlineCompletionViewKind.JumpTo as const,
+				position: model.inlineEdit.action.position,
+				viewData: emptyViewData,
+			};
+		}
+
 		const inlineEdit = model.inlineEdit;
 
 		let view = this._determineView(model, reader, diff, newText);
@@ -600,7 +634,22 @@ export class InlineEditsView extends Disposable {
 	}
 }
 
+const emptyViewData: InlineCompletionViewData = {
+	cursorColumnDistance: -1,
+	cursorLineDistance: -1,
+	lineCountOriginal: -1,
+	lineCountModified: -1,
+	characterCountOriginal: -1,
+	characterCountModified: -1,
+	disjointReplacements: -1,
+	sameShapeReplacements: true,
+};
+
 function getViewData(inlineEdit: InlineEditWithChanges, stringChanges: { originalRange: Range; modifiedRange: Range; original: string; modified: string }[], textModel: ITextModel) {
+	if (!inlineEdit.edit) {
+		return emptyViewData;
+	}
+
 	const cursorPosition = inlineEdit.cursorPosition;
 	const startsWithEOL = stringChanges.length === 0 ? false : stringChanges[0].modified.startsWith(textModel.getEOL());
 	const viewData: InlineCompletionViewData = {

@@ -34,6 +34,7 @@ import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { McpIcons, parseAndValidateMcpIcon, StoredMcpIcons } from './mcpIcons.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
+import { McpTaskManager } from './mcpTaskManager.js';
 import { ElicitationKind, extensionMcpCollectionPrefix, IMcpElicitationService, IMcpIcons, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerStaticToolAvailability, McpServerTransportType, McpToolName, MpcResponseError, UserInteractionRequiredError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 import { UriTemplate } from './uriTemplate.js';
@@ -273,6 +274,9 @@ class CachedPrimitive<T, C> {
 }
 
 export class McpServer extends Disposable implements IMcpServer {
+	/** Shared task manager that survives reconnections */
+	private readonly _taskManager = this._register(new McpTaskManager());
+
 	/**
 	 * Helper function to call the function on the handler once it's online. The
 	 * connection started if it is not already.
@@ -583,6 +587,7 @@ export class McpServer extends Disposable implements IMcpServer {
 					definitionRef: this.definition,
 					debug,
 					errorOnUserInteraction,
+					taskManager: this._taskManager,
 				});
 				if (!connection) {
 					return { state: McpConnectionState.Kind.Stopped };
@@ -602,12 +607,12 @@ export class McpServer extends Disposable implements IMcpServer {
 
 			const start = Date.now();
 			let state = await connection.start({
-				createMessageRequestHandler: params => this._samplingService.sample({
+				createMessageRequestHandler: (params, token) => this._samplingService.sample({
 					isDuringToolCall: this.runningToolCalls.size > 0,
 					server: this,
 					params,
-				}).then(r => r.sample),
-				elicitationRequestHandler: async req => {
+				}, token).then(r => r.sample),
+				elicitationRequestHandler: async (req, token) => {
 					const serverInfo = connection.handler.get()?.serverInfo;
 					if (serverInfo) {
 						this._telemetryService.publicLog2<ElicitationTelemetryData, ElicitationTelemetryClassification>('mcp.elicitationRequested', {
@@ -616,7 +621,7 @@ export class McpServer extends Disposable implements IMcpServer {
 						});
 					}
 
-					const r = await this._elicitationService.elicit(this, Iterable.first(this.runningToolCalls), req, CancellationToken.None);
+					const r = await this._elicitationService.elicit(this, Iterable.first(this.runningToolCalls), req, token || CancellationToken.None);
 					r.dispose();
 					return r.value;
 				}
@@ -1027,11 +1032,20 @@ export class McpTool implements IMcpTool {
 				meta['vscode.requestId'] = context.chatRequestId;
 			}
 
+			const taskHint = this._definition.execution?.taskSupport;
+			const serverSupportsTasksForTools = h.capabilities.tasks?.requests?.tools?.call !== undefined;
+			const shouldUseTask = serverSupportsTasksForTools && (taskHint === 'required' || taskHint === 'optional');
+
 			try {
-				const result = await h.callTool({ name, arguments: params, _meta: meta }, token);
+				const result = await h.callTool({
+					name,
+					arguments: params,
+					task: shouldUseTask ? {} : undefined,
+					_meta: meta,
+				}, token);
+
 				// Wait for tools to refresh for dynamic servers (#261611)
 				await this._server.awaitToolRefresh();
-
 				return result;
 			} catch (err) {
 				// Handle URL elicitation required error

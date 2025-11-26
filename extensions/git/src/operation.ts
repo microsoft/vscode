@@ -191,7 +191,7 @@ export const Operation = {
 	Show: { kind: OperationKind.Show, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as ShowOperation,
 	Stage: { kind: OperationKind.Stage, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StageOperation,
 	Status: { kind: OperationKind.Status, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StatusOperation,
-	Stash: { kind: OperationKind.Stash, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StashOperation,
+	Stash: (readOnly: boolean) => ({ kind: OperationKind.Stash, blocking: false, readOnly, remote: false, retry: false, showProgress: true } as StashOperation),
 	SubmoduleUpdate: { kind: OperationKind.SubmoduleUpdate, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as SubmoduleUpdateOperation,
 	Sync: { kind: OperationKind.Sync, blocking: true, readOnly: false, remote: true, retry: true, showProgress: true } as SyncOperation,
 	Tag: { kind: OperationKind.Tag, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as TagOperation,

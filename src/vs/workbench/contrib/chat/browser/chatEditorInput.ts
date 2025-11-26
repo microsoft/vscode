@@ -24,7 +24,7 @@ import { IChatSessionsService, localChatSessionType } from '../common/chatSessio
 import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
-import { showCloseActiveChatNotification } from './agentSessions/chatCloseNotification.js';
+import { showCloseActiveChatNotification } from './actions/chatCloseNotification.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
 const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
@@ -321,7 +321,8 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	override dispose(): void {
 		// Check if we're disposing a model with an active request
 		if (this.modelRef.value?.object.requestInProgress.get()) {
-			this.instantiationService.invokeFunction(showCloseActiveChatNotification);
+			const closingSessionResource = this.modelRef.value.object.sessionResource;
+			this.instantiationService.invokeFunction(showCloseActiveChatNotification, closingSessionResource);
 		}
 
 		super.dispose();

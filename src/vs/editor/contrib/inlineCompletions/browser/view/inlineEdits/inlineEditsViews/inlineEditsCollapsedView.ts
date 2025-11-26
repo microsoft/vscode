@@ -37,7 +37,7 @@ export class InlineEditsCollapsedView extends Disposable implements IInlineEdits
 
 		this._editorObs = observableCodeEditor(this._editor);
 
-		const firstEdit = this._edit.map(inlineEdit => inlineEdit?.edit.replacements[0] ?? null);
+		const firstEdit = this._edit.map(inlineEdit => inlineEdit?.edit?.replacements[0] ?? null);
 
 		const startPosition = firstEdit.map(edit => edit ? singleTextRemoveCommonPrefix(edit, this._editor.getModel()!).range.getStartPosition() : null);
 		const observedStartPoint = this._editorObs.observePosition(startPosition, this._store);

@@ -6,6 +6,8 @@
 import { IRenderedMarkdown, MarkdownRenderOptions, renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { onUnexpectedError } from '../../../base/common/errors.js';
 import { IMarkdownString, MarkdownStringTrustedOptions } from '../../../base/common/htmlContent.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { IHoverService } from '../../hover/browser/hover.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IOpenerService } from '../../opener/common/opener.js';
@@ -58,6 +60,7 @@ export class MarkdownRendererService implements IMarkdownRendererService {
 	private _defaultCodeBlockRenderer: IMarkdownCodeBlockRenderer | undefined;
 
 	constructor(
+		@IHoverService private readonly _hoverService: IHoverService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
@@ -78,11 +81,41 @@ export class MarkdownRendererService implements IMarkdownRendererService {
 
 		const rendered = renderMarkdown(markdown, resolvedOptions, outElement);
 		rendered.element.classList.add('rendered-markdown');
-		return rendered;
+		const hoverDisposables = this.attachCustomHovers(rendered.element);
+		return {
+			element: rendered.element,
+			dispose: () => {
+				rendered.dispose();
+				hoverDisposables.dispose();
+			}
+		};
 	}
 
 	setDefaultCodeBlockRenderer(renderer: IMarkdownCodeBlockRenderer): void {
 		this._defaultCodeBlockRenderer = renderer;
+	}
+
+	/**
+	 * Replace the native title tooltips on links with custom hover tooltips
+	 */
+	private attachCustomHovers(element: HTMLElement): IDisposable {
+		const store = new DisposableStore();
+
+		// eslint-disable-next-line no-restricted-syntax
+		for (const a of element.querySelectorAll('a')) {
+			if (a.title) {
+				const title = a.title;
+				a.title = '';
+				store.add(this._hoverService.setupDelayedHover(a, {
+					content: title,
+					appearance: {
+						compact: true
+					},
+				}));
+			}
+		}
+
+		return store;
 	}
 }
 

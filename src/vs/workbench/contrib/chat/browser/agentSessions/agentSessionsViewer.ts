@@ -42,6 +42,7 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { Event } from '../../../../../base/common/event.js';
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -316,14 +317,29 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 	}
 }
 
-export interface IAgentSessionsDataFilter {
-	exclude(session: IAgentSession): boolean;
+export interface IAgentSessionsFilter {
+
+	readonly onDidChange?: Event<void>;
+
+	/**
+	 * Optional limit on the number of sessions to show.
+	 */
+	readonly limitResults?: number;
+
+	/**
+	 * A callback to notify the filter about the number of
+	 * results after filtering.
+	 */
+	notifyResults?(count: number): void;
+
+	exclude?(session: IAgentSession): boolean;
 }
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, IAgentSession> {
 
 	constructor(
-		private readonly filter: IAgentSessionsDataFilter
+		private readonly filter: IAgentSessionsFilter | undefined,
+		private readonly sorter: ITreeSorter<IAgentSession>,
 	) { }
 
 	hasChildren(element: IAgentSessionsModel | IAgentSession): boolean {
@@ -335,7 +351,19 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 			return [];
 		}
 
-		return element.sessions.filter(session => !this.filter.exclude(session));
+		// Apply filter if configured
+		let filteredSessions = element.sessions.filter(session => !this.filter?.exclude?.(session));
+
+		// Apply limiter if configured (requires sorting)
+		if (this.filter?.limitResults !== undefined) {
+			filteredSessions.sort(this.sorter.compare.bind(this.sorter));
+			filteredSessions = filteredSessions.slice(0, this.filter.limitResults);
+		}
+
+		// Callback results count
+		this.filter?.notifyResults?.(filteredSessions.length);
+
+		return filteredSessions;
 	}
 }
 

@@ -38,8 +38,8 @@ import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IChatWidgetService } from '../chat.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
+import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
+import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 
 export const enum ActionLocation {
 	ChatWidget = 'chatWidget',
@@ -182,7 +182,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 		if (this.location === ActionLocation.Editor) {
 			const view = h('span.action-widget-delegate-label', [
 				h('span', { className: ThemeIcon.asClassName(Codicon.forward) }),
-				h('span', [localize('delegate', "Delegate to...")])
+				h('span', [localize('continueInEllipsis', "Continue in...")])
 			]);
 			element.appendChild(view.root);
 			return null;
@@ -197,25 +197,28 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 class CreateRemoteAgentJobAction {
 	constructor() { }
 
+	private openUntitledEditor(commandService: ICommandService, continuationTarget: IChatSessionsExtensionPoint) {
+		commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`);
+	}
+
 	async run(accessor: ServicesAccessor, continuationTarget: IChatSessionsExtensionPoint) {
 		const contextKeyService = accessor.get(IContextKeyService);
+		const commandService = accessor.get(ICommandService);
+		const widgetService = accessor.get(IChatWidgetService);
+		const chatAgentService = accessor.get(IChatAgentService);
+		const chatService = accessor.get(IChatService);
+		const editorService = accessor.get(IEditorService);
+
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
 
 		try {
 			remoteJobCreatingKey.set(true);
 
-			const widgetService = accessor.get(IChatWidgetService);
-			const chatAgentService = accessor.get(IChatAgentService);
-			const chatService = accessor.get(IChatService);
-			const editorService = accessor.get(IEditorService);
-
 			const widget = widgetService.lastFocusedWidget;
-			if (!widget) {
-				return;
+			if (!widget || !widget.viewModel) {
+				return this.openUntitledEditor(commandService, continuationTarget);
 			}
-			if (!widget.viewModel) {
-				return;
-			}
+
 			// todo@connor4312: remove 'as' cast
 			const chatModel = widget.viewModel.model as ChatModel;
 			if (!chatModel) {
@@ -227,8 +230,7 @@ class CreateRemoteAgentJobAction {
 			let userPrompt = widget.getInput();
 			if (!userPrompt) {
 				if (!chatRequests.length) {
-					// Nothing to do
-					return;
+					return this.openUntitledEditor(commandService, continuationTarget);
 				}
 				userPrompt = 'implement this.';
 			}
@@ -295,11 +297,9 @@ class CreateRemoteAgentJobFromEditorAction {
 	async run(accessor: ServicesAccessor, continuationTarget: IChatSessionsExtensionPoint) {
 
 		try {
-			const chatService = accessor.get(IChatService);
-			const continuationTargetType = continuationTarget.type;
 			const editorService = accessor.get(IEditorService);
 			const activeEditor = editorService.activeTextEditorControl;
-			const editorService2 = accessor.get(IEditorService);
+			const commandService = accessor.get(ICommandService);
 
 			if (!activeEditor) {
 				return;
@@ -309,22 +309,8 @@ class CreateRemoteAgentJobFromEditorAction {
 				return;
 			}
 			const uri = model.uri;
-			const chatModelReference = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, {});
-			const { sessionResource } = chatModelReference.object;
-			if (!sessionResource) {
-				return;
-			}
-			await editorService2.openEditor({ resource: sessionResource }, undefined);
-			const attachedContext: IChatRequestVariableEntry[] = [{
-				kind: 'file',
-				id: 'editor.uri',
-				name: basename(uri),
-				value: uri
-			}];
-			await chatService.sendRequest(sessionResource, `Implement this.`, {
-				agentIdSilent: continuationTargetType,
-				attachedContext
-			});
+			const attachedContext = [toPromptFileVariableEntry(uri, PromptFileVariableKind.PromptFile, undefined, false, [])];
+			await commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${continuationTarget.type}`, { prompt: `Implement this.`, attachedContext });
 		} catch (e) {
 			console.error('Error creating remote agent job from editor', e);
 			throw e;
