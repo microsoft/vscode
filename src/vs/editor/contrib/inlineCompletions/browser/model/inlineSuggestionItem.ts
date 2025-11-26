@@ -145,6 +145,10 @@ abstract class InlineSuggestionItemBase {
 	public withRename(command: Command, hint: InlineSuggestHint): InlineSuggestData {
 		return this._data.withRename(command, hint);
 	}
+
+	public addPerformanceMarker(marker: string): void {
+		this._data.addPerformanceMarker(marker);
+	}
 }
 
 export class InlineSuggestionIdentity {
