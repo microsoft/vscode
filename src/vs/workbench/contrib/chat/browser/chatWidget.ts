@@ -1329,7 +1329,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				// Clear parent editor
 				await this.clear();
-			});
+			}).catch(e => this.logService.error('Failed to handle handoff continueOn', e));
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
