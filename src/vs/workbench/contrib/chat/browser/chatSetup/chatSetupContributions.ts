@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatSetup.css';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
@@ -48,22 +47,15 @@ import { EditorContextKeys } from '../../../../../editor/common/editorContextKey
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { AGENT_SESSIONS_VIEW_CONTAINER_ID } from '../agentSessions/agentSessions.js';
 import { ChatSetupController } from './chatSetupController.js';
-import { AICodeActionsHelper, AINewSymbolNamesProvider, ChatCodeActionsProvider, ChatSetup, ChatSetupAnonymous, SetupAgent } from './chatSetup.js';
+import { ChatSetupAnonymous, ChatSetup } from './chatSetup.js';
+import { SetupAgent, AINewSymbolNamesProvider, ChatCodeActionsProvider, AICodeActionsHelper } from './chatSetupProviders.js';
 
 const defaultChat = {
-	extensionId: product.defaultChatAgent?.extensionId ?? '',
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
-	publicCodeMatchesUrl: product.defaultChatAgent?.publicCodeMatchesUrl ?? '',
 	manageOveragesUrl: product.defaultChatAgent?.manageOverageUrl ?? '',
 	upgradePlanUrl: product.defaultChatAgent?.upgradePlanUrl ?? '',
-	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
-	providerUriSetting: product.defaultChatAgent?.providerUriSetting ?? '',
-	manageSettingsUrl: product.defaultChatAgent?.manageSettingsUrl ?? '',
-	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 	completionsRefreshTokenCommand: product.defaultChatAgent?.completionsRefreshTokenCommand ?? '',
 	chatRefreshTokenCommand: product.defaultChatAgent?.chatRefreshTokenCommand ?? '',
-	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
-	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
 };
 
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
