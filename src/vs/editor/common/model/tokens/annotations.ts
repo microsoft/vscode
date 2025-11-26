@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { binarySearch2 } from '../../../../base/common/arrays.js';
-import { applyEditsToTypedRanges, StringEdit } from '../../core/edits/stringEdit.js';
+import { StringEdit } from '../../core/edits/stringEdit.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
 
 export interface IAnnotation<T> {
@@ -109,13 +109,79 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 
 	public applyEdit(edit: StringEdit): void {
-		this._annotations = applyEditsToTypedRanges(
-			this._annotations,
-			(a) => a.range,
-			(a, range) => ({ range, annotation: a.annotation }),
-			edit
-		);
-		this._annotations = this._annotations.filter(a => !a.range.isEmpty);
+		const annotationsCopy = this._annotations.slice();
+
+		// treat edits as deletion of the replace range and then as insertion that extends the first range
+		const result: IAnnotation<T>[] = [];
+
+		let offset = 0;
+
+		for (const e of edit.replacements) {
+			while (true) {
+				// ranges before the current edit
+				const r = annotationsCopy[0];
+				if (!r) {
+					break;
+				}
+				const range = r.range;
+				if (range.endExclusive >= e.replaceRange.start) {
+					break;
+				}
+				annotationsCopy.shift();
+				result.push({ range: r.range.delta(offset), annotation: r.annotation });
+			}
+
+			const intersecting: IAnnotation<T>[] = [];
+			while (true) {
+				const typedRange = annotationsCopy[0];
+				if (!typedRange) {
+					break;
+				}
+				const range = typedRange.range;
+				if (!range.intersectsOrTouches(e.replaceRange)) {
+					break;
+				}
+				annotationsCopy.shift();
+				intersecting.push(typedRange);
+			}
+
+			for (let i = intersecting.length - 1; i >= 0; i--) {
+				const typedRange = intersecting[i];
+				let r = typedRange.range;
+
+				const shouldExtend = i === 0 && (e.replaceRange.endExclusive > r.start);
+				const overlap = r.intersect(e.replaceRange)!.length;
+				r = r.deltaEnd(-overlap + (shouldExtend ? e.newText.length : 0));
+
+				const rangeAheadOfReplaceRange = r.start - e.replaceRange.start;
+				if (rangeAheadOfReplaceRange > 0) {
+					r = r.delta(-rangeAheadOfReplaceRange);
+				}
+
+				if (!shouldExtend) {
+					r = r.delta(e.newText.length);
+				}
+
+				// We already took our offset into account.
+				// Because we add r back to the queue (which then adds offset again),
+				// we have to remove it here.
+				r = r.delta(-(e.newText.length - e.replaceRange.length));
+
+				annotationsCopy.unshift({ annotation: typedRange.annotation, range: r });
+			}
+
+			offset += e.newText.length - e.replaceRange.length;
+		}
+
+		while (true) {
+			const typedRange = annotationsCopy[0];
+			if (!typedRange) {
+				break;
+			}
+			annotationsCopy.shift();
+			result.push({ annotation: typedRange.annotation, range: typedRange.range.delta(offset) });
+		}
+		this._annotations = result.filter(a => !a.range.isEmpty);
 	}
 
 	public clone(): IAnnotatedString<T> {

@@ -399,54 +399,36 @@ export class StringReplacement extends BaseStringReplacement<StringReplacement> 
 }
 
 export function applyEditsToRanges(sortedRanges: OffsetRange[], edit: StringEdit): OffsetRange[] {
-	return applyEditsToTypedRanges(sortedRanges, (r) => r, (r, newRange) => newRange, edit);
-}
-
-export function applyEditsToTypedRanges<T>(
-	sortedTypedRanges: T[],
-	getRange: (item: T) => OffsetRange,
-	createTypedRange: (item: T, newRange: OffsetRange) => T,
-	edit: StringEdit
-): T[] {
-	sortedTypedRanges = sortedTypedRanges.slice();
+	sortedRanges = sortedRanges.slice();
 
 	// treat edits as deletion of the replace range and then as insertion that extends the first range
-	const result: T[] = [];
+	const result: OffsetRange[] = [];
 
 	let offset = 0;
 
 	for (const e of edit.replacements) {
 		while (true) {
 			// ranges before the current edit
-			const r = sortedTypedRanges[0];
-			if (!r) {
+			const r = sortedRanges[0];
+			if (!r || r.endExclusive >= e.replaceRange.start) {
 				break;
 			}
-			const range = getRange(r);
-			if (range.endExclusive >= e.replaceRange.start) {
-				break;
-			}
-			sortedTypedRanges.shift();
-			result.push(createTypedRange(r, range.delta(offset)));
+			sortedRanges.shift();
+			result.push(r.delta(offset));
 		}
 
-		const intersecting: T[] = [];
+		const intersecting: OffsetRange[] = [];
 		while (true) {
-			const typedRange = sortedTypedRanges[0];
-			if (!typedRange) {
+			const r = sortedRanges[0];
+			if (!r || !r.intersectsOrTouches(e.replaceRange)) {
 				break;
 			}
-			const range = getRange(typedRange);
-			if (!range.intersectsOrTouches(e.replaceRange)) {
-				break;
-			}
-			sortedTypedRanges.shift();
-			intersecting.push(typedRange);
+			sortedRanges.shift();
+			intersecting.push(r);
 		}
 
 		for (let i = intersecting.length - 1; i >= 0; i--) {
-			const typedRange = intersecting[i];
-			let r = getRange(typedRange);
+			let r = intersecting[i];
 
 			const overlap = r.intersect(e.replaceRange)!.length;
 			r = r.deltaEnd(-overlap + (i === 0 ? e.newText.length : 0));
@@ -465,19 +447,19 @@ export function applyEditsToTypedRanges<T>(
 			// we have to remove it here.
 			r = r.delta(-(e.newText.length - e.replaceRange.length));
 
-			sortedTypedRanges.unshift(createTypedRange(typedRange, r));
+			sortedRanges.unshift(r);
 		}
 
 		offset += e.newText.length - e.replaceRange.length;
 	}
 
 	while (true) {
-		const typedRange = sortedTypedRanges[0];
-		if (!typedRange) {
+		const r = sortedRanges[0];
+		if (!r) {
 			break;
 		}
-		sortedTypedRanges.shift();
-		result.push(createTypedRange(typedRange, getRange(typedRange).delta(offset)));
+		sortedRanges.shift();
+		result.push(r.delta(offset));
 	}
 
 	return result;
