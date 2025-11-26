@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { binarySearch2 } from '../../../../base/common/arrays.js';
-import { StringEdit, applyEditsToTypedRanges } from '../../core/edits/stringEdit.js';
+import { applyEditsToTypedRanges, StringEdit } from '../../core/edits/stringEdit.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
 
 export interface IAnnotation<T> {
@@ -27,7 +27,7 @@ export interface IAnnotatedString<T> {
 	 * The returned annotations are sorted by range and non-overlapping.
 	 * The result does not contain annotations with empty range and annotations with undefined value.
 	 */
-	getAnnotationsIntersecting(range: OffsetRange): IAnnotation<T>[];
+	getAnnotationsIntersecting(range: OffsetRange, print?: boolean): IAnnotation<T>[];
 	getAllAnnotations(): IAnnotation<T>[];
 	applyEdit(edit: StringEdit): void;
 	clone(): IAnnotatedString<T>;
@@ -50,9 +50,15 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 		this._annotations.splice(startIndex, endIndexExclusive - startIndex, ...annotations.annotations);
 	}
 
-	public getAnnotationsIntersecting(range: OffsetRange): IAnnotation<T>[] {
+	public getAnnotationsIntersecting(range: OffsetRange, print: boolean = false): IAnnotation<T>[] {
+		if (print) {
+			console.log('getAnnotationsIntersecting range: ', JSON.stringify(range));
+		}
 		const startIndex = this._getStartIndexOfIntersectingAnnotation(range.start);
-		const endIndexExclusive = this._getEndIndexOfIntersectingAnnotation(range.endExclusive);
+		const endIndexExclusive = this._getEndIndexOfIntersectingAnnotation(range.endExclusive, print);
+		if (print) {
+			console.log('startIndex: ', startIndex, ' endIndexExclusive: ', endIndexExclusive);
+		}
 		return this._annotations.slice(startIndex, endIndexExclusive);
 	}
 
@@ -74,24 +80,26 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 		return startIndex;
 	}
 
-	private _getEndIndexOfIntersectingAnnotation(offset: number): number {
+	private _getEndIndexOfIntersectingAnnotation(offset: number, print: boolean = false): number {
+		if (print) { console.log('_getEndIndexOfIntersectingAnnotation offset: ', offset); }
 		const endIndexWhereToReplace = binarySearch2(this._annotations.length, (index) => {
 			return this._annotations[index].range.endExclusive - offset;
 		});
+		if (print) { console.log('endIndexWhereToReplace: ', endIndexWhereToReplace); }
 		let endIndexExclusive: number;
 		if (endIndexWhereToReplace >= 0) {
-			endIndexExclusive = endIndexWhereToReplace;
+			if (print) { console.log('if'); }
+			endIndexExclusive = endIndexWhereToReplace + 1;
 		} else {
-			// if (endIndexWhereToReplace === -1) {
-			// 	endIndexExclusive = 0;
-			// } else {
 			const candidate = this._annotations[-(endIndexWhereToReplace + 1)]?.range;
+			if (print) { console.log('else candidate: ', candidate); }
 			if (candidate && offset >= candidate.start && offset <= candidate.endExclusive) {
+				if (print) { console.log('if'); }
 				endIndexExclusive = - endIndexWhereToReplace;
 			} else {
+				if (print) { console.log('else'); }
 				endIndexExclusive = - (endIndexWhereToReplace + 1);
 			}
-			// }
 		}
 		return endIndexExclusive;
 	}
