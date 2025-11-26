@@ -721,6 +721,18 @@ export class Response extends AbstractResponse implements IDisposable {
 			});
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
+		} else if (progress.kind === 'prepareToolInvocation') {
+			// Find existing prepareToolInvocation with same toolCallId and update it
+			const existingIndex = this._responseParts.findIndex(
+				part => part.kind === 'prepareToolInvocation' && part.toolCallId === progress.toolCallId
+			);
+			if (existingIndex >= 0) {
+				// Replace the existing part with updated stream data
+				this._responseParts[existingIndex] = progress;
+			} else {
+				this._responseParts.push(progress);
+			}
+			this._updateRepr(quiet);
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);

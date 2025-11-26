@@ -667,7 +667,11 @@ export class ChatMcpServersStarting implements IChatMcpServersStarting {
 
 export interface IChatPrepareToolInvocationPart {
 	readonly kind: 'prepareToolInvocation';
+	readonly toolCallId: string;
 	readonly toolName: string;
+	readonly streamData?: {
+		readonly partialInput?: unknown;
+	};
 }
 
 export type IChatProgress =
