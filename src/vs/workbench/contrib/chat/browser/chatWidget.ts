@@ -1298,7 +1298,38 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.setValue(`@${agentId} ${promptToUse}`, false);
 			this.input.focus();
 			// Auto-submit for delegated chat sessions
-			this.acceptInput();
+			this.acceptInput().then(async (response) => {
+				if (!response || !this.viewModel) {
+					return;
+				}
+
+				// Wait for response to complete without any user-pending confirmations
+				const checkForComplete = () => {
+					const items = this.viewModel?.getItems() ?? [];
+					const lastItem = items[items.length - 1];
+					if (lastItem && isResponseVM(lastItem) && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
+						return true;
+					}
+					return false;
+				};
+
+				if (checkForComplete()) {
+					await this.clear();
+					return;
+				}
+
+				await new Promise<void>(resolve => {
+					const disposable = this.viewModel!.onDidChange(() => {
+						if (checkForComplete()) {
+							disposable.dispose();
+							resolve();
+						}
+					});
+				});
+
+				// Clear parent editor
+				await this.clear();
+			});
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
