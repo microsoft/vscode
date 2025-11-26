@@ -4,7 +4,10 @@ agent: Engineering
 argument-hint: "Provide an issue number to find duplicates"
 model: Claude Sonnet 4.5 (copilot)
 tools:
-  ['execute/getTerminalOutput', 'execute/runInTerminal', 'github/*', 'agent/runSubagent']
+  - execute/getTerminalOutput
+  - execute/runInTerminal
+  - github/*
+  - agent/runSubagent
 ---
 
 ## Your Task
