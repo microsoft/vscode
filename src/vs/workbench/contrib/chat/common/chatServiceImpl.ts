@@ -31,9 +31,10 @@ import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { ChatModelStore, IStartSessionProps } from './chatModelStore.js';
+import { generateMultidiffFromEditingSession } from './chatMultidiffUtils.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
-import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
+import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatMultiDiffData, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
@@ -659,6 +660,12 @@ export class ChatService extends Disposable implements IChatService {
 					}
 				}
 			}
+			//  else if (hasKey(message, { kind: true }) && message.kind === 'multiDiffData') {
+			// 	// multiDiffData - render the multidiff editor
+			// 	if (lastRequest) {
+			// 		model.acceptResponseProgress(lastRequest, message);
+			// 	}
+			// }
 		}
 
 		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
@@ -703,11 +710,25 @@ export class ChatService extends Disposable implements IChatService {
 			}));
 		} else {
 			if (lastRequest) {
+				const diffData = this._generateAutoMultidiffIfNeeded(modelRef.object);
+				if (diffData) {
+					model.acceptResponseProgress(lastRequest, diffData);
+				}
 				lastRequest.response?.complete();
 			}
 		}
 
+
 		return modelRef;
+	}
+
+	private _generateAutoMultidiffIfNeeded(model: IChatModel): IChatMultiDiffData | undefined {
+		const editingSession = model.editingSession;
+		if (!editingSession) {
+			return;
+		}
+
+		return generateMultidiffFromEditingSession(editingSession);
 	}
 
 	getChatSessionFromInternalUri(sessionResource: URI): IChatSessionContext | undefined {
