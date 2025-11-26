@@ -279,8 +279,8 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		} else {
 			const cliCwd = dirname(cliCommand);
 			const env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' };
-			if (process.platform === 'win32' && cliCommand.endsWith('Code - Insiders.exe')) {
-				const versionFolder = desc.commit.substring(0, 10);
+			const versionFolder = desc.commit.substring(0, 10);
+			if (fs.existsSync(join(cliCwd, versionFolder))) {
 				newCommandline.unshift(`${versionFolder}/resources/app/out/cli.js`);
 			} else {
 				newCommandline.unshift('resources/app/out/cli.js');
