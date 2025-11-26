@@ -5,24 +5,24 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LocalAgentsSessionsProvider } from '../../browser/agentSessions/localAgentSessionsProvider.js';
+import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
+import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../common/chatModel.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../common/chatModel.js';
-import { observableValue } from '../../../../../base/common/observable.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
-import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 
 class MockChatWidgetService implements IChatWidgetService {
 	private readonly _onDidAddWidget = new Emitter<IChatWidget>();
@@ -75,6 +75,7 @@ class MockChatWidgetService implements IChatWidgetService {
 }
 
 class MockChatService implements IChatService {
+	chatModels = observableValue<Iterable<IChatModel>>('chatModels', []);
 	requestInProgressObs = observableValue('name', false);
 	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;

@@ -944,6 +944,11 @@ export interface IChatService {
 
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
 
+	/**
+	 * An observable containing all live chat models.
+	 */
+	readonly chatModels: IObservable<Iterable<IChatModel>>;
+
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
 	startSession(location: ChatAgentLocation, token: CancellationToken, options?: IChatSessionStartOptions): IChatModelReference;
