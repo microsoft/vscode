@@ -512,7 +512,19 @@ export function registerChatActions() {
 				menu: [
 					{
 						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.equals('view', ChatViewId),
+						when: ContextKeyExpr.and(
+							ContextKeyExpr.equals('view', ChatViewId),
+							ContextKeyExpr.equals(`config.${ChatConfiguration.EmptyChatViewSessionsEnabled}`, false)
+						),
+						group: 'navigation',
+						order: 2
+					},
+					{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.and(
+							ContextKeyExpr.equals('view', ChatViewId),
+							ContextKeyExpr.equals(`config.${ChatConfiguration.EmptyChatViewSessionsEnabled}`, true)
+						),
 						group: '2_history',
 						order: 1
 					},
@@ -1824,5 +1836,29 @@ registerAction2(class EditToolApproval extends Action2 {
 		const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
 		confirmationService.manageConfirmationPreferences([...toolsService.getTools()], scope ? { defaultScope: scope } : undefined);
+	}
+});
+
+registerAction2(class ToggleChatHistoryVisibilityAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleEmptyChatViewSessions',
+			title: localize2('chat.toggleEmptyChatViewSessions.label', "Show Agent Sessions"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.EmptyChatViewSessionsEnabled}`, true),
+			menu: {
+				id: MenuId.ChatWelcomeContext,
+				group: '1_modify',
+				order: 1
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const emptyChatViewSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewSessionsEnabled);
+		await configurationService.updateValue(ChatConfiguration.EmptyChatViewSessionsEnabled, !emptyChatViewSessionsEnabled);
 	}
 });

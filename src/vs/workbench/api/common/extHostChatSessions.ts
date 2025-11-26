@@ -398,6 +398,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const variables = turn.references.map(ref => this.convertReferenceToVariable(ref));
 		return {
 			type: 'request' as const,
+			id: turn.id,
 			prompt: turn.prompt,
 			participant: turn.participant,
 			command: turn.command,

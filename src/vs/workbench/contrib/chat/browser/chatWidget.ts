@@ -210,6 +210,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _onDidChangeContentHeight = new Emitter<void>();
 	readonly onDidChangeContentHeight: Event<void> = this._onDidChangeContentHeight.event;
 
+	private _onDidChangeEmptyState = this._register(new Emitter<void>());
+	readonly onDidChangeEmptyState = this._onDidChangeEmptyState.event;
+
 	contribs: ReadonlyArray<IChatWidgetContrib> = [];
 
 	private listContainer!: HTMLElement;
@@ -775,6 +778,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._dynamicMessageLayoutData.enabled = true;
 		}
 
+		if (this.viewModel?.editing) {
+			this.finishedEditing();
+		}
+
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
@@ -849,7 +856,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	/**
 	 * Updates the DOM visibility of welcome view and chat list immediately
-	 * @internal
 	 */
 	private updateChatViewVisibility(): void {
 		if (!this.viewModel) {
@@ -859,6 +865,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const numItems = this.viewModel.getItems().length;
 		dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
 		dom.setVisibility(numItems !== 0, this.listContainer);
+
+		this._onDidChangeEmptyState.fire();
+	}
+
+	isEmpty(): boolean {
+		return (this.viewModel?.getItems().length ?? 0) === 0;
 	}
 
 	/**
@@ -866,7 +878,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 *
 	 * Note: Do not call this method directly. Instead, use `this._welcomeRenderScheduler.schedule()`
 	 * to ensure proper debouncing and avoid potential cyclic calls
-	 * @internal
 	 */
 	private renderWelcomeViewContentIfNeeded() {
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal' || this.lifecycleService.willShutdown) {
@@ -1287,7 +1298,46 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.setValue(`@${agentId} ${promptToUse}`, false);
 			this.input.focus();
 			// Auto-submit for delegated chat sessions
-			this.acceptInput();
+			this.acceptInput().then(async (response) => {
+				if (!response || !this.viewModel) {
+					return;
+				}
+
+				// Wait for response to complete without any user-pending confirmations
+				const checkForComplete = () => {
+					const items = this.viewModel?.getItems() ?? [];
+					const lastItem = items[items.length - 1];
+					if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
+						return true;
+					}
+					return false;
+				};
+
+				if (checkForComplete()) {
+					await this.clear();
+					return;
+				}
+
+				await new Promise<void>(resolve => {
+					const disposable = this.viewModel!.onDidChange(() => {
+						if (checkForComplete()) {
+							cleanup();
+							resolve();
+						}
+					});
+					const timeout = setTimeout(() => {
+						cleanup();
+						resolve();
+					}, 30000); // 30 second timeout
+					const cleanup = () => {
+						clearTimeout(timeout);
+						disposable.dispose();
+					};
+				});
+
+				// Clear parent editor
+				await this.clear();
+			}).catch(e => this.logService.error('Failed to handle handoff continueOn', e));
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
@@ -2293,7 +2343,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.listContainer.style.removeProperty('--chat-current-response-min-height');
 		} else {
 			this.listContainer.style.setProperty('--chat-current-response-min-height', contentHeight * .75 + 'px');
-			if (heightUpdated && lastItem && this.visible) {
+			if (heightUpdated && lastItem && this.visible && this.tree.hasElement(lastItem)) {
 				this.tree.updateElementHeight(lastItem, undefined);
 			}
 		}

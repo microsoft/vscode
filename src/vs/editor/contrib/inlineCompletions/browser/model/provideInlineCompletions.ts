@@ -21,7 +21,7 @@ import { ILanguageConfigurationService } from '../../../../common/languages/lang
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
 import { SnippetParser, Text } from '../../../snippet/browser/snippetParser.js';
-import { getReadonlyEmptyArray } from '../utils.js';
+import { ErrorResult, getReadonlyEmptyArray } from '../utils.js';
 import { groupByMap } from '../../../../../base/common/collections.js';
 import { DirectedGraph } from './graph.js';
 import { CachedFunction } from '../../../../../base/common/cache.js';
@@ -30,6 +30,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { inlineCompletionIsVisible } from './inlineSuggestionItem.js';
 import { EditDeltaInfo } from '../../../../common/textModelEditSource.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { InlineSuggestionEditKind } from './editKind.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
 
@@ -115,7 +116,12 @@ export function provideInlineCompletions(
 			}
 
 			for (const item of result.items) {
-				data.push(toInlineSuggestData(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid, requestInfo, { startTime: providerStartTime, endTime: providerEndTime }));
+				const r = toInlineSuggestData(item, list, defaultReplaceRange, model, languageConfigurationService, contextWithUuid, requestInfo, { startTime: providerStartTime, endTime: providerEndTime });
+				if (ErrorResult.is(r)) {
+					r.logError();
+					continue;
+				}
+				data.push(r);
 			}
 
 			return list;
@@ -173,73 +179,90 @@ function toInlineSuggestData(
 	context: InlineCompletionContext,
 	requestInfo: InlineSuggestRequestInfo,
 	providerRequestInfo: InlineSuggestProviderRequestInfo,
-): InlineSuggestData {
-	let insertText: string;
-	let snippetInfo: SnippetInfo | undefined;
-	let range = inlineCompletion.range ? Range.lift(inlineCompletion.range) : defaultReplaceRange;
+): InlineSuggestData | ErrorResult {
 
-	if (typeof inlineCompletion.insertText === 'string') {
-		insertText = inlineCompletion.insertText;
+	let action: IInlineSuggestDataAction | undefined;
+	const uri = inlineCompletion.uri ? URI.revive(inlineCompletion.uri) : undefined;
 
-		if (languageConfigurationService && inlineCompletion.completeBracketPairs) {
-			insertText = closeBrackets(
-				insertText,
-				range.getStartPosition(),
-				textModel,
-				languageConfigurationService
-			);
+	if (inlineCompletion.jumpToPosition !== undefined) {
+		action = {
+			kind: 'jumpTo',
+			position: Position.lift(inlineCompletion.jumpToPosition),
+			uri,
+		};
+	} else if (inlineCompletion.insertText !== undefined) {
+		let insertText: string;
+		let snippetInfo: SnippetInfo | undefined;
+		let range = inlineCompletion.range ? Range.lift(inlineCompletion.range) : defaultReplaceRange;
 
-			// Modify range depending on if brackets are added or removed
-			const diff = insertText.length - inlineCompletion.insertText.length;
-			if (diff !== 0) {
-				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
+		if (typeof inlineCompletion.insertText === 'string') {
+			insertText = inlineCompletion.insertText;
+
+			if (languageConfigurationService && inlineCompletion.completeBracketPairs) {
+				insertText = closeBrackets(
+					insertText,
+					range.getStartPosition(),
+					textModel,
+					languageConfigurationService
+				);
+
+				// Modify range depending on if brackets are added or removed
+				const diff = insertText.length - inlineCompletion.insertText.length;
+				if (diff !== 0) {
+					range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
+				}
 			}
-		}
 
-		snippetInfo = undefined;
-	} else if (inlineCompletion.insertText === undefined) {
-		insertText = ''; // TODO use undefined
-		snippetInfo = undefined;
-		range = new Range(1, 1, 1, 1);
-	} else if ('snippet' in inlineCompletion.insertText) {
-		const preBracketCompletionLength = inlineCompletion.insertText.snippet.length;
-
-		if (languageConfigurationService && inlineCompletion.completeBracketPairs) {
-			inlineCompletion.insertText.snippet = closeBrackets(
-				inlineCompletion.insertText.snippet,
-				range.getStartPosition(),
-				textModel,
-				languageConfigurationService
-			);
-
-			// Modify range depending on if brackets are added or removed
-			const diff = inlineCompletion.insertText.snippet.length - preBracketCompletionLength;
-			if (diff !== 0) {
-				range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
-			}
-		}
-
-		const snippet = new SnippetParser().parse(inlineCompletion.insertText.snippet);
-
-		if (snippet.children.length === 1 && snippet.children[0] instanceof Text) {
-			insertText = snippet.children[0].value;
 			snippetInfo = undefined;
+		} else if ('snippet' in inlineCompletion.insertText) {
+			const preBracketCompletionLength = inlineCompletion.insertText.snippet.length;
+
+			if (languageConfigurationService && inlineCompletion.completeBracketPairs) {
+				inlineCompletion.insertText.snippet = closeBrackets(
+					inlineCompletion.insertText.snippet,
+					range.getStartPosition(),
+					textModel,
+					languageConfigurationService
+				);
+
+				// Modify range depending on if brackets are added or removed
+				const diff = inlineCompletion.insertText.snippet.length - preBracketCompletionLength;
+				if (diff !== 0) {
+					range = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn + diff);
+				}
+			}
+
+			const snippet = new SnippetParser().parse(inlineCompletion.insertText.snippet);
+
+			if (snippet.children.length === 1 && snippet.children[0] instanceof Text) {
+				insertText = snippet.children[0].value;
+				snippetInfo = undefined;
+			} else {
+				insertText = snippet.toString();
+				snippetInfo = {
+					snippet: inlineCompletion.insertText.snippet,
+					range: range
+				};
+			}
 		} else {
-			insertText = snippet.toString();
-			snippetInfo = {
-				snippet: inlineCompletion.insertText.snippet,
-				range: range
-			};
+			assertNever(inlineCompletion.insertText);
 		}
+		action = {
+			kind: 'edit',
+			range,
+			insertText,
+			snippetInfo,
+			uri,
+		};
 	} else {
-		assertNever(inlineCompletion.insertText);
+		action = undefined;
+		if (!inlineCompletion.hint) {
+			return ErrorResult.message('Inline completion has no insertText, jumpToPosition nor hint.');
+		}
 	}
 
 	return new InlineSuggestData(
-		range,
-		insertText,
-		snippetInfo,
-		URI.revive(inlineCompletion.uri),
+		action,
 		inlineCompletion.hint,
 		inlineCompletion.additionalTextEdits || getReadonlyEmptyArray(),
 		inlineCompletion,
@@ -262,6 +285,7 @@ export type InlineSuggestRequestInfo = {
 	typingInterval: number;
 	typingIntervalCharacterCount: number;
 	availableProviders: ProviderId[];
+	sku: string | undefined;
 };
 
 export type InlineSuggestProviderRequestInfo = {
@@ -287,6 +311,22 @@ export type InlineSuggestViewData = {
 	viewKind?: InlineCompletionViewKind;
 };
 
+export type IInlineSuggestDataAction = IInlineSuggestDataActionEdit | IInlineSuggestDataActionJumpTo;
+
+export interface IInlineSuggestDataActionEdit {
+	kind: 'edit';
+	range: Range;
+	insertText: string;
+	snippetInfo: SnippetInfo | undefined;
+	uri: URI | undefined;
+}
+
+export interface IInlineSuggestDataActionJumpTo {
+	kind: 'jumpTo';
+	position: Position;
+	uri: URI | undefined;
+}
+
 export class InlineSuggestData {
 	private _didShow = false;
 	private _timeUntilShown: number | undefined = undefined;
@@ -303,22 +343,18 @@ export class InlineSuggestData {
 	private _partiallyAcceptedCount = 0;
 	private _partiallyAcceptedSinceOriginal: PartialAcceptance = { characters: 0, ratio: 0, count: 0 };
 	private _renameInfo: RenameInfo | undefined = undefined;
+	private _editKind: InlineSuggestionEditKind | undefined = undefined;
 
 	constructor(
-		public readonly range: Range,
-		public readonly insertText: string,
-		public readonly snippetInfo: SnippetInfo | undefined,
-		public readonly uri: URI | undefined,
+		public readonly action: IInlineSuggestDataAction | undefined,
 		public readonly hint: IInlineCompletionHint | undefined,
 		public readonly additionalTextEdits: readonly ISingleEditOperation[],
-
 		public readonly sourceInlineCompletion: InlineCompletion,
 		public readonly source: InlineSuggestionList,
 		public readonly context: InlineCompletionContext,
 		public readonly isInlineEdit: boolean,
 		public readonly supportsRename: boolean,
 		public readonly renameCommand: Command | undefined,
-
 		private readonly _requestInfo: InlineSuggestRequestInfo,
 		private readonly _providerRequestInfo: InlineSuggestProviderRequestInfo,
 		private readonly _correlationId: string | undefined,
@@ -330,17 +366,16 @@ export class InlineSuggestData {
 
 	public get partialAccepts(): PartialAcceptance { return this._partiallyAcceptedSinceOriginal; }
 
-	public getSingleTextEdit() {
-		return new TextReplacement(this.range, this.insertText);
-	}
 
-	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData): Promise<void> {
+	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, editKind: InlineSuggestionEditKind | undefined): Promise<void> {
 		this.updateShownDuration(viewKind);
 
 		if (this._didShow) {
 			return;
 		}
+		this.addPerformanceMarker('shown');
 		this._didShow = true;
+		this._editKind = editKind;
 		this._viewData.viewKind = viewKind;
 		this._viewData.renderData = viewData;
 		this._timeUntilShown = Date.now() - this._requestInfo.startTime;
@@ -399,6 +434,7 @@ export class InlineSuggestData {
 				shown: this._didShow,
 				shownDuration: this._shownDuration,
 				shownDurationUncollapsed: this._showUncollapsedDuration,
+				editKind: this._editKind?.toString(),
 				preceeded: this._isPreceeded,
 				timeUntilShown: this._timeUntilShown,
 				timeUntilProviderRequest: this._providerRequestInfo.startTime - this._requestInfo.startTime,
@@ -408,11 +444,13 @@ export class InlineSuggestData {
 				requestReason: this._requestInfo.reason,
 				viewKind: this._viewData.viewKind,
 				notShownReason: this._notShownReason,
+				performanceMarkers: this.performance.toString(),
 				renameCreated: this._renameInfo?.createdRename ?? false,
 				renameDuration: this._renameInfo?.duration,
 				renameTimedOut: this._renameInfo?.timedOut ?? false,
 				typingInterval: this._requestInfo.typingInterval,
 				typingIntervalCharacterCount: this._requestInfo.typingIntervalCharacterCount,
+				sku: this._requestInfo.sku,
 				availableProviders: this._requestInfo.availableProviders.map(p => p.toString()).join(','),
 				...this._viewData.renderData,
 			};
@@ -481,10 +519,7 @@ export class InlineSuggestData {
 
 	public withRename(command: Command, hint: IInlineCompletionHint): InlineSuggestData {
 		return new InlineSuggestData(
-			new Range(1, 1, 1, 1),
-			'',
-			this.snippetInfo,
-			this.uri,
+			undefined,
 			hint,
 			this.additionalTextEdits,
 			this.sourceInlineCompletion,
@@ -497,6 +532,31 @@ export class InlineSuggestData {
 			this._providerRequestInfo,
 			this._correlationId,
 		);
+	}
+
+	private performance = new InlineSuggestionsPerformance();
+	public addPerformanceMarker(marker: string): void {
+		this.performance.mark(marker);
+	}
+}
+
+class InlineSuggestionsPerformance {
+	private markers: { name: string; timeStamp: number }[] = [];
+	constructor() {
+		this.markers.push({ name: 'start', timeStamp: Date.now() });
+	}
+
+	mark(marker: string): void {
+		this.markers.push({ name: marker, timeStamp: Date.now() });
+	}
+
+	toString(): string {
+		const deltas = [];
+		for (let i = 1; i < this.markers.length; i++) {
+			const delta = this.markers[i].timeStamp - this.markers[i - 1].timeStamp;
+			deltas.push({ [this.markers[i].name]: delta });
+		}
+		return JSON.stringify(deltas);
 	}
 }
 

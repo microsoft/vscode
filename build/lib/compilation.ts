@@ -247,7 +247,7 @@ class MonacoGenerator {
 		return r;
 	}
 
-	private _log(message: any, ...rest: unknown[]): void {
+	private _log(message: string, ...rest: unknown[]): void {
 		fancyLog(ansiColors.cyan('[monaco.d.ts]'), message, ...rest);
 	}
 

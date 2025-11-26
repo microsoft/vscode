@@ -34,6 +34,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
+import { ICustomAgentQueryOptions, IExternalCustomAgent } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 
 export class ChatAgentResponseStream {
 
@@ -279,12 +280,13 @@ export class ChatAgentResponseStream {
 					throwIfDone(this.externalEdit);
 					const resources = Array.isArray(target) ? target : [target];
 					const operationId = taskHandlePool++;
-
-					await send({ kind: 'externalEdits', start: true, resources }, operationId);
+					const undoStopId = generateUuid();
+					await send({ kind: 'externalEdits', start: true, resources, undoStopId }, operationId);
 					try {
-						return await callback();
+						await callback();
+						return undoStopId;
 					} finally {
-						await send({ kind: 'externalEdits', start: false, resources }, operationId);
+						await send({ kind: 'externalEdits', start: false, resources, undoStopId }, operationId);
 					}
 				},
 				confirmation(title, message, data, buttons) {
@@ -359,7 +361,7 @@ export class ChatAgentResponseStream {
 						return this;
 					} else if (part instanceof extHostTypes.ChatResponseExternalEditPart) {
 						const p = this.externalEdit(part.uris, part.callback);
-						p.then(() => part.didGetApplied());
+						p.then((value) => part.didGetApplied(value));
 						return this;
 					} else {
 						const dto = typeConvert.ChatResponsePart.from(part, that._commandsConverter, that._sessionDisposables);
@@ -393,6 +395,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	private static _relatedFilesProviderIdPool = 0;
 	private readonly _relatedFilesProviders = new Map<number, ExtHostRelatedFilesProvider>();
+
+	private static _customAgentsProviderIdPool = 0;
+	private readonly _customAgentsProviders = new Map<number, { extension: IExtensionDescription; provider: vscode.CustomAgentsProvider }>();
 
 	private readonly _sessionDisposables: DisposableMap<string, DisposableStore> = this._register(new DisposableMap());
 	private readonly _completionDisposables: DisposableMap<number, DisposableStore> = this._register(new DisposableMap());
@@ -471,6 +476,28 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		});
 	}
 
+	registerCustomAgentsProvider(extension: IExtensionDescription, provider: vscode.CustomAgentsProvider): vscode.Disposable {
+		const handle = ExtHostChatAgents2._customAgentsProviderIdPool++;
+		this._customAgentsProviders.set(handle, { extension, provider });
+		this._proxy.$registerCustomAgentsProvider(handle, extension.identifier);
+
+		const disposables = new DisposableStore();
+
+		// Listen to provider change events and notify main thread
+		if (provider.onDidChangeCustomAgents) {
+			disposables.add(provider.onDidChangeCustomAgents(() => {
+				this._proxy.$onDidChangeCustomAgents(handle);
+			}));
+		}
+
+		disposables.add(toDisposable(() => {
+			this._customAgentsProviders.delete(handle);
+			this._proxy.$unregisterCustomAgentsProvider(handle);
+		}));
+
+		return disposables;
+	}
+
 	async $provideRelatedFiles(handle: number, request: IChatRequestDraft, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined> {
 		const provider = this._relatedFilesProviders.get(handle);
 		if (!provider) {
@@ -479,6 +506,15 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		const extRequestDraft = typeConvert.ChatRequestDraft.to(request);
 		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
+	}
+
+	async $provideCustomAgents(handle: number, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<IExternalCustomAgent[] | undefined> {
+		const providerData = this._customAgentsProviders.get(handle);
+		if (!providerData) {
+			return Promise.resolve(undefined);
+		}
+
+		return await providerData.provider.provideCustomAgents(options, token) ?? undefined;
 	}
 
 	async $detectChatParticipant(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { location: ChatAgentLocation; participants?: vscode.ChatParticipantMetadata[] }, token: CancellationToken): Promise<vscode.ChatParticipantDetectionResult | null | undefined> {
@@ -702,7 +738,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			}
 
 			const editedFileEvents = isProposedApiEnabled(extension, 'chatParticipantPrivate') ? h.request.editedFileEvents : undefined;
-			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId, toolReferences, editedFileEvents);
+			const turn = new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, varsWithoutTools, h.request.agentId, toolReferences, editedFileEvents, h.request.requestId);
 			res.push(turn);
 
 			// RESPONSE turn

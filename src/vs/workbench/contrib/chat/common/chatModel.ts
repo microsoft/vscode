@@ -969,7 +969,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 			return this._response.value.some(part =>
 				part.kind === 'toolInvocation' && part.state.read(r).type === IChatToolInvocation.StateKind.WaitingForConfirmation
-				|| part.kind === 'confirmation' && part.isUsed === false
+				|| part.kind === 'confirmation' && !part.isUsed
 				|| part.kind === 'elicitation2' && part.state.read(r) === ElicitationState.Pending
 			);
 		});
@@ -1167,6 +1167,8 @@ export interface IChatModel extends IDisposable {
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void;
 	/** Input model for managing input state */
 	readonly inputModel: IInputModel;
+	readonly hasRequests: boolean;
+	readonly lastRequest: IChatRequestModel | undefined;
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
 
@@ -1930,10 +1932,11 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'setHidden' });
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools): ChatRequestModel {
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools, id?: string): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
 		const request = new ChatRequestModel({
+			restoredId: id,
 			session: this,
 			message,
 			variableData,
@@ -2014,7 +2017,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		} else if (progress.kind === 'move') {
 			this._onDidChange.fire({ kind: 'move', target: progress.uri, range: progress.range });
 		} else if (progress.kind === 'codeblockUri' && progress.isEdit) {
-			request.response.addUndoStop({ id: generateUuid(), kind: 'undoStop' });
+			request.response.addUndoStop({ id: progress.undoStopId ?? generateUuid(), kind: 'undoStop' });
 			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'progressTaskResult') {
 			// Should have been handled upstream, not sent to model
@@ -2059,7 +2062,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			// Maybe something went wrong?
 			return;
 		}
-
 		request.response.setFollowups(followups);
 	}
 
@@ -2092,13 +2094,6 @@ export class ChatModel extends Disposable implements IChatModel {
 								return item.treeData;
 							} else if (item.kind === 'markdownContent') {
 								return item.content;
-							} else if (item.kind === 'thinking') {
-								return {
-									kind: 'thinking',
-									value: item.value,
-									id: item.id,
-									metadata: item.metadata
-								};
 							} else if (item.kind === 'confirmation') {
 								return { ...item, isLive: false };
 							} else {

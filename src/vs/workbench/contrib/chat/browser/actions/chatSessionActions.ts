@@ -361,8 +361,8 @@ export class ChatSessionsGettingStartedAction extends Action2 {
 		});
 
 		const selected = await quickInputService.pick(quickPickItems, {
-			title: nls.localize('chatSessions.selectExtension', "Install Chat Extensions"),
-			placeHolder: nls.localize('chatSessions.pickPlaceholder', "Choose extensions to enhance your chat experience"),
+			title: nls.localize('chatSessions.selectExtension', "Install Agents..."),
+			placeHolder: nls.localize('chatSessions.pickPlaceholder', "Install agents from the extension marketplace"),
 			canPickMany: true,
 		});
 

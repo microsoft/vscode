@@ -20,8 +20,8 @@ export interface IWebContentExtractorOptions {
 }
 
 export type WebContentExtractResult =
-	| { status: 'ok'; result: string }
-	| { status: 'error'; error: string }
+	| { status: 'ok'; result: string; title?: string }
+	| { status: 'error'; error: string; statusCode?: number; result?: string; title?: string }
 	| { status: 'redirect'; toURI: URI };
 
 export interface IWebContentExtractorService {
