@@ -253,21 +253,6 @@ suite('Editor Model - Model', () => {
 		]);
 	});
 
-
-	test('applyEdit 8 - insertion at beginning of annotation', () => {
-		const annotatedString = new AnnotatedString<string>([
-			createAnnotation(0, 5),
-			createAnnotation(10, 15),
-			createAnnotation(20, 25)
-		]);
-		annotatedString.applyEdit(StringEdit.insert(10, 'abc'));
-		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
-			createAnnotation(0, 5),
-			createAnnotation(10, 18),
-			createAnnotation(23, 28)
-		]);
-	});
-
 	test('applyEdit 9 - insertion at end of annotation', () => {
 		const annotatedString = new AnnotatedString<string>([
 			createAnnotation(0, 5),
@@ -277,7 +262,7 @@ suite('Editor Model - Model', () => {
 		annotatedString.applyEdit(StringEdit.insert(15, 'abc'));
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
 			createAnnotation(0, 5),
-			createAnnotation(10, 18),
+			createAnnotation(10, 15),
 			createAnnotation(23, 28)
 		]);
 	});
@@ -304,7 +289,7 @@ suite('Editor Model - Model', () => {
 		]);
 		annotatedString.applyEdit(StringEdit.replace(new OffsetRange(1, 6), 'a'));
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
-			createAnnotation(0, 2),
+			createAnnotation(0, 1),
 			createAnnotation(2, 3)
 		]);
 	});
@@ -324,10 +309,36 @@ suite('Editor Model - Model', () => {
 		]);
 		annotatedString.applyEdit(edit);
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
-			createAnnotation(0, 6),
+			createAnnotation(1, 6),
 			createAnnotation(11, 15),
 			createAnnotation(20, 26),
 			createAnnotation(30, 32)
+		]);
+	});
+
+	test('applyEdit 13 - edit on the left border', () => {
+		const annotatedString = new AnnotatedString<string>([
+			createAnnotation(15, 16)
+		]);
+		const edit = StringEdit.compose([
+			StringEdit.replace(new OffsetRange(15, 15), 'a')
+		]);
+		annotatedString.applyEdit(edit);
+		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
+			createAnnotation(16, 17)
+		]);
+	});
+
+	test('applyEdit 14 - edit on the right border', () => {
+		const annotatedString = new AnnotatedString<string>([
+			createAnnotation(15, 16)
+		]);
+		const edit = StringEdit.compose([
+			StringEdit.replace(new OffsetRange(16, 16), 'a')
+		]);
+		annotatedString.applyEdit(edit);
+		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
+			createAnnotation(15, 16)
 		]);
 	});
 

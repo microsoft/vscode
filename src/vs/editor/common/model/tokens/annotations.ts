@@ -149,7 +149,7 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 				const typedRange = intersecting[i];
 				let r = typedRange.range;
 
-				const shouldExtend = i === 0 && (e.replaceRange.endExclusive > r.start);
+				const shouldExtend = i === 0 && (e.replaceRange.endExclusive > r.start) && (e.replaceRange.start < r.endExclusive);
 				const overlap = r.intersect(e.replaceRange)!.length;
 				r = r.deltaEnd(-overlap + (shouldExtend ? e.newText.length : 0));
 
@@ -158,7 +158,7 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 					r = r.delta(-rangeAheadOfReplaceRange);
 				}
 
-				if (!shouldExtend) {
+				if (!shouldExtend && rangeAheadOfReplaceRange >= 0) {
 					r = r.delta(e.newText.length);
 				}
 

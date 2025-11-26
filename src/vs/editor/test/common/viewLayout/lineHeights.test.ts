@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CustomLine, LineHeightsManager } from '../../../common/viewLayout/lineHeights.js';
+import { LineHeightsManager } from '../../../common/viewLayout/lineHeights.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 
 suite('Editor ViewLayout - LineHeightsManager', () => {
@@ -275,29 +275,5 @@ suite('Editor ViewLayout - LineHeightsManager', () => {
 		assert.strictEqual(manager.heightForLineNumber(4), 40);
 		assert.strictEqual(manager.heightForLineNumber(5), 40);
 		assert.strictEqual(manager.heightForLineNumber(6), 30);
-	});
-
-	test('deletion on repeated lines', () => {
-		const manager = new LineHeightsManager(10, []);
-		manager.insertOrChangeCustomLineHeight('decSame0', 1, 1, 50);
-		manager.insertOrChangeCustomLineHeight('decSame1', 1, 1, 50);
-		manager.insertOrChangeCustomLineHeight('decSame2', 3, 3, 50);
-		manager.insertOrChangeCustomLineHeight('decSame3', 3, 3, 50);
-		manager.insertOrChangeCustomLineHeight('decSame4', 4, 4, 50);
-		manager.insertOrChangeCustomLineHeight('decSame5', 4, 4, 50);
-		manager.insertOrChangeCustomLineHeight('decSame6', 5, 5, 50);
-		manager.insertOrChangeCustomLineHeight('decSame7', 5, 5, 50);
-		manager.commit();
-
-		// Delete one line that partially intersects the same decoration
-		manager.onLinesDeleted(3, 4);
-
-		console.log('manager.getAllLines() : ', JSON.stringify(manager.getAllLines()));
-		assert.strictEqual(manager.getAllLines(), [
-			new CustomLine('decSame0', -0, 1, 50, 0),
-			new CustomLine('decSame1', 1, 1, 50, 0),
-			new CustomLine('decSame6', 2, 3, 50, 60),
-			new CustomLine('decSame7', 3, 3, 50, 60)
-		]);
 	});
 });
