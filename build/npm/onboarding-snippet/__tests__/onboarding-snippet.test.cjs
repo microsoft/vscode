@@ -10,11 +10,11 @@ const path = require('path');
 const fs = require('fs');
 
 /** @type {any} */
-const generatorModule = require('../generator');
+const generatorModule = require('../generator.cjs');
 /** @type {any} */
-const validatorModule = require('../validator');
+const validatorModule = require('../validator.cjs');
 /** @type {any} */
-const formatterModule = require('../formatter');
+const formatterModule = require('../formatter.cjs');
 
 const { generateSnippet } = generatorModule;
 const { validateEnvironment } = validatorModule;
@@ -22,7 +22,7 @@ const { formatMarkdown } = formatterModule;
 
 describe('Onboarding Snippet Generator', () => {
 
-	describe('generator.js', () => {
+	describe('generator.cjs', () => {
 
 		it('should generate snippet from template', () => {
 			const config = {
@@ -62,7 +62,7 @@ describe('Onboarding Snippet Generator', () => {
 
 	});
 
-	describe('validator.js', () => {
+	describe('validator.cjs', () => {
 
 		it('should validate Node.js version requirement', async () => {
 			const config = {
@@ -122,7 +122,7 @@ describe('Onboarding Snippet Generator', () => {
 
 	});
 
-	describe('formatter.js', () => {
+	describe('formatter.cjs', () => {
 
 		it('should format content as Markdown code block', () => {
 			const content = 'npm install';
@@ -209,7 +209,7 @@ describe('Onboarding Snippet Generator', () => {
 
 		it('should export main function', () => {
 			/** @type {any} */
-			const mainModule = require('../../onboarding-snippet');
+			const mainModule = require('../../onboarding-snippet.cjs');
 			const { main } = mainModule;
 			assert.ok(typeof main === 'function', 'main should be a function');
 		});

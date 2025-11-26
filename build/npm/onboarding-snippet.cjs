@@ -9,11 +9,11 @@ const path = require('path');
 const fs = require('fs');
 
 /** @type {any} */
-const generator = require('./onboarding-snippet/generator');
+const generator = require('./onboarding-snippet/generator.cjs');
 /** @type {any} */
-const validator = require('./onboarding-snippet/validator');
+const validator = require('./onboarding-snippet/validator.cjs');
 /** @type {any} */
-const formatter = require('./onboarding-snippet/formatter');
+const formatter = require('./onboarding-snippet/formatter.cjs');
 
 const { generateSnippet } = generator;
 const { validateEnvironment } = validator;
