@@ -72,7 +72,7 @@ export class WebPageLoader extends Disposable {
 	}
 
 	private trace(message: string) {
-		this._logger.info(`[WebPageLoader] [${this._uri}] ${message}`);
+		this._logger.trace(`[WebPageLoader] [${this._uri}] ${message}`);
 	}
 
 	/**
