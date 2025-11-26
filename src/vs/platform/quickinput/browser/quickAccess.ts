@@ -108,7 +108,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		// Create a picker for the provider to use with the initial value
 		// and adjust the filtering to exclude the prefix from filtering
 		const disposables = new DisposableStore();
-		const picker = disposables.add(this.quickInputService.createQuickPick({ useSeparators: true }));
+		const picker = disposables.add(this.quickInputService.createQuickPick({ useSeparators: true, anchor: options?.anchor }));
 		picker.value = value;
 		this.adjustValueSelection(picker, descriptor, options);
 		picker.placeholder = options?.placeholder ?? descriptor?.placeholder;

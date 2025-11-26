@@ -16,7 +16,7 @@ import { Disposable, DisposableStore, dispose } from '../../../base/common/lifec
 import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { localize } from '../../../nls.js';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType, IQuickTree, IQuickTreeItem } from '../common/quickInput.js';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType, IQuickTree, IQuickTreeItem, IQuickPickOptions } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey, QuickInputAlignmentContextKey } from './quickInput.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
@@ -423,7 +423,7 @@ export class QuickInputController extends Disposable {
 				resolve(undefined);
 				return;
 			}
-			const input = this.createQuickPick<T>({ useSeparators: true });
+			const input = this.createQuickPick<T>({ useSeparators: true, anchor: options.anchor });
 			let activeItem: T | undefined;
 			const disposables = [
 				input,
@@ -503,7 +503,6 @@ export class QuickInputController extends Disposable {
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
-			input.anchor = options.anchor;
 			input.busy = true;
 			Promise.all([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
@@ -602,11 +601,11 @@ export class QuickInputController extends Disposable {
 
 	backButton = backButton;
 
-	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
-	createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
-	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: boolean } = { useSeparators: false }): IQuickPick<T, { useSeparators: boolean }> {
+	createQuickPick<T extends IQuickPickItem, O extends { useSeparators: true } = IQuickPickOptions & { useSeparators: true }>(options: O): IQuickPick<T, O>;
+	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T, IQuickPickOptions>;
+	createQuickPick<T extends IQuickPickItem, O extends IQuickPickOptions = IQuickPickOptions>(options?: O): IQuickPick<T, O> {
 		const ui = this.getUI(true);
-		return new QuickPick<T, typeof options>(ui);
+		return new QuickPick<T, IQuickPickOptions>(ui, options);
 	}
 
 	createInputBox(): IInputBox {
@@ -824,25 +823,27 @@ export class QuickInputController extends Disposable {
 
 				if (anchorAlignment === AnchorAlignment.RIGHT) {
 					style.right = `${right}px`;
-					style.left = '';
+					style.left = 'auto';
 				} else {
 					style.left = `${left}px`;
-					style.right = '';
+					style.right = 'auto';
 				}
 
 				if (anchorPosition === AnchorPosition.BELOW) {
 					style.bottom = `${bottom}px`;
-					style.top = '';
+					style.top = 'auto';
 				} else {
 					style.top = `${top}px`;
-					style.bottom = '';
+					style.bottom = 'auto';
 				}
 
 				style.width = `${width}px`;
 				style.height = '';
 			} else {
 				style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
+				style.bottom = '';
 				style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+				style.right = '';
 				style.height = '';
 			}
 

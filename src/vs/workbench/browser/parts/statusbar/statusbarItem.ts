@@ -70,6 +70,13 @@ export class StatusbarEntryItem extends Disposable {
 			role: 'button',
 			tabIndex: -1 // allows screen readers to read title, but still prevents tab focus.
 		});
+
+		if (typeof entry.command === 'string') {
+			this.labelContainer.setAttribute('data-quick-input-anchor-name', entry.command);
+		} else if (entry.command && typeof entry.command !== 'string') {
+			this.labelContainer.setAttribute('data-quick-input-anchor-name', entry.command.id);
+		}
+
 		this._register(Gesture.addTarget(this.labelContainer)); // enable touch
 
 		// Label (with support for progress)

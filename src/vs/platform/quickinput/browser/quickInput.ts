@@ -25,7 +25,7 @@ import Severity from '../../../base/common/severity.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import './media/quickInput.css';
 import { localize } from '../../../nls.js';
-import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputButtonLocation, QuickInputHideReason, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
+import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickOptions, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputButtonLocation, QuickInputHideReason, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -164,6 +164,7 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	private _contextKey: string | undefined;
 	private _busy = false;
 	private _ignoreFocusOut = false;
+	private _anchor: HTMLElement | undefined;
 	private _leftButtons: IQuickInputButton[] = [];
 	private _rightButtons: IQuickInputButton[] = [];
 	private _inlineButtons: IQuickInputButton[] = [];
@@ -284,6 +285,14 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 		if (shouldUpdate) {
 			this.update();
 		}
+	}
+
+	get anchor() {
+		return this._anchor;
+	}
+
+	set anchor(anchor: HTMLElement | undefined) {
+		this._anchor = anchor;
 	}
 
 	protected get titleButtons() {
@@ -540,7 +549,7 @@ export abstract class QuickInput extends Disposable implements IQuickInput {
 	}
 }
 
-export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: boolean } = { useSeparators: false }> extends QuickInput implements IQuickPick<T, O> {
+export class QuickPick<T extends IQuickPickItem, O extends IQuickPickOptions = { useSeparators: false }> extends QuickInput implements IQuickPick<T, O> {
 
 	private static readonly DEFAULT_ARIA_LABEL = localize('quickInputBox.ariaLabel', "Type to narrow down results.");
 
@@ -587,9 +596,23 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 
 	readonly type = QuickInputType.QuickPick;
 
-	constructor(ui: QuickInputUI) {
+	constructor(ui: QuickInputUI, options: IQuickPickOptions = {}) {
 		super(ui);
 		this.noValidationMessage = undefined;
+
+		if (typeof options.anchor === 'string') {
+			const activeElement = dom.getActiveElement();
+
+			if (activeElement && dom.isHTMLElement(activeElement)) {
+				const anchorName = activeElement.getAttribute('data-quick-input-anchor-name');
+
+				if (anchorName === options.anchor) {
+					this.anchor = activeElement;
+				}
+			}
+		} else if (options.anchor) {
+			this.anchor = options.anchor;
+		}
 	}
 
 	get quickNavigate() {

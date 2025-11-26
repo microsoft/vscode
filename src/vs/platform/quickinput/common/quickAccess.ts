@@ -72,6 +72,8 @@ export interface IQuickAccessOptions {
 	 * A placeholder to use for this particular showing of the quick access.
 	*/
 	readonly placeholder?: string;
+
+	readonly anchor?: HTMLElement | string;
 }
 
 export interface IQuickAccessController {

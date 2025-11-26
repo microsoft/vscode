@@ -197,7 +197,7 @@ export interface IPickOptions<T extends IQuickPickItem> {
 	 */
 	activeItem?: Promise<T> | T;
 
-	anchor?: HTMLElement | { x: number; y: number };
+	anchor?: HTMLElement | string;
 
 	onKeyMods?: (keyMods: IKeyMods) => void;
 	onDidFocus?: (entry: T) => void;
@@ -361,7 +361,7 @@ export interface IQuickInput extends IDisposable {
 	 */
 	ignoreFocusOut: boolean;
 
-	anchor?: HTMLElement | { x: number; y: number };
+	anchor: HTMLElement | undefined;
 
 	/**
 	 * Shows the quick input.
@@ -484,10 +484,15 @@ export enum QuickPickFocus {
 	PreviousSeparator
 }
 
+export interface IQuickPickOptions {
+	readonly useSeparators?: boolean;
+	readonly anchor?: HTMLElement | string | undefined;
+}
+
 /**
  * Represents a quick pick control that allows the user to select an item from a list of options.
  */
-export interface IQuickPick<T extends IQuickPickItem, O extends { useSeparators: boolean } = { useSeparators: false }> extends IQuickInput {
+export interface IQuickPick<T extends IQuickPickItem, O extends IQuickPickOptions = { useSeparators: false }> extends IQuickInput {
 
 	/**
 	 * The type of the quick input.
@@ -955,8 +960,8 @@ export interface IQuickInputService {
 	/**
 	 * Provides raw access to the quick pick controller.
 	 */
-	createQuickPick<T extends IQuickPickItem>(options: { useSeparators: true }): IQuickPick<T, { useSeparators: true }>;
-	createQuickPick<T extends IQuickPickItem>(options?: { useSeparators: boolean }): IQuickPick<T, { useSeparators: false }>;
+	createQuickPick<T extends IQuickPickItem, O extends { useSeparators: true } = { useSeparators: true }>(options: O): IQuickPick<T, O>;
+	createQuickPick<T extends IQuickPickItem>(options?: IQuickPickOptions): IQuickPick<T, IQuickPickOptions>;
 
 	/**
 	 * Provides raw access to the input box controller.

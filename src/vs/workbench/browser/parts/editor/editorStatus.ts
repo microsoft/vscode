@@ -405,11 +405,11 @@ class EditorStatus extends Disposable {
 	private async showIndentationPicker(): Promise<unknown> {
 		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
-			return this.quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
+			return this.quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }], { anchor: `changeEditorIndentation${this.targetWindowId}` });
 		}
 
 		if (this.editorService.activeEditor?.isReadonly()) {
-			return this.quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+			return this.quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }], { anchor: `changeEditorIndentation${this.targetWindowId}` });
 		}
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void }>[] = [
@@ -435,7 +435,7 @@ class EditorStatus extends Disposable {
 		picks.splice(3, 0, { type: 'separator', label: localize('indentConvert', "convert file") });
 		picks.unshift({ type: 'separator', label: localize('indentView', "change view") });
 
-		const action = await this.quickInputService.pick(picks, { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true });
+		const action = await this.quickInputService.pick(picks, { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true, anchor: `changeEditorIndentation${this.targetWindowId}` });
 		return action?.run();
 	}
 
@@ -551,7 +551,7 @@ class EditorStatus extends Disposable {
 			text,
 			ariaLabel: text,
 			tooltip: localize('selectEncoding', "Select Encoding"),
-			command: 'workbench.action.editor.changeEncoding'
+			command: ChangeEncodingAction.ID
 		};
 
 		this.updateElement(this.encodingElement, props, 'status.editor.encoding', StatusbarAlignment.RIGHT, 100.3);
@@ -568,7 +568,7 @@ class EditorStatus extends Disposable {
 			text,
 			ariaLabel: text,
 			tooltip: localize('selectEOL', "Select End of Line Sequence"),
-			command: 'workbench.action.editor.changeEOL'
+			command: ChangeEOLAction.ID
 		};
 
 		this.updateElement(this.eolElement, props, 'status.editor.eol', StatusbarAlignment.RIGHT, 100.2);
@@ -585,7 +585,7 @@ class EditorStatus extends Disposable {
 			text,
 			ariaLabel: text,
 			tooltip: localize('selectLanguageMode', "Select Language Mode"),
-			command: 'workbench.action.editor.changeLanguageMode'
+			command: ChangeLanguageAction.ID
 		};
 
 		this.updateElement(this.languageElement, props, 'status.editor.mode', StatusbarAlignment.RIGHT, 100.1);
@@ -1165,7 +1165,7 @@ export class ChangeLanguageAction extends Action2 {
 
 		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
-			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
+			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }], { anchor: ChangeLanguageAction.ID });
 			return;
 		}
 
@@ -1231,7 +1231,7 @@ export class ChangeLanguageAction extends Action2 {
 			picks.unshift(autoDetectLanguage);
 		}
 
-		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
+		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true, anchor: ChangeLanguageAction.ID });
 		if (!pick) {
 			return;
 		}
@@ -1361,7 +1361,7 @@ export class ChangeLanguageAction extends Action2 {
 		});
 
 		setTimeout(async () => {
-			const language = await quickInputService.pick(picks, { placeHolder: localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || base) });
+			const language = await quickInputService.pick(picks, { placeHolder: localize('pickLanguageToConfigure', "Select Language Mode to Associate with '{0}'", extension || base), anchor: ChangeLanguageAction.ID });
 			if (language) {
 				const fileAssociationsConfig = configurationService.inspect<{}>(FILES_ASSOCIATIONS_CONFIG);
 
@@ -1394,9 +1394,11 @@ interface IChangeEOLEntry extends IQuickPickItem {
 
 export class ChangeEOLAction extends Action2 {
 
+	static ID = 'workbench.action.editor.changeEOL';
+
 	constructor() {
 		super({
-			id: 'workbench.action.editor.changeEOL',
+			id: ChangeEOLAction.ID,
 			title: localize2('changeEndOfLine', 'Change End of Line Sequence'),
 			f1: true
 		});
@@ -1408,12 +1410,12 @@ export class ChangeEOLAction extends Action2 {
 
 		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
-			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
+			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }], { anchor: ChangeEOLAction.ID });
 			return;
 		}
 
 		if (editorService.activeEditor?.isReadonly()) {
-			await quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
+			await quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }], { anchor: ChangeEOLAction.ID });
 			return;
 		}
 
@@ -1426,15 +1428,18 @@ export class ChangeEOLAction extends Action2 {
 
 		const selectedIndex = (textModel?.getEOL() === '\n') ? 0 : 1;
 
-		const eol = await quickInputService.pick(EOLOptions, { placeHolder: localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] });
-		if (eol) {
-			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
-			if (activeCodeEditor?.hasModel() && !editorService.activeEditor?.isReadonly()) {
-				textModel = activeCodeEditor.getModel();
-				textModel.pushStackElement();
-				textModel.pushEOL(eol.eol);
-				textModel.pushStackElement();
-			}
+		const eol = await quickInputService.pick(EOLOptions, { placeHolder: localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex], anchor: ChangeEOLAction.ID });
+
+		if (!eol) {
+			return;
+		}
+
+		const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
+		if (activeCodeEditor?.hasModel() && !editorService.activeEditor?.isReadonly()) {
+			textModel = activeCodeEditor.getModel();
+			textModel.pushStackElement();
+			textModel.pushEOL(eol.eol);
+			textModel.pushStackElement();
 		}
 
 		activeTextEditorControl.focus();
@@ -1443,9 +1448,11 @@ export class ChangeEOLAction extends Action2 {
 
 export class ChangeEncodingAction extends Action2 {
 
+	static readonly ID = 'workbench.action.editor.changeEncoding';
+
 	constructor() {
 		super({
-			id: 'workbench.action.editor.changeEncoding',
+			id: ChangeEncodingAction.ID,
 			title: localize2('changeEncoding', 'Change File Encoding'),
 			f1: true
 		});
@@ -1461,19 +1468,19 @@ export class ChangeEncodingAction extends Action2 {
 
 		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
-			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
+			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }], { anchor: ChangeEncodingAction.ID });
 			return;
 		}
 
 		const activeEditorPane = editorService.activeEditorPane;
 		if (!activeEditorPane) {
-			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
+			await quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }], { anchor: ChangeEncodingAction.ID });
 			return;
 		}
 
 		const encodingSupport: IEncodingSupport | null = toEditorWithEncodingSupport(activeEditorPane.input);
 		if (!encodingSupport) {
-			await quickInputService.pick([{ label: localize('noFileEditor', "No file active at this time") }]);
+			await quickInputService.pick([{ label: localize('noFileEditor', "No file active at this time") }], { anchor: ChangeEncodingAction.ID });
 			return;
 		}
 
@@ -1498,7 +1505,7 @@ export class ChangeEncodingAction extends Action2 {
 		} else if (activeEditorPane.input.isReadonly()) {
 			action = reopenWithEncodingPick;
 		} else {
-			action = await quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true });
+			action = await quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true, anchor: ChangeEncodingAction.ID });
 		}
 
 		if (!action) {
@@ -1566,7 +1573,8 @@ export class ChangeEncodingAction extends Action2 {
 
 		const encoding = await quickInputService.pick(picks, {
 			placeHolder: isReopenWithEncoding ? localize('pickEncodingForReopen', "Select File Encoding to Reopen File") : localize('pickEncodingForSave', "Select File Encoding to Save with"),
-			activeItem: items[typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : -1]
+			activeItem: items[typeof directMatchIndex === 'number' ? directMatchIndex : typeof aliasMatchIndex === 'number' ? aliasMatchIndex : -1],
+			anchor: ChangeEncodingAction.ID
 		});
 
 		if (!encoding) {

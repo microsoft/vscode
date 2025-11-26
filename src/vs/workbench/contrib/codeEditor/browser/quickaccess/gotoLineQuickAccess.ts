@@ -95,7 +95,7 @@ class GotoLineAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		accessor.get(IQuickInputService).quickAccess.show(GotoLineQuickAccessProvider.PREFIX);
+		accessor.get(IQuickInputService).quickAccess.show(GotoLineQuickAccessProvider.PREFIX, { anchor: 'workbench.action.gotoLine' });
 	}
 }
 
