@@ -14,7 +14,7 @@ import {
 	IBrowserViewKeyDownEvent,
 	IBrowserViewTitleChangeEvent,
 	IBrowserViewFaviconChangeEvent,
-	IBrowserViewNewPageEvent,
+	IBrowserViewNewPageRequest,
 	IBrowserViewService
 } from '../../../../platform/browserView/common/browserView.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -70,7 +70,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidKeyCommand: Event<IBrowserViewKeyDownEvent>;
 	readonly onDidChangeTitle: Event<IBrowserViewTitleChangeEvent>;
 	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent>;
-	readonly onDidRequestNewPage: Event<IBrowserViewNewPageEvent>;
+	readonly onDidRequestNewPage: Event<IBrowserViewNewPageRequest>;
 	readonly onWillDispose: Event<void>;
 
 	initialize(): Promise<void>;
@@ -96,6 +96,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _canGoForward: boolean = false;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose: Event<void> = this._onWillDispose.event;
 
 	constructor(
 		public readonly id: string,
@@ -137,12 +138,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.onDynamicDidChangeFavicon(this.id);
 	}
 
-	get onDidRequestNewPage(): Event<IBrowserViewNewPageEvent> {
+	get onDidRequestNewPage(): Event<IBrowserViewNewPageRequest> {
 		return this.browserViewService.onDynamicDidRequestNewPage(this.id);
-	}
-
-	get onWillDispose(): Event<void> {
-		return this._onWillDispose.event;
 	}
 
 	/**

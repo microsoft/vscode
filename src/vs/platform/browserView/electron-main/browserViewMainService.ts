@@ -6,7 +6,7 @@
 import { WebContentsView, webContents, session } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IBrowserViewBounds, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageEvent } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest } from '../common/browserView.js';
 import { IBrowserViewMainService } from './browserView.js';
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { ThemePlugin } from './plugins/themePlugin.js';
@@ -192,8 +192,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
  * This class encapsulates all operations and events for a single browser view.
  */
 export class BrowserView extends Disposable {
-	private readonly view: WebContentsView;
-	private readonly faviconRequestCache = new Map<string, Promise<string>>();
+	private readonly _view: WebContentsView;
+	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 
 	private _lastScreenshot: string | undefined = undefined;
 	private _lastFavicon: string | undefined = undefined;
@@ -219,8 +219,8 @@ export class BrowserView extends Disposable {
 	private readonly _onDidChangeFavicon = this._register(new Emitter<IBrowserViewFaviconChangeEvent>());
 	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent> = this._onDidChangeFavicon.event;
 
-	private readonly _onDidRequestNewPage = this._register(new Emitter<IBrowserViewNewPageEvent>());
-	readonly onDidRequestNewPage: Event<IBrowserViewNewPageEvent> = this._onDidRequestNewPage.event;
+	private readonly _onDidRequestNewPage = this._register(new Emitter<IBrowserViewNewPageRequest>());
+	readonly onDidRequestNewPage: Event<IBrowserViewNewPageRequest> = this._onDidRequestNewPage.event;
 
 	constructor(
 		viewSession: Electron.Session,
@@ -231,7 +231,7 @@ export class BrowserView extends Disposable {
 	) {
 		super();
 
-		this.view = new WebContentsView({
+		this._view = new WebContentsView({
 			webPreferences: {
 				nodeIntegration: false,
 				contextIsolation: true,
@@ -241,7 +241,7 @@ export class BrowserView extends Disposable {
 			}
 		});
 
-		this.view.webContents.setWindowOpenHandler((details) => {
+		this._view.webContents.setWindowOpenHandler((details) => {
 			// For new tab requests, fire event for workbench to handle
 			if (details.disposition === 'background-tab' || details.disposition === 'foreground-tab') {
 				this._onDidRequestNewPage.fire({
@@ -259,11 +259,11 @@ export class BrowserView extends Disposable {
 		this.setupEventListeners();
 
 		// Create and register plugins for this web contents
-		this._register(new ThemePlugin(this.view, this.themeMainService, this.logService));
+		this._register(new ThemePlugin(this._view, this.themeMainService, this.logService));
 	}
 
 	private setupEventListeners(): void {
-		const webContents = this.view.webContents;
+		const webContents = this._view.webContents;
 
 		// Favicon events
 		webContents.on('page-favicon-updated', async (_event, favicons) => {
@@ -271,10 +271,10 @@ export class BrowserView extends Disposable {
 				return;
 			}
 
-			const found = favicons.find(f => this.faviconRequestCache.get(f));
+			const found = favicons.find(f => this._faviconRequestCache.get(f));
 			if (found) {
 				// already have a cached request for this favicon, use it
-				this._lastFavicon = await this.faviconRequestCache.get(found)!;
+				this._lastFavicon = await this._faviconRequestCache.get(found)!;
 				this._onDidChangeFavicon.fire({ favicon: this._lastFavicon });
 				return;
 			}
@@ -291,7 +291,7 @@ export class BrowserView extends Disposable {
 					return `data:${type};base64,${Buffer.from(buffer).toString('base64')}`;
 				})();
 
-				this.faviconRequestCache.set(url, request);
+				this._faviconRequestCache.set(url, request);
 
 				try {
 					this._lastFavicon = await request;
@@ -299,7 +299,7 @@ export class BrowserView extends Disposable {
 					// On success, leave the promise in the cache and stop looping
 					return;
 				} catch (e) {
-					this.faviconRequestCache.delete(url);
+					this._faviconRequestCache.delete(url);
 					// On failure, try the next one
 				}
 			}
@@ -363,7 +363,7 @@ export class BrowserView extends Disposable {
 	 * Get the current state of this browser view
 	 */
 	getState(): IBrowserViewState {
-		const webContents = this.view.webContents;
+		const webContents = this._view.webContents;
 		return {
 			url: webContents.getURL(),
 			title: webContents.getTitle(),
@@ -382,14 +382,14 @@ export class BrowserView extends Disposable {
 		if (this._window?.win?.id !== bounds.windowId) {
 			const newWindow = this.windowById(bounds.windowId);
 			if (newWindow) {
-				this._window?.win?.contentView.removeChildView(this.view);
+				this._window?.win?.contentView.removeChildView(this._view);
 				this._window = newWindow;
-				newWindow.win?.contentView.addChildView(this.view);
+				newWindow.win?.contentView.addChildView(this._view);
 			}
 		}
 
-		this.view.webContents.setZoomFactor(bounds.zoomFactor);
-		this.view.setBounds({
+		this._view.webContents.setZoomFactor(bounds.zoomFactor);
+		this._view.setBounds({
 			x: Math.round(bounds.x * bounds.zoomFactor),
 			y: Math.round(bounds.y * bounds.zoomFactor),
 			width: Math.round(bounds.width * bounds.zoomFactor),
@@ -402,33 +402,33 @@ export class BrowserView extends Disposable {
 	 */
 	setVisible(visible: boolean): void {
 		// If the view is focused, pass focus back to the window when hiding
-		if (!visible && this.view.webContents.isFocused()) {
+		if (!visible && this._view.webContents.isFocused()) {
 			this._window?.win?.webContents.focus();
 		}
 
-		this.view.setVisible(visible);
+		this._view.setVisible(visible);
 	}
 
 	/**
 	 * Load a URL in this view
 	 */
 	async loadURL(url: string): Promise<void> {
-		await this.view.webContents.loadURL(url);
+		await this._view.webContents.loadURL(url);
 	}
 
 	/**
 	 * Get the current URL
 	 */
 	getURL(): string {
-		return this.view.webContents.getURL();
+		return this._view.webContents.getURL();
 	}
 
 	/**
 	 * Navigate back in history
 	 */
 	goBack(): void {
-		if (this.view.webContents.navigationHistory.canGoBack()) {
-			this.view.webContents.navigationHistory.goBack();
+		if (this._view.webContents.navigationHistory.canGoBack()) {
+			this._view.webContents.navigationHistory.goBack();
 		}
 	}
 
@@ -436,8 +436,8 @@ export class BrowserView extends Disposable {
 	 * Navigate forward in history
 	 */
 	goForward(): void {
-		if (this.view.webContents.navigationHistory.canGoForward()) {
-			this.view.webContents.navigationHistory.goForward();
+		if (this._view.webContents.navigationHistory.canGoForward()) {
+			this._view.webContents.navigationHistory.goForward();
 		}
 	}
 
@@ -445,28 +445,28 @@ export class BrowserView extends Disposable {
 	 * Reload the current page
 	 */
 	reload(): void {
-		this.view.webContents.reload();
+		this._view.webContents.reload();
 	}
 
 	/**
 	 * Check if the view can navigate back
 	 */
 	canGoBack(): boolean {
-		return this.view.webContents.navigationHistory.canGoBack();
+		return this._view.webContents.navigationHistory.canGoBack();
 	}
 
 	/**
 	 * Check if the view can navigate forward
 	 */
 	canGoForward(): boolean {
-		return this.view.webContents.navigationHistory.canGoForward();
+		return this._view.webContents.navigationHistory.canGoForward();
 	}
 
 	/**
 	 * Capture a screenshot of this view
 	 */
 	async captureScreenshot(quality = 80): Promise<string> {
-		const image = await this.view.webContents.capturePage(undefined, {
+		const image = await this._view.webContents.capturePage(undefined, {
 			stayHidden: true,
 			stayAwake: true
 		});
@@ -498,7 +498,7 @@ export class BrowserView extends Disposable {
 		}
 		this._isSendingKeyEvent = true;
 		try {
-			await this.view.webContents.sendInputEvent(event);
+			await this._view.webContents.sendInputEvent(event);
 		} finally {
 			this._isSendingKeyEvent = false;
 		}
@@ -508,30 +508,30 @@ export class BrowserView extends Disposable {
 	 * Set the zoom factor of this view
 	 */
 	async setZoomFactor(zoomFactor: number): Promise<void> {
-		await this.view.webContents.setZoomFactor(zoomFactor);
+		await this._view.webContents.setZoomFactor(zoomFactor);
 	}
 
 	/**
 	 * Focus this view
 	 */
 	async focus(): Promise<void> {
-		this.view.webContents.focus();
+		this._view.webContents.focus();
 	}
 
 	/**
 	 * Get the underlying WebContentsView
 	 */
 	getWebContentsView(): WebContentsView {
-		return this.view;
+		return this._view;
 	}
 
 	override dispose(): void {
 		// Remove from parent window
-		this._window?.win?.contentView.removeChildView(this.view);
+		this._window?.win?.contentView.removeChildView(this._view);
 
 		// Clean up the view and all its event listeners
 		// Note: webContents.close() automatically removes all event listeners
-		this.view.webContents.close();
+		this._view.webContents.close();
 
 		super.dispose();
 	}

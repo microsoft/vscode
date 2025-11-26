@@ -47,7 +47,7 @@ class BrowserNavigationBar extends Disposable {
 	private readonly _onDidNavigate = this._register(new Emitter<string>());
 	readonly onDidNavigate: Event<string> = this._onDidNavigate.event;
 
-	private readonly urlInput: HTMLInputElement;
+	private readonly _urlInput: HTMLInputElement;
 
 	constructor(
 		container: HTMLElement,
@@ -81,9 +81,9 @@ class BrowserNavigationBar extends Disposable {
 		));
 
 		// URL input
-		this.urlInput = $<HTMLInputElement>('input.browser-url-input');
-		this.urlInput.type = 'text';
-		this.urlInput.placeholder = localize('browserUrlPlaceholder', "Enter URL...");
+		this._urlInput = $<HTMLInputElement>('input.browser-url-input');
+		this._urlInput.type = 'text';
+		this._urlInput.placeholder = localize('browserUrlPlaceholder', "Enter URL...");
 
 		// Create actions toolbar (right side) with scoped context
 		const actionsContainer = $('.browser-actions-toolbar');
@@ -98,13 +98,13 @@ class BrowserNavigationBar extends Disposable {
 
 		// Assemble layout: nav | url | actions
 		container.appendChild(navContainer);
-		container.appendChild(this.urlInput);
+		container.appendChild(this._urlInput);
 		container.appendChild(actionsContainer);
 
 		// Setup URL input handler
-		this._register(addDisposableListener(this.urlInput, EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(addDisposableListener(this._urlInput, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			if (e.key === 'Enter') {
-				const url = this.urlInput.value.trim();
+				const url = this._urlInput.value.trim();
 				if (url) {
 					this._onDidNavigate.fire(url);
 				}
@@ -117,33 +117,36 @@ class BrowserNavigationBar extends Disposable {
 	 */
 	updateFromNavigationEvent(event: IBrowserViewNavigationEvent): void {
 		// URL input is updated, action enablement is handled by context keys
-		this.urlInput.value = event.url;
+		this._urlInput.value = event.url;
 	}
 
 	/**
 	 * Focus the URL input and select all text
 	 */
 	focusUrlInput(): void {
-		this.urlInput.select();
-		this.urlInput.focus();
+		this._urlInput.select();
+		this._urlInput.focus();
+	}
+
+	clear(): void {
+		this._urlInput.value = '';
 	}
 }
 
 export class BrowserEditor extends EditorPane {
 	static readonly ID = 'workbench.editor.browser';
 
-	private overlayVisible = false;
-	private editorVisible = false;
-
-	private navigationBar!: BrowserNavigationBar;
-	private browserContainer!: HTMLElement;
-	private browserScopedContextKeyService!: IContextKeyService;
-	private canGoBackContext!: IContextKey<boolean>;
-	private canGoForwardContext!: IContextKey<boolean>;
-
-	private model: IBrowserViewModel | undefined;
+	private _overlayVisible = false;
+	private _editorVisible = false;
 	private _currentKeyDownEvent: IBrowserViewKeyDownEvent | undefined;
-	private readonly inputDisposables = this._register(new DisposableStore());
+
+	private _navigationBar!: BrowserNavigationBar;
+	private _browserContainer!: HTMLElement;
+	private _canGoBackContext!: IContextKey<boolean>;
+	private _canGoForwardContext!: IContextKey<boolean>;
+
+	private _model: IBrowserViewModel | undefined;
+	private readonly _inputDisposables = this._register(new DisposableStore());
 
 	constructor(
 		group: IEditorGroup,
@@ -162,12 +165,11 @@ export class BrowserEditor extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		// Create scoped context key service for this editor instance
-		this.browserScopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
+		const contextKeyService = this._register(this.contextKeyService.createScoped(parent));
 
 		// Bind navigation capability context keys
-		this.canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(this.browserScopedContextKeyService);
-		this.canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(this.browserScopedContextKeyService);
-
+		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
+		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
 		// Create root container
 		const root = $('.browser-root');
 		parent.appendChild(root);
@@ -176,30 +178,30 @@ export class BrowserEditor extends EditorPane {
 		const toolbar = $('.browser-toolbar');
 
 		// Create navigation bar widget with scoped context
-		this.navigationBar = this._register(new BrowserNavigationBar(toolbar, this.instantiationService, this.browserScopedContextKeyService || this.contextKeyService));
+		this._navigationBar = this._register(new BrowserNavigationBar(toolbar, this.instantiationService, contextKeyService));
 
 		// Listen for navigation from URL input
-		this._register(this.navigationBar.onDidNavigate(url => this.navigateToUrl(url)));
+		this._register(this._navigationBar.onDidNavigate(url => this.navigateToUrl(url)));
 
 		root.appendChild(toolbar);
 
 		// Create browser container (stub element for positioning)
-		this.browserContainer = $('.browser-container');
-		this.browserContainer.tabIndex = 0; // make focusable
-		root.appendChild(this.browserContainer);
+		this._browserContainer = $('.browser-container');
+		this._browserContainer.tabIndex = 0; // make focusable
+		root.appendChild(this._browserContainer);
 
-		this._register(addDisposableListener(this.browserContainer, EventType.FOCUS, (event) => {
+		this._register(addDisposableListener(this._browserContainer, EventType.FOCUS, (event) => {
 			// When the browser container gets focus, make sure the browser view also gets focused.
 			// But only if focus was already in the workbench (and not e.g. clicking back into the workbench from the browser view).
-			if (event.relatedTarget && this.model) {
-				void this.model.focus();
+			if (event.relatedTarget && this._model) {
+				void this._model.focus();
 			}
 		}));
 
-		this._register(addDisposableListener(this.browserContainer, EventType.BLUR, () => {
+		this._register(addDisposableListener(this._browserContainer, EventType.BLUR, () => {
 			// When focus goes to another part of the workbench, make sure the workbench view becomes focused.
 			const focused = this.window.document.activeElement;
-			if (focused && focused !== this.browserContainer) {
+			if (focused && focused !== this._browserContainer) {
 				this.window.focus();
 			}
 		}));
@@ -211,52 +213,52 @@ export class BrowserEditor extends EditorPane {
 			return;
 		}
 
-		this.inputDisposables.clear();
+		this._inputDisposables.clear();
 
 		// Resolve the browser view model from the input
-		this.model = await input.resolve();
+		this._model = await input.resolve();
 		if (token.isCancellationRequested) {
 			return;
 		}
 
 		// Clean up on input disposal
 		input.onWillDispose(() => {
-			this.model = undefined;
-		}, null, this.inputDisposables);
+			this._model = undefined;
+		}, null, this._inputDisposables);
 
 		// Initialize UI state and context keys from model
 		this.updateNavigationState({
-			url: this.model.url,
-			canGoBack: this.model.canGoBack,
-			canGoForward: this.model.canGoForward
+			url: this._model.url,
+			canGoBack: this._model.canGoBack,
+			canGoForward: this._model.canGoForward
 		});
-		this.browserContainer.style.backgroundImage = this.model.screenshot ? `url('${this.model.screenshot}')` : '';
+		this._browserContainer.style.backgroundImage = this._model.screenshot ? `url('${this._model.screenshot}')` : '';
 
 		if (context.newInGroup) {
-			this.navigationBar.focusUrlInput();
+			this._navigationBar.focusUrlInput();
 		}
 
 		// Listen to model events for UI updates
-		this.model.onDidKeyCommand(keyEvent => {
+		this._model.onDidKeyCommand(keyEvent => {
 			// Handle like webview does - convert to webview KeyEvent format
 			this.handleKeyEventFromBrowserView(keyEvent);
-		}, null, this.inputDisposables);
+		}, null, this._inputDisposables);
 
-		this.model.onDidNavigate((navEvent: IBrowserViewNavigationEvent) => {
+		this._model.onDidNavigate((navEvent: IBrowserViewNavigationEvent) => {
 			this.group.pinEditor(this.input); // pin editor on navigation
 
 			// Update navigation bar and context keys from model
 			this.updateNavigationState(navEvent);
-		}, null, this.inputDisposables);
+		}, null, this._inputDisposables);
 
-		this.model.onDidChangeFocus(({ focused }) => {
+		this._model.onDidChangeFocus(({ focused }) => {
 			// When the view gets focused, make sure the container also has focus.
 			if (focused) {
-				this.browserContainer.focus();
+				this._browserContainer.focus();
 			}
-		}, null, this.inputDisposables);
+		}, null, this._inputDisposables);
 
-		this.model.onDidRequestNewPage(({ url, name, background }) => {
+		this._model.onDidRequestNewPage(({ url, name, background }) => {
 			// Open a new browser tab for the requested URL
 			const browserUri = BrowserViewUri.forUrl(url, name ? `${input.id}-${name}` : undefined);
 			this.editorService.openEditor({
@@ -266,56 +268,56 @@ export class BrowserEditor extends EditorPane {
 					inactive: background
 				}
 			});
-		}, null, this.inputDisposables);
+		}, null, this._inputDisposables);
 
-		this.overlayManager.onDidChangeOverlayState(() => {
+		this._inputDisposables.add(this.overlayManager.onDidChangeOverlayState(() => {
 			this.checkOverlays();
-		}, null, this.inputDisposables);
+		}, null, this._inputDisposables));
 
 		// Listen for zoom level changes and update browser view zoom factor
 		onDidChangeZoomLevel(targetWindowId => {
 			if (targetWindowId === this.window.vscodeWindowId) {
 				this.layout();
 			}
-		}, null, this.inputDisposables);
+		}, null, this._inputDisposables);
 
 		// Capture screenshot periodically (once per second) to keep background updated
-		this.inputDisposables.add(disposableWindowInterval(
+		this._inputDisposables.add(disposableWindowInterval(
 			this.window,
 			() => this.capturePlaceholderSnapshot(),
 			1000
 		));
 
 		this.layout();
-		await this.model.setVisible(this.shouldShowView);
+		await this._model!.setVisible(this.shouldShowView);
 	}
 
 	protected override setEditorVisible(visible: boolean): void {
-		this.editorVisible = visible;
+		this._editorVisible = visible;
 		this.updateVisibility();
 	}
 
 	private updateVisibility(): void {
-		if (this.model) {
-			this.browserContainer.classList.toggle('view-hidden', !this.shouldShowView);
-			void this.model.setVisible(this.shouldShowView);
+		if (this._model) {
+			this._browserContainer.classList.toggle('view-hidden', !this.shouldShowView);
+			void this._model.setVisible(this.shouldShowView);
 		}
 	}
 
 	private checkOverlays(): void {
-		const hasOverlappingOverlay = this.overlayManager.isOverlappingWithOverlays(this.browserContainer);
-		if (hasOverlappingOverlay !== this.overlayVisible) {
-			this.overlayVisible = hasOverlappingOverlay;
+		const hasOverlappingOverlay = this.overlayManager.isOverlappingWithOverlays(this._browserContainer);
+		if (hasOverlappingOverlay !== this._overlayVisible) {
+			this._overlayVisible = hasOverlappingOverlay;
 			this.updateVisibility();
 		}
 	}
 
 	private get shouldShowView(): boolean {
-		return this.editorVisible && !this.overlayVisible;
+		return this._editorVisible && !this._overlayVisible;
 	}
 
 	private async navigateToUrl(url: string): Promise<void> {
-		if (this.model) {
+		if (this._model) {
 			this.group.pinEditor(this.input); // pin editor on navigation
 
 			if (!/^https?:\/\//.test(url)) {
@@ -323,20 +325,20 @@ export class BrowserEditor extends EditorPane {
 				url = 'http://' + url;
 			}
 
-			await this.model.loadURL(url);
+			await this._model.loadURL(url);
 		}
 	}
 
 	public async goBack(): Promise<void> {
-		return this.model?.goBack();
+		return this._model?.goBack();
 	}
 
 	public async goForward(): Promise<void> {
-		return this.model?.goForward();
+		return this._model?.goForward();
 	}
 
 	public async reload(): Promise<void> {
-		return this.model?.reload();
+		return this._model?.reload();
 	}
 
 	/**
@@ -344,30 +346,30 @@ export class BrowserEditor extends EditorPane {
 	 */
 	private updateNavigationState(event: IBrowserViewNavigationEvent): void {
 		// Update navigation bar UI
-		this.navigationBar.updateFromNavigationEvent(event);
+		this._navigationBar.updateFromNavigationEvent(event);
 
 		// Update context keys for command enablement
-		this.canGoBackContext.set(event.canGoBack);
-		this.canGoForwardContext.set(event.canGoForward);
+		this._canGoBackContext.set(event.canGoBack);
+		this._canGoForwardContext.set(event.canGoForward);
 	}
 
 	/**
 	 * Capture a screenshot of the current browser view to use as placeholder background
 	 */
 	private async capturePlaceholderSnapshot(): Promise<void> {
-		if (this.model && !this.overlayVisible) {
+		if (this._model && !this._overlayVisible) {
 			try {
-				const dataUrl = await this.model.captureScreenshot(80);
-				this.browserContainer.style.backgroundImage = `url('${dataUrl}')`;
+				const dataUrl = await this._model.captureScreenshot(80);
+				this._browserContainer.style.backgroundImage = `url('${dataUrl}')`;
 			} catch (error) {
-				this.logService.error('browserEditor.capturePlaceholderSnapshot', error);
+				this.logService.error('BrowserEditor.capturePlaceholderSnapshot: Failed to capture screenshot', error);
 			}
 		}
 	}
 
 	public forwardCurrentEvent(): boolean {
-		if (this._currentKeyDownEvent && this.model) {
-			void this.model.dispatchKeyEvent(this._currentKeyDownEvent);
+		if (this._currentKeyDownEvent && this._model) {
+			void this._model.dispatchKeyEvent(this._currentKeyDownEvent);
 			return true;
 		}
 		return false;
@@ -380,23 +382,23 @@ export class BrowserEditor extends EditorPane {
 			const syntheticEvent = new KeyboardEvent('keydown', keyEvent);
 			const standardEvent = new StandardKeyboardEvent(syntheticEvent);
 
-			const handled = this.keybindingService.dispatchEvent(standardEvent, this.browserContainer);
+			const handled = this.keybindingService.dispatchEvent(standardEvent, this._browserContainer);
 			if (!handled) {
 				this.forwardCurrentEvent();
 			}
 		} catch (error) {
-			this.logService.error('Error in handleKeyEventFromBrowserView', error);
+			this.logService.error('BrowserEditor.handleKeyEventFromBrowserView: Error dispatching key event', error);
 		} finally {
 			this._currentKeyDownEvent = undefined;
 		}
 	}
 
 	override layout(): void {
-		if (this.model) {
+		if (this._model) {
 			this.checkOverlays();
 
-			const containerRect = this.browserContainer.getBoundingClientRect();
-			void this.model.layout({
+			const containerRect = this._browserContainer.getBoundingClientRect();
+			void this._model.layout({
 				windowId: this.group.windowId,
 				x: containerRect.left,
 				y: containerRect.top,
@@ -408,10 +410,13 @@ export class BrowserEditor extends EditorPane {
 	}
 
 	override clearInput(): void {
-		void this.model?.setVisible(false);
-		this.model = undefined;
-		this.browserContainer.style.backgroundImage = '';
-		this.inputDisposables.clear();
+		this._inputDisposables.clear();
+
+		void this._model?.setVisible(false);
+		this._model = undefined;
+
+		this._navigationBar.clear();
+		this._browserContainer.style.backgroundImage = '';
 
 		super.clearInput();
 	}
@@ -529,5 +534,3 @@ class ReloadAction extends Action2 {
 registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
-
-// No menu registration needed - actions are created directly in BrowserNavigationBar

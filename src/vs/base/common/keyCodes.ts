@@ -755,6 +755,8 @@ for (let i = 0; i <= KeyCode.MAX_VALUE; i++) {
 		}
 		if (eventKeyCode) {
 			EVENT_KEY_CODE_MAP[eventKeyCode] = keyCode;
+		}
+		if (scanCodeStr) {
 			SCAN_CODE_STR_TO_EVENT_KEY_CODE[scanCodeStr] = eventKeyCode;
 		}
 		if (vkey) {

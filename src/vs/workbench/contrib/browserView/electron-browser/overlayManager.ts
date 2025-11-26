@@ -41,8 +41,8 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	private readonly _onDidChangeOverlayState = this._register(new Emitter<void>({
 		onWillAddFirstListener: () => {
 			// Start observing the document for structural changes
-			this.observerIsConnected = true;
-			this.structuralObserver.observe(mainWindow.document.body, {
+			this._observerIsConnected = true;
+			this._structuralObserver.observe(mainWindow.document.body, {
 				childList: true,
 				subtree: true
 			});
@@ -50,18 +50,18 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		},
 		onDidRemoveLastListener: () => {
 			// Stop observing when no listeners are present
-			this.observerIsConnected = false;
-			this.structuralObserver.disconnect();
+			this._observerIsConnected = false;
+			this._structuralObserver.disconnect();
 			this.stopTrackingElements();
 		}
 	}));
 	public readonly onDidChangeOverlayState = this._onDidChangeOverlayState.event;
 
-	private readonly overlayCollections = new Map<string, HTMLCollectionOf<Element>>();
-	private overlayRectangles = new WeakMap<HTMLElement, IDomNodePagePosition>();
-	private elementObservers = new WeakMap<HTMLElement, MutationObserver>();
-	private structuralObserver: MutationObserver;
-	private observerIsConnected: boolean = false;
+	private readonly _overlayCollections = new Map<string, HTMLCollectionOf<Element>>();
+	private _overlayRectangles = new WeakMap<HTMLElement, IDomNodePagePosition>();
+	private _elementObservers = new WeakMap<HTMLElement, MutationObserver>();
+	private _structuralObserver: MutationObserver;
+	private _observerIsConnected: boolean = false;
 
 	constructor() {
 		super();
@@ -70,22 +70,22 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		for (const className of OVERLAY_CLASSES) {
 			// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
 			// eslint-disable-next-line no-restricted-syntax
-			this.overlayCollections.set(className, mainWindow.document.getElementsByClassName(className));
+			this._overlayCollections.set(className, mainWindow.document.getElementsByClassName(className));
 		}
 
 		// Setup structural observer to watch for element additions/removals
-		this.structuralObserver = new MutationObserver((mutations) => {
+		this._structuralObserver = new MutationObserver((mutations) => {
 			let didRemove = false;
 			for (const mutation of mutations) {
 				for (const node of mutation.removedNodes) {
-					if (this.elementObservers.has(node as HTMLElement)) {
-						const observer = this.elementObservers.get(node as HTMLElement);
+					if (this._elementObservers.has(node as HTMLElement)) {
+						const observer = this._elementObservers.get(node as HTMLElement);
 						observer?.disconnect();
-						this.elementObservers.delete(node as HTMLElement);
+						this._elementObservers.delete(node as HTMLElement);
 						didRemove = true;
 					}
 
-					if (this.overlayRectangles.delete(node as HTMLElement)) {
+					if (this._overlayRectangles.delete(node as HTMLElement)) {
 						didRemove = true;
 					}
 				}
@@ -95,7 +95,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	}
 
 	private *overlays(): Iterable<HTMLElement> {
-		for (const collection of this.overlayCollections.values()) {
+		for (const collection of this._overlayCollections.values()) {
 			for (const element of collection) {
 				yield element as HTMLElement;
 			}
@@ -106,14 +106,14 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		// Scan all overlay collections for elements and ensure they have observers
 		for (const overlay of this.overlays()) {
 			// Create a new observer for this specific element if we don't already have one
-			if (!this.elementObservers.has(overlay)) {
+			if (!this._elementObservers.has(overlay)) {
 				const observer = new MutationObserver(() => {
-					this.overlayRectangles.delete(overlay);
+					this._overlayRectangles.delete(overlay);
 					this._onDidChangeOverlayState.fire();
 				});
 
 				// Store the observer in the WeakMap
-				this.elementObservers.set(overlay, observer);
+				this._elementObservers.set(overlay, observer);
 
 				// Start observing this element
 				observer.observe(overlay, {
@@ -133,15 +133,15 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	}
 
 	private getRect(element: HTMLElement): IDomNodePagePosition {
-		if (!this.overlayRectangles.has(element)) {
+		if (!this._overlayRectangles.has(element)) {
 			const rect = getDomNodePagePosition(element);
 			// If the observer is not connected (no listeners), do not cache rectangles as we won't know when they change.
-			if (!this.observerIsConnected) {
+			if (!this._observerIsConnected) {
 				return rect;
 			}
-			this.overlayRectangles.set(element, rect);
+			this._overlayRectangles.set(element, rect);
 		}
-		return this.overlayRectangles.get(element)!;
+		return this._overlayRectangles.get(element)!;
 	}
 
 	public isOverlappingWithOverlays(element: HTMLElement): boolean {
@@ -172,16 +172,16 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 
 	private stopTrackingElements(): void {
 		for (const overlay of this.overlays()) {
-			const observer = this.elementObservers.get(overlay);
+			const observer = this._elementObservers.get(overlay);
 			observer?.disconnect();
 		}
-		this.overlayRectangles = new WeakMap();
-		this.elementObservers = new WeakMap();
+		this._overlayRectangles = new WeakMap();
+		this._elementObservers = new WeakMap();
 	}
 
 	override dispose(): void {
-		this.observerIsConnected = false;
-		this.structuralObserver.disconnect();
+		this._observerIsConnected = false;
+		this._structuralObserver.disconnect();
 		this.stopTrackingElements();
 
 		super.dispose();

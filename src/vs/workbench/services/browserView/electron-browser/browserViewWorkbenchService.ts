@@ -16,46 +16,46 @@ import { registerSingleton, InstantiationType } from '../../../../platform/insta
 export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly browserViewService: IBrowserViewService;
-	private readonly models = new Map<string, IBrowserViewModel>();
+	private readonly _browserViewService: IBrowserViewService;
+	private readonly _models = new Map<string, IBrowserViewModel>();
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
-		this.browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
+		this._browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
 	}
 
 	async getOrCreateBrowserViewModel(id: string): Promise<IBrowserViewModel> {
-		let model = this.models.get(id);
+		let model = this._models.get(id);
 		if (model) {
 			return model;
 		}
 
-		model = this.instantiationService.createInstance(BrowserViewModel, id, this.browserViewService);
-		this.models.set(id, model);
+		model = this.instantiationService.createInstance(BrowserViewModel, id, this._browserViewService);
+		this._models.set(id, model);
 
 		// Initialize the model with current state
 		await model.initialize();
 
 		// Clean up model when disposed
 		model.onWillDispose(() => {
-			this.models.delete(id);
+			this._models.delete(id);
 		});
 
 		return model;
 	}
 
 	getBrowserViewModel(id: string): IBrowserViewModel | undefined {
-		return this.models.get(id);
+		return this._models.get(id);
 	}
 
 	async destroyBrowserViewModel(id: string): Promise<void> {
-		const model = this.models.get(id);
+		const model = this._models.get(id);
 		if (model) {
 			model.dispose(); // This will also destroy the underlying browser view
-			this.models.delete(id);
+			this._models.delete(id);
 		}
 	}
 }

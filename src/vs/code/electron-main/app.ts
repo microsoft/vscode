@@ -1029,6 +1029,9 @@ export class CodeApplication extends Disposable {
 		// Browser Elements
 		services.set(INativeBrowserElementsMainService, new SyncDescriptor(NativeBrowserElementsMainService, undefined, false /* proxied to other processes */));
 
+		// Browser View
+		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, false /* proxied to other processes */));
+
 		// Keyboard Layout
 		services.set(IKeyboardLayoutMainService, new SyncDescriptor(KeyboardLayoutMainService));
 
@@ -1114,8 +1117,6 @@ export class CodeApplication extends Disposable {
 		// MCP
 		services.set(INativeMcpDiscoveryHelperService, new SyncDescriptor(NativeMcpDiscoveryHelperService));
 
-		// Browser View
-		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, true));
 
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));

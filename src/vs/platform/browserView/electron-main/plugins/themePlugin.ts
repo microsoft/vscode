@@ -12,22 +12,22 @@ import { ILogService } from '../../../log/common/log.js';
  * to the web content via CSS injection and background color.
  */
 export class ThemePlugin extends Disposable {
-	private readonly webContents: Electron.WebContents;
-	private injectedCSSKey?: string;
+	private readonly _webContents: Electron.WebContents;
+	private _injectedCSSKey?: string;
 
 	constructor(
-		private readonly view: Electron.WebContentsView,
+		private readonly _view: Electron.WebContentsView,
 		private readonly themeMainService: IThemeMainService,
 		private readonly logService: ILogService
 	) {
 		super();
-		this.webContents = view.webContents;
+		this._webContents = _view.webContents;
 
 		// Set view background to match editor background
 		this.applyBackgroundColor();
 
 		// Apply theme when page loads
-		this.webContents.on('did-finish-load', () => this.applyTheme());
+		this._webContents.on('did-finish-load', () => this.applyTheme());
 
 		// Update theme when VS Code theme changes
 		this._register(this.themeMainService.onDidChangeColorScheme(() => {
@@ -38,11 +38,11 @@ export class ThemePlugin extends Disposable {
 
 	private applyBackgroundColor(): void {
 		const backgroundColor = this.themeMainService.getBackgroundColor();
-		this.view.setBackgroundColor(backgroundColor);
+		this._view.setBackgroundColor(backgroundColor);
 	}
 
 	private async applyTheme(): Promise<void> {
-		if (this.webContents.isDestroyed()) {
+		if (this._webContents.isDestroyed()) {
 			return;
 		}
 
@@ -50,12 +50,12 @@ export class ThemePlugin extends Disposable {
 
 		try {
 			// Remove previous theme CSS if it exists
-			if (this.injectedCSSKey) {
-				await this.webContents.removeInsertedCSS(this.injectedCSSKey);
+			if (this._injectedCSSKey) {
+				await this._webContents.removeInsertedCSS(this._injectedCSSKey);
 			}
 
 			// Insert new theme CSS
-			this.injectedCSSKey = await this.webContents.insertCSS(`
+			this._injectedCSSKey = await this._webContents.insertCSS(`
 				/* VS Code theme override */
 				:root {
 					color-scheme: ${colorScheme};
