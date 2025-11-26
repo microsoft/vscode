@@ -11,7 +11,6 @@ import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { hasKey } from '../../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -49,7 +48,11 @@ interface IAgentSessionData {
 	readonly description?: string | IMarkdownString;
 	readonly icon: ThemeIcon;
 
-	readonly timing: IChatSessionItem['timing'] & {
+	readonly timing: {
+		readonly created: number;
+		readonly lastRequestStarted: number | undefined;
+		readonly lastRequestEnded: number | undefined;
+
 		readonly inProgressTime?: number;
 		readonly finishedOrFailedTime?: number;
 	};
@@ -353,7 +356,11 @@ interface ISerializedAgentSession {
 	readonly status: ChatSessionStatus;
 	readonly archived: boolean | undefined;
 
-	readonly timing: IChatSessionItem['timing'];
+	readonly timing: {
+		readonly created: number;
+		readonly lastRequestStarted: number | undefined;
+		readonly lastRequestEnded: number | undefined;
+	};
 
 	readonly statistics?: {
 		readonly files: number;
@@ -369,9 +376,7 @@ interface ISerializedAgentSessionState {
 
 class AgentSessionsCache {
 
-	private static readonly SESSIONS_STORAGE_KEY = 'agentSessions.model.cache';
-	private static readonly SESSIONS_STORAGE_VERSION = 2;
-
+	private static readonly SESSIONS_STORAGE_KEY = 'agentSessions.sessions.cache';
 	private static readonly STATE_STORAGE_KEY = 'agentSessions.state.cache';
 
 	constructor(
@@ -413,10 +418,7 @@ class AgentSessionsCache {
 				statistics: session.statistics,
 			}));
 
-		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, JSON.stringify({
-			version: AgentSessionsCache.SESSIONS_STORAGE_VERSION,
-			sessions: serialized
-		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	loadCachedSessions(): IInternalAgentSessionData[] {
@@ -426,12 +428,8 @@ class AgentSessionsCache {
 		}
 
 		try {
-			const cached = JSON.parse(sessionsCache) as ISerializedAgentSession[] | { version: number; sessions: ISerializedAgentSession[] };
-			if (!hasKey(cached, { 'version': true }) || cached.version !== AgentSessionsCache.SESSIONS_STORAGE_VERSION) {
-				return [];
-			}
-
-			return cached.sessions.map(session => ({
+			const cached = JSON.parse(sessionsCache) as ISerializedAgentSession[];
+			return cached.map(session => ({
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
 

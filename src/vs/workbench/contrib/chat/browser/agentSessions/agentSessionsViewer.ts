@@ -245,7 +245,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			}
 
 			if (!timeLabel) {
-				timeLabel = fromNow(session.timing.lastRequestEnded || session.timing.lastRequestStarted || session.timing.created || 0, true);
+				timeLabel = fromNow(session.timing.lastRequestEnded || session.timing.lastRequestStarted || session.timing.created, true);
 			}
 			return `${session.providerLabel} • ${timeLabel}`;
 		};

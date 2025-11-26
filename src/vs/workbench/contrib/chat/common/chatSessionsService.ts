@@ -69,7 +69,7 @@ export interface IChatSessionItem {
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
 	timing: {
-		created: number | undefined; // Old sessions may not have this set
+		created: number;
 		lastRequestStarted: number | undefined;
 		lastRequestEnded: number | undefined;
 	};
