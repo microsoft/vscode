@@ -101,6 +101,7 @@ export class RenameInferenceEngine {
 				return undefined;
 			}
 			if (originalTextSegment.length > 0) {
+				wordDefinition.lastIndex = 0;
 				const match = wordDefinition.exec(originalTextSegment);
 				if (match === null || match.index !== 0 || match[0].length !== originalTextSegment.length) {
 					return undefined;
@@ -113,6 +114,7 @@ export class RenameInferenceEngine {
 				return undefined;
 			}
 			if (insertedTextSegment.length > 0) {
+				wordDefinition.lastIndex = 0;
 				const match = wordDefinition.exec(insertedTextSegment);
 				if (match === null || match.index !== 0 || match[0].length !== insertedTextSegment.length) {
 					return undefined;
@@ -170,18 +172,16 @@ export class RenameInferenceEngine {
 			return undefined;
 		}
 
-		if (oldName.length > 0) {
-			const match = wordDefinition.exec(oldName);
-			if (match === null || match.index !== 0 || match[0].length !== oldName.length) {
-				return undefined;
-			}
+		wordDefinition.lastIndex = 0;
+		let match = wordDefinition.exec(oldName);
+		if (match === null || match.index !== 0 || match[0].length !== oldName.length) {
+			return undefined;
 		}
 
-		if (newName.length > 0) {
-			const match = wordDefinition.exec(newName);
-			if (match === null || match.index !== 0 || match[0].length !== newName.length) {
-				return undefined;
-			}
+		wordDefinition.lastIndex = 0;
+		match = wordDefinition.exec(newName);
+		if (match === null || match.index !== 0 || match[0].length !== newName.length) {
+			return undefined;
 		}
 
 		return {
