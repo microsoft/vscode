@@ -11,7 +11,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { prefixedUuid } from '../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
-import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
+import { StringEdit, StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
@@ -270,7 +270,6 @@ function toInlineSuggestData(
 		context,
 		inlineCompletion.isInlineEdit ?? false,
 		inlineCompletion.supportsRename ?? false,
-		undefined,
 		requestInfo,
 		providerRequestInfo,
 		inlineCompletion.correlationId,
@@ -311,7 +310,7 @@ export type InlineSuggestViewData = {
 	viewKind?: InlineCompletionViewKind;
 };
 
-export type IInlineSuggestDataAction = IInlineSuggestDataActionEdit | IInlineSuggestDataActionJumpTo;
+export type IInlineSuggestDataAction = IInlineSuggestDataActionEdit | IInlineSuggestDataActionJumpTo | IInlineSuggestDataActionRename;
 
 export interface IInlineSuggestDataActionEdit {
 	kind: 'edit';
@@ -325,6 +324,14 @@ export interface IInlineSuggestDataActionJumpTo {
 	kind: 'jumpTo';
 	position: Position;
 	uri: URI | undefined;
+}
+
+export interface IInlineSuggestDataActionRename {
+	kind: 'rename';
+	textReplacement: TextReplacement;
+	stringEdit: StringEdit;
+	uri: URI | undefined;
+	command: Command;
 }
 
 export class InlineSuggestData {
@@ -354,7 +361,6 @@ export class InlineSuggestData {
 		public readonly context: InlineCompletionContext,
 		public readonly isInlineEdit: boolean,
 		public readonly supportsRename: boolean,
-		public readonly renameCommand: Command | undefined,
 		private readonly _requestInfo: InlineSuggestRequestInfo,
 		private readonly _providerRequestInfo: InlineSuggestProviderRequestInfo,
 		private readonly _correlationId: string | undefined,
@@ -517,17 +523,16 @@ export class InlineSuggestData {
 		this._renameInfo = info;
 	}
 
-	public withRename(command: Command, hint: IInlineCompletionHint): InlineSuggestData {
+	public withRename(renameAction: IInlineSuggestDataActionRename): InlineSuggestData {
 		return new InlineSuggestData(
-			undefined,
-			hint,
+			renameAction,
+			this.hint,
 			this.additionalTextEdits,
 			this.sourceInlineCompletion,
 			this.source,
 			this.context,
 			this.isInlineEdit,
 			this.supportsRename,
-			command,
 			this._requestInfo,
 			this._providerRequestInfo,
 			this._correlationId,

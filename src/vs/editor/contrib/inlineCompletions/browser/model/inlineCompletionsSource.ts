@@ -273,7 +273,7 @@ export class InlineCompletionsSource extends Disposable {
 					return this._renameProcessor.proposeRenameRefactoring(this._textModel, s);
 				}));
 
-				providerSuggestions.forEach(s => s.addPerformanceMarker('renameProcessed'));
+				suggestions.forEach(s => s.addPerformanceMarker('renameProcessed'));
 
 				providerResult.cancelAndDispose({ kind: 'lostRace' });
 

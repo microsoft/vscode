@@ -109,11 +109,11 @@ export class InlineEditsView extends Disposable {
 
 		this._inlineCollapsedView = this._register(this._instantiationService.createInstance(InlineEditsCollapsedView,
 			this._editor,
-			this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind === 'collapsed' ? m?.inlineEdit : undefined)
+			this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind === InlineCompletionViewKind.Collapsed ? m?.inlineEdit : undefined)
 		));
 		this._customView = this._register(this._instantiationService.createInstance(InlineEditsCustomView,
 			this._editor,
-			this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind === 'custom' ? m?.displayLocation : undefined),
+			this._model.map((m, reader) => this._uiState.read(reader)?.state?.kind === InlineCompletionViewKind.Custom ? m?.displayLocation : undefined),
 			this._tabAction,
 		));
 
@@ -164,10 +164,10 @@ export class InlineEditsView extends Disposable {
 			equalsFn: itemsEquals(itemEquals())
 		}, reader => {
 			const s = this._uiState.read(reader);
-			return s?.state?.kind === 'wordReplacements' ? s.state.replacements : [];
+			return s?.state?.kind === InlineCompletionViewKind.WordReplacements ? s.state.replacements : [];
 		});
 		this._wordReplacementViews = mapObservableArrayCached(this, wordReplacements, (e, store) => {
-			return store.add(this._instantiationService.createInstance(InlineEditsWordReplacementView, this._editorObs, e, this._tabAction));
+			return store.add(this._instantiationService.createInstance(InlineEditsWordReplacementView, this._editorObs, e, this._model.get()?.inlineEdit.inlineCompletion.action?.kind === 'rename', this._tabAction));
 		});
 		this._lineReplacementView = this._register(this._instantiationService.createInstance(InlineEditsLineReplacementView,
 			this._editorObs,
@@ -424,6 +424,10 @@ export class InlineEditsView extends Disposable {
 
 		if (canUseCache && !reconsiderViewEditorWidthChange) {
 			return this._previousView!.view;
+		}
+
+		if (model.inlineEdit.inlineCompletion.action?.kind === 'rename') {
+			return InlineCompletionViewKind.WordReplacements;
 		}
 
 		const uri = model.inlineEdit.inlineCompletion.action?.kind === 'edit' ? model.inlineEdit.inlineCompletion.action.uri : undefined;
