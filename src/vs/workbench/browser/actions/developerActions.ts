@@ -150,15 +150,16 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseMove = disposables.add(new Emitter<MouseEvent>());
 
 		function registerContainerListeners(container: HTMLElement, windowDisposables: DisposableStore): void {
-			const store = new DisposableStore();
-			store.add(store.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
-			store.add(store.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
-			store.add(store.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
-			windowDisposables.add(store);
-			disposables.add(store);
-			disposables.add(toDisposable(() => {
-				windowDisposables.delete(store);
-			}));
+			const listeners = new DisposableStore();
+
+			listeners.add(listeners.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
+
+			windowDisposables.add(listeners);
+			disposables.add(toDisposable(() => windowDisposables.delete(listeners)));
+
+			disposables.add(listeners);
 		}
 
 		for (const { window, disposables } of getWindows()) {
@@ -251,16 +252,17 @@ class ToggleScreencastModeAction extends Action2 {
 		const onCompositionEnd = disposables.add(new Emitter<CompositionEvent>());
 
 		function registerWindowListeners(window: Window, windowDisposables: DisposableStore): void {
-			const store = new DisposableStore();
-			store.add(store.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
-			store.add(store.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
-			store.add(store.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
-			store.add(store.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
-			windowDisposables.add(store);
-			disposables.add(store);
-			disposables.add(toDisposable(() => {
-				windowDisposables.delete(store);
-			}));
+			const listeners = new DisposableStore();
+
+			listeners.add(listeners.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
+
+			windowDisposables.add(listeners);
+			disposables.add(toDisposable(() => windowDisposables.delete(listeners)));
+
+			disposables.add(listeners);
 		}
 
 		for (const { window, disposables } of getWindows()) {
