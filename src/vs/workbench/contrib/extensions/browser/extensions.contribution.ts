@@ -67,6 +67,7 @@ import { CONTEXT_KEYBINDINGS_EDITOR } from '../../preferences/common/preferences
 import { IWebview } from '../../webview/browser/webview.js';
 import { Query } from '../common/extensionQuery.js';
 import { AutoRestartConfigurationKey, AutoUpdateConfigurationKey, CONTEXT_EXTENSIONS_GALLERY_STATUS, CONTEXT_HAS_GALLERY, DefaultViewsContext, ExtensionEditorTab, ExtensionRuntimeActionType, EXTENSIONS_CATEGORY, extensionsFilterSubMenu, extensionsSearchActionsMenu, HasOutdatedExtensionsContext, IExtensionArg, IExtensionsViewPaneContainer, IExtensionsWorkbenchService, INSTALL_ACTIONS_GROUP, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, IWorkspaceRecommendedExtensionsView, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, OUTDATED_EXTENSIONS_VIEW_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, TOGGLE_IGNORE_EXTENSION_ACTION_ID, UPDATE_ACTIONS_GROUP, VIEWLET_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID } from '../common/extensions.js';
+import { IExtensionUsageAnalyticsService } from '../common/extensionUsageAnalytics.js';
 import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '../common/extensionsFileTemplate.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { KeymapExtensions } from '../common/extensionsUtils.js';
@@ -309,6 +310,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				scope: ConfigurationScope.APPLICATION,
 				tags: ['advanced', 'usesOnlineServices']
 			},
+		'extensions.usageAnalytics.enabled': {
+			type: 'boolean',
+			description: localize('extensions.usageAnalytics.enabled', "Enable local extension usage tracking to help identify unused extensions."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION
+		},
+		'extensions.usageAnalytics.retentionDays': {
+			type: 'number',
+			description: localize('extensions.usageAnalytics.retentionDays', "Number of days to retain extension usage data."),
+			default: 90,
+			minimum: 7,
+			maximum: 365,
+			scope: ConfigurationScope.APPLICATION
+		},
 		}
 	});
 
@@ -2064,6 +2079,31 @@ registerAction2(class ExtensionsGallerySignInAction extends Action2 {
 	}
 	run(accessor: ServicesAccessor): Promise<void> {
 		return accessor.get(ICommandService).executeCommand(DEFAULT_ACCOUNT_SIGN_IN_COMMAND);
+	}
+});
+
+registerAction2(class ClearExtensionUsageDataAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.extensions.action.clearUsageData',
+			title: localize2('clearExtensionUsageData', 'Clear Extension Usage Data'),
+			category: EXTENSIONS_CATEGORY,
+			f1: true
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const usageAnalyticsService = accessor.get(IExtensionUsageAnalyticsService);
+		const dialogService = accessor.get(IDialogService);
+
+		const result = await dialogService.confirm({
+			message: localize('clearUsageDataConfirm', "Are you sure you want to clear all extension usage data?"),
+			detail: localize('clearUsageDataDetail', "This action cannot be undone."),
+			primaryButton: localize('clear', "Clear")
+		});
+
+		if (result.confirmed) {
+			await usageAnalyticsService.clearAllData();
+		}
 	}
 });
 

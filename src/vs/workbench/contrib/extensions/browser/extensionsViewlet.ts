@@ -22,6 +22,7 @@ import { IExtensionManagementService, ILocalExtension } from '../../../../platfo
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
 import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, ServerInstalledExtensionsView, DefaultRecommendedExtensionsView, UntrustedWorkspaceUnsupportedExtensionsView, UntrustedWorkspacePartiallySupportedExtensionsView, VirtualWorkspaceUnsupportedExtensionsView, VirtualWorkspacePartiallySupportedExtensionsView, DefaultPopularExtensionsView, DeprecatedExtensionsView, SearchMarketplaceExtensionsView, RecentlyUpdatedExtensionsView, OutdatedExtensionsView, StaticQueryExtensionsView, NONE_CATEGORY, AbstractExtensionsListView } from './extensionsViews.js';
+import { ExtensionUsageAnalyticsView } from './extensionUsageAnalyticsView.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import Severity from '../../../../base/common/severity.js';
@@ -315,6 +316,19 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 			});
 
 		}
+
+		/*
+		 * Usage Analytics view - Shows extension usage statistics.
+		 */
+		viewDescriptors.push({
+			id: ExtensionUsageAnalyticsView.ID,
+			name: localize2('usageAnalytics', "Usage Analytics"),
+			ctorDescriptor: new SyncDescriptor(ExtensionUsageAnalyticsView, [{}]),
+			when: DefaultViewsContext,
+			weight: 10,
+			order: 6,
+			canToggleVisibility: true
+		});
 
 		return viewDescriptors;
 	}

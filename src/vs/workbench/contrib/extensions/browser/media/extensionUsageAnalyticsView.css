@@ -1,0 +1,139 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.extension-usage-analytics-view {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+}
+
+.extension-usage-analytics-view .message-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	padding: 20px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+.extension-usage-analytics-view .usage-analytics-list {
+	flex: 1;
+	overflow: hidden;
+}
+
+/* Usage Analytics Item */
+.usage-analytics-item {
+	display: flex;
+	align-items: center;
+	padding: 8px 12px;
+	cursor: pointer;
+	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+}
+
+.usage-analytics-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Usage Indicator */
+.usage-analytics-item .usage-indicator {
+	flex-shrink: 0;
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+	margin-right: 12px;
+}
+
+/* Content Container */
+.usage-analytics-item .usage-content {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+/* Name Container */
+.usage-analytics-item .usage-name-container {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.usage-analytics-item .usage-name {
+	font-weight: 600;
+	font-size: 13px;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.usage-analytics-item .usage-extension-id {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Stats Container */
+.usage-analytics-item .usage-stats {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.usage-analytics-item .usage-count {
+	display: flex;
+	align-items: center;
+}
+
+.usage-analytics-item .usage-last-used {
+	display: flex;
+	align-items: center;
+}
+
+/* Usage frequency colors */
+.usage-analytics-item .usage-indicator.frequent {
+	color: var(--vscode-testing-iconPassed, #73c991);
+}
+
+.usage-analytics-item .usage-indicator.occasional {
+	color: var(--vscode-testing-iconQueued, #cca700);
+}
+
+.usage-analytics-item .usage-indicator.rare {
+	color: var(--vscode-testing-iconFailed, #f14c4c);
+}
+
+/* Focus styles */
+.usage-analytics-item:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* List selected item */
+.monaco-list .monaco-list-row.selected .usage-analytics-item {
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+.monaco-list .monaco-list-row.selected .usage-analytics-item .usage-name {
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.monaco-list .monaco-list-row.selected .usage-analytics-item .usage-extension-id,
+.monaco-list .monaco-list-row.selected .usage-analytics-item .usage-stats {
+	color: var(--vscode-list-activeSelectionForeground);
+	opacity: 0.8;
+}
+
+
