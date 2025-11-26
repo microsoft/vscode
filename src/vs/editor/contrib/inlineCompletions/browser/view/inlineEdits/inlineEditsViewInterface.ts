@@ -29,7 +29,8 @@ export enum InlineCompletionViewKind {
 	InsertionMultiLine = 'insertionMultiLine',
 	WordReplacements = 'wordReplacements',
 	LineReplacement = 'lineReplacement',
-	Collapsed = 'collapsed'
+	Collapsed = 'collapsed',
+	JumpTo = 'jumpTo'
 }
 
 export type InlineCompletionViewData = {

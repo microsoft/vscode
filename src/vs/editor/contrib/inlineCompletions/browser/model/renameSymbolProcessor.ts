@@ -222,7 +222,7 @@ export class RenameSymbolProcessor extends Disposable {
 	}
 
 	public async proposeRenameRefactoring(textModel: ITextModel, suggestItem: InlineSuggestionItem): Promise<InlineSuggestionItem> {
-		if (!suggestItem.supportsRename) {
+		if (!suggestItem.supportsRename || suggestItem.action?.kind !== 'edit') {
 			return suggestItem;
 		}
 
@@ -230,11 +230,13 @@ export class RenameSymbolProcessor extends Disposable {
 			return suggestItem;
 		}
 
+		const edit = suggestItem.action.textReplacement;
+
 		const start = Date.now();
 
 		const languageConfiguration = this._languageConfigurationService.getLanguageConfiguration(textModel.getLanguageId());
 
-		const edits = this._renameInferenceEngine.inferRename(textModel, suggestItem.editRange, suggestItem.insertText, languageConfiguration.wordDefinition);
+		const edits = this._renameInferenceEngine.inferRename(textModel, edit.range, edit.text, languageConfiguration.wordDefinition);
 		if (edits === undefined || edits.renames.edits.length === 0) {
 			return suggestItem;
 		}

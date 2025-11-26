@@ -22,7 +22,8 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import product from '../../../../../platform/product/common/product.js';
 import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { Range } from '../../../../common/core/range.js';
+import { Command, InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { offsetEditFromContentChanges } from '../../../../common/model/textModelStringEdit.js';
@@ -283,12 +284,19 @@ export class InlineCompletionsSource extends Disposable {
 						error = 'canceled';
 					}
 					const result = suggestions.map(c => ({
-						range: c.editRange.toString(),
-						text: c.insertText,
-						hint: c.hint,
-						isInlineEdit: c.isInlineEdit,
-						showInlineEditMenu: c.showInlineEditMenu,
-						providerId: c.source.provider.providerId?.toString(),
+						...(mapDeep(c.getSourceCompletion(), v => {
+							if (Range.isIRange(v)) {
+								return v.toString();
+							}
+							if (Position.isIPosition(v)) {
+								return v.toString();
+							}
+							if (Command.is(v)) {
+								return { $commandId: v.id };
+							}
+							return v;
+						}) as object),
+						$providerId: c.source.provider.providerId?.toString(),
 					}));
 					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now(), didAllProvidersReturn });
 				}
@@ -664,4 +672,18 @@ function moveToFront<T>(item: T, items: T[]): T[] {
 		return [item, ...items.slice(0, index), ...items.slice(index + 1)];
 	}
 	return items;
+}
+
+function mapDeep(value: unknown, replacer: (value: unknown) => unknown): unknown {
+	const val = replacer(value);
+	if (Array.isArray(val)) {
+		return val.map(v => mapDeep(v, replacer));
+	} else if (isObject(val)) {
+		const result: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(val)) {
+			result[key] = mapDeep(value, replacer);
+		}
+		return result;
+	}
+	return val;
 }
