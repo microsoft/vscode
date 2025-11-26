@@ -46,6 +46,7 @@ import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
 import { ChatWidget } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 import { AgentSessionsListDelegate } from './agentSessions/agentSessionsViewer.js';
+import { Event } from '../../../../base/common/event.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -73,6 +74,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsControl: AgentSessionsControl | undefined;
 	private sessionsCount: number = 0;
 	private sessionsLinkContainer: HTMLElement | undefined;
+
+	private welcomeController: ChatViewWelcomeController | undefined;
 
 	private restoringSession: Promise<void> | undefined;
 
@@ -248,13 +251,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.createSessionsControl(parent);
 
 		// Welcome Control
-		const welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
+		this.welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
 
 		// Chat Widget
-		this.createChatWidget(parent, welcomeController);
+		this.createChatWidget(parent);
 
-		// Sessions control visibility is impacted by chat widget empty state
-		this._register(this._widget.onDidChangeEmptyState(() => {
+		// Sessions control visibility is impacted by chat widget empty state and welcome view
+		this._register(Event.any(
+			this._widget.onDidChangeEmptyState,
+			Event.fromObservable(this.welcomeController.isShowingWelcome)
+		)(() => {
 			this.sessionsControl?.clearFocus();
 			this.updateSessionsControlVisibility(true);
 		}));
@@ -317,6 +323,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewSessionsEnabled) &&	// enabled in settings
 			this.isBodyVisible() &&																			// view expanded
 			(!this._widget || this._widget?.isEmpty()) &&													// chat widget empty
+			!this.welcomeController?.isShowingWelcome.get() &&												// welcome not showing
 			this.sessionsCount > 0;																			// has sessions
 
 		if (!force && sessionsControlVisible === this.sessionsControl.isVisible()) {
@@ -331,7 +338,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private createChatWidget(parent: HTMLElement, welcomeController: ChatViewWelcomeController): void {
+	private createChatWidget(parent: HTMLElement): void {
 		const locationBasedColors = this.getLocationBasedColors();
 
 		const editorOverflowWidgetsDomNode = this.layoutService.getContainer(getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
@@ -368,7 +375,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}));
 		this._widget.render(parent);
 
-		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !welcomeController.isShowingWelcome.read(reader));
+		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));
 		this._register(this.onDidChangeBodyVisibility(() => updateWidgetVisibility()));
 		this._register(autorun(reader => updateWidgetVisibility(reader)));
 	}

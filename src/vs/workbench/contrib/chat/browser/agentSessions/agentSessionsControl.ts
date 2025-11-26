@@ -106,11 +106,8 @@ export class AgentSessionsControl extends Disposable {
 
 		list.setInput(model);
 
-		// List Events
-
-		this._register(list.onDidOpen(e => {
-			this.openAgentSession(e);
-		}));
+		this._register(list.onDidOpen(e => this.openAgentSession(e)));
+		this._register(list.onContextMenu(e => this.showContextMenu(e)));
 
 		if (this.options?.allowNewSessionFromEmptySpace) {
 			this._register(list.onMouseDblClick(({ element }) => {
@@ -119,10 +116,6 @@ export class AgentSessionsControl extends Disposable {
 				}
 			}));
 		}
-
-		this._register(list.onContextMenu((e) => {
-			this.showContextMenu(e);
-		}));
 	}
 
 	private async openAgentSession(e: IOpenEvent<IAgentSession | undefined>): Promise<void> {
