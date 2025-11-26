@@ -561,7 +561,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						path: `/untitled-${generateUuid()}`,
 					});
 					await editorService.openEditor({ resource, options });
-					const chatWidget = chatWidgetService.getWidgetBySessionResource(resource);
+					const chatWidget = await chatWidgetService.openSession(resource);
 					if (chatOptions?.prompt && chatWidget) {
 						if (chatOptions.attachedContext?.length) {
 							chatWidget.attachmentModel.addContext(...chatOptions.attachedContext);
