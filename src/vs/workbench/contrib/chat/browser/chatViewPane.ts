@@ -68,6 +68,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private sessionsContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
+	private sessionsCount: number = 0;
 	private sessionsLinkContainer: HTMLElement | undefined;
 
 	private restoringSession: Promise<void> | undefined;
@@ -278,7 +279,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					return false;
 				},
 				notifyResults(count: number) {
-					setVisibility(count > 0, sessionsContainer);
+					if (that.sessionsCount !== count) {
+						that.sessionsCount = count;
+						that.updateSessionsControlVisibility(true, true /* forced layout because count changed */);
+					}
 				}
 			}
 		}));
@@ -296,7 +300,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}));
 
-		this.updateSessionsControlVisibility(false);
+		this.updateSessionsControlVisibility(false, true);
 
 		this._register(this.onDidChangeBodyVisibility(() => this.updateSessionsControlVisibility(true)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -306,7 +310,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 	}
 
-	private updateSessionsControlVisibility(fromEvent: boolean): void {
+	private updateSessionsControlVisibility(fromEvent: boolean, force?: boolean): void {
 		if (!this.sessionsContainer || !this.sessionsControl) {
 			return;
 		}
@@ -314,7 +318,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const sessionsControlVisible =
 			this.configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewSessionsEnabled) &&	// enabled in settings
 			this.isBodyVisible() &&																			// view expanded
-			(!this._widget || this._widget?.isEmpty());														// chat widget empty
+			(!this._widget || this._widget?.isEmpty()) &&													// chat widget empty
+			this.sessionsCount > 0;																			// has sessions
+
+		if (!force && sessionsControlVisible === this.sessionsControl.isVisible()) {
+			return; // no change and not enforced
+		}
 
 		setVisibility(sessionsControlVisible, this.sessionsContainer);
 		this.sessionsControl.setVisible(sessionsControlVisible);

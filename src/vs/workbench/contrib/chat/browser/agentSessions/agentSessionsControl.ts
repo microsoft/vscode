@@ -188,6 +188,10 @@ export class AgentSessionsControl extends Disposable {
 		this.agentSessionsService.model.resolve(undefined);
 	}
 
+	isVisible(): boolean {
+		return this.visible;
+	}
+
 	setVisible(visible: boolean): void {
 		this.visible = visible;
 
