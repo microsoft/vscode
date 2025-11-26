@@ -66,7 +66,7 @@ import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
-import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
+import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
@@ -124,6 +124,47 @@ export function isQuickChat(widget: IChatWidget): boolean {
 
 function isInlineChat(widget: IChatWidget): boolean {
 	return isIChatResourceViewContext(widget.viewContext) && Boolean(widget.viewContext.isInlineChat);
+}
+
+/**
+ * Checks if the last response in the view model is complete and not pending user confirmation.
+ * This is used to determine when to clear the parent chat after a handoff delegation.
+ * @param viewModel The chat view model, or undefined if no view model exists
+ * @returns true if the last response is complete and not pending confirmation, false otherwise
+ */
+export function isHandoffResponseComplete(viewModel: IChatViewModel | undefined): boolean {
+	const items = viewModel?.getItems() ?? [];
+	const lastItem = items[items.length - 1];
+	if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
+		return true;
+	}
+	return false;
+}
+
+/**
+ * Waits for the handoff response to complete or times out after the specified duration.
+ * Returns when the response is complete without pending confirmations, or after the timeout.
+ * @param viewModel The chat view model
+ * @param timeoutMs Timeout in milliseconds (default: 30000)
+ * @returns A promise that resolves when the response completes or times out
+ */
+export function waitForHandoffResponseCompletion(viewModel: IChatViewModel, timeoutMs: number = 30000): Promise<void> {
+	return new Promise<void>(resolve => {
+		const disposable = viewModel.onDidChange(() => {
+			if (isHandoffResponseComplete(viewModel)) {
+				cleanup();
+				resolve();
+			}
+		});
+		const timeout = setTimeout(() => {
+			cleanup();
+			resolve();
+		}, timeoutMs);
+		const cleanup = () => {
+			clearTimeout(timeout);
+			disposable.dispose();
+		};
+	});
 }
 
 type ChatHandoffClickEvent = {
@@ -1304,36 +1345,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 
 				// Wait for response to complete without any user-pending confirmations
-				const checkForComplete = () => {
-					const items = this.viewModel?.getItems() ?? [];
-					const lastItem = items[items.length - 1];
-					if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
-						return true;
-					}
-					return false;
-				};
-
-				if (checkForComplete()) {
+				if (isHandoffResponseComplete(this.viewModel)) {
 					await this.clear();
 					return;
 				}
 
-				await new Promise<void>(resolve => {
-					const disposable = this.viewModel!.onDidChange(() => {
-						if (checkForComplete()) {
-							cleanup();
-							resolve();
-						}
-					});
-					const timeout = setTimeout(() => {
-						cleanup();
-						resolve();
-					}, 30000); // 30 second timeout
-					const cleanup = () => {
-						clearTimeout(timeout);
-						disposable.dispose();
-					};
-				});
+				await waitForHandoffResponseCompletion(this.viewModel);
 
 				// Clear parent editor
 				await this.clear();
