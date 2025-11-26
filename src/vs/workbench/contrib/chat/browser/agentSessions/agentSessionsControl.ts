@@ -36,6 +36,7 @@ export interface IAgentSessionsControlOptions {
 	readonly filter?: IAgentSessionsFilter;
 	readonly allowNewSessionFromEmptySpace?: boolean;
 	readonly allowOpenSessionsInPanel?: boolean;
+	readonly allowFiltering?: boolean;
 }
 
 export class AgentSessionsControl extends Disposable {
@@ -83,7 +84,7 @@ export class AgentSessionsControl extends Disposable {
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
-				findWidgetEnabled: true,
+				findWidgetEnabled: this.options?.allowFiltering,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter,
@@ -105,11 +106,8 @@ export class AgentSessionsControl extends Disposable {
 
 		list.setInput(model);
 
-		// List Events
-
-		this._register(list.onDidOpen(e => {
-			this.openAgentSession(e);
-		}));
+		this._register(list.onDidOpen(e => this.openAgentSession(e)));
+		this._register(list.onContextMenu(e => this.showContextMenu(e)));
 
 		if (this.options?.allowNewSessionFromEmptySpace) {
 			this._register(list.onMouseDblClick(({ element }) => {
@@ -118,10 +116,6 @@ export class AgentSessionsControl extends Disposable {
 				}
 			}));
 		}
-
-		this._register(list.onContextMenu((e) => {
-			this.showContextMenu(e);
-		}));
 	}
 
 	private async openAgentSession(e: IOpenEvent<IAgentSession | undefined>): Promise<void> {
@@ -185,6 +179,10 @@ export class AgentSessionsControl extends Disposable {
 
 	refresh(): void {
 		this.agentSessionsService.model.resolve(undefined);
+	}
+
+	isVisible(): boolean {
+		return this.visible;
 	}
 
 	setVisible(visible: boolean): void {

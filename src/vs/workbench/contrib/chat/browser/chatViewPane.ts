@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, getWindow } from '../../../../base/browser/dom.js';
+import './media/chatViewPane.css';
+import { $, append, getWindow, setVisibility } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
@@ -43,8 +44,8 @@ import { showCloseActiveChatNotification } from './actions/chatCloseNotification
 import { AGENT_SESSIONS_VIEW_ID } from './agentSessions/agentSessions.js';
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
 import { ChatWidget } from './chatWidget.js';
-import './media/chatViewPane.css';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
+import { AgentSessionsListDelegate } from './agentSessions/agentSessionsViewer.js';
 import { Event } from '../../../../base/common/event.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
@@ -59,6 +60,8 @@ type ChatViewPaneOpenedClassification = {
 
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
+	private static readonly SESSIONS_LIMIT = 3;
+
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
 
@@ -69,7 +72,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private sessionsContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
+	private sessionsCount: number = 0;
 	private sessionsLinkContainer: HTMLElement | undefined;
+
+	private welcomeController: ChatViewWelcomeController | undefined;
 
 	private restoringSession: Promise<void> | undefined;
 
@@ -190,6 +196,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async updateModel(modelRef?: IChatModelReference | undefined) {
+
 		// Check if we're disposing a model with an active request
 		if (this.modelRef.value?.object.requestInProgress.get()) {
 			const closingSessionResource = this.modelRef.value.object.sessionResource;
@@ -244,13 +251,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.createSessionsControl(parent);
 
 		// Welcome Control
-		const welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
+		this.welcomeController = this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
 
 		// Chat Widget
-		this.createChatWidget(parent, welcomeController);
+		this.createChatWidget(parent);
 
-		// Sessions control visibility is impacted by chat widget empty state
-		this._register(this._widget.onDidChangeEmptyState(() => {
+		// Sessions control visibility is impacted by chat widget empty state and welcome view
+		this._register(Event.any(
+			this._widget.onDidChangeEmptyState,
+			Event.fromObservable(this.welcomeController.isShowingWelcome)
+		)(() => {
 			this.sessionsControl?.clearFocus();
 			this.updateSessionsControlVisibility(true);
 		}));
@@ -260,29 +270,29 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const that = this;
 
 		// Sessions Control
-		this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
+		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsContainer, {
 			allowOpenSessionsInPanel: true,
 			filter: {
-				onDidChange: Event.None,
-				limitResults: 3, // Limit to 3 sessions
+				limitResults: ChatViewPane.SESSIONS_LIMIT,
 				exclude(session) {
 					if (session.isArchived()) {
 						return true; // exclude archived sessions
 					}
 
-					const model = that.chatService.getSession(session.resource);
-					if (model && !model.hasRequests) {
-						return true; // exclude sessions without requests
-					}
-
 					return false;
 				},
+				notifyResults(count: number) {
+					if (that.sessionsCount !== count) {
+						that.sessionsCount = count;
+						that.updateSessionsControlVisibility(true, true /* forced layout because count changed */);
+					}
+				}
 			}
 		}));
 
 		// Link to Sessions View
-		this.sessionsLinkContainer = append(this.sessionsContainer, $('.agent-sessions-link-container'));
+		this.sessionsLinkContainer = append(sessionsContainer, $('.agent-sessions-link-container'));
 		this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, { label: localize('openAgentSessionsView', "Show All Sessions"), href: '', }, {
 			opener: () => {
 				// TODO@bpasero remove this check once settled
@@ -294,7 +304,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}));
 
-		this.updateSessionsControlVisibility(false);
+		this.updateSessionsControlVisibility(false, true);
 
 		this._register(this.onDidChangeBodyVisibility(() => this.updateSessionsControlVisibility(true)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -304,7 +314,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 	}
 
-	private updateSessionsControlVisibility(fromEvent: boolean): void {
+	private updateSessionsControlVisibility(fromEvent: boolean, force?: boolean): void {
 		if (!this.sessionsContainer || !this.sessionsControl) {
 			return;
 		}
@@ -312,9 +322,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const sessionsControlVisible =
 			this.configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewSessionsEnabled) &&	// enabled in settings
 			this.isBodyVisible() &&																			// view expanded
-			(!this._widget || this._widget?.isEmpty());														// chat widget empty
+			(!this._widget || this._widget?.isEmpty()) &&													// chat widget empty
+			!this.welcomeController?.isShowingWelcome.get() &&												// welcome not showing
+			this.sessionsCount > 0;																			// has sessions
 
-		this.sessionsContainer.style.display = sessionsControlVisible ? '' : 'none';
+		if (!force && sessionsControlVisible === this.sessionsControl.isVisible()) {
+			return; // no change and not enforced
+		}
+
+		setVisibility(sessionsControlVisible, this.sessionsContainer);
 		this.sessionsControl.setVisible(sessionsControlVisible);
 
 		if (fromEvent && this.lastDimensions) {
@@ -322,7 +338,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private createChatWidget(parent: HTMLElement, welcomeController: ChatViewWelcomeController): void {
+	private createChatWidget(parent: HTMLElement): void {
 		const locationBasedColors = this.getLocationBasedColors();
 
 		const editorOverflowWidgetsDomNode = this.layoutService.getContainer(getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
@@ -359,7 +375,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}));
 		this._widget.render(parent);
 
-		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !welcomeController.isShowingWelcome.read(reader));
+		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));
 		this._register(this.onDidChangeBodyVisibility(() => updateWidgetVisibility()));
 		this._register(autorun(reader => updateWidgetVisibility(reader)));
 	}
@@ -419,12 +435,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		let remainingHeight = height;
 
-		// Sessions Control
+		// Sessions Control (grows witht the number of items displayed)
+		this.sessionsControl?.layout(this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT, width);
 		const sessionsContainerHeight = this.sessionsContainer?.offsetHeight ?? 0;
 		remainingHeight -= sessionsContainerHeight;
-
-		const sessionsLinkHeight = this.sessionsLinkContainer?.offsetHeight ?? 0;
-		this.sessionsControl?.layout(sessionsContainerHeight - sessionsLinkHeight, width);
 
 		// Chat Widget
 		this._widget.layout(remainingHeight, width);

@@ -10,7 +10,6 @@
 	.agent-sessions-container {
 		display: flex;
 		flex-direction: column;
-		flex-grow: 1;
 		padding: 4px 8px;
 
 		.agent-sessions-viewer .monaco-list .monaco-list-row {
