@@ -1321,10 +1321,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				await new Promise<void>(resolve => {
 					const disposable = this.viewModel!.onDidChange(() => {
 						if (checkForComplete()) {
-							disposable.dispose();
+							cleanup();
 							resolve();
 						}
 					});
+					const timeout = setTimeout(() => {
+						cleanup();
+						resolve();
+					}, 30000); // 30 second timeout
+					const cleanup = () => {
+						clearTimeout(timeout);
+						disposable.dispose();
+					};
 				});
 
 				// Clear parent editor
