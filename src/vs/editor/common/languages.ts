@@ -855,6 +855,8 @@ export interface InlineCompletion {
 	 * Used for telemetry.
 	 */
 	readonly correlationId?: string | undefined;
+
+	readonly jumpToPosition?: IPosition;
 }
 
 export interface InlineCompletionWarning {

@@ -1426,7 +1426,7 @@ class InlineCompletionAdapter {
 			list,
 		});
 
-		return {
+		const items = {
 			pid,
 			languageId: doc.languageId,
 			items: resultItems.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
@@ -1470,6 +1470,7 @@ class InlineCompletionAdapter {
 					suggestionId: undefined,
 					uri: (this._isAdditionsProposedApiEnabled && item.uri) ? item.uri : undefined,
 					supportsRename: this._isAdditionsProposedApiEnabled ? item.supportsRename : false,
+					jumpToPosition: (this._isAdditionsProposedApiEnabled && item.jumpToPosition) ? typeConvert.Position.from(item.jumpToPosition) : undefined,
 				});
 			}),
 			commands: commands.map(c => {
@@ -1480,7 +1481,8 @@ class InlineCompletionAdapter {
 			}),
 			suppressSuggestions: false,
 			enableForwardStability,
-		};
+		} satisfies extHostProtocol.IdentifiableInlineCompletions;
+		return items;
 	}
 
 	disposeCompletions(pid: number, reason: languages.InlineCompletionsDisposeReason) {
