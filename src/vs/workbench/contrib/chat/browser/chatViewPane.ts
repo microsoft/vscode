@@ -274,11 +274,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						return true; // exclude archived sessions
 					}
 
-					const model = that.chatService.getSession(session.resource);
-					if (model && !model.hasRequests) {
-						return true; // exclude sessions without requests
-					}
-
 					return false;
 				},
 				notifyResults(count: number) {

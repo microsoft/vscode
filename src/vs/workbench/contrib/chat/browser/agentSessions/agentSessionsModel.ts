@@ -247,7 +247,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				// No previous state, just add it
 				if (!state) {
 					this.mapSessionToState.set(session.resource, {
-						status
+						status,
+						inProgressTime: status === ChatSessionStatus.InProgress ? Date.now() : undefined, // this is not accurate but best effort
 					});
 				}
 

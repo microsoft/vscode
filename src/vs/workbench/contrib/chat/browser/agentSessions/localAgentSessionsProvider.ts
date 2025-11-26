@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
+import { coalesce } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
@@ -28,7 +30,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
 	readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
 
-	private readonly _modelListeners = this._register(new DisposableMap<string>());
+	private readonly modelListeners = this._register(new DisposableMap<string>());
 
 	constructor(
 		@IChatService private readonly chatService: IChatService,
@@ -42,6 +44,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	}
 
 	private registerListeners(): void {
+
 		// Listen for models being added or removed
 		this._register(autorun(reader => {
 			const models = this.chatService.chatModels.read(reader);
@@ -63,15 +66,15 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			const key = model.sessionResource.toString();
 			seenKeys.add(key);
 
-			if (!this._modelListeners.has(key)) {
-				this._modelListeners.set(key, this.registerSingleModelListeners(model));
+			if (!this.modelListeners.has(key)) {
+				this.modelListeners.set(key, this.registerSingleModelListeners(model));
 			}
 		}
 
 		// Clean up listeners for models that no longer exist
-		for (const key of this._modelListeners.keys()) {
+		for (const key of this.modelListeners.keys()) {
 			if (!seenKeys.has(key)) {
-				this._modelListeners.deleteAndDispose(key);
+				this.modelListeners.deleteAndDispose(key);
 			}
 		}
 
@@ -143,19 +146,23 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
 		try {
 			const historyItems = await this.chatService.getHistorySessionItems();
-			return historyItems.map(history => this.toChatSessionItem(history));
+			return coalesce(historyItems.map(history => this.toChatSessionItem(history)));
 		} catch (error) {
 			return [];
 		}
 	}
 
-	private toChatSessionItem(chat: IChatDetail): ChatSessionItemWithProvider {
+	private toChatSessionItem(chat: IChatDetail): ChatSessionItemWithProvider | undefined {
 		const model = this.chatService.getSession(chat.sessionResource);
 
 		let description: string | undefined;
 		let startTime: number | undefined;
 		let endTime: number | undefined;
 		if (model) {
+			if (!model.hasRequests) {
+				return undefined; // ignore sessions without requests
+			}
+
 			const lastResponse = model.getRequests().at(-1)?.response;
 
 			description = this.chatSessionsService.getSessionDescription(model);
