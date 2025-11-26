@@ -778,6 +778,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._dynamicMessageLayoutData.enabled = true;
 		}
 
+		if (this.viewModel?.editing) {
+			this.finishedEditing();
+		}
+
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
