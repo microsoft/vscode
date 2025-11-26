@@ -16,6 +16,44 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
+ * Target environment for custom agents.
+ */
+export enum CustomAgentTarget {
+	GitHubCopilot = 'github-copilot',
+	VSCode = 'vscode',
+}
+
+/**
+ * Options for querying custom agents.
+ */
+export interface ICustomAgentQueryOptions {
+	/**
+	 * Filter agents by target environment.
+	 */
+	readonly target?: CustomAgentTarget;
+}
+
+/**
+ * Represents a custom agent resource from an external provider.
+ */
+export interface IExternalCustomAgent {
+	/**
+	 * The unique identifier/name of the custom agent resource.
+	 */
+	readonly name: string;
+
+	/**
+	 * A description of what the custom agent resource does.
+	 */
+	readonly description: string;
+
+	/**
+	 * The URI to the agent or prompt resource file.
+	 */
+	readonly uri: URI;
+}
+
+/**
  * Provides prompt services.
  */
 export const IPromptsService = createDecorator<IPromptsService>('IPromptsService');
@@ -27,6 +65,14 @@ export enum PromptsStorage {
 	local = 'local',
 	user = 'user',
 	extension = 'extension'
+}
+
+/**
+ * The type of source for extension agents.
+ */
+export enum ExtensionAgentSourceType {
+	contribution = 'contribution',
+	provider = 'provider',
 }
 
 /**
@@ -67,6 +113,7 @@ export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly extension: IExtensionDescription;
 	readonly name: string;
 	readonly description: string;
+	readonly source: ExtensionAgentSourceType;
 }
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
@@ -78,6 +125,7 @@ export interface IUserPromptPath extends IPromptPathBase {
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
+	readonly type: ExtensionAgentSourceType;
 } | {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
 };
@@ -269,6 +317,18 @@ export interface IPromptsService extends IDisposable {
 	 * Persists the set of disabled prompt file URIs for the given type.
 	 */
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
+
+	/**
+	 * Registers a CustomAgentsProvider that can provide custom agents for repositories.
+	 * This is part of the proposed API and requires the chatParticipantPrivate proposal.
+	 * @param extension The extension registering the provider.
+	 * @param provider The provider implementation with optional change event.
+	 * @returns A disposable that unregisters the provider when disposed.
+	 */
+	registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
+		onDidChangeCustomAgents?: Event<void>;
+		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+	}): IDisposable;
 
 	/**
 	 * Gets list of claude skills files.
