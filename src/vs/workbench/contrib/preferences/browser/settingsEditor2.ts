@@ -1687,6 +1687,8 @@ export class SettingsEditor2 extends EditorPane {
 
 	private refreshSingleElement(element: SettingsTreeSettingElement): void {
 		if (this.isVisible() && this.settingsTree.hasElement(element)) {
+			// Update the element's state to reflect the current configuration
+			element.inspectSelf();
 			if (!element.setting.deprecationMessage || element.isConfigured) {
 				this.settingsTree.rerender(element);
 			} else {
