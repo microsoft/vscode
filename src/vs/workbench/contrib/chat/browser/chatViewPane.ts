@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, getWindow } from '../../../../base/browser/dom.js';
+import './media/chatViewPane.css';
+import { $, append, getWindow, setVisibility } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
@@ -43,9 +44,7 @@ import { showCloseActiveChatNotification } from './actions/chatCloseNotification
 import { AGENT_SESSIONS_VIEW_ID } from './agentSessions/agentSessions.js';
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
 import { ChatWidget } from './chatWidget.js';
-import './media/chatViewPane.css';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
-import { Event } from '../../../../base/common/event.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -190,6 +189,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async updateModel(modelRef?: IChatModelReference | undefined) {
+
 		// Check if we're disposing a model with an active request
 		if (this.modelRef.value?.object.requestInProgress.get()) {
 			const closingSessionResource = this.modelRef.value.object.sessionResource;
@@ -260,11 +260,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const that = this;
 
 		// Sessions Control
-		this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
+		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsContainer, {
 			allowOpenSessionsInPanel: true,
 			filter: {
-				onDidChange: Event.None,
 				limitResults: 3, // Limit to 3 sessions
 				exclude(session) {
 					if (session.isArchived()) {
@@ -278,11 +277,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 					return false;
 				},
+				notifyResults(count: number) {
+					setVisibility(count > 0, sessionsContainer);
+				}
 			}
 		}));
 
 		// Link to Sessions View
-		this.sessionsLinkContainer = append(this.sessionsContainer, $('.agent-sessions-link-container'));
+		this.sessionsLinkContainer = append(sessionsContainer, $('.agent-sessions-link-container'));
 		this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, { label: localize('openAgentSessionsView', "Show All Sessions"), href: '', }, {
 			opener: () => {
 				// TODO@bpasero remove this check once settled
@@ -314,7 +316,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.isBodyVisible() &&																			// view expanded
 			(!this._widget || this._widget?.isEmpty());														// chat widget empty
 
-		this.sessionsContainer.style.display = sessionsControlVisible ? '' : 'none';
+		setVisibility(sessionsControlVisible, this.sessionsContainer);
 		this.sessionsControl.setVisible(sessionsControlVisible);
 
 		if (fromEvent && this.lastDimensions) {
