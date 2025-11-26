@@ -274,7 +274,7 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 										const name = fileName.slice(0, -fileExtension.length);
 
 										try {
-											const description = `Contributed from folder: ${raw.path}`;
+											const description = localize('extension.folder.file.description', "Contributed from folder: {0}", raw.path);
 											const uniqueName = `${ext.description.identifier.value}/${raw.path}/${name}`;
 											const sourceType = raw.external === true ? ExtensionAgentSourceType.externalContribution : ExtensionAgentSourceType.contribution;
 											const d = this.promptsService.registerContributedFile(type, uniqueName, description, child.resource, ext.description, sourceType);
