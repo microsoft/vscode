@@ -183,7 +183,7 @@ export class WebPageLoader extends Disposable {
 
 	/**
 	 * Handles debugger messages related to network requests, tracking their lifecycle.
-	 * @note DO NOT adding logging to this function, microsoft.com will freeze when too many logs are generated
+	 * @note DO NOT add logging to this function, microsoft.com will freeze when too many logs are generated
 	 */
 	private onDebugMessage(_event: Event, method: string, params: NetworkRequestEventParams) {
 		if (this._store.isDisposed) {
