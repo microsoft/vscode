@@ -361,8 +361,11 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.EmptyChatViewSessionsEnabled]: {
 			type: 'boolean',
 			default: product.quality !== 'stable',
-			description: nls.localize('chat.emptyState.history.enabled', "Show agent sessions on the empty chat state."),
-			tags: ['preview', 'experimental']
+			description: nls.localize('chat.emptyState.sessions.enabled', "Show agent sessions on the empty chat state."),
+			tags: ['preview', 'experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
