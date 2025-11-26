@@ -27,6 +27,7 @@ import { getGoodIndentForLine, getIndentMetadata } from '../../../common/languag
 import { getReindentEditOperations } from '../common/indentation.js';
 import { getStandardTokenTypeAtPosition } from '../../../common/tokens/lineTokens.js';
 import { Position } from '../../../common/core/position.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export class IndentationToSpacesAction extends EditorAction {
 	public static readonly ID = 'editor.action.indentationToSpaces';
@@ -136,7 +137,8 @@ export class ChangeIndentationSizeAction extends EditorAction {
 		const autoFocusIndex = Math.min(model.getOptions().tabSize - 1, 7);
 
 		setTimeout(() => {
-			quickInputService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), activeItem: picks[autoFocusIndex] }).then(pick => {
+			// TODO@joaomoreno big big hack
+			quickInputService.pick(picks, { placeHolder: nls.localize({ key: 'selectTabWidth', comment: ['Tab corresponds to the tab key'] }, "Select Tab Size for Current File"), activeItem: picks[autoFocusIndex], anchor: `changeEditorIndentation${mainWindow.vscodeWindowId}` }).then(pick => {
 				if (pick) {
 					if (model && !model.isDisposed()) {
 						const pickedVal = parseInt(pick.label, 10);

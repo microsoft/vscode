@@ -426,7 +426,7 @@ class EditorStatus extends Disposable {
 				label: a.label,
 				detail: (Language.isDefaultVariant() || a.label === a.alias) ? undefined : a.alias,
 				run: () => {
-					activeTextEditorControl.focus();
+					// activeTextEditorControl.focus(); // TODO@joaomoreno move this into each action's implementation
 					a.run();
 				}
 			};
