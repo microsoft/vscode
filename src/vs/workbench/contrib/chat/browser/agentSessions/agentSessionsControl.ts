@@ -36,6 +36,7 @@ export interface IAgentSessionsControlOptions {
 	readonly filter?: IAgentSessionsFilter;
 	readonly allowNewSessionFromEmptySpace?: boolean;
 	readonly allowOpenSessionsInPanel?: boolean;
+	readonly allowFiltering?: boolean;
 }
 
 export class AgentSessionsControl extends Disposable {
@@ -83,7 +84,7 @@ export class AgentSessionsControl extends Disposable {
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
-				findWidgetEnabled: true,
+				findWidgetEnabled: this.options?.allowFiltering,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter,

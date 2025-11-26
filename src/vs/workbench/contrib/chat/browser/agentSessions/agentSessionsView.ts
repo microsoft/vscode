@@ -205,6 +205,7 @@ export class AgentSessionsView extends ViewPane {
 			{
 				filter: sessionsFilter,
 				allowNewSessionFromEmptySpace: true,
+				allowFiltering: true,
 			}
 		));
 		this.sessionsControl.setVisible(this.isBodyVisible());
