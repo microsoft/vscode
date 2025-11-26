@@ -786,12 +786,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		'chat.hideNewButtonInAgentSessionsView': { // TODO@bpasero remove me eventually
-			type: 'boolean',
-			description: nls.localize('chat.hideNewButtonInAgentSessionsView', "Controls whether the new session button is hidden in the Agent Sessions view."),
-			default: false,
-			tags: ['preview']
-		},
 		'chat.signInWithAlternateScopes': { // TODO@bpasero remove me eventually
 			type: 'boolean',
 			description: nls.localize('chat.signInWithAlternateScopes', "Controls whether sign-in with alternate scopes is used."),
