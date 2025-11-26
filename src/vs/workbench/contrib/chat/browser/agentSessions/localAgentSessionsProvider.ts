@@ -74,6 +74,8 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 				this._modelListeners.deleteAndDispose(key);
 			}
 		}
+
+		this._onDidChange.fire();
 	}
 
 	private registerSingleModelListeners(model: IChatModel): IDisposable {
