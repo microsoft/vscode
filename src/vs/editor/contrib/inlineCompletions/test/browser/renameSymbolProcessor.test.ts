@@ -106,6 +106,28 @@ suite('renameSymbolProcessor', () => {
 		assert.ok(result === undefined);
 	});
 
+	test('Insertion - no word', () => {
+		const model = createTextModel([
+			'foo',
+		].join('\n'), 'typescript', {});
+		disposables.add(model);
+
+		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 1, 1, 4) }]);
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 4, 1, 4), '.map(x=>x);', wordPattern);
+		assert.ok(result === undefined);
+	});
+
+	test('Insertion - no word - full line', () => {
+		const model = createTextModel([
+			'foo',
+		].join('\n'), 'typescript', {});
+		disposables.add(model);
+
+		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 1, 1, 4) }]);
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 4), '.map(x=>x);', wordPattern);
+		assert.ok(result === undefined);
+	});
+
 	test('Suffix rename - replacement', () => {
 		const model = createTextModel([
 			'const ABCfoo = 1;',
