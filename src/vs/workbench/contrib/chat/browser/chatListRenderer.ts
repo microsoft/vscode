@@ -1558,7 +1558,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 				if (thinkingPart instanceof ChatThinkingContentPart) {
 					thinkingPart.appendItem(part?.domNode, toolInvocation.toolId, toolInvocation);
-					thinkingPart.addDisposable(part.onDidChangeHeight(() => {
+					thinkingPart.addDisposable(thinkingPart.onDidChangeHeight(() => {
 						this.updateItemHeight(templateData);
 					}));
 				}
