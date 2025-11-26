@@ -27,7 +27,7 @@ import { getFlatActionBarActions } from '../../../../../platform/actions/browser
 import { IChatService } from '../../common/chatService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
-import { SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { distinct } from '../../../../../base/common/arrays.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
@@ -147,13 +147,13 @@ export class AgentSessionsControl extends Disposable {
 
 		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
 
-		let target: typeof SIDE_GROUP | typeof ChatViewPaneTarget | undefined;
+		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
 		if (e.sideBySide) {
 			target = SIDE_GROUP;
 		} else if (isLocalAgentSessionItem(session) && this.options?.allowOpenSessionsInPanel) { // TODO@bpasero revisit when we support background/remote sessions in panel
 			target = ChatViewPaneTarget;
 		} else {
-			target = undefined;
+			target = ACTIVE_GROUP;
 		}
 
 		await this.chatWidgetService.openSession(session.resource, target, options);
