@@ -119,6 +119,11 @@ export interface ICustomAgent {
 	readonly target?: string;
 
 	/**
+	 * Infer metadata in the prompt header.
+	 */
+	readonly infer?: boolean;
+
+	/**
 	 * Contents of the custom agent file body and other agent instructions.
 	 */
 	readonly agentInstructions: IChatModeInstructions;
@@ -146,6 +151,13 @@ export interface IChatPromptSlashCommand {
 	readonly argumentHint: string | undefined;
 	readonly promptPath: IPromptPath;
 	readonly parsedPromptFile: ParsedPromptFile;
+}
+
+export interface IClaudeSkill {
+	readonly uri: URI;
+	readonly type: 'personal' | 'project';
+	readonly name: string;
+	readonly description: string | undefined;
 }
 
 /**
@@ -257,4 +269,9 @@ export interface IPromptsService extends IDisposable {
 	 * Persists the set of disabled prompt file URIs for the given type.
 	 */
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
+
+	/**
+	 * Gets list of claude skills files.
+	 */
+	findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined>;
 }

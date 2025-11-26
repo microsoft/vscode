@@ -49,11 +49,11 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestChatEntitlementService, TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatAccessibilityService, IChatWidget, IChatWidgetService, IQuickChatService } from '../../../chat/browser/chat.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
 import { ChatLayoutService } from '../../../chat/browser/chatLayoutService.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
-import { ChatWidget, ChatWidgetService } from '../../../chat/browser/chatWidget.js';
+import { ChatWidget } from '../../../chat/browser/chatWidget.js';
 import { ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -84,6 +84,8 @@ import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionSer
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestWorkerService } from './testWorkerService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ChatWidgetService } from '../../../chat/browser/chatWidgetService.js';
+import { ChatContextService, IChatContextService } from '../../../chat/browser/chatContextService.js';
 
 suite('InlineChatController', function () {
 
@@ -224,6 +226,7 @@ suite('InlineChatController', function () {
 			[IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }],
 			[IChatModeService, new SyncDescriptor(MockChatModeService)],
 			[IChatLayoutService, new SyncDescriptor(ChatLayoutService)],
+			[IQuickChatService, new class extends mock<IQuickChatService>() { }],
 			[IChatTodoListService, new class extends mock<IChatTodoListService>() {
 				override onDidUpdateTodos = Event.None;
 				override getTodos(sessionResource: URI): IChatTodo[] { return []; }
@@ -254,6 +257,8 @@ suite('InlineChatController', function () {
 		model.setEOL(EndOfLineSequence.LF);
 		editor = store.add(instantiateTestCodeEditor(instaService, model));
 
+		instaService.set(IChatContextService, store.add(instaService.createInstance(ChatContextService)));
+
 		store.add(chatAgentService.registerDynamicAgent({ id: 'testEditorAgent', ...agentData, }, {
 			async invoke(request, progress, history, token) {
 				progress([{
@@ -270,9 +275,10 @@ suite('InlineChatController', function () {
 
 	});
 
-	teardown(function () {
+	teardown(async function () {
 		store.clear();
 		ctrl?.dispose();
+		await chatService.waitForModelDisposals();
 	});
 
 	// TODO@jrieken re-enable, looks like List/ChatWidget is leaking
@@ -665,7 +671,7 @@ suite('InlineChatController', function () {
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
 				// eslint-disable-next-line local/code-no-any-casts
-				return { model: targetModel } as any;
+				return { model: targetModel.object } as any;
 			}
 			override focusResponseItem() { }
 		};
@@ -714,7 +720,7 @@ suite('InlineChatController', function () {
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
 				// eslint-disable-next-line local/code-no-any-casts
-				return { model: targetModel } as any;
+				return { model: targetModel.object } as any;
 			}
 			override focusResponseItem() { }
 		};
@@ -917,7 +923,7 @@ suite('InlineChatController', function () {
 
 		await (await chatService.sendRequest(newSession.chatModel.sessionResource, 'Existing', { location: ChatAgentLocation.EditorInline }))?.responseCreatedPromise;
 
-		assert.strictEqual(newSession.chatModel.requestInProgress, true);
+		assert.strictEqual(newSession.chatModel.requestInProgress.get(), true);
 
 		const response = newSession.chatModel.lastRequest?.response;
 		assertType(response);

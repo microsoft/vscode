@@ -10,7 +10,7 @@ import filter from 'gulp-filter';
 import gzip from 'gulp-gzip';
 import mime from 'mime';
 import { ClientAssertionCredential } from '@azure/identity';
-import { VinylStat } from '../lib/util';
+import { VinylStat } from '../lib/util.ts';
 import azure from 'gulp-azure-storage';
 
 const commit = process.env['BUILD_SOURCEVERSION'];
@@ -71,7 +71,7 @@ const MimeTypesToCompress = new Set([
 function wait(stream: es.ThroughStream): Promise<void> {
 	return new Promise<void>((c, e) => {
 		stream.on('end', () => c());
-		stream.on('error', (err: any) => e(err));
+		stream.on('error', (err) => e(err));
 	});
 }
 

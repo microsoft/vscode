@@ -20,7 +20,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IEditorPane } from '../../../common/editor.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from './chatAgents.js';
-import { ChatModel, IChatResponseModel } from './chatModel.js';
+import { ChatModel, IChatRequestDisablement, IChatResponseModel } from './chatModel.js';
 import { IChatProgress } from './chatService.js';
 
 export const IChatEditingService = createDecorator<IChatEditingService>('chatEditingService');
@@ -117,6 +117,9 @@ export interface IChatEditingSession extends IDisposable {
 	readonly onDidDispose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
+	/** Requests disabled by undo/redo in the session */
+	readonly requestDisablement: IObservable<IChatRequestDisablement[]>;
+
 	show(previousChanges?: boolean): Promise<void>;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
@@ -169,6 +172,17 @@ export interface IChatEditingSession extends IDisposable {
 	 */
 	getEntryDiffBetweenRequests(uri: URI, startRequestIs: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined>;
 
+	/**
+	 * Gets the diff of each file modified in this session, comparing the initial
+	 * baseline to the current state.
+	 */
+	getDiffsForFilesInSession(): IObservable<readonly IEditSessionEntryDiff[]>;
+
+	/**
+	 * Gets the aggregated diff stats for all files modified in this session.
+	 */
+	getDiffForSession(): IObservable<IEditSessionDiffStats>;
+
 	readonly canUndo: IObservable<boolean>;
 	readonly canRedo: IObservable<boolean>;
 	undoInteraction(): Promise<void>;
@@ -187,7 +201,14 @@ export function chatEditingSessionIsReady(session: IChatEditingSession): Promise
 	});
 }
 
-export interface IEditSessionEntryDiff {
+export interface IEditSessionDiffStats {
+	/** Added data (e.g. line numbers) to show in the UI */
+	added: number;
+	/** Removed data (e.g. line numbers) to show in the UI */
+	removed: number;
+}
+
+export interface IEditSessionEntryDiff extends IEditSessionDiffStats {
 	/** LHS and RHS of a diff editor, if opened: */
 	originalURI: URI;
 	modifiedURI: URI;
@@ -198,11 +219,6 @@ export interface IEditSessionEntryDiff {
 
 	/** True if nothing else will be added to this diff. */
 	isFinal: boolean;
-
-	/** Added data (e.g. line numbers) to show in the UI */
-	added: number;
-	/** Removed data (e.g. line numbers) to show in the UI */
-	removed: number;
 }
 
 export const enum ModifiedFileEntryState {

@@ -42,8 +42,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
 import { ICompressedTreeNode } from '../../../../base/browser/ui/tree/compressedObjectTreeModel.js';
-import { ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/asyncDataTree.js';
+import { IAsyncDataTreeViewState, ITreeCompressionDelegate } from '../../../../base/browser/ui/tree/asyncDataTree.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 
 type TreeElement = ISCMRepository | SCMArtifactGroupTreeElement | SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>;
 
@@ -80,6 +82,7 @@ class ArtifactGroupRenderer implements ICompressibleTreeRenderer<SCMArtifactGrou
 	get templateId(): string { return ArtifactGroupRenderer.TEMPLATE_ID; }
 
 	constructor(
+		private readonly actionViewItemProvider: IActionViewItemProvider,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -95,7 +98,7 @@ class ArtifactGroupRenderer implements ICompressibleTreeRenderer<SCMArtifactGrou
 		const label = new IconLabel(element, { supportIcons: false });
 
 		const actionsContainer = append(element, $('.actions'));
-		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
+		const actionBar = new WorkbenchToolBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider }, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 
 		return { icon, label, actionBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(label, actionBar) };
 	}
@@ -144,6 +147,7 @@ class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeEleme
 	get templateId(): string { return ArtifactRenderer.TEMPLATE_ID; }
 
 	constructor(
+		private readonly actionViewItemProvider: IActionViewItemProvider,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -159,7 +163,7 @@ class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeEleme
 		const label = new IconLabel(element, { supportIcons: false });
 
 		const actionsContainer = append(element, $('.actions'));
-		const actionBar = new WorkbenchToolBar(actionsContainer, undefined, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
+		const actionBar = new WorkbenchToolBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider }, this._menuService, this._contextKeyService, this._contextMenuService, this._keybindingService, this._commandService, this._telemetryService);
 
 		return { icon, label, actionBar, elementDisposables: new DisposableStore(), templateDisposable: combinedDisposable(label, actionBar) };
 	}
@@ -223,7 +227,6 @@ class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeEleme
 				templateData.actionBar.setActions(primary);
 			}, 'inline', provider));
 			templateData.actionBar.context = artifact;
-
 		} else if (ResourceTree.isResourceNode(artifactOrFolder)) {
 			templateData.actionBar.setActions([]);
 			templateData.actionBar.context = undefined;
@@ -394,12 +397,17 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService hoverService: IHoverService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super({ ...options, titleMenuId: MenuId.SCMSourceControlTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.visibleCountObs = observableConfigValue('scm.repositories.visible', 10, this.configurationService);
 		this.providerCountBadgeObs = observableConfigValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge', 'hidden', this.configurationService);
+
+		this.storageService.onWillSaveState(() => {
+			this.storeTreeViewState();
+		}, this, this._store);
 
 		this._register(this.updateChildrenThrottler);
 	}
@@ -416,7 +424,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			treeContainer.classList.toggle('auto-provider-counts', providerCountBadge === 'auto');
 		}));
 
-		this.createTree(treeContainer);
+		const viewState = this.loadTreeViewState();
+		this.createTree(treeContainer, viewState);
 
 		this.onDidChangeBodyVisibility(async visible => {
 			if (!visible) {
@@ -426,7 +435,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 			this.treeOperationSequencer.queue(async () => {
 				// Initial rendering
-				await this.tree.setInput(this.scmViewService);
+				await this.tree.setInput(this.scmViewService, viewState);
 
 				// scm.repositories.visible setting
 				this.visibilityDisposables.add(autorun(reader => {
@@ -461,6 +470,17 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				for (const repository of this.scmService.repositories) {
 					this.onDidAddRepository(repository);
 				}
+
+				// Expand repository if there is only one
+				this.visibilityDisposables.add(autorun(async reader => {
+					const explorerEnabledConfig = this.scmViewService.explorerEnabledConfig.read(reader);
+					const didFinishLoadingRepositories = this.scmViewService.didFinishLoadingRepositories.read(reader);
+
+					if (viewState === undefined && explorerEnabledConfig && didFinishLoadingRepositories && this.scmViewService.repositories.length === 1) {
+						await this.treeOperationSequencer.queue(() =>
+							this.tree.expand(this.scmViewService.repositories[0]));
+					}
+				}));
 			});
 		}, this, this._store);
 	}
@@ -475,7 +495,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this.tree.domFocus();
 	}
 
-	private createTree(container: HTMLElement): void {
+	private createTree(container: HTMLElement, viewState?: IAsyncDataTreeViewState): void {
 		this.treeIdentityProvider = new RepositoryTreeIdentityProvider();
 		this.treeDataSource = this.instantiationService.createInstance(RepositoryTreeDataSource);
 		this._register(this.treeDataSource);
@@ -488,8 +508,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			new RepositoriesTreeCompressionDelegate(),
 			[
 				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMSourceControlInline, getActionViewItemProvider(this.instantiationService)),
-				this.instantiationService.createInstance(ArtifactGroupRenderer),
-				this.instantiationService.createInstance(ArtifactRenderer)
+				this.instantiationService.createInstance(ArtifactGroupRenderer, getActionViewItemProvider(this.instantiationService)),
+				this.instantiationService.createInstance(ArtifactRenderer, getActionViewItemProvider(this.instantiationService))
 			],
 			this.treeDataSource,
 			{
@@ -504,7 +524,10 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					}
 
 					// Explorer mode
-					if (isSCMArtifactNode(e)) {
+					if (viewState?.expanded && (isSCMRepository(e) || isSCMArtifactGroupTreeElement(e) || isSCMArtifactTreeElement(e))) {
+						// Only expand repositories/artifact groups/artifacts that were expanded before
+						return viewState.expanded.indexOf(this.treeIdentityProvider.getId(e)) === -1;
+					} else if (isSCMArtifactNode(e)) {
 						// Only expand artifact folders as they are compressed by default
 						return !(e.childrenCount === 1 && Iterable.first(e.children)?.element === undefined);
 					} else {
@@ -531,9 +554,6 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					getWidgetAriaLabel() {
 						return localize('scm', "Source Control Repositories");
 					}
-				},
-				twistieAdditionalCssClass: (e: unknown) => {
-					return isSCMRepository(e) ? 'force-twistie' : undefined;
 				}
 			}
 		) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement>;
@@ -774,6 +794,26 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					throw new Error('Invalid tree element');
 				}
 			});
+	}
+
+	private loadTreeViewState(): IAsyncDataTreeViewState | undefined {
+		const storageViewState = this.storageService.get('scm.repositoriesViewState', StorageScope.WORKSPACE);
+		if (!storageViewState) {
+			return undefined;
+		}
+
+		try {
+			const treeViewState = JSON.parse(storageViewState);
+			return treeViewState;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private storeTreeViewState(): void {
+		if (this.tree) {
+			this.storageService.store('scm.repositoriesViewState', JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		}
 	}
 
 	override dispose(): void {
