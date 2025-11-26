@@ -306,10 +306,18 @@ class CreateRemoteAgentJobAction {
 				await new Promise<void>(resolve => {
 					const disposable = widget.viewModel!.onDidChange(() => {
 						if (checkAndClose()) {
-							disposable.dispose();
+							cleanup();
 							resolve();
 						}
 					});
+					const timeout = setTimeout(() => {
+						cleanup();
+						resolve();
+					}, 30_000); // 30 second timeout
+					const cleanup = () => {
+						clearTimeout(timeout);
+						disposable.dispose();
+					};
 				});
 
 				await widget.clear();
