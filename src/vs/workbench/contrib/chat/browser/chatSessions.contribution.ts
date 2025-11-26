@@ -561,7 +561,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					});
 					await editorService.openEditor({ resource, options });
 					if (chatOptions?.prompt) {
-						await chatService.sendRequest(resource, chatOptions.prompt, { attachedContext: chatOptions.attachedContext });
+						await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
 					}
 				} catch (e) {
 					logService.error(`Failed to open new '${type}' chat session editor`, e);
