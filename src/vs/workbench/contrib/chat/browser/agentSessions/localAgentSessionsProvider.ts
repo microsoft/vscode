@@ -154,16 +154,13 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 
 	private toChatSessionItem(chat: IChatDetail): ChatSessionItemWithProvider | undefined {
 		const model = this.chatService.getSession(chat.sessionResource);
+		const lastResponse = model?.getRequests().at(-1)?.response;
 
 		let description: string | undefined;
-		let startTime: number | undefined;
-		let endTime: number | undefined;
 		if (model) {
 			if (!model.hasRequests) {
 				return undefined; // ignore sessions without requests
 			}
-
-			const lastResponse = model.getRequests().at(-1)?.response;
 
 			description = this.chatSessionsService.getSessionDescription(model);
 			if (!description) {
@@ -172,13 +169,6 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 					description = truncate(responseValue.replace(/\r?\n/g, ' '), 100);
 				}
 			}
-
-			startTime = model.timestamp;
-			if (lastResponse) {
-				endTime = lastResponse.completedAt ?? lastResponse.timestamp;
-			}
-		} else {
-			startTime = chat.lastMessageDate;
 		}
 
 		return {
@@ -189,8 +179,9 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			status: model ? this.modelToStatus(model) : undefined,
 			iconPath: Codicon.chatSparkle,
 			timing: {
-				startTime,
-				endTime
+				created: model?.timestamp ?? chat.lastMessageDate,
+				lastRequestStarted: lastResponse?.timestamp,
+				lastRequestEnded: lastResponse?.completedAt
 			},
 			statistics: model ? this.getSessionStatistics(model) : undefined
 		};

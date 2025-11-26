@@ -176,8 +176,9 @@ suite('Agent Sessions', () => {
 
 		test('should handle session with all properties', async () => {
 			return runWithFakedTimers({}, async () => {
-				const startTime = Date.now();
-				const endTime = startTime + 1000;
+				const created = Date.now();
+				const lastRequestStarted = created + 1000;
+				const lastRequestEnded = created + 1000;
 
 				const provider: IChatSessionItemProvider = {
 					chatSessionType: 'test-type',
@@ -190,7 +191,7 @@ suite('Agent Sessions', () => {
 							status: ChatSessionStatus.Completed,
 							tooltip: 'Session tooltip',
 							iconPath: ThemeIcon.fromId('check'),
-							timing: { startTime, endTime },
+							timing: { created, lastRequestStarted, lastRequestEnded },
 							statistics: { files: 1, insertions: 10, deletions: 5 }
 						}
 					]
@@ -210,8 +211,9 @@ suite('Agent Sessions', () => {
 					assert.strictEqual(session.description.value, '**Bold** description');
 				}
 				assert.strictEqual(session.status, ChatSessionStatus.Completed);
-				assert.strictEqual(session.timing.startTime, startTime);
-				assert.strictEqual(session.timing.endTime, endTime);
+				assert.strictEqual(session.timing.created, created);
+				assert.strictEqual(session.timing.lastRequestStarted, lastRequestStarted);
+				assert.strictEqual(session.timing.lastRequestEnded, lastRequestEnded);
 				assert.deepStrictEqual(session.statistics, { files: 1, insertions: 10, deletions: 5 });
 			});
 		});
@@ -781,38 +783,37 @@ suite('Agent Sessions', () => {
 		ensureNoDisposablesAreLeakedInTestSuite();
 
 		test('should initialize with default excludes', () => {
-			const filter = disposables.add(instantiationService.createInstance(
-				AgentSessionsFilter,
-				{ filterMenuId: MenuId.ViewTitle }
-			));
-
-			// Default: archived sessions should be excluded
-			const archivedSession = createSession({
-				isArchived: () => true
-			});
-			const activeSession = createSession({
-				isArchived: () => false
-			});
-
-			assert.strictEqual(filter.exclude(archivedSession), true);
-			assert.strictEqual(filter.exclude(activeSession), false);
-		});
-
-		test('should filter out sessions from excluded provider', () => {
 			const storageService = instantiationService.get(IStorageService);
+
 			const filter = disposables.add(instantiationService.createInstance(
 				AgentSessionsFilter,
 				{ filterMenuId: MenuId.ViewTitle }
 			));
+
+			const provider1: IChatSessionItemProvider = {
+				chatSessionType: 'type-1',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => []
+			};
+
+			const provider2: IChatSessionItemProvider = {
+				chatSessionType: 'type-2',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => []
+			};
 
 			const session1 = createSession({
-				providerType: 'type-1',
-				resource: URI.parse('test://session-1')
+				providerType: provider1.chatSessionType,
+				providerLabel: 'Provider 1',
+				resource: URI.parse('test://session-1'),
+				label: 'Session 1',
 			});
 
 			const session2 = createSession({
-				providerType: 'type-2',
-				resource: URI.parse('test://session-2')
+				providerType: provider2.chatSessionType,
+				providerLabel: 'Provider 2',
+				resource: URI.parse('test://session-2'),
+				label: 'Session 2',
 			});
 
 			// Initially, no sessions should be filtered by provider
@@ -839,38 +840,25 @@ suite('Agent Sessions', () => {
 				{ filterMenuId: MenuId.ViewTitle }
 			));
 
-			const session1 = createSession({ providerType: 'type-1' });
-			const session2 = createSession({ providerType: 'type-2' });
-			const session3 = createSession({ providerType: 'type-3' });
-
-			// Exclude type-1 and type-2
-			const excludes = {
-				providers: ['type-1', 'type-2'],
-				states: [],
-				archived: false
+			const provider: IChatSessionItemProvider = {
+				chatSessionType: 'test-type',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => []
 			};
-			storageService.store(`agentSessions.filterExcludes.${MenuId.ViewTitle.id.toLowerCase()}`, JSON.stringify(excludes), StorageScope.PROFILE, StorageTarget.USER);
-
-			assert.strictEqual(filter.exclude(session1), true);
-			assert.strictEqual(filter.exclude(session2), true);
-			assert.strictEqual(filter.exclude(session3), false);
-		});
-
-		test('should filter out archived sessions', () => {
-			const storageService = instantiationService.get(IStorageService);
-			const filter = disposables.add(instantiationService.createInstance(
-				AgentSessionsFilter,
-				{ filterMenuId: MenuId.ViewTitle }
-			));
 
 			const archivedSession = createSession({
+				providerType: provider.chatSessionType,
+				providerLabel: 'Test Provider',
 				resource: URI.parse('test://archived-session'),
+				label: 'Archived Session',
 				isArchived: () => true
 			});
 
 			const activeSession = createSession({
+				providerType: provider.chatSessionType,
+				providerLabel: 'Test Provider',
 				resource: URI.parse('test://active-session'),
-				isArchived: () => false
+				label: 'Active Session',
 			});
 
 			// By default, archived sessions should be filtered (archived: true in default excludes)
@@ -897,18 +885,32 @@ suite('Agent Sessions', () => {
 				{ filterMenuId: MenuId.ViewTitle }
 			));
 
+			const provider: IChatSessionItemProvider = {
+				chatSessionType: 'test-type',
+				onDidChangeChatSessionItems: Event.None,
+				provideChatSessionItems: async () => []
+			};
+
 			const failedSession = createSession({
+				providerType: provider.chatSessionType,
+				providerLabel: 'Test Provider',
 				resource: URI.parse('test://failed-session'),
+				label: 'Failed Session',
 				status: ChatSessionStatus.Failed
 			});
 
 			const completedSession = createSession({
+				providerType: provider.chatSessionType,
+				providerLabel: 'Test Provider',
 				resource: URI.parse('test://completed-session'),
-				status: ChatSessionStatus.Completed
+				label: 'Completed Session',
 			});
 
 			const inProgressSession = createSession({
+				providerType: provider.chatSessionType,
+				providerLabel: 'Test Provider',
 				resource: URI.parse('test://inprogress-session'),
+				label: 'In Progress Session',
 				status: ChatSessionStatus.InProgress
 			});
 
@@ -1793,6 +1795,8 @@ function makeSimpleSessionItem(id: string, overrides?: Partial<IChatSessionItem>
 
 function makeNewSessionTiming(): IChatSessionItem['timing'] {
 	return {
-		startTime: Date.now(),
+		created: Date.now(),
+		lastRequestStarted: undefined,
+		lastRequestEnded: undefined,
 	};
 }

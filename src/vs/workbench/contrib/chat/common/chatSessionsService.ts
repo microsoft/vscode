@@ -69,8 +69,9 @@ export interface IChatSessionItem {
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
 	timing: {
-		startTime: number;
-		endTime?: number;
+		created: number;
+		lastRequestStarted: number | undefined;
+		lastRequestEnded: number | undefined;
 	};
 	statistics?: {
 		files: number;

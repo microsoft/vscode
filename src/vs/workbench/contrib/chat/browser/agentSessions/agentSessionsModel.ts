@@ -49,8 +49,9 @@ interface IAgentSessionData {
 	readonly icon: ThemeIcon;
 
 	readonly timing: {
-		readonly startTime: number;
-		readonly endTime?: number;
+		readonly created: number;
+		readonly lastRequestStarted: number | undefined;
+		readonly lastRequestEnded: number | undefined;
 
 		readonly inProgressTime?: number;
 		readonly finishedOrFailedTime?: number;
@@ -275,8 +276,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					status,
 					archived: session.archived,
 					timing: {
-						startTime: session.timing.startTime,
-						endTime: session.timing.endTime,
+						...session.timing,
 						inProgressTime,
 						finishedOrFailedTime
 					},
@@ -357,8 +357,9 @@ interface ISerializedAgentSession {
 	readonly archived: boolean | undefined;
 
 	readonly timing: {
-		readonly startTime: number;
-		readonly endTime?: number;
+		readonly created: number;
+		readonly lastRequestStarted: number | undefined;
+		readonly lastRequestEnded: number | undefined;
 	};
 
 	readonly statistics?: {
@@ -375,7 +376,7 @@ interface ISerializedAgentSessionState {
 
 class AgentSessionsCache {
 
-	private static readonly SESSIONS_STORAGE_KEY = 'agentSessions.model.cache';
+	private static readonly SESSIONS_STORAGE_KEY = 'agentSessions.sessions.cache';
 	private static readonly STATE_STORAGE_KEY = 'agentSessions.state.cache';
 
 	constructor(
@@ -394,7 +395,7 @@ class AgentSessionsCache {
 				session.providerType === AgentSessionProviders.Background ||
 				session.providerType === AgentSessionProviders.Cloud
 			)
-			.map(session => ({
+			.map((session): ISerializedAgentSession => ({
 				providerType: session.providerType,
 				providerLabel: session.providerLabel,
 
@@ -409,8 +410,9 @@ class AgentSessionsCache {
 				archived: session.archived,
 
 				timing: {
-					startTime: session.timing.startTime,
-					endTime: session.timing.endTime,
+					created: session.timing.created,
+					lastRequestStarted: session.timing.lastRequestStarted,
+					lastRequestEnded: session.timing.lastRequestEnded,
 				},
 
 				statistics: session.statistics,
@@ -442,8 +444,9 @@ class AgentSessionsCache {
 				archived: session.archived,
 
 				timing: {
-					startTime: session.timing.startTime,
-					endTime: session.timing.endTime,
+					created: session.timing.created,
+					lastRequestStarted: session.timing.lastRequestStarted,
+					lastRequestEnded: session.timing.lastRequestEnded,
 				},
 
 				statistics: session.statistics,

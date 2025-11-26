@@ -117,7 +117,9 @@ export class ChatSessionTracker extends Disposable {
 				status: status,
 				provider,
 				timing: {
-					startTime: timestamp ?? Date.now()
+					created: timestamp ?? Date.now(),
+					lastRequestStarted: undefined,
+					lastRequestEnded: undefined
 				}
 			};
 

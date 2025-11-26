@@ -37,6 +37,7 @@ import { AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
 import { IntervalTimer } from '../../../../../base/common/async.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { AgentSessionDiffActionViewItem, AgentSessionShowDiffAction } from './agentSessionsActions.js';
+import { chatSessionTimestampComparator } from '../chatSessions/common.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -244,7 +245,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			}
 
 			if (!timeLabel) {
-				timeLabel = fromNow(session.timing.endTime || session.timing.startTime, true);
+				timeLabel = fromNow(session.timing.lastRequestEnded || session.timing.lastRequestStarted || session.timing.created, true);
 			}
 			return `${session.providerLabel} • ${timeLabel}`;
 		};
@@ -409,7 +410,7 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 		}
 
 		// Both in-progress or finished: sort by end or start time (most recent first)
-		return (sessionB.timing.endTime || sessionB.timing.startTime) - (sessionA.timing.endTime || sessionA.timing.startTime);
+		return chatSessionTimestampComparator(sessionA.timing, sessionB.timing);
 	}
 }
 
