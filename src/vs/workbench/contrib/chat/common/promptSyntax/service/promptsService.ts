@@ -187,6 +187,7 @@ export interface ICustomAgent {
 	 */
 	readonly source: IAgentSource;
 }
+
 export interface IAgentInstructions {
 	readonly content: string;
 	readonly toolReferences: readonly IVariableReference[];
