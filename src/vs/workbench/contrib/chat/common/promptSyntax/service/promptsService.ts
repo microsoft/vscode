@@ -73,6 +73,7 @@ export enum PromptsStorage {
 export enum ExtensionAgentSourceType {
 	contribution = 'contribution',
 	provider = 'provider',
+	externalContribution = 'externalContribution',
 }
 
 /**
@@ -186,7 +187,6 @@ export interface ICustomAgent {
 	 */
 	readonly source: IAgentSource;
 }
-
 export interface IAgentInstructions {
 	readonly content: string;
 	readonly toolReferences: readonly IVariableReference[];
@@ -281,7 +281,7 @@ export interface IPromptsService extends IDisposable {
 	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
 	 * Not intended for extension authors; used by contribution point handler.
 	 */
-	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription): IDisposable;
+	registerContributedFile(type: PromptsType, name: string, description: string, uri: URI, extension: IExtensionDescription, sourceType?: ExtensionAgentSourceType): IDisposable;
 
 
 	getPromptLocationLabel(promptPath: IPromptPath): string;

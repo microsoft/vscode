@@ -386,9 +386,6 @@ export class CustomChatMode implements IChatMode {
 	updateData(newData: ICustomAgent): void {
 		transaction(tx => {
 			this._nameObservable.set(newData.name, tx);
-			this._descriptionObservable.set(newData.description, tx);
-			this._customToolsObservable.set(newData.tools, tx);
-			this._modelObservable.set(newData.model, tx);
 			this._argumentHintObservable.set(newData.argumentHint, tx);
 			this._handoffsObservable.set(newData.handOffs, tx);
 			this._targetObservable.set(newData.target, tx);

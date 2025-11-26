@@ -8,7 +8,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import * as extensionsRegistry from '../../../../services/extensions/common/extensionsRegistry.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../../platform/extensions/common/extensions.js';
 import { joinPath, isEqualOrParent } from '../../../../../base/common/resources.js';
-import { IPromptsService } from './service/promptsService.js';
+import { ExtensionAgentSourceType, IPromptsService } from './service/promptsService.js';
 import { PromptsType } from './promptTypes.js';
 import { DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -28,6 +28,7 @@ interface IRawChatFileContribution {
 interface IRawChatFolderContribution {
 	readonly path: string;
 	readonly pathType?: PathType;
+	readonly external?: boolean;
 }
 
 type ChatContributionPoint = 'chatPromptFiles' | 'chatInstructions' | 'chatAgents';
@@ -103,6 +104,11 @@ function registerChatFoldersExtensionPoint(point: ChatFolderContributionPoint, f
 						type: 'string',
 						enum: ['extension', 'storageUri'],
 						default: 'extension'
+					},
+					external: {
+						description: localize('chatFolders.property.external', '(Optional) If true, agents from this folder will not appear in the builtin section but will be shown in the Configure Custom Agents menu. Requires chatParticipantPrivate proposal.'),
+						type: 'boolean',
+						default: false
 					}
 				}
 			}
@@ -113,9 +119,9 @@ function registerChatFoldersExtensionPoint(point: ChatFolderContributionPoint, f
 const epPrompt = registerChatFilesExtensionPoint('chatPromptFiles');
 const epInstructions = registerChatFilesExtensionPoint('chatInstructions');
 const epAgents = registerChatFilesExtensionPoint('chatAgents');
-const epPromptFileFolders = registerChatFoldersExtensionPoint('chatPromptFileFolders', 'prompt', './prompts', '.prompt');
-const epInstructionFolders = registerChatFoldersExtensionPoint('chatInstructionFolders', 'instruction', './instructions', '.instructions');
-const epAgentFolders = registerChatFoldersExtensionPoint('chatAgentFolders', 'agent', './agents', '.agent');
+const epPromptFileFolders = registerChatFoldersExtensionPoint('chatPromptFileFolders', 'prompt', './prompts', '.prompt.md');
+const epInstructionFolders = registerChatFoldersExtensionPoint('chatInstructionFolders', 'instruction', './instructions', '.instructions.md');
+const epAgentFolders = registerChatFoldersExtensionPoint('chatAgentFolders', 'agent', './agents', '.agent.md');
 
 function pointToType(contributionPoint: ChatContributionPoint): PromptsType {
 	switch (contributionPoint) {
@@ -135,9 +141,9 @@ function folderPointToType(contributionPoint: ChatFolderContributionPoint): Prom
 
 function getFileExtension(type: PromptsType): string {
 	switch (type) {
-		case PromptsType.prompt: return '.prompt';
-		case PromptsType.instructions: return '.instructions';
-		case PromptsType.agent: return '.agent';
+		case PromptsType.prompt: return '.prompt.md';
+		case PromptsType.instructions: return '.instructions.md';
+		case PromptsType.agent: return '.agent.md';
 	}
 }
 
@@ -270,7 +276,8 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 										try {
 											const description = `Contributed from folder: ${raw.path}`;
 											const uniqueName = `${ext.description.identifier.value}/${raw.path}/${name}`;
-											const d = this.promptsService.registerContributedFile(type, uniqueName, description, child.resource, ext.description);
+											const sourceType = raw.external === true ? ExtensionAgentSourceType.externalContribution : ExtensionAgentSourceType.contribution;
+											const d = this.promptsService.registerContributedFile(type, uniqueName, description, child.resource, ext.description, sourceType);
 											this.registrations.set(key(ext.description.identifier, type, uniqueName), d);
 										} catch (e) {
 											const msg = e instanceof Error ? e.message : String(e);
