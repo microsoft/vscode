@@ -48,8 +48,10 @@ export interface IVoiceChatService {
  * Default timeout in milliseconds after which recognized speech is automatically
  * submitted if no new speech is detected. This provides a natural pause-to-submit
  * behavior for conversation mode.
+ *
+ * TODO: Currently set to 200ms for testing. Raise to 1000ms when done testing.
  */
-const CONVERSATION_MODE_SUBMIT_TIMEOUT = 1500;
+const CONVERSATION_MODE_SUBMIT_TIMEOUT = 200;
 
 export interface IConversationModeSessionOptions extends IVoiceChatSessionOptions {
 	/**
@@ -449,7 +451,20 @@ class ConversationModeSession extends Disposable implements IConversationModeSes
 		}
 
 		this._isPaused = false;
-		this.startListening();
+
+		setTimeout(() => {
+			if (this._isActive && !this._isPaused && !this._isListening) {
+				this.startListening().catch(() => {
+					if (this._isActive && !this._isPaused) {
+						setTimeout(() => {
+							if (this._isActive && !this._isPaused && !this._isListening) {
+								this.startListening();
+							}
+						}, 1000);
+					}
+				});
+			}
+		}, 200);
 	}
 
 	private cancelCurrentSession(): void {
@@ -490,7 +505,6 @@ class ConversationModeSession extends Disposable implements IConversationModeSes
 
 				switch (e.status) {
 					case SpeechToTextStatus.Recognizing:
-						// Cancel any pending submit while user is still speaking
 						this.submitScheduler.cancel();
 						if (e.text) {
 							this._onDidChange.fire({
@@ -502,12 +516,10 @@ class ConversationModeSession extends Disposable implements IConversationModeSes
 
 					case SpeechToTextStatus.Recognized:
 						if (e.text && !e.waitingForInput) {
-							// Accumulate recognized text
 							this.accumulatedText = this.accumulatedText
 								? `${this.accumulatedText} ${e.text}`
 								: e.text;
 
-							// Schedule auto-submit after silence timeout
 							this.submitScheduler.schedule();
 						}
 						break;
@@ -515,15 +527,12 @@ class ConversationModeSession extends Disposable implements IConversationModeSes
 					case SpeechToTextStatus.Stopped:
 						this._isListening = false;
 
-						// Submit any remaining accumulated text
 						if (this.accumulatedText.trim()) {
 							this.submitScheduler.cancel();
 							this.submitAccumulatedText();
 						}
 
-						// Auto-restart listening if still active and not paused
 						if (this._isActive && !this._isPaused) {
-							// Small delay before restarting to allow for processing
 							setTimeout(() => {
 								if (this._isActive && !this._isPaused) {
 									this.startListening();
@@ -540,7 +549,6 @@ class ConversationModeSession extends Disposable implements IConversationModeSes
 							text: e.text
 						});
 
-						// Try to restart listening after an error
 						if (this._isActive && !this._isPaused) {
 							setTimeout(() => {
 								if (this._isActive && !this._isPaused) {
@@ -558,6 +566,14 @@ class ConversationModeSession extends Disposable implements IConversationModeSes
 				status: ConversationModeStatus.Error,
 				text: error instanceof Error ? error.message : String(error)
 			});
+
+			if (this._isActive && !this._isPaused) {
+				setTimeout(() => {
+					if (this._isActive && !this._isPaused && !this._isListening) {
+						this.startListening();
+					}
+				}, 1000);
+			}
 		}
 	}
 

@@ -391,7 +391,7 @@ class VoiceChatSessions {
 /**
  * Manages conversation mode sessions for hands-free voice chat.
  * Unlike regular voice chat, conversation mode automatically restarts
- * listening after each utterance, creating a Grok-style continuous
+ * listening after each utterance, creating a continuous
  * conversation experience.
  */
 class ConversationModeSessions {
@@ -408,6 +408,10 @@ class ConversationModeSessions {
 	private currentSession: IConversationModeSession | undefined = undefined;
 	private currentController: IVoiceChatSessionController | undefined = undefined;
 	private readonly sessionDisposables = new MutableDisposable<DisposableStore>();
+
+	// Track TTS state for placeholder updates
+	private isSpeaking = false;
+	private placeholderScheduler: RunOnceScheduler | undefined = undefined;
 
 	constructor(
 		@IVoiceChatService private readonly voiceChatService: IVoiceChatService,
@@ -438,25 +442,11 @@ class ConversationModeSessions {
 				controller.updateInput(text);
 				const response = await controller.acceptInput();
 
-				// Handle auto-synthesize for response (PR #2 will enhance this)
+				// Handle auto-synthesize for response
 				if (response) {
 					const autoSynthesize = this.configurationService.getValue<'on' | 'off'>(AccessibilityVoiceSettingId.AutoSynthesize);
 					if (autoSynthesize === 'on' || (autoSynthesize !== 'off' && !this.accessibilityService.isScreenReaderOptimized())) {
-						// Pause listening while TTS plays
-						session.pause();
-
-						const synthController = this.instantiationService.invokeFunction(accessor =>
-							ChatSynthesizerSessionController.create(accessor, controller, response)
-						);
-
-						// Start TTS and resume listening when done
-						const synthSession = ChatSynthesizerSessions.getInstance(this.instantiationService);
-						await synthSession.start(synthController);
-
-						// Resume listening after TTS completes
-						if (session.isActive) {
-							session.resume();
-						}
+						await this.speakResponse(controller, response, session, disposables);
 					}
 				}
 			}
@@ -472,7 +462,9 @@ class ConversationModeSessions {
 					break;
 				case ConversationModeStatus.Listening:
 					controller.updateState(VoiceChatSessionState.Started);
-					this.updateListeningPlaceholder(controller, disposables);
+					if (!this.isSpeaking) {
+						this.updateListeningPlaceholder(controller, disposables);
+					}
 					break;
 				case ConversationModeStatus.Recognizing:
 					if (e.text) {
@@ -480,8 +472,11 @@ class ConversationModeSessions {
 					}
 					break;
 				case ConversationModeStatus.Paused:
-					controller.clearInputPlaceholder();
-					controller.setInputPlaceholder(localize('conversationModePaused', "Conversation paused..."));
+					// Only show "paused" if we're not speaking (speaking has its own placeholder)
+					if (!this.isSpeaking) {
+						controller.clearInputPlaceholder();
+						controller.setInputPlaceholder(localize('conversationModePaused', "Conversation paused..."));
+					}
 					break;
 				case ConversationModeStatus.Stopped:
 					controller.clearInputPlaceholder();
@@ -489,7 +484,14 @@ class ConversationModeSessions {
 					break;
 				case ConversationModeStatus.Error:
 					controller.clearInputPlaceholder();
-					// Could show error notification here
+					// Try to recover - resume listening after error
+					if (session.isActive) {
+						setTimeout(() => {
+							if (session.isActive) {
+								session.resume();
+							}
+						}, 1000);
+					}
 					break;
 			}
 		}));
@@ -497,15 +499,11 @@ class ConversationModeSessions {
 		// Stop if chat is hidden
 		disposables.add(controller.onDidHideInput(() => this.stop()));
 
-		// Handle manual submit - pause listening during response, then resume
 		disposables.add(controller.onDidAcceptInput(async () => {
-			if (session.isActive && session.isListening) {
-				// User manually submitted, pause while waiting for response
+			if (session.isActive && session.isListening && !this.isSpeaking) {
 				session.pause();
-				// The response handling will be done by the chat widget
-				// We'll resume listening after a short delay
 				setTimeout(() => {
-					if (session.isActive) {
+					if (session.isActive && !this.isSpeaking) {
 						session.resume();
 					}
 				}, 500);
@@ -517,23 +515,94 @@ class ConversationModeSessions {
 		session.start();
 	}
 
+	private async speakResponse(
+		controller: IVoiceChatSessionController,
+		response: IChatResponseModel,
+		session: IConversationModeSession,
+		disposables: DisposableStore
+	): Promise<void> {
+		session.pause();
+		this.isSpeaking = true;
+		this.updateSpeakingPlaceholder(controller, disposables);
+
+		await new Promise(resolve => setTimeout(resolve, 300));
+
+		try {
+			const synthController = this.instantiationService.invokeFunction(accessor =>
+				ChatSynthesizerSessionController.create(accessor, controller, response)
+			);
+
+			const synthSession = ChatSynthesizerSessions.getInstance(this.instantiationService);
+			await synthSession.start(synthController, { preserveVoiceSessions: true });
+		} catch (error) {
+			console.error('TTS error in conversation mode:', error);
+		} finally {
+			this.isSpeaking = false;
+			controller.clearInputPlaceholder();
+
+			if (session.isActive) {
+				await new Promise(resolve => setTimeout(resolve, 800));
+
+				if (session.isActive && !session.isListening) {
+					try {
+						session.resume();
+						this.updateListeningPlaceholder(controller, disposables);
+					} catch (error) {
+						console.error('[Conversation Mode] Failed to resume after TTS:', error);
+						setTimeout(() => {
+							if (session.isActive && !session.isListening) {
+								session.resume();
+							}
+						}, 1000);
+					}
+				}
+			}
+		}
+	}
+
 	private updateListeningPlaceholder(controller: IVoiceChatSessionController, disposables: DisposableStore): void {
+		// Cancel any existing placeholder scheduler
+		this.placeholderScheduler?.cancel();
+
 		let dotCount = 0;
 
 		const updatePlaceholder = () => {
-			if (!this.currentSession?.isListening) {
+			if (!this.currentSession?.isListening || this.isSpeaking) {
 				return;
 			}
 			dotCount = (dotCount + 1) % 4;
-			controller.setInputPlaceholder(`${localize('conversationModeListening', "Conversation mode")}${'.'.repeat(dotCount)}`);
-			placeholderScheduler.schedule();
+			controller.setInputPlaceholder(`${localize('conversationModeListening', "Listening")}${'.'.repeat(dotCount)}`);
+			this.placeholderScheduler?.schedule();
 		};
 
-		const placeholderScheduler = disposables.add(new RunOnceScheduler(updatePlaceholder, 500));
+		this.placeholderScheduler = disposables.add(new RunOnceScheduler(updatePlaceholder, 500));
+		updatePlaceholder();
+	}
+
+	private updateSpeakingPlaceholder(controller: IVoiceChatSessionController, disposables: DisposableStore): void {
+		// Cancel any existing placeholder scheduler
+		this.placeholderScheduler?.cancel();
+
+		let dotCount = 0;
+
+		const updatePlaceholder = () => {
+			if (!this.isSpeaking) {
+				return;
+			}
+			dotCount = (dotCount + 1) % 4;
+			controller.setInputPlaceholder(`${localize('conversationModeSpeaking', "Speaking")}${'.'.repeat(dotCount)}`);
+			this.placeholderScheduler?.schedule();
+		};
+
+		this.placeholderScheduler = disposables.add(new RunOnceScheduler(updatePlaceholder, 500));
 		updatePlaceholder();
 	}
 
 	stop(): void {
+		// Stop any ongoing TTS
+		ChatSynthesizerSessions.getInstance(this.instantiationService).stop();
+		this.isSpeaking = false;
+
 		if (this.currentSession) {
 			this.currentSession.stop();
 			this.currentSession = undefined;
@@ -545,6 +614,8 @@ class ConversationModeSessions {
 			this.currentController = undefined;
 		}
 
+		this.placeholderScheduler?.cancel();
+		this.placeholderScheduler = undefined;
 		this.sessionDisposables.clear();
 	}
 
@@ -971,11 +1042,16 @@ class ChatSynthesizerSessions {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) { }
 
-	async start(controller: IChatSynthesizerSessionController): Promise<void> {
+	async start(controller: IChatSynthesizerSessionController, options?: { preserveVoiceSessions?: boolean }): Promise<void> {
 
-		// Stop running text-to-speech or speech-to-text sessions in chats
+		// Stop running text-to-speech sessions
 		this.stop();
-		VoiceChatSessions.getInstance(this.instantiationService).stop();
+
+		// Only stop voice sessions if not in conversation mode
+		// Conversation mode manages its own voice sessions
+		if (!options?.preserveVoiceSessions) {
+			VoiceChatSessions.getInstance(this.instantiationService).stop();
+		}
 
 		const activeSession = this.activeSession = new CancellationTokenSource();
 
