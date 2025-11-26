@@ -898,10 +898,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .monaco-button {
-	height: 18px;
 	width: fit-content;
-	padding: 2px 6px;
-	font-size: 11px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button:hover {
