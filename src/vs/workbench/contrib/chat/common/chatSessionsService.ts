@@ -82,6 +82,7 @@ export interface IChatSessionItem {
 }
 
 export type IChatSessionHistoryItem = {
+	id?: string;
 	type: 'request';
 	prompt: string;
 	participant: string;

@@ -130,6 +130,8 @@ export class ChatService extends Disposable implements IChatService {
 
 	readonly requestInProgressObs: IObservable<boolean>;
 
+	readonly chatModels: IObservable<Iterable<IChatModel>>;
+
 	/**
 	 * For test use only
 	 */
@@ -212,6 +214,8 @@ export class ChatService extends Disposable implements IChatService {
 		this.initializePersistedSessionsFromFileStorage();
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
+
+		this.chatModels = derived(this, reader => this._sessionModels.observable.read(reader).values());
 
 		this.requestInProgressObs = derived(reader => {
 			const models = this._sessionModels.observable.read(reader).values();
@@ -649,7 +653,10 @@ export class ChatService extends Disposable implements IChatService {
 					undefined, // confirmation
 					undefined, // locationData
 					undefined, // attachments
-					true // isCompleteAddedRequest - this indicates it's a complete request, not user input
+					false, // Do not treat as requests completed, else edit pills won't show.
+					undefined,
+					undefined,
+					message.id
 				);
 			} else {
 				// response

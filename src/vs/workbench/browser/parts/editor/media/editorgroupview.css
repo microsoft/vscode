@@ -45,7 +45,7 @@
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
-	gap: 16px;
+	gap: 24px;
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container:not(.empty) > .editor-group-watermark {
@@ -101,7 +101,7 @@
 	justify-content: space-between;
 	margin: 4px 0;
 	cursor: default;
-	color: var(--vscode-editorWatermark-foreground);
+	color: var(--vscode-descriptionForeground);
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark .shortcuts dl:first-of-type {

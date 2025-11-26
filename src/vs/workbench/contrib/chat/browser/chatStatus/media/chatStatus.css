@@ -128,10 +128,31 @@
 	color: var(--vscode-disabledForeground);
 }
 
+/* Model Selection */
+
+.chat-status-bar-entry-tooltip .model-selection {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 0 0 0;
+}
+
+.chat-status-bar-entry-tooltip .model-selection .model-text {
+	flex: 1;
+}
+
+.chat-status-bar-entry-tooltip .model-selection .model-action-bar {
+	margin-left: auto;
+}
+
+.chat-status-bar-entry-tooltip .model-selection .model-action-bar .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
 /* Snoozing */
 
 .chat-status-bar-entry-tooltip .snooze-completions {
-	margin-top: 6px;
+	margin-top: 1px;
 	display: flex;
 	flex-direction: row;
 	flex-wrap: nowrap;

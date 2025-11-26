@@ -119,6 +119,16 @@ class RenameSkeleton {
 	}
 }
 
+export function hasProvider(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel): boolean {
+	const providers = registry.ordered(model);
+	return providers.length > 0;
+}
+
+export async function prepareRename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position): Promise<RenameLocation & Rejection | undefined> {
+	const skeleton = new RenameSkeleton(model, position, registry);
+	return skeleton.resolveRenameLocation(CancellationToken.None);
+}
+
 export async function rename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit & Rejection> {
 	const skeleton = new RenameSkeleton(model, position, registry);
 	const loc = await skeleton.resolveRenameLocation(CancellationToken.None);
@@ -126,11 +136,6 @@ export async function rename(registry: LanguageFeatureRegistry<RenameProvider>, 
 		return { edits: [], rejectReason: loc.rejectReason };
 	}
 	return skeleton.provideRenameEdits(newName, CancellationToken.None);
-}
-
-export async function prepareRename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position): Promise<RenameLocation & Rejection | undefined> {
-	const skeleton = new RenameSkeleton(model, position, registry);
-	return skeleton.resolveRenameLocation(CancellationToken.None);
 }
 
 // ---  register actions and commands

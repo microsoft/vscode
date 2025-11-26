@@ -24,6 +24,7 @@ import { Command, InlineCompletion, InlineCompletionHintStyle, InlineCompletionE
 import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
+import { InlineSuggestionEditKind, computeEditKind } from './editKind.js';
 import { InlineSuggestData, InlineSuggestionList, PartialAcceptance, RenameInfo, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
@@ -94,6 +95,7 @@ abstract class InlineSuggestionItemBase {
 	public abstract withIdentity(identity: InlineSuggestionIdentity): InlineSuggestionItem;
 	public abstract canBeReused(model: ITextModel, position: Position): boolean;
 
+	public abstract computeEditKind(model: ITextModel): InlineSuggestionEditKind | undefined;
 
 	public addRef(): void {
 		this.identity.addRef();
@@ -105,8 +107,8 @@ abstract class InlineSuggestionItemBase {
 		this.source.removeRef();
 	}
 
-	public reportInlineEditShown(commandService: ICommandService, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
-		this._data.reportInlineEditShown(commandService, this.insertText, viewKind, viewData);
+	public reportInlineEditShown(commandService: ICommandService, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, model: ITextModel) {
+		this._data.reportInlineEditShown(commandService, this.insertText, viewKind, viewData, this.computeEditKind(model));
 	}
 
 	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo, partialAcceptance: PartialAcceptance) {
@@ -142,6 +144,10 @@ abstract class InlineSuggestionItemBase {
 
 	public withRename(command: Command, hint: InlineSuggestHint): InlineSuggestData {
 		return this._data.withRename(command, hint);
+	}
+
+	public addPerformanceMarker(marker: string): void {
+		this._data.addPerformanceMarker(marker);
 	}
 }
 
@@ -309,6 +315,10 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 		const singleTextEdit = this.getSingleTextEdit();
 		return inlineCompletionIsVisible(singleTextEdit, this._originalRange, model, cursorPosition);
 	}
+
+	override computeEditKind(model: ITextModel): InlineSuggestionEditKind | undefined {
+		return computeEditKind(new StringEdit([this._edit]), model);
+	}
 }
 
 export function inlineCompletionIsVisible(singleTextEdit: TextReplacement, originalRange: Range | undefined, model: ITextModel, cursorPosition: Position): boolean {
@@ -469,6 +479,10 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 			lastChangePartOfInlineEdit,
 			inlineEditModelVersion,
 		);
+	}
+
+	override computeEditKind(model: ITextModel): InlineSuggestionEditKind | undefined {
+		return computeEditKind(this._edit, model);
 	}
 }
 
