@@ -133,7 +133,7 @@ export class WebPageLoader extends Disposable {
 
 		this.trace(`Received 'did-start-loading' event`);
 		void this._debugger.sendCommand('Network.enable').catch(() => {
-			// This throw when we destroy the window on redirect.
+			// This throws when we destroy the window on redirect.
 		});
 	}
 
