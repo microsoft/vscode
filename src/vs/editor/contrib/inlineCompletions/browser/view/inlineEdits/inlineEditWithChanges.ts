@@ -16,7 +16,7 @@ export class InlineEditWithChanges {
 	public get lineEdit(): LineReplacement {
 		if (this.action?.kind === 'jumpTo') {
 			return new LineReplacement(LineRange.ofLength(this.action.position.lineNumber, 0), []);
-		} else if (this.action?.kind === 'edit') {
+		} else if (this.action?.kind === 'edit' || this.action?.kind === 'rename') {
 			return LineReplacement.fromSingleTextEdit(this.edit!.toReplacement(this.originalText), this.originalText);
 		}
 
