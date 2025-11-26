@@ -584,7 +584,7 @@ suite('LocalAgentsSessionsProvider', () => {
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].timing.startTime, modelTimestamp);
+				assert.strictEqual(sessions[0].timing.created, modelTimestamp);
 			});
 		});
 
@@ -605,7 +605,7 @@ suite('LocalAgentsSessionsProvider', () => {
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].timing.startTime, lastMessageDate);
+				assert.strictEqual(sessions[0].timing.created, lastMessageDate);
 			});
 		});
 
@@ -632,7 +632,7 @@ suite('LocalAgentsSessionsProvider', () => {
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].timing.endTime, completedAt);
+				assert.strictEqual(sessions[0].timing.lastRequestEnded, completedAt);
 			});
 		});
 	});
