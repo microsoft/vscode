@@ -45,6 +45,7 @@ import { AGENT_SESSIONS_VIEW_ID } from './agentSessions/agentSessions.js';
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
 import { ChatWidget } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
+import { AgentSessionsListDelegate } from './agentSessions/agentSessionsViewer.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -57,6 +58,8 @@ type ChatViewPaneOpenedClassification = {
 };
 
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
+
+	private static readonly SESSIONS_LIMIT = 3;
 
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -265,7 +268,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsContainer, {
 			allowOpenSessionsInPanel: true,
 			filter: {
-				limitResults: 3, // Limit to 3 sessions
+				limitResults: ChatViewPane.SESSIONS_LIMIT,
 				exclude(session) {
 					if (session.isArchived()) {
 						return true; // exclude archived sessions
@@ -430,12 +433,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		let remainingHeight = height;
 
-		// Sessions Control
+		// Sessions Control (grows witht the number of items displayed)
+		this.sessionsControl?.layout(this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT, width);
 		const sessionsContainerHeight = this.sessionsContainer?.offsetHeight ?? 0;
 		remainingHeight -= sessionsContainerHeight;
-
-		const sessionsLinkHeight = this.sessionsLinkContainer?.offsetHeight ?? 0;
-		this.sessionsControl?.layout(sessionsContainerHeight - sessionsLinkHeight, width);
 
 		// Chat Widget
 		this._widget.layout(remainingHeight, width);
