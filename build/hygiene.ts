@@ -240,9 +240,13 @@ function createGitIndexVinyls(paths: string[]): Promise<VinylFile[]> {
 					return e(err);
 				}
 
+				// Add safety margin to maxBuffer to handle encoding differences and git output overhead
+				// Use at least 1MB or 2x file size, whichever is larger
+				const maxBuffer = Math.max(stat.size * 2, 1024 * 1024);
+
 				cp.exec(
 					process.platform === 'win32' ? `git show :${relativePath}` : `git show ':${relativePath}'`,
-					{ maxBuffer: stat.size, encoding: 'buffer' },
+					{ maxBuffer, encoding: 'buffer' },
 					(err, out) => {
 						if (err) {
 							return e(err);

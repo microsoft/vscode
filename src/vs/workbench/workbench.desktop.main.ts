@@ -92,11 +92,14 @@ import '../platform/extensionManagement/electron-browser/extensionsProfileScanne
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
 import './services/process/electron-browser/processService.js';
 
-import { registerSingleton } from '../platform/instantiation/common/extensions.js';
+import { registerSingleton, InstantiationType } from '../platform/instantiation/common/extensions.js';
 import { IUserDataInitializationService, UserDataInitializationService } from './services/userData/browser/userDataInit.js';
 import { SyncDescriptor } from '../platform/instantiation/common/descriptors.js';
+import { DiagnosticsService } from './contrib/diagnostics/electron-browser/diagnosticsService.js';
+import { IDiagnosticsService } from './contrib/diagnostics/common/diagnosticsService.js';
 
 registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataInitializationService, [[]], true));
+registerSingleton(IDiagnosticsService, DiagnosticsService, InstantiationType.Delayed);
 
 
 //#endregion
@@ -184,6 +187,9 @@ import './contrib/mcp/electron-browser/mcp.contribution.js';
 
 // Policy Export
 import './contrib/policyExport/electron-browser/policyExport.contribution.js';
+
+// Diagnostics
+import './contrib/diagnostics/browser/diagnostics.contribution.js';
 
 //#endregion
 

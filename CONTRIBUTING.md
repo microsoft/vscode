@@ -94,6 +94,40 @@ If you believe the bot got something wrong, please open a new issue and let us k
 
 If you are interested in writing code to fix issues, please see [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-Contribute) in the wiki.
 
+## Environment Diagnostics
+
+VS Code includes a built-in diagnostics panel to check your development environment for common reproducibility issues.
+
+### Running Diagnostics
+
+1. Open the Environment Diagnostics panel from the status bar (green check or warning icon)
+2. Or use the command palette: "View: Show Environment Diagnostics"
+3. Click the refresh button to re-run checks
+
+### Path Length Requirements {#path-length-requirements}
+
+Windows has a 2048-character limit for the PATH environment variable. Unix systems typically support 4096 characters.
+
+**If PATH is too long:**
+- Remove unnecessary entries from your PATH
+- Use shorter directory paths
+- Consider using path management tools
+
+### Symlink Support Requirements {#symlink-support-requirements}
+
+VS Code development requires symlink support for proper operation.
+
+**On Windows:**
+- Enable Developer Mode in Windows Settings
+- Or run VS Code as administrator
+
+**On Unix:**
+- Ensure your filesystem supports symlinks (most do by default)
+
+### WSL Detection {#wsl-detection}
+
+If you're contributing from Windows Subsystem for Linux (WSL), the diagnostics panel will detect this. This is informational only - WSL is a valid development environment, but you should be aware of potential differences in behavior.
+
 ## Thank You
 
 Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.

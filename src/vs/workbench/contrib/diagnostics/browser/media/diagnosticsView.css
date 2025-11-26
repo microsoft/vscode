@@ -1,0 +1,61 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.diagnostics-results {
+	padding: 8px;
+}
+
+.diagnostics-item {
+	display: flex;
+	padding: 8px;
+	margin-bottom: 8px;
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 4px;
+}
+
+.diagnostics-icon {
+	margin-right: 8px;
+	font-size: 16px;
+}
+
+.diagnostics-content {
+	flex: 1;
+}
+
+.diagnostics-name {
+	font-weight: 600;
+	margin-bottom: 4px;
+}
+
+.diagnostics-message {
+	margin-bottom: 4px;
+}
+
+.diagnostics-error {
+	color: var(--vscode-errorForeground);
+	margin-bottom: 4px;
+}
+
+.diagnostics-remediation {
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 4px;
+	font-style: italic;
+}
+
+.diagnostics-link {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: none;
+}
+
+.diagnostics-link:hover {
+	text-decoration: underline;
+}
+
+.diagnostics-empty {
+	padding: 16px;
+	text-align: center;
+	color: var(--vscode-descriptionForeground);
+}
+
