@@ -416,9 +416,8 @@ export class CodeApplication extends Disposable {
 
 			// Block any in-page navigation
 			contents.on('will-navigate', event => {
-				const browserViewService = this.mainInstantiationService.invokeFunction(accessor => accessor.get(IBrowserViewMainService));
 				// Allow navigation in integrated browser views
-				if (browserViewService?.isBrowserViewWebContents(contents)) {
+				if (BrowserViewMainService.isBrowserViewWebContents(contents)) {
 					return;
 				}
 
@@ -430,7 +429,6 @@ export class CodeApplication extends Disposable {
 			// All Windows: only allow about:blank auxiliary windows to open
 			// For all other URLs, delegate to the OS.
 			contents.setWindowOpenHandler(details => {
-				// TODO: for browser views, open in a new browser tab.
 
 				// about:blank windows can open as window witho our default options
 				if (details.url === 'about:blank') {

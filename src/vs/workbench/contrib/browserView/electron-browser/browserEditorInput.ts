@@ -6,7 +6,7 @@
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { BrowserViewUri } from './browserUri.js';
+import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -41,6 +41,7 @@ export class BrowserEditorInput extends EditorInput {
 	private readonly _id: string;
 	private readonly _initialData: IBrowserEditorInputData;
 	private _model: IBrowserViewModel | undefined;
+	private _modelPromise: Promise<IBrowserViewModel> | undefined;
 
 	constructor(
 		options: IBrowserEditorInputData,
@@ -65,27 +66,36 @@ export class BrowserEditorInput extends EditorInput {
 		}));
 	}
 
+	public get id() {
+		return this._id;
+	}
+
 	override async resolve(): Promise<IBrowserViewModel> {
-		if (!this._model) {
-			this._model = await this.browserViewWorkbenchService.getOrCreateBrowserViewModel(this._id);
+		if (!this._model && !this._modelPromise) {
+			this._modelPromise = (async () => {
+				this._model = await this.browserViewWorkbenchService.getOrCreateBrowserViewModel(this._id);
+				this._modelPromise = undefined;
 
-			// Navigate to initial URL if provided
-			if (this._initialData.url && this._model.url !== this._initialData.url) {
-				await this._model.loadURL(this._initialData.url);
-			}
+				// Set up cleanup when the model is disposed
+				this._register(this._model.onWillDispose(() => {
+					this._model = undefined;
+				}));
 
-			// Set up cleanup when the model is disposed
-			this._register(this._model.onWillDispose(() => {
-				this._model = undefined;
-			}));
+				// Listen for label-relevant changes to fire onDidChangeLabel
+				this._register(this._model.onDidChangeTitle(() => this._onDidChangeLabel.fire()));
+				this._register(this._model.onDidChangeFavicon(() => this._onDidChangeLabel.fire()));
+				this._register(this._model.onDidChangeLoadingState(() => this._onDidChangeLabel.fire()));
+				this._register(this._model.onDidNavigate(() => this._onDidChangeLabel.fire()));
 
-			// Listen for label-relevant changes to fire onDidChangeLabel
-			this._register(this._model.onDidChangeTitle(() => this._onDidChangeLabel.fire()));
-			this._register(this._model.onDidChangeFavicon(() => this._onDidChangeLabel.fire()));
-			this._register(this._model.onDidChangeLoadingState(() => this._onDidChangeLabel.fire()));
-			this._register(this._model.onDidNavigate(() => this._onDidChangeLabel.fire()));
+				// Navigate to initial URL if provided
+				if (this._initialData.url && this._model.url !== this._initialData.url) {
+					void this._model.loadURL(this._initialData.url);
+				}
+
+				return this._model;
+			})();
 		}
-		return this._model;
+		return this._model || this._modelPromise!;
 	}
 
 	override get typeId(): string {
@@ -127,7 +137,7 @@ export class BrowserEditorInput extends EditorInput {
 
 	override getName(): string {
 		// Use model data if available, otherwise fall back to initial data
-		if (this._model) {
+		if (this._model && this._model.url) {
 			if (this._model.title) {
 				return this._model.title;
 			}

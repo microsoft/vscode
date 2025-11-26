@@ -10,7 +10,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/edit
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { BrowserEditor } from './browserEditor.js';
 import { BrowserEditorInput, BrowserEditorSerializer } from './browserEditorInput.js';
-import { BrowserViewUri } from './browserUri.js';
+import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -60,7 +60,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 				singlePerResource: true
 			},
 			{
-				createEditorInput: ({ resource }) => {
+				createEditorInput: ({ resource, options }) => {
 					const parsed = BrowserViewUri.parse(resource);
 					if (!parsed) {
 						throw new Error(`Invalid browser view resource: ${resource.toString()}`);
@@ -71,9 +71,14 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 						url: parsed.url
 					});
 
+					// Start resolving the input right away. This will create the browser view.
+					// This allows browser views to be loaded in the background.
+					void browserInput.resolve();
+
 					return {
 						editor: browserInput,
 						options: {
+							...options,
 							pinned: !!parsed.url // pin if navigated
 						}
 					};

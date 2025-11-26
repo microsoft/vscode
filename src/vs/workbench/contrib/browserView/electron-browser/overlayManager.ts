@@ -9,6 +9,16 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { getDomNodePagePosition, IDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
+const OVERLAY_CLASSES: string[] = [
+	'monaco-menu-container',
+	'quick-input-widget',
+	'monaco-hover',
+	'monaco-dialog-modal-block',
+	'notifications-center',
+	'notification-toast-container',
+	'context-view'
+];
+
 export const IBrowserOverlayManager = createDecorator<IBrowserOverlayManager>('browserOverlayManager');
 
 export interface IBrowserOverlayManager {
@@ -47,15 +57,6 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 	}));
 	public readonly onDidChangeOverlayState = this._onDidChangeOverlayState.event;
 
-	private readonly overlayClasses: string[] = [
-		'monaco-menu-container',
-		'quick-input-widget',
-		'monaco-hover',
-		'monaco-dialog-modal-block',
-		'notifications-center',
-		'context-view'
-	];
-
 	private readonly overlayCollections = new Map<string, HTMLCollectionOf<Element>>();
 	private overlayRectangles = new WeakMap<HTMLElement, IDomNodePagePosition>();
 	private elementObservers = new WeakMap<HTMLElement, MutationObserver>();
@@ -66,7 +67,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		super();
 
 		// Initialize live collections for each overlay selector
-		for (const className of this.overlayClasses) {
+		for (const className of OVERLAY_CLASSES) {
 			// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
 			// eslint-disable-next-line no-restricted-syntax
 			this.overlayCollections.set(className, mainWindow.document.getElementsByClassName(className));

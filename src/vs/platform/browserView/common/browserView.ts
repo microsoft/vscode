@@ -57,6 +57,12 @@ export interface IBrowserViewFaviconChangeEvent {
 	favicon: string;
 }
 
+export interface IBrowserViewNewPageEvent {
+	url: string;
+	name?: string;
+	background: boolean;
+}
+
 export const ipcBrowserViewChannelName = 'browserView';
 
 export interface IBrowserViewService {
@@ -69,6 +75,7 @@ export interface IBrowserViewService {
 	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
+	onDynamicDidRequestNewPage(id: string): Event<IBrowserViewNewPageEvent>;
 
 	/**
 	 * Get or create a browser view instance

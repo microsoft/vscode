@@ -14,6 +14,7 @@ import {
 	IBrowserViewKeyDownEvent,
 	IBrowserViewTitleChangeEvent,
 	IBrowserViewFaviconChangeEvent,
+	IBrowserViewNewPageEvent,
 	IBrowserViewService
 } from '../../../../platform/browserView/common/browserView.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -69,9 +70,11 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidKeyCommand: Event<IBrowserViewKeyDownEvent>;
 	readonly onDidChangeTitle: Event<IBrowserViewTitleChangeEvent>;
 	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent>;
+	readonly onDidRequestNewPage: Event<IBrowserViewNewPageEvent>;
 	readonly onWillDispose: Event<void>;
 
 	initialize(): Promise<void>;
+
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
 	loadURL(url: string): Promise<void>;
@@ -132,6 +135,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidChangeFavicon(): Event<IBrowserViewFaviconChangeEvent> {
 		return this.browserViewService.onDynamicDidChangeFavicon(this.id);
+	}
+
+	get onDidRequestNewPage(): Event<IBrowserViewNewPageEvent> {
+		return this.browserViewService.onDynamicDidRequestNewPage(this.id);
 	}
 
 	get onWillDispose(): Event<void> {

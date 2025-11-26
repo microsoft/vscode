@@ -6,7 +6,7 @@
 import { WebContentsView, webContents, session } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IBrowserViewBounds, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageEvent } from '../common/browserView.js';
 import { IBrowserViewMainService } from './browserView.js';
 import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { ThemePlugin } from './plugins/themePlugin.js';
@@ -24,8 +24,15 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 export class BrowserViewMainService extends Disposable implements IBrowserViewMainService {
 	declare readonly _serviceBrand: undefined;
 
+	/**
+	 * Check if a webContents belongs to an integrated browser view
+	*/
+	private static readonly knownSessions = new WeakSet<Electron.Session>();
+	static isBrowserViewWebContents(contents: Electron.WebContents): boolean {
+		return BrowserViewMainService.knownSessions.has(contents.session);
+	}
+
 	private readonly browserViews = new Map<string, BrowserView>();
-	private readonly knownSessions = new WeakSet<Electron.Session>();
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -56,13 +63,6 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 	}
 
-	/**
-	 * Check if a webContents belongs to an integrated browser view
-	 */
-	isBrowserViewWebContents(contents: Electron.WebContents): boolean {
-		return this.knownSessions.has(contents.session);
-	}
-
 	async getOrCreateBrowserView(id: string, workspaceId?: string): Promise<IBrowserViewState> {
 		if (this.browserViews.has(id)) {
 			// Note: `workspaceId` will be ignored if the view already exists.
@@ -72,7 +72,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		const viewSession = this.getSession(id, workspaceId);
-		this.knownSessions.add(viewSession);
+		BrowserViewMainService.knownSessions.add(viewSession);
 
 		const view = this.instantiationService.createInstance(BrowserView, viewSession);
 		this.browserViews.set(id, view);
@@ -113,6 +113,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	onDynamicDidChangeFavicon(id: string) {
 		return this._getBrowserView(id).onDidChangeFavicon;
+	}
+
+	onDynamicDidRequestNewPage(id: string) {
+		return this._getBrowserView(id).onDidRequestNewPage;
 	}
 
 	async destroyBrowserView(id: string): Promise<void> {
@@ -215,6 +219,9 @@ export class BrowserView extends Disposable {
 	private readonly _onDidChangeFavicon = this._register(new Emitter<IBrowserViewFaviconChangeEvent>());
 	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent> = this._onDidChangeFavicon.event;
 
+	private readonly _onDidRequestNewPage = this._register(new Emitter<IBrowserViewNewPageEvent>());
+	readonly onDidRequestNewPage: Event<IBrowserViewNewPageEvent> = this._onDidRequestNewPage.event;
+
 	constructor(
 		viewSession: Electron.Session,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
@@ -232,6 +239,21 @@ export class BrowserView extends Disposable {
 				webviewTag: false,
 				session: viewSession
 			}
+		});
+
+		this.view.webContents.setWindowOpenHandler((details) => {
+			// For new tab requests, fire event for workbench to handle
+			if (details.disposition === 'background-tab' || details.disposition === 'foreground-tab') {
+				this._onDidRequestNewPage.fire({
+					url: details.url,
+					name: details.frameName || undefined,
+					background: details.disposition === 'background-tab'
+				});
+				return { action: 'deny' }; // Deny the default browser behavior since we're handling it
+			}
+
+			// Deny other requests like new windows.
+			return { action: 'deny' };
 		});
 
 		this.setupEventListeners();

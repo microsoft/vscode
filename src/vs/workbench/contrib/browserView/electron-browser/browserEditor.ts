@@ -22,6 +22,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from './browserEditorInput.js';
+import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewModel } from '../../../services/browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -153,7 +154,8 @@ export class BrowserEditor extends EditorPane {
 		@IBrowserOverlayManager private readonly overlayManager: IBrowserOverlayManager,
 		@ILogService private readonly logService: ILogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(BrowserEditor.ID, group, telemetryService, themeService, storageService);
 	}
@@ -252,6 +254,18 @@ export class BrowserEditor extends EditorPane {
 			if (focused) {
 				this.browserContainer.focus();
 			}
+		}, null, this.inputDisposables);
+
+		this.model.onDidRequestNewPage(({ url, name, background }) => {
+			// Open a new browser tab for the requested URL
+			const browserUri = BrowserViewUri.forUrl(url, name ? `${input.id}-${name}` : undefined);
+			this.editorService.openEditor({
+				resource: browserUri,
+				options: {
+					pinned: true,
+					inactive: background
+				}
+			});
 		}, null, this.inputDisposables);
 
 		this.overlayManager.onDidChangeOverlayState(() => {
