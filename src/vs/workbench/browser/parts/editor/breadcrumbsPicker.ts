@@ -60,7 +60,7 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 	protected readonly _onWillPickElement = new Emitter<void>();
 	readonly onWillPickElement: Event<void> = this._onWillPickElement.event;
 
-	private readonly _previewDisposables = new MutableDisposable();
+	private readonly _previewDispoables = new MutableDisposable();
 
 	constructor(
 		parent: HTMLElement,
@@ -76,7 +76,7 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 
 	dispose(): void {
 		this._disposables.dispose();
-		this._previewDisposables.dispose();
+		this._previewDispoables.dispose();
 		this._onWillPickElement.dispose();
 		this._domNode.remove();
 		setTimeout(() => this._tree.dispose(), 0); // tree cannot be disposed while being opened...
@@ -111,7 +111,7 @@ export abstract class BreadcrumbsPicker<TInput, TElement> {
 			}
 		}));
 		this._disposables.add(this._tree.onDidChangeFocus(e => {
-			this._previewDisposables.value = this._previewElement(e.elements[0]);
+			this._previewDispoables.value = this._previewElement(e.elements[0]);
 		}));
 		this._disposables.add(this._tree.onDidChangeContentHeight(() => {
 			this._layout();

@@ -1188,7 +1188,7 @@ export class FileService extends Disposable implements IFileService {
 		})();
 
 		// When a correlation identifier is set, return a specific
-		// watcher that only emits events matching that correlation.
+		// watcher that only emits events matching that correalation.
 		const correlationId = options.correlationId;
 		if (typeof correlationId === 'number') {
 			const fileChangeEmitter = disposables.add(new Emitter<FileChangesEvent>());

@@ -385,7 +385,7 @@ class EventCoalescer {
 			return event.resource.fsPath;
 		}
 
-		return event.resource.fsPath.toLowerCase(); // normalize to file system case sensitivity
+		return event.resource.fsPath.toLowerCase(); // normalise to file system case sensitivity
 	}
 
 	processEvent(event: IFileChange): void {

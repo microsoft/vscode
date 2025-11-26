@@ -313,7 +313,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 				this._onDidCreateFile.fire(Object.freeze({ files: files.map(f => URI.revive(f.target)) }));
 				break;
 			default:
-			// Ignore, don't send
+			//ignore, don't send
 		}
 	}
 
