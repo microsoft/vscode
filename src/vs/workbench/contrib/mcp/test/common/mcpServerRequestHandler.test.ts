@@ -478,9 +478,9 @@ suite('Workbench - MCP - McpTask', () => {
 
 	test('should reject when task fails', async () => {
 		const mockHandler = upcastPartial<McpServerRequestHandler>({
-			getTask: sinon.stub().resolves(createTask({ 
+			getTask: sinon.stub().resolves(createTask({
 				status: 'failed',
-				statusMessage: 'Something went wrong' 
+				statusMessage: 'Something went wrong'
 			}))
 		});
 
@@ -488,9 +488,9 @@ suite('Workbench - MCP - McpTask', () => {
 		task.setHandler(mockHandler);
 
 		// Update to failed state
-		task.onDidUpdateState(createTask({ 
+		task.onDidUpdateState(createTask({
 			status: 'failed',
-			statusMessage: 'Something went wrong' 
+			statusMessage: 'Something went wrong'
 		}));
 
 		await assert.rejects(
@@ -505,7 +505,7 @@ suite('Workbench - MCP - McpTask', () => {
 
 	test('should cancel when task is cancelled', async () => {
 		const task = store.add(new McpTask(createTask()));
-		
+
 		// Update to cancelled state
 		task.onDidUpdateState(createTask({ status: 'cancelled' }));
 
@@ -634,9 +634,8 @@ suite('Workbench - MCP - McpTask', () => {
 
 	test('should handle input_required state', async () => {
 		const getTaskStub = sinon.stub();
-		// First call returns input_required, second returns completed
-		getTaskStub.onCall(0).resolves(createTask({ status: 'input_required' }));
-		getTaskStub.onCall(1).resolves(createTask({ status: 'completed' }));
+		// getTask call returns completed (triggered by input_required handling)
+		getTaskStub.resolves(createTask({ status: 'completed' }));
 
 		const mockHandler = upcastPartial<McpServerRequestHandler>({
 			getTask: getTaskStub,
@@ -646,11 +645,14 @@ suite('Workbench - MCP - McpTask', () => {
 		const task = store.add(new McpTask(createTask({ pollInterval: 1000 })));
 		task.setHandler(mockHandler);
 
-		// Update to input_required
+		// Update to input_required - this triggers a getTask call
 		task.onDidUpdateState(createTask({ status: 'input_required' }));
 
-		// This should trigger a getTask call
-		await clock.tickAsync(100);
+		// Allow the promise to settle
+		await clock.tickAsync(0);
+
+		// Verify getTask was called
+		assert.strictEqual(getTaskStub.callCount, 1);
 
 		// Once getTask resolves with completed, should fetch result
 		const result = await task.result;

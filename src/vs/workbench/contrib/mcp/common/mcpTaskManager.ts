@@ -9,13 +9,14 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import type { McpServerRequestHandler } from './mcpServerRequestHandler.js';
 import { McpError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 export interface IMcpTaskInternal extends IDisposable {
 	readonly id: string;
 	onDidUpdateState(task: MCP.Task): void;
-	setHandler(handler: unknown | undefined): void;
+	setHandler(handler: McpServerRequestHandler | undefined): void;
 }
 
 interface TaskEntry extends IDisposable {
@@ -44,7 +45,7 @@ export class McpTaskManager extends Disposable {
 	 * Attach a new handler to this task manager.
 	 * Updates all client tasks to use the new handler.
 	 */
-	setHandler(handler: unknown | undefined): void {
+	setHandler(handler: McpServerRequestHandler | undefined): void {
 		for (const task of this._clientTasks.values()) {
 			task.setHandler(handler);
 		}

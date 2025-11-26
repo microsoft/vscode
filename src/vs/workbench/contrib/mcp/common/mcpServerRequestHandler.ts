@@ -139,7 +139,8 @@ export class McpServerRequestHandler extends Disposable {
 							version: productService.version,
 						}
 					}
-				}, token); mcp._serverInit = initialized;
+				}, token);
+				mcp._serverInit = initialized;
 				mcp._sendLogLevelToServer(opts.logger.getLevel());
 
 				mcp.sendNotification<MCP.InitializedNotification>({
@@ -435,7 +436,7 @@ export class McpServerRequestHandler extends Disposable {
 				this._onDidReceiveElicitationCompleteNotification.fire(request);
 				return;
 			case 'notifications/tasks/status':
-				this._taskManager.getClientTask(request.params.taskId)?.setHandler(request.params);
+				this._taskManager.getClientTask(request.params.taskId)?.onDidUpdateState(request.params);
 				return;
 			default:
 				softAssertNever(request);
@@ -613,6 +614,7 @@ export class McpServerRequestHandler extends Disposable {
 		if (isTaskResult(response)) {
 			const task = new McpTask<MCP.CallToolResult>(response.task, token);
 			this._taskManager.adoptClientTask(task);
+			task.setHandler(this);
 			return task.result.finally(() => {
 				this._taskManager.abandonClientTask(task.id);
 			});
@@ -704,6 +706,33 @@ export class McpTask<T extends MCP.Result> extends Disposable implements IMcpTas
 
 		const store = this._register(new DisposableStore());
 
+		// Handle external cancellation token
+		if (_token.isCancellationRequested) {
+			this._lastTaskState.set({ ...this._task, status: 'cancelled' }, undefined);
+		} else {
+			store.add(_token.onCancellationRequested(() => {
+				const current = this._lastTaskState.get();
+				if (!isTaskInTerminalState(current)) {
+					this._lastTaskState.set({ ...current, status: 'cancelled' }, undefined);
+				}
+			}));
+		}
+
+		// Handle TTL expiration with an explicit timeout
+		if (expiresAt) {
+			const ttlTimeout = expiresAt - Date.now();
+			if (ttlTimeout <= 0) {
+				this._lastTaskState.set({ ...this._task, status: 'cancelled', statusMessage: 'Task timed out.' }, undefined);
+			} else {
+				store.add(disposableTimeout(() => {
+					const current = this._lastTaskState.get();
+					if (!isTaskInTerminalState(current)) {
+						this._lastTaskState.set({ ...current, status: 'cancelled', statusMessage: 'Task timed out.' }, undefined);
+					}
+				}, ttlTimeout));
+			}
+		}
+
 		// A `tasks/result` call triggered by an input_required state.
 		const inputRequiredLookup = observableValue<ObservablePromise<MCP.Task> | undefined>('activeResultLookup', undefined);
 
@@ -713,12 +742,6 @@ export class McpTask<T extends MCP.Result> extends Disposable implements IMcpTas
 			if (isTaskInTerminalState(current)) {
 				return;
 			}
-
-			if (expiresAt && Date.now() > expiresAt) {
-				this._lastTaskState.set({ ...current, status: 'cancelled', statusMessage: 'Task timed out.' }, undefined);
-				return;
-			}
-
 
 			// When a task goes into the input_required state, by spec we should call
 			// `tasks/result` which can return an SSE stream of task updates. No need
