@@ -73,6 +73,13 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		const terminalGroupCountContextKey = TerminalContextKeys.groupCount.bindTo(this._contextKeyService);
 		this._register(Event.runAndSubscribe(this.onDidChangeGroups, () => terminalGroupCountContextKey.set(this.groups.length)));
 
+		const activeGroupIsSingleContextKey = TerminalContextKeys.activeGroupIsSingle.bindTo(this._contextKeyService);
+		const updateActiveGroupIsSingle = () => {
+			const activeGroup = this.activeGroup;
+			activeGroupIsSingleContextKey.set(!activeGroup || activeGroup.terminalInstances.length <= 1);
+		};
+		this._register(Event.runAndSubscribe(Event.any(this.onDidChangeActiveGroup, this.onDidChangeInstances), () => updateActiveGroupIsSingle()));
+
 		const splitTerminalActiveContextKey = TerminalContextKeys.splitTerminalActive.bindTo(this._contextKeyService);
 		this._register(Event.runAndSubscribe(this.onDidFocusInstance, () => {
 			const activeInstance = this.activeInstance;

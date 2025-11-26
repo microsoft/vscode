@@ -12,6 +12,7 @@ export const enum TerminalContextKeyStrings {
 	IsOpen = 'terminalIsOpen',
 	Count = 'terminalCount',
 	GroupCount = 'terminalGroupCount',
+	ActiveGroupIsSingle = 'terminalActiveGroupIsSingle',
 	TabsNarrow = 'isTerminalTabsNarrow',
 	HasFixedWidth = 'terminalHasFixedWidth',
 	ProcessSupported = 'terminalProcessSupported',
@@ -61,6 +62,9 @@ export namespace TerminalContextKeys {
 
 	/** The current number of terminal groups. */
 	export const groupCount = new RawContextKey<number>(TerminalContextKeyStrings.GroupCount, 0, true);
+
+	/** Whether the active terminal group contains only one terminal. */
+	export const activeGroupIsSingle = new RawContextKey<boolean>(TerminalContextKeyStrings.ActiveGroupIsSingle, true, localize('terminalActiveGroupIsSingle', "Whether the active terminal group contains only one terminal."));
 
 	/** Whether the terminal tabs view is narrow. */
 	export const tabsNarrow = new RawContextKey<boolean>(TerminalContextKeyStrings.TabsNarrow, false, true);
@@ -151,12 +155,16 @@ export namespace TerminalContextKeys {
 			ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 			ContextKeyExpr.and(
 				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
-				ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
+					activeGroupIsSingle
+				)
 			),
 			ContextKeyExpr.and(
 				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
 				ContextKeyExpr.or(
 					ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
+					activeGroupIsSingle,
 					ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
 				)
 			),
