@@ -29,7 +29,7 @@ import { IExtensionsWorkbenchService } from '../../../extensions/common/extensio
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_OPEN_ACTION_ID } from '../actions/chatActions.js';
 import { ChatViewId, ChatViewContainerId } from '../chat.js';
-import { ChatSetupAnonymous, ChatSetupResultValue, ChatSetupStep, InstallChatClassification, InstallChatEvent, refreshTokens } from './chatSetup.js';
+import { ChatSetupAnonymous, ChatSetupStep, ChatSetupResultValue, InstallChatEvent, InstallChatClassification, refreshTokens } from './chatSetup.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
@@ -38,7 +38,7 @@ const defaultChat = {
 	completionsAdvancedSetting: product.defaultChatAgent?.completionsAdvancedSetting ?? '',
 };
 
-interface IChatSetupControllerOptions {
+export interface IChatSetupControllerOptions {
 	readonly forceSignIn?: boolean;
 	readonly useSocialProvider?: string;
 	readonly useEnterpriseProvider?: boolean;

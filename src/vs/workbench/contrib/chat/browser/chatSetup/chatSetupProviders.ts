@@ -46,7 +46,8 @@ import { ACTION_START as INLINE_CHAT_START } from '../../../inlineChat/common/in
 import { IPosition } from '../../../../../editor/common/core/position.js';
 import { IMarker, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 import { ChatSetupController } from './chatSetupController.js';
-import { ChatSetup, ChatSetupAnonymous, ChatSetupStep, IChatSetupResult } from './chatSetup.js';
+import { ChatSetupAnonymous, ChatSetupStep, IChatSetupResult } from './chatSetup.js';
+import { ChatSetup } from './chatSetupRunner.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',

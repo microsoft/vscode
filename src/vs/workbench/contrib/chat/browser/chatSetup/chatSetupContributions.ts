@@ -47,8 +47,9 @@ import { EditorContextKeys } from '../../../../../editor/common/editorContextKey
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { AGENT_SESSIONS_VIEW_CONTAINER_ID } from '../agentSessions/agentSessions.js';
 import { ChatSetupController } from './chatSetupController.js';
-import { ChatSetupAnonymous, ChatSetup } from './chatSetup.js';
+import { ChatSetup } from './chatSetupRunner.js';
 import { SetupAgent, AINewSymbolNamesProvider, ChatCodeActionsProvider, AICodeActionsHelper } from './chatSetupProviders.js';
+import { ChatSetupAnonymous } from './chatSetup.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
