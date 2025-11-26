@@ -309,6 +309,10 @@ export class InlineEditsView extends Disposable {
 
 		const longDistanceHint = this._getLongDistanceHintState(model, reader);
 
+		if (longDistanceHint && longDistanceHint.isVisible) {
+			state.viewData.setLongDistanceViewData(longDistanceHint.lineNumber, inlineEdit.lineEdit.lineRange.startLineNumber);
+		}
+
 		if (state.kind === InlineCompletionViewKind.SideBySide) {
 			const indentationAdjustmentEdit = createReindentEdit(newText, inlineEdit.modifiedLineRange, textModel.getOptions().tabSize);
 			newText = indentationAdjustmentEdit.applyToString(newText);
@@ -603,16 +607,16 @@ export class InlineEditsView extends Disposable {
 function getViewData(inlineEdit: InlineEditWithChanges, stringChanges: { originalRange: Range; modifiedRange: Range; original: string; modified: string }[], textModel: ITextModel) {
 	const cursorPosition = inlineEdit.cursorPosition;
 	const startsWithEOL = stringChanges.length === 0 ? false : stringChanges[0].modified.startsWith(textModel.getEOL());
-	const viewData: InlineCompletionViewData = {
-		cursorColumnDistance: inlineEdit.edit.replacements.length === 0 ? 0 : inlineEdit.edit.replacements[0].range.getStartPosition().column - cursorPosition.column,
-		cursorLineDistance: inlineEdit.lineEdit.lineRange.startLineNumber - cursorPosition.lineNumber + (startsWithEOL && inlineEdit.lineEdit.lineRange.startLineNumber >= cursorPosition.lineNumber ? 1 : 0),
-		lineCountOriginal: inlineEdit.lineEdit.lineRange.length,
-		lineCountModified: inlineEdit.lineEdit.newLines.length,
-		characterCountOriginal: stringChanges.reduce((acc, r) => acc + r.original.length, 0),
-		characterCountModified: stringChanges.reduce((acc, r) => acc + r.modified.length, 0),
-		disjointReplacements: stringChanges.length,
-		sameShapeReplacements: stringChanges.every(r => r.original === stringChanges[0].original && r.modified === stringChanges[0].modified),
-	};
+	const viewData = new InlineCompletionViewData(
+		inlineEdit.edit.replacements.length === 0 ? 0 : inlineEdit.edit.replacements[0].range.getStartPosition().column - cursorPosition.column,
+		inlineEdit.lineEdit.lineRange.startLineNumber - cursorPosition.lineNumber + (startsWithEOL && inlineEdit.lineEdit.lineRange.startLineNumber >= cursorPosition.lineNumber ? 1 : 0),
+		inlineEdit.lineEdit.lineRange.length,
+		inlineEdit.lineEdit.newLines.length,
+		stringChanges.reduce((acc, r) => acc + r.original.length, 0),
+		stringChanges.reduce((acc, r) => acc + r.modified.length, 0),
+		stringChanges.length,
+		stringChanges.every(r => r.original === stringChanges[0].original && r.modified === stringChanges[0].modified)
+	);
 	return viewData;
 }
 
