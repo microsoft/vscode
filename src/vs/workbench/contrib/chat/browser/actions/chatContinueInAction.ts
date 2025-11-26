@@ -303,21 +303,36 @@ class CreateRemoteAgentJobAction {
 				}
 
 				// Monitor subsequent responses when pending confirmations block us from closing
-				await new Promise<void>(resolve => {
-					const disposable = widget.viewModel!.onDidChange(() => {
-						if (checkAndClose()) {
+				await new Promise<void>((resolve, reject) => {
+					let disposed = false;
+					let disposable: IDisposable | undefined;
+					let timeout: ReturnType<typeof setTimeout> | undefined;
+					const cleanup = () => {
+						if (!disposed) {
+							disposed = true;
+							if (timeout !== undefined) {
+								clearTimeout(timeout);
+							}
+							if (disposable) {
+								disposable.dispose();
+							}
+						}
+					};
+					try {
+						disposable = widget.viewModel!.onDidChange(() => {
+							if (checkAndClose()) {
+								cleanup();
+								resolve();
+							}
+						});
+						timeout = setTimeout(() => {
 							cleanup();
 							resolve();
-						}
-					});
-					const timeout = setTimeout(() => {
+						}, 30_000); // 30 second timeout
+					} catch (e) {
 						cleanup();
-						resolve();
-					}, 30_000); // 30 second timeout
-					const cleanup = () => {
-						clearTimeout(timeout);
-						disposable.dispose();
-					};
+						reject(e);
+					}
 				});
 
 				await widget.clear();
