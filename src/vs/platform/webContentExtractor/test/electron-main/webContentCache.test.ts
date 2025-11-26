@@ -73,8 +73,8 @@ suite('WebContentCache', () => {
 
 	test('different options produce different cache entries', () => {
 		const uri = URI.parse('https://example.com/page');
-		const resultWithRedirects: WebContentExtractResult = { status: 'ok', result: 'With redirects' };
-		const resultWithoutRedirects: WebContentExtractResult = { status: 'ok', result: 'Without redirects' };
+		const resultWithRedirects: WebContentExtractResult = { status: 'ok', result: 'With redirects', title: 'Redirects Title' };
+		const resultWithoutRedirects: WebContentExtractResult = { status: 'ok', result: 'Without redirects', title: 'No Redirects Title' };
 
 		cache.add(uri, { followRedirects: true }, resultWithRedirects);
 		cache.add(uri, { followRedirects: false }, resultWithoutRedirects);
@@ -85,7 +85,7 @@ suite('WebContentCache', () => {
 
 	test('undefined options and followRedirects: false use same cache key', () => {
 		const uri = URI.parse('https://example.com/page');
-		const extractResult: WebContentExtractResult = { status: 'ok', result: 'Content' };
+		const extractResult: WebContentExtractResult = { status: 'ok', result: 'Content', title: 'Title' };
 
 		cache.add(uri, undefined, extractResult);
 
@@ -102,7 +102,7 @@ suite('WebContentCache', () => {
 	test('URI path case is ignored for cache lookup', () => {
 		const uri1 = URI.parse('https://example.com/Page');
 		const uri2 = URI.parse('https://example.com/page');
-		const extractResult: WebContentExtractResult = { status: 'ok', result: 'Content' };
+		const extractResult: WebContentExtractResult = { status: 'ok', result: 'Content', title: 'Title' };
 
 		cache.add(uri1, undefined, extractResult);
 
@@ -116,7 +116,7 @@ suite('WebContentCache', () => {
 
 	test('expired success entries are not returned', () => {
 		const uri = URI.parse('https://example.com/page');
-		const extractResult: WebContentExtractResult = { status: 'ok', result: 'Content' };
+		const extractResult: WebContentExtractResult = { status: 'ok', result: 'Content', title: 'Title' };
 
 		// Mock Date.now to control expiration
 		const originalDateNow = Date.now;
@@ -159,7 +159,7 @@ suite('WebContentCache', () => {
 
 	test('non-expired success entries are returned', () => {
 		const uri = URI.parse('https://example.com/page');
-		const extractResult: WebContentExtractResult = { status: 'ok', result: 'Content' };
+		const extractResult: WebContentExtractResult = { status: 'ok', result: 'Content', title: 'Title' };
 
 		const originalDateNow = Date.now;
 		let currentTime = 1000000;
@@ -226,8 +226,8 @@ suite('WebContentCache', () => {
 
 	test('adding same URI overwrites previous entry', () => {
 		const uri = URI.parse('https://example.com/page');
-		const firstResult: WebContentExtractResult = { status: 'ok', result: 'First content' };
-		const secondResult: WebContentExtractResult = { status: 'ok', result: 'Second content' };
+		const firstResult: WebContentExtractResult = { status: 'ok', result: 'First content', title: 'First Title' };
+		const secondResult: WebContentExtractResult = { status: 'ok', result: 'Second content', title: 'Second Title' };
 
 		cache.add(uri, undefined, firstResult);
 		cache.add(uri, undefined, secondResult);
@@ -243,8 +243,8 @@ suite('WebContentCache', () => {
 	test('different hosts produce different cache entries', () => {
 		const uri1 = URI.parse('https://example.com/page');
 		const uri2 = URI.parse('https://other.com/page');
-		const result1: WebContentExtractResult = { status: 'ok', result: 'Example content' };
-		const result2: WebContentExtractResult = { status: 'ok', result: 'Other content' };
+		const result1: WebContentExtractResult = { status: 'ok', result: 'Example content', title: 'Example Title' };
+		const result2: WebContentExtractResult = { status: 'ok', result: 'Other content', title: 'Other Title' };
 
 		cache.add(uri1, undefined, result1);
 		cache.add(uri2, undefined, result2);
@@ -256,8 +256,8 @@ suite('WebContentCache', () => {
 	test('different paths produce different cache entries', () => {
 		const uri1 = URI.parse('https://example.com/page1');
 		const uri2 = URI.parse('https://example.com/page2');
-		const result1: WebContentExtractResult = { status: 'ok', result: 'Page 1 content' };
-		const result2: WebContentExtractResult = { status: 'ok', result: 'Page 2 content' };
+		const result1: WebContentExtractResult = { status: 'ok', result: 'Page 1 content', title: 'Page 1 Title' };
+		const result2: WebContentExtractResult = { status: 'ok', result: 'Page 2 content', title: 'Page 2 Title' };
 
 		cache.add(uri1, undefined, result1);
 		cache.add(uri2, undefined, result2);
@@ -269,8 +269,8 @@ suite('WebContentCache', () => {
 	test('different query strings produce different cache entries', () => {
 		const uri1 = URI.parse('https://example.com/page?a=1');
 		const uri2 = URI.parse('https://example.com/page?a=2');
-		const result1: WebContentExtractResult = { status: 'ok', result: 'Query 1 content' };
-		const result2: WebContentExtractResult = { status: 'ok', result: 'Query 2 content' };
+		const result1: WebContentExtractResult = { status: 'ok', result: 'Query 1 content', title: 'Query 1 Title' };
+		const result2: WebContentExtractResult = { status: 'ok', result: 'Query 2 content', title: 'Query 2 Title' };
 
 		cache.add(uri1, undefined, result1);
 		cache.add(uri2, undefined, result2);
