@@ -1686,10 +1686,14 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private refreshSingleElement(element: SettingsTreeSettingElement): void {
-		if (this.isVisible()
-			&& this.settingsTree.hasElement(element)
-			&& (!element.setting.deprecationMessage || element.isConfigured)) {
-			this.settingsTree.rerender(element);
+		if (this.isVisible() && this.settingsTree.hasElement(element)) {
+			if (!element.setting.deprecationMessage || element.isConfigured) {
+				this.settingsTree.rerender(element);
+			} else {
+				// The setting is deprecated and no longer configured. Refresh the entire tree
+				// to remove it from the settings editor.
+				this.refreshTree();
+			}
 		}
 	}
 
