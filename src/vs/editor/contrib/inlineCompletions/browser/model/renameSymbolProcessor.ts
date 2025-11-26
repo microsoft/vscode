@@ -18,7 +18,7 @@ import { Command, InlineCompletionHintStyle } from '../../../../common/languages
 import { ITextModel } from '../../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { EditSources, TextModelEditSource } from '../../../../common/textModelEditSource.js';
-import { prepareRename, rename } from '../../../rename/browser/rename.js';
+import { hasProvider, prepareRename, rename } from '../../../rename/browser/rename.js';
 import { renameSymbolCommandId } from '../controller/commandIds.js';
 import { InlineSuggestHint, InlineSuggestionItem } from './inlineSuggestionItem.js';
 
@@ -194,6 +194,10 @@ export class RenameSymbolProcessor extends Disposable {
 
 	public async proposeRenameRefactoring(textModel: ITextModel, suggestItem: InlineSuggestionItem): Promise<InlineSuggestionItem> {
 		if (!suggestItem.supportsRename) {
+			return suggestItem;
+		}
+
+		if (!hasProvider(this._languageFeaturesService.renameProvider, textModel)) {
 			return suggestItem;
 		}
 
