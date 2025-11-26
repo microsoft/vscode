@@ -194,6 +194,7 @@ export interface IChatUndoStop {
 
 export interface IChatExternalEditsDto {
 	kind: 'externalEdits';
+	undoStopId: string;
 	start: boolean; /** true=start, false=stop */
 	resources: UriComponents[];
 }
@@ -228,6 +229,7 @@ export interface IChatResponseCodeblockUriPart {
 	kind: 'codeblockUri';
 	uri: URI;
 	isEdit?: boolean;
+	undoStopId?: string;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {
@@ -943,6 +945,11 @@ export interface IChatService {
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
+
+	/**
+	 * An observable containing all live chat models.
+	 */
+	readonly chatModels: IObservable<Iterable<IChatModel>>;
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
