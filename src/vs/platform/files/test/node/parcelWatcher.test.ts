@@ -877,8 +877,8 @@ suite.skip('File Watcher (parcel)', function () {
 		await changeFuture;
 	});
 
-	(isWindows ? test.skip : test)('includes are case insensitive when globCaseSensitivity is set (posix)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/*.TXT'], recursive: true, ignoreGlobCase: true }]);
+	(isLinux ? test.skip : test)('includes are case insensitive on Windows/Mac', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/*.TXT'], recursive: true }]);
 
 		// New file (matches *.TXT case-insensitively)
 		const newFilePath = join(testDir, 'deep', 'newFile.txt');
@@ -897,8 +897,8 @@ suite.skip('File Watcher (parcel)', function () {
 		await changeFuture;
 	});
 
-	(!isWindows ? test.skip : test)('includes are case insensitive when globCaseSensitivity is set (windows)', async function () {
-		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/*.TXT'], recursive: true, ignoreGlobCase: true }]);
+	(isLinux ? test.skip : test)('includes are case insensitive on Windows/Mac', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/*.TXT'], recursive: true }]);
 
 		// New file (matches *.TXT case-insensitively)
 		const newFilePath = join(testDir, 'deep', 'newFile.txt');
@@ -917,8 +917,8 @@ suite.skip('File Watcher (parcel)', function () {
 		await changeFuture;
 	});
 
-	(isWindows ? test.skip : test)('excludes are case insensitive when globCaseSensitivity is set (posix)', async function () {
-		await watcher.watch([{ path: testDir, excludes: ['**/DEEP/**'], recursive: true, ignoreGlobCase: true }]);
+	(isLinux ? test.skip : test)('excludes are case insensitive on Windows/Mac', async function () {
+		await watcher.watch([{ path: testDir, excludes: ['**/DEEP/**'], recursive: true }]);
 
 		// New file in excluded folder (should not trigger event)
 		const newTextFilePath = join(testDir, 'deep', 'newFile.txt');
@@ -935,8 +935,8 @@ suite.skip('File Watcher (parcel)', function () {
 		}
 	});
 
-	(!isWindows ? test.skip : test)('excludes are case insensitive when globCaseSensitivity is set (windows)', async function () {
-		await watcher.watch([{ path: testDir, excludes: ['**/DEEP/**'], recursive: true, ignoreGlobCase: true }]);
+	(isLinux ? test.skip : test)('excludes are case insensitive on Windows/Mac', async function () {
+		await watcher.watch([{ path: testDir, excludes: ['**/DEEP/**'], recursive: true }]);
 
 		// New file in excluded folder (should not trigger event)
 		const newTextFilePath = join(testDir, 'deep', 'newFile.txt');
