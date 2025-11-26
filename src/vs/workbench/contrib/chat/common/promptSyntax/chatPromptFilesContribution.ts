@@ -147,8 +147,9 @@ function getFileExtension(type: PromptsType): string {
 	}
 }
 
-function key(extensionId: ExtensionIdentifier, type: PromptsType, name: string) {
-	return `${extensionId.value}/${type}/${name}`;
+function key(extensionId: ExtensionIdentifier, type: PromptsType, name: string, isPrefix?: boolean): string {
+	const base = `${extensionId.value}/${type}/${name}`;
+	return isPrefix ? `${base}/` : base;
 }
 
 export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribution {
@@ -266,6 +267,14 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 								return;
 							}
 
+							// Check if the folder prefix still exists in registrations (extension not removed)
+							const folderPrefix = key(ext.description.identifier, type, raw.path, true);
+							const extensionStillActive = Array.from(this.registrations.keys()).some(k => k.startsWith(folderPrefix.slice(0, folderPrefix.lastIndexOf('/', folderPrefix.length - 2) + 1)));
+							if (!extensionStillActive) {
+								// Extension was removed while we were scanning
+								return;
+							}
+
 							// Scan directory for files with matching extension
 							if (stat.children) {
 								for (const child of stat.children) {
@@ -275,7 +284,7 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 
 										try {
 											const description = localize('extension.folder.file.description', "Contributed from folder: {0}", raw.path);
-											const uniqueName = `${ext.description.identifier.value}/${raw.path}/${name}`;
+											const uniqueName = `${raw.path}/${name}`;
 											const sourceType = raw.external === true ? ExtensionAgentSourceType.externalContribution : ExtensionAgentSourceType.contribution;
 											const d = this.promptsService.registerContributedFile(type, uniqueName, description, child.resource, ext.description, sourceType);
 											this.registrations.set(key(ext.description.identifier, type, uniqueName), d);
@@ -294,10 +303,12 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 				}
 			}
 			for (const ext of delta.removed) {
+				const type = folderPointToType(contributionPoint);
 				for (const raw of ext.value) {
-					// Remove all files registered from this folder
+					// Remove all files registered from this folder using exact prefix matching
+					const folderPrefix = key(ext.description.identifier, type, raw.path, true);
 					for (const [regKey,] of this.registrations) {
-						if (regKey.startsWith(`${ext.description.identifier.value}/`) && regKey.includes(`/${raw.path}/`)) {
+						if (regKey.startsWith(folderPrefix)) {
 							this.registrations.deleteAndDispose(regKey);
 						}
 					}
