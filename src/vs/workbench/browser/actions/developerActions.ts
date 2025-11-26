@@ -42,7 +42,7 @@ import product from '../../../platform/product/common/product.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
-import { IDefaultAccountService } from '../../services/accounts/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';

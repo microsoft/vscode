@@ -1435,6 +1435,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			extensionId: this.providerId.extensionId!,
 			extensionVersion: this.providerId.extensionVersion!,
 			groupId: this.groupId,
+			sku: lifetimeSummary.sku,
 			performanceMarkers: lifetimeSummary.performanceMarkers,
 			availableProviders: lifetimeSummary.availableProviders,
 			partiallyAccepted: lifetimeSummary.partiallyAccepted,

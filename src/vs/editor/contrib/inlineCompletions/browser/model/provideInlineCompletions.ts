@@ -263,6 +263,7 @@ export type InlineSuggestRequestInfo = {
 	typingInterval: number;
 	typingIntervalCharacterCount: number;
 	availableProviders: ProviderId[];
+	sku: string | undefined;
 };
 
 export type InlineSuggestProviderRequestInfo = {
@@ -419,6 +420,7 @@ export class InlineSuggestData {
 				renameTimedOut: this._renameInfo?.timedOut ?? false,
 				typingInterval: this._requestInfo.typingInterval,
 				typingIntervalCharacterCount: this._requestInfo.typingIntervalCharacterCount,
+				sku: this._requestInfo.sku,
 				availableProviders: this._requestInfo.availableProviders.map(p => p.toString()).join(','),
 				...this._viewData.renderData,
 			};
