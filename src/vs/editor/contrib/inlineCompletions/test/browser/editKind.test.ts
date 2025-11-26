@@ -23,6 +23,10 @@ suite('computeEditKind', () => {
 			assert.ok(result);
 			assert.strictEqual(result.edits.length, 1);
 			assert.strictEqual(result.edits[0].operation, 'insert');
+			assert.strictEqual(result.edits[0].charactersInserted, 1);
+			assert.strictEqual(result.edits[0].charactersDeleted, 0);
+			assert.strictEqual(result.edits[0].linesInserted, 0);
+			assert.strictEqual(result.edits[0].linesDeleted, 0);
 			const props = result.edits[0].properties as InsertProperties;
 			assert.strictEqual(props.textShape.kind, 'singleLine');
 			if (props.textShape.kind === 'singleLine') {
@@ -103,6 +107,10 @@ suite('computeEditKind', () => {
 			assert.ok(result);
 			assert.strictEqual(result.edits.length, 1);
 			assert.strictEqual(result.edits[0].operation, 'insert');
+			assert.strictEqual(result.edits[0].charactersInserted, 17);
+			assert.strictEqual(result.edits[0].charactersDeleted, 0);
+			assert.strictEqual(result.edits[0].linesInserted, 2);
+			assert.strictEqual(result.edits[0].linesDeleted, 0);
 			const props = result.edits[0].properties as InsertProperties;
 			assert.strictEqual(props.textShape.kind, 'multiLine');
 			if (props.textShape.kind === 'multiLine') {
@@ -295,6 +303,10 @@ suite('computeEditKind', () => {
 			assert.ok(result);
 			assert.strictEqual(result.edits.length, 1);
 			assert.strictEqual(result.edits[0].operation, 'delete');
+			assert.strictEqual(result.edits[0].charactersInserted, 0);
+			assert.strictEqual(result.edits[0].charactersDeleted, 5);
+			assert.strictEqual(result.edits[0].linesInserted, 0);
+			assert.strictEqual(result.edits[0].linesDeleted, 0);
 			const props = result.edits[0].properties as DeleteProperties;
 			if (props.textShape.kind === 'singleLine') {
 				assert.strictEqual(props.textShape.isWord, true);
@@ -310,6 +322,10 @@ suite('computeEditKind', () => {
 			assert.ok(result);
 			assert.strictEqual(result.edits.length, 1);
 			assert.strictEqual(result.edits[0].operation, 'delete');
+			assert.strictEqual(result.edits[0].charactersInserted, 0);
+			assert.strictEqual(result.edits[0].charactersDeleted, 12);
+			assert.strictEqual(result.edits[0].linesInserted, 0);
+			assert.strictEqual(result.edits[0].linesDeleted, 2);
 			const props = result.edits[0].properties as DeleteProperties;
 			assert.strictEqual(props.textShape.kind, 'multiLine');
 			model.dispose();
@@ -338,6 +354,10 @@ suite('computeEditKind', () => {
 			assert.ok(result);
 			assert.strictEqual(result.edits.length, 1);
 			assert.strictEqual(result.edits[0].operation, 'replace');
+			assert.strictEqual(result.edits[0].charactersInserted, 7);
+			assert.strictEqual(result.edits[0].charactersDeleted, 5);
+			assert.strictEqual(result.edits[0].linesInserted, 0);
+			assert.strictEqual(result.edits[0].linesDeleted, 0);
 			const props = result.edits[0].properties as ReplaceProperties;
 			assert.strictEqual(props.isWordToWordReplacement, true);
 			model.dispose();
@@ -351,6 +371,8 @@ suite('computeEditKind', () => {
 			assert.ok(result);
 			assert.strictEqual(result.edits.length, 1);
 			assert.strictEqual(result.edits[0].operation, 'replace');
+			assert.strictEqual(result.edits[0].charactersInserted, 5);
+			assert.strictEqual(result.edits[0].charactersDeleted, 2);
 			const props = result.edits[0].properties as ReplaceProperties;
 			assert.strictEqual(props.isAdditive, true);
 			assert.strictEqual(props.isSubtractive, false);
@@ -365,6 +387,8 @@ suite('computeEditKind', () => {
 			assert.ok(result);
 			assert.strictEqual(result.edits.length, 1);
 			assert.strictEqual(result.edits[0].operation, 'replace');
+			assert.strictEqual(result.edits[0].charactersInserted, 2);
+			assert.strictEqual(result.edits[0].charactersDeleted, 5);
 			const props = result.edits[0].properties as ReplaceProperties;
 			assert.strictEqual(props.isSubtractive, true);
 			assert.strictEqual(props.isAdditive, false);
@@ -379,6 +403,8 @@ suite('computeEditKind', () => {
 			assert.ok(result);
 			assert.strictEqual(result.edits.length, 1);
 			assert.strictEqual(result.edits[0].operation, 'replace');
+			assert.strictEqual(result.edits[0].linesInserted, 1);
+			assert.strictEqual(result.edits[0].linesDeleted, 0);
 			const props = result.edits[0].properties as ReplaceProperties;
 			assert.strictEqual(props.isSingleLineToMultiLine, true);
 			model.dispose();
@@ -392,6 +418,8 @@ suite('computeEditKind', () => {
 			assert.ok(result);
 			assert.strictEqual(result.edits.length, 1);
 			assert.strictEqual(result.edits[0].operation, 'replace');
+			assert.strictEqual(result.edits[0].linesInserted, 0);
+			assert.strictEqual(result.edits[0].linesDeleted, 2);
 			const props = result.edits[0].properties as ReplaceProperties;
 			assert.strictEqual(props.isMultiLineToSingleLine, true);
 			model.dispose();
