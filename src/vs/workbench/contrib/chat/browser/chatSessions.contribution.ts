@@ -38,9 +38,10 @@ import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
 import { IChatModel, IChatProgressResponseContent, IChatRequestModel } from '../common/chatModel.js';
-import { IChatService, IChatToolInvocation } from '../common/chatService.js';
+import { IChatToolInvocation } from '../common/chatService.js';
 import { autorunSelfDisposable } from '../../../../base/common/observable.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatWidgetService } from './chat.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -544,7 +545,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const logService = accessor.get(ILogService);
-				const chatService = accessor.get(IChatService);
+				const chatWidgetService = accessor.get(IChatWidgetService);
 				const { type } = contribution;
 
 				try {
@@ -560,8 +561,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						path: `/untitled-${generateUuid()}`,
 					});
 					await editorService.openEditor({ resource, options });
-					if (chatOptions?.prompt) {
-						await chatService.sendRequest(resource, chatOptions.prompt, { attachedContext: chatOptions.attachedContext });
+					const chatWidget = chatWidgetService.getWidgetBySessionResource(resource);
+					if (chatOptions?.prompt && chatWidget) {
+						if (chatOptions.attachedContext?.length) {
+							chatWidget.attachmentModel.addContext(...chatOptions.attachedContext);
+						}
+						await chatWidget.acceptInput(chatOptions.prompt);
 					}
 				} catch (e) {
 					logService.error(`Failed to open new '${type}' chat session editor`, e);
