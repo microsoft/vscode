@@ -35,10 +35,9 @@ import { ChatEditKind, IAttributedRangeDTO, IModifiedEntryTelemetryInfo, IModifi
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
-import { filterRangesBySession, generateConflictMarkers, IRebaseConflict, IRebaseResult, rebaseAttributedRanges } from './chatEditingAttribution.js';
+import { generateConflictMarkers, IRebaseConflict, IRebaseResult, rebaseAttributedRanges } from './chatEditingAttribution.js';
 import { AbstractChatEditingModifiedFileEntry, getTelemetryInfoForModel } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
-import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 /**
  * Delegate interface for multi-diff entry operations.
@@ -205,19 +204,16 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			this.state.get() === snapshot.state;
 	}
 
-	createSnapshot(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
-		// Filter attributed ranges to only include those from this session
-		const allRanges = this._textModelChangeService.getAttributedRangesDTO();
-		const sessionRanges = filterRangesBySession(allRanges, chatSessionResource);
-
+	createSnapshot(): ISnapshotEntry {
 		return {
 			resource: this.modifiedURI,
 			languageId: this.modifiedModel.getLanguageId(),
-			snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(chatSessionResource, requestId, undoStop, this.modifiedURI.path),
+			// snapshotUri is used for timeline navigation; for global storage we use a simple URI based on the resource
+			snapshotUri: URI.from({ scheme: 'chat-editing-snapshot', path: this.modifiedURI.path }),
 			original: this.originalModel.getValue(),
 			current: this.modifiedModel.getValue(),
 			state: this.state.get(),
-			attributedRanges: sessionRanges,
+			attributedRanges: this._textModelChangeService.getAttributedRangesDTO(),
 		};
 	}
 

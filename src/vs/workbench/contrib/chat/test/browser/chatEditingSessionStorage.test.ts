@@ -7,15 +7,12 @@ import * as assert from 'assert';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { cloneAndChange } from '../../../../../base/common/objects.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { TestEnvironmentService } from '../../../../test/browser/workbenchTestServices.js';
-import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from '../../browser/chatEditing/chatEditingSessionStorage.js';
-import { ChatEditingSnapshotTextModelContentProvider } from '../../browser/chatEditing/chatEditingTextModelContentProviders.js';
-import { ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { ChatEditingSessionStorage, StoredSessionState } from '../../browser/chatEditing/chatEditingSessionStorage.js';
 
 suite('ChatEditingSessionStorage', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,24 +40,12 @@ suite('ChatEditingSessionStorage', () => {
 		);
 	});
 
-	function makeStop(requestId: string | undefined, before: string, after: string): IChatEditingSessionStop {
-		const stopId = generateUuid();
-		const resource = URI.file('/foo.js');
-		return {
-			stopId,
-			entries: new ResourceMap([
-				[resource, { resource, languageId: 'javascript', snapshotUri: ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(sessionResource, requestId, stopId, resource.path), original: `contents${before}}`, current: `contents${after}`, state: ModifiedFileEntryState.Modified, attributedRanges: [{ start: 0, end: 10, telemetryInfo: { agentId: 'agentId', command: 'cmd', requestId: generateUuid(), result: undefined, sessionResource: sessionResource, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined }, requestId: generateUuid(), undoStopId: undefined, isUserEdit: false }] } satisfies ISnapshotEntry],
-			]),
-		};
-	}
-
 	function generateState(): StoredSessionState {
 		const initialFileContents = new ResourceMap<string>();
 		for (let i = 0; i < 10; i++) { initialFileContents.set(URI.file(`/foo${i}.js`), `fileContents${Math.floor(i / 2)}`); }
 
 		return {
 			initialFileContents,
-			recentSnapshot: makeStop(undefined, 'd', 'e'),
 			timeline: undefined,
 		};
 	}

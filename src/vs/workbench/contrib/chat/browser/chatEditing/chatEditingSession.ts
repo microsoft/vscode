@@ -34,7 +34,7 @@ import { MultiDiffEditor } from '../../../multiDiffEditor/browser/multiDiffEdito
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { chatEditingSessionIsReady, ChatEditingSessionState, getMultiDiffSourceUri, IChatEditingSession, IChatEditingSessionCoordinator, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { chatEditingSessionIsReady, ChatEditingSessionState, getMultiDiffSourceUri, IChatEditingSession, IChatEditingSessionCoordinator, IModifiedFileEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatProgress } from '../../common/chatService.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
@@ -43,7 +43,7 @@ import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentE
 import { AbstractChatEditingModifiedFileEntry, getTelemetryInfoForModel } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
 import { FileOperationType } from './chatEditingOperations.js';
-import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from './chatEditingSessionStorage.js';
+import { ChatEditingSessionStorage, StoredSessionState } from './chatEditingSessionStorage.js';
 import { ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 const enum NotExistBehavior {
@@ -259,14 +259,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}
 
 		if (!restoredSessionState && transferFrom instanceof ChatEditingSession) {
-			restoredSessionState = transferFrom._getStoredState(this.chatSessionResource);
+			restoredSessionState = transferFrom._getStoredState();
 		}
 
 		if (restoredSessionState) {
 			for (const [uri, content] of restoredSessionState.initialFileContents) {
 				this._initialFileContents.set(uri, content);
 			}
-			await this._initEntries(restoredSessionState.recentSnapshot);
+			// Entries are now restored at the service level, not the session level
 			transaction(tx => {
 				if (restoredSessionState.timeline) {
 					this._timeline.restoreFromState(restoredSessionState.timeline, tx);
@@ -296,16 +296,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return storage.storeState(this._getStoredState());
 	}
 
-	private _getStoredState(sessionResource = this.chatSessionResource): StoredSessionState {
-		const entries = new ResourceMap<ISnapshotEntry>();
-		for (const entry of this._readSessionEntries(undefined)) {
-			entries.set(entry.modifiedURI, entry.createSnapshot(sessionResource, undefined, undefined));
-		}
-
+	private _getStoredState(): StoredSessionState {
 		const state: StoredSessionState = {
 			initialFileContents: this._initialFileContents,
 			timeline: this._timeline.getStateForPersistence(),
-			recentSnapshot: { entries, stopId: undefined },
 		};
 
 		return state;
@@ -758,27 +752,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		});
 
 		return entry;
-	}
-
-	private async _initEntries({ entries }: IChatEditingSessionStop): Promise<void> {
-		// Reset all the files which are modified in this session state
-		// but which are not found in the snapshot
-		for (const entry of this._readSessionEntries(undefined)) {
-			const snapshotEntry = entries.get(entry.modifiedURI);
-			if (!snapshotEntry) {
-				await entry.resetToInitialContent();
-				entry.dispose();
-			}
-		}
-
-		// Restore all entries from the snapshot
-		for (const snapshotEntry of entries.values()) {
-			const entry = await this._getOrCreateModifiedFileEntry(snapshotEntry.resource, NotExistBehavior.Abort);
-			if (entry) {
-				const restoreToDisk = snapshotEntry.state === ModifiedFileEntryState.Modified;
-				await entry.restoreFromSnapshot(snapshotEntry, restoreToDisk);
-			}
-		}
 	}
 
 	private async _acceptEdits(resource: URI, textEdits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel): Promise<void> {

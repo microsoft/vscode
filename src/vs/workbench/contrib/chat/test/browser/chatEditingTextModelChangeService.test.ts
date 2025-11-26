@@ -821,6 +821,104 @@ suite('ChatEditingTextModelChangeService', () => {
 				'Agent-1 attribution should be preserved after user edit');
 		});
 
+		test('insertion edits preserve attribution after diff recomputation', async () => {
+			// This test verifies that when an agent makes an insertion (empty range edit),
+			// the attribution is preserved when the diff is recomputed.
+			// The key scenario: original range is empty (insertion point) and the diff
+			// also produces an empty range at the same position.
+			const { service, modifiedModel } = createChangeService('// existing code\n');
+
+			// Agent inserts new code at the end of the file
+			await applyAgentEdits(service, modifiedModel, [
+				insertEdit(2, 1, '\nexports.subtract = function(a, b) {\n    return a - b;\n};\n')
+			], createTelemetryInfo('req-1', 'test-agent'), 'req-1');
+
+			// Wait for diff computation
+			await waitForDiffToBeReady(service);
+
+			// Verify the content was inserted
+			assert.ok(modifiedModel.getValue().includes('exports.subtract'),
+				'Content should include the inserted code');
+
+			// The key assertion: attribution should be preserved after diff recomputation
+			const uniqueAgents = service.getUniqueAgentAttributions();
+			assert.ok(uniqueAgents.length > 0, 'Should have agent attributions after insertion');
+			assert.ok(uniqueAgents.some(a => a.telemetryInfo.agentId === 'test-agent'),
+				'Attribution should be preserved for insertion edit');
+
+			// Also verify through diffInfo
+			const diffInfo = service.diffInfo.get();
+			assert.ok(diffInfo.changes.length > 0, 'Should have diff changes');
+
+			const hunk = diffInfo.changes[0];
+			assert.ok(hunk.chatTelemetryInfo !== undefined,
+				'Hunk should have chatTelemetryInfo for insertion');
+			assert.strictEqual(hunk.chatTelemetryInfo?.agentId, 'test-agent',
+				'Insertion hunk should be attributed to test-agent');
+		});
+
+		test('multiple insertion edits at same position preserve attribution', async () => {
+			// Test that when multiple insertions happen at the same position,
+			// attribution is correctly tracked
+			const { service, modifiedModel } = createChangeService('line1\nline3');
+
+			// Agent inserts a line in the middle
+			await applyAgentEdits(service, modifiedModel, [
+				insertEdit(2, 1, 'line2\n')
+			], createTelemetryInfo('req-1', 'agent-1'), 'req-1');
+
+			// Wait for diff computation
+			await waitForDiffToBeReady(service);
+
+			assert.strictEqual(modifiedModel.getValue(), 'line1\nline2\nline3');
+
+			// Verify attribution is preserved
+			const uniqueAgents = service.getUniqueAgentAttributions();
+			assert.ok(uniqueAgents.some(a => a.telemetryInfo.agentId === 'agent-1'),
+				'Agent-1 attribution should be preserved for insertion');
+
+			// Verify diffInfo shows the insertion with attribution
+			const diffInfo = service.diffInfo.get();
+			assert.ok(diffInfo.changes.length > 0, 'Should have diff changes for insertion');
+		});
+
+		test('adjacent insertions from different agents preserve separate attribution', async function () {
+			this.timeout(20000);
+			const { service, modifiedModel } = createChangeService('AB');
+
+			// Agent 1 inserts "X" between A and B
+			const telemetry1 = createTelemetryInfo('request-1', 'agent-a');
+			const diffUpdate1 = waitForDiffUpdate(service);
+			await applyAgentEdits(service, modifiedModel, [
+				insertEdit(1, 2, 'X')
+			], telemetry1, 'request-1');
+			await diffUpdate1;
+			// Model is now "AXB"
+
+			// Agent 2 inserts "Y" after "X"
+			const telemetry2 = createTelemetryInfo('request-2', 'agent-b');
+			const diffUpdate2 = waitForDiffUpdate(service);
+			await applyAgentEdits(service, modifiedModel, [
+				insertEdit(1, 3, 'Y')
+			], telemetry2, 'request-2');
+			await diffUpdate2;
+			// Model is now "AXYB"
+
+			const ranges = service.getAttributedRanges();
+			// We expect 2 ranges: "X" and "Y"
+
+			assert.strictEqual(ranges.length, 2, 'Should have 2 attributed ranges');
+
+			// Sort by start position
+			const sorted = [...ranges].sort((a, b) => a.range.start - b.range.start);
+
+			assert.strictEqual(modifiedModel.getValue().substring(sorted[0].range.start, sorted[0].range.endExclusive), 'X');
+			assert.strictEqual(sorted[0].attribution.agentAttribution?.telemetryInfo.agentId, 'agent-a');
+
+			assert.strictEqual(modifiedModel.getValue().substring(sorted[1].range.start, sorted[1].range.endExclusive), 'Y');
+			assert.strictEqual(sorted[1].attribution.agentAttribution?.telemetryInfo.agentId, 'agent-b');
+		});
+
 	});
 
 });

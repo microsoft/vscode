@@ -364,3 +364,56 @@ export function attributedRangesDTOToEdit(
 
 	return new AnnotatedStringEdit(replacements);
 }
+
+/**
+ * Rebases an attributed edit while preserving attribution data.
+ * When the underlying StringEdit is rebased, we need to map the attributions
+ * from the original edit to the new positions.
+ */
+export function rebaseAttributedEdit(
+	original: AttributedStringEdit,
+	rebased: StringEdit,
+	fallbackAttributionFactory: () => CombinedAttribution
+): AttributedStringEdit {
+	// For each replacement in the rebased edit, find the corresponding
+	// replacement in the original edit and copy its attribution
+	const newReplacements: AnnotatedStringReplacement<CombinedAttribution>[] = [];
+
+	// Since rebase preserves the relative order of non-conflicting edits,
+	// we can iterate through both lists to find matches.
+	let originalIdx = 0;
+
+	for (const rebasedReplacement of rebased.replacements) {
+		// Find the original replacement that this rebased replacement came from
+		// by matching on the newText content (since that's preserved through rebase)
+		let attribution: CombinedAttribution | undefined;
+
+		// Search forward in original replacements for a match
+		// We can start from where we left off because order is preserved
+		for (let i = originalIdx; i < original.replacements.length; i++) {
+			const origReplacement = original.replacements[i];
+
+			// Match by comparing the new text - this is a heuristic that works
+			// because rebase doesn't change the replacement text.
+			// Since we search in order, this handles duplicate text correctly.
+			if (origReplacement.newText === rebasedReplacement.newText) {
+				attribution = origReplacement.data;
+				originalIdx = i + 1; // Advance index for next search
+				break;
+			}
+		}
+
+		// If we couldn't find a matching attribution, create a default one
+		if (!attribution) {
+			attribution = fallbackAttributionFactory();
+		}
+
+		newReplacements.push(AnnotatedStringReplacement.replace(
+			rebasedReplacement.replaceRange,
+			rebasedReplacement.newText,
+			attribution
+		));
+	}
+
+	return AnnotatedStringEdit.create(newReplacements);
+}

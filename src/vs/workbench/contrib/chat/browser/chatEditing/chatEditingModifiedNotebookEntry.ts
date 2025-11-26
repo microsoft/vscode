@@ -46,7 +46,6 @@ import { INotebookEditorWorkerService } from '../../../notebook/common/services/
 import { ChatEditKind, IAttributedRangeDTO, IModifiedEntryTelemetryInfo, IModifiedFileEntryEditorIntegration, INotebookStructureAttributionDTO, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { filterRangesBySession } from './chatEditingAttribution.js';
 import { AbstractChatEditingModifiedFileEntry, getTelemetryInfoForModel } from './chatEditingModifiedFileEntry.js';
 import { createSnapshot, deserializeSnapshot, getNotebookSnapshotFileURI, restoreSnapshot, SnapshotComparer } from './notebook/chatEditingModifiedNotebookSnapshot.js';
 import { ChatEditingNewNotebookContentEdits } from './notebook/chatEditingNewNotebookContentEdits.js';
@@ -1056,23 +1055,21 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		return createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService);
 	}
 
-	override createSnapshot(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry {
-		// Collect cell content attributions, filtered by session
+	override createSnapshot(): ISnapshotEntry {
+		// Collect cell content attributions (no session filtering - entries are global)
 		const notebookCellAttributions: { [cellInternalId: string]: IAttributedRangeDTO[] } = {};
 		for (const [cellUri, cellEntry] of this.cellEntryMap) {
 			const cell = this.modifiedModel.cells.find(c => isEqual(c.uri, cellUri));
 			if (cell?.internalMetadata.internalId) {
 				const allRanges = cellEntry.getAttributedRangesDTO();
-				const sessionRanges = filterRangesBySession(allRanges, chatSessionResource);
-				if (sessionRanges.length > 0) {
-					notebookCellAttributions[cell.internalMetadata.internalId] = sessionRanges;
+				if (allRanges.length > 0) {
+					notebookCellAttributions[cell.internalMetadata.internalId] = allRanges;
 				}
 			}
 		}
 
-		// Filter structure attributions by session
+		// Get structure attributions (no session filtering - entries are global)
 		const notebookStructureAttributions: INotebookStructureAttributionDTO[] = this._structureEditAttributions
-			.filter(attr => attr.telemetryInfo.sessionResource.toString() === chatSessionResource.toString())
 			.map(attr => ({
 				editType: attr.editType,
 				cellInternalId: attr.cellInternalId,
@@ -1084,7 +1081,8 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		return {
 			resource: this.modifiedURI,
 			languageId: SnapshotLanguageId,
-			snapshotUri: getNotebookSnapshotFileURI(chatSessionResource, requestId, undoStop, this.modifiedURI.path, this.modifiedModel.viewType),
+			// snapshotUri is used for timeline navigation; for global storage we use a simple URI based on the resource
+			snapshotUri: URI.from({ scheme: 'chat-editing-snapshot', path: this.modifiedURI.path }),
 			original: createSnapshot(this.originalModel, this.transientOptions, this.configurationService),
 			current: createSnapshot(this.modifiedModel, this.transientOptions, this.configurationService),
 			state: this.state.get(),

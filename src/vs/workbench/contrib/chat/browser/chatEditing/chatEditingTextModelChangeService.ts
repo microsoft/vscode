@@ -33,7 +33,7 @@ import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IAttributedRangeDTO, IModifiedEntryTelemetryInfo, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { AgentAttribution, AttributedEdits, AttributedRange, AttributedStringEdit, CombinedAttribution, getAttributedRanges, UserEditAttribution } from './chatEditingAttribution.js';
+import { AgentAttribution, AttributedEdits, AttributedRange, AttributedStringEdit, CombinedAttribution, getAttributedRanges, rebaseAttributedEdit, UserEditAttribution } from './chatEditingAttribution.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 
@@ -551,23 +551,32 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		} else {
 			// Combine the existing and restored edits
 			// We need to be careful about overlapping ranges - the existing edit takes precedence
-			// since it represents the current live session state
+			// since it represents the current live session state, UNLESS the existing range
+			// is a placeholder 'diff-initial' attribution (created during initial diff computation)
 			const existingRanges = getAttributedRanges(this._originalToModifiedEdit);
+
+			// Filter to only real attributions (not placeholder 'diff-initial' ranges)
+			const realExistingRanges = existingRanges.filter(({ attribution }) => {
+				const agentAttr = attribution.attribution;
+				// Skip placeholder attributions created by _mergeAttributionsFromDiff for initial state
+				return !(agentAttr instanceof AgentAttribution && agentAttr.requestId === 'diff-initial');
+			});
+
 			const existingOffsets = new Set<string>();
 
-			// Build a set of existing range keys for quick lookup
-			for (const { range } of existingRanges) {
+			// Build a set of existing range keys for quick lookup (only real attributions)
+			for (const { range } of realExistingRanges) {
 				existingOffsets.add(`${range.start}-${range.endExclusive}`);
 			}
 
-			// Filter out any restored ranges that overlap with existing ones
+			// Filter out any restored ranges that overlap with existing real ones
 			const nonOverlappingReplacements = newReplacements.filter(replacement => {
 				const key = `${replacement.replaceRange.start}-${replacement.replaceRange.endExclusive}`;
 				if (existingOffsets.has(key)) {
 					return false; // Skip - existing edit takes precedence
 				}
 				// Also check for any overlap (not just exact match)
-				for (const { range } of existingRanges) {
+				for (const { range } of realExistingRanges) {
 					if (replacement.replaceRange.intersects(range)) {
 						return false; // Skip overlapping ranges
 					}
@@ -575,16 +584,45 @@ export class ChatEditingTextModelChangeService extends Disposable {
 				return true;
 			});
 
-			if (nonOverlappingReplacements.length > 0) {
-				// Merge the non-overlapping restored ranges with existing ones
-				const allReplacements = [
-					...this._originalToModifiedEdit.replacements,
-					...nonOverlappingReplacements,
-				].sort((a, b) => a.replaceRange.start - b.replaceRange.start);
+			// Replace the entire edit with merged attributions
+			// We need to replace placeholder attributions with real ones from the snapshot
+			const allReplacements = [
+				// Keep only the real (non-placeholder) existing ranges
+				...this._originalToModifiedEdit.replacements.filter(rep => {
+					const attr = rep.data.attribution;
+					return !(attr instanceof AgentAttribution && attr.requestId === 'diff-initial');
+				}),
+				...nonOverlappingReplacements,
+			].sort((a, b) => a.replaceRange.start - b.replaceRange.start);
 
+			// Also add back restored ranges that replace placeholder ones
+			const placeholderRanges = existingRanges.filter(({ attribution }) => {
+				const agentAttr = attribution.attribution;
+				return agentAttr instanceof AgentAttribution && agentAttr.requestId === 'diff-initial';
+			});
+
+			// For each placeholder, find a matching restored range to use instead
+			for (const { range: placeholderRange } of placeholderRanges) {
+				const matchingRestored = newReplacements.find(rep =>
+					rep.replaceRange.start === placeholderRange.start &&
+					rep.replaceRange.endExclusive === placeholderRange.endExclusive
+				);
+				if (matchingRestored && !allReplacements.some(r =>
+					r.replaceRange.start === matchingRestored.replaceRange.start &&
+					r.replaceRange.endExclusive === matchingRestored.replaceRange.endExclusive
+				)) {
+					allReplacements.push(matchingRestored);
+				}
+			}
+
+			allReplacements.sort((a, b) => a.replaceRange.start - b.replaceRange.start);
+
+			if (allReplacements.length > 0) {
 				this._originalToModifiedEdit = new AnnotatedStringEdit(allReplacements);
 			}
 		}
+
+		this._updateDiffInfoSeq();
 	}
 
 	public async resetDocumentValues(newOriginal: string | ITextSnapshot | undefined, newModified: string | undefined): Promise<void> {
@@ -610,16 +648,15 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		const isExternalEdit = this._isExternalEditInProgress?.();
 
 		if (this._isEditFromUs || isExternalEdit) {
-			// Agent edit: attribute to current context and compose
+			// Agent edit: attribute to current context and compose. If we don't
+			// have a current edit context (e.g. external programmatic edits while
+			// the agent flag is set), treat it as a user edit instead of inventing
+			// a fake agent. This keeps the invariant that every edit is attributed
+			// either to a real agent session or to the user.
 			const attribution = this._currentEditContext?.attribution;
 			const combinedAttribution = attribution
 				? new CombinedAttribution(attribution)
-				: new CombinedAttribution(new AgentAttribution(
-					// Fallback for external edits without context
-					{ agentId: undefined, command: undefined, sessionResource: this.modifiedModel.uri, requestId: '', result: undefined, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined },
-					'external',
-					undefined
-				));
+				: new CombinedAttribution(UserEditAttribution.instance);
 
 			const e_sum = this._originalToModifiedEdit;
 			const e_ai = edit.mapData(() => combinedAttribution);
@@ -669,7 +706,11 @@ export class ChatEditingTextModelChangeService extends Disposable {
 				// Rebase the attributed edit, preserving attributions
 				const rebasedEdit = e_ai.rebaseSkipConflicting(e_user_r);
 				// Map the rebased StringEdit back to AttributedStringEdit, preserving data
-				this._originalToModifiedEdit = this._rebaseAttributedEdit(e_ai, rebasedEdit);
+				this._originalToModifiedEdit = rebaseAttributedEdit(e_ai, rebasedEdit, () => new CombinedAttribution(new AgentAttribution(
+					{ agentId: undefined, command: undefined, sessionResource: this.modifiedModel.uri, requestId: '', result: undefined, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined },
+					'rebased-unknown',
+					undefined
+				)));
 			}
 
 			this._allEditsAreFromUs = false;
@@ -679,48 +720,6 @@ export class ChatEditingTextModelChangeService extends Disposable {
 				this._didUserEditModel.fire();
 			}
 		}
-	}
-
-	/**
-	 * Rebases an attributed edit while preserving attribution data.
-	 * When the underlying StringEdit is rebased, we need to map the attributions
-	 * from the original edit to the new positions.
-	 */
-	private _rebaseAttributedEdit(original: AttributedStringEdit, rebased: StringEdit): AttributedStringEdit {
-		// For each replacement in the rebased edit, find the corresponding
-		// replacement in the original edit and copy its attribution
-		const newReplacements: AnnotatedStringReplacement<CombinedAttribution>[] = [];
-
-		for (const rebasedReplacement of rebased.replacements) {
-			// Find the original replacement that this rebased replacement came from
-			// by matching on the newText content (since that's preserved through rebase)
-			let attribution: CombinedAttribution | undefined;
-			for (const origReplacement of original.replacements) {
-				// Match by comparing the new text - this is a heuristic that works
-				// because rebase doesn't change the replacement text
-				if (origReplacement.newText === rebasedReplacement.newText) {
-					attribution = origReplacement.data;
-					break;
-				}
-			}
-
-			// If we couldn't find a matching attribution, create a default one
-			if (!attribution) {
-				attribution = new CombinedAttribution(new AgentAttribution(
-					{ agentId: undefined, command: undefined, sessionResource: this.modifiedModel.uri, requestId: '', result: undefined, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined },
-					'rebased-unknown',
-					undefined
-				));
-			}
-
-			newReplacements.push(AnnotatedStringReplacement.replace(
-				rebasedReplacement.replaceRange,
-				rebasedReplacement.newText,
-				attribution
-			));
-		}
-
-		return AnnotatedStringEdit.create(newReplacements);
 	}
 
 	private async _keepHunk(change: DetailedLineRangeMapping): Promise<boolean> {
@@ -832,9 +831,16 @@ export class ChatEditingTextModelChangeService extends Disposable {
 				))
 			}, undefined);
 
-			// Rebuild the attributed edit from the diff, preserving existing attributions where possible
-			const newEdit = offsetEditFromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
-			this._originalToModifiedEdit = this._mergeAttributionsFromDiff(newEdit, diff2.changes);
+			// Check if current tracked edit is valid
+			const currentEdit = this._originalToModifiedEdit.toStringEdit();
+			const result = currentEdit.apply(this.originalModel.getValue());
+
+			if (result !== this.modifiedModel.getValue()) {
+				// Rebuild the attributed edit from the diff, preserving existing attributions where possible
+				const newEdit = offsetEditFromLineRangeMapping(this.originalModel, this.modifiedModel, diff2.changes);
+				this._originalToModifiedEdit = this._mergeAttributionsFromDiff(newEdit, diff2.changes);
+			}
+
 			return diff2;
 		}
 		return undefined;
@@ -863,27 +869,57 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 		for (const replacement of newEdit.replacements) {
 			// Find the best matching attribution from current ranges
+			// Note: replacement.replaceRange is in ORIGINAL document coordinates
+			// and currentRanges[i].originalRange is also in ORIGINAL document coordinates
 			let bestAttribution: CombinedAttribution | undefined;
 			let bestOverlap = 0;
 
-			for (const { range, attribution } of currentRanges) {
-				const overlapStart = Math.max(replacement.replaceRange.start, range.start);
-				const overlapEnd = Math.min(replacement.replaceRange.endExclusive, range.endExclusive);
-				const overlap = Math.max(0, overlapEnd - overlapStart);
+			for (const { originalRange, attribution } of currentRanges) {
+				// Handle insertions (empty ranges) specially - they match if at the same position
+				const isReplacementInsertion = replacement.replaceRange.isEmpty;
+				const isOriginalInsertion = originalRange.isEmpty;
 
-				if (overlap > bestOverlap) {
-					bestOverlap = overlap;
-					bestAttribution = attribution;
+				if (isReplacementInsertion && isOriginalInsertion) {
+					// Both are insertions - match if at same position
+					if (replacement.replaceRange.start === originalRange.start) {
+						bestAttribution = attribution;
+						bestOverlap = 1; // Use 1 to indicate a match
+						break; // Exact position match for insertions is definitive
+					}
+				} else if (isReplacementInsertion) {
+					// Replacement is an insertion - check if it's within the original range
+					if (originalRange.contains(replacement.replaceRange.start)) {
+						bestAttribution = attribution;
+						bestOverlap = 1;
+						break;
+					}
+				} else if (isOriginalInsertion) {
+					// Original is an insertion - check if it's within the replacement range
+					// Don't break here - there might be a better (larger) match later
+					if (replacement.replaceRange.contains(originalRange.start) && bestOverlap < 1) {
+						bestAttribution = attribution;
+						bestOverlap = 1;
+						// Continue looking for better matches
+					}
+				} else {
+					// Normal overlap calculation for non-empty ranges
+					const overlapStart = Math.max(replacement.replaceRange.start, originalRange.start);
+					const overlapEnd = Math.min(replacement.replaceRange.endExclusive, originalRange.endExclusive);
+					const overlap = Math.max(0, overlapEnd - overlapStart);
+
+					if (overlap > bestOverlap) {
+						bestOverlap = overlap;
+						bestAttribution = attribution;
+					}
 				}
 			}
 
 			// Use the best matching attribution, or create a default one
 			if (!bestAttribution) {
-				bestAttribution = new CombinedAttribution(new AgentAttribution(
-					{ agentId: undefined, command: undefined, sessionResource: this.modifiedModel.uri, requestId: '', result: undefined, modelId: undefined, modeId: undefined, applyCodeBlockSuggestionId: undefined, feature: undefined },
-					'diff-unattributed',
-					undefined
-				));
+				// If we don't find any overlapping attribution, fall back to a
+				// user edit attribution so that the hunk is still fully
+				// attributed without inventing a synthetic agent.
+				bestAttribution = new CombinedAttribution(UserEditAttribution.instance);
 			}
 
 			newReplacements.push(AnnotatedStringReplacement.replace(
