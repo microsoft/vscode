@@ -7497,6 +7497,16 @@ declare namespace monaco.languages {
 		readonly earliestShownDateTime: number;
 	}
 
+	export interface IInlineCompletionModelInfo {
+		models: IInlineCompletionModel[];
+		currentModelId: string;
+	}
+
+	export interface IInlineCompletionModel {
+		name: string;
+		id: string;
+	}
+
 	export class SelectedSuggestionInfo {
 		readonly range: IRange;
 		readonly text: string;
@@ -7555,7 +7565,8 @@ declare namespace monaco.languages {
 		/** Only show the inline suggestion when the cursor is in the showRange. */
 		readonly showRange?: IRange;
 		readonly warning?: InlineCompletionWarning;
-		readonly hint?: InlineCompletionHint;
+		readonly hint?: IInlineCompletionHint;
+		readonly supportsRename?: boolean;
 		/**
 		 * Used for telemetry.
 		 */
@@ -7572,7 +7583,7 @@ declare namespace monaco.languages {
 		Label = 2
 	}
 
-	export interface InlineCompletionHint {
+	export interface IInlineCompletionHint {
 		/** Refers to the current document. */
 		range: IRange;
 		style: InlineCompletionHintStyle;
@@ -7640,6 +7651,9 @@ declare namespace monaco.languages {
 		excludesGroupIds?: InlineCompletionProviderGroupId[];
 		displayName?: string;
 		debounceDelayMs?: number;
+		modelInfo?: IInlineCompletionModelInfo;
+		onDidModelInfoChange?: IEvent<void>;
+		setModelId?(modelId: string): Promise<void>;
 		toString?(): string;
 	}
 
@@ -7682,6 +7696,7 @@ declare namespace monaco.languages {
 		preceeded: boolean;
 		languageId: string;
 		requestReason: string;
+		performanceMarkers?: string;
 		cursorColumnDistance?: number;
 		cursorLineDistance?: number;
 		lineCountOriginal?: number;
@@ -7694,6 +7709,11 @@ declare namespace monaco.languages {
 		typingIntervalCharacterCount: number;
 		selectedSuggestionInfo: boolean;
 		availableProviders: string;
+		sku: string | undefined;
+		renameCreated: boolean;
+		renameDuration?: number;
+		renameTimedOut: boolean;
+		editKind: string | undefined;
 	};
 
 	export interface CodeAction {

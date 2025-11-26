@@ -6,7 +6,7 @@
 import { assertNever } from '../../../../../base/common/assert.js';
 import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
-import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { prefixedUuid } from '../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -16,7 +16,7 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
-import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, ProviderId, InlineCompletionHint } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, ProviderId, IInlineCompletionHint, Command } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
@@ -30,6 +30,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { inlineCompletionIsVisible } from './inlineSuggestionItem.js';
 import { EditDeltaInfo } from '../../../../common/textModelEditSource.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { InlineSuggestionEditKind } from './editKind.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
 
@@ -246,6 +247,8 @@ function toInlineSuggestData(
 		source,
 		context,
 		inlineCompletion.isInlineEdit ?? false,
+		inlineCompletion.supportsRename ?? false,
+		undefined,
 		requestInfo,
 		providerRequestInfo,
 		inlineCompletion.correlationId,
@@ -260,6 +263,7 @@ export type InlineSuggestRequestInfo = {
 	typingInterval: number;
 	typingIntervalCharacterCount: number;
 	availableProviders: ProviderId[];
+	sku: string | undefined;
 };
 
 export type InlineSuggestProviderRequestInfo = {
@@ -271,6 +275,12 @@ export type PartialAcceptance = {
 	characters: number;
 	count: number;
 	ratio: number;
+};
+
+export type RenameInfo = {
+	createdRename: boolean;
+	duration: number;
+	timedOut?: boolean;
 };
 
 export type InlineSuggestViewData = {
@@ -294,19 +304,23 @@ export class InlineSuggestData {
 	private _isPreceeded = false;
 	private _partiallyAcceptedCount = 0;
 	private _partiallyAcceptedSinceOriginal: PartialAcceptance = { characters: 0, ratio: 0, count: 0 };
+	private _renameInfo: RenameInfo | undefined = undefined;
+	private _editKind: InlineSuggestionEditKind | undefined = undefined;
 
 	constructor(
 		public readonly range: Range,
 		public readonly insertText: string,
 		public readonly snippetInfo: SnippetInfo | undefined,
 		public readonly uri: URI | undefined,
-		public readonly hint: InlineCompletionHint | undefined,
+		public readonly hint: IInlineCompletionHint | undefined,
 		public readonly additionalTextEdits: readonly ISingleEditOperation[],
 
 		public readonly sourceInlineCompletion: InlineCompletion,
 		public readonly source: InlineSuggestionList,
 		public readonly context: InlineCompletionContext,
 		public readonly isInlineEdit: boolean,
+		public readonly supportsRename: boolean,
+		public readonly renameCommand: Command | undefined,
 
 		private readonly _requestInfo: InlineSuggestRequestInfo,
 		private readonly _providerRequestInfo: InlineSuggestProviderRequestInfo,
@@ -323,13 +337,15 @@ export class InlineSuggestData {
 		return new TextReplacement(this.range, this.insertText);
 	}
 
-	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData): Promise<void> {
+	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, editKind: InlineSuggestionEditKind | undefined): Promise<void> {
 		this.updateShownDuration(viewKind);
 
 		if (this._didShow) {
 			return;
 		}
+		this.addPerformanceMarker('shown');
 		this._didShow = true;
+		this._editKind = editKind;
 		this._viewData.viewKind = viewKind;
 		this._viewData.renderData = viewData;
 		this._timeUntilShown = Date.now() - this._requestInfo.startTime;
@@ -388,6 +404,7 @@ export class InlineSuggestData {
 				shown: this._didShow,
 				shownDuration: this._shownDuration,
 				shownDurationUncollapsed: this._showUncollapsedDuration,
+				editKind: this._editKind?.toString(),
 				preceeded: this._isPreceeded,
 				timeUntilShown: this._timeUntilShown,
 				timeUntilProviderRequest: this._providerRequestInfo.startTime - this._requestInfo.startTime,
@@ -397,8 +414,13 @@ export class InlineSuggestData {
 				requestReason: this._requestInfo.reason,
 				viewKind: this._viewData.viewKind,
 				notShownReason: this._notShownReason,
+				performanceMarkers: this.performance.toString(),
+				renameCreated: this._renameInfo?.createdRename ?? false,
+				renameDuration: this._renameInfo?.duration,
+				renameTimedOut: this._renameInfo?.timedOut ?? false,
 				typingInterval: this._requestInfo.typingInterval,
 				typingIntervalCharacterCount: this._requestInfo.typingIntervalCharacterCount,
+				sku: this._requestInfo.sku,
 				availableProviders: this._requestInfo.availableProviders.map(p => p.toString()).join(','),
 				...this._viewData.renderData,
 			};
@@ -456,6 +478,58 @@ export class InlineSuggestData {
 		}
 		this._showUncollapsedDuration += timeNow - this._showUncollapsedStartTime;
 		this._showUncollapsedStartTime = undefined;
+	}
+
+	public setRenameProcessingInfo(info: RenameInfo): void {
+		if (this._renameInfo) {
+			throw new BugIndicatingError('Rename info has already been set.');
+		}
+		this._renameInfo = info;
+	}
+
+	public withRename(command: Command, hint: IInlineCompletionHint): InlineSuggestData {
+		return new InlineSuggestData(
+			new Range(1, 1, 1, 1),
+			'',
+			this.snippetInfo,
+			this.uri,
+			hint,
+			this.additionalTextEdits,
+			this.sourceInlineCompletion,
+			this.source,
+			this.context,
+			this.isInlineEdit,
+			this.supportsRename,
+			command,
+			this._requestInfo,
+			this._providerRequestInfo,
+			this._correlationId,
+		);
+	}
+
+	private performance = new InlineSuggestionsPerformance();
+	public addPerformanceMarker(marker: string): void {
+		this.performance.mark(marker);
+	}
+}
+
+class InlineSuggestionsPerformance {
+	private markers: { name: string; timeStamp: number }[] = [];
+	constructor() {
+		this.markers.push({ name: 'start', timeStamp: Date.now() });
+	}
+
+	mark(marker: string): void {
+		this.markers.push({ name: marker, timeStamp: Date.now() });
+	}
+
+	toString(): string {
+		const deltas = [];
+		for (let i = 1; i < this.markers.length; i++) {
+			const delta = this.markers[i].timeStamp - this.markers[i - 1].timeStamp;
+			deltas.push({ [this.markers[i].name]: delta });
+		}
+		return JSON.stringify(deltas);
 	}
 }
 

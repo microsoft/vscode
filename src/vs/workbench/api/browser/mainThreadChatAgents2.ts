@@ -264,7 +264,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				const response = chatSession?.getRequests().at(-1)?.response;
 				if (chatSession?.editingSession && responsePartHandle !== undefined && response) {
 					const parts = progress.start
-						? await chatSession.editingSession.startExternalEdits(response, responsePartHandle, revive(progress.resources))
+						? await chatSession.editingSession.startExternalEdits(response, responsePartHandle, revive(progress.resources), progress.undoStopId)
 						: await chatSession.editingSession.stopExternalEdits(response, responsePartHandle);
 					chatProgressParts.push(...parts);
 				}

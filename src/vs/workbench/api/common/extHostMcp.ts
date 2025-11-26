@@ -438,7 +438,7 @@ export class McpHTTPHandle extends Disposable {
 			scopesChallenge ??= resourceMetadata.scopes_supported;
 			resource = resourceMetadata;
 		} catch (e) {
-			this._log(LogLevel.Debug, `Could not fetch resource metadata: ${String(e)}`);
+			this._log(LogLevel.Warning, `Could not fetch resource metadata: ${String(e)}`);
 		}
 
 		const baseUrl = new URL(originalResponse.url).origin;
@@ -822,6 +822,8 @@ export class McpHTTPHandle extends Disposable {
 		}
 		// If we have an Authorization header and still get an auth error, we should retry with a new auth registration
 		if (headers['Authorization'] && isAuthStatusCode(res.status)) {
+			const errorText = await this._getErrText(res);
+			this._log(LogLevel.Debug, `Received ${res.status} status with Authorization header, retrying with new auth registration. Error details: ${errorText || 'no additional details'}`);
 			await this._addAuthHeader(headers, true);
 			res = await doFetch();
 		}

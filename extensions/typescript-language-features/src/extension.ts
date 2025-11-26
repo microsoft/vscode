@@ -53,6 +53,12 @@ export function activate(
 		new ExperimentationService(experimentTelemetryReporter, id, version, context.globalState);
 	}
 
+	// Register features that work in both TSGO and non-TSGO modes
+	import('./languageFeatures/tsconfig').then(module => {
+		context.subscriptions.push(module.register());
+	});
+
+	// Conditionally register features based on whether TSGO is enabled
 	context.subscriptions.push(conditionalRegistration([
 		requireGlobalConfiguration('typescript', 'experimental.useTsgo'),
 		requireHasVsCodeExtension(tsNativeExtensionId),
@@ -93,10 +99,6 @@ export function activate(
 
 		import('./task/taskProvider').then(module => {
 			disposables.add(module.register(new Lazy(() => lazyClientHost.value.serviceClient)));
-		});
-
-		import('./languageFeatures/tsconfig').then(module => {
-			disposables.add(module.register());
 		});
 
 		disposables.add(lazilyActivateClient(lazyClientHost, pluginManager, activeJsTsEditorTracker));

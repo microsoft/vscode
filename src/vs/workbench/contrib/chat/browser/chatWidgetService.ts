@@ -11,12 +11,12 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from './chat.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
-import { findExistingChatEditorByUri } from './chatSessions/common.js';
+import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatViewPane } from './chatViewPane.js';
 
 export class ChatWidgetService extends Disposable implements IChatWidgetService {
@@ -94,7 +94,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	async openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
-		const alreadyOpenWidget = await this.revealSessionIfAlreadyOpen(sessionResource);
+		const alreadyOpenWidget = await this.revealSessionIfAlreadyOpen(sessionResource, options?.preserveFocus);
 		if (alreadyOpenWidget) {
 			return alreadyOpenWidget;
 		}
@@ -104,7 +104,9 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			const chatViewPane = await this.viewsService.openView<ChatViewPane>(ChatViewId, true);
 			if (chatViewPane) {
 				await chatViewPane.loadSession(sessionResource);
-				chatViewPane.focusInput();
+				if (!options?.preserveFocus) {
+					chatViewPane.focusInput();
+				}
 			}
 			return chatViewPane?.widget;
 		}
@@ -126,7 +128,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		}
 
 		// Already open in an editor?
-		const existingEditor = findExistingChatEditorByUri(sessionResource, this.editorGroupsService);
+		const existingEditor = this.findExistingChatEditorByUri(sessionResource);
 		if (existingEditor) {
 			// focus transfer to other documents is async. If we depend on the focus
 			// being synchronously transferred in consuming code, this can fail, so
@@ -141,7 +143,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 				]);
 			}
 
-			const pane = await this.editorService.openEditor(existingEditor.editor, existingEditor.group);
+			const pane = await this.editorService.openEditor(existingEditor.editor, { preserveFocus }, existingEditor.group);
 			await ensureFocusTransfer;
 			return pane instanceof ChatEditor ? pane.widget : undefined;
 		}
@@ -152,6 +154,17 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			return undefined;
 		}
 
+		return undefined;
+	}
+
+	private findExistingChatEditorByUri(sessionUri: URI): { editor: ChatEditorInput; group: IEditorGroup } | undefined {
+		for (const group of this.editorGroupsService.groups) {
+			for (const editor of group.editors) {
+				if (editor instanceof ChatEditorInput && isEqual(editor.sessionResource, sessionUri)) {
+					return { editor, group };
+				}
+			}
+		}
 		return undefined;
 	}
 

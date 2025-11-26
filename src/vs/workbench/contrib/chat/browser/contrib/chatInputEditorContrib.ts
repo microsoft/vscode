@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -83,10 +83,7 @@ class InputEditorDecorations extends Disposable {
 	) {
 		super();
 
-		this.codeEditorService.registerDecorationType(decorationDescription, placeholderDecorationType, {});
-
 		this.registeredDecorationTypes();
-
 		this.triggerInputEditorDecorationsUpdate();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.triggerInputEditorDecorationsUpdate()));
 		this._register(this.widget.onDidChangeParsedInput(() => this.triggerInputEditorDecorationsUpdate()));
@@ -123,28 +120,22 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private registeredDecorationTypes() {
-
-		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, placeholderDecorationType, {}));
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
 			color: themeColorFromId(chatSlashCommandForeground),
 			backgroundColor: themeColorFromId(chatSlashCommandBackground),
 			borderRadius: '3px'
-		});
-		this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
+		}));
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
 			color: themeColorFromId(chatSlashCommandForeground),
 			backgroundColor: themeColorFromId(chatSlashCommandBackground),
 			borderRadius: '3px'
-		});
-		this.codeEditorService.registerDecorationType(decorationDescription, dynamicVariableDecorationType, {
+		}));
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, dynamicVariableDecorationType, {
 			color: themeColorFromId(chatSlashCommandForeground),
 			backgroundColor: themeColorFromId(chatSlashCommandBackground),
 			borderRadius: '3px',
 			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-		});
-
-		this._register(toDisposable(() => {
-			this.codeEditorService.removeDecorationType(variableTextDecorationType);
-			this.codeEditorService.removeDecorationType(dynamicVariableDecorationType);
-			this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
 		}));
 	}
 

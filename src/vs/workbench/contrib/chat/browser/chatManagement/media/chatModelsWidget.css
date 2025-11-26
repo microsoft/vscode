@@ -210,3 +210,11 @@
 .models-widget .models-table-container .monaco-table .monaco-list:not(.focused) .monaco-list-row[data-parity=odd].focused:not(.selected):not(:hover) .monaco-table-tr:not(.models-vendor-row) {
 	background-color: var(--vscode-editor-background);
 }
+
+/** Provider column styling **/
+
+.models-widget .models-table-container .monaco-table-td .model-provider {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

@@ -33,6 +33,7 @@ import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { InlineCompletionContextWithoutUuid, InlineSuggestRequestInfo, provideInlineCompletions, runWhenCancelled } from './provideInlineCompletions.js';
+import { RenameSymbolProcessor } from './renameSymbolProcessor.js';
 
 export class InlineCompletionsSource extends Disposable {
 	private static _requestId = 0;
@@ -75,6 +76,8 @@ export class InlineCompletionsSource extends Disposable {
 	public readonly inlineCompletions = this._state.map(this, v => v.inlineCompletions);
 	public readonly suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
 
+	private readonly _renameProcessor: RenameSymbolProcessor;
+
 	private _completionsEnabled: Record<string, boolean> | undefined = undefined;
 
 	constructor(
@@ -97,6 +100,8 @@ export class InlineCompletionsSource extends Disposable {
 		>(),
 			'editor.inlineSuggest.logFetch.commandId'
 		));
+
+		this._renameProcessor = this._store.add(this._instantiationService.createInstance(RenameSymbolProcessor));
 
 		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
 
@@ -225,7 +230,7 @@ export class InlineCompletionsSource extends Disposable {
 				let shouldStopEarly = false;
 				let producedSuggestion = false;
 
-				const suggestions: InlineSuggestionItem[] = [];
+				const providerSuggestions: InlineSuggestionItem[] = [];
 				for await (const list of providerResult.lists) {
 					if (!list) {
 						continue;
@@ -244,8 +249,10 @@ export class InlineCompletionsSource extends Disposable {
 							continue;
 						}
 
+						item.addPerformanceMarker('providerReturned');
 						const i = InlineSuggestionItem.create(item, this._textModel);
-						suggestions.push(i);
+						item.addPerformanceMarker('itemCreated');
+						providerSuggestions.push(i);
 						// Stop after first visible inline completion
 						if (!i.isInlineEdit && !i.showInlineEditMenu && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
 							if (i.isVisible(this._textModel, this._cursorPosition.get())) {
@@ -258,6 +265,14 @@ export class InlineCompletionsSource extends Disposable {
 						break;
 					}
 				}
+
+				providerSuggestions.forEach(s => s.addPerformanceMarker('providersResolved'));
+
+				const suggestions: InlineSuggestionItem[] = await Promise.all(providerSuggestions.map(async s => {
+					return this._renameProcessor.proposeRenameRefactoring(this._textModel, s);
+				}));
+
+				providerSuggestions.forEach(s => s.addPerformanceMarker('renameProcessed'));
 
 				providerResult.cancelAndDispose({ kind: 'lostRace' });
 
@@ -297,6 +312,8 @@ export class InlineCompletionsSource extends Disposable {
 				if (remainingTimeToWait > 0) {
 					await wait(remainingTimeToWait, source.token);
 				}
+
+				suggestions.forEach(s => s.addPerformanceMarker('minShowDelayPassed'));
 
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId
 					|| userJumpedToActiveCompletion.get()  /* In the meantime the user showed interest for the active completion so dont hide it */) {
@@ -409,6 +426,7 @@ export class InlineCompletionsSource extends Disposable {
 			extensionVersion: '0.0.0',
 			groupId: 'empty',
 			shown: false,
+			sku: requestResponseInfo.requestInfo.sku,
 			editorType: requestResponseInfo.requestInfo.editorType,
 			requestReason: requestResponseInfo.requestInfo.reason,
 			typingInterval: requestResponseInfo.requestInfo.typingInterval,
@@ -440,6 +458,11 @@ export class InlineCompletionsSource extends Disposable {
 			disjointReplacements: undefined,
 			sameShapeReplacements: undefined,
 			notShownReason: undefined,
+			renameCreated: false,
+			renameDuration: undefined,
+			renameTimedOut: false,
+			performanceMarkers: undefined,
+			editKind: undefined,
 		};
 
 		const dataChannel = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
