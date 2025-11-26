@@ -20,18 +20,16 @@
 	gap: 8px;
 }
 
-.browser-nav-buttons {
+.browser-nav-toolbar {
 	display: flex;
 	align-items: center;
+	flex-shrink: 0;
 }
 
-.browser-nav-buttons .monaco-action-bar {
-	height: 100%;
-}
-
-.browser-nav-buttons .monaco-action-bar .actions-container {
+.browser-actions-toolbar {
 	display: flex;
 	align-items: center;
+	flex-shrink: 0;
 }
 
 .browser-url-input {

@@ -285,6 +285,8 @@ export class MenuId {
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
 	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');
 	static readonly DiffEditorSelectionToolbar = new MenuId('DiffEditorSelectionToolbar');
+	static readonly BrowserNavigationToolbar = new MenuId('BrowserNavigationToolbar');
+	static readonly BrowserActionsToolbar = new MenuId('BrowserActionsToolbar');
 
 
 	/**
