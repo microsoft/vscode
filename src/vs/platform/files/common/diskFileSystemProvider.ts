@@ -108,8 +108,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 			includes: opts.includes,
 			recursive: opts.recursive,
 			filter: opts.filter,
-			correlationId: opts.correlationId,
-			ignoreGlobCase: opts.ignoreGlobCase
+			correlationId: opts.correlationId
 		};
 
 		if (isRecursiveWatchRequest(request)) {
@@ -178,8 +177,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 			includes: opts.includes,
 			recursive: false,
 			filter: opts.filter,
-			correlationId: opts.correlationId,
-			ignoreGlobCase: opts.ignoreGlobCase
+			correlationId: opts.correlationId
 		};
 		const remove = insert(this.nonRecursiveWatchRequests, request);
 

@@ -1211,14 +1211,9 @@ export class FileService extends Disposable implements IFileService {
 
 	private async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
 		const provider = await this.withProvider(resource);
-		const extUri = this.getExtUri(provider);
-		options = {
-			...options,
-			ignoreGlobCase: options.ignoreGlobCase ?? !extUri.isPathCaseSensitive,
-		};
 
 		// Deduplicate identical watch requests
-		const watchHash = hash([extUri.providerExtUri.getComparisonKey(resource), options]);
+		const watchHash = hash([this.getExtUri(provider).providerExtUri.getComparisonKey(resource), options]);
 		let watcher = this.activeWatchers.get(watchHash);
 		if (!watcher) {
 			watcher = {

@@ -538,11 +538,6 @@ export interface IWatchOptionsWithoutCorrelation {
 	 * `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
 	 */
 	filter?: FileChangeFilter;
-
-	/**
-	 * Defines the case sensitivity of the provided `includes` and `excludes` glob patterns.
-	 */
-	ignoreGlobCase?: boolean;
 }
 
 export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {

@@ -50,11 +50,6 @@ interface IWatchRequest {
 	 * `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
 	 */
 	readonly filter?: FileChangeFilter;
-
-	/**
-	 * Defines the case sensitivity of the provided `includes` and `excludes` glob patterns.
-	 */
-	readonly ignoreGlobCase?: boolean;
 }
 
 export interface IWatchRequestWithCorrelation extends IWatchRequest {

@@ -65,7 +65,7 @@ export class ParcelWatcherInstance extends Disposable {
 	) {
 		super();
 
-		const ignoreCase = request.ignoreGlobCase === true;
+		const ignoreCase = !isLinux;
 		this.includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes, ignoreCase) : undefined;
 		this.excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes, ignoreCase) : undefined;
 
