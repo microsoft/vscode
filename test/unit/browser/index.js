@@ -224,6 +224,32 @@ async function createServer() {
 			case '/remoteMethod/__mkdirPInTests':
 				return remoteMethod(request, response, p => fs.promises.mkdir(massagePath(p), { recursive: true }));
 			default:
+				// Intercept response to set correct MIME type for JavaScript files
+				if (request.url && request.url.endsWith('.js')) {
+					const originalEnd = response.end.bind(response);
+					const originalWriteHead = response.writeHead.bind(response);
+					let headersWritten = false;
+					
+					response.writeHead = function(statusCode, statusMessage, headers) {
+						headersWritten = true;
+						if (typeof statusMessage === 'object') {
+							headers = statusMessage;
+							statusMessage = undefined;
+						}
+						if (!headers) {
+							headers = {};
+						}
+						headers['Content-Type'] = 'application/javascript; charset=utf-8';
+						return originalWriteHead(statusCode, statusMessage, headers);
+					};
+					
+					response.end = function(chunk, encoding, callback) {
+						if (!headersWritten && request.url.endsWith('.js')) {
+							response.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+						}
+						return originalEnd(chunk, encoding, callback);
+					};
+				}
 				return serveStatic.handle(request, response);
 		}
 	});
