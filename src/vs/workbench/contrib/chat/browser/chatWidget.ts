@@ -1307,7 +1307,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const checkForComplete = () => {
 					const items = this.viewModel?.getItems() ?? [];
 					const lastItem = items[items.length - 1];
-					if (lastItem && isResponseVM(lastItem) && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
+					if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
 						return true;
 					}
 					return false;
