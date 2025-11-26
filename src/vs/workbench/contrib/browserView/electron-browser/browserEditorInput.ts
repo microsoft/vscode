@@ -16,6 +16,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IBrowserViewWorkbenchService, IBrowserViewModel } from '../../../services/browserView/common/browserView.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
+import { BrowserEditor } from './browserEditor.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -35,7 +36,7 @@ export interface IBrowserEditorInputData {
 }
 
 export class BrowserEditorInput extends EditorInput {
-	static readonly ID = 'workbench.input.browser';
+	static readonly ID = 'workbench.editorinputs.browser';
 	private static readonly DEFAULT_LABEL = localize('browserEditorLabel', "Browser");
 
 	private readonly _id: string;
@@ -103,7 +104,7 @@ export class BrowserEditorInput extends EditorInput {
 	}
 
 	override get editorId(): string {
-		return BrowserEditorInput.ID;
+		return BrowserEditor.ID;
 	}
 
 	override get capabilities(): EditorInputCapabilities {

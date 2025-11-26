@@ -200,7 +200,7 @@ export class BrowserEditor extends EditorPane {
 		this._register(addDisposableListener(this._browserContainer, EventType.FOCUS, (event) => {
 			// When the browser container gets focus, make sure the browser view also gets focused.
 			// But only if focus was already in the workbench (and not e.g. clicking back into the workbench from the browser view).
-			if (event.relatedTarget && this._model) {
+			if (event.relatedTarget && this._model && this.shouldShowView) {
 				void this._model.focus();
 			}
 		}));

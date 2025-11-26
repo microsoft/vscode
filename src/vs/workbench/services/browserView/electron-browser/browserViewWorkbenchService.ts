@@ -12,6 +12,7 @@ import { IMainProcessService } from '../../../../platform/ipc/common/mainProcess
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
+import { Event } from '../../../../base/common/event.js';
 
 export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 	declare readonly _serviceBrand: undefined;
@@ -40,7 +41,7 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 		await model.initialize();
 
 		// Clean up model when disposed
-		model.onWillDispose(() => {
+		Event.once(model.onWillDispose)(() => {
 			this._models.delete(id);
 		});
 
