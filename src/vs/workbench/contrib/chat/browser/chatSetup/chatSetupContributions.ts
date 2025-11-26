@@ -76,7 +76,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -95,10 +94,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerSetupAgents(context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): void {
-		if (this.configurationService.getValue<boolean>('chat.experimental.disableCoreAgents')) {
-			return; // TODO@bpasero eventually remove this when we figured out extension activation issues
-		}
-
 		const defaultAgentDisposables = markAsSingleton(new MutableDisposable()); // prevents flicker on window reload
 		const vscodeAgentDisposables = markAsSingleton(new MutableDisposable());
 

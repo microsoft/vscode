@@ -31,6 +31,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/edi
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { distinct } from '../../../../../base/common/arrays.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly filter?: IAgentSessionsFilter;
@@ -38,6 +39,18 @@ export interface IAgentSessionsControlOptions {
 	readonly allowOpenSessionsInPanel?: boolean;
 	readonly allowFiltering?: boolean;
 }
+
+type AgentSessionOpenedClassification = {
+	owner: 'bpasero';
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'From where the session was opened.' };
+	providerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider type of the opened agent session.' };
+	comment: 'Event fired when a agent session is opened from the agent sessions control.';
+};
+
+type AgentSessionOpenedEvent = {
+	source: 'agentsView' | 'chatView';
+	providerType: string;
+};
 
 export class AgentSessionsControl extends Disposable {
 
@@ -59,6 +72,7 @@ export class AgentSessionsControl extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -123,6 +137,11 @@ export class AgentSessionsControl extends Disposable {
 		if (!session) {
 			return;
 		}
+
+		this.telemetryService.publicLog2<AgentSessionOpenedEvent, AgentSessionOpenedClassification>('agentSessionOpened', {
+			source: this.options?.allowOpenSessionsInPanel ? 'chatView' : 'agentsView',
+			providerType: session.providerType
+		});
 
 		let sessionOptions: IChatEditorOptions;
 		if (isLocalAgentSessionItem(session)) {

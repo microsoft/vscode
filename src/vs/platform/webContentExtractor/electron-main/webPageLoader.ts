@@ -1,0 +1,302 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import type { BrowserWindow, BrowserWindowConstructorOptions, Event } from 'electron';
+import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
+import { createSingleCallFunction } from '../../../base/common/functional.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { equalsIgnoreCase } from '../../../base/common/strings.js';
+import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
+import { ILogService } from '../../log/common/log.js';
+import { IWebContentExtractorOptions, WebContentExtractResult } from '../common/webContentExtractor.js';
+import { AXNode, convertAXTreeToMarkdown } from './cdpAccessibilityDomain.js';
+
+type NetworkRequestEventParams = Readonly<{
+	requestId?: string;
+	request?: { url?: string };
+	response?: { status?: number; statusText?: string };
+	type?: string;
+}>;
+
+/**
+ * A web page loader that uses Electron to load web pages and extract their content.
+ */
+export class WebPageLoader extends Disposable {
+	private static readonly TIMEOUT = 30000; // 30 seconds
+	private static readonly POST_LOAD_TIMEOUT = 2000; // 2 seconds
+	private static readonly FRAME_TIMEOUT = 500; // 0.5 seconds
+
+	private readonly _window: BrowserWindow;
+	private readonly _debugger: Electron.Debugger;
+	private readonly _requests = new Set<string>();
+	private readonly _queue = this._register(new Queue());
+	private _timeout = this._register(new TimeoutTimer());
+	private _onResult = (_result: WebContentExtractResult) => { };
+
+	constructor(
+		browserWindowFactory: (options: BrowserWindowConstructorOptions) => BrowserWindow,
+		private readonly _logger: ILogService,
+		private readonly _uri: URI,
+		private readonly _options?: IWebContentExtractorOptions,
+	) {
+		super();
+
+		this._window = browserWindowFactory({
+			width: 800,
+			height: 600,
+			show: false,
+			webPreferences: {
+				partition: generateUuid(), // do not share any state with the default renderer session
+				javascript: true,
+				offscreen: true,
+				sandbox: true,
+				webgl: false,
+			}
+		});
+
+		this._register(toDisposable(() => this._window.destroy()));
+
+		this._debugger = this._window.webContents.debugger;
+		this._debugger.attach('1.1');
+		this._debugger.on('message', this.onDebugMessage.bind(this));
+
+		this._window.webContents
+			.once('did-start-loading', this.onStartLoading.bind(this))
+			.once('did-finish-load', this.onFinishLoad.bind(this))
+			.once('did-fail-load', this.onFailLoad.bind(this))
+			.once('will-navigate', this.onRedirect.bind(this))
+			.once('will-redirect', this.onRedirect.bind(this));
+	}
+
+	private trace(message: string) {
+		this._logger.trace(`[WebPageLoader] [${this._uri}] ${message}`);
+	}
+
+	/**
+	 * Loads the web page and extracts its content.
+	 */
+	public async load() {
+		return await new Promise<WebContentExtractResult>((resolve) => {
+			this._onResult = createSingleCallFunction((result) => {
+				switch (result.status) {
+					case 'ok':
+						this.trace(`Loaded web page content, status: ${result.status}, title: '${result.title}', length: ${result.result.length}`);
+						break;
+					case 'redirect':
+						this.trace(`Loaded web page content, status: ${result.status}, toURI: ${result.toURI}`);
+						break;
+					case 'error':
+						this.trace(`Loaded web page content, status: ${result.status}, code: ${result.statusCode}, error: '${result.error}', title: '${result.title}', length: ${result.result?.length ?? 0}`);
+						break;
+				}
+
+				const content = result.status !== 'redirect' ? result.result : undefined;
+				if (content !== undefined) {
+					this.trace(content.length < 200 ? `Extracted content: '${content}'` : `Extracted content preview: '${content.substring(0, 200)}...'`);
+				}
+
+				resolve(result);
+				this.dispose();
+			});
+
+			this.trace(`Loading web page content`);
+			void this._window.loadURL(this._uri.toString(true));
+			this.setTimeout(WebPageLoader.TIMEOUT);
+		});
+	}
+
+	/**
+	 * Sets a timeout to trigger content extraction regardless of current loading state.
+	 */
+	private setTimeout(time: number) {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		this.trace(`Setting page load timeout to ${time} ms`);
+		this._timeout.cancelAndSet(() => {
+			this.trace(`Page load timeout reached`);
+			void this._queue.queue(() => this.extractContent());
+		}, time);
+	}
+
+	/**
+	 * Handles the 'did-start-loading' event, enabling network tracking.
+	 */
+	private onStartLoading() {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		this.trace(`Received 'did-start-loading' event`);
+		void this._debugger.sendCommand('Network.enable').catch(() => {
+			// This throws when we destroy the window on redirect.
+		});
+	}
+
+	/**
+	 * Handles the 'did-finish-load' event, checking for idle state
+	 * and updating timeout to allow for post-load activities.
+	 */
+	private onFinishLoad() {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		this.trace(`Received 'did-finish-load' event`);
+		this.checkForIdle();
+		this.setTimeout(WebPageLoader.POST_LOAD_TIMEOUT);
+	}
+
+	/**
+	 * Handles the 'did-fail-load' event, reporting load failures.
+	 */
+	private onFailLoad(_event: Event, statusCode: number, error: string) {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		this.trace(`Received 'did-fail-load' event, code: ${statusCode}, error: '${error}'`);
+		void this._queue.queue(() => this.extractContent({ status: 'error', statusCode, error }));
+	}
+
+	/**
+	 * Handles the 'will-navigate' and 'will-redirect' events, managing redirects.
+	 */
+	private onRedirect(event: Event, url: string) {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		this.trace(`Received 'will-navigate' or 'will-redirect' event, url: ${url}`);
+		if (!this._options?.followRedirects) {
+			const toURI = URI.parse(url);
+			if (!equalsIgnoreCase(toURI.authority, this._uri.authority)) {
+				event.preventDefault();
+				this._onResult({ status: 'redirect', toURI });
+			}
+		}
+	}
+
+	/**
+	 * Handles debugger messages related to network requests, tracking their lifecycle.
+	 * @note DO NOT add logging to this function, microsoft.com will freeze when too many logs are generated
+	 */
+	private onDebugMessage(_event: Event, method: string, params: NetworkRequestEventParams) {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		const { requestId, type, response } = params;
+		switch (method) {
+			case 'Network.requestWillBeSent':
+				if (requestId !== undefined) {
+					this._requests.add(requestId);
+				}
+				break;
+			case 'Network.loadingFinished':
+			case 'Network.loadingFailed':
+				if (requestId !== undefined) {
+					this._requests.delete(requestId);
+					if (this._requests.size === 0) {
+						this.checkForIdle();
+					}
+				}
+				break;
+			case 'Network.responseReceived':
+				if (type === 'Document') {
+					const statusCode = response?.status ?? 0;
+					if (statusCode >= 400) {
+						const error = response?.statusText || `HTTP error ${statusCode}`;
+						void this._queue.queue(() => this.extractContent({ status: 'error', statusCode, error }));
+					}
+				}
+				break;
+		}
+	}
+
+	/**
+	 * Called to check if page is in idle state (no ongoing network requests).
+	 * If idle is detected, proceeds to extract content.
+	 */
+	private checkForIdle() {
+		void this._queue.queue(async () => {
+			if (this._store.isDisposed) {
+				return;
+			}
+
+			await this.nextFrame();
+
+			if (this._requests.size === 0) {
+				await this.extractContent();
+			} else {
+				this.trace(`New network requests detected, deferring content extraction`);
+			}
+		});
+	}
+
+	/**
+	 * Waits for a rendering frame to ensure the page had a chance to update.
+	 */
+	private async nextFrame() {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		// Wait for a rendering frame to ensure the page had a chance to update.
+		await raceTimeout(
+			new Promise<void>((resolve) => {
+				try {
+					this.trace(`Waiting for a frame to be rendered`);
+					this._window.webContents.beginFrameSubscription(false, () => {
+						try {
+							this.trace(`A frame has been rendered`);
+							this._window.webContents.endFrameSubscription();
+						} catch {
+							// ignore errors
+						}
+						resolve();
+					});
+				} catch {
+					// ignore errors
+					resolve();
+				}
+			}),
+			WebPageLoader.FRAME_TIMEOUT
+		);
+	}
+
+	/**
+	 * Extracts the content of the loaded web page using the Accessibility domain and reports the result.
+	 */
+	private async extractContent(errorResult?: WebContentExtractResult & { status: 'error' }) {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		try {
+			this.trace(`Extracting content using Accessibility domain`);
+			const title = this._window.webContents.getTitle();
+			const { nodes } = await this._debugger.sendCommand('Accessibility.getFullAXTree') as { nodes: AXNode[] };
+			const result = convertAXTreeToMarkdown(this._uri, nodes);
+
+			if (errorResult !== undefined) {
+				this._onResult({ ...errorResult, result, title });
+			} else {
+				this._onResult({ status: 'ok', result, title });
+			}
+		} catch (e) {
+			if (errorResult !== undefined) {
+				this._onResult(errorResult);
+			} else {
+				this._onResult({
+					status: 'error',
+					error: e instanceof Error ? e.message : String(e)
+				});
+			}
+		}
+	}
+}

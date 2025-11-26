@@ -40,6 +40,12 @@ import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID, AgentSessionP
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
 import { AgentSessionsControl } from './agentSessionsControl.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+
+type AgentSessionsViewPaneOpenedClassification = {
+	owner: 'bpasero';
+	comment: 'Event fired when the agent sessions pane is opened';
+};
 
 export class AgentSessionsView extends ViewPane {
 
@@ -59,6 +65,7 @@ export class AgentSessionsView extends ViewPane {
 		@IProgressService private readonly progressService: IProgressService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.AgentSessionsTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -86,12 +93,12 @@ export class AgentSessionsView extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		this.telemetryService.publicLog2<{}, AgentSessionsViewPaneOpenedClassification>('agentSessionsViewPaneOpened');
+
 		container.classList.add('agent-sessions-view');
 
 		// New Session
-		if (!this.configurationService.getValue('chat.hideNewButtonInAgentSessionsView')) {
-			this.createNewSessionButton(container);
-		}
+		this.createNewSessionButton(container);
 
 		// Sessions Control
 		this.createSessionsControl(container);

@@ -11,7 +11,6 @@ import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -39,9 +38,9 @@ import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatModelReference, IChatService } from '../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../common/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, LEGACY_AGENT_SESSIONS_VIEW_ID } from '../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { showCloseActiveChatNotification } from './actions/chatCloseNotification.js';
-import { AGENT_SESSIONS_VIEW_ID } from './agentSessions/agentSessions.js';
+import { openAgentSessionsView } from './agentSessions/agentSessions.js';
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
 import { ChatWidget } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
@@ -100,7 +99,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -294,14 +292,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Link to Sessions View
 		this.sessionsLinkContainer = append(sessionsContainer, $('.agent-sessions-link-container'));
 		this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, { label: localize('openAgentSessionsView', "Show All Sessions"), href: '', }, {
-			opener: () => {
-				// TODO@bpasero remove this check once settled
-				if (this.configurationService.getValue('chat.agentSessionsViewLocation') === 'single-view') {
-					this.commandService.executeCommand(AGENT_SESSIONS_VIEW_ID);
-				} else {
-					this.commandService.executeCommand(LEGACY_AGENT_SESSIONS_VIEW_ID);
-				}
-			}
+			opener: () => this.instantiationService.invokeFunction(openAgentSessionsView)
 		}));
 
 		this.updateSessionsControlVisibility(false, true);

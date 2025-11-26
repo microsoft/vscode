@@ -6,12 +6,9 @@
 import { timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import * as nls from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, NeverShowAgainScope, Severity } from '../../../../../platform/notification/common/notification.js';
-import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
-import { AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
+import { openAgentSessionsView } from '../agentSessions/agentSessions.js';
 import { IChatWidgetService } from '../chat.js';
 
 /**
@@ -21,9 +18,8 @@ import { IChatWidgetService } from '../chat.js';
  */
 export function showCloseActiveChatNotification(accessor: ServicesAccessor, sessionResource?: URI): void {
 	const notificationService = accessor.get(INotificationService);
-	const configurationService = accessor.get(IConfigurationService);
-	const commandService = accessor.get(ICommandService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
+	const instantiationService = accessor.get(IInstantiationService);
 
 	const waitAndShowIfNeeded = async () => {
 		// Wait to be sure the session wasn't just moving
@@ -39,14 +35,7 @@ export function showCloseActiveChatNotification(accessor: ServicesAccessor, sess
 			[
 				{
 					label: nls.localize('chat.openAgentSessions', "Open Agent Sessions"),
-					run: async () => {
-						// TODO@bpasero remove this check once settled
-						if (configurationService.getValue('chat.agentSessionsViewLocation') === 'single-view') {
-							commandService.executeCommand(AGENT_SESSIONS_VIEW_ID);
-						} else {
-							commandService.executeCommand(LEGACY_AGENT_SESSIONS_VIEW_ID);
-						}
-					}
+					run: async () => instantiationService.invokeFunction(openAgentSessionsView)
 				}
 			],
 			{
