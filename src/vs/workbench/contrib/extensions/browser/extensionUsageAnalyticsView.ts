@@ -16,6 +16,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { ViewPane, IViewPaneOptions, getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
+import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import {
@@ -158,7 +159,8 @@ export class ExtensionUsageAnalyticsView extends ViewPane {
 	private filter: UsageAnalyticsFilter = UsageAnalyticsFilter.All;
 
 	constructor(
-		options: IViewPaneOptions,
+		options: object,
+		viewletViewOptions: IViewletViewOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -172,7 +174,7 @@ export class ExtensionUsageAnalyticsView extends ViewPane {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		super(viewletViewOptions as IViewPaneOptions, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this._register(this.usageAnalyticsService.onDidChangeUsageData(() => this.refresh()));
 	}
