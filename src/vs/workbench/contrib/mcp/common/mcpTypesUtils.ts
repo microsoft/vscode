@@ -10,6 +10,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
 import { ToolDataSource } from '../../chat/common/languageModelToolsService.js';
 import { IMcpServer, IMcpServerStartOpts, IMcpService, McpConnectionState, McpServerCacheState, McpServerTransportType } from './mcpTypes.js';
+import { MCP } from './modelContextProtocol.js';
 
 
 /**
@@ -112,4 +113,8 @@ export function canLoadMcpNetworkResourceDirectly(resource: URL, server: IMcpSer
 		isResourceRequestValid = true;
 	}
 	return isResourceRequestValid;
+}
+
+export function isTaskResult(obj: MCP.Result | MCP.CreateTaskResult): obj is MCP.CreateTaskResult {
+	return (obj as MCP.CreateTaskResult).task !== undefined;
 }

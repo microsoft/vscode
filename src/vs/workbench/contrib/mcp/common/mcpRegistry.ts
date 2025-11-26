@@ -542,6 +542,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			launch,
 			logger,
 			opts.errorOnUserInteraction,
+			opts.taskManager,
 		);
 	}
 }
