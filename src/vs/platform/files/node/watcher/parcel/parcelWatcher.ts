@@ -172,7 +172,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	// Note: since Parcel 2.0.7, the very first event is
 	// emitted without delay if no events occured over a
 	// duration of 500ms. But we always want to aggregate
-	// events to apply our colescing logic.
+	// events to apply our coleasing logic.
 	//
 	private static readonly FILE_CHANGES_HANDLER_DELAY = 75;
 
@@ -673,6 +673,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			if (request.excludes.includes(GLOBSTAR)) {
 				continue; // path is ignored entirely (via `**` glob exclude)
 			}
+
 
 			let requestsForCorrelation = mapCorrelationtoRequests.get(request.correlationId);
 			if (!requestsForCorrelation) {
