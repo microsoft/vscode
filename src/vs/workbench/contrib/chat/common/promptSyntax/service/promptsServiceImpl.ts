@@ -30,10 +30,9 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent, ExtensionAgentSourceType } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 
 /**
  * Provides prompt services.
@@ -155,8 +154,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const prompts = await Promise.all([
 			this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath))),
 			this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath))),
-			this.getExtensionContributions(type),
-			type === PromptsType.agent ? this.listCustomAgentsFromProvider(token) : []
+			this.getExtensionPromptFiles(type, token),
 		]);
 
 		return [...prompts.flat()];
@@ -236,7 +234,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 						description: agent.description,
 						storage: PromptsStorage.extension,
 						type: PromptsType.agent,
-						extension: providerEntry.extension
+						extension: providerEntry.extension,
+						source: ExtensionAgentSourceType.provider
 					} satisfies IExtensionPromptPath);
 				}
 			} catch (e) {
@@ -252,7 +251,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
 		switch (storage) {
 			case PromptsStorage.extension:
-				return this.getExtensionContributions(type);
+				return this.getExtensionPromptFiles(type, token);
 			case PromptsStorage.local:
 				return this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
 			case PromptsStorage.user:
@@ -262,9 +261,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 	}
 
-	private async getExtensionContributions(type: PromptsType): Promise<IPromptPath[]> {
+	private async getExtensionPromptFiles(type: PromptsType, token: CancellationToken): Promise<IPromptPath[]> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
-		return Promise.all(this.contributedFiles[type].values());
+		const contributedFiles = await Promise.all(this.contributedFiles[type].values());
+		if (type === PromptsType.agent) {
+			const providerAgents = await this.listCustomAgentsFromProvider(token);
+			return [...contributedFiles, ...providerAgents];
+		}
+		return contributedFiles;
 	}
 
 	public getSourceFolders(type: PromptsType): readonly IPromptPath[] {
@@ -448,7 +452,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const msg = e instanceof Error ? e.message : String(e);
 				this.logger.error(`[registerContributedFile] Failed to make prompt file readonly: ${uri}`, msg);
 			}
-			return { uri, name, description, storage: PromptsStorage.extension, type, extension } satisfies IExtensionPromptPath;
+			return { uri, name, description, storage: PromptsStorage.extension, type, extension, source: ExtensionAgentSourceType.contribution } satisfies IExtensionPromptPath;
 		})();
 		bucket.set(uri, entryPromise);
 
@@ -667,7 +671,8 @@ namespace IAgentSource {
 		if (promptPath.storage === PromptsStorage.extension) {
 			return {
 				storage: PromptsStorage.extension,
-				extensionId: promptPath.extension.identifier
+				extensionId: promptPath.extension.identifier,
+				type: promptPath.source
 			};
 		} else {
 			return {
