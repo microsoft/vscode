@@ -653,7 +653,10 @@ export class ChatService extends Disposable implements IChatService {
 					undefined, // confirmation
 					undefined, // locationData
 					undefined, // attachments
-					true // isCompleteAddedRequest - this indicates it's a complete request, not user input
+					false, // Do not treat as requests completed, else edit pills won't show.
+					undefined,
+					undefined,
+					message.id
 				);
 			} else {
 				// response
