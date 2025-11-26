@@ -19,6 +19,7 @@ export type InlineCompletionEndOfLifeEvent = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
+	sku: string | undefined;
 	// response
 	correlationId: string | undefined;
 	extensionId: string;
@@ -39,6 +40,10 @@ export type InlineCompletionEndOfLifeEvent = {
 	preceeded: boolean | undefined;
 	superseded: boolean | undefined;
 	notShownReason: string | undefined;
+	renameCreated: boolean;
+	renameDuration: number | undefined;
+	renameTimedOut: boolean;
+	performanceMarkers: string | undefined;
 	// rendering
 	viewKind: string | undefined;
 	cursorColumnDistance: number | undefined;
@@ -51,6 +56,8 @@ export type InlineCompletionEndOfLifeEvent = {
 	sameShapeReplacements: boolean | undefined;
 	// empty
 	noSuggestionReason: string | undefined;
+	// shape
+	editKind: string | undefined;
 };
 
 type InlineCompletionsEndOfLifeClassification = {
@@ -62,6 +69,7 @@ type InlineCompletionsEndOfLifeClassification = {
 	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that contributed the inline completion' };
 	groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The group ID of the extension that contributed the inline completion' };
 	availableProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The list of available inline completion providers at the time of the request' };
+	sku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SKU of the product where the inline completion was shown' };
 	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
 	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
 	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
@@ -79,6 +87,9 @@ type InlineCompletionsEndOfLifeClassification = {
 	requestReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason for the inline completion request' };
 	typingInterval: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The average typing interval of the user at the moment the inline completion was requested' };
 	typingIntervalCharacterCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The character count involved in the typing interval calculation' };
+	renameCreated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a rename operation was created' };
+	renameDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the rename processor' };
+	renameTimedOut: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the rename prepare operation timed out' };
 	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
 	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };
 	viewKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of the view where the inline completion was shown' };
@@ -92,4 +103,6 @@ type InlineCompletionsEndOfLifeClassification = {
 	sameShapeReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether all inner replacements are the same shape' };
 	noSuggestionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why no inline completion was provided' };
 	notShownReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why the inline completion was not shown' };
+	performanceMarkers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Performance markers for the inline completion lifecycle' };
+	editKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of edit made by the inline completion' };
 };

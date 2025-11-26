@@ -969,7 +969,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 			return this._response.value.some(part =>
 				part.kind === 'toolInvocation' && part.state.read(r).type === IChatToolInvocation.StateKind.WaitingForConfirmation
-				|| part.kind === 'confirmation' && part.isUsed === false
+				|| part.kind === 'confirmation' && !part.isUsed
 				|| part.kind === 'elicitation2' && part.state.read(r) === ElicitationState.Pending
 			);
 		});
@@ -1167,6 +1167,8 @@ export interface IChatModel extends IDisposable {
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void;
 	/** Input model for managing input state */
 	readonly inputModel: IInputModel;
+	readonly hasRequests: boolean;
+	readonly lastRequest: IChatRequestModel | undefined;
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
 
@@ -1645,7 +1647,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; resource?: URI; sessionId?: string },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -1707,23 +1709,25 @@ export class ChatModel extends Disposable implements IChatModel {
 			return request?.response?.isInProgress.read(r) ?? false;
 		});
 
+		this.requestNeedsInput = lastRequest.map((request, r) => {
+			return !!request?.response?.isPendingConfirmation.read(r);
+		});
+
 		// Retain a reference to itself when a request is in progress, so the ChatModel stays alive in the background
 		// only while running a request. TODO also keep it alive for 5min or so so we don't have to dispose/restore too often?
-		if (this.initialLocation === ChatAgentLocation.Chat && configurationService.getValue<boolean>('chat.localBackgroundSessions')) {
+		if (this.initialLocation === ChatAgentLocation.Chat && configurationService.getValue<boolean>('chat.localBackgroundSessions') && !initialModelProps.disableBackgroundKeepAlive) {
 			const selfRef = this._register(new MutableDisposable<IChatModelReference>());
 			this._register(autorun(r => {
 				const inProgress = this.requestInProgress.read(r);
-				if (inProgress && !selfRef.value) {
+				const isWaitingForConfirmation = this.requestNeedsInput.read(r);
+				const shouldStayAlive = inProgress || isWaitingForConfirmation;
+				if (shouldStayAlive && !selfRef.value) {
 					selfRef.value = chatService.getActiveSessionReference(this._sessionResource);
-				} else if (!inProgress && selfRef.value) {
+				} else if (!shouldStayAlive && selfRef.value) {
 					selfRef.clear();
 				}
 			}));
 		}
-
-		this.requestNeedsInput = lastRequest.map((request, r) => {
-			return !!request?.response?.isPendingConfirmation.read(r);
-		});
 	}
 
 	startEditingSession(isGlobalEditingSession?: boolean, transferFromSession?: IChatEditingSession): void {
@@ -1928,10 +1932,11 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'setHidden' });
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools): ChatRequestModel {
+	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools, id?: string): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
 		const request = new ChatRequestModel({
+			restoredId: id,
 			session: this,
 			message,
 			variableData,
@@ -2012,7 +2017,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		} else if (progress.kind === 'move') {
 			this._onDidChange.fire({ kind: 'move', target: progress.uri, range: progress.range });
 		} else if (progress.kind === 'codeblockUri' && progress.isEdit) {
-			request.response.addUndoStop({ id: generateUuid(), kind: 'undoStop' });
+			request.response.addUndoStop({ id: progress.undoStopId ?? generateUuid(), kind: 'undoStop' });
 			request.response.updateContent(progress, quiet);
 		} else if (progress.kind === 'progressTaskResult') {
 			// Should have been handled upstream, not sent to model
@@ -2057,7 +2062,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			// Maybe something went wrong?
 			return;
 		}
-
 		request.response.setFollowups(followups);
 	}
 
@@ -2090,13 +2094,6 @@ export class ChatModel extends Disposable implements IChatModel {
 								return item.treeData;
 							} else if (item.kind === 'markdownContent') {
 								return item.content;
-							} else if (item.kind === 'thinking') {
-								return {
-									kind: 'thinking',
-									value: item.value,
-									id: item.id,
-									metadata: item.metadata
-								};
 							} else if (item.kind === 'confirmation') {
 								return { ...item, isLive: false };
 							} else {

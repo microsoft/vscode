@@ -42,7 +42,7 @@ import product from '../../../platform/product/common/product.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
-import { IDefaultAccountService } from '../../services/accounts/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
@@ -149,10 +149,17 @@ class ToggleScreencastModeAction extends Action2 {
 		const onMouseUp = disposables.add(new Emitter<MouseEvent>());
 		const onMouseMove = disposables.add(new Emitter<MouseEvent>());
 
-		function registerContainerListeners(container: HTMLElement, disposables: DisposableStore): void {
-			disposables.add(disposables.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
+		function registerContainerListeners(container: HTMLElement, windowDisposables: DisposableStore): void {
+			const listeners = new DisposableStore();
+
+			listeners.add(listeners.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
+
+			windowDisposables.add(listeners);
+			disposables.add(toDisposable(() => windowDisposables.delete(listeners)));
+
+			disposables.add(listeners);
 		}
 
 		for (const { window, disposables } of getWindows()) {
@@ -244,11 +251,18 @@ class ToggleScreencastModeAction extends Action2 {
 		const onCompositionUpdate = disposables.add(new Emitter<CompositionEvent>());
 		const onCompositionEnd = disposables.add(new Emitter<CompositionEvent>());
 
-		function registerWindowListeners(window: Window, disposables: DisposableStore): void {
-			disposables.add(disposables.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
-			disposables.add(disposables.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
+		function registerWindowListeners(window: Window, windowDisposables: DisposableStore): void {
+			const listeners = new DisposableStore();
+
+			listeners.add(listeners.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
+			listeners.add(listeners.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
+
+			windowDisposables.add(listeners);
+			disposables.add(toDisposable(() => windowDisposables.delete(listeners)));
+
+			disposables.add(listeners);
 		}
 
 		for (const { window, disposables } of getWindows()) {
@@ -261,11 +275,11 @@ class ToggleScreencastModeAction extends Action2 {
 		let composing: Element | undefined = undefined;
 		let imeBackSpace = false;
 
-		const clearKeyboardScheduler = new RunOnceScheduler(() => {
+		const clearKeyboardScheduler = disposables.add(new RunOnceScheduler(() => {
 			keyboardMarker.textContent = '';
 			composing = undefined;
 			length = 0;
-		}, keyboardMarkerTimeout);
+		}, keyboardMarkerTimeout));
 
 		disposables.add(onCompositionStart.event(e => {
 			imeBackSpace = true;

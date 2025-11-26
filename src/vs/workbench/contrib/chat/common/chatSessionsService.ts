@@ -81,6 +81,7 @@ export interface IChatSessionItem {
 }
 
 export type IChatSessionHistoryItem = {
+	id?: string;
 	type: 'request';
 	prompt: string;
 	participant: string;
@@ -212,6 +213,7 @@ export interface IChatSessionsService {
 	isEditable(sessionResource: URI): boolean;
 	// #endregion
 	registerModelProgressListener(model: IChatModel, callback: () => void): void;
+	getSessionDescription(chatModel: IChatModel): string | undefined;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

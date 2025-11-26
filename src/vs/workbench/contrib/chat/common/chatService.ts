@@ -194,6 +194,7 @@ export interface IChatUndoStop {
 
 export interface IChatExternalEditsDto {
 	kind: 'externalEdits';
+	undoStopId: string;
 	start: boolean; /** true=start, false=stop */
 	resources: UriComponents[];
 }
@@ -228,6 +229,7 @@ export interface IChatResponseCodeblockUriPart {
 	kind: 'codeblockUri';
 	uri: URI;
 	isEdit?: boolean;
+	undoStopId?: string;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {
@@ -318,6 +320,7 @@ export interface IChatThinkingPart {
 	value?: string | string[];
 	id?: string;
 	metadata?: { readonly [key: string]: any };
+	generatedTitle?: string;
 }
 
 export interface IChatTerminalToolInvocationData {
@@ -943,9 +946,14 @@ export interface IChatService {
 
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
 
+	/**
+	 * An observable containing all live chat models.
+	 */
+	readonly chatModels: IObservable<Iterable<IChatModel>>;
+
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken, options?: { canUseTools?: boolean }): IChatModelReference;
+	startSession(location: ChatAgentLocation, token: CancellationToken, options?: IChatSessionStartOptions): IChatModelReference;
 
 	/**
 	 * Get an active session without holding a reference to it.
@@ -979,7 +987,6 @@ export interface IChatService {
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionResource: URI): void;
-	forceClearSession(sessionResource: URI): Promise<void>;
 	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	setChatSessionTitle(sessionResource: URI, title: string): void;
 	getLocalSessionHistory(): Promise<IChatDetail[]>;
@@ -1001,6 +1008,11 @@ export interface IChatService {
 	readonly edits2Enabled: boolean;
 
 	readonly requestInProgressObs: IObservable<boolean>;
+
+	/**
+	 * For tests only!
+	 */
+	waitForModelDisposals(): Promise<void>;
 }
 
 export interface IChatSessionContext {
@@ -1010,3 +1022,8 @@ export interface IChatSessionContext {
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';
+
+export interface IChatSessionStartOptions {
+	canUseTools?: boolean;
+	disableBackgroundKeepAlive?: boolean;
+}

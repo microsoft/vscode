@@ -100,6 +100,8 @@ export class PromptHoverProvider implements HoverProvider {
 							return this.getHandsOffHover(attribute, position, isGitHubTarget);
 						case PromptHeaderAttributes.target:
 							return this.createHover(localize('promptHeader.agent.target', 'The target to which the header attributes like tools apply to. Possible values are `github-copilot` and `vscode`.'), attribute.range);
+						case PromptHeaderAttributes.infer:
+							return this.createHover(localize('promptHeader.agent.infer', 'Whether the agent can be used as a subagent.'), attribute.range);
 					}
 				}
 			}
@@ -151,7 +153,7 @@ export class PromptHoverProvider implements HoverProvider {
 	}
 
 	private getToolHoverByName(toolName: string, range: Range): Hover | undefined {
-		const tool = this.languageModelToolsService.getToolByQualifiedName(toolName);
+		const tool = this.languageModelToolsService.getToolByFullReferenceName(toolName);
 		if (tool !== undefined) {
 			if (tool instanceof ToolSet) {
 				return this.getToolsetHover(tool, range);

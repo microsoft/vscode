@@ -1442,7 +1442,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			delete this._decorationTypeKeysToIds[decorationTypeKey];
 		}
 		if (this._decorationTypeSubtypes.hasOwnProperty(decorationTypeKey)) {
+			const items = this._decorationTypeSubtypes[decorationTypeKey];
+			for (const subType of Object.keys(items)) {
+				this._removeDecorationType(decorationTypeKey + '-' + subType);
+			}
 			delete this._decorationTypeSubtypes[decorationTypeKey];
+
 		}
 	}
 

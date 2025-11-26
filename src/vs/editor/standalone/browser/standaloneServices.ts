@@ -98,6 +98,8 @@ import { StandaloneTreeSitterLibraryService } from './standaloneTreeSitterLibrar
 import { IDataChannelService, NullDataChannelService } from '../../../platform/dataChannel/common/dataChannel.js';
 import { IWebWorkerService } from '../../../platform/webWorker/browser/webWorkerService.js';
 import { StandaloneWebWorkerService } from './services/standaloneWebWorkerService.js';
+import { IDefaultAccountService } from '../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccount } from '../../../base/common/defaultAccount.js';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -1107,6 +1109,20 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 	}
 }
 
+class StandaloneDefaultAccountService implements IDefaultAccountService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null> = Event.None;
+
+	async getDefaultAccount(): Promise<IDefaultAccount | null> {
+		return null;
+	}
+
+	setDefaultAccount(account: IDefaultAccount | null): void {
+		// no-op
+	}
+}
+
 export interface IEditorOverrideServices {
 	[index: string]: unknown;
 }
@@ -1149,6 +1165,7 @@ registerSingleton(IAccessibilitySignalService, StandaloneAccessbilitySignalServi
 registerSingleton(ITreeSitterLibraryService, StandaloneTreeSitterLibraryService, InstantiationType.Eager);
 registerSingleton(ILoggerService, NullLoggerService, InstantiationType.Eager);
 registerSingleton(IDataChannelService, NullDataChannelService, InstantiationType.Eager);
+registerSingleton(IDefaultAccountService, StandaloneDefaultAccountService, InstantiationType.Eager);
 
 /**
  * We don't want to eagerly instantiate services because embedders get a one time chance

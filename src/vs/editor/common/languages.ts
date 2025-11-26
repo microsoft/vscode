@@ -762,6 +762,16 @@ export interface InlineCompletionContext {
 	readonly earliestShownDateTime: number;
 }
 
+export interface IInlineCompletionModelInfo {
+	models: IInlineCompletionModel[];
+	currentModelId: string;
+}
+
+export interface IInlineCompletionModel {
+	name: string;
+	id: string;
+}
+
 export class SelectedSuggestionInfo {
 	constructor(
 		public readonly range: IRange,
@@ -837,12 +847,16 @@ export interface InlineCompletion {
 
 	readonly warning?: InlineCompletionWarning;
 
-	readonly hint?: InlineCompletionHint;
+	readonly hint?: IInlineCompletionHint;
+
+	readonly supportsRename?: boolean;
 
 	/**
 	 * Used for telemetry.
 	 */
 	readonly correlationId?: string | undefined;
+
+	readonly jumpToPosition?: IPosition;
 }
 
 export interface InlineCompletionWarning {
@@ -855,7 +869,7 @@ export enum InlineCompletionHintStyle {
 	Label = 2
 }
 
-export interface InlineCompletionHint {
+export interface IInlineCompletionHint {
 	/** Refers to the current document. */
 	range: IRange;
 	style: InlineCompletionHintStyle;
@@ -937,6 +951,10 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	displayName?: string;
 
 	debounceDelayMs?: number;
+
+	modelInfo?: IInlineCompletionModelInfo;
+	onDidModelInfoChange?: Event<void>;
+	setModelId?(modelId: string): Promise<void>;
 
 	toString?(): string;
 }
@@ -1040,6 +1058,7 @@ export type LifetimeSummary = {
 	preceeded: boolean;
 	languageId: string;
 	requestReason: string;
+	performanceMarkers?: string;
 	cursorColumnDistance?: number;
 	cursorLineDistance?: number;
 	lineCountOriginal?: number;
@@ -1052,6 +1071,11 @@ export type LifetimeSummary = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
+	sku: string | undefined;
+	renameCreated: boolean;
+	renameDuration?: number;
+	renameTimedOut: boolean;
+	editKind: string | undefined;
 };
 
 export interface CodeAction {

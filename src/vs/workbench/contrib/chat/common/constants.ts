@@ -23,8 +23,8 @@ export enum ChatConfiguration {
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
-	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
+	EmptyChatViewSessionsEnabled = 'chat.emptyState.sessions.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 }
@@ -58,6 +58,12 @@ export enum ThinkingDisplayMode {
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	FixedScrolling = 'fixedScrolling',
+}
+
+export enum CollapsedToolsDisplayMode {
+	Off = 'off',
+	WithThinking = 'withThinking',
+	Always = 'always',
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
