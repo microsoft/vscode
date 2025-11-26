@@ -42,6 +42,7 @@ import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolb
 
 const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browserCanGoBack', "Whether the browser can go back"));
 const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browserCanGoForward', "Whether the browser can go forward"));
+const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', false, localize('browserEditorFocused', "Whether the browser editor is focused"));
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _onDidNavigate = this._register(new Emitter<string>());
@@ -144,6 +145,7 @@ export class BrowserEditor extends EditorPane {
 	private _browserContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
+	private _browserEditorFocusedContext!: IContextKey<boolean>;
 
 	private _model: IBrowserViewModel | undefined;
 	private readonly _inputDisposables = this._register(new DisposableStore());
@@ -170,6 +172,11 @@ export class BrowserEditor extends EditorPane {
 		// Bind navigation capability context keys
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
+		this._browserEditorFocusedContext = CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
+
+		// Currently this is always true since it is scoped to the editor container
+		this._browserEditorFocusedContext.set(true);
+
 		// Create root container
 		const root = $('.browser-root');
 		parent.appendChild(root);
@@ -512,8 +519,8 @@ class ReloadAction extends Action2 {
 			},
 			precondition: BROWSER_EDITOR_ACTIVE,
 			keybinding: {
-				when: BROWSER_EDITOR_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
+				when: CONTEXT_BROWSER_FOCUSED, // Keybinding is only active when focus is within the browser editor
+				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over debug
 				primary: KeyCode.F5,
 				secondary: [KeyMod.CtrlCmd | KeyCode.KeyR],
 				mac: { primary: KeyCode.F5, secondary: [KeyMod.CtrlCmd | KeyCode.KeyR] }

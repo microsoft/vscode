@@ -8,7 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IBrowserViewBounds, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest } from '../common/browserView.js';
 import { IBrowserViewMainService } from './browserView.js';
-import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
+import { EVENT_KEY_CODE_MAP, KeyCode, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { ThemePlugin } from './plugins/themePlugin.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -343,18 +343,27 @@ export class BrowserView extends Disposable {
 
 		// Key down events - listen for raw key input events
 		webContents.on('before-input-event', async (event, input) => {
-			if (input.type === 'keyDown' && (input.control || input.alt || input.meta) && !this._isSendingKeyEvent) {
-				event.preventDefault();
-				this._onDidKeyCommand.fire({
-					key: input.key,
-					keyCode: SCAN_CODE_STR_TO_EVENT_KEY_CODE[input.code] || 0,
-					code: input.code,
-					ctrlKey: input.control || false,
-					shiftKey: input.shift || false,
-					altKey: input.alt || false,
-					metaKey: input.meta || false,
-					repeat: input.isAutoRepeat || false
-				});
+			if (input.type === 'keyDown' && !this._isSendingKeyEvent) {
+				const eventKeyCode = SCAN_CODE_STR_TO_EVENT_KEY_CODE[input.code] || 0;
+				const keyCode = EVENT_KEY_CODE_MAP[eventKeyCode] || KeyCode.Unknown;
+				const hasCommandModifier = input.control || input.alt || input.meta;
+				const isNonEditingKey =
+					keyCode >= KeyCode.F1 && keyCode <= KeyCode.F24 ||
+					keyCode >= KeyCode.AudioVolumeMute;
+
+				if (hasCommandModifier || isNonEditingKey) {
+					event.preventDefault();
+					this._onDidKeyCommand.fire({
+						key: input.key,
+						keyCode: eventKeyCode,
+						code: input.code,
+						ctrlKey: input.control || false,
+						shiftKey: input.shift || false,
+						altKey: input.alt || false,
+						metaKey: input.meta || false,
+						repeat: input.isAutoRepeat || false
+					});
+				}
 			}
 		});
 	}
