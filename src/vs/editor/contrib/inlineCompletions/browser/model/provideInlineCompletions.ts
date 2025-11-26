@@ -30,6 +30,7 @@ import { isDefined } from '../../../../../base/common/types.js';
 import { inlineCompletionIsVisible } from './inlineSuggestionItem.js';
 import { EditDeltaInfo } from '../../../../common/textModelEditSource.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { InlineSuggestionEditKind } from './editKind.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
 
@@ -303,6 +304,7 @@ export class InlineSuggestData {
 	private _partiallyAcceptedCount = 0;
 	private _partiallyAcceptedSinceOriginal: PartialAcceptance = { characters: 0, ratio: 0, count: 0 };
 	private _renameInfo: RenameInfo | undefined = undefined;
+	private _editKind: InlineSuggestionEditKind | undefined = undefined;
 
 	constructor(
 		public readonly range: Range,
@@ -334,13 +336,15 @@ export class InlineSuggestData {
 		return new TextReplacement(this.range, this.insertText);
 	}
 
-	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData): Promise<void> {
+	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, editKind: InlineSuggestionEditKind | undefined): Promise<void> {
 		this.updateShownDuration(viewKind);
 
 		if (this._didShow) {
 			return;
 		}
+		this.addPerformanceMarker('shown');
 		this._didShow = true;
+		this._editKind = editKind;
 		this._viewData.viewKind = viewKind;
 		this._viewData.renderData = viewData;
 		this._timeUntilShown = Date.now() - this._requestInfo.startTime;
@@ -399,6 +403,7 @@ export class InlineSuggestData {
 				shown: this._didShow,
 				shownDuration: this._shownDuration,
 				shownDurationUncollapsed: this._showUncollapsedDuration,
+				editKind: this._editKind?.toString(),
 				preceeded: this._isPreceeded,
 				timeUntilShown: this._timeUntilShown,
 				timeUntilProviderRequest: this._providerRequestInfo.startTime - this._requestInfo.startTime,
@@ -408,6 +413,7 @@ export class InlineSuggestData {
 				requestReason: this._requestInfo.reason,
 				viewKind: this._viewData.viewKind,
 				notShownReason: this._notShownReason,
+				performanceMarkers: this.performance.toString(),
 				renameCreated: this._renameInfo?.createdRename ?? false,
 				renameDuration: this._renameInfo?.duration,
 				renameTimedOut: this._renameInfo?.timedOut ?? false,
@@ -497,6 +503,31 @@ export class InlineSuggestData {
 			this._providerRequestInfo,
 			this._correlationId,
 		);
+	}
+
+	private performance = new InlineSuggestionsPerformance();
+	public addPerformanceMarker(marker: string): void {
+		this.performance.mark(marker);
+	}
+}
+
+class InlineSuggestionsPerformance {
+	private markers: { name: string; timeStamp: number }[] = [];
+	constructor() {
+		this.markers.push({ name: 'start', timeStamp: Date.now() });
+	}
+
+	mark(marker: string): void {
+		this.markers.push({ name: marker, timeStamp: Date.now() });
+	}
+
+	toString(): string {
+		const deltas = [];
+		for (let i = 1; i < this.markers.length; i++) {
+			const delta = this.markers[i].timeStamp - this.markers[i - 1].timeStamp;
+			deltas.push({ [this.markers[i].name]: delta });
+		}
+		return JSON.stringify(deltas);
 	}
 }
 

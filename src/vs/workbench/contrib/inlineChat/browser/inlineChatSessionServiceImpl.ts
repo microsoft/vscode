@@ -38,7 +38,6 @@ import { UntitledTextEditorInput } from '../../../services/untitled/common/untit
 import { IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatAgentService } from '../../chat/common/chatAgents.js';
 import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
-import { ChatModel } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../chat/common/languageModelToolsService.js';
@@ -218,7 +217,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			agent,
 			store.add(new SessionWholeRange(textModelN, wholeRange)),
 			store.add(new HunkData(this._editorWorkerService, textModel0, textModelN)),
-			chatModel as ChatModel,
+			chatModel,
 			options.session?.versionsByRequest,
 		);
 

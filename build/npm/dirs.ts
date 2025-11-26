@@ -5,7 +5,9 @@
 
 import { existsSync } from 'fs';
 
-// Complete list of directories where npm should be executed to install node modules
+/**
+ * Complete list of directories where npm should be executed to install node modules
+ */
 export const dirs = [
 	'',
 	'build',

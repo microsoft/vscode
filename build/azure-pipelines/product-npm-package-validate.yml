@@ -84,11 +84,11 @@ jobs:
 
             echo "Attempt $attempt: Running npm ci"
             if npm i --ignore-scripts; then
-              if node build/npm/postinstall.js; then
+              if node build/npm/postinstall.ts; then
                 echo "npm i succeeded on attempt $attempt"
                 exit 0
               else
-                echo "node build/npm/postinstall.js failed on attempt $attempt"
+                echo "node build/npm/postinstall.ts failed on attempt $attempt"
               fi
             else
               echo "npm i failed on attempt $attempt"

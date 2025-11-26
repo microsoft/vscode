@@ -249,7 +249,9 @@ export class InlineCompletionsSource extends Disposable {
 							continue;
 						}
 
+						item.addPerformanceMarker('providerReturned');
 						const i = InlineSuggestionItem.create(item, this._textModel);
+						item.addPerformanceMarker('itemCreated');
 						providerSuggestions.push(i);
 						// Stop after first visible inline completion
 						if (!i.isInlineEdit && !i.showInlineEditMenu && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
@@ -264,9 +266,13 @@ export class InlineCompletionsSource extends Disposable {
 					}
 				}
 
+				providerSuggestions.forEach(s => s.addPerformanceMarker('providersResolved'));
+
 				const suggestions: InlineSuggestionItem[] = await Promise.all(providerSuggestions.map(async s => {
 					return this._renameProcessor.proposeRenameRefactoring(this._textModel, s);
 				}));
+
+				providerSuggestions.forEach(s => s.addPerformanceMarker('renameProcessed'));
 
 				providerResult.cancelAndDispose({ kind: 'lostRace' });
 
@@ -306,6 +312,8 @@ export class InlineCompletionsSource extends Disposable {
 				if (remainingTimeToWait > 0) {
 					await wait(remainingTimeToWait, source.token);
 				}
+
+				suggestions.forEach(s => s.addPerformanceMarker('minShowDelayPassed'));
 
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId
 					|| userJumpedToActiveCompletion.get()  /* In the meantime the user showed interest for the active completion so dont hide it */) {
@@ -452,6 +460,8 @@ export class InlineCompletionsSource extends Disposable {
 			renameCreated: false,
 			renameDuration: undefined,
 			renameTimedOut: false,
+			performanceMarkers: undefined,
+			editKind: undefined,
 		};
 
 		const dataChannel = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);

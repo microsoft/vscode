@@ -56,7 +56,7 @@ export class StartupPageEditorResolverContribution extends Disposable implements
 				priority: RegisteredEditorPriority.builtin,
 			},
 			{
-				singlePerResource: false,
+				singlePerResource: true,
 				canSupportResource: uri => uri.scheme === GettingStartedInput.RESOURCE.scheme,
 			},
 			{
