@@ -81,7 +81,7 @@ export function provideInlineCompletions(
 						}
 						if (item.insertText !== undefined) {
 							const t = new TextReplacement(Range.lift(item.range) ?? defaultReplaceRange, item.insertText);
-							if (inlineCompletionIsVisible(t, undefined, model, position)) {
+							if (inlineCompletionIsVisible(t, undefined, model, position, Range.lift(item.showRange) ?? undefined)) {
 								return undefined;
 							}
 						}
@@ -249,6 +249,7 @@ function toInlineSuggestData(
 		inlineCompletion.isInlineEdit ?? false,
 		inlineCompletion.supportsRename ?? false,
 		undefined,
+		Range.lift(inlineCompletion.showRange) ?? undefined,
 		requestInfo,
 		providerRequestInfo,
 		inlineCompletion.correlationId,
@@ -321,6 +322,7 @@ export class InlineSuggestData {
 		public readonly isInlineEdit: boolean,
 		public readonly supportsRename: boolean,
 		public readonly renameCommand: Command | undefined,
+		public readonly showRange: Range | undefined,
 
 		private readonly _requestInfo: InlineSuggestRequestInfo,
 		private readonly _providerRequestInfo: InlineSuggestProviderRequestInfo,
@@ -501,6 +503,7 @@ export class InlineSuggestData {
 			this.isInlineEdit,
 			this.supportsRename,
 			command,
+			this.showRange,
 			this._requestInfo,
 			this._providerRequestInfo,
 			this._correlationId,

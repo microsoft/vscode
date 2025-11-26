@@ -68,6 +68,7 @@ abstract class InlineSuggestionItemBase {
 	public get renameCommand(): Command | undefined { return this._data.renameCommand; }
 	public get warning(): InlineCompletionWarning | undefined { return this._sourceInlineCompletion.warning; }
 	public get showInlineEditMenu(): boolean { return !!this._sourceInlineCompletion.showInlineEditMenu; }
+	public get showRange(): Range | undefined { return this._data.showRange; }
 	public get hash() {
 		return JSON.stringify([
 			this.getSingleTextEdit().text,
@@ -313,7 +314,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 
 	public isVisible(model: ITextModel, cursorPosition: Position): boolean {
 		const singleTextEdit = this.getSingleTextEdit();
-		return inlineCompletionIsVisible(singleTextEdit, this._originalRange, model, cursorPosition);
+		return inlineCompletionIsVisible(singleTextEdit, this._originalRange, model, cursorPosition, this.showRange);
 	}
 
 	override computeEditKind(model: ITextModel): InlineSuggestionEditKind | undefined {
@@ -321,7 +322,12 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 	}
 }
 
-export function inlineCompletionIsVisible(singleTextEdit: TextReplacement, originalRange: Range | undefined, model: ITextModel, cursorPosition: Position): boolean {
+export function inlineCompletionIsVisible(singleTextEdit: TextReplacement, originalRange: Range | undefined, model: ITextModel, cursorPosition: Position, showRange?: Range): boolean {
+	// Check if cursor is within showRange (if specified)
+	if (showRange && !showRange.containsPosition(cursorPosition)) {
+		return false;
+	}
+
 	const minimizedReplacement = singleTextRemoveCommonPrefix(singleTextEdit, model);
 	const editRange = singleTextEdit.range;
 	if (!editRange
