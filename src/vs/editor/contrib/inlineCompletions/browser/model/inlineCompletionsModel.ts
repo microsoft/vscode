@@ -51,6 +51,7 @@ import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -630,7 +631,7 @@ export class InlineCompletionsModel extends Disposable {
 				return undefined;
 			}
 			const cursorAtInlineEdit = this.primaryPosition.map(cursorPos => LineRange.fromRangeInclusive(inlineEditResult.targetRange).addMargin(1, 1).contains(cursorPos.lineNumber));
-			const stringEdit = inlineEditResult.action?.kind === 'edit' ? inlineEditResult.action.stringEdit : undefined;
+			const stringEdit = inlineEditResult.action?.kind === 'edit' || inlineEditResult.action?.kind === 'rename' ? inlineEditResult.action.stringEdit : undefined;
 			const replacements = stringEdit ? TextEdit.fromStringEdit(stringEdit, new TextModelText(this.textModel)).replacements : [];
 
 			const nextEditUri = (item.inlineEdit?.command?.id === 'vscode.open' || item.inlineEdit?.command?.id === '_workbench.open') &&
@@ -904,9 +905,13 @@ export class InlineCompletionsModel extends Disposable {
 			editor.pushUndoStop();
 			if (isNextEditUri) {
 				// Do nothing
-			} else if (completion.action?.kind === 'edit') {
+			} else if (completion.action?.kind === 'edit' || completion.action?.kind === 'rename') {
 				const action = completion.action;
-				if (action.snippetInfo) {
+				if (action.kind === 'rename' && !ModifierKeyEmitter.getInstance().keyStatus.altKey) {
+					await this._commandService
+						.executeCommand(action.command.id, ...(action.command.arguments || []))
+						.then(undefined, onUnexpectedExternalError);
+				} else if (action.kind === 'edit' && action.snippetInfo) {
 					const mainEdit = TextReplacement.delete(action.textReplacement.range);
 					const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
 					const edit = TextEdit.fromParallelReplacementsUnsorted([mainEdit, ...additionalEdits]);
@@ -949,12 +954,6 @@ export class InlineCompletionsModel extends Disposable {
 
 			// Reset before invoking the command, as the command might cause a follow up trigger (which we don't want to reset).
 			this.stop();
-
-			if (completion.renameCommand) {
-				await this._commandService
-					.executeCommand(completion.renameCommand.id, ...(completion.renameCommand.arguments || []))
-					.then(undefined, onUnexpectedExternalError);
-			}
 
 			if (completion.command) {
 				await this._commandService

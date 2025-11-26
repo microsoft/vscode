@@ -14,14 +14,15 @@ import { TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
-import { Command, InlineCompletionHintStyle } from '../../../../common/languages.js';
+import { Command } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
 import { EditSources, TextModelEditSource } from '../../../../common/textModelEditSource.js';
 import { hasProvider, prepareRename, rename } from '../../../rename/browser/rename.js';
 import { renameSymbolCommandId } from '../controller/commandIds.js';
-import { InlineSuggestHint, InlineSuggestionItem } from './inlineSuggestionItem.js';
+import { InlineSuggestionItem } from './inlineSuggestionItem.js';
+import { IInlineSuggestDataActionRename } from './provideInlineCompletions.js';
 
 export type RenameEdits = {
 	renames: { edits: TextEdit[]; position: Position; oldName: string; newName: string };
@@ -258,14 +259,19 @@ export class RenameSymbolProcessor extends Disposable {
 			providerId: suggestItem.source.provider.providerId,
 			languageId: textModel.getLanguageId(),
 		});
-		const hintRange = edits.renames.edits[0].replacements[0].range;
 		const label = localize('renameSymbol', "Rename '{0}' to '{1}'", oldName, newName);
 		const command: Command = {
 			id: renameSymbolCommandId,
 			title: label,
 			arguments: [textModel, position, newName, source],
 		};
-		const hint = InlineSuggestHint.create({ range: hintRange, content: label, style: InlineCompletionHintStyle.Code });
-		return InlineSuggestionItem.create(suggestItem.withRename(command, hint), textModel);
+		const renameAction: IInlineSuggestDataActionRename = {
+			kind: 'rename',
+			textReplacement: edit,
+			stringEdit: suggestItem.action.stringEdit,
+			command,
+			uri: textModel.uri
+		};
+		return InlineSuggestionItem.create(suggestItem.withRename(renameAction), textModel);
 	}
 }
