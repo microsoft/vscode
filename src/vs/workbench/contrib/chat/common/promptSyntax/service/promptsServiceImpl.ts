@@ -32,6 +32,7 @@ import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../p
 import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
+import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 
 /**
  * Provides prompt services.
@@ -92,6 +93,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IFileService private readonly fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigService: IFilesConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super();
 
@@ -172,6 +174,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	private async getExtensionContributions(type: PromptsType): Promise<IPromptPath[]> {
+		await this.extensionService.whenInstalledExtensionsRegistered();
 		return Promise.all(this.contributedFiles[type].values());
 	}
 
@@ -323,8 +326,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				if (!ast.header) {
 					return { uri, name, agentInstructions, source };
 				}
-				const { description, model, tools, handOffs, argumentHint, target } = ast.header;
-				return { uri, name, description, model, tools, handOffs, argumentHint, target, agentInstructions, source };
+				const { description, model, tools, handOffs, argumentHint, target, infer } = ast.header;
+				return { uri, name, description, model, tools, handOffs, argumentHint, target, infer, agentInstructions, source };
 			})
 		);
 		return customAgents;

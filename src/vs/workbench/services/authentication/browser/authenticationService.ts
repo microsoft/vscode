@@ -239,9 +239,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		if (provider) {
 			this._authenticationProviders.delete(id);
 			// If this is a dynamic provider, remove it from the set of dynamic providers
-			if (this._dynamicAuthenticationProviderIds.has(id)) {
-				this._dynamicAuthenticationProviderIds.delete(id);
-			}
+			this._dynamicAuthenticationProviderIds.delete(id);
 			this._onDidUnregisterAuthenticationProvider.fire({ id, label: provider.label });
 		}
 		this._authenticationProviderDisposables.deleteAndDispose(id);

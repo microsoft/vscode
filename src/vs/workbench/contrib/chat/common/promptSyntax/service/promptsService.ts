@@ -119,6 +119,11 @@ export interface ICustomAgent {
 	readonly target?: string;
 
 	/**
+	 * Infer metadata in the prompt header.
+	 */
+	readonly infer?: boolean;
+
+	/**
 	 * Contents of the custom agent file body and other agent instructions.
 	 */
 	readonly agentInstructions: IChatModeInstructions;

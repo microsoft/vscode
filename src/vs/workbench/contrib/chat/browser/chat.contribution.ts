@@ -36,7 +36,7 @@ import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperS
 import '../common/chatColors.js';
 import { IChatEditingService } from '../common/chatEditingService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
-import { ChatModeService, IChatModeService } from '../common/chatModes.js';
+import { ChatModeService, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatService } from '../common/chatServiceImpl.js';
@@ -64,10 +64,11 @@ import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
 import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
 import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
-import { ACTION_ID_NEW_CHAT, CopilotTitleBarMenuRendering, registerChatActions } from './actions/chatActions.js';
+import { ACTION_ID_NEW_CHAT, CopilotTitleBarMenuRendering, ModeOpenChatGlobalAction, registerChatActions } from './actions/chatActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
 import { ChatContextContributions } from './actions/chatContext.js';
 import { registerChatContextActions } from './actions/chatContextActions.js';
+import { ContinueChatInSessionActionRendering } from './actions/chatContinueInAction.js';
 import { registerChatCopyActions } from './actions/chatCopyActions.js';
 import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
 import { ChatSubmitAction, registerChatExecuteActions } from './actions/chatExecuteActions.js';
@@ -110,10 +111,10 @@ import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
 import { ChatTerminalOutputAccessibleView } from './chatTerminalOutputAccessibleView.js';
-import { LocalChatSessionsProvider } from './chatSessions/localChatSessionsProvider.js';
+import { LocalAgentsSessionsProvider } from './agentSessions/localAgentSessionsProvider.js';
 import { ChatSessionsView, ChatSessionsViewContrib } from './chatSessions/view/chatSessionsView.js';
-import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js';
-import { ChatStatusBarEntry } from './chatStatus.js';
+import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
+import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { ChatVariablesService } from './chatVariables.js';
 import { ChatWidget } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
@@ -131,6 +132,7 @@ import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { ChatWidgetService } from './chatWidgetService.js';
+import { AgentSessionsService, IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -356,11 +358,14 @@ configurationRegistry.registerConfiguration({
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
 		},
-		[ChatConfiguration.EmptyStateHistoryEnabled]: {
+		[ChatConfiguration.EmptyChatViewSessionsEnabled]: {
 			type: 'boolean',
-			default: product.quality === 'insiders',
-			description: nls.localize('chat.emptyState.history.enabled', "Show recent chat history on the empty chat state."),
-			tags: ['preview']
+			default: product.quality !== 'stable',
+			description: nls.localize('chat.emptyState.sessions.enabled', "Show agent sessions on the empty chat state."),
+			tags: ['preview', 'experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
@@ -527,9 +532,9 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
-			enum: ['disabled', 'view', 'single-view'],
+			enum: ['disabled', 'view', 'single-view'], // TODO@bpasero remove this setting eventually
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
-			default: 'view',
+			default: product.quality === 'stable' ? 'view' : 'single-view',
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -751,14 +756,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.agent.thinking.collapsedTools': {
 			type: 'string',
-			default: 'readOnly',
-			enum: ['none', 'all', 'readOnly'],
+			default: product.quality !== 'stable' ? 'always' : 'withThinking',
+			enum: ['off', 'withThinking', 'always'],
 			enumDescriptions: [
-				nls.localize('chat.agent.thinking.collapsedTools.none', "No tool calls are added into the collapsible thinking section."),
-				nls.localize('chat.agent.thinking.collapsedTools.all', "All tool calls are added into the collapsible thinking section."),
-				nls.localize('chat.agent.thinking.collapsedTools.readOnly', "Only read-only tool calls are added into the collapsible thinking section."),
+				nls.localize('chat.agent.thinking.collapsedTools.off', "Tool calls are shown separately, not collapsed into thinking."),
+				nls.localize('chat.agent.thinking.collapsedTools.withThinking', "Tool calls are collapsed into thinking sections when thinking is present."),
+				nls.localize('chat.agent.thinking.collapsedTools.always', "Tool calls are always collapsed, even without thinking."),
 			],
-			markdownDescription: nls.localize('chat.agent.thinking.collapsedTools', "When enabled, tool calls are added into the collapsible thinking section according to the selected mode."),
+			markdownDescription: nls.localize('chat.agent.thinking.collapsedTools', "Controls how tool calls are displayed in relation to thinking sections."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {
@@ -780,12 +785,6 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto'
 			}
-		},
-		'chat.hideNewButtonInAgentSessionsView': { // TODO@bpasero remove me eventually
-			type: 'boolean',
-			description: nls.localize('chat.hideNewButtonInAgentSessionsView', "Controls whether the new session button is hidden in the Agent Sessions view."),
-			default: false,
-			tags: ['preview']
 		},
 		'chat.signInWithAlternateScopes': { // TODO@bpasero remove me eventually
 			type: 'boolean',
@@ -937,6 +936,60 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 	}
 }
 
+
+/**
+ * Workbench contribution to register actions for custom chat modes via events
+ */
+class ChatAgentActionsContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.chatAgentActions';
+
+	private readonly _modeActionDisposables = new DisposableMap<string>();
+
+	constructor(
+		@IChatModeService private readonly chatModeService: IChatModeService,
+	) {
+		super();
+		this._store.add(this._modeActionDisposables);
+
+		// Register actions for existing custom modes
+		const { custom } = this.chatModeService.getModes();
+		for (const mode of custom) {
+			this._registerModeAction(mode);
+		}
+
+		// Listen for custom mode changes by tracking snapshots
+		this._register(this.chatModeService.onDidChangeChatModes(() => {
+			const { custom } = this.chatModeService.getModes();
+			const currentModeIds = new Set<string>();
+
+			// Register new modes
+			for (const mode of custom) {
+				currentModeIds.add(mode.id);
+				if (!this._modeActionDisposables.has(mode.id)) {
+					this._registerModeAction(mode);
+				}
+			}
+
+			// Remove modes that no longer exist
+			for (const modeId of this._modeActionDisposables.keys()) {
+				if (!currentModeIds.has(modeId)) {
+					this._modeActionDisposables.deleteAndDispose(modeId);
+				}
+			}
+		}));
+	}
+
+	private _registerModeAction(mode: IChatMode): void {
+		const actionClass = class extends ModeOpenChatGlobalAction {
+			constructor() {
+				super(mode);
+			}
+		};
+		this._modeActionDisposables.set(mode.id, registerAction2(actionClass));
+	}
+}
+
 class ToolReferenceNamesContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.toolReferenceNames';
@@ -1011,7 +1064,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			locations: [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Ask]
-		}, async (prompt, progress) => {
+		}, async (prompt, progress, _history, _location, sessionResource) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const agents = chatAgentService.getAgents();
 
@@ -1031,11 +1084,11 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				.filter(a => a.locations.includes(ChatAgentLocation.Chat))
 				.map(async a => {
 					const description = a.description ? `- ${a.description}` : '';
-					const agentMarkdown = instantiationService.invokeFunction(accessor => agentToMarkdown(a, true, accessor));
+					const agentMarkdown = instantiationService.invokeFunction(accessor => agentToMarkdown(a, sessionResource, true, accessor));
 					const agentLine = `- ${agentMarkdown} ${description}`;
 					const commandText = a.slashCommands.map(c => {
 						const description = c.description ? `- ${c.description}` : '';
-						return `\t* ${agentSlashCommandToMarkdown(a, c)} ${description}`;
+						return `\t* ${agentSlashCommandToMarkdown(a, c, sessionResource)} ${description}`;
 					}).join('\n');
 
 					return (agentLine + '\n' + commandText).trim();
@@ -1069,6 +1122,7 @@ registerWorkbenchContribution2(ChatPromptFilesExtensionPointHandler.ID, ChatProm
 registerWorkbenchContribution2(ChatCompatibilityNotifier.ID, ChatCompatibilityNotifier, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(CopilotTitleBarMenuRendering.ID, CopilotTitleBarMenuRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(CodeBlockActionRendering.ID, CodeBlockActionRendering, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ContinueChatInSessionActionRendering.ID, ContinueChatInSessionActionRendering, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatImplicitContextContribution.ID, ChatImplicitContextContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatRelatedFilesContribution.ID, ChatRelatedFilesContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);
@@ -1078,6 +1132,7 @@ registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribu
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatAgentActionsContribution.ID, ChatAgentActionsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ToolReferenceNamesContribution.ID, ToolReferenceNamesContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorAccessibility.ID, ChatEditingEditorAccessibility, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOverlay, WorkbenchPhase.AfterRestored);
@@ -1087,7 +1142,7 @@ registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribu
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(LocalChatSessionsProvider.ID, LocalChatSessionsProvider, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(LocalAgentsSessionsProvider.ID, LocalAgentsSessionsProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatSessionsViewContrib.ID, ChatSessionsViewContrib, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
@@ -1144,6 +1199,7 @@ registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, I
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
+registerSingleton(IAgentSessionsService, AgentSessionsService, InstantiationType.Delayed);
 
 registerAction2(ConfigureToolSets);
 registerAction2(RenameChatSessionAction);

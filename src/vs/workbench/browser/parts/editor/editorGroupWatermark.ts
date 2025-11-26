@@ -15,7 +15,6 @@ import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../platform/storage/common/storage.js';
 import { defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { editorForeground, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 
 interface WatermarkEntry {
@@ -27,6 +26,9 @@ interface WatermarkEntry {
 	};
 }
 
+const showChatContextKey = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabled', false));
+
+const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: showChatContextKey, web: showChatContextKey } };
 const showCommands: WatermarkEntry = { text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands' };
 const gotoFile: WatermarkEntry = { text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' };
 const openFile: WatermarkEntry = { text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile' };
@@ -39,28 +41,24 @@ const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggle
 const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: { web: ContextKeyExpr.equals('terminalProcessSupported', true) } };
 const openSettings: WatermarkEntry = { text: localize('watermark.openSettings', "Open Settings"), id: 'workbench.action.openSettings' };
 
-const showChat = ContextKeyExpr.and(ContextKeyExpr.equals('chatSetupHidden', false), ContextKeyExpr.equals('chatSetupDisabled', false));
-const openChat: WatermarkEntry = { text: localize('watermark.openChat', "Open Chat"), id: 'workbench.action.chat.open', when: { native: showChat, web: showChat } };
+const baseEntries: WatermarkEntry[] = [
+	openChat,
+	showCommands,
+];
 
 const emptyWindowEntries: WatermarkEntry[] = coalesce([
-	showCommands,
+	...baseEntries,
 	...(isMacintosh && !isWeb ? [openFileOrFolder] : [openFile, openFolder]),
 	openRecent,
 	isMacintosh && !isWeb ? newUntitledFile : undefined, // fill in one more on macOS to get to 5 entries
-	openChat
 ]);
 
-const randomEmptyWindowEntries: WatermarkEntry[] = [
-	/* Nothing yet */
-];
-
 const workspaceEntries: WatermarkEntry[] = [
-	showCommands,
-	gotoFile,
-	openChat
+	...baseEntries,
 ];
 
-const randomWorkspaceEntries: WatermarkEntry[] = [
+const otherEntries: WatermarkEntry[] = [
+	gotoFile,
 	findInFiles,
 	startDebugging,
 	toggleTerminal,
@@ -70,6 +68,8 @@ const randomWorkspaceEntries: WatermarkEntry[] = [
 export class EditorGroupWatermark extends Disposable {
 
 	private static readonly CACHED_WHEN = 'editorGroupWatermark.whenConditions';
+	private static readonly SETTINGS_KEY = 'workbench.tips.enabled';
+	private static readonly MINIMUM_ENTRIES = 3;
 
 	private readonly cachedWhen: { [when: string]: boolean };
 
@@ -94,8 +94,10 @@ export class EditorGroupWatermark extends Disposable {
 		this.workbenchState = this.contextService.getWorkbenchState();
 
 		const elements = h('.editor-group-watermark', [
-			h('.letterpress'),
-			h('.shortcuts@shortcuts'),
+			h('.watermark-container', [
+				h('.letterpress'),
+				h('.shortcuts@shortcuts'),
+			])
 		]);
 
 		append(container, elements.root);
@@ -108,7 +110,10 @@ export class EditorGroupWatermark extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('workbench.tips.enabled') && this.enabled !== this.configurationService.getValue<boolean>('workbench.tips.enabled')) {
+			if (
+				e.affectsConfiguration(EditorGroupWatermark.SETTINGS_KEY) &&
+				this.enabled !== this.configurationService.getValue<boolean>(EditorGroupWatermark.SETTINGS_KEY)
+			) {
 				this.render();
 			}
 		}));
@@ -122,7 +127,7 @@ export class EditorGroupWatermark extends Disposable {
 
 		this._register(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				const entries = [...emptyWindowEntries, ...randomEmptyWindowEntries, ...workspaceEntries, ...randomWorkspaceEntries];
+				const entries = [...emptyWindowEntries, ...workspaceEntries, ...otherEntries];
 				for (const entry of entries) {
 					const when = isWeb ? entry.when?.web : entry.when?.native;
 					if (when) {
@@ -136,7 +141,7 @@ export class EditorGroupWatermark extends Disposable {
 	}
 
 	private render(): void {
-		this.enabled = this.configurationService.getValue<boolean>('workbench.tips.enabled');
+		this.enabled = this.configurationService.getValue<boolean>(EditorGroupWatermark.SETTINGS_KEY);
 
 		clearNode(this.shortcuts);
 		this.transientDisposables.clear();
@@ -145,9 +150,12 @@ export class EditorGroupWatermark extends Disposable {
 			return;
 		}
 
-		const fixedEntries = this.filterEntries(this.workbenchState !== WorkbenchState.EMPTY ? workspaceEntries : emptyWindowEntries, false /* not shuffled */);
-		const randomEntries = this.filterEntries(this.workbenchState !== WorkbenchState.EMPTY ? randomWorkspaceEntries : randomEmptyWindowEntries, true /* shuffled */).slice(0, Math.max(0, 5 - fixedEntries.length));
-		const entries = [...fixedEntries, ...randomEntries];
+		const entries = this.filterEntries(this.workbenchState !== WorkbenchState.EMPTY ? workspaceEntries : emptyWindowEntries);
+		if (entries.length < EditorGroupWatermark.MINIMUM_ENTRIES) {
+			const additionalEntries = this.filterEntries(otherEntries);
+			shuffle(additionalEntries);
+			entries.push(...additionalEntries.slice(0, EditorGroupWatermark.MINIMUM_ENTRIES - entries.length));
+		}
 
 		const box = append(this.shortcuts, $('.watermark-box'));
 
@@ -176,18 +184,19 @@ export class EditorGroupWatermark extends Disposable {
 		this.transientDisposables.add(this.keybindingService.onDidUpdateKeybindings(update));
 	}
 
-	private filterEntries(entries: WatermarkEntry[], shuffleEntries: boolean): WatermarkEntry[] {
+	private filterEntries(entries: WatermarkEntry[]): WatermarkEntry[] {
 		const filteredEntries = entries
-			.filter(entry => (isWeb && !entry.when?.web) || (!isWeb && !entry.when?.native) || this.cachedWhen[entry.id])
+			.filter(entry => {
+				if (this.cachedWhen[entry.id]) {
+					return true; // cached from previous session
+				}
+
+				const contextKey = isWeb ? entry.when?.web : entry.when?.native;
+				return !contextKey /* works without context */ || this.contextKeyService.contextMatchesRules(contextKey);
+			})
 			.filter(entry => !!CommandsRegistry.getCommand(entry.id))
 			.filter(entry => !!this.keybindingService.lookupKeybinding(entry.id));
-
-		if (shuffleEntries) {
-			shuffle(filteredEntries);
-		}
 
 		return filteredEntries;
 	}
 }
-
-registerColor('editorWatermark.foreground', { dark: transparent(editorForeground, 0.6), light: transparent(editorForeground, 0.68), hcDark: editorForeground, hcLight: editorForeground }, localize('editorLineHighlight', 'Foreground color for the labels in the editor watermark.'));

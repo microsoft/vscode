@@ -22,39 +22,32 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
-import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
 import { $, append } from '../../../../../base/browser/dom.js';
-import { AgentSessionsViewModel, IAgentSessionViewModel, IAgentSessionsViewModel, isLocalAgentSessionItem } from './agentSessionViewModel.js';
-import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionsSorter } from './agentSessionsViewer.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
-import { FuzzyScore } from '../../../../../base/common/filters.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
+import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
-import { IChatEditorOptions } from '../chatEditor.js';
-import { assertReturnsDefined } from '../../../../../base/common/types.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
-import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
-import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IChatService } from '../../common/chatService.js';
-import { IChatWidgetService } from '../chat.js';
 import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID, AgentSessionProviders } from './agentSessions.js';
-import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
-import { SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
-import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
+import { AgentSessionsFilter } from './agentSessionsFilter.js';
+import { AgentSessionsControl } from './agentSessionsControl.js';
+import { IAgentSessionsService } from './agentSessionsService.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+
+type AgentSessionsViewPaneOpenedClassification = {
+	owner: 'bpasero';
+	comment: 'Event fired when the agent sessions pane is opened';
+};
 
 export class AgentSessionsView extends ViewPane {
-
-	private sessionsViewModel: IAgentSessionsViewModel | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -70,114 +63,46 @@ export class AgentSessionsView extends ViewPane {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProgressService private readonly progressService: IProgressService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IChatService private readonly chatService: IChatService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.AgentSessionsTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
-	}
-
-	protected override renderBody(container: HTMLElement): void {
-		super.renderBody(container);
-
-		container.classList.add('agent-sessions-view');
-
-		// New Session
-		if (!this.configurationService.getValue('chat.hideNewButtonInAgentSessionsView')) {
-			this.createNewSessionButton(container);
-		}
-
-		// Sessions List
-		this.createList(container);
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
+		const sessionsModel = this.agentSessionsService.model;
+		const didResolveDisposable = this._register(new MutableDisposable());
+		this._register(sessionsModel.onWillResolve(() => {
+			const didResolve = new DeferredPromise<void>();
+			didResolveDisposable.value = Event.once(sessionsModel.onDidResolve)(() => didResolve.complete());
 
-		// Sessions List
-		const list = assertReturnsDefined(this.list);
-		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (!visible || this.sessionsViewModel) {
-				return;
-			}
-
-			if (!this.sessionsViewModel) {
-				this.createViewModel();
-			} else {
-				this.list?.updateChildren();
-			}
-		}));
-
-		this._register(list.onDidOpen(e => {
-			this.openAgentSession(e);
-		}));
-
-		this._register(list.onMouseDblClick(({ element }) => {
-			if (element === null) {
-				this.commandService.executeCommand(ACTION_ID_OPEN_CHAT);
-			}
-		}));
-
-		this._register(list.onContextMenu((e) => {
-			this.showContextMenu(e);
+			this.progressService.withProgress(
+				{
+					location: this.id,
+					title: localize('agentSessions.refreshing', 'Refreshing agent sessions...'),
+					delay: 500
+				},
+				() => didResolve.p
+			);
 		}));
 	}
 
-	private async openAgentSession(e: IOpenEvent<IAgentSessionViewModel | undefined>): Promise<void> {
-		const session = e.element;
-		if (!session) {
-			return;
-		}
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
 
-		let sessionOptions: IChatEditorOptions;
-		if (isLocalAgentSessionItem(session)) {
-			sessionOptions = {};
-		} else {
-			sessionOptions = { title: { preferred: session.label } };
-		}
+		this.telemetryService.publicLog2<{}, AgentSessionsViewPaneOpenedClassification>('agentSessionsViewPaneOpened');
 
-		sessionOptions.ignoreInView = true;
+		container.classList.add('agent-sessions-view');
 
-		const options: IChatEditorOptions = {
-			preserveFocus: false,
-			...sessionOptions,
-			...e.editorOptions,
-		};
+		// New Session
+		this.createNewSessionButton(container);
 
-		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
-
-		const group = e.sideBySide ? SIDE_GROUP : undefined;
-		await this.chatWidgetService.openSession(session.resource, group, options);
+		// Sessions Control
+		this.createSessionsControl(container);
 	}
-
-	private async showContextMenu({ element: session, anchor }: ITreeContextMenuEvent<IAgentSessionViewModel>): Promise<void> {
-		if (!session) {
-			return;
-		}
-
-		const provider = await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
-
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(getSessionItemContextOverlay(
-			session,
-			provider,
-			this.chatWidgetService,
-			this.chatService,
-			this.editorGroupsService
-		)));
-
-		const marshalledSession: IMarshalledChatSessionContext = { session, $mid: MarshalledId.ChatSessionContext };
-		const { secondary } = getActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }), 'inline'); this.contextMenuService.showContextMenu({
-			getActions: () => secondary,
-			getAnchor: () => anchor,
-			getActionsContext: () => marshalledSession,
-		});
-
-		menu.dispose();
-	}
-
-	//#endregion
 
 	//#region New Session Controls
 
@@ -273,62 +198,27 @@ export class AgentSessionsView extends ViewPane {
 
 	//#endregion
 
-	//#region Sessions List
+	//#region Sessions Control
 
-	private listContainer: HTMLElement | undefined;
-	private list: WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore> | undefined;
+	private sessionsControl: AgentSessionsControl | undefined;
 
-	private createList(container: HTMLElement): void {
-		this.listContainer = append(container, $('.agent-sessions-viewer'));
-
-		this.list = this._register(this.instantiationService.createInstance(WorkbenchCompressibleAsyncDataTree,
-			'AgentSessionsView',
-			this.listContainer,
-			new AgentSessionsListDelegate(),
-			new AgentSessionsCompressionDelegate(),
-			[
-				this.instantiationService.createInstance(AgentSessionRenderer)
-			],
-			new AgentSessionsDataSource(),
-			{
-				accessibilityProvider: new AgentSessionsAccessibilityProvider(),
-				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
-				identityProvider: new AgentSessionsIdentityProvider(),
-				horizontalScrolling: false,
-				multipleSelectionSupport: false,
-				findWidgetEnabled: true,
-				defaultFindMode: TreeFindMode.Filter,
-				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
-				sorter: new AgentSessionsSorter(),
-				paddingBottom: AgentSessionsListDelegate.ITEM_HEIGHT,
-				twistieAdditionalCssClass: () => 'force-no-twistie',
-			}
-		)) as WorkbenchCompressibleAsyncDataTree<IAgentSessionsViewModel, IAgentSessionViewModel, FuzzyScore>;
-	}
-
-	private createViewModel(): void {
-		const sessionsViewModel = this.sessionsViewModel = this._register(this.instantiationService.createInstance(AgentSessionsViewModel, { filterMenuId: MenuId.AgentSessionsFilterSubMenu }));
-		this.list?.setInput(sessionsViewModel);
-
-		this._register(sessionsViewModel.onDidChangeSessions(() => {
-			if (this.isBodyVisible()) {
-				this.list?.updateChildren();
-			}
+	private createSessionsControl(container: HTMLElement): void {
+		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
+			filterMenuId: MenuId.AgentSessionsFilterSubMenu,
 		}));
 
-		const didResolveDisposable = this._register(new MutableDisposable());
-		this._register(sessionsViewModel.onWillResolve(() => {
-			const didResolve = new DeferredPromise<void>();
-			didResolveDisposable.value = Event.once(sessionsViewModel.onDidResolve)(() => didResolve.complete());
+		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl,
+			container,
+			{
+				filter: sessionsFilter,
+				allowNewSessionFromEmptySpace: true,
+				allowFiltering: true,
+			}
+		));
+		this.sessionsControl.setVisible(this.isBodyVisible());
 
-			this.progressService.withProgress(
-				{
-					location: this.id,
-					title: localize('agentSessions.refreshing', 'Refreshing agent sessions...'),
-					delay: 500
-				},
-				() => didResolve.p
-			);
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			this.sessionsControl?.setVisible(visible);
 		}));
 	}
 
@@ -337,11 +227,11 @@ export class AgentSessionsView extends ViewPane {
 	//#region Actions internal API
 
 	openFind(): void {
-		this.list?.openFind();
+		this.sessionsControl?.openFind();
 	}
 
 	refresh(): void {
-		this.sessionsViewModel?.resolve(undefined);
+		this.sessionsControl?.refresh();
 	}
 
 	//#endregion
@@ -349,18 +239,16 @@ export class AgentSessionsView extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
-		let treeHeight = height;
-		treeHeight -= this.newSessionContainer?.offsetHeight ?? 0;
+		let sessionsControlHeight = height;
+		sessionsControlHeight -= this.newSessionContainer?.offsetHeight ?? 0;
 
-		this.list?.layout(treeHeight, width);
+		this.sessionsControl?.layout(sessionsControlHeight, width);
 	}
 
 	override focus(): void {
 		super.focus();
 
-		if (this.list?.getFocus().length) {
-			this.list.domFocus();
-		}
+		this.sessionsControl?.focus();
 	}
 }
 
@@ -368,7 +256,7 @@ export class AgentSessionsView extends ViewPane {
 
 const chatAgentsIcon = registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Agent Sessions View');
 
-const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Agent Sessions");
+const AGENT_SESSIONS_VIEW_TITLE = localize2('agentSessions.view.label', "Agents");
 
 const agentSessionsViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: AGENT_SESSIONS_VIEW_CONTAINER_ID,
