@@ -574,6 +574,9 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 					return itemWithProvider;
 				}).filter(item => item !== undefined);
 
+				if (this.archivedItems.getItems().length > 0) {
+					result.push(this.archivedItems);
+				}
 				return result;
 			} catch (error) {
 				return [];
