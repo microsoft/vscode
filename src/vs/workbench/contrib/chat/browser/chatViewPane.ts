@@ -72,9 +72,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private viewPaneContainer: HTMLElement | undefined;
 
 	private sessionsContainer: HTMLElement | undefined;
+	private sessionsControlContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
-	private sessionsCount: number = 0;
 	private sessionsLinkContainer: HTMLElement | undefined;
+	private sessionsCount: number = 0;
 
 	private welcomeController: ChatViewWelcomeController | undefined;
 
@@ -271,9 +272,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private createSessionsControl(parent: HTMLElement): void {
 		const that = this;
 
-		// Sessions Control
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
-		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsContainer, {
+
+		// Sessions Control
+		const sessionsControlContainer = this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
+		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, sessionsControlContainer, {
 			allowOpenSessionsInPanel: true,
 			filter: {
 				limitResults: ChatViewPane.SESSIONS_LIMIT,
@@ -431,10 +434,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		let remainingHeight = height;
 
-		// Sessions Control (grows witht the number of items displayed)
-		this.sessionsControl?.layout(this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT, width);
-		const sessionsContainerHeight = this.sessionsContainer?.offsetHeight ?? 0;
-		remainingHeight -= sessionsContainerHeight;
+		// Sessions Control (grows with the number of items displayed)
+		if (this.sessionsContainer && this.sessionsControlContainer && this.sessionsControl) {
+			const sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
+			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
+			this.sessionsControl.layout(sessionsHeight, width);
+
+			remainingHeight -= this.sessionsContainer.offsetHeight;
+		}
 
 		// Chat Widget
 		this._widget.layout(remainingHeight, width);
