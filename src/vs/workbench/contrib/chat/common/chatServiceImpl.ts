@@ -662,12 +662,6 @@ export class ChatService extends Disposable implements IChatService {
 					}
 				}
 			}
-			//  else if (hasKey(message, { kind: true }) && message.kind === 'multiDiffData') {
-			// 	// multiDiffData - render the multidiff editor
-			// 	if (lastRequest) {
-			// 		model.acceptResponseProgress(lastRequest, message);
-			// 	}
-			// }
 		}
 
 		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
