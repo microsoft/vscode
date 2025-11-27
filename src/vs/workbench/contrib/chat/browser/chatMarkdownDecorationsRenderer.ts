@@ -38,7 +38,7 @@ const agentRefUrl = `http://_chatagent_`;
 /** For rendering agent decorations with hover */
 const agentSlashRefUrl = `http://_chatslash_`;
 
-export function agentToMarkdown(agent: IChatAgentData, isClickable: boolean, accessor: ServicesAccessor): string {
+export function agentToMarkdown(agent: IChatAgentData, sessionResource: URI, isClickable: boolean, accessor: ServicesAccessor): string {
 	const chatAgentNameService = accessor.get(IChatAgentNameService);
 	const chatAgentService = accessor.get(IChatAgentService);
 
@@ -49,25 +49,27 @@ export function agentToMarkdown(agent: IChatAgentData, isClickable: boolean, acc
 		name += ` (${agent.publisherDisplayName})`;
 	}
 
-	const args: IAgentWidgetArgs = { agentId: agent.id, name, isClickable };
+	const args: IAgentWidgetArgs = { agentId: agent.id, sessionResource, name, isClickable };
 	return `[${agent.name}](${agentRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
 }
 
 interface IAgentWidgetArgs {
+	sessionResource: URI;
 	agentId: string;
 	name: string;
 	isClickable?: boolean;
 }
 
-export function agentSlashCommandToMarkdown(agent: IChatAgentData, command: IChatAgentCommand): string {
+export function agentSlashCommandToMarkdown(agent: IChatAgentData, command: IChatAgentCommand, sessionResource: URI): string {
 	const text = `${chatSubcommandLeader}${command.name}`;
-	const args: ISlashCommandWidgetArgs = { agentId: agent.id, command: command.name };
+	const args: ISlashCommandWidgetArgs = { agentId: agent.id, command: command.name, sessionResource };
 	return `[${text}](${agentSlashRefUrl}?${encodeURIComponent(JSON.stringify(args))})`;
 }
 
 interface ISlashCommandWidgetArgs {
 	agentId: string;
 	command: string;
+	sessionResource: URI;
 }
 
 export interface IDecorationWidgetArgs {
@@ -90,13 +92,13 @@ export class ChatMarkdownDecorationsRenderer {
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) { }
 
-	convertParsedRequestToMarkdown(parsedRequest: IParsedChatRequest): string {
+	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest): string {
 		let result = '';
 		for (const part of parsedRequest.parts) {
 			if (part instanceof ChatRequestTextPart) {
 				result += part.text;
 			} else if (part instanceof ChatRequestAgentPart) {
-				result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, false, accessor));
+				result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, sessionResource, false, accessor));
 			} else {
 				result += this.genericDecorationToMarkdown(part);
 			}
@@ -112,7 +114,7 @@ export class ChatMarkdownDecorationsRenderer {
 		const title = uri ? this.labelService.getUriLabel(uri, { relative: true }) :
 			part instanceof ChatRequestSlashCommandPart ? part.slashCommand.detail :
 				part instanceof ChatRequestAgentSubcommandPart ? part.command.description :
-					part instanceof ChatRequestSlashPromptPart ? part.slashPromptCommand.command :
+					part instanceof ChatRequestSlashPromptPart ? part.name :
 						part instanceof ChatRequestToolPart ? (this.toolsService.getTool(part.toolId)?.userDescription) :
 							'';
 
@@ -180,7 +182,7 @@ export class ChatMarkdownDecorationsRenderer {
 			button.label = nameWithLeader;
 			store.add(button.onDidClick(() => {
 				const agent = this.chatAgentService.getAgent(args.agentId);
-				const widget = this.chatWidgetService.lastFocusedWidget;
+				const widget = this.chatWidgetService.getWidgetBySessionResource(args.sessionResource) || this.chatWidgetService.lastFocusedWidget;
 				if (!widget || !agent) {
 					return;
 				}
@@ -216,7 +218,7 @@ export class ChatMarkdownDecorationsRenderer {
 		}));
 		button.label = name;
 		store.add(button.onDidClick(() => {
-			const widget = this.chatWidgetService.lastFocusedWidget;
+			const widget = this.chatWidgetService.getWidgetBySessionResource(args.sessionResource) || this.chatWidgetService.lastFocusedWidget;
 			if (!widget || !agent) {
 				return;
 			}

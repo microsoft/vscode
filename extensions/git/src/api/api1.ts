@@ -318,6 +318,18 @@ export class ApiRepository implements Repository {
 	dropStash(index?: number): Promise<void> {
 		return this.#repository.dropStash(index);
 	}
+
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string> {
+		return this.#repository.createWorktree(options);
+	}
+
+	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void> {
+		return this.#repository.deleteWorktree(path, options);
+	}
+
+	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void> {
+		return this.#repository.migrateChanges(sourceRepositoryPath, options);
+	}
 }
 
 export class ApiGit implements Git {

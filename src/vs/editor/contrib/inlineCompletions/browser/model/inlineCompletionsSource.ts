@@ -22,7 +22,8 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import product from '../../../../../platform/product/common/product.js';
 import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { Range } from '../../../../common/core/range.js';
+import { Command, InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { offsetEditFromContentChanges } from '../../../../common/model/textModelStringEdit.js';
@@ -33,6 +34,7 @@ import { InlineCompletionEndOfLifeEvent, sendInlineCompletionsEndOfLifeTelemetry
 import { wait } from '../utils.js';
 import { InlineSuggestionIdentity, InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { InlineCompletionContextWithoutUuid, InlineSuggestRequestInfo, provideInlineCompletions, runWhenCancelled } from './provideInlineCompletions.js';
+import { RenameSymbolProcessor } from './renameSymbolProcessor.js';
 
 export class InlineCompletionsSource extends Disposable {
 	private static _requestId = 0;
@@ -75,6 +77,8 @@ export class InlineCompletionsSource extends Disposable {
 	public readonly inlineCompletions = this._state.map(this, v => v.inlineCompletions);
 	public readonly suggestWidgetInlineCompletions = this._state.map(this, v => v.suggestWidgetInlineCompletions);
 
+	private readonly _renameProcessor: RenameSymbolProcessor;
+
 	private _completionsEnabled: Record<string, boolean> | undefined = undefined;
 
 	constructor(
@@ -97,6 +101,8 @@ export class InlineCompletionsSource extends Disposable {
 		>(),
 			'editor.inlineSuggest.logFetch.commandId'
 		));
+
+		this._renameProcessor = this._store.add(this._instantiationService.createInstance(RenameSymbolProcessor));
 
 		this.clearOperationOnTextModelChange.recomputeInitiallyAndOnChange(this._store);
 
@@ -225,7 +231,7 @@ export class InlineCompletionsSource extends Disposable {
 				let shouldStopEarly = false;
 				let producedSuggestion = false;
 
-				const suggestions: InlineSuggestionItem[] = [];
+				const providerSuggestions: InlineSuggestionItem[] = [];
 				for await (const list of providerResult.lists) {
 					if (!list) {
 						continue;
@@ -244,8 +250,10 @@ export class InlineCompletionsSource extends Disposable {
 							continue;
 						}
 
+						item.addPerformanceMarker('providerReturned');
 						const i = InlineSuggestionItem.create(item, this._textModel);
-						suggestions.push(i);
+						item.addPerformanceMarker('itemCreated');
+						providerSuggestions.push(i);
 						// Stop after first visible inline completion
 						if (!i.isInlineEdit && !i.showInlineEditMenu && context.triggerKind === InlineCompletionTriggerKind.Automatic) {
 							if (i.isVisible(this._textModel, this._cursorPosition.get())) {
@@ -259,6 +267,14 @@ export class InlineCompletionsSource extends Disposable {
 					}
 				}
 
+				providerSuggestions.forEach(s => s.addPerformanceMarker('providersResolved'));
+
+				const suggestions: InlineSuggestionItem[] = await Promise.all(providerSuggestions.map(async s => {
+					return this._renameProcessor.proposeRenameRefactoring(this._textModel, s);
+				}));
+
+				suggestions.forEach(s => s.addPerformanceMarker('renameProcessed'));
+
 				providerResult.cancelAndDispose({ kind: 'lostRace' });
 
 				if (this._loggingEnabled.get() || this._structuredFetchLogger.isEnabled.get()) {
@@ -268,12 +284,19 @@ export class InlineCompletionsSource extends Disposable {
 						error = 'canceled';
 					}
 					const result = suggestions.map(c => ({
-						range: c.editRange.toString(),
-						text: c.insertText,
-						hint: c.hint,
-						isInlineEdit: c.isInlineEdit,
-						showInlineEditMenu: c.showInlineEditMenu,
-						providerId: c.source.provider.providerId?.toString(),
+						...(mapDeep(c.getSourceCompletion(), v => {
+							if (Range.isIRange(v)) {
+								return v.toString();
+							}
+							if (Position.isIPosition(v)) {
+								return v.toString();
+							}
+							if (Command.is(v)) {
+								return { $commandId: v.id };
+							}
+							return v;
+						}) as object),
+						$providerId: c.source.provider.providerId?.toString(),
 					}));
 					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now(), didAllProvidersReturn });
 				}
@@ -297,6 +320,8 @@ export class InlineCompletionsSource extends Disposable {
 				if (remainingTimeToWait > 0) {
 					await wait(remainingTimeToWait, source.token);
 				}
+
+				suggestions.forEach(s => s.addPerformanceMarker('minShowDelayPassed'));
 
 				if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId
 					|| userJumpedToActiveCompletion.get()  /* In the meantime the user showed interest for the active completion so dont hide it */) {
@@ -409,6 +434,7 @@ export class InlineCompletionsSource extends Disposable {
 			extensionVersion: '0.0.0',
 			groupId: 'empty',
 			shown: false,
+			sku: requestResponseInfo.requestInfo.sku,
 			editorType: requestResponseInfo.requestInfo.editorType,
 			requestReason: requestResponseInfo.requestInfo.reason,
 			typingInterval: requestResponseInfo.requestInfo.typingInterval,
@@ -440,6 +466,11 @@ export class InlineCompletionsSource extends Disposable {
 			disjointReplacements: undefined,
 			sameShapeReplacements: undefined,
 			notShownReason: undefined,
+			renameCreated: false,
+			renameDuration: undefined,
+			renameTimedOut: false,
+			performanceMarkers: undefined,
+			editKind: undefined,
 		};
 
 		const dataChannel = this._instantiationService.createInstance(DataChannelForwardingTelemetryService);
@@ -641,4 +672,18 @@ function moveToFront<T>(item: T, items: T[]): T[] {
 		return [item, ...items.slice(0, index), ...items.slice(index + 1)];
 	}
 	return items;
+}
+
+function mapDeep(value: unknown, replacer: (value: unknown) => unknown): unknown {
+	const val = replacer(value);
+	if (Array.isArray(val)) {
+		return val.map(v => mapDeep(v, replacer));
+	} else if (isObject(val)) {
+		const result: Record<string, unknown> = {};
+		for (const [key, value] of Object.entries(val)) {
+			result[key] = mapDeep(value, replacer);
+		}
+		return result;
+	}
+	return val;
 }

@@ -30,7 +30,8 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
-import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
+import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
+import { TerminalContribCommandId, TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
@@ -39,9 +40,9 @@ import { AcceptToolConfirmationActionId, SkipToolConfirmationActionId } from '..
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatConfirmationWidget.js';
+import { EditorPool } from '../chatContentCodePools.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
-import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
-import { openTerminalSettingsLinkCommandId } from './chatTerminalToolProgressPart.js';
+import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
@@ -60,7 +61,8 @@ export type TerminalNewAutoApproveButtonData = (
 	{ type: 'enable' } |
 	{ type: 'configure' } |
 	{ type: 'skip' } |
-	{ type: 'newRule'; rule: ITerminalNewAutoApproveRule | ITerminalNewAutoApproveRule[] }
+	{ type: 'newRule'; rule: ITerminalNewAutoApproveRule | ITerminalNewAutoApproveRule[] } |
+	{ type: 'sessionApproval' }
 );
 
 export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
@@ -86,6 +88,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITerminalChatService private readonly terminalChatService: ITerminalChatService,
 		@ITextModelService textModelService: ITextModelService,
 		@IHoverService hoverService: IHoverService,
 	) {
@@ -276,13 +279,13 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						await this.configurationService.updateValue(TerminalContribSettingId.AutoApprove, newValue, ConfigurationTarget.USER);
 						function formatRuleLinks(newRules: ITerminalNewAutoApproveRule[]): string {
 							return newRules.map(e => {
-								const settingsUri = createCommandUri(openTerminalSettingsLinkCommandId, ConfigurationTarget.USER);
+								const settingsUri = createCommandUri(TerminalContribCommandId.OpenTerminalSettingsLink, ConfigurationTarget.USER);
 								return `[\`${e.key}\`](${settingsUri.toString()} "${localize('ruleTooltip', 'View rule in settings')}")`;
 							}).join(', ');
 						}
 						const mdTrustSettings = {
 							isTrusted: {
-								enabledCommands: [openTerminalSettingsLinkCommandId]
+								enabledCommands: [TerminalContribCommandId.OpenTerminalSettingsLink]
 							}
 						};
 						if (newRules.length === 1) {
@@ -299,6 +302,19 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 							query: `@id:${TerminalContribSettingId.AutoApprove}`,
 						});
 						doComplete = false;
+						break;
+					}
+					case 'sessionApproval': {
+						const sessionId = this.context.element.sessionId;
+						this.terminalChatService.setChatSessionAutoApproval(sessionId, true);
+						const disableUri = createCommandUri(TerminalContribCommandId.DisableSessionAutoApproval, sessionId);
+						const mdTrustSettings = {
+							isTrusted: {
+								enabledCommands: [TerminalContribCommandId.DisableSessionAutoApproval]
+							}
+						};
+						terminalData.autoApproveInfo = new MarkdownString(`${localize('sessionApproval', 'All commands will be auto approved for this session')} ([${localize('sessionApproval.disable', 'Disable')}](${disableUri.toString()}))`, mdTrustSettings);
+						toolConfirmKind = ToolConfirmKind.UserAction;
 						break;
 					}
 				}
@@ -376,7 +392,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			undefined,
 			this.currentWidthDelegate(),
 			this.codeBlockModelCollection,
-			{ codeBlockRenderOptions }
+			{ codeBlockRenderOptions },
 		));
 		append(container, part.domNode);
 		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));

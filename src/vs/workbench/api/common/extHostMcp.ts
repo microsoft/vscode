@@ -16,10 +16,11 @@ import { ConfigurationTarget } from '../../../platform/configuration/common/conf
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
+import product from '../../../platform/product/common/product.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
 import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerStaticMetadata, McpServerStaticToolAvailability, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { ExtHostMcpShape, IMcpAuthenticationDetails, IStartMcpOptions, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostInitDataService } from './extHostInitDataService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
@@ -44,6 +45,10 @@ const serverDataValidation = vObj({
 			availability: vNumber(),
 			definition: vObjAny(),
 		}))),
+	})),
+	authentication: vOptionalProp(vObj({
+		providerId: vString(),
+		scopes: vArray(vString()),
 	}))
 });
 
@@ -164,6 +169,9 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 				}
 
 				serverDataValidation.validateOrThrow(item);
+				if ((item as vscode.McpHttpServerDefinition2).authentication) {
+					checkProposedApiEnabled(extension, 'mcpToolDefinitions');
+				}
 
 				let staticMetadata: McpServerStaticMetadata | undefined;
 				const castAs2 = item as McpStdioServerDefinition | McpHttpServerDefinition;
@@ -430,7 +438,7 @@ export class McpHTTPHandle extends Disposable {
 			scopesChallenge ??= resourceMetadata.scopes_supported;
 			resource = resourceMetadata;
 		} catch (e) {
-			this._log(LogLevel.Debug, `Could not fetch resource metadata: ${String(e)}`);
+			this._log(LogLevel.Warning, `Could not fetch resource metadata: ${String(e)}`);
 		}
 
 		const baseUrl = new URL(originalResponse.url).origin;
@@ -518,8 +526,14 @@ export class McpHTTPHandle extends Disposable {
 	 */
 	private async _attachStreamableBackchannel() {
 		let lastEventId: string | undefined;
+		let canReconnectAt: number | undefined;
 		for (let retry = 0; !this._store.isDisposed; retry++) {
-			await timeout(Math.min(retry * 1000, 30_000), this._cts.token);
+			if (canReconnectAt !== undefined) {
+				await timeout(Math.max(0, canReconnectAt - Date.now()), this._cts.token);
+				canReconnectAt = undefined;
+			} else {
+				await timeout(Math.min(retry * 1000, 30_000), this._cts.token);
+			}
 
 			let res: CommonResponse;
 			try {
@@ -561,7 +575,10 @@ export class McpHTTPHandle extends Disposable {
 			}
 
 			const parser = new SSEParser(event => {
-				if (event.type === 'message') {
+				if (event.retry) {
+					canReconnectAt = Date.now() + event.retry;
+				}
+				if (event.type === 'message' && event.data) {
 					this._proxy.$onDidReceiveMessage(this._id, event.data);
 				}
 				if (event.id) {
@@ -700,6 +717,30 @@ export class McpHTTPHandle extends Disposable {
 				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
 			}
 		}
+		if (this._launch.authentication) {
+			try {
+				this._log(LogLevel.Debug, `Using provided authentication config: providerId=${this._launch.authentication.providerId}, scopes=${this._launch.authentication.scopes.join(', ')}`);
+				const token = await this._proxy.$getTokenForProviderId(
+					this._id,
+					this._launch.authentication.providerId,
+					this._launch.authentication.scopes,
+					{
+						errorOnUserInteraction: this._errorOnUserInteraction,
+						forceNewRegistration
+					}
+				);
+				if (token) {
+					headers['Authorization'] = `Bearer ${token}`;
+					this._log(LogLevel.Info, 'Successfully obtained token from provided authentication config');
+				}
+			} catch (e) {
+				if (UserInteractionRequiredError.is(e)) {
+					this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Stopped, reason: 'needs-user-interaction' });
+					throw new CancellationError();
+				}
+				this._log(LogLevel.Warning, `Error getting token from provided authentication config: ${String(e)}`);
+			}
+		}
 		return headers;
 	}
 
@@ -781,6 +822,8 @@ export class McpHTTPHandle extends Disposable {
 		}
 		// If we have an Authorization header and still get an auth error, we should retry with a new auth registration
 		if (headers['Authorization'] && isAuthStatusCode(res.status)) {
+			const errorText = await this._getErrText(res);
+			this._log(LogLevel.Debug, `Received ${res.status} status with Authorization header, retrying with new auth registration. Error details: ${errorText || 'no additional details'}`);
 			await this._addAuthHeader(headers, true);
 			res = await doFetch();
 		}
@@ -788,6 +831,8 @@ export class McpHTTPHandle extends Disposable {
 	}
 
 	private async _fetch(url: string, init: MinimalRequestInit): Promise<CommonResponse> {
+		init.headers['user-agent'] = `${product.nameLong}/${product.version}`;
+
 		if (canLog(this._logService.getLevel(), LogLevel.Trace)) {
 			const traceObj: any = { ...init, headers: { ...init.headers } };
 			if (traceObj.body) {

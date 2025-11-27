@@ -27,17 +27,16 @@ import { asCssVariable, descriptionForeground, editorActionListForeground, edito
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { hideInlineCompletionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
-import { IInlineEditModel } from '../inlineEditsViewInterface.js';
 import { FirstFnArg, } from '../utils/utils.js';
+import { InlineSuggestionGutterMenuData } from './gutterIndicatorView.js';
 
 export class GutterIndicatorMenuContent {
-
 	private readonly _inlineEditsShowCollapsed: IObservable<boolean>;
 
 	constructor(
-		private readonly _model: IInlineEditModel,
-		private readonly _close: (focusEditor: boolean) => void,
 		private readonly _editorObs: ObservableCodeEditor,
+		private readonly _data: InlineSuggestionGutterMenuData,
+		private readonly _close: (focusEditor: boolean) => void,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -66,7 +65,7 @@ export class GutterIndicatorMenuContent {
 			};
 		};
 
-		const title = header(this._model.displayName);
+		const title = header(this._data.displayName);
 
 		const gotoAndAccept = option(createOptionArgs({
 			id: 'gotoAndAccept',
@@ -82,13 +81,26 @@ export class GutterIndicatorMenuContent {
 			commandId: hideInlineCompletionId
 		}));
 
-		const extensionCommands = this._model.extensionCommands.map((c, idx) => option(createOptionArgs({
+		const extensionCommands = this._data.extensionCommands.map((c, idx) => option(createOptionArgs({
 			id: c.command.id + '_' + idx,
 			title: c.command.title,
 			icon: c.icon ?? Codicon.symbolEvent,
 			commandId: c.command.id,
 			commandArgs: c.command.arguments
 		})));
+
+		const showModelEnabled = false;
+		const modelOptions = showModelEnabled ? this._data.modelInfo?.models.map((m: { id: string; name: string }) => option({
+			title: m.name,
+			icon: m.id === this._data.modelInfo?.currentModelId ? Codicon.check : Codicon.circle,
+			keybinding: constObservable(undefined),
+			isActive: activeElement.map(v => v === 'model_' + m.id),
+			onHoverChange: v => activeElement.set(v ? 'model_' + m.id : undefined, undefined),
+			onAction: () => {
+				this._close(true);
+				this._data.setModelId?.(m.id);
+			},
+		})) ?? [] : [];
 
 		const toggleCollapsedMode = this._inlineEditsShowCollapsed.map(showCollapsed => showCollapsed ?
 			option(createOptionArgs({
@@ -120,7 +132,7 @@ export class GutterIndicatorMenuContent {
 			commandArgs: ['@tag:nextEditSuggestions']
 		}));
 
-		const actions = this._model.action ? [this._model.action] : [];
+		const actions = this._data.action ? [this._data.action] : [];
 		const actionBarFooter = actions.length > 0 ? actionBar(
 			actions.map(action => ({
 				id: action.id,
@@ -138,6 +150,8 @@ export class GutterIndicatorMenuContent {
 			gotoAndAccept,
 			reject,
 			toggleCollapsedMode,
+			modelOptions.length ? separator() : undefined,
+			...modelOptions,
 			extensionCommands.length ? separator() : undefined,
 			snooze,
 			settings,

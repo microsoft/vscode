@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
+import type * as ESTree from 'estree';
 
 /**
  * Ensures that localization keys in policy blocks match the keys used in nls.localize() calls.
@@ -21,7 +22,7 @@ import * as eslint from 'eslint';
  * The key property ('autoApprove2.description') must match the first argument
  * to nls.localize() ('autoApprove2.description').
  */
-export = new class PolicyLocalizationKeyMatch implements eslint.Rule.RuleModule {
+export default new class PolicyLocalizationKeyMatch implements eslint.Rule.RuleModule {
 
 	readonly meta: eslint.Rule.RuleMetaData = {
 		messages: {
@@ -35,11 +36,11 @@ export = new class PolicyLocalizationKeyMatch implements eslint.Rule.RuleModule 
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		function checkLocalizationObject(node: any) {
+		function checkLocalizationObject(node: ESTree.ObjectExpression) {
 			// Look for objects with structure: { key: '...', value: nls.localize('...', '...') }
 
-			let keyProperty: any;
-			let valueProperty: any;
+			let keyProperty: ESTree.Property | undefined;
+			let valueProperty: ESTree.Property | undefined;
 
 			for (const property of node.properties) {
 				if (property.type !== 'Property') {
@@ -113,7 +114,7 @@ export = new class PolicyLocalizationKeyMatch implements eslint.Rule.RuleModule 
 			}
 		}
 
-		function isInPolicyBlock(node: any): boolean {
+		function isInPolicyBlock(node: ESTree.Node): boolean {
 			// Walk up the AST to see if we're inside a policy object
 			const ancestors = context.sourceCode.getAncestors(node);
 
@@ -131,7 +132,7 @@ export = new class PolicyLocalizationKeyMatch implements eslint.Rule.RuleModule 
 		}
 
 		return {
-			'ObjectExpression': (node: any) => {
+			'ObjectExpression': (node: ESTree.ObjectExpression) => {
 				// Only check objects inside policy blocks
 				if (!isInPolicyBlock(node)) {
 					return;

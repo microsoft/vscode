@@ -239,6 +239,7 @@
 		"--vscode-editorGutter-addedBackground",
 		"--vscode-editorGutter-addedSecondaryBackground",
 		"--vscode-editorGutter-background",
+		"--vscode-editorGutter-commentDraftGlyphForeground",
 		"--vscode-editorGutter-commentGlyphForeground",
 		"--vscode-editorGutter-commentRangeForeground",
 		"--vscode-editorGutter-commentUnresolvedGlyphForeground",
@@ -304,6 +305,7 @@
 		"--vscode-editorOverviewRuler-bracketMatchForeground",
 		"--vscode-editorOverviewRuler-commentForeground",
 		"--vscode-editorOverviewRuler-commentUnresolvedForeground",
+		"--vscode-editorOverviewRuler-commentDraftForeground",
 		"--vscode-editorOverviewRuler-commonContentForeground",
 		"--vscode-editorOverviewRuler-currentContentForeground",
 		"--vscode-editorOverviewRuler-deletedForeground",
@@ -896,10 +898,7 @@
 		"--background-light",
 		"--chat-editing-last-edit-shift",
 		"--chat-current-response-min-height",
-		"--dropdown-padding-bottom",
-		"--dropdown-padding-top",
 		"--inline-chat-frame-progress",
-		"--inline-chat-hint-progress",
 		"--insert-border-color",
 		"--last-tab-margin-right",
 		"--monaco-monospace-font",
@@ -987,6 +986,10 @@
 		"--vscode-chat-font-size-body-s",
 		"--vscode-chat-font-size-body-xl",
 		"--vscode-chat-font-size-body-xs",
-		"--vscode-chat-font-size-body-xxl"
+		"--vscode-chat-font-size-body-xxl",
+		"--comment-thread-editor-font-family",
+		"--comment-thread-editor-font-weight",
+		"--comment-thread-state-color",
+		"--comment-thread-state-background-color"
 	]
 }

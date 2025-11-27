@@ -7,18 +7,24 @@ import { $ } from '../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 
 
 export abstract class ChatCollapsibleContentPart extends Disposable implements IChatContentPart {
 
 	private _domNode?: HTMLElement;
+	private readonly _renderedTitleWithWidgets = this._register(new MutableDisposable<IRenderedMarkdown>());
 
 	protected readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -113,5 +119,27 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			this._collapseButton.label = title;
 			this.updateAriaLabel(this._collapseButton.element, title, this.isExpanded());
 		}
+	}
+
+
+	// Render collapsible dropdown title with widgets
+	protected setTitleWithWidgets(content: MarkdownString, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, chatContentMarkdownRenderer: IMarkdownRenderer): void {
+		if (this._store.isDisposed || !this._collapseButton) {
+			return;
+		}
+
+		const result = chatContentMarkdownRenderer.render(content);
+		result.element.classList.add('collapsible-title-content');
+
+		renderFileWidgets(result.element, instantiationService, chatMarkdownAnchorService, this._store);
+
+		const labelElement = this._collapseButton.labelElement;
+		labelElement.textContent = '';
+		labelElement.appendChild(result.element);
+
+		const textContent = result.element.textContent || '';
+		this.updateAriaLabel(this._collapseButton.element, textContent, this.isExpanded());
+
+		this._renderedTitleWithWidgets.value = result;
 	}
 }

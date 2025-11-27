@@ -6129,6 +6129,7 @@ declare namespace monaco.editor {
 		 * Fires after the editor completes the operation it fired `onBeginUpdate` for.
 		*/
 		readonly onEndUpdate: IEvent<void>;
+		readonly onDidChangeViewZones: IEvent<void>;
 		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */
@@ -6262,6 +6263,10 @@ declare namespace monaco.editor {
 		 * @param command The commands to execute
 		 */
 		executeCommands(source: string | null | undefined, commands: (ICommand | null)[]): void;
+		/**
+		 * Scroll vertically or horizontally as necessary and reveal the current cursors.
+		 */
+		revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void;
 		/**
 		 * Get all the decorations on a line (filtering out decorations from other editors).
 		 */
@@ -7492,6 +7497,16 @@ declare namespace monaco.languages {
 		readonly earliestShownDateTime: number;
 	}
 
+	export interface IInlineCompletionModelInfo {
+		models: IInlineCompletionModel[];
+		currentModelId: string;
+	}
+
+	export interface IInlineCompletionModel {
+		name: string;
+		id: string;
+	}
+
 	export class SelectedSuggestionInfo {
 		readonly range: IRange;
 		readonly text: string;
@@ -7550,11 +7565,13 @@ declare namespace monaco.languages {
 		/** Only show the inline suggestion when the cursor is in the showRange. */
 		readonly showRange?: IRange;
 		readonly warning?: InlineCompletionWarning;
-		readonly hint?: InlineCompletionHint;
+		readonly hint?: IInlineCompletionHint;
+		readonly supportsRename?: boolean;
 		/**
 		 * Used for telemetry.
 		 */
 		readonly correlationId?: string | undefined;
+		readonly jumpToPosition?: IPosition;
 	}
 
 	export interface InlineCompletionWarning {
@@ -7567,12 +7584,11 @@ declare namespace monaco.languages {
 		Label = 2
 	}
 
-	export interface InlineCompletionHint {
+	export interface IInlineCompletionHint {
 		/** Refers to the current document. */
 		range: IRange;
 		style: InlineCompletionHintStyle;
 		content: string;
-		jumpToEdit: boolean;
 	}
 
 	export type IconPath = editor.ThemeIcon;
@@ -7636,6 +7652,9 @@ declare namespace monaco.languages {
 		excludesGroupIds?: InlineCompletionProviderGroupId[];
 		displayName?: string;
 		debounceDelayMs?: number;
+		modelInfo?: IInlineCompletionModelInfo;
+		onDidModelInfoChange?: IEvent<void>;
+		setModelId?(modelId: string): Promise<void>;
 		toString?(): string;
 	}
 
@@ -7678,6 +7697,7 @@ declare namespace monaco.languages {
 		preceeded: boolean;
 		languageId: string;
 		requestReason: string;
+		performanceMarkers?: string;
 		cursorColumnDistance?: number;
 		cursorLineDistance?: number;
 		lineCountOriginal?: number;
@@ -7690,6 +7710,11 @@ declare namespace monaco.languages {
 		typingIntervalCharacterCount: number;
 		selectedSuggestionInfo: boolean;
 		availableProviders: string;
+		sku: string | undefined;
+		renameCreated: boolean;
+		renameDuration?: number;
+		renameTimedOut: boolean;
+		editKind: string | undefined;
 	};
 
 	export interface CodeAction {

@@ -45,7 +45,7 @@ import { IChatRequestModeInstructions } from '../../contrib/chat/common/chatMode
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffData, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
-import { IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IToolInvocationContext, IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
 import { IChatMessageDataPart, IChatResponseDataPart, IChatResponsePromptTsxPart, IChatResponseTextPart } from '../../contrib/chat/common/languageModels.js';
 import { DebugTreeItemCollapsibleState, IDebugVisualizationTreeItem } from '../../contrib/debug/common/debug.js';
@@ -2608,10 +2608,11 @@ export namespace ChatResponseCodeblockUriPart {
 			kind: 'codeblockUri',
 			uri: part.value,
 			isEdit: part.isEdit,
+			undoStopId: part.undoStopId
 		};
 	}
 	export function to(part: Dto<IChatResponseCodeblockUriPart>): vscode.ChatResponseCodeblockUriPart {
-		return new types.ChatResponseCodeblockUriPart(URI.revive(part.uri), part.isEdit);
+		return new types.ChatResponseCodeblockUriPart(URI.revive(part.uri), part.isEdit, part.undoStopId);
 	}
 }
 
@@ -3163,7 +3164,7 @@ export namespace ChatAgentRequest {
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			toolInvocationToken: Object.freeze({ sessionId: request.sessionId }) as never,
+			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionId: request.sessionId, sessionResource: request.sessionResource }) as never,
 			tools,
 			model,
 			editedFileEvents: request.editedFileEvents,
@@ -3825,6 +3826,10 @@ export namespace McpServerDefinition {
 					type: McpServerTransportType.HTTP,
 					uri: item.uri,
 					headers: Object.entries(item.headers),
+					authentication: (item as vscode.McpHttpServerDefinition2).authentication ? {
+						providerId: (item as vscode.McpHttpServerDefinition2).authentication!.providerId,
+						scopes: (item as vscode.McpHttpServerDefinition2).authentication!.scopes
+					} : undefined,
 				}
 				: {
 					type: McpServerTransportType.Stdio,

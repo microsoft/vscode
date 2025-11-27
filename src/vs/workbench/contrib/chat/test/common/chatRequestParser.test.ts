@@ -136,11 +136,8 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
 
 		const promptSlashCommandService = mockObject<IPromptsService>()({});
-		promptSlashCommandService.asPromptSlashCommand.callsFake((command: string) => {
-			if (command.match(/^[\w_\-\.]+$/)) {
-				return { command };
-			}
-			return undefined;
+		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
+			return !!command.match(/^[\w_\-\.]+$/);
 		});
 		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
@@ -158,11 +155,8 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
 
 		const promptSlashCommandService = mockObject<IPromptsService>()({});
-		promptSlashCommandService.asPromptSlashCommand.callsFake((command: string) => {
-			if (command.match(/^[\w_\-\.]+$/)) {
-				return { command };
-			}
-			return undefined;
+		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
+			return !!command.match(/^[\w_\-\.]+$/);
 		});
 		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
@@ -180,11 +174,9 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
 
 		const promptSlashCommandService = mockObject<IPromptsService>()({});
-		promptSlashCommandService.asPromptSlashCommand.callsFake((command: string) => {
-			if (command.match(/^[\w_\-\.]+$/)) {
-				return { command };
-			}
-			return undefined;
+		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
+			return !!command.match(/^[\w_\-\.]+$/);
+
 		});
 		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
@@ -202,11 +194,8 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
 
 		const promptSlashCommandService = mockObject<IPromptsService>()({});
-		promptSlashCommandService.asPromptSlashCommand.callsFake((command: string) => {
-			if (command.match(/^[\w_\-\.]+$/)) {
-				return { command };
-			}
-			return undefined;
+		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
+			return !!command.match(/^[\w_\-\.]+$/);
 		});
 		// eslint-disable-next-line local/code-no-any-casts
 		instantiationService.stub(IPromptsService, promptSlashCommandService as any);

@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { StringSHA1 } from '../../../../../base/common/hash.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 
 export enum FileOperationType {
 	Create = 'create',
@@ -130,4 +132,15 @@ export interface IChatEditingTimelineState {
 	readonly operations: readonly FileOperation[];
 	readonly currentEpoch: number;
 	readonly epochCounter: number;
+}
+
+export function getKeyForChatSessionResource(chatSessionResource: URI) {
+	const sessionId = LocalChatSessionUri.parseLocalSessionId(chatSessionResource);
+	if (sessionId) {
+		return sessionId;
+	}
+
+	const sha = new StringSHA1();
+	sha.update(chatSessionResource.toString());
+	return sha.digest();
 }

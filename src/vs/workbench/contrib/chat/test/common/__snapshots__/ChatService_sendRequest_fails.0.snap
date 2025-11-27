@@ -1,6 +1,4 @@
 {
-  requesterUsername: "test",
-  requesterAvatarIconUri: undefined,
   responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
@@ -58,14 +56,7 @@
       },
       variableData: { variables: [  ] },
       response: [  ],
-      responseId: undefined,
       shouldBeRemovedOnSend: undefined,
-      result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
-      responseMarkdownInfo: undefined,
-      followups: undefined,
-      isCanceled: false,
-      vote: undefined,
-      voteDownReason: undefined,
       agent: {
         name: "ChatProviderWithUsedContext",
         id: "ChatProviderWithUsedContext",
@@ -83,14 +74,25 @@
         slashCommands: [  ],
         disambiguation: [  ]
       },
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined,
+      responseId: undefined,
+      result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
+      responseMarkdownInfo: undefined,
+      followups: undefined,
+      modelState: {
+        value: 1,
+        completedAt: undefined
+      },
+      vote: undefined,
+      voteDownReason: undefined,
       slashCommand: undefined,
       usedContext: undefined,
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined,
-      confirmation: undefined,
-      editedFileEvents: undefined,
-      modelId: undefined
+      timeSpentWaiting: 0
     }
   ]
 }

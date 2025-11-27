@@ -3166,14 +3166,14 @@ export class ChatResponseMultiDiffPart {
 }
 
 export class ChatResponseExternalEditPart {
-	applied: Thenable<void>;
-	didGetApplied!: () => void;
+	applied: Thenable<string>;
+	didGetApplied!: (value: string) => void;
 
 	constructor(
 		public uris: vscode.Uri[],
 		public callback: () => Thenable<unknown>,
 	) {
-		this.applied = new Promise<void>((resolve) => {
+		this.applied = new Promise<string>((resolve) => {
 			this.didGetApplied = resolve;
 		});
 	}
@@ -3252,10 +3252,12 @@ export class ChatResponseReferencePart {
 
 export class ChatResponseCodeblockUriPart {
 	isEdit?: boolean;
+	undoStopId?: string;
 	value: vscode.Uri;
-	constructor(value: vscode.Uri, isEdit?: boolean) {
+	constructor(value: vscode.Uri, isEdit?: boolean, undoStopId?: string) {
 		this.value = value;
 		this.isEdit = isEdit;
+		this.undoStopId = undoStopId;
 	}
 }
 
@@ -3385,7 +3387,8 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly references: vscode.ChatPromptReference[],
 		readonly participant: string,
 		readonly toolReferences: vscode.ChatLanguageModelToolReference[],
-		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[]
+		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
+		readonly id?: string
 	) { }
 }
 
@@ -3487,6 +3490,11 @@ export enum ChatErrorLevel {
 	Info = 0,
 	Warning = 1,
 	Error = 2
+}
+
+export enum CustomAgentTarget {
+	GitHubCopilot = 'github-copilot',
+	VSCode = 'vscode',
 }
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
@@ -3798,6 +3806,7 @@ export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {
 	toolResultMessage?: string | MarkdownString;
 	toolResultDetails?: Array<URI | Location>;
 	toolMetadata?: unknown;
+	hasError?: boolean;
 }
 
 export enum LanguageModelChatToolMode {
@@ -3881,6 +3890,7 @@ export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 		public headers: Record<string, string> = {},
 		public version?: string,
 		public metadata?: vscode.McpServerMetadata,
+		public authentication?: { providerId: string; scopes: string[] },
 	) { }
 }
 //#endregion

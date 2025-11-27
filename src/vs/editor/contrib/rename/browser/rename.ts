@@ -119,6 +119,16 @@ class RenameSkeleton {
 	}
 }
 
+export function hasProvider(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel): boolean {
+	const providers = registry.ordered(model);
+	return providers.length > 0;
+}
+
+export async function prepareRename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position): Promise<RenameLocation & Rejection | undefined> {
+	const skeleton = new RenameSkeleton(model, position, registry);
+	return skeleton.resolveRenameLocation(CancellationToken.None);
+}
+
 export async function rename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit & Rejection> {
 	const skeleton = new RenameSkeleton(model, position, registry);
 	const loc = await skeleton.resolveRenameLocation(CancellationToken.None);
@@ -295,7 +305,7 @@ class RenameController implements IEditorContribution {
 				code: 'undoredo.rename',
 				quotableLabel: nls.localize('quotableLabel', "Renaming {0} to {1}", loc?.text, inputFieldResult.newName),
 				respectAutoSaveConfig: true,
-				reason: EditSources.rename(),
+				reason: EditSources.rename(loc?.text, inputFieldResult.newName),
 			}).then(result => {
 				trace('edits applied');
 				if (result.ariaSummary) {

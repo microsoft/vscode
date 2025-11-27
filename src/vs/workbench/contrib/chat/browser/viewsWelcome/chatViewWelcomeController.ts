@@ -3,28 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../../base/browser/dom.js';
 import { asCSSUrl } from '../../../../../base/browser/cssValue.js';
+import * as dom from '../../../../../base/browser/dom.js';
 import { createCSSRule } from '../../../../../base/browser/domStylesheets.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -45,6 +46,11 @@ export class ChatViewWelcomeController extends Disposable {
 	private enabled = false;
 	private readonly enabledDisposables = this._register(new DisposableStore());
 	private readonly renderDisposables = this._register(new DisposableStore());
+
+	private readonly _isShowingWelcome: ISettableObservable<boolean> = observableValue(this, false);
+	public get isShowingWelcome(): IObservable<boolean> {
+		return this._isShowingWelcome;
+	}
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -74,6 +80,7 @@ export class ChatViewWelcomeController extends Disposable {
 		if (!enabled) {
 			this.container.classList.toggle('chat-view-welcome-visible', false);
 			this.renderDisposables.clear();
+			this._isShowingWelcome.set(false, undefined);
 			return;
 		}
 
@@ -105,8 +112,10 @@ export class ChatViewWelcomeController extends Disposable {
 			const welcomeView = this.renderDisposables.add(this.instantiationService.createInstance(ChatViewWelcomePart, content, { firstLinkToButton: true, location: this.location }));
 			this.element!.appendChild(welcomeView.element);
 			this.container.classList.toggle('chat-view-welcome-visible', true);
+			this._isShowingWelcome.set(true, undefined);
 		} else {
 			this.container.classList.toggle('chat-view-welcome-visible', false);
+			this._isShowingWelcome.set(false, undefined);
 		}
 	}
 }
