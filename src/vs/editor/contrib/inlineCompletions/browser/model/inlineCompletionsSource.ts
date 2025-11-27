@@ -699,17 +699,3 @@ function moveToFront<T>(item: T, items: T[]): T[] {
 	}
 	return items;
 }
-
-function mapDeep(value: unknown, replacer: (value: unknown) => unknown): unknown {
-	const val = replacer(value);
-	if (Array.isArray(val)) {
-		return val.map(v => mapDeep(v, replacer));
-	} else if (isObject(val)) {
-		const result: Record<string, unknown> = {};
-		for (const [key, value] of Object.entries(val)) {
-			result[key] = mapDeep(value, replacer);
-		}
-		return result;
-	}
-	return val;
-}
