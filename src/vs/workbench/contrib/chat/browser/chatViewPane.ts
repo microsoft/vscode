@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewPane.css';
-import { $, append, getWindow, setVisibility } from '../../../../base/browser/dom.js';
+import { $, append, getWindow, isVisible, setVisibility } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
@@ -325,17 +325,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return false;
 		}
 
-		const sessionsContainerVisible =
+		const newSessionsContainerVisible =
 			this.configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewSessionsEnabled) &&	// enabled in settings
 			(!this._widget || this._widget?.isEmpty()) &&													// chat widget empty
 			!this.welcomeController?.isShowingWelcome.get() &&												// welcome not showing
 			this.sessionsCount > 0;																			// has sessions
 
-		const hasSessionsControl = this.viewPaneContainer.classList.contains('has-sessions-control');
-		this.viewPaneContainer.classList.toggle('has-sessions-control', sessionsContainerVisible);
-		setVisibility(sessionsContainerVisible, this.sessionsContainer);
+		this.viewPaneContainer.classList.toggle('has-sessions-control', newSessionsContainerVisible);
 
-		return sessionsContainerVisible !== hasSessionsControl;
+		const sessionsContainerVisible = isVisible(this.sessionsContainer);
+		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
+
+		return sessionsContainerVisible !== newSessionsContainerVisible;
 	}
 
 	private createChatWidget(parent: HTMLElement): void {
