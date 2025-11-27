@@ -441,3 +441,13 @@ export function rectToProps(fn: (reader: IReader) => Rect | undefined, debugLoca
 }
 
 export type FirstFnArg<T> = T extends (arg: infer U) => any ? U : never;
+
+
+export function observeEditorBoundingClientRect(editor: ICodeEditor, store: DisposableStore): IObservable<DOMRectReadOnly> {
+	const dom = editor.getContainerDomNode()!;
+	const initialDomRect = observableValue('domRect', dom.getBoundingClientRect());
+	store.add(editor.onDidLayoutChange(e => {
+		initialDomRect.set(dom.getBoundingClientRect(), undefined);
+	}));
+	return initialDomRect;
+}
