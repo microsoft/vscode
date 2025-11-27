@@ -140,10 +140,12 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		// Already open in an editor?
 		const existingEditor = this.editorService.findEditors({ resource: sessionResource, typeId: ChatEditorInput.TypeID, editorId: ChatEditorInput.EditorID }).at(0);
 		if (existingEditor) {
+			const existingEditorWindowId = this.editorGroupsService.getGroup(existingEditor.groupId)?.windowId;
+
 			// focus transfer to other documents is async. If we depend on the focus
 			// being synchronously transferred in consuming code, this can fail, so
 			// wait for it to propagate
-			const isGroupActive = () => dom.getWindow(this.layoutService.activeContainer).vscodeWindowId === this.editorGroupsService.getGroup(existingEditor.groupId)?.windowId;
+			const isGroupActive = () => dom.getWindow(this.layoutService.activeContainer).vscodeWindowId === existingEditorWindowId;
 
 			let ensureFocusTransfer: Promise<void> | undefined;
 			if (!isGroupActive()) {
