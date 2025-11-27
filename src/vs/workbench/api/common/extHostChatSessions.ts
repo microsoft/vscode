@@ -427,7 +427,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return {
 				id: ref.id,
 				name: ref.name,
-				icon: Codicon.error,
+				icon: IDiagnosticVariableEntryFilterData.icon,
 				value: refValue,
 				kind: 'diagnostic',
 				filterRange: refValue.filterRange,
