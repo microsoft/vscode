@@ -35,6 +35,7 @@ export interface ISettingsEditorViewState {
 	idFilters?: Set<string>;
 	languageFilter?: string;
 	filterToCategory?: SettingsTreeGroupElement;
+	allProfilesFilter?: boolean; // Filter to show only settings that apply to all profiles
 }
 
 export abstract class SettingsTreeElement extends Disposable {
@@ -531,6 +532,15 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		}
 
 		return false;
+	}
+
+	matchesAllProfilesFilter(allProfilesFilter?: boolean): boolean {
+		if (!allProfilesFilter) {
+			// We're not filtering by all profiles.
+			return true;
+		}
+		// Only show settings that apply to all profiles
+		return this.configurationService.isSettingAppliedForAllProfiles(this.setting.key);
 	}
 }
 
@@ -1101,7 +1111,8 @@ export class SearchResultModel extends SettingsTreeModel {
 				&& child.matchesAnyExtension(this._viewState.extensionFilters)
 				&& child.matchesAnyId(this._viewState.idFilters)
 				&& child.matchesAnyFeature(this._viewState.featureFilters)
-				&& child.matchesAllLanguages(this._viewState.languageFilter)) {
+				&& child.matchesAllLanguages(this._viewState.languageFilter)
+				&& child.matchesAllProfilesFilter(this._viewState.allProfilesFilter)) {
 				newChildren.push(child);
 			} else {
 				child.dispose();
