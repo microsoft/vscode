@@ -662,6 +662,16 @@ export class ChatEntitlementRequests extends Disposable {
 		this.pendingResolveCts.dispose(true);
 		const cts = this.pendingResolveCts = new CancellationTokenSource();
 
+		// DSpace: Skip authentication for our built-in agent - we don't use authentication providers
+		// If we don't have a chatExtensionId, we're using our built-in agent that doesn't need auth
+		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
+		if ((providerId === 'dSpace' || providerId === 'dSpace-enterprise' || !defaultChat.chatExtensionId)) {
+			// Our built-in agent is always available, no authentication needed
+			const state: IEntitlements = { entitlement: ChatEntitlement.Available };
+			this.update(state);
+			return;
+		}
+
 		const session = await this.findMatchingProviderSession(cts.token);
 		if (cts.token.isCancellationRequested) {
 			return;
@@ -712,13 +722,30 @@ export class ChatEntitlementRequests extends Disposable {
 	}
 
 	private async doGetSessions(providerId: string): Promise<readonly AuthenticationSession[]> {
+		// DSpace: Skip authentication for our built-in agent - we don't use authentication providers
+		// If providerId is 'dSpace' or we don't have a chatExtensionId, we're using our built-in agent
+		if (providerId === 'dSpace' || providerId === 'dSpace-enterprise' || !defaultChat.chatExtensionId) {
+			return [];
+		}
+
 		const preferredAccountName = this.authenticationExtensionsService.getAccountPreference(defaultChat.chatExtensionId, providerId) ?? this.authenticationExtensionsService.getAccountPreference(defaultChat.extensionId, providerId);
 		let preferredAccount: AuthenticationSessionAccount | undefined;
-		for (const account of await this.authenticationService.getAccounts(providerId)) {
-			if (account.label === preferredAccountName) {
-				preferredAccount = account;
-				break;
+
+		// Check if provider is registered before trying to get accounts
+		if (!this.authenticationService.isAuthenticationProviderRegistered(providerId)) {
+			return [];
+		}
+
+		try {
+			for (const account of await this.authenticationService.getAccounts(providerId)) {
+				if (account.label === preferredAccountName) {
+					preferredAccount = account;
+					break;
+				}
 			}
+		} catch (error) {
+			// Provider not available, return empty
+			return [];
 		}
 
 		try {

@@ -57,6 +57,11 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'enable-sync': { type: 'boolean' },
 	'github-auth': { type: 'string' },
 	'use-test-resolver': { type: 'boolean' },
+	/**
+	 * DSpace: Enable remote authority for remote file system access.
+	 * By default, remoteAuthority is undefined (local-first mode like vscode.dev).
+	 */
+	'enable-remote-authority': { type: 'boolean', cat: 'o', description: 'Enable remote authority for remote file system access. By default, the editor uses local-first mode (like vscode.dev).' },
 
 	/* ----- extension management ----- */
 
@@ -187,6 +192,12 @@ export interface ServerParsedArgs {
 	'enable-sync'?: boolean;
 	'github-auth'?: string;
 	'use-test-resolver'?: boolean;
+	/**
+	 * DSpace: Enable remote authority for remote file system access.
+	 * By default, remoteAuthority is undefined (local-first mode like vscode.dev).
+	 * Set this to true to enable remote features.
+	 */
+	'enable-remote-authority'?: boolean;
 
 	/* ----- extension management ----- */
 

@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getFontSnippets } from '../../../../base/browser/fonts.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility (code that uses them is commented out)
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import * as nls from '../../../../nls.js';
 import { Extensions as DragAndDropExtensions, IDragAndDropContributionRegistry, IDraggedResourceEditorInput } from '../../../../platform/dnd/browser/dnd.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -16,10 +18,13 @@ import { ITerminalLogService } from '../../../../platform/terminal/common/termin
 import { TerminalLogService } from '../../../../platform/terminal/common/terminalLogService.js';
 import { registerTerminalPlatformConfiguration } from '../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { IViewContainersRegistry, IViewsRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from '../../../common/views.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { ITerminalProfileService, TERMINAL_VIEW_ID, TerminalCommandId } from '../common/terminal.js';
 import { TerminalEditingService } from './terminalEditingService.js';
 import { registerColors } from '../common/terminalColorRegistry.js';
@@ -31,7 +36,9 @@ import './media/widgets.css';
 import './media/xterm.css';
 import { RemoteTerminalBackendContribution } from './remoteTerminalBackend.js';
 import { ITerminalConfigurationService, ITerminalEditingService, ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService, TerminalDataTransfers, terminalEditorId } from './terminal.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { registerTerminalActions } from './terminalActions.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { setupTerminalCommands } from './terminalCommands.js';
 import { TerminalConfigurationService } from './terminalConfigurationService.js';
 import { TerminalEditor } from './terminalEditor.js';
@@ -39,13 +46,16 @@ import { TerminalEditorInput } from './terminalEditorInput.js';
 import { TerminalInputSerializer } from './terminalEditorSerializer.js';
 import { TerminalEditorService } from './terminalEditorService.js';
 import { TerminalGroupService } from './terminalGroupService.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { terminalViewIcon } from './terminalIcons.js';
 import { TerminalInstanceService } from './terminalInstanceService.js';
 import { TerminalMainContribution } from './terminalMainContribution.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { setupTerminalMenus } from './terminalMenus.js';
 import { TerminalProfileService } from './terminalProfileService.js';
 import { TerminalService } from './terminalService.js';
 import { TerminalTelemetryContribution } from './terminalTelemetry.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { TerminalViewPane } from './terminalView.js';
 
 // Register services
@@ -102,7 +112,9 @@ Registry.as<IDragAndDropContributionRegistry>(DragAndDropExtensions.DragAndDropC
 	}
 });
 
+// FORK: Terminal is completely disabled - users cannot open terminal in any way
 // Register views
+/*
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: TERMINAL_VIEW_ID,
 	title: nls.localize2('terminal', "Terminal"),
@@ -129,11 +141,11 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 		order: 3
 	}
 }], VIEW_CONTAINER);
+*/
 
-registerTerminalActions();
-
-setupTerminalCommands();
-
-setupTerminalMenus();
+// FORK: Terminal actions, commands, and menus are disabled
+// registerTerminalActions();
+// setupTerminalCommands();
+// setupTerminalMenus();
 
 registerColors();

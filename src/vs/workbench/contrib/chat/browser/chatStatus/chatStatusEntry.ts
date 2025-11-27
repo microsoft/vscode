@@ -52,7 +52,10 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private update(): void {
 		const sentiment = this.chatEntitlementService.sentiment;
-		if (!sentiment.hidden) {
+		// DSpace: Hide Copilot status icon completely - we use our own agent that doesn't need authentication
+		// Check if we're using our DSpace agent (no chatExtensionId means we're using built-in agent)
+		const usingDSpaceAgent = !product.defaultChatAgent?.chatExtensionId;
+		if (!sentiment.hidden && !usingDSpaceAgent) {
 			const props = this.getEntryProps();
 			if (this.entry) {
 				this.entry.update(props);

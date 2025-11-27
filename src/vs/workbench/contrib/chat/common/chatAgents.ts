@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { findLast } from '../../../../base/common/arraysFind.js';
 import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -409,11 +408,17 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	private _preferExtensionAgent<T extends IChatAgentData>(agents: T[]): T | undefined {
-		// We potentially have multiple agents on the same location,
-		// contributed from core and from extensions.
-		// This method will prefer the last extensions provided agent
-		// falling back to the last core agent if no extension agent is found.
-		return findLast(agents, agent => !agent.isCore) ?? agents.at(-1);
+		// DSpace: Only use Overleaf agent - do not fall back to other agents
+		// This ensures we never use Copilot or other extensions
+		const overleafAgent = agents.find(agent => agent.id === 'dspace.chat');
+		if (overleafAgent) {
+			return overleafAgent;
+		}
+
+		// If Overleaf agent is not found, return undefined to prevent using other agents
+		// Original logic commented out to prevent fallback to Copilot extensions
+		// return findLast(agents, agent => !agent.isCore) ?? agents.at(-1);
+		return undefined;
 	}
 
 	getAgent(id: string, includeDisabled = false): IChatAgentData | undefined {

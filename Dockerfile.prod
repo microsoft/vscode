@@ -1,0 +1,67 @@
+# Production Dockerfile for VSCode Web
+# This expects pre-built artifacts from a local build
+# Build artifacts should be in: ../vscode-reh-web-linux-x64/ (relative to vscode directory)
+# Usage: docker build -f vscode/Dockerfile.prod -t vscode-web:local --build-arg BUILD_DIR=../vscode-reh-web-linux-x64 .
+
+FROM node:22-slim AS production
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Use existing node user from base image (node:22-slim includes it with UID 1000)
+# Ensure home directory exists and has correct permissions
+# Note: node:22-slim has node user with UID 1000, not 1001
+# If you need UID 1001, update Helm values.yaml securityContext.runAsUser to 1000
+RUN mkdir -p /home/node && \
+    chown -R node:node /home/node
+
+WORKDIR /vscode-server
+
+# Copy pre-built VSCode server from build artifacts
+# BUILD_DIR is passed from build script (relative to project root)
+ARG BUILD_DIR
+COPY ${BUILD_DIR} ./
+
+# Verify the build artifacts exist
+RUN if [ ! -f "./out/server-main.js" ]; then \
+    echo "Error: Build artifacts not found at ./out/server-main.js" && \
+    echo "Build directory was: ${BUILD_DIR}" && \
+    echo "Make sure you ran ./scripts/build-vscode-local.sh first" && \
+    exit 1; \
+    fi
+
+# Create VSCode directories with proper permissions (as root)
+# Use /home/node to match VSCode's expectations
+RUN mkdir -p /home/node/.vscode-server/extensions \
+    /home/node/.vscode-server/data/logs \
+    /home/node/.vscode-server/data/User \
+    /home/node/.vscode-server/data/Machine \
+    /home/node/.cache \
+    && chown -R node:node /vscode-server \
+    && chown -R node:node /home/node
+
+# Switch to non-root user
+USER node
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:8000/ || exit 1
+
+# Start VSCode server with telemetry disabled (enterprise requirement)
+# --host=0.0.0.0: Mandatory for Kubernetes Pod network access
+# --port=8000: Internal port for the service
+# --user-data-dir: Specifies path for persistent data (mapped to Kubernetes volume)
+# --disable-telemetry: Disables Microsoft telemetry collection (enterprise requirement)
+CMD ["./node", "./out/server-main.js", \
+     "--accept-server-license-terms", \
+     "--port=8000", \
+     "--host=0.0.0.0", \
+     "--user-data-dir=/home/node/.vscode-server/data", \
+     "--disable-telemetry", \
+     "--without-connection-token"]

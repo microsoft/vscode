@@ -25,7 +25,7 @@ import untar from 'gulp-untar';
 import File from 'vinyl';
 import * as fs from 'fs';
 import glob from 'glob';
-import { compileBuildWithManglingTask } from './gulpfile.compile.ts';
+import { compileBuildWithManglingTask, compileBuildWithoutManglingTask } from './gulpfile.compile.ts';
 import { cleanExtensionsBuildTask, compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileExtensionMediaBuildTask } from './gulpfile.extensions.ts';
 import { vscodeWebResourceIncludes, createVSCodeWebFileContentMapper } from './gulpfile.vscode.web.ts';
 import * as cp from 'child_process';
@@ -474,8 +474,13 @@ function tweakProductForServerWeb(product: typeof import('../product.json')) {
 			));
 			gulp.task(serverTaskCI);
 
+			// Use mangling only if VSCODE_ENABLE_MANGLING is set to 'true' (for production builds)
+			// During development, skip mangling for faster builds (~50% faster compilation)
+			const shouldMangle = process.env['VSCODE_ENABLE_MANGLING'] === 'true';
+			const compileTask = shouldMangle ? compileBuildWithManglingTask : compileBuildWithoutManglingTask;
+
 			const serverTask = task.define(`vscode-${type}${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-				compileBuildWithManglingTask,
+				compileTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
 				compileExtensionMediaBuildTask,

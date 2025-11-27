@@ -31,7 +31,7 @@ const commit = getVersion(root);
 // 	cwd: extensionsPath,
 // 	ignore: ['**/out/**', '**/node_modules/**']
 // });
-const compilations = [
+const allCompilations = [
 	'extensions/configuration-editing/tsconfig.json',
 	'extensions/css-language-features/client/tsconfig.json',
 	'extensions/css-language-features/server/tsconfig.json',
@@ -75,6 +75,18 @@ const compilations = [
 	'.vscode/extensions/vscode-selfhost-test-provider/tsconfig.json',
 	'.vscode/extensions/vscode-selfhost-import-aid/tsconfig.json',
 ];
+
+// Filter out excluded extensions
+const excludedExtensions = ext.getExcludedExtensions();
+const compilations = allCompilations.filter(tsconfigPath => {
+	// Extract extension name from path like 'extensions/name/tsconfig.json' or 'extensions/name/subdir/tsconfig.json'
+	const match = tsconfigPath.match(/^extensions\/([^\/]+)\//);
+	if (!match) {
+		return true; // Keep non-extension paths (like .vscode/extensions)
+	}
+	const extensionName = match[1];
+	return !excludedExtensions.includes(extensionName);
+});
 
 const getBaseUrl = (out: string) => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;
 

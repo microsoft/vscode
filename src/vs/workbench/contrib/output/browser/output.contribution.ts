@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../nls.js';
-import { KeyMod, KeyChord, KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
+// import { KeyChord } from '../../../../base/common/keyCodes.js';
 import { ModesRegistry } from '../../../../editor/common/languages/modesRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { MenuId, registerAction2, Action2, MenuRegistry } from '../../../../platform/actions/common/actions.js';
@@ -12,18 +13,22 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { OutputService } from './outputServices.js';
 import { OUTPUT_MODE_ID, OUTPUT_MIME, OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, LOG_MODE_ID, LOG_MIME, CONTEXT_OUTPUT_SCROLL_LOCK, IOutputChannelDescriptor, ACTIVE_OUTPUT_CHANNEL_CONTEXT, CONTEXT_ACTIVE_OUTPUT_LEVEL_SETTABLE, IOutputChannelRegistry, Extensions, CONTEXT_ACTIVE_OUTPUT_LEVEL, CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT, SHOW_INFO_FILTER_CONTEXT, SHOW_TRACE_FILTER_CONTEXT, SHOW_DEBUG_FILTER_CONTEXT, SHOW_ERROR_FILTER_CONTEXT, SHOW_WARNING_FILTER_CONTEXT, OUTPUT_FILTER_FOCUS_CONTEXT, CONTEXT_ACTIVE_LOG_FILE_OUTPUT, isSingleSourceOutputChannelDescriptor } from '../../../services/output/common/output.js';
 import { OutputViewPane } from './outputView.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IQuickPickItem, IQuickInputService, IQuickPickSeparator, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { AUX_WINDOW_GROUP, AUX_WINDOW_GROUP_TYPE, IEditorService } from '../../../services/editor/common/editorService.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -63,7 +68,9 @@ ModesRegistry.registerLanguage({
 	mimetypes: [LOG_MIME]
 });
 
+// FORK: Output panel is completely disabled - users cannot open output in any way
 // register output container
+/*
 const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.localize('outputViewIcon', 'View icon of the output view.'));
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
@@ -94,6 +101,7 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 		order: 1,
 	}
 }], VIEW_CONTAINER);
+*/
 
 class OutputContribution extends Disposable implements IWorkbenchContribution {
 	constructor(

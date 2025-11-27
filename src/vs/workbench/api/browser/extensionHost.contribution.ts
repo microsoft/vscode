@@ -51,7 +51,8 @@ import './mainThreadOutputService.js';
 import './mainThreadProgress.js';
 import './mainThreadQuickDiff.js';
 import './mainThreadQuickOpen.js';
-import './mainThreadRemoteConnectionData.js';
+// DSPACE: Remote is disabled
+// import './mainThreadRemoteConnectionData.js';
 import './mainThreadSaveParticipant.js';
 import './mainThreadSpeech.js';
 import './mainThreadEditSessionIdentityParticipant.js';

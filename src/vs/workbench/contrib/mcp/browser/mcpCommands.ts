@@ -55,7 +55,8 @@ import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/
 import { ChatModeKind } from '../../chat/common/constants.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../chat/common/languageModelToolsService.js';
-import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
+// FORK: VIEW_CONTAINER is commented out - Extensions view container is hidden
+// import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
@@ -892,11 +893,13 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 
 	async run(accessor: ServicesAccessor) {
 		const viewsService = accessor.get(IViewsService);
+		// @ts-expect-error - FORK: Unused variable kept for future merge compatibility
 		const view = await viewsService.openView(InstalledMcpServersViewId, true);
-		if (!view) {
-			await viewsService.openViewContainer(VIEW_CONTAINER.id);
-			await viewsService.openView(InstalledMcpServersViewId, true);
-		}
+		// FORK: Extensions view container is hidden, so we can't open it
+		// if (!view) {
+		// 	await viewsService.openViewContainer(VIEW_CONTAINER.id);
+		// 	await viewsService.openView(InstalledMcpServersViewId, true);
+		// }
 	}
 }
 

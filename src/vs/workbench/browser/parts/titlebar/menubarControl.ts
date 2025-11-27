@@ -85,6 +85,8 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	order: 4
 });
 
+// FORK: Go menu is disabled
+/*
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	submenu: MenuId.MenubarGoMenu,
 	title: {
@@ -94,7 +96,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	},
 	order: 5
 });
+*/
 
+// FORK: Terminal menu is disabled - terminal cannot be opened
+/*
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	submenu: MenuId.MenubarTerminalMenu,
 	title: {
@@ -104,7 +109,10 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	},
 	order: 7
 });
+*/
 
+// FORK: Help menu is disabled
+/*
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	submenu: MenuId.MenubarHelpMenu,
 	title: {
@@ -114,6 +122,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	},
 	order: 8
 });
+*/
 
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	submenu: MenuId.MenubarPreferencesMenu,

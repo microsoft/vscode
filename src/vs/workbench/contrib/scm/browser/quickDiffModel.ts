@@ -241,7 +241,9 @@ export class QuickDiffModel extends Disposable {
 	}
 
 	private diff(): Promise<{ allChanges: QuickDiffChange[]; changes: QuickDiffChange[]; mapChanges: Map<string, number[]> } | null> {
-		return this.progressService.withProgress({ location: ProgressLocation.Scm, delay: 250 }, async () => {
+		// FORK: Changed from ProgressLocation.Scm to ProgressLocation.Window since SCM view is hidden
+		// Progress will be shown in the status bar instead
+		return this.progressService.withProgress({ location: ProgressLocation.Window, delay: 250 }, async () => {
 			const originalURIs = await this.getQuickDiffsPromise();
 			if (this._disposed || this._model.isDisposed() || (originalURIs.length === 0)) {
 				// Disposed

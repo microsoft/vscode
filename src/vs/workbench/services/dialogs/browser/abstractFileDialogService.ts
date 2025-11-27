@@ -319,11 +319,17 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		if (options.availableFileSystems && (options.availableFileSystems.length > 0)) {
 			return options.availableFileSystems;
 		}
+		// DSpace: Prioritize local file system (Schemas.file) if File System Access API is supported
+		// This ensures that the local file system is presented as the primary option in file dialogs
+		// when the browser supports it, even if a remote authority is present.
+		// This is a DSpace-specific modification - preserve during upstream merges.
 		const availableFileSystems = [Schemas.file];
 		if (this.environmentService.remoteAuthority) {
-			availableFileSystems.unshift(Schemas.vscodeRemote);
+			// Only add remote if remoteAuthority is explicitly set
+			availableFileSystems.push(Schemas.vscodeRemote);
 		}
 		return availableFileSystems;
+		// End DSpace modification
 	}
 	abstract showSaveDialog(options: ISaveDialogOptions): Promise<URI | undefined>;
 	abstract showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined>;

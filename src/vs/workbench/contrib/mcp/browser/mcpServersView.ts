@@ -11,9 +11,13 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
 import { DelayedPagedModel, IPagedModel, PagedModel, IterativePagedModel } from '../../../../base/common/paging.js';
-import { localize, localize2 } from '../../../../nls.js';
+import { localize } from '../../../../nls.js';
+
+// import { localize2 } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyDefinedExpr, ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+
+// import { ContextKeyDefinedExpr, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -25,20 +29,31 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
-import { IViewDescriptorService, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
-import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServerEnablementState, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+
+// import { IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
+import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers, McpServerEnablementState } from '../common/mcpTypes.js';
+
+// import { HasInstalledMcpServersContext, InstalledMcpServersViewId, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
 import { DropDownAction, getContextMenuActions, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction } from './mcpServerActions.js';
 import { PublisherWidget, StarredWidget, McpServerIconWidget, McpServerHoverWidget, McpServerScopeBadgeWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { mcpGalleryServiceEnablementConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { mcpGalleryServiceEnablementConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+
+// import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { DefaultViewsContext, SearchMcpServersContext } from '../../extensions/common/extensions.js';
-import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
+// FORK: VIEW_CONTAINER is commented out - Extensions view container is hidden
+// import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -48,7 +63,9 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { mcpServerIcon } from './mcpServerIcons.js';
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
-import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
+
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { ProductQualityContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
@@ -524,6 +541,9 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 	constructor() {
 		super();
 
+		// FORK: MCP Servers views registration is commented out because VIEW_CONTAINER (Extensions) is hidden
+		// These views depend on the Extensions view container which is no longer available
+		/*
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
 			{
 				id: InstalledMcpServersViewId,
@@ -565,5 +585,6 @@ export class McpServersViewsContribution extends Disposable implements IWorkbenc
 				when: ContextKeyExpr.and(SearchMcpServersContext, ChatContextKeys.Setup.hidden.negate(), McpServersGalleryStatusContext.isEqualTo(McpGalleryManifestStatus.Available), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceUrlConfig}`).negate(), ProductQualityContext.isEqualTo('stable'), ContextKeyDefinedExpr.create(`config.${mcpGalleryServiceEnablementConfig}`).negate()),
 			}
 		], VIEW_CONTAINER);
+		*/
 	}
 }

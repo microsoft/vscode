@@ -307,8 +307,9 @@ import './contrib/relauncher/browser/relauncher.contribution.js';
 import './contrib/tasks/browser/task.contribution.js';
 
 // Remote
-import './contrib/remote/common/remote.contribution.js';
-import './contrib/remote/browser/remote.contribution.js';
+// DSPACE: Remote is disabled
+// import './contrib/remote/common/remote.contribution.js';
+// import './contrib/remote/browser/remote.contribution.js';
 
 // Emmet
 import './contrib/emmet/browser/emmet.contribution.js';

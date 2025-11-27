@@ -221,6 +221,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private onDidRegisterViews(views: { views: IViewDescriptor[]; viewContainer: ViewContainer }[]): void {
 		this.contextKeyService.bufferChangeEvents(() => {
 			views.forEach(({ views, viewContainer }) => {
+				// Skip if viewContainer is null or undefined
+				if (!viewContainer) {
+					return;
+				}
 				// When views are registered, we need to regroup them based on the customizations
 				const regroupedViews = this.regroupViews(viewContainer.id, views);
 

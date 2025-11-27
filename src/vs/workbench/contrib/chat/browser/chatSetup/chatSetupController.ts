@@ -270,6 +270,11 @@ export class ChatSetupController extends Disposable {
 	}
 
 	private async doInstall(): Promise<void> {
+		// Skip installation if no chat extension ID is configured (using built-in agent)
+		if (!defaultChat.chatExtensionId) {
+			return;
+		}
+
 		await this.extensionsWorkbenchService.install(defaultChat.chatExtensionId, {
 			enable: true,
 			isApplicationScoped: true, 	// install into all profiles

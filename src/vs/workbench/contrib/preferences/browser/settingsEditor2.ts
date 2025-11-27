@@ -69,6 +69,7 @@ import { SettingsTarget, SettingsTargetsWidget } from './preferencesWidgets.js';
 import { ISettingOverrideClickEvent } from './settingsEditorSettingIndicators.js';
 import { getCommonlyUsedData, ITOCEntry, tocData } from './settingsLayout.js';
 import { SettingsSearchFilterDropdownMenuActionViewItem } from './settingsSearchMenu.js';
+//@ts-expect-error
 import { AbstractSettingRenderer, createTocTreeForExtensionSettings, HeightChangeParams, ISettingLinkClickEvent, resolveConfiguredUntrustedSettings, resolveSettingsTree, SettingsTree, SettingTreeRenderers } from './settingsTree.js';
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from './settingsTreeModels.js';
 import { createTOCIterator, TOCTree, TOCTreeModel } from './tocTree.js';
@@ -259,6 +260,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		//@ts-expect-error
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
@@ -1557,7 +1559,8 @@ export class SettingsEditor2 extends EditorPane {
 			}
 		}
 
-		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, extensionSettingsGroups, filter));
+		// DSPACE:Commented out to hide Extensions section
+		// resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, extensionSettingsGroups, filter));
 
 		resolvedSettingsRoot.children!.unshift(getCommonlyUsedData(groups, toggleData?.commonlyUsed));
 
