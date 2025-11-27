@@ -10,7 +10,7 @@ import * as dom from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
-import { disposableTimeout, RunOnceScheduler, timeout } from '../../../../base/common/async.js';
+import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -263,8 +263,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
 	private _instructionFilesExist: boolean | undefined;
 
-	// Welcome view rendering scheduler to prevent reentrant calls
-	private _welcomeRenderScheduler: RunOnceScheduler;
+	private _isRenderingWelcome = false;
 
 	// Coding agent locking state
 	private _lockedAgent?: {
@@ -400,8 +399,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
 
-		this._welcomeRenderScheduler = this._register(new RunOnceScheduler(() => this.renderWelcomeViewContentIfNeeded(), 0));
-		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this._welcomeRenderScheduler.schedule()));
+		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this.renderWelcomeViewContentIfNeeded()));
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
@@ -643,7 +641,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups, renderStyle, renderInputToolbarBelowInput });
 		}
 
-		this._welcomeRenderScheduler.schedule();
+		this.renderWelcomeViewContentIfNeeded();
 		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
 
 		const scrollDownButton = this._register(new Button(this.listContainer, {
@@ -811,7 +809,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (treeItems.length > 0) {
 				this.updateChatViewVisibility();
 			} else {
-				this._welcomeRenderScheduler.schedule();
+				this.renderWelcomeViewContentIfNeeded();
 			}
 
 			this._onWillMaybeChangeHeight.fire();
@@ -875,56 +873,62 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	/**
 	 * Renders the welcome view content when needed.
-	 *
-	 * Note: Do not call this method directly. Instead, use `this._welcomeRenderScheduler.schedule()`
-	 * to ensure proper debouncing and avoid potential cyclic calls
 	 */
 	private renderWelcomeViewContentIfNeeded() {
-		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal' || this.lifecycleService.willShutdown) {
+		if (this._isRenderingWelcome) {
 			return;
 		}
 
-		const numItems = this.viewModel?.getItems().length ?? 0;
-		if (!numItems) {
-			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
-			let additionalMessage: string | IMarkdownString | undefined;
-			if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.installed) {
-				const providers = product.defaultChatAgent.provider;
-				additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", providers.default.name, providers.default.name, product.defaultChatAgent.termsStatementUrl, product.defaultChatAgent.privacyStatementUrl), { isTrusted: true });
-			} else {
-				additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
+		this._isRenderingWelcome = true;
+		try {
+			if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal' || this.lifecycleService.willShutdown) {
+				return;
 			}
-			if (!additionalMessage && !this._lockedAgent) {
-				additionalMessage = this._getGenerateInstructionsMessage();
-			}
-			const welcomeContent = this.getWelcomeViewContent(additionalMessage);
-			if (!this.welcomePart.value || this.welcomePart.value.needsRerender(welcomeContent)) {
-				dom.clearNode(this.welcomeMessageContainer);
 
-				this.welcomePart.value = this.instantiationService.createInstance(
-					ChatViewWelcomePart,
-					welcomeContent,
-					{
-						location: this.location,
-						isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent
-					}
-				);
-				dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
+			const numItems = this.viewModel?.getItems().length ?? 0;
+			if (!numItems) {
+				const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
+				let additionalMessage: string | IMarkdownString | undefined;
+				if (this.chatEntitlementService.anonymous && !this.chatEntitlementService.sentiment.installed) {
+					const providers = product.defaultChatAgent.provider;
+					additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", providers.default.name, providers.default.name, product.defaultChatAgent.termsStatementUrl, product.defaultChatAgent.privacyStatementUrl), { isTrusted: true });
+				} else {
+					additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
+				}
+				if (!additionalMessage && !this._lockedAgent) {
+					additionalMessage = this._getGenerateInstructionsMessage();
+				}
+				const welcomeContent = this.getWelcomeViewContent(additionalMessage);
+				if (!this.welcomePart.value || this.welcomePart.value.needsRerender(welcomeContent)) {
+					dom.clearNode(this.welcomeMessageContainer);
 
-				// Add right-click context menu to the entire welcome container
-				this.welcomeContextMenuDisposable.value = dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
-					e.preventDefault();
-					e.stopPropagation();
-					this.contextMenuService.showContextMenu({
-						menuId: MenuId.ChatWelcomeContext,
-						contextKeyService: this.contextKeyService,
-						getAnchor: () => new StandardMouseEvent(dom.getWindow(this.welcomeMessageContainer), e)
+					this.welcomePart.value = this.instantiationService.createInstance(
+						ChatViewWelcomePart,
+						welcomeContent,
+						{
+							location: this.location,
+							isWidgetAgentWelcomeViewContent: this.input?.currentModeKind === ChatModeKind.Agent
+						}
+					);
+					dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
+
+					// Add right-click context menu to the entire welcome container
+					this.welcomeContextMenuDisposable.value = dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						this.contextMenuService.showContextMenu({
+							menuId: MenuId.ChatWelcomeContext,
+							contextKeyService: this.contextKeyService,
+							getAnchor: () => new StandardMouseEvent(dom.getWindow(this.welcomeMessageContainer), e)
+						});
 					});
-				});
+				}
 			}
-		}
 
-		this.updateChatViewVisibility();
+			this.updateChatViewVisibility();
+		} finally {
+			this._isRenderingWelcome = false;
+		}
 	}
 
 	private _getGenerateInstructionsMessage(): IMarkdownString {
@@ -937,7 +941,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				// Only re-render if the current view still doesn't have items and we're showing the welcome message
 				const hasViewModelItems = this.viewModel?.getItems().length ?? 0;
 				if (hasViewModelItems === 0) {
-					this._welcomeRenderScheduler.schedule();
+					this.renderWelcomeViewContentIfNeeded();
 				}
 			}));
 		}
@@ -1190,7 +1194,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			// Fire event to trigger a re-render of the welcome view only if cache was updated
 			if (cacheUpdated) {
-				this._welcomeRenderScheduler.schedule();
+				this.renderWelcomeViewContentIfNeeded();
 			}
 		} catch (error) {
 			this.logService.warn('Failed to load specific prompt descriptions:', error);
@@ -1859,10 +1863,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.chatAgentService.onDidChangeAgents(() => {
 			this.parsedChatRequest = undefined;
 			// Tools agent loads -> welcome content changes
-			this._welcomeRenderScheduler.schedule();
+			this.renderWelcomeViewContentIfNeeded();
 		}));
 		this._register(this.input.onDidChangeCurrentChatMode(() => {
-			this._welcomeRenderScheduler.schedule();
+			this.renderWelcomeViewContentIfNeeded();
 			this.refreshParsedInput();
 			this.renderFollowups();
 			this.renderChatSuggestNextWidget();
@@ -2055,7 +2059,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			displayName
 		};
 		this._lockedToCodingAgentContextKey.set(true);
-		this._welcomeRenderScheduler.schedule();
+		this.renderWelcomeViewContentIfNeeded();
 		// Update capabilities for the locked agent
 		const agent = this.chatAgentService.getAgent(agentId);
 		this._updateAgentCapabilitiesContextKeys(agent);
@@ -2070,7 +2074,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._updateAgentCapabilitiesContextKeys(undefined);
 
 		// Explicitly update the DOM to reflect unlocked state
-		this._welcomeRenderScheduler.schedule();
+		this.renderWelcomeViewContentIfNeeded();
 
 		// Reset to default placeholder
 		if (this.viewModel) {
