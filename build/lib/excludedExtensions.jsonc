@@ -1,0 +1,151 @@
+[
+	// Test extensions
+	"vscode-api-tests",
+	"vscode-colorize-tests",
+	"vscode-colorize-perf-tests",
+	"vscode-test-resolver",
+	"ms-vscode.node-debug",
+	"ms-vscode.node-debug2",
+	// ============================================================================
+	// Themes (keep theme-defaults active)
+	// ============================================================================
+	"theme-abyss",
+	"theme-kimbie-dark",
+	"theme-monokai",
+	"theme-monokai-dimmed",
+	"theme-quietlight",
+	"theme-red",
+	"theme-seti",
+	"theme-solarized-dark",
+	"theme-solarized-light",
+	"theme-tomorrow-night-blue",
+	// "theme-defaults",  // KEEP - Default themes (light/dark)
+	// ============================================================================
+	// Less common languages
+	// ============================================================================
+	"clojure",
+	"coffeescript",
+	"fsharp",
+	"julia",
+	"r",
+	"vb",
+	"perl",
+	"restructuredtext",
+	"dart",
+	"objective-c",
+	"swift",
+	"go",
+	"rust",
+	"lua",
+	"groovy",
+	"pug",
+	"razor",
+	"shaderlab",
+	"hlsl",
+	// "latex",
+	// ============================================================================
+	// Build tools
+	// ============================================================================
+	"grunt",
+	"gulp",
+	"jake",
+	// ============================================================================
+	// Other optional features
+	// ============================================================================
+	"ipynb", // Jupyter notebooks
+	"notebook-renderers", // Notebook renderers
+	"mermaid-chat-features", // Mermaid diagrams in chat
+	"tunnel-forwarding", // Port forwarding/tunneling
+	"simple-browser", // Simple web browser
+	"media-preview", // Media preview (images, videos)
+	// ============================================================================
+	// Language Server Features (CRITICAL)
+	// ============================================================================
+	"typescript-language-features", // TypeScript/JavaScript IntelliSense (ESSENTIAL for TS/JS)
+	"css-language-features", // CSS/LESS/SCSS IntelliSense
+	"html-language-features", // HTML/Handlebars IntelliSense
+	// "json-language-features",        // JSON IntelliSense, validation, schema support
+	// "markdown-language-features",    // Markdown preview, IntelliSense, formatting
+	"php-language-features", // PHP IntelliSense, diagnostics
+	// ============================================================================
+	// Core Language Support
+	// ============================================================================
+	// "bat",                    // Windows batch files syntax highlighting
+	// "cpp",                    // C/C++ syntax highlighting and snippets
+	// "csharp",                 // C# syntax highlighting and snippets
+	// "css",                    // CSS syntax highlighting
+	// "html",                   // HTML syntax highlighting and snippets
+	// "javascript",             // JavaScript syntax highlighting and snippets
+	// "json",                   // JSON syntax highlighting
+	"typescript-basics", // TypeScript syntax highlighting and snippets
+	// "python",                 // Python syntax highlighting
+	"java", // Java syntax highlighting and snippets
+	"php", // PHP syntax highlighting and snippets
+	"powershell", // PowerShell syntax highlighting
+	"shellscript", // Shell script syntax highlighting
+	// "sql",                    // SQL syntax highlighting
+	// "xml",                    // XML syntax highlighting
+	// "yaml",                   // YAML syntax highlighting
+	"docker", // Dockerfile syntax highlighting
+	"dotenv", // .env file syntax highlighting
+	"ini", // INI/Properties file syntax highlighting
+	"less", // Less syntax highlighting
+	"scss", // SCSS syntax highlighting
+	"make", // Makefile syntax highlighting
+	// "log",                    // Log file syntax highlighting
+	// "diff",                   // Diff file syntax highlighting
+	"handlebars", // Handlebars template syntax highlighting
+	"ruby", // Ruby syntax highlighting
+	// ============================================================================
+	// Markdown Support
+	// ============================================================================
+	// "markdown-basics",         // Basic Markdown syntax highlighting and snippets
+	// "markdown-math",           // Math support in Markdown notebooks
+	// ============================================================================
+	// Version Control
+	// ============================================================================
+	"git", // Git SCM integration (171 commands) - ESSENTIAL if you use Git
+	"git-base", // Git static contributions and pickers
+	"github", // GitHub features integration
+	"github-authentication", // GitHub authentication provider
+	// ============================================================================
+	// Authentication
+	// ============================================================================
+	"microsoft-authentication", // Microsoft account authentication provider
+	// ============================================================================
+	// Debugging
+	// ============================================================================
+	"debug-auto-launch", // Node debug auto-attach helper
+	"debug-server-ready", // Server ready action for debugging
+	// ============================================================================
+	// Essential Features
+	// ============================================================================
+	"emmet", // Emmet abbreviation expansion (23 commands)
+	"configuration-editing", // Advanced IntelliSense for config files (settings, launch.json)
+	// "merge-conflict",          // Merge conflict resolution (10 commands)
+	"references-view", // Code references view in sidebar (21 commands)
+	// "search-result",           // Search results syntax highlighting
+	"extension-editing", // Extension authoring tools and linting
+	// ============================================================================
+	// Terminal
+	// ============================================================================
+	"terminal-suggest", // Terminal completions for zsh, bash, fish
+	// ============================================================================
+	// Build Tools
+	// ============================================================================
+	"npm", // NPM task support (8 commands)
+	// ============================================================================
+	// Prompt/Chat
+	// ============================================================================
+	// "prompt-basics",           // Syntax highlighting for Prompt and Instructions documents
+	// ============================================================================
+	// Types (internal)
+	// ============================================================================
+	// "types",                   // Internal types extension
+	// ============================================================================
+	// GitHub Copilot (marketplace extensions)
+	// ============================================================================
+	"GitHub.copilot", // GitHub Copilot
+	"GitHub.copilot-chat", // GitHub Copilot Chat
+	"GitHub.copilot-labs" // GitHub Copilot Labs
+]

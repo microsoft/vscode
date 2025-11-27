@@ -4,20 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { Codicon } from '../../../../base/common/codicons.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { Schemas } from '../../../../base/common/network.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { IMenu, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { localize } from '../../../../nls.js';
+// import { localize2 } from '../../../../nls.js';
+import { IMenu } from '../../../../platform/actions/common/actions.js';
+// import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { IExtensionTerminalProfile, ITerminalProfile, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+// import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { ResourceContextKey } from '../../../common/contextkeys.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { TaskExecutionSupportedContext } from '../../tasks/common/taskService.js';
 import { ICreateTerminalOptions, ITerminalLocationOptions, ITerminalService } from './terminal.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { TerminalCommandId, TERMINAL_VIEW_ID } from '../common/terminal.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility (code that uses them is commented out)
 import { TerminalContextKeys, TerminalContextKeyStrings } from '../common/terminalContextKey.js';
 import { terminalStrings } from '../common/terminalStrings.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { HasSpeechProvider } from '../../speech/common/speechService.js';
 import { hasKey } from '../../../../base/common/types.js';
 
@@ -37,7 +48,11 @@ export const enum TerminalMenuBarGroup {
 	Configure = '7_configure'
 }
 
+// FORK: Terminal menus are completely disabled
 export function setupTerminalMenus(): void {
+	// Terminal menus are disabled - function body is commented out
+	return;
+	/*
 	MenuRegistry.appendMenuItems(
 		[
 			{
@@ -778,6 +793,7 @@ export function setupTerminalMenus(): void {
 			isHiddenByDefault: true
 		});
 	}
+	*/
 }
 
 export function getTerminalActionBarArgs(location: ITerminalLocationOptions, profiles: ITerminalProfile[], defaultProfileName: string, contributedProfiles: readonly IExtensionTerminalProfile[], terminalService: ITerminalService, dropdownMenu: IMenu, disposableStore: DisposableStore): {

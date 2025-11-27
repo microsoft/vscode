@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-expect-error
 import { isWeb, isWindows } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { ISetting, ISettingsGroup } from '../../../services/preferences/common/preferences.js';
@@ -150,11 +151,11 @@ export const tocData: ITOCEntry<string> = {
 					label: localize('zenMode', "Zen Mode"),
 					settings: ['zenmode.*']
 				},
-				{
-					id: 'workbench/screencastmode',
-					label: localize('screencastMode', "Screencast Mode"),
-					settings: ['screencastMode.*']
-				}
+				// {
+				// 	id: 'workbench/screencastmode',
+				// 	label: localize('screencastMode', "Screencast Mode"),
+				// 	settings: ['screencastMode.*']
+				// }
 			]
 		},
 		{
@@ -193,137 +194,137 @@ export const tocData: ITOCEntry<string> = {
 					label: localize('search', "Search"),
 					settings: ['search.*']
 				},
-				{
-					id: 'features/debug',
-					label: localize('debug', "Debug"),
-					settings: ['debug.*', 'launch']
-				},
-				{
-					id: 'features/testing',
-					label: localize('testing', "Testing"),
-					settings: ['testing.*']
-				},
-				{
-					id: 'features/scm',
-					label: localize('scm', "Source Control"),
-					settings: ['scm.*']
-				},
-				{
-					id: 'features/extensions',
-					label: localize('extensions', "Extensions"),
-					settings: ['extensions.*']
-				},
-				{
-					id: 'features/terminal',
-					label: localize('terminal', "Terminal"),
-					settings: ['terminal.*']
-				},
-				{
-					id: 'features/task',
-					label: localize('task', "Task"),
-					settings: ['task.*']
-				},
+				// {
+				// 	id: 'features/debug',
+				// 	label: localize('debug', "Debug"),
+				// 	settings: ['debug.*', 'launch']
+				// },
+				// {
+				// 	id: 'features/testing',
+				// 	label: localize('testing', "Testing"),
+				// 	settings: ['testing.*']
+				// },
+				// {
+				// 	id: 'features/scm',
+				// 	label: localize('scm', "Source Control"),
+				// 	settings: ['scm.*']
+				// },
+				// {
+				// 	id: 'features/extensions',
+				// 	label: localize('extensions', "Extensions"),
+				// 	settings: ['extensions.*']
+				// },
+				// {
+				// 	id: 'features/terminal',
+				// 	label: localize('terminal', "Terminal"),
+				// 	settings: ['terminal.*']
+				// },
+				// {
+				// 	id: 'features/task',
+				// 	label: localize('task', "Task"),
+				// 	settings: ['task.*']
+				// },
 				{
 					id: 'features/problems',
 					label: localize('problems', "Problems"),
 					settings: ['problems.*']
 				},
-				{
-					id: 'features/output',
-					label: localize('output', "Output"),
-					settings: ['output.*']
-				},
+				// {
+				// 	id: 'features/output',
+				// 	label: localize('output', "Output"),
+				// 	settings: ['output.*']
+				// },
 				{
 					id: 'features/comments',
 					label: localize('comments', "Comments"),
 					settings: ['comments.*']
 				},
-				{
-					id: 'features/remote',
-					label: localize('remote', "Remote"),
-					settings: ['remote.*']
-				},
-				{
-					id: 'features/timeline',
-					label: localize('timeline', "Timeline"),
-					settings: ['timeline.*']
-				},
-				{
-					id: 'features/notebook',
-					label: localize('notebook', 'Notebook'),
-					settings: ['notebook.*', 'interactiveWindow.*']
-				},
-				{
-					id: 'features/mergeEditor',
-					label: localize('mergeEditor', 'Merge Editor'),
-					settings: ['mergeEditor.*']
-				},
-				{
-					id: 'features/chat',
-					label: localize('chat', 'Chat'),
-					settings: ['chat.*', 'inlineChat.*', 'mcp']
-				},
-				{
-					id: 'features/issueReporter',
-					label: localize('issueReporter', 'Issue Reporter'),
-					settings: ['issueReporter.*'],
-					hide: !isWeb
-				}
+				// {
+				// 	id: 'features/remote',
+				// 	label: localize('remote', "Remote"),
+				// 	settings: ['remote.*']
+				// },
+				// {
+				// 	id: 'features/timeline',
+				// 	label: localize('timeline', "Timeline"),
+				// 	settings: ['timeline.*']
+				// },
+				// {
+				// 	id: 'features/notebook',
+				// 	label: localize('notebook', 'Notebook'),
+				// 	settings: ['notebook.*', 'interactiveWindow.*']
+				// },
+				// {
+				// 	id: 'features/mergeEditor',
+				// 	label: localize('mergeEditor', 'Merge Editor'),
+				// 	settings: ['mergeEditor.*']
+				// },
+				// {
+				// 	id: 'features/chat',
+				// 	label: localize('chat', 'Chat'),
+				// 	settings: ['chat.*', 'inlineChat.*', 'mcp']
+				// },
+				// {
+				// 	id: 'features/issueReporter',
+				// 	label: localize('issueReporter', 'Issue Reporter'),
+				// 	settings: ['issueReporter.*'],
+				// 	hide: !isWeb
+				// }
 			]
 		},
-		{
-			id: 'application',
-			label: localize('application', "Application"),
-			children: [
-				{
-					id: 'application/http',
-					label: localize('proxy', "Proxy"),
-					settings: ['http.*']
-				},
-				{
-					id: 'application/keyboard',
-					label: localize('keyboard', "Keyboard"),
-					settings: ['keyboard.*']
-				},
-				{
-					id: 'application/update',
-					label: localize('update', "Update"),
-					settings: ['update.*']
-				},
-				{
-					id: 'application/telemetry',
-					label: localize('telemetry', "Telemetry"),
-					settings: ['telemetry.*']
-				},
-				{
-					id: 'application/settingsSync',
-					label: localize('settingsSync', "Settings Sync"),
-					settings: ['settingsSync.*']
-				},
-				{
-					id: 'application/experimental',
-					label: localize('experimental', "Experimental"),
-					settings: ['application.experimental.*']
-				},
-				{
-					id: 'application/other',
-					label: localize('other', "Other"),
-					settings: ['application.*'],
-					hide: isWindows
-				}
-			]
-		},
-		{
-			id: 'security',
-			label: localize('security', "Security"),
-			settings: ['security.*'],
-			children: [
-				{
-					id: 'security/workspace',
-					label: localize('workspace', "Workspace"),
-					settings: ['security.workspace.*']
-				}
-			]
-		}
+		// {
+		// 	id: 'application',
+		// 	label: localize('application', "Application"),
+		// 	children: [
+		// 		{
+		// 			id: 'application/http',
+		// 			label: localize('proxy', "Proxy"),
+		// 			settings: ['http.*']
+		// 		},
+		// 		{
+		// 			id: 'application/keyboard',
+		// 			label: localize('keyboard', "Keyboard"),
+		// 			settings: ['keyboard.*']
+		// 		},
+		// 		{
+		// 			id: 'application/update',
+		// 			label: localize('update', "Update"),
+		// 			settings: ['update.*']
+		// 		},
+		// 		// {
+		// 		// 	id: 'application/telemetry',
+		// 		// 	label: localize('telemetry', "Telemetry"),
+		// 		// 	settings: ['telemetry.*']
+		// 		// },
+		// 		{
+		// 			id: 'application/settingsSync',
+		// 			label: localize('settingsSync', "Settings Sync"),
+		// 			settings: ['settingsSync.*']
+		// 		},
+		// 		// {
+		// 		// 	id: 'application/experimental',
+		// 		// 	label: localize('experimental', "Experimental"),
+		// 		// 	settings: ['application.experimental.*']
+		// 		// },
+		// 		{
+		// 			id: 'application/other',
+		// 			label: localize('other', "Other"),
+		// 			settings: ['application.*'],
+		// 			hide: isWindows
+		// 		}
+		// 	]
+		// },
+		// {
+		// 	id: 'security',
+		// 	label: localize('security', "Security"),
+		// 	settings: ['security.*'],
+		// 	children: [
+		// 		{
+		// 			id: 'security/workspace',
+		// 			label: localize('workspace', "Workspace"),
+		// 			settings: ['security.workspace.*']
+		// 		}
+		// 	]
+		// }
 	]
 };

@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createLogger, defineConfig, Plugin } from 'vite';
-import path, { join } from 'path';
+import * as path from 'path';
+import { join } from 'path';
+import { readFileSync, statSync } from 'fs';
 /// @ts-ignore
 import { urlToEsmPlugin } from './rollup-url-to-module-plugin/index.mjs';
-import { statSync } from 'fs';
 import { pathToFileURL } from 'url';
 
 function injectBuiltinExtensionsPlugin(): Plugin {
@@ -53,8 +54,13 @@ function injectBuiltinExtensionsPlugin(): Plugin {
 	async function getScannedBuiltinExtensions(vsCodeDevLocation: string) {
 		// use the build utility as to not duplicate the code
 		const extensionsUtil = await import(pathToFileURL(path.join(vsCodeDevLocation, 'build', 'lib', 'extensions.js')).toString());
-		const localExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, 'extensions'));
-		const prebuiltExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, prebuiltExtensionsLocation));
+		// Read excluded extensions from JSONC (single source of truth)
+		const jsoncParser = await import('jsonc-parser');
+		const excludedExtensionsPath = path.join(vsCodeDevLocation, 'build', 'lib', 'excludedExtensions.jsonc');
+		const excludedExtensionsContent = readFileSync(excludedExtensionsPath, 'utf8');
+		const excludedExtensions: string[] = jsoncParser.parse(excludedExtensionsContent, [], { allowTrailingComma: true }) as string[];
+		const localExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, 'extensions'), excludedExtensions);
+		const prebuiltExtensions = extensionsUtil.scanBuiltinExtensions(path.join(vsCodeDevLocation, prebuiltExtensionsLocation), excludedExtensions);
 		for (const ext of localExtensions) {
 			let browserMain = ext.packageJSON.browser;
 			if (browserMain) {

@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { existsSync } from 'fs';
+import { getExcludedExtensions } from '../lib/extensions.ts';
 
 /**
  * Complete list of directories where npm should be executed to install node modules
  */
-export const dirs = [
+const allDirs = [
 	'',
 	'build',
 	'build/vite',
@@ -61,6 +62,14 @@ export const dirs = [
 	'.vscode/extensions/vscode-selfhost-import-aid',
 	'.vscode/extensions/vscode-selfhost-test-provider',
 ];
+
+// Filter out excluded extensions
+const excludedExtensions = getExcludedExtensions();
+export const dirs = allDirs.filter(dir => {
+	// Check if this directory path contains an excluded extension name
+	const extensionName = dir.split('/')[1]; // Get extension name from 'extensions/name' or 'extensions/name/subdir'
+	return !extensionName || !excludedExtensions.includes(extensionName);
+});
 
 if (existsSync(`${import.meta.dirname}/../../.build/distro/npm`)) {
 	dirs.push('.build/distro/npm');

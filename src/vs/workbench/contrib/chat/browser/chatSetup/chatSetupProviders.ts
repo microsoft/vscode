@@ -643,6 +643,22 @@ export class ChatCodeActionsProvider {
 				generateOrModifyTitle = localize('modify', "Modify");
 				generateOrModifyCommand = AICodeActionsHelper.modify(range);
 			}
+
+			// Always show "Open Inline Chat" when there's a selection
+			actions.push({
+				kind: CodeActionKind.RefactorRewrite.append('inlineChat').value,
+				isAI: true,
+				title: localize('openInlineChat', "Open Inline Chat"),
+				command: {
+					id: INLINE_CHAT_START,
+					title: localize('openInlineChat', "Open Inline Chat"),
+					arguments: [{
+						initialSelection: new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn),
+						initialRange: range,
+						position: range.getStartPosition()
+					}]
+				},
+			});
 		}
 
 		if (generateOrModifyTitle && generateOrModifyCommand) {

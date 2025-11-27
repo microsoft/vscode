@@ -84,7 +84,7 @@ import { ChatAgentRecommendation } from './actions/chatAgentRecommendationAction
 import { DeleteChatSessionAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleAgentSessionsViewLocationAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatElicitationActions } from './actions/chatElicitationActions.js';
-import { registerChatToolActions } from './actions/chatToolActions.js';
+// import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
 import './agentSessions/agentSessions.contribution.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
@@ -133,6 +133,7 @@ import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { ChatWidgetService } from './chatWidgetService.js';
+import './dSpace/dSpaceAgent.contribution.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -399,11 +400,12 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.notifyWindowOnResponseReceived', "Controls whether a chat session should present the user with an OS notification when a response is received while the window is not in focus. This includes a window badge as well as notification toast."),
 		},
-		'chat.checkpoints.enabled': {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
-		},
+		// DSPACE: Commented out to hide checkpoints
+		// 'chat.checkpoints.enabled': {
+		// 	type: 'boolean',
+		// 	default: true,
+		// 	description: nls.localize('chat.checkpoints.enabled', "Enables checkpoints in chat. Checkpoints allow you to restore the chat to a previous state."),
+		// },
 		'chat.checkpoints.showFileChanges': {
 			type: 'boolean',
 			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
@@ -528,23 +530,25 @@ configurationRegistry.registerConfiguration({
 				},
 			}
 		},
-		[ChatConfiguration.AgentEnabled]: {
-			type: 'boolean',
-			description: nls.localize('chat.agent.enabled.description', "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."),
-			default: true,
-			policy: {
-				name: 'ChatAgentMode',
-				category: PolicyCategory.InteractiveSession,
-				minimumVersion: '1.99',
-				value: (account) => account.chat_agent_enabled === false ? false : undefined,
-				localization: {
-					description: {
-						key: 'chat.agent.enabled.description',
-						value: nls.localize('chat.agent.enabled.description', "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."),
-					}
-				}
-			}
-		},
+		// DSPACE: Commented out to hide copilot agent
+		// [ChatConfiguration.AgentEnabled]: {
+		// 	type: 'boolean',
+		// 	description: nls.localize('chat.agent.enabled.description', "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."),
+		// 	default: true,
+		// 	policy: {
+		// 		name: 'ChatAgentMode',
+		// 		category: PolicyCategory.InteractiveSession,
+		// 		minimumVersion: '1.99',
+		// 		value: (account) => account.chat_agent_enabled === false ? false : undefined,
+		// 		localization: {
+		// 			description: {
+		// 				key: 'chat.agent.enabled.description',
+		// 				value: nls.localize('chat.agent.enabled.description', "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."),
+		// 			}
+		// 		}
+		// 	}
+		// },
+		// END DSPACE
 		[ChatConfiguration.EnableMath]: {
 			type: 'boolean',
 			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
@@ -1235,7 +1239,9 @@ registerChatContextActions();
 registerChatDeveloperActions();
 registerChatEditorActions();
 registerChatElicitationActions();
-registerChatToolActions();
+// DSPACE: comment out chat tool actions
+// registerChatToolActions();
+// END DSPACE
 registerLanguageModelActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);

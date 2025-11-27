@@ -47,12 +47,14 @@ import { ICommandService } from '../../../platform/commands/common/commands.js';
 
 export class GlobalCompositeBar extends Disposable {
 
+	// @ts-expect-error - FORK: Unused variable kept for future merge compatibility
 	private static readonly ACCOUNTS_ACTION_INDEX = 0;
 	static readonly ACCOUNTS_ICON = registerIcon('accounts-view-bar-icon', Codicon.account, localize('accountsViewBarIcon', "Accounts icon in the view bar."));
 
 	readonly element: HTMLElement;
 
 	private readonly globalActivityAction = this._register(new Action(GLOBAL_ACTIVITY_ID));
+	// @ts-expect-error - FORK: Unused variable kept for future merge compatibility
 	private readonly accountAction = this._register(new Action(ACCOUNTS_ACTIVITY_ID));
 	private readonly globalActivityActionBar: ActionBar;
 
@@ -102,9 +104,10 @@ export class GlobalCompositeBar extends Disposable {
 			preventLoopNavigation: true
 		}));
 
-		if (this.accountsVisibilityPreference) {
-			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
-		}
+		// FORK: Accounts is always hidden - only Explorer and Search are shown in the left menu
+		// if (this.accountsVisibilityPreference) {
+		// 	this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
+		// }
 
 		this.globalActivityActionBar.push(this.globalActivityAction);
 
@@ -132,10 +135,16 @@ export class GlobalCompositeBar extends Disposable {
 	}
 
 	getContextMenuActions(): IAction[] {
-		return [toAction({ id: 'toggleAccountsVisibility', label: localize('accounts', "Accounts"), checked: this.accountsVisibilityPreference, run: () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference })];
+		// FORK: Accounts toggle is removed from context menu - Accounts is always hidden
+		return [];
+		// return [toAction({ id: 'toggleAccountsVisibility', label: localize('accounts', "Accounts"), checked: this.accountsVisibilityPreference, run: () => this.accountsVisibilityPreference = !this.accountsVisibilityPreference })];
 	}
 
+	// FORK: Accounts toggle is disabled - Accounts is always hidden
 	private toggleAccountsActivity() {
+		// Accounts is always hidden, so this method does nothing
+		return;
+		/*
 		if (this.globalActivityActionBar.length() === 2 && this.accountsVisibilityPreference) {
 			return;
 		}
@@ -144,14 +153,19 @@ export class GlobalCompositeBar extends Disposable {
 		} else {
 			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
 		}
+		*/
 	}
 
+	// @ts-expect-error - FORK: Unused getter kept for future merge compatibility
 	private get accountsVisibilityPreference(): boolean {
-		return isAccountsActionVisible(this.storageService);
+		// FORK: Accounts is always hidden
+		return false;
+		// return isAccountsActionVisible(this.storageService);
 	}
 
 	private set accountsVisibilityPreference(value: boolean) {
-		setAccountsActionVisible(this.storageService, value);
+		// FORK: Accounts visibility cannot be changed - it's always hidden
+		// setAccountsActionVisible(this.storageService, value);
 	}
 }
 

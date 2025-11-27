@@ -30,9 +30,34 @@ import vzip from 'gulp-vinyl-zip';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 
+// Read excluded extensions from JSONC (single source of truth)
+// JSONC supports comments, so we can comment out extensions we want to keep
+const excludedExtensionsContent = fs.readFileSync(path.join(import.meta.dirname, 'excludedExtensions.jsonc'), 'utf8');
+const excludedExtensions: string[] = jsoncParser.parse(excludedExtensionsContent, [], { allowTrailingComma: true }) as string[];
+
 const root = path.dirname(path.dirname(import.meta.dirname));
 const commit = getVersion(root);
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
+
+/**
+ * Get list of excluded extensions
+ * @returns Array of excluded extension names
+ */
+export function getExcludedExtensions(): string[] {
+	return excludedExtensions;
+}
+
+/**
+ * Get list of active (non-excluded) extension directories
+ * @returns Array of extension directory names (e.g., ['git', 'css-language-features'])
+ */
+export function getActiveExtensions(): string[] {
+	const extensionsPath = path.join(root, 'extensions');
+	const allExtensions = glob.sync('*/package.json', { cwd: extensionsPath })
+		.map(p => path.dirname(p))
+		.filter(name => !excludedExtensions.includes(name));
+	return allExtensions.sort();
+}
 
 function minifyExtensionResources(input: Stream): Stream {
 	const jsonFilter = filter(['**/*.json', '**/*.code-snippets'], { restore: true });
@@ -316,15 +341,6 @@ export function fromGithub({ name, version, repo, sha256, metadata }: IExtension
  */
 const nativeExtensions = [
 	'microsoft-authentication',
-];
-
-const excludedExtensions = [
-	'vscode-api-tests',
-	'vscode-colorize-tests',
-	'vscode-colorize-perf-tests',
-	'vscode-test-resolver',
-	'ms-vscode.node-debug',
-	'ms-vscode.node-debug2',
 ];
 
 const marketplaceWebExtensionsExclude = new Set([
@@ -669,7 +685,14 @@ async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { 
 }
 
 export async function buildExtensionMedia(isWatch: boolean, outputRoot?: string) {
-	return esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
+	// Filter out excluded extensions from esbuild media scripts
+	const filteredScripts = esbuildMediaScripts.filter(p => {
+		// Extract extension name from path like 'ipynb/esbuild.mjs' or 'markdown-language-features/esbuild-notebook.mjs'
+		const extensionName = p.split('/')[0];
+		return !excludedExtensions.includes(extensionName);
+	});
+
+	return esbuildExtensions('esbuilding extension media', isWatch, filteredScripts.map(p => ({
 		script: path.join(extensionsPath, p),
 		outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
 	})));

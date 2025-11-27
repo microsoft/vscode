@@ -529,8 +529,14 @@ BUILD_TARGETS.forEach(buildTarget => {
 		const vscodeTaskCI = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}-ci`, task.series(...tasks));
 		gulp.task(vscodeTaskCI);
 
+		// Use mangling only if VSCODE_ENABLE_MANGLING is set to 'true' (for production builds)
+		// During development, skip mangling for faster builds (~50% faster compilation)
+		// Note: Previously mangling was only used for minified builds, now controlled by env var
+		const shouldMangle = process.env['VSCODE_ENABLE_MANGLING'] === 'true';
+		const compileTask = shouldMangle ? compileBuildWithManglingTask : compileBuildWithoutManglingTask;
+
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
-			minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
+			compileTask,
 			cleanExtensionsBuildTask,
 			compileNonNativeExtensionsBuildTask,
 			compileExtensionMediaBuildTask,

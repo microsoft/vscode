@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { localize, localize2 } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
 import { QuickDiffWorkbenchController } from './quickDiffDecorator.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, HISTORY_VIEW_PANE_ID } from '../common/scm.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
@@ -18,17 +20,22 @@ import { CommandsRegistry, ICommandService } from '../../../../platform/commands
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { SCMService } from '../common/scmService.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry } from '../../../common/views.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { SCMViewPaneContainer } from './scmViewPaneContainer.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ModesRegistry } from '../../../../editor/common/languages/modesRegistry.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ContextKeys, SCMViewPane } from './scmViewPane.js';
 import { RepositoryPicker, SCMViewService } from './scmViewService.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { SCMRepositoriesViewPane } from './scmRepositoriesViewPane.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from '../../workspace/common/workspace.js';
 import { IQuickDiffService } from '../common/quickDiff.js';
 import { QuickDiffService } from '../common/quickDiffService.js';
@@ -37,6 +44,7 @@ import { SCMWorkingSetController } from './workingSet.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IListService, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { isSCMRepository } from './util.js';
+// @ts-expect-error - FORK: Unused imports kept for future merge compatibility
 import { SCMHistoryViewPane } from './scmHistoryViewPane.js';
 import { QuickDiffModelService, IQuickDiffModelService } from './quickDiffModel.js';
 import { QuickDiffEditorController } from './quickDiffWidget.js';
@@ -63,8 +71,12 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 registerEditorContribution(QuickDiffEditorController.ID,
 	QuickDiffEditorController, EditorContributionInstantiation.AfterFirstRender);
 
+// @ts-expect-error - FORK: Unused variable kept for future merge compatibility
 const sourceControlViewIcon = registerIcon('source-control-view-icon', Codicon.sourceControl, localize('sourceControlViewIcon', 'View icon of the Source Control view.'));
 
+// FORK: Commented out to hide Source Control from sidebar
+// Only Explorer and Search are shown in the left menu
+/*
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
 	title: localize2('source control', 'Source Control'),
@@ -75,7 +87,10 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 	order: 2,
 	hideIfEmpty: true,
 }, ViewContainerLocation.Sidebar, { doNotRegisterOpenCommand: true });
+*/
 
+// FORK: Commented out views registration since viewContainer is commented out
+/*
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 const containerTitle = localize('source control view', "Source Control");
 
@@ -155,6 +170,7 @@ viewsRegistry.registerViews([{
 	),
 	containerIcon: sourceControlViewIcon
 }], viewContainer);
+*/
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(SCMActiveRepositoryController, LifecyclePhase.Restored);

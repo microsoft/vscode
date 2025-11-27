@@ -5,6 +5,7 @@
 
 import v8 from 'node:v8';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { type Mapping, SourceMapGenerator } from 'source-map';
 import ts from 'typescript';
@@ -429,8 +430,11 @@ export class Mangler {
 		this.log = log;
 		this.config = config;
 
+		// Use 6 workers (75% of 8 CPUs) to leave resources for other processes
+		const numWorkers = Math.min(6, Math.max(2, Math.floor(os.cpus().length * 0.75)));
+
 		this.renameWorkerPool = workerpool.pool(path.join(import.meta.dirname, 'renameWorker.ts'), {
-			maxWorkers: 4,
+			maxWorkers: numWorkers,
 			minWorkers: 'max'
 		});
 	}
