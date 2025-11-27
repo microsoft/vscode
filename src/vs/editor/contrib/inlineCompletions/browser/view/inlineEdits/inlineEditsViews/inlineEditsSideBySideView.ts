@@ -25,7 +25,7 @@ import { InlineCompletionContextKeys } from '../../../controller/inlineCompletio
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { InlineEditWithChanges } from '../inlineEditWithChanges.js';
 import { getEditorBlendedColor, getModifiedBorderColor, getOriginalBorderColor, modifiedBackgroundColor, originalBackgroundColor } from '../theme.js';
-import { PathBuilder, getContentRenderWidth, getOffsetForPos, mapOutFalsy, maxContentWidthInRange } from '../utils/utils.js';
+import { PathBuilder, getContentRenderWidth, getOffsetForPos, mapOutFalsy, maxContentWidthInRange, observeEditorBoundingClientRect } from '../utils/utils.js';
 
 const HORIZONTAL_PADDING = 0;
 const VERTICAL_PADDING = 0;
@@ -106,6 +106,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 					bracketPairsHorizontal: false,
 					highlightActiveIndentation: false,
 				},
+				editContext: false, // is a bit faster
 				rulers: [],
 				padding: { top: 0, bottom: 0 },
 				folding: false,
@@ -226,6 +227,9 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 				return Math.max(maxWidth, lastValue ?? 0);
 			});
 		}).map((v, r) => v.read(r));
+
+		const editorDomContentRect = observeEditorBoundingClientRect(this._editor, this._store);
+
 		this._previewEditorLayoutInfo = derived(this, (reader) => {
 			const inlineEdit = this._edit.read(reader);
 			if (!inlineEdit) {
@@ -244,7 +248,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 			const editorLayout = this._editorObs.layoutInfo.read(reader);
 			const previewContentWidth = this._previewEditorWidth.read(reader);
 			const editorContentAreaWidth = editorLayout.contentWidth - editorLayout.verticalScrollbarWidth;
-			const editorBoundingClientRect = this._editor.getContainerDomNode().getBoundingClientRect();
+			const editorBoundingClientRect = editorDomContentRect.read(reader);
 			const clientContentAreaRight = editorLayout.contentLeft + editorLayout.contentWidth + editorBoundingClientRect.left;
 			const remainingWidthRightOfContent = getWindow(this._editor.getContainerDomNode()).innerWidth - clientContentAreaRight;
 			const remainingWidthRightOfEditor = getWindow(this._editor.getContainerDomNode()).innerWidth - editorBoundingClientRect.right;

@@ -608,7 +608,7 @@ function getStringEdit(textModel: ITextModel, editRange: Range, replaceText: str
 			ignoreTrimWhitespace: false,
 			computeMoves: false,
 			extendToSubwords: true,
-			maxComputationTimeMs: 500,
+			maxComputationTimeMs: 50,
 		}
 	);
 

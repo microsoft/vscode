@@ -39,6 +39,9 @@ import { IOriginalEditorInlineDiffViewState, OriginalEditorInlineDiffView } from
 import { applyEditToModifiedRangeMappings, createReindentEdit } from './utils/utils.js';
 import './view.css';
 import { JumpToView } from './inlineEditsViews/jumpToView.js';
+import { StringEdit } from '../../../../../common/core/edits/stringEdit.js';
+import { OffsetRange } from '../../../../../common/core/ranges/offsetRange.js';
+import { getPositionOffsetTransformerFromTextModel } from '../../../../../common/core/text/getPositionOffsetTransformerFromTextModel.js';
 
 export class InlineEditsView extends Disposable {
 	private readonly _editorObs: ObservableCodeEditor;
@@ -311,20 +314,20 @@ export class InlineEditsView extends Disposable {
 		let diff: DetailedLineRangeMapping[];
 		let mappings: RangeMapping[];
 
-		let newText: string | undefined = undefined;
+		let newText: AbstractText | undefined = undefined;
 
 		if (inlineEdit.edit) {
 			mappings = RangeMapping.fromEdit(inlineEdit.edit);
-			newText = inlineEdit.edit.apply(inlineEdit.originalText);
-			diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, new StringText(newText));
+			newText = new StringText(inlineEdit.edit.apply(inlineEdit.originalText));
+			diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, newText);
 		} else {
 			mappings = [];
 			diff = [];
-			newText = inlineEdit.originalText.getValue();
+			newText = inlineEdit.originalText;
 		}
 
 
-		let state = this._determineRenderState(model, reader, diff, new StringText(newText));
+		let state = this._determineRenderState(model, reader, diff, newText);
 		if (!state) {
 			onUnexpectedError(new Error(`unable to determine view: tried to render ${this._previousView?.view}`));
 			return undefined;
@@ -333,32 +336,40 @@ export class InlineEditsView extends Disposable {
 		const longDistanceHint = this._getLongDistanceHintState(model, reader);
 
 		if (state.kind === InlineCompletionViewKind.SideBySide) {
-			const indentationAdjustmentEdit = createReindentEdit(newText, inlineEdit.modifiedLineRange, textModel.getOptions().tabSize);
-			newText = indentationAdjustmentEdit.applyToString(newText);
+			const indentationAdjustmentEdit = createReindentEdit(newText.getValue(), inlineEdit.modifiedLineRange, textModel.getOptions().tabSize);
+			newText = new StringText(indentationAdjustmentEdit.applyToString(newText.getValue()));
 
 			mappings = applyEditToModifiedRangeMappings(mappings, indentationAdjustmentEdit);
-			diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, new StringText(newText));
+			diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, newText);
 		}
 
-		this._previewTextModel.setLanguage(this._editor.getModel()!.getLanguageId());
+		const tm = this._editorObs.model.read(reader);
+		if (!tm) {
+			return undefined;
+		}
+		this._previewTextModel.setLanguage(tm.getLanguageId());
 
 		const previousNewText = this._previewTextModel.getValue();
-		if (previousNewText !== newText) {
-			// Only update the model if the text has changed to avoid flickering
-			this._previewTextModel.setValue(newText);
+		if (previousNewText !== newText.getValue()) {
+			this._previewTextModel.setEOL(tm.getEndOfLineSequence());
+			const updateOldValueEdit = StringEdit.replace(new OffsetRange(0, previousNewText.length), newText.getValue());
+			const updateOldValueEditSmall = updateOldValueEdit.removeCommonSuffixPrefix(previousNewText);
+
+			const textEdit = getPositionOffsetTransformerFromTextModel(this._previewTextModel).getTextEdit(updateOldValueEditSmall);
+			this._previewTextModel.edit(textEdit);
 		}
 
 		if (this._showCollapsed.read(reader)) {
 			state = { kind: InlineCompletionViewKind.Collapsed as const, viewData: state.viewData };
 		}
 
-		model.handleInlineEditShown(state.kind, state.viewData);
+		model.handleInlineEditShown(state.kind, state.viewData); // call this in the next animation frame
 
 		return {
 			state,
 			diff,
 			edit: inlineEdit,
-			newText,
+			newText: newText.getValue(),
 			newTextLineCount: inlineEdit.modifiedLineRange.length,
 			isInDiffEditor: model.isInDiffEditor,
 			longDistanceHint,
@@ -412,7 +423,7 @@ export class InlineEditsView extends Disposable {
 		return model.inlineEdit.inlineCompletion.identity.id;
 	}
 
-	private _determineView(model: ModelPerInlineEdit, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText): InlineCompletionViewKind {
+	private _determineView(model: ModelPerInlineEdit, reader: IReader, diff: DetailedLineRangeMapping[], newText: AbstractText): InlineCompletionViewKind {
 		// Check if we can use the previous view if it is the same InlineCompletion as previously shown
 		const inlineEdit = model.inlineEdit;
 		const canUseCache = this._previousView?.id === this._getCacheId(model);
@@ -511,7 +522,7 @@ export class InlineEditsView extends Disposable {
 		return InlineCompletionViewKind.SideBySide;
 	}
 
-	private _determineRenderState(model: ModelPerInlineEdit, reader: IReader, diff: DetailedLineRangeMapping[], newText: StringText) {
+	private _determineRenderState(model: ModelPerInlineEdit, reader: IReader, diff: DetailedLineRangeMapping[], newText: AbstractText) {
 		if (model.inlineEdit.action?.kind === 'jumpTo') {
 			return {
 				kind: InlineCompletionViewKind.JumpTo as const,
@@ -727,7 +738,7 @@ function isSingleMultiLineInsertion(diff: DetailedLineRangeMapping[]) {
 	return true;
 }
 
-function isDeletion(inner: RangeMapping[], inlineEdit: InlineEditWithChanges, newText: StringText) {
+function isDeletion(inner: RangeMapping[], inlineEdit: InlineEditWithChanges, newText: AbstractText) {
 	const innerValues = inner.map(m => ({ original: inlineEdit.originalText.getValueOfRange(m.originalRange), modified: newText.getValueOfRange(m.modifiedRange) }));
 	return innerValues.every(({ original, modified }) => modified.trim() === '' && original.length > 0 && (original.length > modified.length || original.trim() !== ''));
 }
