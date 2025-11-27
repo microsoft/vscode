@@ -28,8 +28,10 @@
 
 	.interactive-session {
 
-		/* needed so that the session does not overflow */
+		/* needed so that the session does not overflow and input grows over welcome */
 		width: 100%;
+		min-height: 0;
+		min-width: 0;
 
 		.chat-welcome-view-container {
 
