@@ -636,6 +636,18 @@ configurationRegistry.registerConfiguration({
 				'tsconfig.json': 'tsconfig.*.json',
 				'package.json': 'package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb, bun.lock',
 			}
+		},
+		'explorer.imagePreview.enabled': {
+			'type': 'boolean',
+			'description': nls.localize('explorer.imagePreview.enabled', "Controls whether hovering over an image file in the Explorer shows a preview of the image."),
+			'default': true
+		},
+		'explorer.imagePreview.maxWidth': {
+			'type': 'number',
+			'description': nls.localize('explorer.imagePreview.maxWidth', "Maximum width of the image preview in the Explorer hover, in pixels. Height auto-adjusts to maintain aspect ratio."),
+			'default': 300,
+			'minimum': 50,
+			'maximum': 600
 		}
 	}
 });

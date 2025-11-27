@@ -24,6 +24,7 @@ import { dirname, joinPath, distinctParents, relativePath } from '../../../../..
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
 import { localize } from '../../../../../nls.js';
 import { createSingleCallFunction } from '../../../../../base/common/functional.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { equals, deepClone } from '../../../../../base/common/objects.js';
 import * as path from '../../../../../base/common/path.js';
@@ -33,7 +34,7 @@ import { CodeDataTransfers, containsDragType } from '../../../../../platform/dnd
 import { fillEditorsDragData } from '../../../../browser/dnd.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IDragAndDropData, DataTransfers } from '../../../../../base/browser/dnd.js';
-import { Schemas } from '../../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
 import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { IDialogService, getFileNamesMessage } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -74,6 +75,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { listFilterMatchHighlight, listFilterMatchHighlightBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -837,6 +839,10 @@ export interface IFileTemplateData {
 export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
 	static readonly ID = 'file';
 
+	private static readonly IMAGE_EXTENSIONS = new Set([
+		'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.ico', '.svg', '.tiff', '.tif', '.avif'
+	]);
+
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
 	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController[]>();
@@ -856,7 +862,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
@@ -922,6 +929,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
 			this.renderStat(stat, stat.name, undefined, node.filterData, templateData);
+
+			// Setup image preview hover for image files
+			this.setupImagePreviewHover(stat, templateData);
 		}
 
 		// Input Box
@@ -1218,6 +1228,55 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 	getActiveDescendantId(stat: ExplorerItem): string | undefined {
 		return this.compressedNavigationControllers.get(stat)?.[0]?.currentId ?? undefined;
+	}
+
+	private isImageFile(stat: ExplorerItem): boolean {
+		if (stat.isDirectory) {
+			return false;
+		}
+		const ext = path.extname(stat.name).toLowerCase();
+		return FilesRenderer.IMAGE_EXTENSIONS.has(ext);
+	}
+
+	private setupImagePreviewHover(stat: ExplorerItem, templateData: IFileTemplateData): void {
+		// Check if image preview is enabled
+		const imagePreviewConfig = this.config.explorer.imagePreview;
+		const enabled = imagePreviewConfig?.enabled ?? true;
+
+		if (!enabled || !this.isImageFile(stat)) {
+			return;
+		}
+
+		// Default to ~1/8th of window size, clamped to configured max
+		const configMaxWidth = imagePreviewConfig?.maxWidth ?? 300;
+		const targetWindow = DOM.getWindow(templateData.label.element);
+		const maxWidth = Math.min(configMaxWidth, Math.floor(targetWindow.innerWidth / 8));
+
+		// Get the browser-accessible URI for the image
+		const imageUri = FileAccess.uriToBrowserUri(stat.resource).toString(true);
+
+		// Create markdown with just the image (no file path)
+		// Only set width to maintain aspect ratio (height auto-calculates)
+		const markdown = new MarkdownString('', { isTrusted: true, supportHtml: true });
+		markdown.appendMarkdown(`<img src="${imageUri}" alt="${stat.name}" width="${maxWidth}" />`);
+
+		// Use instant hover (no delay) for image previews
+		templateData.elementDisposables.add(
+			DOM.addDisposableListener(templateData.label.element, DOM.EventType.MOUSE_OVER, (e: MouseEvent) => {
+				this.hoverService.showInstantHover({
+					content: markdown,
+					target: {
+						targetElements: [templateData.label.element],
+						x: e.clientX,
+						y: e.clientY
+					},
+					appearance: {
+						compact: true,
+						skipFadeInAnimation: true,
+					}
+				});
+			})
+		);
 	}
 
 	dispose(): void {
