@@ -168,7 +168,7 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		enum: ['off', 'alwaysOnTopExceptExactMatch', 'alwaysOnTop'],
 		markdownEnumDescriptions: [
 			localize('suggest.inlineSuggestion.off', "Disable the feature."),
-			localize('suggest.inlineSuggestion.alwaysOnTopExceptExactMatch', "Enable the feature and sort the inline suggestion without forcing it to be on top. This means that exact matches will be will be above the inline suggestion."),
+			localize('suggest.inlineSuggestion.alwaysOnTopExceptExactMatch', "Enable the feature and sort the inline suggestion without forcing it to be on top. This means that exact matches will be above the inline suggestion."),
 			localize('suggest.inlineSuggestion.alwaysOnTop', "Enable the feature and always put the inline suggestion on top."),
 		],
 		default: 'alwaysOnTop',
