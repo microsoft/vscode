@@ -422,7 +422,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				value,
 				kind: 'promptFile',
 				modelDescription: 'Prompt instructions file',
-				isRoot: false,
+				isRoot: true,
 				automaticallyAdded: false,
 				range,
 			} satisfies IPromptFileVariableEntry;
