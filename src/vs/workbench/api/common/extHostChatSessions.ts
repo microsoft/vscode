@@ -25,9 +25,10 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, IPromptFileVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData, IPromptFileVariableEntry, ISymbolVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/chatVariableEntries.js';
 import { basename } from '../../../base/common/resources.js';
 import { Diagnostic } from './extHostTypeConverters.js';
+import { SymbolKind, SymbolKinds } from '../../../editor/common/languages.js';
 
 class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
@@ -423,6 +424,22 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				problemMessage: value.diagnostics[0][1][0].message
 			};
 			return IDiagnosticVariableEntryFilterData.toEntry(refValue);
+		}
+
+		if (extHostTypes.Location.isLocation(ref.value) && ref.name.startsWith(`sym:`)) {
+			const loc = typeConvert.Location.from(ref.value);
+			return {
+				id: ref.id,
+				name: ref.name,
+				fullName: ref.name.substring(4),
+				value: { uri: ref.value.uri, range: loc.range },
+				// We never send this information to extensions, so default to Property
+				symbolKind: SymbolKind.Property,
+				// We never send this information to extensions, so default to Property
+				icon: SymbolKinds.toIcon(SymbolKind.Property),
+				kind: 'symbol',
+				range,
+			} satisfies ISymbolVariableEntry;
 		}
 
 		if (URI.isUri(value) && ref.name.startsWith(`prompt:`) &&
