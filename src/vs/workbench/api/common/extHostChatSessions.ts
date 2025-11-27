@@ -26,6 +26,7 @@ import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { IChatRequestVariableEntry, IPromptFileVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/chatVariableEntries.js';
+import { basename } from '../../../base/common/resources.js';
 
 class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
@@ -417,7 +418,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			ref.id.endsWith(value.toString())) {
 			return {
 				id: ref.id,
-				name: ref.id,
+				name: `prompt:${basename(value)}`,
 				value,
 				kind: 'promptFile',
 				modelDescription: 'Prompt instructions file',
@@ -431,7 +432,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const isFolder = isFile && URI.isUri(value) && value.path.endsWith('/');
 		return {
 			id: ref.id,
-			name: ref.id,
+			name: ref.name,
 			value,
 			modelDescription: ref.modelDescription,
 			range,
