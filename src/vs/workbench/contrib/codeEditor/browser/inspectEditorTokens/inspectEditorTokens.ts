@@ -152,9 +152,6 @@ interface IDecodedMetadata {
 	strikethrough: boolean | undefined;
 	foreground: string | undefined;
 	background: string | undefined;
-	fontFamily?: string | undefined;
-	fontSize?: string | undefined;
-	lineHeight?: number | undefined;
 }
 
 function renderTokenText(tokenText: string): string {

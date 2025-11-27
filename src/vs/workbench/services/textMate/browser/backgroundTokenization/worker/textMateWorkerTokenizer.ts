@@ -20,9 +20,10 @@ import type { StackDiff, StateStack, diffStateStacksRefEq } from 'vscode-textmat
 import { ICreateGrammarResult } from '../../../common/TMGrammarFactory.js';
 import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IFontToken, serializeFontToken } from '../../../../../../editor/common/textModelEvents.js';
+import { IFontTokenOption, serializeFontTokenOptions } from '../../../../../../editor/common/textModelEvents.js';
 import { AnnotationsUpdate, IAnnotationUpdate, ISerializedAnnotation } from '../../../../../../editor/common/model/tokens/annotations.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
+import { EncodedTokenizationResult } from '../../../../../../editor/common/languages.js';
 
 export interface TextMateModelTokenizerHost {
 	getOrCreateGrammar(languageId: string, encodedLanguageId: LanguageId): Promise<ICreateGrammarResult | null>;
@@ -128,7 +129,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			let tokenizedLines = 0;
 			const tokenBuilder = new ContiguousMultilineTokensBuilder();
 			const stateDeltaBuilder = new StateDeltaBuilder();
-			const fontTokensUpdate: IAnnotationUpdate<IFontToken>[] = [];
+			const fontTokensUpdate: IAnnotationUpdate<IFontTokenOption>[] = [];
 
 			while (true) {
 				const lineToTokenize = this._tokenizerWithStateStore.getFirstInvalidLine();
@@ -149,29 +150,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 
 				LineTokens.convertToEndOffset(r.tokens, text.length);
 				tokenBuilder.add(lineToTokenize.lineNumber, r.tokens);
-
-				this._ensureLineStarts();
-				if (r.fontInfo.length) {
-					for (const fontInfo of r.fontInfo) {
-						const offsetAtLineStart = lineToTokenize.lineNumber - 1 > 0 ? this._lineStarts!.getPrefixSum(lineToTokenize.lineNumber - 2) : 0;
-						fontTokensUpdate.push({
-							range: new OffsetRange(offsetAtLineStart + fontInfo.startIndex, offsetAtLineStart + fontInfo.endIndex),
-							annotation: {
-								fontFamily: fontInfo.fontFamily ?? undefined,
-								fontSize: fontInfo.fontSize ?? undefined,
-								lineHeight: fontInfo.lineHeight ?? undefined
-							}
-						});
-					}
-				} else {
-					const offsetAtLineStart = lineToTokenize.lineNumber - 1 > 0 ? this._lineStarts!.getPrefixSum(lineToTokenize.lineNumber - 2) : 0;
-					const prefixSum = this._lineStarts!.getPrefixSum(lineToTokenize.lineNumber - 1);
-					const offsetAtLineEnd = prefixSum > 0 ? prefixSum - 1 : 0;
-					fontTokensUpdate.push({
-						range: new OffsetRange(offsetAtLineStart, offsetAtLineEnd),
-						annotation: undefined
-					});
-				}
+				fontTokensUpdate.push(...this._getFontTokens(lineToTokenize.lineNumber, r));
 
 				const deltaMs = new Date().getTime() - startTime;
 				if (deltaMs > 20) {
@@ -184,8 +163,8 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 				break;
 			}
 
-			const fontUpdate = AnnotationsUpdate.create<IFontToken>(fontTokensUpdate);
-			const serializedFontUpdate = AnnotationsUpdate.serialize<IFontToken>(fontUpdate, serializeFontToken());
+			const fontUpdate = AnnotationsUpdate.create<IFontTokenOption>(fontTokensUpdate);
+			const serializedFontUpdate = AnnotationsUpdate.serialize<IFontTokenOption>(fontUpdate, serializeFontTokenOptions());
 			const stateDeltas = stateDeltaBuilder.getStateDeltas();
 			this._host.setTokensAndStates(
 				this._versionId,
@@ -201,6 +180,37 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 				return;
 			}
 		}
+	}
+
+	private _getFontTokens(lineNumber: number, r: EncodedTokenizationResult): IAnnotationUpdate<IFontTokenOption>[] {
+		const fontTokens: IAnnotationUpdate<IFontTokenOption>[] = [];
+		if (r.fontInfo.length) {
+			for (const fontInfo of r.fontInfo) {
+				const offsetAtLineStart = this._getOffsetAtLineStart(lineNumber);
+				fontTokens.push({
+					range: new OffsetRange(offsetAtLineStart + fontInfo.startIndex, offsetAtLineStart + fontInfo.endIndex),
+					annotation: {
+						fontFamily: fontInfo.fontFamily ?? undefined,
+						fontSize: fontInfo.fontSize ?? undefined,
+						lineHeight: fontInfo.lineHeight ?? undefined
+					}
+				});
+			}
+		} else {
+			const offsetAtLineStart = this._getOffsetAtLineStart(lineNumber);
+			const offsetAtNextLineStart = this._getOffsetAtLineStart(lineNumber + 1);
+			const offsetAtLineEnd = offsetAtNextLineStart > 0 ? offsetAtNextLineStart - 1 : 0;
+			fontTokens.push({
+				range: new OffsetRange(offsetAtLineStart, offsetAtLineEnd),
+				annotation: undefined
+			});
+		}
+		return fontTokens;
+	}
+
+	private _getOffsetAtLineStart(lineNumber: number): number {
+		this._ensureLineStarts();
+		return lineNumber - 1 > 0 ? this._lineStarts!.getPrefixSum(lineNumber - 2) : 0;
 	}
 }
 

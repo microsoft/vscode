@@ -12,7 +12,7 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { IBackgroundTokenizationStore, ILanguageIdCodec } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { TokenizationStateStore } from '../../../../../editor/common/model/textModelTokens.js';
-import { deserializeFontToken, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
+import { deserializeFontTokenOptions, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
 import { IModelContentChange } from '../../../../../editor/common/model/mirrorTextModel.js';
 import { ContiguousMultilineTokensBuilder } from '../../../../../editor/common/tokens/contiguousMultilineTokensBuilder.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -23,7 +23,6 @@ import type { applyStateStackDiff, StateStack } from 'vscode-textmate';
 import { linesLengthEditFromModelContentChange } from '../../../../../editor/common/model/textModelStringEdit.js';
 import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
-import { Position } from '../../../../../editor/common/core/position.js';
 import { AnnotationsUpdate, ISerializedAnnotation } from '../../../../../editor/common/model/tokens/annotations.js';
 
 export class TextMateWorkerTokenizerController extends Disposable {
@@ -126,7 +125,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		let tokens = ContiguousMultilineTokensBuilder.deserialize(
 			new Uint8Array(rawTokens)
 		);
-		const fontTokensUpdate = AnnotationsUpdate.deserialize(fontTokens, deserializeFontToken());
+		const fontTokensUpdate = AnnotationsUpdate.deserialize(fontTokens, deserializeFontTokenOptions());
 
 		if (this._shouldLog) {
 			console.log('received background tokenization result', {
@@ -179,12 +178,14 @@ export class TextMateWorkerTokenizerController extends Disposable {
 			// Apply future changes to tokens
 			for (const change of this._pendingChanges) {
 				for (const innerChanges of change.changes) {
+					const range = Range.lift(innerChanges.range);
+					const text = innerChanges.text;
 					for (let j = 0; j < tokens.length; j++) {
-						tokens[j].applyEdit(innerChanges.range, innerChanges.text);
+						tokens[j].applyEdit(range, text);
 					}
-					const offsetEditStart = this._model.getOffsetAt(new Position(innerChanges.range.startLineNumber, innerChanges.range.startColumn));
-					const offsetEditEnd = this._model.getOffsetAt(new Position(innerChanges.range.endLineNumber, innerChanges.range.endColumn));
-					edits.push(StringEdit.replace(new OffsetRange(offsetEditStart, offsetEditEnd), innerChanges.text));
+					const offsetEditStart = this._model.getOffsetAt(range.getStartPosition());
+					const offsetEditEnd = this._model.getOffsetAt(range.getEndPosition());
+					edits.push(StringEdit.replace(new OffsetRange(offsetEditStart, offsetEditEnd), text));
 				}
 			}
 			fontTokensUpdate.rebase(StringEdit.compose(edits));

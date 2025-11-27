@@ -38,7 +38,7 @@ import { ITMSyntaxExtensionPoint, grammarsExtPoint } from '../common/TMGrammars.
 import { IValidEmbeddedLanguagesMap, IValidGrammarDefinition, IValidTokenTypeMap } from '../common/TMScopeRegistry.js';
 import { ITextMateThemingRule, IWorkbenchColorTheme, IWorkbenchThemeService } from '../../themes/common/workbenchThemeService.js';
 import type { IGrammar, IOnigLib, IRawTheme } from 'vscode-textmate';
-import { ITokenFont } from '../../../../platform/theme/common/themeService.js';
+import { IFontTokenOptions } from '../../../../platform/theme/common/themeService.js';
 
 export class TextMateTokenizationFeature extends Disposable implements ITextMateTokenizationService {
 	private static reportTokenizationTimeCounter = { sync: 0, async: 0 };
@@ -56,7 +56,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 	private readonly _tokenizersRegistrations;
 	private _currentTheme: IRawTheme | null;
 	private _currentTokenColorMap: string[] | null;
-	private _currentTokenFontMap: ITokenFont[] | null;
+	private _currentTokenFontMap: IFontTokenOptions[] | null;
 	private readonly _threadedBackgroundTokenizerFactory;
 
 	constructor(
@@ -347,10 +347,8 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 		this._grammarFactory?.setTheme(this._currentTheme, this._currentTokenColorMap);
 		const colorMap = toColorMap(this._currentTokenColorMap);
-		const fontMap = toFontMap(this._currentTokenFontMap);
-
 		const colorCssRules = generateTokensCSSForColorMap(colorMap);
-		const fontCssRules = generateTokensCSSForFontMap(fontMap);
+		const fontCssRules = generateTokensCSSForFontMap(this._currentTokenFontMap);
 
 		this._styleElement.textContent = colorCssRules + fontCssRules;
 		TokenizationRegistry.setColorMap(colorMap);
@@ -456,14 +454,6 @@ function toColorMap(colorMap: string[]): Color[] {
 	const result: Color[] = [null!];
 	for (let i = 1, len = colorMap.length; i < len; i++) {
 		result[i] = Color.fromHex(colorMap[i]);
-	}
-	return result;
-}
-
-function toFontMap(fontMap: ITokenFont[]): ITokenFont[] {
-	const result: ITokenFont[] = [null!];
-	for (let i = 1, len = fontMap.length; i < len; i++) {
-		result[i] = fontMap[i];
 	}
 	return result;
 }

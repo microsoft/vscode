@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Color } from '../../../../base/common/color.js';
-import { hash } from '../../../../base/common/hash.js';
-import { ITokenFont } from '../../../../platform/theme/common/themeService.js';
+import { IFontTokenOptions } from '../../../../platform/theme/common/themeService.js';
 import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts } from '../../encodedTokenAttributes.js';
 
 export interface ITokenThemeRule {
@@ -425,7 +424,7 @@ export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string
 	return rules.join('\n');
 }
 
-export function generateTokensCSSForFontMap(fontMap: readonly ITokenFont[]): string {
+export function generateTokensCSSForFontMap(fontMap: readonly IFontTokenOptions[]): string {
 	const rules: string[] = [];
 	const fonts = new Set<string>();
 	for (let i = 1, len = fontMap.length; i < len; i++) {
@@ -433,7 +432,7 @@ export function generateTokensCSSForFontMap(fontMap: readonly ITokenFont[]): str
 		if (!font.fontFamily && !font.fontSize) {
 			continue;
 		}
-		const className = classNameForFont(font.fontFamily ?? '', font.fontSize ?? '');
+		const className = classNameForFontTokenDecorations(font.fontFamily ?? '', font.fontSize ?? '');
 		if (fonts.has(className)) {
 			continue;
 		}
@@ -451,6 +450,6 @@ export function generateTokensCSSForFontMap(fontMap: readonly ITokenFont[]): str
 	return rules.join('\n');
 }
 
-export function classNameForFont(fontFamily: string, fontSize: string): string {
-	return `font-decoration-${hash(`${fontFamily}-${fontSize}`)}`;
+export function classNameForFontTokenDecorations(fontFamily: string, fontSize: string): string {
+	return `font-decoration-${fontFamily.toLowerCase()}-${fontSize.toLowerCase()}`;
 }

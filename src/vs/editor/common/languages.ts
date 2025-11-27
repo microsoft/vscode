@@ -68,7 +68,7 @@ export class TokenizationResult {
 /**
  * @internal
  */
-export interface IFontTokens {
+export interface IFontToken {
 	readonly startIndex: number;
 	readonly endIndex: number;
 	readonly fontFamily: string | null;
@@ -90,7 +90,7 @@ export class EncodedTokenizationResult {
 		 *
 		 */
 		public readonly tokens: Uint32Array,
-		public readonly fontInfo: IFontTokens[],
+		public readonly fontInfo: IFontToken[],
 		public readonly endState: IState,
 	) {
 	}

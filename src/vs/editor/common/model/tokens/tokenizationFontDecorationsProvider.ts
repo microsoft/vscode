@@ -4,48 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IModelDecoration } from '../../model.js';
+import { IModelDecoration, ITextModel } from '../../model.js';
 import { TokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { Range } from '../../core/range.js';
-import { DecorationProvider } from '../decorationProvider.js';
-import { TextModel } from '../textModel.js';
+import { DecorationProvider, LineFontChangingDecoration, LineHeightChangingDecoration } from '../decorationProvider.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IFontToken, IModelContentChangedEvent, IModelOptionsChangedEvent } from '../../textModelEvents.js';
-import { classNameForFont } from '../../languages/supports/tokenization.js';
+import { IFontTokenOption, IModelContentChangedEvent, IModelOptionsChangedEvent } from '../../textModelEvents.js';
+import { classNameForFontTokenDecorations } from '../../languages/supports/tokenization.js';
 import { Position } from '../../core/position.js';
 import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotation, IAnnotationUpdate } from './annotations.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
 import { StringEdit } from '../../core/edits/stringEdit.js';
 
-export class LineHeightChangingDecoration {
-
-	public static toKey(obj: LineHeightChangingDecoration): string {
-		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
-	}
-
-	constructor(
-		public readonly ownerId: number,
-		public readonly decorationId: string,
-		public readonly lineNumber: number,
-		public readonly lineHeight: number | null
-	) { }
-}
-
-export class LineFontChangingDecoration {
-
-	public static toKey(obj: LineFontChangingDecoration): string {
-		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
-	}
-
-	constructor(
-		public readonly ownerId: number,
-		public readonly decorationId: string,
-		public readonly lineNumber: number
-	) { }
-}
-
 export interface IFontTokenDecoration {
-	fontToken: IFontToken;
+	fontToken: IFontTokenOption;
 	decorationId: string;
 }
 
@@ -62,13 +34,11 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	private _fontAnnotations: IAnnotatedString<IFontTokenDecoration> = new AnnotatedString<IFontTokenDecoration>();
 
 	constructor(
-		private readonly textModel: TextModel,
+		private readonly textModel: ITextModel,
 		private readonly tokenizationTextModelPart: TokenizationTextModelPart
 	) {
 		super();
-		this.tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
-			console.log('onDidChangeFontInfo ', JSON.stringify(fontChanges));
-			console.log('this._fontAnnotations before change : ', JSON.stringify(this._fontAnnotations));
+		this.tokenizationTextModelPart.onDidChangeFontTokens(fontChanges => {
 			const lineNumberToAddedAnnotations = new Map<number, IAnnotationUpdate<IFontTokenDecoration>[]>();
 			const lineNumberToDeletedRange = new Map<number, OffsetRange>();
 
@@ -106,14 +76,10 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			const affectedLineHeights = new Set<LineHeightChangingDecoration>();
 			const affectedLineFonts = new Set<LineFontChangingDecoration>();
 			for (const [lineNumber, annotationUpdates] of lineNumberToAddedAnnotations.entries()) {
-				console.log('add at lineNumber ', lineNumber, ' annotationUpdates ', JSON.stringify(annotationUpdates));
 				const lineNumberStartOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
 				const lineNumberEndOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
 				const lineOffsetRange = new OffsetRange(lineNumberStartOffset, lineNumberEndOffset);
-				console.log('lineOffsetRange to delete: ', JSON.stringify(lineOffsetRange));
-				console.log('before getAnnotationsIntersecting');
 				const currentDecorations = this._fontAnnotations.getAnnotationsIntersecting(lineOffsetRange, true);
-				console.log('currentDecorations to delete: ', JSON.stringify(currentDecorations));
 				for (const decoration of currentDecorations) {
 					affectedLineHeights.add(new LineHeightChangingDecoration(0, decoration.annotation!.decorationId, lineNumber, null));
 					affectedLineFonts.add(new LineFontChangingDecoration(0, decoration.annotation!.decorationId, lineNumber));
@@ -127,22 +93,16 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 				this._fontAnnotations.setAnnotations(lineOffsetRange, AnnotationsUpdate.create(annotationUpdates));
 			}
 			for (const [lineNumber, _] of lineNumberToDeletedRange.entries()) {
-				console.log('delete lineNumber: ', lineNumber);
 				const lineNumberStartOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
 				const lineNumberEndOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
 				const lineOffsetRange = new OffsetRange(lineNumberStartOffset, lineNumberEndOffset);
-				console.log('lineOffsetRange to delete: ', JSON.stringify(lineOffsetRange));
 				const currentDecorations = this._fontAnnotations.getAnnotationsIntersecting(lineOffsetRange, true);
-				console.log('currentDecorations to delete: ', JSON.stringify(currentDecorations));
 				for (const decoration of currentDecorations) {
 					affectedLineHeights.add(new LineHeightChangingDecoration(0, decoration.annotation!.decorationId, lineNumber, null));
 					affectedLineFonts.add(new LineFontChangingDecoration(0, decoration.annotation!.decorationId, lineNumber));
 				}
 				this._fontAnnotations.setAnnotations(lineOffsetRange, AnnotationsUpdate.create([]));
 			}
-			console.log('this._fontAnnotations after change: ', JSON.stringify(this._fontAnnotations));
-			console.log('affectedLineHeights : ', JSON.stringify(Array.from(affectedLineHeights)));
-			console.log('affectedLineFonts : ', JSON.stringify(Array.from(affectedLineFonts)));
 			this._onDidChangeLineHeight.fire(affectedLineHeights);
 			this._onDidChangeFont.fire(affectedLineFonts);
 		});
@@ -181,7 +141,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			const annotationStartPosition = this.textModel.getPositionAt(annotation.range.start);
 			const annotationEndPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
 			const range = Range.fromPositions(annotationStartPosition, annotationEndPosition);
-			const className = classNameForFont(annotation.annotation!.fontToken.fontFamily ?? '', annotation.annotation!.fontToken.fontSize ?? '');
+			const className = classNameForFontTokenDecorations(annotation.annotation!.fontToken.fontFamily ?? '', annotation.annotation!.fontToken.fontSize ?? '');
 			const id = annotation.annotation!.decorationId;
 			decorations.push({
 				id: id,

@@ -71,9 +71,9 @@ export interface IColorTheme {
 	readonly tokenColorMap: string[];
 
 	/**
-	 * List of all the fonts used with tokens. 
+	 * List of all the fonts used with tokens.
 	 */
-	readonly tokenFontMap: ITokenFont[];
+	readonly tokenFontMap: IFontTokenOptions[];
 
 	/**
 	 * Defines whether semantic highlighting should be enabled for the theme.
@@ -81,7 +81,7 @@ export interface IColorTheme {
 	readonly semanticHighlighting: boolean;
 }
 
-export class ITokenFont {
+export class IFontTokenOptions {
 	fontFamily?: string;
 	fontSize?: string;
 	lineHeight?: number;

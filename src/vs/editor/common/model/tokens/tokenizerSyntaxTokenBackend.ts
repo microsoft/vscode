@@ -217,7 +217,7 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	}
 
 	private setFontInfo(changes: FontTokensUpdate): void {
-		this._onDidChangeFontInfo.fire({ changes });
+		this._onDidChangeFontTokens.fire({ changes });
 	}
 
 	private refreshAllVisibleLineTokens(): void {

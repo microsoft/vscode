@@ -26,9 +26,9 @@ import { ExtensionGalleryManifestService } from '../../../../../platform/extensi
 const undefinedStyle = { bold: undefined, underline: undefined, italic: undefined };
 const unsetStyle = { bold: false, underline: false, italic: false };
 
-function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; strikethrough?: boolean; italic?: boolean; fontFamily?: string; fontSize?: string; lineHeight?: number } | undefined): TokenStyle {
+function ts(foreground: string | undefined, styleFlags: { bold?: boolean; underline?: boolean; strikethrough?: boolean; italic?: boolean } | undefined): TokenStyle {
 	const foregroundColor = isString(foreground) ? Color.fromHex(foreground) : undefined;
-	return new TokenStyle(foregroundColor, styleFlags?.bold, styleFlags?.underline, styleFlags?.strikethrough, styleFlags?.italic, styleFlags?.fontFamily, styleFlags?.fontSize, styleFlags?.lineHeight);
+	return new TokenStyle(foregroundColor, styleFlags?.bold, styleFlags?.underline, styleFlags?.strikethrough, styleFlags?.italic);
 }
 
 function tokenStyleAsString(ts: TokenStyle | undefined | null) {

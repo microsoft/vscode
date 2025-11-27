@@ -18,7 +18,7 @@ import { TextModel } from '../textModel.js';
 import { TextModelPart } from '../textModelPart.js';
 import { AbstractSyntaxTokenBackend, AttachedViews } from './abstractSyntaxTokenBackend.js';
 import { TreeSitterSyntaxTokenBackend } from './treeSitter/treeSitterSyntaxTokenBackend.js';
-import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelTokensFontChangedEvent } from '../../textModelEvents.js';
+import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent, IModelFontTokensChangedEvent } from '../../textModelEvents.js';
 import { ITokenizationTextModelPart } from '../../tokenizationTextModelPart.js';
 import { LineTokens } from '../../tokens/lineTokens.js';
 import { SparseMultilineTokens } from '../../tokens/sparseMultilineTokens.js';
@@ -40,8 +40,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent>;
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent>;
 
-	private readonly _onDidChangeFontInfo: Emitter<IModelTokensFontChangedEvent> = this._register(new Emitter<IModelTokensFontChangedEvent>());
-	public readonly onDidChangeFontInfo: Event<IModelTokensFontChangedEvent> = this._onDidChangeFontInfo.event;
+	private readonly _onDidChangeFontTokens: Emitter<IModelFontTokensChangedEvent> = this._register(new Emitter<IModelFontTokensChangedEvent>());
+	public readonly onDidChangeFontTokens: Event<IModelFontTokensChangedEvent> = this._onDidChangeFontTokens.event;
 
 	public readonly tokens: IObservable<AbstractSyntaxTokenBackend>;
 	private readonly _useTreeSitter: IObservable<boolean>;
@@ -83,9 +83,9 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			reader.store.add(tokens.onDidChangeTokens(e => {
 				this._emitModelTokensChangedEvent(e);
 			}));
-			reader.store.add(tokens.onDidChangeFontInfo(e => {
+			reader.store.add(tokens.onDidChangeFontTokens(e => {
 				if (!this._textModel._isDisposing()) {
-					this._onDidChangeFontInfo.fire(e);
+					this._onDidChangeFontTokens.fire(e);
 				}
 			}));
 
@@ -112,15 +112,15 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this.onDidChangeLanguageConfiguration = this._onDidChangeLanguageConfiguration.event;
 		this._onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
 		this.onDidChangeTokens = this._onDidChangeTokens.event;
-		this._onDidChangeFontInfo = this._register(new Emitter<IModelTokensFontChangedEvent>());
-		this.onDidChangeFontInfo = this._onDidChangeFontInfo.event;
+		this._onDidChangeFontTokens = this._register(new Emitter<IModelFontTokensChangedEvent>());
+		this.onDidChangeFontTokens = this._onDidChangeFontTokens.event;
 	}
 
 	_hasListeners(): boolean {
 		return (this._onDidChangeLanguage.hasListeners()
 			|| this._onDidChangeLanguageConfiguration.hasListeners()
 			|| this._onDidChangeTokens.hasListeners())
-			|| this._onDidChangeFontInfo.hasListeners();
+			|| this._onDidChangeFontTokens.hasListeners();
 	}
 
 	public handleLanguageConfigurationServiceChange(e: LanguageConfigurationServiceChangeEvent): void {

@@ -25,3 +25,30 @@ export interface DecorationProvider {
 	getAllDecorations(ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[];
 
 }
+
+export class LineHeightChangingDecoration {
+
+	public static toKey(obj: LineHeightChangingDecoration): string {
+		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
+	}
+
+	constructor(
+		public readonly ownerId: number,
+		public readonly decorationId: string,
+		public readonly lineNumber: number,
+		public readonly lineHeight: number | null
+	) { }
+}
+
+export class LineFontChangingDecoration {
+
+	public static toKey(obj: LineFontChangingDecoration): string {
+		return `${obj.ownerId};${obj.decorationId};${obj.lineNumber}`;
+	}
+
+	constructor(
+		public readonly ownerId: number,
+		public readonly decorationId: string,
+		public readonly lineNumber: number
+	) { }
+}

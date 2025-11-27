@@ -489,9 +489,6 @@ export interface ISemanticTokenColorizationSetting {
 	underline?: boolean;
 	strikethrough?: boolean;
 	italic?: boolean;
-	fontFamily?: string;
-	fontSize?: string;
-	lineHeight?: number;
 }
 
 export interface ExtensionData {

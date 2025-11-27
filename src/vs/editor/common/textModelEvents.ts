@@ -152,23 +152,32 @@ export interface IModelTokensChangedEvent {
 }
 
 /**
+ * @internal
+ */
+export interface IFontTokenOption {
+	readonly fontFamily?: string;
+	readonly fontSize?: string;
+	readonly lineHeight?: number;
+}
+
+/**
  * An event describing a token font change event
  * @internal
  */
-export interface IModelTokensFontChangedEvent {
+export interface IModelFontTokensChangedEvent {
 	changes: FontTokensUpdate;
 }
 
 /**
  * @internal
  */
-export type FontTokensUpdate = AnnotationsUpdate<IFontToken | undefined>;
+export type FontTokensUpdate = AnnotationsUpdate<IFontTokenOption | undefined>;
 
 /**
  * @internal
  */
-export function serializeFontToken(): (annotation: IFontToken | undefined) => ISerializedProperty {
-	return (annotation: IFontToken | undefined) => {
+export function serializeFontTokenOptions(): (options: IFontTokenOption | undefined) => ISerializedProperty {
+	return (annotation: IFontTokenOption | undefined) => {
 		if (!annotation) {
 			return undefined;
 		}
@@ -183,7 +192,7 @@ export function serializeFontToken(): (annotation: IFontToken | undefined) => IS
 /**
  * @internal
  */
-export function deserializeFontToken(): (annotation: ISerializedProperty) => IFontToken | undefined {
+export function deserializeFontTokenOptions(): (options: ISerializedProperty) => IFontTokenOption | undefined {
 	return (annotation: ISerializedProperty) => {
 		if (!annotation) {
 			return undefined;
@@ -194,15 +203,6 @@ export function deserializeFontToken(): (annotation: ISerializedProperty) => IFo
 			lineHeight: annotation.lineHeight ? Number(annotation.lineHeight) : undefined
 		};
 	};
-}
-
-/**
- * @internal
- */
-export interface IFontToken {
-	readonly fontFamily?: string;
-	readonly fontSize?: string;
-	readonly lineHeight?: number;
 }
 
 export interface IModelOptionsChangedEvent {

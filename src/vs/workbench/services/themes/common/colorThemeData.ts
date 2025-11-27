@@ -12,7 +12,7 @@ import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import * as resources from '../../../../base/common/resources.js';
 import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground, DEFAULT_COLOR_CONFIG_VALUE } from '../../../../platform/theme/common/colorRegistry.js';
-import { ITokenFont, ITokenStyle, getThemeTypeSelector } from '../../../../platform/theme/common/themeService.js';
+import { IFontTokenOptions, ITokenStyle, getThemeTypeSelector } from '../../../../platform/theme/common/themeService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -298,7 +298,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return this.getTokenColorIndex().asArray();
 	}
 
-	public get tokenFontMap(): ITokenFont[] {
+	public get tokenFontMap(): IFontTokenOptions[] {
 		return this.getTokenFontIndex().asArray();
 	}
 
@@ -905,7 +905,7 @@ function readSemanticTokenRule(selectorString: string, settings: ISemanticTokenC
 	if (typeof settings === 'string') {
 		style = TokenStyle.fromSettings(settings, undefined);
 	} else if (isSemanticTokenColorizationSetting(settings)) {
-		style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle, settings.bold, settings.underline, settings.strikethrough, settings.italic, settings.fontFamily, settings.fontSize, settings.lineHeight);
+		style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle, settings.bold, settings.underline, settings.strikethrough, settings.italic);
 	}
 	if (style) {
 		return { selector, style };
@@ -1005,8 +1005,8 @@ class TokenColorIndex {
 class TokenFontIndex {
 
 	private _lastFontId: number;
-	private _id2font: ITokenFont[];
-	private _font2id: Map<ITokenFont, number>;
+	private _id2font: IFontTokenOptions[];
+	private _font2id: Map<IFontTokenOptions, number>;
 
 	constructor() {
 		this._lastFontId = 0;
@@ -1015,7 +1015,7 @@ class TokenFontIndex {
 	}
 
 	public add(fontFamily: string | undefined, fontSize: string | undefined, lineHeight: number | undefined): number {
-		const font: ITokenFont = { fontFamily, fontSize, lineHeight };
+		const font: IFontTokenOptions = { fontFamily, fontSize, lineHeight };
 		let value = this._font2id.get(font);
 		if (value) {
 			return value;
@@ -1026,7 +1026,7 @@ class TokenFontIndex {
 		return value;
 	}
 
-	public get(font: ITokenFont): number {
+	public get(font: IFontTokenOptions): number {
 		const value = this._font2id.get(font);
 		if (value) {
 			return value;
@@ -1034,7 +1034,7 @@ class TokenFontIndex {
 		return 0;
 	}
 
-	public asArray(): ITokenFont[] {
+	public asArray(): IFontTokenOptions[] {
 		return this._id2font.slice(0);
 	}
 }

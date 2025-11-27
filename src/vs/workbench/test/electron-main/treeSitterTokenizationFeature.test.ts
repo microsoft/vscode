@@ -76,7 +76,7 @@ class MockTelemetryService implements ITelemetryService {
 
 class TestTreeSitterColorTheme extends TestColorTheme {
 	public resolveScopes(scopes: ProbeScope[], definitions?: TextMateThemingRuleDefinitions): TokenStyle | undefined {
-		return new TokenStyle(Color.red, undefined, undefined, undefined, undefined, undefined, undefined, undefined);
+		return new TokenStyle(Color.red, undefined, undefined, undefined, undefined);
 	}
 	public getTokenColorIndex(): { get: () => number } {
 		return { get: () => 10 };

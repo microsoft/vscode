@@ -7,7 +7,7 @@ import { Color } from '../../../../base/common/color.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IconContribution } from '../../common/iconRegistry.js';
 import { ColorScheme } from '../../common/theme.js';
-import { IColorTheme, IFileIconTheme, IProductIconTheme, IThemeService, ITokenFont, ITokenStyle } from '../../common/themeService.js';
+import { IColorTheme, IFileIconTheme, IProductIconTheme, IThemeService, IFontTokenOptions, ITokenStyle } from '../../common/themeService.js';
 
 export class TestColorTheme implements IColorTheme {
 
@@ -39,7 +39,7 @@ export class TestColorTheme implements IColorTheme {
 		return [];
 	}
 
-	get tokenFontMap(): ITokenFont[] {
+	get tokenFontMap(): IFontTokenOptions[] {
 		return [];
 	}
 }
