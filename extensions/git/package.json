@@ -3590,6 +3590,12 @@
           "default": false,
           "description": "%config.autoStash%"
         },
+        "git.autoStageOnMove": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "%config.autoStageOnMove%"
+        },
         "git.allowForcePush": {
           "type": "boolean",
           "default": false,

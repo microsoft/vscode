@@ -255,6 +255,7 @@
 	"config.pullTags": "Fetch all tags when pulling.",
 	"config.pruneOnFetch": "Prune when fetching.",
 	"config.autoStash": "Stash any changes before pulling and restore them after successful pull.",
+	"config.autoStageOnMove": "When enabled, automatically stages file renames/moves in the explorer so git recognizes them as renames instead of delete + add. Files with partially staged changes are skipped to preserve your staged hunks.",
 	"config.allowForcePush": "Controls whether force push (with or without lease) is enabled.",
 	"config.useForcePushWithLease": "Controls whether force pushing uses the safer force-with-lease variant.",
 	"config.useForcePushIfIncludes": "Controls whether force pushing uses the safer force-if-includes variant. Note: This setting requires the `#git.useForcePushWithLease#` setting to be enabled, and Git version `2.30.0` or later.",
