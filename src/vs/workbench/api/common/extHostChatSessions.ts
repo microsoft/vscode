@@ -25,8 +25,10 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { IChatRequestVariableEntry, IPromptFileVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, IDiagnosticVariableEntry, IDiagnosticVariableEntryFilterData, IPromptFileVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/chatVariableEntries.js';
 import { basename } from '../../../base/common/resources.js';
+import { Diagnostic } from './extHostTypeConverters.js';
+import { Codicon } from '../../../base/common/codicons.js';
 
 class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
@@ -412,6 +414,30 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			? typeConvert.Location.from(ref.value as vscode.Location)
 			: ref.value;
 		const range = ref.range ? { start: ref.range[0], endExclusive: ref.range[1] } : undefined;
+
+		if (value && value instanceof extHostTypes.ChatReferenceDiagnostic && value.diagnostics.length && value.diagnostics[0][1].length) {
+			const marker = Diagnostic.from(value.diagnostics[0][1][0]);
+			const refValue: IDiagnosticVariableEntryFilterData = {
+				filterRange: { startLineNumber: marker.startLineNumber, startColumn: marker.startColumn, endLineNumber: marker.endLineNumber, endColumn: marker.endColumn },
+				filterSeverity: marker.severity,
+				filterUri: value.diagnostics[0][0],
+				problemMessage: value.diagnostics[0][1][0].message
+			};
+
+			return {
+				id: ref.id,
+				name: ref.name,
+				icon: Codicon.error,
+				value: refValue,
+				kind: 'diagnostic',
+				filterRange: refValue.filterRange,
+				problemMessage: refValue.problemMessage,
+				filterSeverity: refValue.filterSeverity,
+				filterUri: refValue.filterUri,
+				modelDescription: ref.modelDescription,
+				owner: refValue.owner,
+			} satisfies IDiagnosticVariableEntry;
+		}
 
 		if (URI.isUri(value) && ref.name.startsWith(`prompt:`) &&
 			ref.id.startsWith(PromptFileVariableKind.PromptFile) &&
