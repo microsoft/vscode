@@ -18,6 +18,20 @@ import {
 	IBrowserViewService
 } from '../../../../platform/browserView/common/browserView.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { isLocalhost } from '../../../../platform/tunnel/common/tunnel.js';
+
+type IntegratedBrowserNavigationEvent = {
+	navigationType: 'urlInput' | 'goBack' | 'goForward' | 'reload';
+	isLocalhost: boolean;
+};
+
+type IntegratedBrowserNavigationClassification = {
+	navigationType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the navigation was triggered' };
+	isLocalhost: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the URL is a localhost address' };
+	owner: 'kycutler';
+	comment: 'Tracks navigation patterns in integrated browser';
+};
 
 export const IBrowserViewWorkbenchService = createDecorator<IBrowserViewWorkbenchService>('browserViewWorkbenchService');
 
@@ -101,7 +115,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	constructor(
 		public readonly id: string,
 		private readonly browserViewService: IBrowserViewService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 	}
@@ -186,18 +201,22 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	}
 
 	async loadURL(url: string): Promise<void> {
+		this.logNavigationTelemetry('urlInput', url);
 		return this.browserViewService.loadURL(this.id, url);
 	}
 
 	async goBack(): Promise<void> {
+		this.logNavigationTelemetry('goBack', this._url);
 		return this.browserViewService.goBack(this.id);
 	}
 
 	async goForward(): Promise<void> {
+		this.logNavigationTelemetry('goForward', this._url);
 		return this.browserViewService.goForward(this.id);
 	}
 
 	async reload(): Promise<void> {
+		this.logNavigationTelemetry('reload', this._url);
 		return this.browserViewService.reload(this.id);
 	}
 
@@ -213,6 +232,26 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async focus(): Promise<void> {
 		return this.browserViewService.focus(this.id);
+	}
+
+	/**
+	 * Log navigation telemetry event
+	 */
+	private logNavigationTelemetry(navigationType: IntegratedBrowserNavigationEvent['navigationType'], url: string): void {
+		let localhost: boolean;
+		try {
+			localhost = isLocalhost(new URL(url).hostname);
+		} catch {
+			localhost = false;
+		}
+
+		this.telemetryService.publicLog2<IntegratedBrowserNavigationEvent, IntegratedBrowserNavigationClassification>(
+			'integratedBrowser.navigation',
+			{
+				navigationType,
+				isLocalhost: localhost
+			}
+		);
 	}
 
 	override dispose(): void {

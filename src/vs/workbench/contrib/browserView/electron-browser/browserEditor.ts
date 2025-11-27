@@ -266,6 +266,23 @@ export class BrowserEditor extends EditorPane {
 		}, null, this._inputDisposables);
 
 		this._model.onDidRequestNewPage(({ url, name, background }) => {
+			type IntegratedBrowserNewPageRequestEvent = {
+				background: boolean;
+			};
+
+			type IntegratedBrowserNewPageRequestClassification = {
+				background: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether page was requested to open in background' };
+				owner: 'kycutler';
+				comment: 'Tracks new page requests from integrated browser';
+			};
+
+			this.telemetryService.publicLog2<IntegratedBrowserNewPageRequestEvent, IntegratedBrowserNewPageRequestClassification>(
+				'integratedBrowser.newPageRequest',
+				{
+					background
+				}
+			);
+
 			// Open a new browser tab for the requested URL
 			const browserUri = BrowserViewUri.forUrl(url, name ? `${input.id}-${name}` : undefined);
 			this.editorService.openEditor({
