@@ -702,7 +702,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._options = newOpts;
 
 		this._bracketPairs.handleDidChangeOptions(e);
-		this._fontTokenDecorationsProvider.handleDidChangeOptions(e);
 		this._decorationProvider.handleDidChangeOptions(e);
 		this._onDidChangeOptions.fire(e);
 	}

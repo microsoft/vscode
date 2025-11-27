@@ -5,18 +5,16 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotation } from '../../../common/model/tokens/annotations.js';
+import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotation, IAnnotationUpdate } from '../../../common/model/tokens/annotations.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { StringEdit } from '../../../common/core/edits/stringEdit.js';
 
-/**
-TODO: Find visual way to represent these tests
-TODO: Polish the code
-TODO: Do thorough testing
- */
-
 function createAnnotation(startOffset: number, endOffset: number): IAnnotation<string> {
 	return { range: new OffsetRange(startOffset, endOffset), annotation: '' };
+}
+
+function createUpdateAnnotation(startOffset: number, endOffset: number, toDelete: boolean = false): IAnnotationUpdate<string> {
+	return { range: new OffsetRange(startOffset, endOffset), annotation: toDelete ? undefined : '' };
 }
 
 suite('Editor Model - Model', () => {
@@ -29,13 +27,13 @@ suite('Editor Model - Model', () => {
 			createAnnotation(10, 15),
 			createAnnotation(20, 25)
 		]);
-		annotatedString.setAnnotations(new OffsetRange(0, 7), AnnotationsUpdate.create([createAnnotation(0, 7)]));
+		annotatedString.setAnnotations(AnnotationsUpdate.create([createUpdateAnnotation(0, 7)]));
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
 			createAnnotation(0, 7),
 			createAnnotation(10, 15),
 			createAnnotation(20, 25)
 		]);
-		annotatedString.setAnnotations(new OffsetRange(8, 9), AnnotationsUpdate.create([createAnnotation(8, 9)]));
+		annotatedString.setAnnotations(AnnotationsUpdate.create([createUpdateAnnotation(8, 9)]));
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
 			createAnnotation(0, 7),
 			createAnnotation(8, 9),
@@ -50,16 +48,16 @@ suite('Editor Model - Model', () => {
 			createAnnotation(10, 15),
 			createAnnotation(20, 25)
 		]);
-		annotatedString.setAnnotations(new OffsetRange(1, 12), AnnotationsUpdate.create([createAnnotation(0, 6)]));
+		annotatedString.setAnnotations(AnnotationsUpdate.create([createUpdateAnnotation(1, 12, true), createUpdateAnnotation(0, 6)]));
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
 			createAnnotation(0, 6),
 			createAnnotation(20, 25)
 		]);
-		annotatedString.setAnnotations(new OffsetRange(3, 22), AnnotationsUpdate.create([createAnnotation(0, 3)]));
+		annotatedString.setAnnotations(AnnotationsUpdate.create([createUpdateAnnotation(5, 27, true), createUpdateAnnotation(0, 3)]));
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
 			createAnnotation(0, 3)
 		]);
-		annotatedString.setAnnotations(new OffsetRange(3, 10), AnnotationsUpdate.create([createAnnotation(1, 4)]));
+		annotatedString.setAnnotations(AnnotationsUpdate.create([createUpdateAnnotation(1, 4)]));
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
 			createAnnotation(1, 4)
 		]);
@@ -71,11 +69,11 @@ suite('Editor Model - Model', () => {
 			createAnnotation(10, 15),
 			createAnnotation(20, 25)
 		]);
-		annotatedString.setAnnotations(new OffsetRange(3, 22), AnnotationsUpdate.create([createAnnotation(4, 20)]));
+		annotatedString.setAnnotations(AnnotationsUpdate.create([createUpdateAnnotation(4, 20)]));
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
 			createAnnotation(4, 20)
 		]);
-		annotatedString.setAnnotations(new OffsetRange(22, 25), AnnotationsUpdate.create([createAnnotation(22, 23)]));
+		annotatedString.setAnnotations(AnnotationsUpdate.create([createUpdateAnnotation(22, 23)]));
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
 			createAnnotation(4, 20),
 			createAnnotation(22, 23)
@@ -125,10 +123,15 @@ suite('Editor Model - Model', () => {
 			createAnnotation(0, 5),
 			createAnnotation(10, 15)
 		]);
-		annotatedString.setAnnotations(new OffsetRange(3, 12), AnnotationsUpdate.create([createAnnotation(0, 4), createAnnotation(5, 9)]));
+		annotatedString.setAnnotations(AnnotationsUpdate.create([createUpdateAnnotation(0, 4), createUpdateAnnotation(5, 9)]));
 		assert.deepStrictEqual(annotatedString.getAllAnnotations(), [
 			createAnnotation(0, 4),
-			createAnnotation(5, 9)
+			createAnnotation(5, 9),
+			createAnnotation(10, 15)
+		]);
+		assert.deepStrictEqual(annotatedString.getAnnotationsIntersecting(new OffsetRange(7, 10)), [
+			createAnnotation(5, 9),
+			createAnnotation(10, 15)
 		]);
 	});
 
@@ -136,7 +139,7 @@ suite('Editor Model - Model', () => {
 		const annotatedString = new AnnotatedString<string>([
 			createAnnotation(0, 10)
 		]);
-		annotatedString.setAnnotations(new OffsetRange(12, 15), AnnotationsUpdate.create([createAnnotation(12, 15)]));
+		annotatedString.setAnnotations(AnnotationsUpdate.create([createUpdateAnnotation(12, 15)]));
 		assert.deepStrictEqual(annotatedString.getAnnotationsIntersecting(new OffsetRange(2, 8)), [
 			createAnnotation(0, 10)
 		]);
@@ -347,7 +350,7 @@ suite('Editor Model - Model', () => {
 		const b = a.clone();
 		const update: AnnotationsUpdate<string> = getRandomAnnotationsUpdate();
 
-		b.setAnnotations(new OffsetRange(0, 100), update);
+		b.setAnnotations(update);
 		const edit: StringEdit = getRandomEdit();
 
 		a.applyEdit(edit);
@@ -355,25 +358,27 @@ suite('Editor Model - Model', () => {
 
 		update.rebase(edit);
 
-		a.setAnnotations(new OffsetRange(0, 100), update);
+		a.setAnnotations(update);
 		assert.deepStrictEqual(a.getAllAnnotations(), b.getAllAnnotations());
 	});
 });
 
 function getRandomAnnotatedString(): IAnnotatedString<string> {
-	const annotation = getAnnotation();
-	return new AnnotatedString<string>([annotation]);
+	return new AnnotatedString<string>([getAnnotation()]);
 }
 
 function getRandomAnnotationsUpdate(): AnnotationsUpdate<string> {
-	const annotation = getAnnotation();
-	return AnnotationsUpdate.create([annotation]);
+	return AnnotationsUpdate.create([getAnnotationUpdate()]);
 }
 
 function getRandomEdit(): StringEdit {
 	const start = Math.floor(Math.random() * 100);
 	const delta = Math.floor(Math.random() * (100 - start));
 	return StringEdit.replace(new OffsetRange(start, start + delta), (Math.random() + 1).toString(36).substring(7));
+}
+
+function getAnnotationUpdate(): IAnnotationUpdate<string> {
+	return getAnnotation();
 }
 
 function getAnnotation(): IAnnotation<string> {

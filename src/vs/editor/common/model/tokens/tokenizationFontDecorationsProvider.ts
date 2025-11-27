@@ -9,21 +9,21 @@ import { TokenizationTextModelPart } from './tokenizationTextModelPart.js';
 import { Range } from '../../core/range.js';
 import { DecorationProvider, LineFontChangingDecoration, LineHeightChangingDecoration } from '../decorationProvider.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IFontTokenOption, IModelContentChangedEvent, IModelOptionsChangedEvent } from '../../textModelEvents.js';
+import { IFontTokenOption, IModelContentChangedEvent } from '../../textModelEvents.js';
 import { classNameForFontTokenDecorations } from '../../languages/supports/tokenization.js';
 import { Position } from '../../core/position.js';
-import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotation, IAnnotationUpdate } from './annotations.js';
+import { AnnotatedString, AnnotationsUpdate, IAnnotatedString, IAnnotationUpdate } from './annotations.js';
 import { OffsetRange } from '../../core/ranges/offsetRange.js';
 import { StringEdit } from '../../core/edits/stringEdit.js';
 
-export interface IFontTokenDecoration {
-	fontToken: IFontTokenOption;
+export interface IFontTokenAnnotation {
 	decorationId: string;
+	fontToken: IFontTokenOption;
 }
 
 export class TokenizationFontDecorationProvider extends Disposable implements DecorationProvider {
 
-	static DECORATION_COUNT = 0;
+	private static DECORATION_COUNT = 0;
 
 	private readonly _onDidChangeLineHeight = new Emitter<Set<LineHeightChangingDecoration>>();
 	public readonly onDidChangeLineHeight = this._onDidChangeLineHeight.event;
@@ -31,7 +31,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	private readonly _onDidChangeFont = new Emitter<Set<LineFontChangingDecoration>>();
 	public readonly onDidChangeFont = this._onDidChangeFont.event;
 
-	private _fontAnnotations: IAnnotatedString<IFontTokenDecoration> = new AnnotatedString<IFontTokenDecoration>();
+	private _fontAnnotatedString: IAnnotatedString<IFontTokenAnnotation> = new AnnotatedString<IFontTokenAnnotation>();
 
 	constructor(
 		private readonly textModel: ITextModel,
@@ -39,8 +39,8 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 	) {
 		super();
 		this.tokenizationTextModelPart.onDidChangeFontTokens(fontChanges => {
-			const lineNumberToAddedAnnotations = new Map<number, IAnnotationUpdate<IFontTokenDecoration>[]>();
-			const lineNumberToDeletedRange = new Map<number, OffsetRange>();
+
+			const lineNumberToAnnotationUpdate = new Map<number, IAnnotationUpdate<IFontTokenAnnotation>[]>();
 
 			for (const annotation of fontChanges.changes.annotations) {
 
@@ -51,57 +51,57 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 					// The token should be always on a single line
 					continue;
 				}
-				if (!annotation.annotation) {
-					lineNumberToDeletedRange.set(startPosition.lineNumber, annotation.range);
+				const lineNumber = startPosition.lineNumber;
+
+				let fontTokenAnnotation: IAnnotationUpdate<IFontTokenAnnotation>;
+				if (annotation.annotation === undefined) {
+					fontTokenAnnotation = {
+						range: annotation.range,
+						annotation: undefined
+					};
 				} else {
-					const lineNumber = startPosition.lineNumber;
-					const fontTokenDecoration: IFontTokenDecoration = {
+					const fontTokenDecoration: IFontTokenAnnotation = {
 						fontToken: annotation.annotation,
 						decorationId: `tokenization-font-decoration-${TokenizationFontDecorationProvider.DECORATION_COUNT}`
 					};
-					const fontTokenAnnotation: IAnnotation<IFontTokenDecoration> = {
+					fontTokenAnnotation = {
 						range: annotation.range,
 						annotation: fontTokenDecoration
 					};
 					TokenizationFontDecorationProvider.DECORATION_COUNT++;
-
-					if (lineNumberToAddedAnnotations.has(lineNumber)) {
-						lineNumberToAddedAnnotations.get(lineNumber)!.push(fontTokenAnnotation);
-					} else {
-						lineNumberToAddedAnnotations.set(lineNumber, [fontTokenAnnotation]);
-					}
+				}
+				if (lineNumberToAnnotationUpdate.has(lineNumber)) {
+					lineNumberToAnnotationUpdate.get(lineNumber)!.push(fontTokenAnnotation);
+				} else {
+					lineNumberToAnnotationUpdate.set(lineNumber, [fontTokenAnnotation]);
 				}
 			}
-
 			const affectedLineHeights = new Set<LineHeightChangingDecoration>();
 			const affectedLineFonts = new Set<LineFontChangingDecoration>();
-			for (const [lineNumber, annotationUpdates] of lineNumberToAddedAnnotations.entries()) {
+			for (const [lineNumber, annotationUpdates] of lineNumberToAnnotationUpdate.entries()) {
 				const lineNumberStartOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
 				const lineNumberEndOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
 				const lineOffsetRange = new OffsetRange(lineNumberStartOffset, lineNumberEndOffset);
-				const currentDecorations = this._fontAnnotations.getAnnotationsIntersecting(lineOffsetRange, true);
-				for (const decoration of currentDecorations) {
-					affectedLineHeights.add(new LineHeightChangingDecoration(0, decoration.annotation!.decorationId, lineNumber, null));
-					affectedLineFonts.add(new LineFontChangingDecoration(0, decoration.annotation!.decorationId, lineNumber));
+				const currentAnnotations = this._fontAnnotatedString.getAnnotationsIntersecting(lineOffsetRange);
+				for (const annotation of currentAnnotations) {
+					const decorationId = annotation.annotation.decorationId;
+					affectedLineHeights.add(new LineHeightChangingDecoration(0, decorationId, lineNumber, null));
+					affectedLineFonts.add(new LineFontChangingDecoration(0, decorationId, lineNumber));
 				}
 				for (const annotationUpdate of annotationUpdates) {
-					if (annotationUpdate.annotation!.fontToken.lineHeight) {
-						affectedLineHeights.add(new LineHeightChangingDecoration(0, annotationUpdate.annotation!.decorationId, lineNumber, annotationUpdate.annotation!.fontToken.lineHeight));
-						affectedLineFonts.add(new LineFontChangingDecoration(0, annotationUpdate.annotation!.decorationId, lineNumber));
+					const fontTokenAnnotation = annotationUpdate.annotation;
+					if (fontTokenAnnotation === undefined) {
+						continue;
 					}
+					const lineHeight = fontTokenAnnotation.fontToken.lineHeight;
+					if (!lineHeight) {
+						continue;
+					}
+					const decorationId = fontTokenAnnotation.decorationId;
+					affectedLineHeights.add(new LineHeightChangingDecoration(0, decorationId, lineNumber, lineHeight));
+					affectedLineFonts.add(new LineFontChangingDecoration(0, decorationId, lineNumber));
 				}
-				this._fontAnnotations.setAnnotations(lineOffsetRange, AnnotationsUpdate.create(annotationUpdates));
-			}
-			for (const [lineNumber, _] of lineNumberToDeletedRange.entries()) {
-				const lineNumberStartOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
-				const lineNumberEndOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
-				const lineOffsetRange = new OffsetRange(lineNumberStartOffset, lineNumberEndOffset);
-				const currentDecorations = this._fontAnnotations.getAnnotationsIntersecting(lineOffsetRange, true);
-				for (const decoration of currentDecorations) {
-					affectedLineHeights.add(new LineHeightChangingDecoration(0, decoration.annotation!.decorationId, lineNumber, null));
-					affectedLineFonts.add(new LineFontChangingDecoration(0, decoration.annotation!.decorationId, lineNumber));
-				}
-				this._fontAnnotations.setAnnotations(lineOffsetRange, AnnotationsUpdate.create([]));
+				this._fontAnnotatedString.setAnnotations(AnnotationsUpdate.create(annotationUpdates));
 			}
 			this._onDidChangeLineHeight.fire(affectedLineHeights);
 			this._onDidChangeFont.fire(affectedLineFonts);
@@ -117,38 +117,38 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			const stringEdit = StringEdit.replace(offsetRange, c.text);
 			edits = edits.compose(stringEdit);
 
-			const lienNumber = this.textModel.getPositionAt(c.rangeOffset).lineNumber;
-			const currentDecorations = this._fontAnnotations.getAnnotationsIntersecting(offsetRange, true);
-			for (const decoration of currentDecorations) {
-				affectedLineHeights.add(new LineHeightChangingDecoration(0, decoration.annotation!.decorationId, lienNumber, null));
-				affectedLineFonts.add(new LineFontChangingDecoration(0, decoration.annotation!.decorationId, lienNumber));
+			const lineNumber = this.textModel.getPositionAt(c.rangeOffset).lineNumber;
+			const currentAnnotations = this._fontAnnotatedString.getAnnotationsIntersecting(offsetRange);
+			for (const annotation of currentAnnotations) {
+				affectedLineHeights.add(new LineHeightChangingDecoration(0, annotation.annotation.decorationId, lineNumber, null));
+				affectedLineFonts.add(new LineFontChangingDecoration(0, annotation.annotation.decorationId, lineNumber));
 			}
 		}
-		this._fontAnnotations.applyEdit(edits);
+		this._fontAnnotatedString.applyEdit(edits);
 		this._onDidChangeLineHeight.fire(affectedLineHeights);
 		this._onDidChangeFont.fire(affectedLineFonts);
 	}
 
-	public handleDidChangeOptions(e: IModelOptionsChangedEvent): void { }
-
 	public getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
 		const startOffsetOfRange = this.textModel.getOffsetAt(range.getStartPosition());
 		const endOffsetOfRange = this.textModel.getOffsetAt(range.getEndPosition());
-		const annotations = this._fontAnnotations.getAnnotationsIntersecting(new OffsetRange(startOffsetOfRange, endOffsetOfRange));
+		const annotations = this._fontAnnotatedString.getAnnotationsIntersecting(new OffsetRange(startOffsetOfRange, endOffsetOfRange));
 
 		const decorations: IModelDecoration[] = [];
 		for (const annotation of annotations) {
 			const annotationStartPosition = this.textModel.getPositionAt(annotation.range.start);
 			const annotationEndPosition = this.textModel.getPositionAt(annotation.range.endExclusive);
 			const range = Range.fromPositions(annotationStartPosition, annotationEndPosition);
-			const className = classNameForFontTokenDecorations(annotation.annotation!.fontToken.fontFamily ?? '', annotation.annotation!.fontToken.fontSize ?? '');
-			const id = annotation.annotation!.decorationId;
+			const anno = annotation.annotation;
+			const className = classNameForFontTokenDecorations(anno.fontToken.fontFamily ?? '', anno.fontToken.fontSize ?? '');
+			const affectsFont = !!(anno.fontToken.fontFamily || anno.fontToken.fontSize);
+			const id = anno.decorationId;
 			decorations.push({
 				id: id,
 				options: {
 					description: 'FontOptionDecoration',
 					inlineClassName: className,
-					affectsFont: true
+					affectsFont
 				},
 				ownerId: 0,
 				range
