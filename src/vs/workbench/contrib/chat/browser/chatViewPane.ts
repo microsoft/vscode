@@ -332,14 +332,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsCount > 0;																			// has sessions
 
 		const hasSessionsControl = this.viewPaneContainer.classList.contains('has-sessions-control');
-		if (sessionsContainerVisible === hasSessionsControl) {
-			return false; // no change, return
-		}
-
 		this.viewPaneContainer.classList.toggle('has-sessions-control', sessionsContainerVisible);
 		setVisibility(sessionsContainerVisible, this.sessionsContainer);
 
-		return true;
+		return sessionsContainerVisible !== hasSessionsControl;
 	}
 
 	private createChatWidget(parent: HTMLElement): void {
