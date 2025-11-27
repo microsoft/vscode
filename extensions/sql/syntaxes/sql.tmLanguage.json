@@ -384,7 +384,7 @@
 			"name": "keyword.other.sql"
 		},
 		{
-			"captures": {
+			"captures": {show|
 				"1": {
 					"name": "punctuation.section.scope.begin.sql"
 				},
