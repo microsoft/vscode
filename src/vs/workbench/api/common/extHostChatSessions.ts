@@ -430,10 +430,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				icon: IDiagnosticVariableEntryFilterData.icon,
 				value: refValue,
 				kind: 'diagnostic',
-				filterRange: refValue.filterRange,
-				problemMessage: refValue.problemMessage,
-				filterSeverity: refValue.filterSeverity,
-				filterUri: refValue.filterUri,
+				...refValue,
 				modelDescription: ref.modelDescription,
 				owner: refValue.owner,
 			} satisfies IDiagnosticVariableEntry;
