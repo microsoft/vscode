@@ -78,6 +78,9 @@ export interface IChatSessionItem {
 		deletions: number;
 	};
 	archived?: boolean;
+	// TODO:@osortega remove once the single-view is default
+	/** @deprecated */
+	history?: boolean;
 }
 
 export type IChatSessionHistoryItem = {
