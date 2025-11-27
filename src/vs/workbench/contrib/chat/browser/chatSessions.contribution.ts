@@ -805,7 +805,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public registerModelProgressListener(models: Iterable<IChatModel>): void {
-		const disposables = new DisposableStore();
 		for (const model of models) {
 			// Prevent duplicate registrations for the same model
 			if (this._registeredModels.has(model)) {
@@ -833,7 +832,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					if (part.kind === 'toolInvocation') {
 						const toolInvocation = part as IChatToolInvocation;
 						// Use autorun to listen for state changes
-						disposables.add(autorunSelfDisposable(reader => {
+						this._register(autorunSelfDisposable(reader => {
 							const state = toolInvocation.state.read(reader);
 
 							// Also track progress changes when executing
@@ -851,13 +850,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			requests.forEach(registerRequestListeners);
 
 			// Listen for new requests being added
-			disposables.add(model.onDidChange(() => {
+			this._register(model.onDidChange(() => {
 				const currentRequests = model.getRequests();
 				currentRequests.forEach(registerRequestListeners);
 			}));
 
 			// Clean up when model is disposed
-			disposables.add(model.onDidDispose(() => {
+			this._register(model.onDidDispose(() => {
 				this._registeredModels.delete(model);
 			}));
 		}
