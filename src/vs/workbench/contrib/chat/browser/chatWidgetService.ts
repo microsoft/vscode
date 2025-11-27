@@ -105,7 +105,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		if (target === ChatViewPaneTarget) {
 			const chatView = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options?.preserveFocus);
 			if (chatView) {
-				const chatViewSessionResource = chatView?.widget.viewModel?.sessionResource;
+				const chatViewSessionResource = chatView.widget.viewModel?.sessionResource;
 				if (!chatViewSessionResource || !isEqual(chatViewSessionResource, sessionResource)) {
 					await chatView.loadSession(sessionResource);
 				}
