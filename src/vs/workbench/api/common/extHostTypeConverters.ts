@@ -3149,7 +3149,7 @@ export namespace ChatAgentRequest {
 			}
 		}
 
-		const sessionId = LocalChatSessionUri.parseLocalSessionId(request.sessionResource)!;
+		const sessionId = LocalChatSessionUri.parseLocalSessionId(request.sessionResource) ?? request.sessionResource.toString();
 		const requestWithAllProps: vscode.ChatRequest = {
 			id: request.requestId,
 			prompt: request.message,
