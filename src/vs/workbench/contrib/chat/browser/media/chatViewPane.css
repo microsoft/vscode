@@ -13,7 +13,7 @@
 	.agent-sessions-container {
 		display: flex;
 		flex-direction: column;
-		padding: 4px 8px 20px 8px;
+		padding: 4px 8px 32px 8px;
 
 		.agent-sessions-viewer .monaco-list .monaco-list-row {
 			border-radius: 3px;
