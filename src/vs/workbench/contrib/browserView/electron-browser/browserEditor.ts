@@ -277,9 +277,9 @@ export class BrowserEditor extends EditorPane {
 			});
 		}, null, this._inputDisposables);
 
-		this._inputDisposables.add(this.overlayManager.onDidChangeOverlayState(() => {
+		this.overlayManager.onDidChangeOverlayState(() => {
 			this.checkOverlays();
-		}, null, this._inputDisposables));
+		}, null, this._inputDisposables);
 
 		// Listen for zoom level changes and update browser view zoom factor
 		onDidChangeZoomLevel(targetWindowId => {
