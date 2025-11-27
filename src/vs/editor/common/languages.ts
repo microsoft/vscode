@@ -855,6 +855,8 @@ export interface InlineCompletion {
 	 * Used for telemetry.
 	 */
 	readonly correlationId?: string | undefined;
+
+	readonly jumpToPosition?: IPosition;
 }
 
 export interface InlineCompletionWarning {
@@ -1056,6 +1058,7 @@ export type LifetimeSummary = {
 	preceeded: boolean;
 	languageId: string;
 	requestReason: string;
+	performanceMarkers?: string;
 	cursorColumnDistance?: number;
 	cursorLineDistance?: number;
 	lineCountOriginal?: number;
@@ -1068,9 +1071,11 @@ export type LifetimeSummary = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
+	sku: string | undefined;
 	renameCreated: boolean;
 	renameDuration?: number;
 	renameTimedOut: boolean;
+	editKind: string | undefined;
 };
 
 export interface CodeAction {

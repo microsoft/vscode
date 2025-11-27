@@ -10,9 +10,10 @@
 	.agent-sessions-container {
 		display: flex;
 		flex-direction: column;
+		padding: 4px 8px;
 
-		.agent-sessions-viewer {
-			height: calc(3 * 44px); /* TODO@bpasero revisit: show at most 3 sessions */
+		.agent-sessions-viewer .monaco-list .monaco-list-row {
+			border-radius: 3px;
 		}
 
 		.agent-sessions-link-container {

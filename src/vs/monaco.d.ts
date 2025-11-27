@@ -7571,6 +7571,7 @@ declare namespace monaco.languages {
 		 * Used for telemetry.
 		 */
 		readonly correlationId?: string | undefined;
+		readonly jumpToPosition?: IPosition;
 	}
 
 	export interface InlineCompletionWarning {
@@ -7696,6 +7697,7 @@ declare namespace monaco.languages {
 		preceeded: boolean;
 		languageId: string;
 		requestReason: string;
+		performanceMarkers?: string;
 		cursorColumnDistance?: number;
 		cursorLineDistance?: number;
 		lineCountOriginal?: number;
@@ -7708,9 +7710,11 @@ declare namespace monaco.languages {
 		typingIntervalCharacterCount: number;
 		selectedSuggestionInfo: boolean;
 		availableProviders: string;
+		sku: string | undefined;
 		renameCreated: boolean;
 		renameDuration?: number;
 		renameTimedOut: boolean;
+		editKind: string | undefined;
 	};
 
 	export interface CodeAction {

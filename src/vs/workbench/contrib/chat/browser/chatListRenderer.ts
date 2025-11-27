@@ -735,7 +735,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (lastThinking?.domNode) {
 				lastThinking.finalizeTitleIfDefault();
 				lastThinking.markAsInactive();
-				this.updateItemHeight(templateData);
 			}
 		}
 
@@ -1236,6 +1235,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
+		// Don't pin terminal tools
+		const isTerminalTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal';
+		if (isTerminalTool) {
+			return false;
+		}
+
 		if (part.kind === 'toolInvocation') {
 			return !part.confirmationMessages;
 		}
@@ -1314,16 +1319,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const shouldKeepThinkingForCreateTool = collapsedToolsMode !== CollapsedToolsDisplayMode.Off && lastRenderedPart instanceof ChatToolInvocationPart && this.isCreateToolInvocationContent(previousContent);
 
 			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+			const isResponseElement = isResponseVM(context.element);
+			const isThinkingContent = content.kind === 'working' || content.kind === 'thinking';
+			const isToolStreamingContent = isResponseElement && this.shouldPinPart(content, isResponseElement ? context.element : undefined);
 			if (!shouldKeepThinkingForCreateTool && lastThinking && lastThinking.getIsActive()) {
-				const isResponseElement = isResponseVM(context.element);
-				const isThinkingContent = content.kind === 'working' || content.kind === 'thinking';
-				const isToolStreamingContent = isResponseElement && this.shouldPinPart(content, isResponseElement ? context.element : undefined);
-
 				if (!isThinkingContent && !isToolStreamingContent) {
 					const followsThinkingPart = previousContent?.kind === 'thinking' || previousContent?.kind === 'toolInvocation' || previousContent?.kind === 'prepareToolInvocation' || previousContent?.kind === 'toolInvocationSerialized';
 
 					if (content.kind !== 'textEditGroup' && (context.element.isComplete || followsThinkingPart)) {
 						this.finalizeCurrentThinkingPart(context, templateData);
+					}
+				}
+			}
+
+			// sometimes content is rendered out of order on re-renders so instead of looking at the current chat content part's
+			// context and templateData, we have to look globally to find the active thinking part.
+			if (context.element.isComplete && !isThinkingContent && !this.shouldPinPart(content, isResponseElement ? context.element : undefined)) {
+				for (const templateData of this.templateDataByRequestId.values()) {
+					if (templateData.renderedParts) {
+						const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+						if (lastThinking?.getIsActive()) {
+							this.finalizeCurrentThinkingPart(context, templateData);
+						}
 					}
 				}
 			}
@@ -1541,17 +1558,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 				if (thinkingPart instanceof ChatThinkingContentPart) {
 					thinkingPart.appendItem(part?.domNode, toolInvocation.toolId, toolInvocation);
+					thinkingPart.addDisposable(thinkingPart.onDidChangeHeight(() => {
+						this.updateItemHeight(templateData);
+					}));
 				}
-
-				this.updateItemHeight(templateData);
 
 				return thinkingPart;
 			}
 
 			if (this.shouldPinPart(toolInvocation, context.element)) {
-				const lastThinking2 = this.getLastThinkingPart(templateData.renderedParts);
-				if (lastThinking2 && part?.domNode && toolInvocation.presentation !== 'hidden') {
-					lastThinking2.appendItem(part?.domNode, toolInvocation.toolId, toolInvocation);
+				if (lastThinking && part?.domNode && toolInvocation.presentation !== 'hidden') {
+					lastThinking.appendItem(part?.domNode, toolInvocation.toolId, toolInvocation);
 				}
 			} else {
 				this.finalizeCurrentThinkingPart(context, templateData);

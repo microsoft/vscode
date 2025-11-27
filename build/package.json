@@ -65,9 +65,8 @@
   "type": "module",
   "scripts": {
     "copy-policy-dto": "node lib/policies/copyPolicyDto.ts",
-    "prebuild-ts": "npm run copy-policy-dto",
+    "pretypecheck": "npm run copy-policy-dto",
     "typecheck": "cd .. && npx tsgo --project build/tsconfig.json",
-    "compile": "npm run copy-policy-dto && npm run typecheck",
     "watch": "npm run typecheck -- --watch",
     "test": "mocha --ui tdd 'lib/**/*.test.ts'"
   },

@@ -2,20 +2,20 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { truncate } from '../../../../../base/common/strings.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { ChatAgentLocation } from '../../common/constants.js';
-import { ChatViewId, IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../chat.js';
 import { ChatSessionItemWithProvider } from '../chatSessions/common.js';
 
 export class LocalAgentsSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
@@ -30,8 +30,9 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
 	readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
 
+	private readonly modelListeners = this._register(new DisposableMap<string>());
+
 	constructor(
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
@@ -44,26 +45,10 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 
 	private registerListeners(): void {
 
-		// Listen for new chat widgets being added/removed
-		this._register(this.chatWidgetService.onDidAddWidget(widget => {
-			if (
-				widget.location === ChatAgentLocation.Chat && // Only fire for chat view instance
-				isIChatViewViewContext(widget.viewContext) &&
-				widget.viewContext.viewId === ChatViewId
-			) {
-				this._onDidChange.fire();
-
-				this.registerWidgetModelListeners(widget);
-			}
-		}));
-
-		// Check for existing chat widgets and register listeners
-		this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)
-			.filter(widget => isIChatViewViewContext(widget.viewContext) && widget.viewContext.viewId === ChatViewId)
-			.forEach(widget => this.registerWidgetModelListeners(widget));
-
-		this._register(this.chatService.onDidDisposeSession(() => {
-			this._onDidChange.fire();
+		// Listen for models being added or removed
+		this._register(autorun(reader => {
+			const models = this.chatService.chatModels.read(reader);
+			this.registerModelListeners(models);
 		}));
 
 		// Listen for global session items changes for our session type
@@ -74,39 +59,42 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		}));
 	}
 
-	private registerWidgetModelListeners(widget: IChatWidget): void {
-		const register = () => {
-			this.registerModelTitleListener(widget);
+	private registerModelListeners(models: Iterable<IChatModel>): void {
+		const seenKeys = new Set<string>();
 
-			if (widget.viewModel) {
-				this.chatSessionsService.registerModelProgressListener(widget.viewModel.model, () => {
-					this._onDidChangeChatSessionItems.fire();
-				});
+		for (const model of models) {
+			const key = model.sessionResource.toString();
+			seenKeys.add(key);
+
+			if (!this.modelListeners.has(key)) {
+				this.modelListeners.set(key, this.registerSingleModelListeners(model));
 			}
-		};
+		}
 
-		// Listen for view model changes on this widget
-		this._register(widget.onDidChangeViewModel(() => {
-			register();
-			this._onDidChangeChatSessionItems.fire();
-		}));
+		// Clean up listeners for models that no longer exist
+		for (const key of this.modelListeners.keys()) {
+			if (!seenKeys.has(key)) {
+				this.modelListeners.deleteAndDispose(key);
+			}
+		}
 
-		register();
+		this._onDidChange.fire();
 	}
 
-	private registerModelTitleListener(widget: IChatWidget): void {
-		const model = widget.viewModel?.model;
-		if (model) {
+	private registerSingleModelListeners(model: IChatModel): IDisposable {
+		const store = new DisposableStore();
 
-			// Listen for model changes, specifically for title changes via setCustomTitle
-			this._register(model.onDidChange(e => {
+		this.chatSessionsService.registerModelProgressListener(model, () => {
+			this._onDidChangeChatSessionItems.fire();
+		});
 
-				// Fire change events for all title-related changes to refresh the tree
-				if (!e || e.kind === 'setCustomTitle') {
-					this._onDidChange.fire();
-				}
-			}));
-		}
+		store.add(model.onDidChange(e => {
+			if (!e || e.kind === 'setCustomTitle') {
+				this._onDidChange.fire();
+			}
+		}));
+
+		return store;
 	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
@@ -149,7 +137,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 
 		if (!token.isCancellationRequested) {
 			const history = await this.getHistoryItems();
-			sessions.push(...history.filter(h => !sessionsByResource.has(h.resource)));
+			sessions.push(...history.filter(historyItem => !sessionsByResource.has(historyItem.resource)));
 		}
 
 		return sessions;
@@ -157,8 +145,8 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 
 	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
 		try {
-			const allHistory = await this.chatService.getHistorySessionItems();
-			return coalesce(allHistory.map(history => {
+			const historyItems = await this.chatService.getHistorySessionItems();
+			return coalesce(historyItems.map(history => {
 				const sessionItem = this.toChatSessionItem(history);
 				return sessionItem ? {
 					...sessionItem,

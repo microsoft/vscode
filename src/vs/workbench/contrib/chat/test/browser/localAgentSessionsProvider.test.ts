@@ -5,76 +5,27 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
-import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { LocalAgentsSessionsProvider } from '../../browser/agentSessions/localAgentSessionsProvider.js';
+import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../common/chatModel.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { MockChatSessionsService } from '../common/mockChatSessionsService.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../common/chatModel.js';
-import { observableValue } from '../../../../../base/common/observable.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
-import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
-
-class MockChatWidgetService implements IChatWidgetService {
-	private readonly _onDidAddWidget = new Emitter<IChatWidget>();
-	readonly onDidAddWidget = this._onDidAddWidget.event;
-
-	readonly _serviceBrand: undefined;
-	readonly lastFocusedWidget: IChatWidget | undefined;
-
-	private widgets: IChatWidget[] = [];
-
-	fireDidAddWidget(widget: IChatWidget): void {
-		this._onDidAddWidget.fire(widget);
-	}
-
-	addWidget(widget: IChatWidget): void {
-		this.widgets.push(widget);
-	}
-
-	getWidgetByInputUri(_uri: URI): IChatWidget | undefined {
-		return undefined;
-	}
-
-	getWidgetBySessionResource(_sessionResource: URI): IChatWidget | undefined {
-		return undefined;
-	}
-
-	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget> {
-		return this.widgets.filter(w => w.location === location);
-	}
-
-	revealWidget(_preserveFocus?: boolean): Promise<IChatWidget | undefined> {
-		return Promise.resolve(undefined);
-	}
-
-	reveal(_widget: IChatWidget, _preserveFocus?: boolean): Promise<boolean> {
-		return Promise.resolve(true);
-	}
-
-	getAllWidgets(): ReadonlyArray<IChatWidget> {
-		return this.widgets;
-	}
-
-	openSession(_sessionResource: URI): Promise<IChatWidget | undefined> {
-		throw new Error('Method not implemented.');
-	}
-
-	register(_newWidget: IChatWidget): { dispose: () => void } {
-		return { dispose: () => { } };
-	}
-}
 
 class MockChatService implements IChatService {
+	private readonly _chatModels: ISettableObservable<Iterable<IChatModel>> = observableValue('chatModels', []);
+	readonly chatModels = this._chatModels;
 	requestInProgressObs = observableValue('name', false);
 	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
@@ -103,6 +54,14 @@ class MockChatService implements IChatService {
 
 	addSession(sessionResource: URI, session: IChatModel): void {
 		this.sessions.set(sessionResource.toString(), session);
+		// Update the chatModels observable
+		this._chatModels.set([...this.sessions.values()], undefined);
+	}
+
+	removeSession(sessionResource: URI): void {
+		this.sessions.delete(sessionResource.toString());
+		// Update the chatModels observable
+		this._chatModels.set([...this.sessions.values()], undefined);
 	}
 
 	isEnabled(_location: ChatAgentLocation): boolean {
@@ -291,17 +250,14 @@ function createMockChatModel(options: {
 
 suite('LocalAgentsSessionsProvider', () => {
 	const disposables = new DisposableStore();
-	let mockChatWidgetService: MockChatWidgetService;
 	let mockChatService: MockChatService;
 	let mockChatSessionsService: MockChatSessionsService;
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		mockChatWidgetService = new MockChatWidgetService();
 		mockChatService = new MockChatService();
 		mockChatSessionsService = new MockChatSessionsService();
 		instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
-		instantiationService.stub(IChatWidgetService, mockChatWidgetService);
 		instantiationService.stub(IChatService, mockChatService);
 		instantiationService.stub(IChatSessionsService, mockChatSessionsService);
 	});
@@ -364,29 +320,6 @@ suite('LocalAgentsSessionsProvider', () => {
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].label, 'Test Session');
 			assert.strictEqual(sessions[0].resource.toString(), sessionResource.toString());
-		});
-	});
-
-	test('should ignore sessions without requests', async () => {
-		return runWithFakedTimers({}, async () => {
-			const provider = createProvider();
-
-			const sessionResource = LocalChatSessionUri.forSession('empty-session');
-			const mockModel = createMockChatModel({
-				sessionResource,
-				hasRequests: false
-			});
-
-			mockChatService.addSession(sessionResource, mockModel);
-			mockChatService.setLiveSessionItems([{
-				sessionResource,
-				title: 'Empty Session',
-				lastMessageDate: Date.now(),
-				isActive: true
-			}]);
-
-			const sessions = await provider.provideChatSessionItems(CancellationToken.None);
-			assert.strictEqual(sessions.length, 0);
 		});
 	});
 
@@ -731,19 +664,80 @@ suite('LocalAgentsSessionsProvider', () => {
 	});
 
 	suite('Events', () => {
-		test('should fire onDidChange when session is disposed', async () => {
+		test('should fire onDidChange when a model is added via chatModels observable', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider = createProvider();
 
-				let changeEventFired = false;
+				let changeEventCount = 0;
 				disposables.add(provider.onDidChange(() => {
-					changeEventFired = true;
+					changeEventCount++;
 				}));
 
-				const sessionResource = LocalChatSessionUri.forSession('disposed-session');
-				mockChatService.fireDidDisposeSession(sessionResource);
+				const sessionResource = LocalChatSessionUri.forSession('new-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true
+				});
 
-				assert.strictEqual(changeEventFired, true);
+				// Adding a session should trigger the autorun to fire onDidChange
+				mockChatService.addSession(sessionResource, mockModel);
+
+				assert.strictEqual(changeEventCount, 1);
+			});
+		});
+
+		test('should fire onDidChange when a model is removed via chatModels observable', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider = createProvider();
+
+				const sessionResource = LocalChatSessionUri.forSession('removed-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true
+				});
+
+				// Add the session first
+				mockChatService.addSession(sessionResource, mockModel);
+
+				let changeEventCount = 0;
+				disposables.add(provider.onDidChange(() => {
+					changeEventCount++;
+				}));
+
+				// Now remove the session - the observable should trigger onDidChange
+				mockChatService.removeSession(sessionResource);
+
+				assert.strictEqual(changeEventCount, 1);
+			});
+		});
+
+		test('should clean up model listeners when model is removed via chatModels observable', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider = createProvider();
+
+				const sessionResource = LocalChatSessionUri.forSession('cleanup-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true
+				});
+
+				// Add the session first
+				mockChatService.addSession(sessionResource, mockModel);
+
+				// Now remove the session - the observable should trigger cleanup
+				mockChatService.removeSession(sessionResource);
+
+				// Verify the listener was cleaned up by triggering a title change
+				// The onDidChange from registerModelListeners cleanup should fire once
+				// but after that, title changes should NOT fire onDidChange
+				let changeEventCount = 0;
+				disposables.add(provider.onDidChange(() => {
+					changeEventCount++;
+				}));
+
+				(mockModel as unknown as { setCustomTitle: (title: string) => void }).setCustomTitle('New Title');
+
+				assert.strictEqual(changeEventCount, 0, 'onDidChange should NOT fire after model is removed');
 			});
 		});
 

@@ -57,17 +57,7 @@ src/vs/editor/contrib/suggest/** @jrieken
 src/vs/editor/contrib/format/** @jrieken
 
 # Bootstrap
-src/bootstrap-cli.ts @bpasero
-src/bootstrap-esm.ts @bpasero
-src/bootstrap-fork.ts @bpasero
-src/bootstrap-import.ts @bpasero
-src/bootstrap-meta.ts @bpasero
-src/bootstrap-node.ts @bpasero
-src/bootstrap-server.ts @bpasero
-src/cli.ts @bpasero
-src/main.ts @bpasero
-src/server-cli.ts @bpasero
-src/server-main.ts @bpasero
+src/*.ts @bpasero
 
 # Electron Main
 src/vs/code/** @bpasero @deepak1556
@@ -111,7 +101,7 @@ src/vs/workbench/electron-browser/** @bpasero
 src/vs/workbench/contrib/authentication/** @TylerLeonhardt
 src/vs/workbench/contrib/files/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
-src/vs/workbench/contrib/chat/browser/chatSetup.ts @bpasero
+src/vs/workbench/contrib/chat/browser/chatSetup/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatStatus/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatInputPart.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatWidget.ts @bpasero
