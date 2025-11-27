@@ -25,7 +25,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, IPromptFileVariableEntry, PromptFileVariableKind } from '../../contrib/chat/common/chatVariableEntries.js';
 
 class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
@@ -411,6 +411,22 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			? typeConvert.Location.from(ref.value as vscode.Location)
 			: ref.value;
 		const range = ref.range ? { start: ref.range[0], endExclusive: ref.range[1] } : undefined;
+
+		if (URI.isUri(value) && ref.name.startsWith(`prompt:`) &&
+			ref.id.startsWith(PromptFileVariableKind.PromptFile) &&
+			ref.id.endsWith(value.toString())) {
+			return {
+				id: ref.id,
+				name: ref.id,
+				value,
+				kind: 'promptFile',
+				modelDescription: 'Prompt instructions file',
+				isRoot: false,
+				automaticallyAdded: false,
+				range,
+			} satisfies IPromptFileVariableEntry;
+		}
+
 		const isFile = URI.isUri(value) || (value && typeof value === 'object' && 'uri' in value);
 		const isFolder = isFile && URI.isUri(value) && value.path.endsWith('/');
 		return {
