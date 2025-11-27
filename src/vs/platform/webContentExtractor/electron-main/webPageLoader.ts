@@ -26,15 +26,18 @@ type NetworkRequestEventParams = Readonly<{
  */
 export class WebPageLoader extends Disposable {
 	private static readonly TIMEOUT = 30000; // 30 seconds
-	private static readonly POST_LOAD_TIMEOUT = 2000; // 2 seconds
+	private static readonly POST_LOAD_TIMEOUT = 5000; // 5 seconds - increased for dynamic content
 	private static readonly FRAME_TIMEOUT = 500; // 0.5 seconds
+	private static readonly IDLE_DEBOUNCE_TIME = 500; // 0.5 seconds - wait after last network request
 
 	private readonly _window: BrowserWindow;
 	private readonly _debugger: Electron.Debugger;
 	private readonly _requests = new Set<string>();
 	private readonly _queue = this._register(new Queue());
-	private _timeout = this._register(new TimeoutTimer());
+	private readonly _timeout = this._register(new TimeoutTimer());
+	private readonly _idleDebounceTimer = this._register(new TimeoutTimer());
 	private _onResult = (_result: WebContentExtractResult) => { };
+	private _didFinishLoad = false;
 
 	constructor(
 		browserWindowFactory: (options: BrowserWindowConstructorOptions) => BrowserWindow,
@@ -147,7 +150,8 @@ export class WebPageLoader extends Disposable {
 		}
 
 		this.trace(`Received 'did-finish-load' event`);
-		this.checkForIdle();
+		this._didFinishLoad = true;
+		this.scheduleIdleCheck();
 		this.setTimeout(WebPageLoader.POST_LOAD_TIMEOUT);
 	}
 
@@ -195,14 +199,15 @@ export class WebPageLoader extends Disposable {
 			case 'Network.requestWillBeSent':
 				if (requestId !== undefined) {
 					this._requests.add(requestId);
+					this._idleDebounceTimer.cancel();
 				}
 				break;
 			case 'Network.loadingFinished':
 			case 'Network.loadingFailed':
 				if (requestId !== undefined) {
 					this._requests.delete(requestId);
-					if (this._requests.size === 0) {
-						this.checkForIdle();
+					if (this._requests.size === 0 && this._didFinishLoad) {
+						this.scheduleIdleCheck();
 					}
 				}
 				break;
@@ -219,11 +224,15 @@ export class WebPageLoader extends Disposable {
 	}
 
 	/**
-	 * Called to check if page is in idle state (no ongoing network requests).
+	 * Schedules an idle check after a debounce period to allow for bursts of network activity.
 	 * If idle is detected, proceeds to extract content.
 	 */
-	private checkForIdle() {
-		void this._queue.queue(async () => {
+	private scheduleIdleCheck() {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		this._idleDebounceTimer.cancelAndSet(async () => {
 			if (this._store.isDisposed) {
 				return;
 			}
@@ -231,11 +240,11 @@ export class WebPageLoader extends Disposable {
 			await this.nextFrame();
 
 			if (this._requests.size === 0) {
-				await this.extractContent();
+				this._queue.queue(() => this.extractContent());
 			} else {
 				this.trace(`New network requests detected, deferring content extraction`);
 			}
-		});
+		}, WebPageLoader.IDLE_DEBOUNCE_TIME);
 	}
 
 	/**

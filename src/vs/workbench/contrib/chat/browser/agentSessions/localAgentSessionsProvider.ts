@@ -146,7 +146,14 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
 		try {
 			const historyItems = await this.chatService.getHistorySessionItems();
-			return coalesce(historyItems.map(history => this.toChatSessionItem(history)));
+			return coalesce(historyItems.map(history => {
+				const sessionItem = this.toChatSessionItem(history);
+				return sessionItem ? {
+					...sessionItem,
+					//todo@bpasero comment
+					history: true
+				} : undefined;
+			}));
 		} catch (error) {
 			return [];
 		}
