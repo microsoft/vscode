@@ -2350,6 +2350,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.tree.layout(contentHeight, width);
 
+		this.welcomeMessageContainer.style.height = `${contentHeight}px`;
+
 		this.renderer.layout(width);
 
 		const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
