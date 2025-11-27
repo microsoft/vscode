@@ -115,6 +115,11 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	override reveal(): void {
+		// Disable copy-on-selection for search-related selections to prevent overwriting clipboard
+		if (!this._overrideCopyOnSelectionDisposable && TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection) {
+			this._overrideCopyOnSelectionDisposable = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
+		}
+
 		const initialInput = this._instance.hasSelection() && !this._instance.selection!.includes('\n') ? this._instance.selection : undefined;
 		const inputValue = initialInput ?? this.inputValue;
 		const xterm = this._instance.xterm;
@@ -132,6 +137,11 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	override show() {
+		// Disable copy-on-selection for search-related selections to prevent overwriting clipboard
+		if (!this._overrideCopyOnSelectionDisposable && TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection) {
+			this._overrideCopyOnSelectionDisposable = TerminalClipboardContribution.get(this._instance)?.overrideCopyOnSelection(false);
+		}
+
 		const initialInput = this._instance.hasSelection() && !this._instance.selection!.includes('\n') ? this._instance.selection : undefined;
 		super.show(initialInput);
 		this._findWidgetVisible.set(true);
@@ -140,6 +150,9 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	override hide() {
 		super.hide();
 		this._findWidgetVisible.reset();
+		// Re-enable copy-on-selection when find widget is hidden
+		this._overrideCopyOnSelectionDisposable?.dispose();
+		this._overrideCopyOnSelectionDisposable = undefined;
 		this._instance.focus(true);
 		this._instance.xterm?.clearSearchDecorations();
 	}
