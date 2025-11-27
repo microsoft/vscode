@@ -69,6 +69,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private readonly memento: Memento<IChatViewPaneState>;
 	private readonly viewState: IChatViewPaneState;
 
+	private viewPaneContainer: HTMLElement | undefined;
+
 	private sessionsContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
 	private sessionsCount: number = 0;
@@ -237,13 +239,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.telemetryService.publicLog2<{}, ChatViewPaneOpenedClassification>('chatViewPaneOpened');
 
+		this.viewPaneContainer = parent;
+		this.viewPaneContainer.classList.add('chat-viewpane');
+
 		this.createControls(parent);
 
 		this.applyModel();
 	}
 
 	private createControls(parent: HTMLElement): void {
-		parent.classList.add('chat-viewpane');
 
 		// Sessions Control
 		this.createSessionsControl(parent);
@@ -321,6 +325,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return; // no change and not enforced
 		}
 
+		this.viewPaneContainer?.classList.toggle('has-sessions-control', sessionsControlVisible);
 		setVisibility(sessionsControlVisible, this.sessionsContainer);
 		this.sessionsControl.setVisible(sessionsControlVisible);
 
