@@ -187,6 +187,13 @@ export class InlineCompletionsModel extends Disposable {
 			}
 		}));
 
+		this._register(autorun(reader => {
+			const inlineSuggestion = this.state.map(s => s?.inlineSuggestion).read(reader);
+			if (inlineSuggestion) {
+				inlineSuggestion.addPerformanceMarker('activeSuggestion');
+			}
+		}));
+
 		const inlineEditSemanticId = this.inlineEditState.map(s => s?.inlineSuggestion.semanticId);
 
 		this._register(autorun(reader => {
