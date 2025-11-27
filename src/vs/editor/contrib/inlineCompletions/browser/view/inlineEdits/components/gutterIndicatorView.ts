@@ -45,7 +45,7 @@ export class InlineEditsGutterIndicatorData {
 export class InlineSuggestionGutterMenuData {
 	public static fromInlineSuggestion(suggestion: InlineSuggestionItem): InlineSuggestionGutterMenuData {
 		return new InlineSuggestionGutterMenuData(
-			suggestion.action,
+			suggestion.gutterMenuLinkAction,
 			suggestion.source.provider.displayName ?? localize('inlineSuggestion', "Inline Suggestion"),
 			suggestion.source.inlineSuggestions.commands ?? [],
 			suggestion.source.provider.modelInfo,

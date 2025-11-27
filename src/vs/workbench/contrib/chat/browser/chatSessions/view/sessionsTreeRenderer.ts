@@ -570,7 +570,7 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 				this.archivedItems.clear();
 				let ungroupedItems = items.map(item => {
 					const itemWithProvider = { ...item, provider: this.provider, timing: { startTime: extractTimestamp(item) ?? 0 } };
-					if (itemWithProvider.archived) {
+					if (itemWithProvider.history) {
 						this.archivedItems.pushItem(itemWithProvider);
 						return;
 					}

@@ -29,10 +29,11 @@ export enum InlineCompletionViewKind {
 	InsertionMultiLine = 'insertionMultiLine',
 	WordReplacements = 'wordReplacements',
 	LineReplacement = 'lineReplacement',
-	Collapsed = 'collapsed'
+	Collapsed = 'collapsed',
+	JumpTo = 'jumpTo'
 }
 
-export type InlineCompletionViewData = {
+export class InlineCompletionViewData {
 	cursorColumnDistance: number;
 	cursorLineDistance: number;
 	lineCountOriginal: number;
@@ -41,4 +42,31 @@ export type InlineCompletionViewData = {
 	characterCountModified: number;
 	disjointReplacements: number;
 	sameShapeReplacements?: boolean;
-};
+	longDistanceHintVisible?: boolean;
+	longDistanceHintDistance?: number;
+
+	constructor(
+		cursorColumnDistance: number,
+		cursorLineDistance: number,
+		lineCountOriginal: number,
+		lineCountModified: number,
+		characterCountOriginal: number,
+		characterCountModified: number,
+		disjointReplacements: number,
+		sameShapeReplacements?: boolean
+	) {
+		this.cursorColumnDistance = cursorColumnDistance;
+		this.cursorLineDistance = cursorLineDistance;
+		this.lineCountOriginal = lineCountOriginal;
+		this.lineCountModified = lineCountModified;
+		this.characterCountOriginal = characterCountOriginal;
+		this.characterCountModified = characterCountModified;
+		this.disjointReplacements = disjointReplacements;
+		this.sameShapeReplacements = sameShapeReplacements;
+	}
+
+	setLongDistanceViewData(lineNumber: number, inlineEditLineNumber: number): void {
+		this.longDistanceHintVisible = true;
+		this.longDistanceHintDistance = Math.abs(inlineEditLineNumber - lineNumber);
+	}
+}

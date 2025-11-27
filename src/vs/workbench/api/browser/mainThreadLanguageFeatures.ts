@@ -1435,6 +1435,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			extensionId: this.providerId.extensionId!,
 			extensionVersion: this.providerId.extensionVersion!,
 			groupId: this.groupId,
+			sku: lifetimeSummary.sku,
 			performanceMarkers: lifetimeSummary.performanceMarkers,
 			availableProviders: lifetimeSummary.availableProviders,
 			partiallyAccepted: lifetimeSummary.partiallyAccepted,
@@ -1451,6 +1452,8 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			renameDuration: lifetimeSummary.renameDuration,
 			renameTimedOut: lifetimeSummary.renameTimedOut,
 			editKind: lifetimeSummary.editKind,
+			longDistanceHintVisible: lifetimeSummary.longDistanceHintVisible,
+			longDistanceHintDistance: lifetimeSummary.longDistanceHintDistance,
 			...forwardToChannelIf(isCopilotLikeExtension(this.providerId.extensionId!)),
 		};
 

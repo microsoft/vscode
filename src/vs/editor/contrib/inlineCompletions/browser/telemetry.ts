@@ -19,6 +19,7 @@ export type InlineCompletionEndOfLifeEvent = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
+	sku: string | undefined;
 	// response
 	correlationId: string | undefined;
 	extensionId: string;
@@ -53,6 +54,8 @@ export type InlineCompletionEndOfLifeEvent = {
 	characterCountModified: number | undefined;
 	disjointReplacements: number | undefined;
 	sameShapeReplacements: boolean | undefined;
+	longDistanceHintVisible: boolean | undefined;
+	longDistanceHintDistance: number | undefined;
 	// empty
 	noSuggestionReason: string | undefined;
 	// shape
@@ -68,6 +71,7 @@ type InlineCompletionsEndOfLifeClassification = {
 	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that contributed the inline completion' };
 	groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The group ID of the extension that contributed the inline completion' };
 	availableProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The list of available inline completion providers at the time of the request' };
+	sku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SKU of the product where the inline completion was shown' };
 	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
 	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
 	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
@@ -99,6 +103,8 @@ type InlineCompletionsEndOfLifeClassification = {
 	characterCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the modified text' };
 	disjointReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inner replacements made by the inline completion' };
 	sameShapeReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether all inner replacements are the same shape' };
+	longDistanceHintVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a long distance hint was rendered' };
+	longDistanceHintDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The distance in lines between the long distance hint and the inline edit' };
 	noSuggestionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why no inline completion was provided' };
 	notShownReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why the inline completion was not shown' };
 	performanceMarkers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Performance markers for the inline completion lifecycle' };

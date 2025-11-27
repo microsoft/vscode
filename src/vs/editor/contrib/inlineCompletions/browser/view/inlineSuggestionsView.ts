@@ -35,7 +35,7 @@ export class InlineSuggestionsView extends Disposable {
 	private readonly _editorObs;
 	private readonly _ghostTextWidgets;
 
-	private readonly _inlineEdit = derived(this, reader => this._model.read(reader)?.inlineEditState.read(reader)?.inlineEdit);
+	private readonly _inlineEdit = derived(this, reader => this._model.read(reader)?.inlineEditState.read(reader)?.inlineSuggestion);
 	private readonly _everHadInlineEdit = derivedObservableWithCache<boolean>(this,
 		(reader, last) => last || !!this._inlineEdit.read(reader)
 			|| !!this._model.read(reader)?.inlineCompletionState.read(reader)?.inlineSuggestion?.showInlineEditMenu
@@ -53,7 +53,7 @@ export class InlineSuggestionsView extends Disposable {
 		if (!this._everHadInlineEdit.read(reader)) {
 			return undefined;
 		}
-		return this._instantiationService.createInstance(InlineEditsViewAndDiffProducer, this._editor, this._inlineEdit, this._model, this._showInlineEditCollapsed);
+		return this._instantiationService.createInstance(InlineEditsViewAndDiffProducer, this._editor, this._model, this._showInlineEditCollapsed);
 	});
 
 	private readonly _fontFamily;

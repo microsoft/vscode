@@ -361,8 +361,11 @@ configurationRegistry.registerConfiguration({
 		[ChatConfiguration.EmptyChatViewSessionsEnabled]: {
 			type: 'boolean',
 			default: product.quality !== 'stable',
-			description: nls.localize('chat.emptyState.history.enabled', "Show agent sessions on the empty chat state."),
-			tags: ['preview', 'experimental']
+			description: nls.localize('chat.emptyState.sessions.enabled', "Show agent sessions on the empty chat state."),
+			tags: ['preview', 'experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
@@ -529,7 +532,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
-			enum: ['disabled', 'view', 'single-view'],
+			enum: ['disabled', 'view', 'single-view'], // TODO@bpasero remove this setting eventually
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
 			default: product.quality === 'stable' ? 'view' : 'single-view',
 			tags: ['experimental'],
@@ -782,12 +785,6 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto'
 			}
-		},
-		'chat.hideNewButtonInAgentSessionsView': { // TODO@bpasero remove me eventually
-			type: 'boolean',
-			description: nls.localize('chat.hideNewButtonInAgentSessionsView', "Controls whether the new session button is hidden in the Agent Sessions view."),
-			default: false,
-			tags: ['preview']
 		},
 		'chat.signInWithAlternateScopes': { // TODO@bpasero remove me eventually
 			type: 'boolean',

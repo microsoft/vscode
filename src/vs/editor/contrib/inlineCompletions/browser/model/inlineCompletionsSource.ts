@@ -9,6 +9,7 @@ import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { equalsIfDefined, itemEquals } from '../../../../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { cloneAndChange } from '../../../../../base/common/objects.js';
 import { derived, IObservable, IObservableWithChange, ITransaction, observableValue, recordChangesLazy, transaction } from '../../../../../base/common/observable.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { observableReducerSettable } from '../../../../../base/common/observableInternal/experimental/reducer.js';
@@ -22,7 +23,8 @@ import { observableConfigValue } from '../../../../../platform/observable/common
 import product from '../../../../../platform/product/common/product.js';
 import { StringEdit } from '../../../../common/core/edits/stringEdit.js';
 import { Position } from '../../../../common/core/position.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
+import { Range } from '../../../../common/core/range.js';
+import { Command, InlineCompletionEndOfLifeReasonKind, InlineCompletionTriggerKind, InlineCompletionsProvider } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { offsetEditFromContentChanges } from '../../../../common/model/textModelStringEdit.js';
@@ -272,7 +274,7 @@ export class InlineCompletionsSource extends Disposable {
 					return this._renameProcessor.proposeRenameRefactoring(this._textModel, s);
 				}));
 
-				providerSuggestions.forEach(s => s.addPerformanceMarker('renameProcessed'));
+				suggestions.forEach(s => s.addPerformanceMarker('renameProcessed'));
 
 				providerResult.cancelAndDispose({ kind: 'lostRace' });
 
@@ -282,14 +284,46 @@ export class InlineCompletionsSource extends Disposable {
 					if (source.token.isCancellationRequested || this._store.isDisposed || this._textModel.getVersionId() !== request.versionId) {
 						error = 'canceled';
 					}
-					const result = suggestions.map(c => ({
-						range: c.editRange.toString(),
-						text: c.insertText,
-						hint: c.hint,
-						isInlineEdit: c.isInlineEdit,
-						showInlineEditMenu: c.showInlineEditMenu,
-						providerId: c.source.provider.providerId?.toString(),
-					}));
+					const result = suggestions.map(c => {
+						const comp = c.getSourceCompletion();
+						if (comp.doNotLog) {
+							return undefined;
+						}
+						const obj = {
+							insertText: comp.insertText,
+							range: comp.range,
+							additionalTextEdits: comp.additionalTextEdits,
+							uri: comp.uri,
+							command: comp.command,
+							gutterMenuLinkAction: comp.gutterMenuLinkAction,
+							shownCommand: comp.shownCommand,
+							completeBracketPairs: comp.completeBracketPairs,
+							isInlineEdit: comp.isInlineEdit,
+							showInlineEditMenu: comp.showInlineEditMenu,
+							showRange: comp.showRange,
+							warning: comp.warning,
+							hint: comp.hint,
+							supportsRename: comp.supportsRename,
+							correlationId: comp.correlationId,
+							jumpToPosition: comp.jumpToPosition,
+						};
+						return {
+							...(cloneAndChange(obj, v => {
+								if (Range.isIRange(v)) {
+									return Range.lift(v).toString();
+								}
+								if (Position.isIPosition(v)) {
+									return Position.lift(v).toString();
+								}
+								if (Command.is(v)) {
+									return { $commandId: v.id };
+								}
+								return v;
+							}) as object),
+							$providerId: c.source.provider.providerId?.toString(),
+						};
+					}).filter(result => result !== undefined);
+
 					this._log({ sourceId: 'InlineCompletions.fetch', kind: 'end', requestId, durationMs: (Date.now() - startTime.getTime()), error, result, time: Date.now(), didAllProvidersReturn });
 				}
 
@@ -426,6 +460,7 @@ export class InlineCompletionsSource extends Disposable {
 			extensionVersion: '0.0.0',
 			groupId: 'empty',
 			shown: false,
+			sku: requestResponseInfo.requestInfo.sku,
 			editorType: requestResponseInfo.requestInfo.editorType,
 			requestReason: requestResponseInfo.requestInfo.reason,
 			typingInterval: requestResponseInfo.requestInfo.typingInterval,
@@ -456,6 +491,8 @@ export class InlineCompletionsSource extends Disposable {
 			characterCountModified: undefined,
 			disjointReplacements: undefined,
 			sameShapeReplacements: undefined,
+			longDistanceHintVisible: undefined,
+			longDistanceHintDistance: undefined,
 			notShownReason: undefined,
 			renameCreated: false,
 			renameDuration: undefined,

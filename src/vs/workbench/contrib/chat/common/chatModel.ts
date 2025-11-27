@@ -969,7 +969,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 			return this._response.value.some(part =>
 				part.kind === 'toolInvocation' && part.state.read(r).type === IChatToolInvocation.StateKind.WaitingForConfirmation
-				|| part.kind === 'confirmation' && part.isUsed === false
+				|| part.kind === 'confirmation' && !part.isUsed
 				|| part.kind === 'elicitation2' && part.state.read(r) === ElicitationState.Pending
 			);
 		});
