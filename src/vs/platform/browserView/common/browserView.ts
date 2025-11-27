@@ -22,6 +22,7 @@ export interface IBrowserViewState {
 	loading: boolean;
 	lastScreenshot: string | undefined;
 	lastFavicon: string | undefined;
+	lastError: IBrowserViewLoadError | undefined;
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -32,6 +33,13 @@ export interface IBrowserViewNavigationEvent {
 
 export interface IBrowserViewLoadingEvent {
 	loading: boolean;
+	error?: IBrowserViewLoadError;
+}
+
+export interface IBrowserViewLoadError {
+	url: string;
+	errorCode: number;
+	errorDescription: string;
 }
 
 export interface IBrowserViewFocusEvent {

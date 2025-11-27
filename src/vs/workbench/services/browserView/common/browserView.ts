@@ -10,6 +10,7 @@ import {
 	IBrowserViewBounds,
 	IBrowserViewNavigationEvent,
 	IBrowserViewLoadingEvent,
+	IBrowserViewLoadError,
 	IBrowserViewFocusEvent,
 	IBrowserViewKeyDownEvent,
 	IBrowserViewTitleChangeEvent,
@@ -77,6 +78,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly loading: boolean;
 	readonly canGoBack: boolean;
 	readonly canGoForward: boolean;
+	readonly error: IBrowserViewLoadError | undefined;
 
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent>;
 	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent>;
@@ -108,6 +110,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _loading: boolean = false;
 	private _canGoBack: boolean = false;
 	private _canGoForward: boolean = false;
+	private _error: IBrowserViewLoadError | undefined = undefined;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
@@ -128,6 +131,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get canGoBack(): boolean { return this._canGoBack; }
 	get canGoForward(): boolean { return this._canGoForward; }
 	get screenshot(): string | undefined { return this._screenshot; }
+	get error(): IBrowserViewLoadError | undefined { return this._error; }
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
 		return this.browserViewService.onDynamicDidNavigate(this.id);
@@ -171,6 +175,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._canGoForward = state.canGoForward;
 		this._screenshot = state.lastScreenshot;
 		this._favicon = state.lastFavicon;
+		this._error = state.lastError;
 
 		// Set up state synchronization
 		this._register(this.onDidNavigate(e => {
@@ -181,6 +186,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 		this._register(this.onDidChangeLoadingState(e => {
 			this._loading = e.loading;
+			this._error = e.error;
 		}));
 
 		this._register(this.onDidChangeTitle(e => {

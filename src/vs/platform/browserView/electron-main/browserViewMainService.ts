@@ -6,7 +6,7 @@
 import { WebContentsView, webContents, session } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IBrowserViewBounds, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest } from '../common/browserView.js';
 import { IBrowserViewMainService } from './browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { ThemePlugin } from './plugins/themePlugin.js';
@@ -197,6 +197,7 @@ export class BrowserView extends Disposable {
 
 	private _lastScreenshot: string | undefined = undefined;
 	private _lastFavicon: string | undefined = undefined;
+	private _lastError: IBrowserViewLoadError | undefined = undefined;
 
 	private _window: IBaseWindow | undefined;
 	private _isSendingKeyEvent = false;
@@ -319,13 +320,31 @@ export class BrowserView extends Disposable {
 		};
 
 		const fireLoadingEvent = (loading: boolean) => {
-			this._onDidChangeLoadingState.fire({ loading });
+			this._onDidChangeLoadingState.fire({ loading, error: this._lastError });
 		};
 
 		// Loading state events
-		webContents.on('did-start-loading', () => fireLoadingEvent(true));
+		webContents.on('did-start-loading', () => {
+			this._lastError = undefined;
+			fireLoadingEvent(true);
+		});
 		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
-		webContents.on('did-fail-load', () => fireLoadingEvent(false));
+		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
+			if (isMainFrame) {
+				this._lastError = {
+					url: validatedURL,
+					errorCode,
+					errorDescription
+				};
+
+				fireLoadingEvent(false);
+				this._onDidNavigate.fire({
+					url: validatedURL,
+					canGoBack: webContents.navigationHistory.canGoBack(),
+					canGoForward: webContents.navigationHistory.canGoForward()
+				});
+			}
+		});
 		webContents.on('did-finish-load', () => fireLoadingEvent(false));
 
 		// Navigation events (when URL actually changes)
@@ -380,7 +399,8 @@ export class BrowserView extends Disposable {
 			canGoForward: webContents.navigationHistory.canGoForward(),
 			loading: webContents.isLoading(),
 			lastScreenshot: this._lastScreenshot,
-			lastFavicon: this._lastFavicon
+			lastFavicon: this._lastFavicon,
+			lastError: this._lastError
 		};
 	}
 

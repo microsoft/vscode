@@ -27,7 +27,7 @@ import { IBrowserViewModel } from '../../../services/browserView/common/browserV
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewKeyDownEvent, IBrowserViewNavigationEvent, IBrowserViewLoadError } from '../../../../platform/browserView/common/browserView.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -143,6 +143,7 @@ export class BrowserEditor extends EditorPane {
 
 	private _navigationBar!: BrowserNavigationBar;
 	private _browserContainer!: HTMLElement;
+	private _errorContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _browserEditorFocusedContext!: IContextKey<boolean>;
@@ -196,6 +197,11 @@ export class BrowserEditor extends EditorPane {
 		this._browserContainer = $('.browser-container');
 		this._browserContainer.tabIndex = 0; // make focusable
 		root.appendChild(this._browserContainer);
+
+		// Create error container (hidden by default)
+		this._errorContainer = $('.browser-error-container');
+		this._errorContainer.style.display = 'none';
+		this._browserContainer.appendChild(this._errorContainer);
 
 		this._register(addDisposableListener(this._browserContainer, EventType.FOCUS, (event) => {
 			// When the browser container gets focus, make sure the browser view also gets focused.
@@ -258,6 +264,10 @@ export class BrowserEditor extends EditorPane {
 			this.updateNavigationState(navEvent);
 		}, null, this._inputDisposables);
 
+		this._model.onDidChangeLoadingState(() => {
+			this.updateErrorDisplay();
+		}, null, this._inputDisposables);
+
 		this._model.onDidChangeFocus(({ focused }) => {
 			// When the view gets focused, make sure the container also has focus.
 			if (focused) {
@@ -312,6 +322,7 @@ export class BrowserEditor extends EditorPane {
 			1000
 		));
 
+		this.updateErrorDisplay();
 		this.layout();
 		await this._model!.setVisible(this.shouldShowView);
 	}
@@ -323,9 +334,14 @@ export class BrowserEditor extends EditorPane {
 
 	private updateVisibility(): void {
 		if (this._model) {
-			this._browserContainer.classList.toggle('view-hidden', !this.shouldShowView);
+			// Blur the background image if the view is hidden due to an overlay.
+			this._browserContainer.classList.toggle('blur', this._editorVisible && this._overlayVisible && !this._model?.error);
 			void this._model.setVisible(this.shouldShowView);
 		}
+	}
+
+	private get shouldShowView(): boolean {
+		return this._editorVisible && !this._overlayVisible && !this._model?.error;
 	}
 
 	private checkOverlays(): void {
@@ -336,8 +352,51 @@ export class BrowserEditor extends EditorPane {
 		}
 	}
 
-	private get shouldShowView(): boolean {
-		return this._editorVisible && !this._overlayVisible;
+	private updateErrorDisplay(): void {
+		if (!this._model) {
+			return;
+		}
+
+		const error: IBrowserViewLoadError | undefined = this._model.error;
+		if (error) {
+			// Show error display
+			this._errorContainer.style.display = 'flex';
+
+			while (this._errorContainer.firstChild) {
+				this._errorContainer.removeChild(this._errorContainer.firstChild);
+			}
+
+			const errorContent = $('.browser-error-content');
+			const errorTitle = $('.browser-error-title');
+			errorTitle.textContent = localize('browserLoadError', "Failed to Load Page");
+
+			const errorMessage = $('.browser-error-detail');
+			const errorText = $('span');
+			errorText.textContent = `${error.errorDescription} (${error.errorCode})`;
+			errorMessage.appendChild(errorText);
+
+			const errorUrl = $('.browser-error-detail');
+			const urlLabel = $('strong');
+			urlLabel.textContent = localize('browserErrorUrl', "URL:");
+			const urlValue = $('code');
+			urlValue.textContent = error.url;
+			errorUrl.appendChild(urlLabel);
+			errorUrl.appendChild(document.createTextNode(' '));
+			errorUrl.appendChild(urlValue);
+
+			errorContent.appendChild(errorTitle);
+			errorContent.appendChild(errorMessage);
+			errorContent.appendChild(errorUrl);
+			this._errorContainer.appendChild(errorContent);
+
+			this._browserContainer.style.backgroundImage = '';
+		} else {
+			// Hide error display
+			this._errorContainer.style.display = 'none';
+			this._browserContainer.style.backgroundImage = this._model.screenshot ? `url('${this._model.screenshot}')` : '';
+		}
+
+		this.updateVisibility();
 	}
 
 	private async navigateToUrl(url: string): Promise<void> {
