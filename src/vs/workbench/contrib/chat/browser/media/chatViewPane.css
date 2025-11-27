@@ -6,13 +6,15 @@
 /* Special styles when sessions control is visible */
 
 .chat-viewpane.has-sessions-control {
+
+	/* Align sessions and welcome/input vertically */
 	display: flex;
 	flex-direction: column;
 
 	.agent-sessions-container {
 		display: flex;
 		flex-direction: column;
-		padding: 4px 8px;
+		padding: 4px 8px 20px 8px;
 
 		.agent-sessions-viewer .monaco-list .monaco-list-row {
 			border-radius: 3px;
@@ -22,6 +24,15 @@
 			padding: 4px 12px;
 			font-size: 12px;
 			text-align: center;
+		}
+	}
+
+	.interactive-session {
+
+		.chat-welcome-view-container {
+
+			/* Show welcome right below sessions control */
+			justify-content: flex-start;
 		}
 	}
 }
