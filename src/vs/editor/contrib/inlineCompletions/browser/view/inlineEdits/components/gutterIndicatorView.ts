@@ -476,7 +476,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 				data.model.jump();
 			}
 		},
-		tabIndex: 0,
 		style: {
 			position: 'absolute',
 			overflow: 'visible',
