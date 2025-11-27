@@ -7572,6 +7572,7 @@ declare namespace monaco.languages {
 		 */
 		readonly correlationId?: string | undefined;
 		readonly jumpToPosition?: IPosition;
+		readonly doNotLog?: boolean;
 	}
 
 	export interface InlineCompletionWarning {
