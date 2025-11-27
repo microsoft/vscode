@@ -1078,6 +1078,8 @@ export type LifetimeSummary = {
 	renameDuration?: number;
 	renameTimedOut: boolean;
 	editKind: string | undefined;
+	longDistanceHintVisible?: boolean;
+	longDistanceHintDistance?: number;
 };
 
 export interface CodeAction {
