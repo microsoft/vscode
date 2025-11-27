@@ -716,7 +716,6 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
-
 		return modelRef;
 	}
 
