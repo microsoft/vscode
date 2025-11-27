@@ -116,15 +116,14 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			const offsetRange = new OffsetRange(c.rangeOffset, c.rangeOffset + c.rangeLength);
 			const stringEdit = StringEdit.replace(offsetRange, c.text);
 			edits = edits.compose(stringEdit);
-
-			const lineNumber = this.textModel.getPositionAt(c.rangeOffset).lineNumber;
-			const currentAnnotations = this._fontAnnotatedString.getAnnotationsIntersecting(offsetRange);
-			for (const annotation of currentAnnotations) {
-				affectedLineHeights.add(new LineHeightChangingDecoration(0, annotation.annotation.decorationId, lineNumber, null));
-				affectedLineFonts.add(new LineFontChangingDecoration(0, annotation.annotation.decorationId, lineNumber));
-			}
 		}
-		this._fontAnnotatedString.applyEdit(edits);
+		const deletedAnnotations = this._fontAnnotatedString.applyEdit(edits);
+		for (const annotation of deletedAnnotations) {
+			const startPosition = this.textModel.getPositionAt(annotation.range.start);
+			const lineNumber = startPosition.lineNumber;
+			affectedLineHeights.add(new LineHeightChangingDecoration(0, annotation.annotation.decorationId, lineNumber, null));
+			affectedLineFonts.add(new LineFontChangingDecoration(0, annotation.annotation.decorationId, lineNumber));
+		}
 		this._onDidChangeLineHeight.fire(affectedLineHeights);
 		this._onDidChangeFont.fire(affectedLineFonts);
 	}

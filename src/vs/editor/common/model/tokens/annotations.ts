@@ -33,8 +33,9 @@ export interface IAnnotatedString<T> {
 	getAllAnnotations(): IAnnotation<T>[];
 	/**
 	 * Apply a string edit to the annotated string.
+	 * @returns The annotations that were deleted (became empty) as a result of the edit.
 	 */
-	applyEdit(edit: StringEdit): void;
+	applyEdit(edit: StringEdit): IAnnotation<T>[];
 	clone(): IAnnotatedString<T>;
 }
 
@@ -107,11 +108,12 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 		return this._annotations.slice();
 	}
 
-	public applyEdit(edit: StringEdit): void {
+	public applyEdit(edit: StringEdit): IAnnotation<T>[] {
 		const annotationsCopy = this._annotations.slice();
 
 		// treat edits as deletion of the replace range and then as insertion that extends the first range
 		const result: IAnnotation<T>[] = [];
+		const deleted: IAnnotation<T>[] = [];
 
 		let offset = 0;
 
@@ -180,7 +182,16 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 			annotationsCopy.shift();
 			result.push({ annotation: typedRange.annotation, range: typedRange.range.delta(offset) });
 		}
-		this._annotations = result.filter(a => !a.range.isEmpty);
+
+		const filteredResult = result.filter(a => {
+			if (a.range.isEmpty) {
+				deleted.push(a);
+				return false;
+			}
+			return true;
+		});
+		this._annotations = filteredResult;
+		return deleted;
 	}
 
 	public clone(): IAnnotatedString<T> {
