@@ -2323,6 +2323,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	layout(height: number, width: number): void {
 		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
+
 		const heightUpdated = this.bodyDimension && this.bodyDimension.height !== height;
 		this.bodyDimension = new dom.Dimension(width, height);
 
@@ -2349,19 +2350,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.tree.layout(contentHeight, width);
 
-		// Push the welcome message down so it doesn't change position
-		// when followups, attachments, working set, todo list, or suggest next widget appear
-		let welcomeOffset = 100;
-		if (this.viewOptions.renderFollowups) {
-			welcomeOffset = Math.max(welcomeOffset - this.input.followupsHeight, 0);
-		}
-		if (this.viewOptions.enableWorkingSet) {
-			welcomeOffset = Math.max(welcomeOffset - this.input.editSessionWidgetHeight, 0);
-		}
-		welcomeOffset = Math.max(welcomeOffset - this.input.todoListWidgetHeight, 0);
-		welcomeOffset = Math.max(welcomeOffset - this.input.attachmentsHeight, 0);
-		this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
-		this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;
+		this.welcomeMessageContainer.style.height = `${contentHeight}px`;
 
 		this.renderer.layout(width);
 
