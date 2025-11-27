@@ -271,7 +271,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private createSessionsControl(parent: HTMLElement): void {
 		const that = this;
-
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 
 		// Sessions Control
