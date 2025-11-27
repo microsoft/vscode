@@ -221,7 +221,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return undefined;
 	}
 
-	registerModelProgressListener(model: Iterable<IChatModel>, chatSessionType: string): void {
+	registerModelProgressListener(model: Iterable<IChatModel>): void {
 		throw new Error('Method not implemented.');
 	}
 }
