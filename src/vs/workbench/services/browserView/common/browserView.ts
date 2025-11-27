@@ -264,7 +264,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._onWillDispose.fire();
 
 		// Clean up the browser view when the model is disposed
-		this.browserViewService.destroyBrowserView(this.id);
+		void this.browserViewService.destroyBrowserView(this.id);
+
 		super.dispose();
 	}
 }

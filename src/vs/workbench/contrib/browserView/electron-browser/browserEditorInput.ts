@@ -58,7 +58,7 @@ export class BrowserEditorInput extends EditorInput {
 			if (this._model) {
 				// For reloads, we simply hide / re-show the view.
 				if (e.reason === ShutdownReason.RELOAD) {
-					this._model.setVisible(false);
+					void this._model.setVisible(false);
 				} else {
 					this._model.dispose();
 					this._model = undefined;

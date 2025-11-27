@@ -404,7 +404,7 @@ export class BrowserEditor extends EditorPane {
 			this.group.pinEditor(this.input); // pin editor on navigation
 
 			if (!/^https?:\/\//.test(url)) {
-				// If no scheme provided, default to http (first -- this will be upgraded to https if supported)
+				// If no scheme provided, default to http (to support localhost etc -- sites will generally upgrade to https)
 				url = 'http://' + url;
 			}
 
