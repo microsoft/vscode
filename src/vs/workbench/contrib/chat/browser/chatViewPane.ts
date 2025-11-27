@@ -269,9 +269,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EmptyChatViewSessionsEnabled))
 		)(() => {
 			this.sessionsControl?.clearFocus(); // improve visual appearance when switching visibility by clearing focus
-			this.updateSessionsContainerVisibility(true);
+			this.notifySessionsControlChanged();
 		}));
-		this.updateSessionsContainerVisibility(false);
+		this.updateSessionsControlVisibility();
 	}
 
 	private createSessionsControl(parent: HTMLElement): void {
@@ -292,10 +292,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					return false;
 				},
 				notifyResults(count: number) {
-					if (that.sessionsCount !== count) {
-						that.sessionsCount = count;
-						that.updateSessionsContainerVisibility(true);
-					}
+					that.notifySessionsControlChanged(count);
 				}
 			}
 		}));
@@ -309,9 +306,23 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 	}
 
-	private updateSessionsContainerVisibility(fromEvent: boolean): void {
-		if (!this.sessionsContainer) {
-			return;
+	private notifySessionsControlChanged(newSessionsCount?: number): void {
+		const changedCount = typeof newSessionsCount === 'number' && newSessionsCount !== this.sessionsCount;
+		this.sessionsCount = newSessionsCount ?? this.sessionsCount;
+
+		const changedVisibility = this.updateSessionsControlVisibility();
+		if (!changedVisibility && !changedCount) {
+			return; // no change to render
+		}
+
+		if (this.lastDimensions) {
+			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+		}
+	}
+
+	private updateSessionsControlVisibility(): boolean {
+		if (!this.sessionsContainer || !this.viewPaneContainer) {
+			return false;
 		}
 
 		const sessionsContainerVisible =
@@ -320,12 +331,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			!this.welcomeController?.isShowingWelcome.get() &&												// welcome not showing
 			this.sessionsCount > 0;																			// has sessions
 
-		this.viewPaneContainer?.classList.toggle('has-sessions-control', sessionsContainerVisible);
+		const hasSessionsControl = this.viewPaneContainer.classList.contains('has-sessions-control');
+		if (sessionsContainerVisible === hasSessionsControl) {
+			return false; // no change, return
+		}
+
+		this.viewPaneContainer.classList.toggle('has-sessions-control', sessionsContainerVisible);
 		setVisibility(sessionsContainerVisible, this.sessionsContainer);
 
-		if (fromEvent && this.lastDimensions) {
-			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
-		}
+		return true;
 	}
 
 	private createChatWidget(parent: HTMLElement): void {
