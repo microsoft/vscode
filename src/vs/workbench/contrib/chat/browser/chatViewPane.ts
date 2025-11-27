@@ -279,8 +279,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 
 		// Sessions Control
-		const sessionsControlContainer = this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
-		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, sessionsControlContainer, {
+		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
+		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
 			allowOpenSessionsInPanel: true,
 			filter: {
 				limitResults: ChatViewPane.SESSIONS_LIMIT,
