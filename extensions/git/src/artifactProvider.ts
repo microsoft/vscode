@@ -82,9 +82,9 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		private readonly logger: LogOutputChannel
 	) {
 		this._groups = [
-			{ id: 'branches', name: l10n.t('Branches'), icon: new ThemeIcon('git-branch') },
-			{ id: 'stashes', name: l10n.t('Stashes'), icon: new ThemeIcon('git-stash') },
-			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag') }
+			{ id: 'branches', name: l10n.t('Branches'), icon: new ThemeIcon('git-branch'), supportsFolders: true },
+			{ id: 'stashes', name: l10n.t('Stashes'), icon: new ThemeIcon('git-stash'), supportsFolders: false },
+			{ id: 'tags', name: l10n.t('Tags'), icon: new ThemeIcon('tag'), supportsFolders: true }
 		];
 
 		this._disposables.push(this._onDidChangeArtifacts);

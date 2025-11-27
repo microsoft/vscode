@@ -412,7 +412,7 @@ export class SessionsViewPane extends ViewPane {
 		const items: IGettingStartedItem[] = [
 			{
 				id: 'install-extensions',
-				label: nls.localize('chatSessions.installExtensions', "Install Chat Extensions"),
+				label: nls.localize('chatSessions.installExtensions', "Install Agents..."),
 				icon: Codicon.extensions,
 				commandId: 'chat.sessions.gettingStarted'
 			},

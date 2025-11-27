@@ -31,6 +31,8 @@ class TestRenameInferenceEngine extends RenameInferenceEngine {
 
 suite('renameSymbolProcessor', () => {
 
+	const wordPattern = /(-?\d*\.\d\w*)|([^\`\@\~\!\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>/\?\s]+)/;
+
 	let disposables: DisposableStore;
 
 	setup(() => {
@@ -50,7 +52,7 @@ suite('renameSymbolProcessor', () => {
 		disposables.add(model);
 
 		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 10) }]);
-		const result = renameInferenceEngine.inferRename(model, new Range(1, 7, 1, 10), 'bar');
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 7, 1, 10), 'bar', wordPattern);
 		assert.strictEqual(result?.renames.edits.length, 1);
 		assert.strictEqual(result?.renames.oldName, 'foo');
 		assert.strictEqual(result?.renames.newName, 'bar');
@@ -63,7 +65,7 @@ suite('renameSymbolProcessor', () => {
 		disposables.add(model);
 
 		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 13) }]);
-		const result = renameInferenceEngine.inferRename(model, new Range(1, 7, 1, 10), 'bazz');
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 7, 1, 10), 'bazz', wordPattern);
 		assert.strictEqual(result?.renames.edits.length, 1);
 		assert.strictEqual(result?.renames.oldName, 'fooABC');
 		assert.strictEqual(result?.renames.newName, 'bazzABC');
@@ -76,7 +78,7 @@ suite('renameSymbolProcessor', () => {
 		disposables.add(model);
 
 		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 13) }]);
-		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 18), 'const bazzABC = 1;');
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 18), 'const bazzABC = 1;', wordPattern);
 		assert.strictEqual(result?.renames.edits.length, 1);
 		assert.strictEqual(result?.renames.oldName, 'fooABC');
 		assert.strictEqual(result?.renames.newName, 'bazzABC');
@@ -89,7 +91,7 @@ suite('renameSymbolProcessor', () => {
 		disposables.add(model);
 
 		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 1, 1, 4) }]);
-		const result = renameInferenceEngine.inferRename(model, new Range(1, 4, 1, 4), '.map(x => x);');
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 4, 1, 4), '.map(x => x);', wordPattern);
 		assert.ok(result === undefined);
 	});
 
@@ -100,7 +102,29 @@ suite('renameSymbolProcessor', () => {
 		disposables.add(model);
 
 		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 1, 1, 4) }]);
-		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 4), 'foo.map(x => x);');
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 4), 'foo.map(x => x);', wordPattern);
+		assert.ok(result === undefined);
+	});
+
+	test('Insertion - no word', () => {
+		const model = createTextModel([
+			'foo',
+		].join('\n'), 'typescript', {});
+		disposables.add(model);
+
+		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 1, 1, 4) }]);
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 4, 1, 4), '.map(x=>x);', wordPattern);
+		assert.ok(result === undefined);
+	});
+
+	test('Insertion - no word - full line', () => {
+		const model = createTextModel([
+			'foo',
+		].join('\n'), 'typescript', {});
+		disposables.add(model);
+
+		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 1, 1, 4) }]);
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 4), '.map(x=>x);', wordPattern);
 		assert.ok(result === undefined);
 	});
 
@@ -110,7 +134,7 @@ suite('renameSymbolProcessor', () => {
 		].join('\n'), 'typescript', {});
 		disposables.add(model);
 		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 13) }]);
-		const result = renameInferenceEngine.inferRename(model, new Range(1, 10, 1, 13), 'bazz');
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 10, 1, 13), 'bazz', wordPattern);
 		assert.strictEqual(result?.renames.edits.length, 1);
 		assert.strictEqual(result?.renames.oldName, 'ABCfoo');
 		assert.strictEqual(result?.renames.newName, 'ABCbazz');
@@ -122,7 +146,7 @@ suite('renameSymbolProcessor', () => {
 		].join('\n'), 'typescript', {});
 		disposables.add(model);
 		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 13) }]);
-		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 18), 'const ABCbazz = 1;');
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 18), 'const ABCbazz = 1;', wordPattern);
 		assert.strictEqual(result?.renames.edits.length, 1);
 		assert.strictEqual(result?.renames.oldName, 'ABCfoo');
 		assert.strictEqual(result?.renames.newName, 'ABCbazz');
@@ -134,7 +158,7 @@ suite('renameSymbolProcessor', () => {
 		].join('\n'), 'typescript', {});
 		disposables.add(model);
 		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 16) }]);
-		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 21), 'const ABCfooXYZ = 1;');
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 21), 'const ABCfooXYZ = 1;', wordPattern);
 		assert.strictEqual(result?.renames.edits.length, 1);
 		assert.strictEqual(result?.renames.oldName, 'abcfooxyz');
 		assert.strictEqual(result?.renames.newName, 'ABCfooXYZ');
@@ -146,7 +170,7 @@ suite('renameSymbolProcessor', () => {
 		].join('\n'), 'typescript', {});
 		disposables.add(model);
 		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 16) }]);
-		const result = renameInferenceEngine.inferRename(model, new Range(1, 7, 1, 16), 'ABCfooXYZ');
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 7, 1, 16), 'ABCfooXYZ', wordPattern);
 		assert.strictEqual(result?.renames.edits.length, 1);
 		assert.strictEqual(result?.renames.oldName, 'abcfooxyz');
 		assert.strictEqual(result?.renames.newName, 'ABCfooXYZ');
@@ -158,7 +182,7 @@ suite('renameSymbolProcessor', () => {
 		].join('\n'), 'typescript', {});
 		disposables.add(model);
 		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 15) }]);
-		const result = renameInferenceEngine.inferRename(model, new Range(1, 7, 1, 15), 'faz baz');
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 7, 1, 15), 'faz baz', wordPattern);
 		assert.ok(result === undefined);
 	});
 
@@ -168,7 +192,7 @@ suite('renameSymbolProcessor', () => {
 		].join('\n'), 'typescript', {});
 		disposables.add(model);
 		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 15) }]);
-		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 18), 'const faz baz = 1;');
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 18), 'const faz baz = 1;', wordPattern);
 		assert.ok(result === undefined);
 	});
 });

@@ -778,6 +778,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._dynamicMessageLayoutData.enabled = true;
 		}
 
+		if (this.viewModel?.editing) {
+			this.finishedEditing();
+		}
+
 		if (this.viewModel) {
 			this.viewModel.resetInputPlaceholder();
 		}
@@ -1294,7 +1298,46 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.setValue(`@${agentId} ${promptToUse}`, false);
 			this.input.focus();
 			// Auto-submit for delegated chat sessions
-			this.acceptInput();
+			this.acceptInput().then(async (response) => {
+				if (!response || !this.viewModel) {
+					return;
+				}
+
+				// Wait for response to complete without any user-pending confirmations
+				const checkForComplete = () => {
+					const items = this.viewModel?.getItems() ?? [];
+					const lastItem = items[items.length - 1];
+					if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
+						return true;
+					}
+					return false;
+				};
+
+				if (checkForComplete()) {
+					await this.clear();
+					return;
+				}
+
+				await new Promise<void>(resolve => {
+					const disposable = this.viewModel!.onDidChange(() => {
+						if (checkForComplete()) {
+							cleanup();
+							resolve();
+						}
+					});
+					const timeout = setTimeout(() => {
+						cleanup();
+						resolve();
+					}, 30000); // 30 second timeout
+					const cleanup = () => {
+						clearTimeout(timeout);
+						disposable.dispose();
+					};
+				});
+
+				// Clear parent editor
+				await this.clear();
+			}).catch(e => this.logService.error('Failed to handle handoff continueOn', e));
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
@@ -2280,6 +2323,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	layout(height: number, width: number): void {
 		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : 950); // no min width of inline chat
+
 		const heightUpdated = this.bodyDimension && this.bodyDimension.height !== height;
 		this.bodyDimension = new dom.Dimension(width, height);
 
@@ -2306,19 +2350,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.tree.layout(contentHeight, width);
 
-		// Push the welcome message down so it doesn't change position
-		// when followups, attachments, working set, todo list, or suggest next widget appear
-		let welcomeOffset = 100;
-		if (this.viewOptions.renderFollowups) {
-			welcomeOffset = Math.max(welcomeOffset - this.input.followupsHeight, 0);
-		}
-		if (this.viewOptions.enableWorkingSet) {
-			welcomeOffset = Math.max(welcomeOffset - this.input.editSessionWidgetHeight, 0);
-		}
-		welcomeOffset = Math.max(welcomeOffset - this.input.todoListWidgetHeight, 0);
-		welcomeOffset = Math.max(welcomeOffset - this.input.attachmentsHeight, 0);
-		this.welcomeMessageContainer.style.height = `${contentHeight - welcomeOffset}px`;
-		this.welcomeMessageContainer.style.paddingBottom = `${welcomeOffset}px`;
+		this.welcomeMessageContainer.style.height = `${contentHeight}px`;
 
 		this.renderer.layout(width);
 
