@@ -1662,6 +1662,57 @@ export class Repository {
 		return result.stdout;
 	}
 
+	/**
+	 * Checks if a file has partial staging (some hunks staged, some not).
+	 * Returns true if the file has BOTH staged AND unstaged changes.
+	 */
+	async isFilePartiallyStaged(relativePath: string): Promise<boolean> {
+		const path = this.sanitizeRelativePath(relativePath);
+
+		// Check for staged changes (diff between index and HEAD)
+		const stagedArgs = ['diff', '--cached', '--name-only', '--', path];
+		const stagedResult = await this.exec(stagedArgs);
+		const hasStaged = stagedResult.stdout.trim().length > 0;
+
+		// Check for unstaged changes (diff between working tree and index)
+		const unstagedArgs = ['diff', '--name-only', '--', path];
+		const unstagedResult = await this.exec(unstagedArgs);
+		const hasUnstaged = unstagedResult.stdout.trim().length > 0;
+
+		// Partially staged = has BOTH staged AND unstaged changes
+		return hasStaged && hasUnstaged;
+	}
+
+	/**
+	 * Checks if a file is tracked by git using ls-files.
+	 * More robust than relying on extension state which may have timing issues.
+	 */
+	async isTracked(relativePath: string): Promise<boolean> {
+		try {
+			const path = this.sanitizeRelativePath(relativePath);
+			await this.exec(['ls-files', '--error-unmatch', '--', path]);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * Removes file from git index only (keeps the file on disk).
+	 * Equivalent to: git rm --cached <path>
+	 */
+	async rmCached(paths: string[]): Promise<void> {
+		if (!paths.length) {
+			return;
+		}
+
+		const args = ['rm', '--cached', '--'];
+
+		for (const chunk of splitInChunks(paths.map(p => this.sanitizeRelativePath(p)), MAX_CLI_LENGTH)) {
+			await this.exec([...args, ...chunk]);
+		}
+	}
+
 	async diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat> {
 		return this.diffFilesShortStat(undefined, { cached: true, path });
 	}
