@@ -840,6 +840,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	private config: IFilesConfiguration;
 	private configListener: IDisposable;
 	private compressedNavigationControllers = new Map<ExplorerItem, CompressedNavigationController[]>();
+	private focusedItemAncestorUris = new Set<string>();
 
 	private _onDidChangeActiveDescendant = new EventMultiplexer<void>();
 	readonly onDidChangeActiveDescendant = this._onDidChangeActiveDescendant.event;
@@ -876,6 +877,17 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		});
 
 		updateOffsetStyles();
+	}
+
+	setFocusedItem(item: ExplorerItem | undefined): Set<string> {
+		const previous = this.focusedItemAncestorUris;
+		this.focusedItemAncestorUris = new Set<string>();
+		let parent = item?.parent;
+		while (parent) {
+			this.focusedItemAncestorUris.add(parent.resource.toString());
+			parent = parent.parent;
+		}
+		return previous;
 	}
 
 	getWidgetAriaLabel(): string {
@@ -1004,6 +1016,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const extraClasses = ['explorer-item'];
 		if (this.explorerService.isCut(stat)) {
 			extraClasses.push('cut');
+		}
+		if (this.focusedItemAncestorUris.has(stat.resource.toString())) {
+			extraClasses.push('explorer-item-focus-ancestor');
 		}
 
 		// Offset nested children unless folders have both chevrons and icons, otherwise alignment breaks
