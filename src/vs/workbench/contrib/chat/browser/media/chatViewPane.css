@@ -29,6 +29,9 @@
 
 	.interactive-session {
 
+		/* needed so that the session does not overflow */
+		width: 100%;
+
 		.chat-welcome-view-container {
 
 			/* Show welcome right below sessions control */
