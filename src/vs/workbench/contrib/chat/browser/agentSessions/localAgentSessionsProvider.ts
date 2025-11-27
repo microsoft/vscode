@@ -162,6 +162,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 				const sessionItem = this.toChatSessionItem(history);
 				return sessionItem ? {
 					...sessionItem,
+					//todo@bpasero comment
 					history: true
 				} : undefined;
 			}));
