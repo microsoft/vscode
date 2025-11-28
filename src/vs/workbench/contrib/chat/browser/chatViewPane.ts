@@ -333,9 +333,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const newSessionsContainerVisible =
 			this.configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewRecentSessionsEnabled) &&	// enabled in settings
-			(!this._widget || this._widget?.isEmpty()) &&													// chat widget empty
-			!this.welcomeController?.isShowingWelcome.get() &&												// welcome not showing
-			this.sessionsCount > 0;																			// has sessions
+			(!this._widget || this._widget?.isEmpty()) &&															// chat widget empty
+			!this.welcomeController?.isShowingWelcome.get() &&														// welcome not showing
+			this.sessionsCount > 0;																					// has sessions
 
 		this.viewPaneContainer.classList.toggle('has-sessions-control', newSessionsContainerVisible);
 

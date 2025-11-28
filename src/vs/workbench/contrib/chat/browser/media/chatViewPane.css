@@ -18,11 +18,11 @@
 		background-color: var(--vscode-editorWidget-background);
 
 		.agent-sessions-title-container {
-			padding: 8px;
 			font-size: 11px;
 			text-transform: uppercase;
 			letter-spacing: 0.5px;
 			color: var(--vscode-descriptionForeground);
+			padding: 8px;
 		}
 
 		.agent-sessions-link-container {
