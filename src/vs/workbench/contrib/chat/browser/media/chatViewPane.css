@@ -13,16 +13,28 @@
 	.agent-sessions-container {
 		display: flex;
 		flex-direction: column;
-		padding: 4px 8px 32px 8px;
+		margin: 12px 16px 32px 16px;
+		border-radius: 4px;
+		background-color: var(--vscode-editorWidget-background);
 
-		.agent-sessions-viewer .monaco-list .monaco-list-row {
-			border-radius: 3px;
+		.agent-sessions-title-container {
+			font-size: 11px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			color: var(--vscode-descriptionForeground);
+			padding: 8px;
 		}
 
 		.agent-sessions-link-container {
-			padding: 4px 12px;
+			padding-bottom: 8px;
 			font-size: 12px;
 			text-align: center;
+		}
+
+		.agent-sessions-link-container a:hover,
+		.agent-sessions-link-container a:active {
+			text-decoration: none;
+			color: var(--vscode-textLink-foreground);
 		}
 	}
 
