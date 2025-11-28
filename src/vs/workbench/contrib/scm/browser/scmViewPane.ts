@@ -2437,14 +2437,7 @@ export class SCMViewPane extends ViewPane {
 					// History Item Group, History Item, or History Item Change
 					return (viewState?.expanded ?? []).indexOf(getSCMResourceId(e as TreeElement)) === -1;
 				},
-				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
-				twistieAdditionalCssClass: (e: unknown) => {
-					if (isSCMActionButton(e) || isSCMInput(e)) {
-						return 'force-no-twistie';
-					}
-
-					return undefined;
-				},
+				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
 			}) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 
 		this.disposables.add(this.tree);
