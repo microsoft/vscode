@@ -24,8 +24,9 @@ import { TestExtensionService, TestStorageService } from '../../../../test/commo
 import { ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatModel, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, normalizeSerializableChatData, Response } from '../../common/chatModel.js';
 import { ChatRequestTextPart } from '../../common/chatParserTypes.js';
-import { IChatToolInvocation } from '../../common/chatService.js';
+import { IChatService, IChatToolInvocation } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
+import { MockChatService } from './mockChatService.js';
 
 suite('ChatModel', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,6 +41,7 @@ suite('ChatModel', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatService, new MockChatService());
 	});
 
 	test('removeRequest', async () => {
@@ -267,6 +269,7 @@ suite('ChatResponseModel', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatService, new MockChatService());
 	});
 
 	test('timestamp and confirmationAdjustedTimestamp', async () => {
