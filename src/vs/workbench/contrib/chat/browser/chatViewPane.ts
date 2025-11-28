@@ -24,7 +24,7 @@ import { Link } from '../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { editorBackground, editorWidgetBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../common/memento.js';
@@ -294,13 +294,16 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				notifyResults(count: number) {
 					that.notifySessionsControlChanged(count);
 				}
+			},
+			overrideStyles: {
+				listBackground: editorWidgetBackground
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));
 
 		// Link to Sessions View
 		this.sessionsLinkContainer = append(sessionsContainer, $('.agent-sessions-link-container'));
-		this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, { label: localize('openAgentSessionsView', "View All Sessions"), href: '', }, {
+		this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, { label: localize('openAgentSessionsView', "Show all sessions"), href: '', }, {
 			opener: () => this.instantiationService.invokeFunction(openAgentSessionsView)
 		}));
 	}
