@@ -653,17 +653,7 @@ export class InlineEditsView extends Disposable {
 	}
 }
 
-const emptyViewData: InlineCompletionViewData = {
-	cursorColumnDistance: -1,
-	cursorLineDistance: -1,
-	lineCountOriginal: -1,
-	lineCountModified: -1,
-	characterCountOriginal: -1,
-	characterCountModified: -1,
-	disjointReplacements: -1,
-	sameShapeReplacements: true,
-};
-
+const emptyViewData = new InlineCompletionViewData(-1, -1, -1, -1, -1, -1, -1, true);
 function getViewData(inlineEdit: InlineEditWithChanges, stringChanges: { originalRange: Range; modifiedRange: Range; original: string; modified: string }[], textModel: ITextModel) {
 	if (!inlineEdit.edit) {
 		return emptyViewData;
