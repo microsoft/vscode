@@ -2,6 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+function engineSupportsImplicitActivation(engineRange: string | undefined): boolean {
+    if (!engineRange) return false;
+
+    const semver = require('semver');
+    return semver.intersects(engineRange, '>=1.75.0');
+}
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -165,6 +171,9 @@ export class ExtensionLinter {
 						const isImplicitActivationSupported = info.engineVersion && info.engineVersion?.majorBase >= 1 && info.engineVersion?.minorBase >= 75;
 						// Redundant Implicit Activation
 						if (info.implicitActivationEvents?.has(activationEvent) && redundantImplicitActivationEventPrefixes.some((prefix) => activationEvent.startsWith(prefix))) {
+							if (!isImplicitActivationSupported) {
+								   continue;
+							   }
 							const start = document.positionAt(activationEventNode.offset);
 							const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
 							const message = isImplicitActivationSupported ? redundantImplicitActivationEvent : bumpEngineForImplicitActivationEvents;
