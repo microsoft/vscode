@@ -52,10 +52,7 @@
 			align-items: flex-start;
 
 			.agent-session-icon {
-				margin-top: 1px;
 				flex-shrink: 0;
-				width: 20px;
-				height: 20px;
 				font-size: 16px;
 			}
 		}
