@@ -300,7 +300,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Link to Sessions View
 		this.sessionsLinkContainer = append(sessionsContainer, $('.agent-sessions-link-container'));
-		this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, { label: localize('openAgentSessionsView', "Show All Sessions"), href: '', }, {
+		this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, { label: localize('openAgentSessionsView', "View All Sessions"), href: '', }, {
 			opener: () => this.instantiationService.invokeFunction(openAgentSessionsView)
 		}));
 	}
