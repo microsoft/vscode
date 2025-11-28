@@ -723,7 +723,9 @@ export class View extends ViewEventHandler {
 			widgetData.position?.preference ?? null,
 			widgetData.position?.positionAffinity ?? null
 		);
-		this._scheduleRender();
+		if (this._contentWidgets.shouldRender()) {
+			this._scheduleRender();
+		}
 	}
 
 	public removeContentWidget(widgetData: IContentWidgetData): void {

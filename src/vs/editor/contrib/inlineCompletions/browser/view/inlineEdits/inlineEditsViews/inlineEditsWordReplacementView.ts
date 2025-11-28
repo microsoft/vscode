@@ -10,8 +10,9 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
-import { editorBackground, editorHoverBorder, editorHoverForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { editorBackground, editorHoverForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
@@ -23,7 +24,7 @@ import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getModifiedBorderColor, getOriginalBorderColor, modifiedChangedTextOverlayColor, originalChangedTextOverlayColor } from '../theme.js';
+import { getModifiedBorderColor, getOriginalBorderColor, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
 import { getEditorValidOverlayRect, mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 const BORDER_WIDTH = 1;
@@ -53,6 +54,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		private readonly _rename: boolean,
 		protected readonly _tabAction: IObservable<InlineEditTabAction>,
 		@ILanguageService private readonly _languageService: ILanguageService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 		this._onDidClick = this._register(new Emitter<IMouseEvent>());
@@ -141,6 +143,8 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 				const originalBorderColor = getOriginalBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
 				const modifiedBorderColor = getModifiedBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
+				const renameBorderColor = observeColor(editorHoverForeground, this._themeService).map(c => c.transparent(0.5).toString()).read(reader);
+				this._line.style.lineHeight = `${layout.read(reader).modifiedLine.height + 2 * BORDER_WIDTH}px`;
 
 				return [
 					n.div({
@@ -208,11 +212,10 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								}
 								return n.div({
 									style: {
-										fontFamily: this._editor.getOption(EditorOption.fontFamily),
-										fontSize: this._editor.getOption(EditorOption.fontSize),
-										fontWeight: this._editor.getOption(EditorOption.fontWeight),
 										borderRadius: '0 4px 4px 0',
-										border: `${BORDER_WIDTH}px solid ${asCssVariable(editorHoverBorder)}`,
+										borderTop: `${BORDER_WIDTH}px solid ${renameBorderColor}`,
+										borderRight: `${BORDER_WIDTH}px solid ${renameBorderColor}`,
+										borderBottom: `${BORDER_WIDTH}px solid ${renameBorderColor}`,
 										display: 'flex',
 										justifyContent: 'center',
 										alignItems: 'center',

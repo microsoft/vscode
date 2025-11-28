@@ -11,23 +11,28 @@ import Severity from '../../../../../base/common/severity.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
-import { ExtensionUrlHandlerOverrideRegistry } from '../../../../services/extensions/browser/extensionUrlHandler.js';
+import { ExtensionUrlHandlerOverrideRegistry, IExtensionUrlHandlerOverride } from '../../../../services/extensions/browser/extensionUrlHandler.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
@@ -35,21 +40,16 @@ import { ILifecycleService } from '../../../../services/lifecycle/common/lifecyc
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatModeService } from '../../common/chatModes.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../actions/chatActions.js';
-import { ChatViewContainerId, IChatWidgetService } from '../chat.js';
-import { IEnvironmentService } from '../../../../../platform/environment/common/environment.js';
-import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
-import { IMarkerService } from '../../../../../platform/markers/common/markers.js';
-import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { AGENT_SESSIONS_VIEW_CONTAINER_ID } from '../agentSessions/agentSessions.js';
-import { ChatSetupController } from './chatSetupController.js';
-import { ChatSetup } from './chatSetupRunner.js';
-import { SetupAgent, AINewSymbolNamesProvider, ChatCodeActionsProvider, AICodeActionsHelper } from './chatSetupProviders.js';
+import { ChatViewContainerId, IChatWidgetService } from '../chat.js';
+import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
 import { ChatSetupAnonymous } from './chatSetup.js';
+import { ChatSetupController } from './chatSetupController.js';
+import { AICodeActionsHelper, AINewSymbolNamesProvider, ChatCodeActionsProvider, SetupAgent } from './chatSetupProviders.js';
+import { ChatSetup } from './chatSetupRunner.js';
 
 const defaultChat = {
 	chatExtensionId: product.defaultChatAgent?.chatExtensionId ?? '',
@@ -64,12 +64,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	static readonly ID = 'workbench.contrib.chatSetup';
 
 	constructor(
-		@IProductService private readonly productService: IProductService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ICommandService private readonly commandService: ICommandService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
-		@IChatModeService private readonly chatModeService: IChatModeService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
@@ -200,7 +196,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; inputValue?: string }): Promise<boolean> {
 				const widgetService = accessor.get(IChatWidgetService);
 				const instantiationService = accessor.get(IInstantiationService);
 				const dialogService = accessor.get(IDialogService);
@@ -214,6 +210,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				if (mode) {
 					const chatWidget = await widgetService.revealWidget();
 					chatWidget?.input.setChatMode(mode);
+				}
+
+				if (options?.inputValue) {
+					const chatWidget = await widgetService.revealWidget();
+					chatWidget?.setInput(options.inputValue);
 				}
 
 				const setup = ChatSetup.getInstance(instantiationService, context, controller);
@@ -543,34 +544,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerUrlLinkHandler(): void {
-		this._register(ExtensionUrlHandlerOverrideRegistry.registerHandler({
-			canHandleURL: url => {
-				return url.scheme === this.productService.urlProtocol && equalsIgnoreCase(url.authority, defaultChat.chatExtensionId);
-			},
-			handleURL: async url => {
-				const params = new URLSearchParams(url.query);
-				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
-
-				const agentParam = params.get('agent') ?? params.get('mode');
-				if (agentParam) {
-					const agents = this.chatModeService.getModes();
-					const allAgents = [...agents.builtin, ...agents.custom];
-
-					// check if the given param is a valid mode ID
-					let foundAgent = allAgents.find(agent => agent.id === agentParam);
-					if (!foundAgent) {
-						// if not, check if the given param is a valid mode name, note the parameter as name is case insensitive
-						const nameLower = agentParam.toLowerCase();
-						foundAgent = allAgents.find(agent => agent.name.get().toLowerCase() === nameLower);
-					}
-					// execute the command to change the mode in panel, note that the command only supports mode IDs, not names
-					await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, foundAgent?.id);
-					return true;
-				}
-
-				return false;
-			}
-		}));
+		this._register(ExtensionUrlHandlerOverrideRegistry.registerHandler(this.instantiationService.createInstance(ChatSetupExtensionUrlHandler)));
 	}
 
 	private async checkExtensionInstallation(context: ChatEntitlementContext): Promise<void> {
@@ -613,6 +587,48 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			context.update({ installed, disabled, untrusted });
 		}));
+	}
+}
+
+class ChatSetupExtensionUrlHandler implements IExtensionUrlHandlerOverride {
+	constructor(
+		private readonly productService: IProductService,
+		private readonly commandService: ICommandService,
+		private readonly telemetryService: ITelemetryService,
+		private readonly chatModeService: IChatModeService,
+	) { }
+
+	canHandleURL(url: URI): boolean {
+		return url.scheme === this.productService.urlProtocol && equalsIgnoreCase(url.authority, defaultChat.chatExtensionId);
+	}
+
+	async handleURL(url: URI): Promise<boolean> {
+		const params = new URLSearchParams(url.query);
+		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'url', detail: params.get('referrer') ?? undefined });
+
+		const agentParam = params.get('agent') ?? params.get('mode');
+		const inputParam = params.get('prompt');
+		if (!agentParam && !inputParam) {
+			return false;
+		}
+
+		const agentId = agentParam ? this.resolveAgentId(agentParam) : undefined;
+		await this.commandService.executeCommand(CHAT_SETUP_ACTION_ID, agentId, inputParam ? { inputValue: inputParam } : undefined);
+		return true;
+	}
+
+	private resolveAgentId(agentParam: string): string | undefined {
+		const agents = this.chatModeService.getModes();
+		const allAgents = [...agents.builtin, ...agents.custom];
+
+		const foundAgent = allAgents.find(agent => agent.id === agentParam);
+		if (foundAgent) {
+			return foundAgent.id;
+		}
+
+		const nameLower = agentParam.toLowerCase();
+		const agentByName = allAgents.find(agent => agent.name.get().toLowerCase() === nameLower);
+		return agentByName?.id;
 	}
 }
 

@@ -51,7 +51,12 @@ export class LongDistancePreviewEditor extends Disposable {
 		this._parentEditorObs = observableCodeEditor(this._parentEditor);
 
 		this._register(autorun(reader => {
-			this.previewEditor.setModel(this._state.read(reader)?.textModel || null);
+			const tm = this._state.read(reader)?.textModel || null;
+
+			if (tm) {
+				// Avoid transitions from tm -> null -> tm, where tm -> tm would be a no-op.
+				this.previewEditor.setModel(tm);
+			}
 		}));
 
 		this._previewEditorObs = observableCodeEditor(this.previewEditor);
@@ -140,7 +145,7 @@ export class LongDistancePreviewEditor extends Disposable {
 					bracketPairsHorizontal: false,
 					highlightActiveIndentation: false,
 				},
-
+				editContext: false, // is a bit faster
 				rulers: [],
 				padding: { top: 0, bottom: 0 },
 				//folding: false,
