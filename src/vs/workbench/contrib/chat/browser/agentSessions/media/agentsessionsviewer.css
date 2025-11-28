@@ -57,10 +57,6 @@
 				width: 20px;
 				height: 20px;
 				font-size: 16px;
-
-				&.codicon-terminal {
-					font-size: 15px; /* TODO@bpasero remove once we settle on icon */
-				}
 			}
 		}
 
