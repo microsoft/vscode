@@ -2355,6 +2355,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.layout(contentHeight, width);
 
 		this.welcomeMessageContainer.style.height = `${contentHeight}px`;
+		if (this.welcomePart.value) {
+			if (contentHeight >= this.welcomePart.value.element.offsetHeight) {
+				this.welcomePart.value.element.style.visibility = 'visible';
+			} else {
+				this.welcomePart.value.element.style.visibility = 'hidden';
+			}
+		}
 
 		this.renderer.layout(width);
 

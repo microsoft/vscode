@@ -54,6 +54,8 @@ export type InlineCompletionEndOfLifeEvent = {
 	characterCountModified: number | undefined;
 	disjointReplacements: number | undefined;
 	sameShapeReplacements: boolean | undefined;
+	longDistanceHintVisible: boolean | undefined;
+	longDistanceHintDistance: number | undefined;
 	// empty
 	noSuggestionReason: string | undefined;
 	// shape
@@ -101,6 +103,8 @@ type InlineCompletionsEndOfLifeClassification = {
 	characterCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the modified text' };
 	disjointReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inner replacements made by the inline completion' };
 	sameShapeReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether all inner replacements are the same shape' };
+	longDistanceHintVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a long distance hint was rendered' };
+	longDistanceHintDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The distance in lines between the long distance hint and the inline edit' };
 	noSuggestionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why no inline completion was provided' };
 	notShownReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why the inline completion was not shown' };
 	performanceMarkers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Performance markers for the inline completion lifecycle' };
