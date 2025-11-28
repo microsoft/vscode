@@ -64,19 +64,38 @@ export class DiagnosticsContribution extends Disposable implements IWorkbenchCon
 		@IFileService private readonly fileService: IFileService
 	) {
 		super();
-		this.initialize();
+		// Initialize asynchronously - errors are handled within initialize()
+		this.initialize().catch(() => {
+			// Errors are already handled in initialize(), this just prevents unhandled promise rejections
+		});
 	}
 
 	private async initialize(): Promise<void> {
 		if (await this.isVSCodeRepository()) {
+			// Check if disposed before registering status bar item
+			if (this._store.isDisposed) {
+				return;
+			}
+
 			this.registerStatusBarItem();
 
-			const results = await this.diagnosticsService.runDiagnostics();
-			this.updateStatusBar(results);
+			try {
+				const results = await this.diagnosticsService.runDiagnostics();
+				// Check again before updating status bar
+				if (!this._store.isDisposed) {
+					this.updateStatusBar(results);
+				}
+			} catch (error) {
+				// If initial diagnostics fail, status bar will show initial state
+				// Subsequent runs via onDidChangeResults will update it
+			}
 
-			this._register(this.diagnosticsService.onDidChangeResults((results) => {
-				this.updateStatusBar(results);
-			}));
+			// Check again before registering event listener
+			if (!this._store.isDisposed) {
+				this._register(this.diagnosticsService.onDidChangeResults((results) => {
+					this.updateStatusBar(results);
+				}));
+			}
 		}
 	}
 
@@ -102,23 +121,32 @@ export class DiagnosticsContribution extends Disposable implements IWorkbenchCon
 				}
 			}
 		} catch {
+			// If we can't read or parse package.json, it's not the VS Code repo
 		}
 
-		return true;
+		return false;
 	}
 
 	private registerStatusBarItem(): void {
+		// Dispose any existing entry before creating a new one (defensive programming)
+		if (this.statusBarEntry) {
+			this.statusBarEntry.dispose();
+		}
 		this.statusBarEntry = this.statusbarService.addEntry({
 			name: localize('diagnostics.statusBar.name', 'Environment Diagnostics'),
 			text: '$(check)',
 			tooltip: localize('diagnostics.statusBar.tooltip.allPass', 'Environment diagnostics: All checks passed'),
-			command: 'workbench.actions.view.diagnostics',
+			command: {
+				id: 'workbench.actions.view.diagnostics',
+				title: localize('diagnostics.statusBar.command', 'Open Environment Diagnostics'),
+				arguments: []
+			},
 			ariaLabel: localize('diagnostics.statusBar.ariaLabel', 'Environment Diagnostics')
 		}, DIAGNOSTICS_STATUS_BAR_ID, StatusbarAlignment.RIGHT, 100);
 	}
 
 	private updateStatusBar(results: DiagnosticResult[]): void {
-		if (!this.statusBarEntry) {
+		if (!this.statusBarEntry || this._store.isDisposed) {
 			return;
 		}
 
@@ -131,6 +159,11 @@ export class DiagnosticsContribution extends Disposable implements IWorkbenchCon
 				name: localize('diagnostics.statusBar.name', 'Environment Diagnostics'),
 				text: '$(check)',
 				tooltip: localize('diagnostics.statusBar.tooltip.allPass', 'Environment diagnostics: All checks passed'),
+				command: {
+					id: 'workbench.actions.view.diagnostics',
+					title: localize('diagnostics.statusBar.command', 'Open Environment Diagnostics'),
+					arguments: []
+				},
 				ariaLabel: localize('diagnostics.statusBar.ariaLabel', 'Environment Diagnostics')
 			});
 		} else {
@@ -138,9 +171,20 @@ export class DiagnosticsContribution extends Disposable implements IWorkbenchCon
 				name: localize('diagnostics.statusBar.name', 'Environment Diagnostics'),
 				text: '$(warning)',
 				tooltip: localize('diagnostics.statusBar.tooltip.issues', 'Environment diagnostics: {0} issue{1} found', issueCount, issueCount === 1 ? '' : 's'),
+				command: {
+					id: 'workbench.actions.view.diagnostics',
+					title: localize('diagnostics.statusBar.command', 'Open Environment Diagnostics'),
+					arguments: []
+				},
 				ariaLabel: localize('diagnostics.statusBar.ariaLabel', 'Environment Diagnostics')
 			});
 		}
+	}
+
+	override dispose(): void {
+		this.statusBarEntry?.dispose();
+		this.statusBarEntry = undefined;
+		super.dispose();
 	}
 }
 

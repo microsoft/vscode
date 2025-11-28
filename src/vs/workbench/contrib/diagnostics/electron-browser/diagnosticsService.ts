@@ -12,6 +12,7 @@ import type { DiagnosticResult, DiagnosticCheckId } from '../common/diagnosticsT
 import { getPathLengthLimit, DIAGNOSTIC_CHECK_IDS } from '../common/diagnosticsConstants.js';
 import { IDiagnosticsService } from '../common/diagnosticsService.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
+import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import * as path from '../../../../base/common/path.js';
 
 export class DiagnosticsService extends Disposable implements IDiagnosticsService {
@@ -71,6 +72,18 @@ export class DiagnosticsService extends Disposable implements IDiagnosticsServic
 	}
 
 	private async checkPathLength(): Promise<DiagnosticResult> {
+		// Check if process.env is available (not available in browser contexts)
+		if (typeof process === 'undefined' || !process.env) {
+			return {
+				id: 'pathLength',
+				name: localize('diagnostics.pathLength.name', 'PATH Length'),
+				status: 'unknown',
+				message: localize('diagnostics.pathLength.unknown', 'Unable to check PATH length'),
+				error: 'process.env is not available in this environment',
+				documentationLink: '#path-length-requirements'
+			};
+		}
+
 		const pathEnv = process.env.PATH || '';
 		const pathLength = pathEnv.length;
 		const limit = getPathLengthLimit();
@@ -97,13 +110,38 @@ export class DiagnosticsService extends Disposable implements IDiagnosticsServic
 	}
 
 	private async checkSymlinkSupport(): Promise<DiagnosticResult> {
-		try {
-			// Use dynamic require to access fs module at runtime (electron-browser has Node.js access)
-			const fs = require('fs') as typeof import('fs');
-			const tempDir = this.environmentService.tmpDir.fsPath;
-			const tempFile = path.join(tempDir, `vscode-diagnostics-test-${Date.now()}.tmp`);
-			const symlinkPath = path.join(tempDir, `vscode-diagnostics-symlink-${Date.now()}.tmp`);
+		// Check if require is available (not available in browser contexts)
+		if (typeof require === 'undefined') {
+			return {
+				id: 'symlinkSupport',
+				name: localize('diagnostics.symlinkSupport.name', 'Symlink Support'),
+				status: 'unknown',
+				message: localize('diagnostics.symlinkSupport.unknown', 'Unable to check symlink support'),
+				error: 'require is not available in this environment',
+				documentationLink: '#symlink-support-requirements'
+			};
+		}
 
+		// Use dynamic require to access fs module at runtime (electron-browser has Node.js access)
+		let fs: typeof import('fs');
+		try {
+			fs = require('fs') as typeof import('fs');
+		} catch (error) {
+			return {
+				id: 'symlinkSupport',
+				name: localize('diagnostics.symlinkSupport.name', 'Symlink Support'),
+				status: 'unknown',
+				message: localize('diagnostics.symlinkSupport.unknown', 'Unable to check symlink support'),
+				error: error instanceof Error ? error.message : String(error),
+				documentationLink: '#symlink-support-requirements'
+			};
+		}
+
+		const tempDir = this.environmentService.tmpDir.fsPath;
+		const tempFile = path.join(tempDir, `vscode-diagnostics-test-${Date.now()}.tmp`);
+		const symlinkPath = path.join(tempDir, `vscode-diagnostics-symlink-${Date.now()}.tmp`);
+
+		try {
 			fs.writeFileSync(tempFile, 'test');
 
 			try {
@@ -119,6 +157,14 @@ export class DiagnosticsService extends Disposable implements IDiagnosticsServic
 					documentationLink: '#symlink-support-requirements'
 				};
 			} catch (error) {
+				// Cleanup: try to remove both temp file and symlink if they exist
+				try {
+					if (fs.existsSync(symlinkPath)) {
+						fs.unlinkSync(symlinkPath);
+					}
+				} catch {
+					// Ignore cleanup errors
+				}
 				try {
 					if (fs.existsSync(tempFile)) {
 						fs.unlinkSync(tempFile);
@@ -138,6 +184,15 @@ export class DiagnosticsService extends Disposable implements IDiagnosticsServic
 				};
 			}
 		} catch (error) {
+			// Cleanup: try to remove temp file if it was created before the error
+			try {
+				if (fs.existsSync(tempFile)) {
+					fs.unlinkSync(tempFile);
+				}
+			} catch {
+				// Ignore cleanup errors
+			}
+
 			return {
 				id: 'symlinkSupport',
 				name: localize('diagnostics.symlinkSupport.name', 'Symlink Support'),
@@ -150,24 +205,28 @@ export class DiagnosticsService extends Disposable implements IDiagnosticsServic
 	}
 
 	private async checkWslDetection(): Promise<DiagnosticResult> {
-		if (!isWindows) {
+		// Check if process.env is available (not available in browser contexts)
+		if (typeof process === 'undefined' || !process.env) {
 			return {
 				id: 'wslDetection',
 				name: localize('diagnostics.wslDetection.name', 'WSL Detection'),
 				status: 'info',
-				message: localize('diagnostics.wslDetection.skip', 'WSL detection (Windows only)'),
+				message: localize('diagnostics.wslDetection.notDetected', 'Not running in WSL'),
 				documentationLink: '#wsl-detection'
 			};
 		}
 
-		let isWSL = process.env.WSL_DISTRO_NAME !== undefined ||
-			process.env.WSLENV !== undefined ||
-			(process.env.PATH?.includes('Windows\\System32\\wsl.exe') ?? false);
+		// Check if VS Code is running inside WSL
+		// WSL_DISTRO_NAME is set when running inside WSL (since WSL builds 18362)
+		// WSLENV is also set in WSL environments (since WSL build 17063)
+		let isWSL = process.env.WSL_DISTRO_NAME !== undefined || process.env.WSLENV !== undefined;
 
-		if (!isWSL) {
-			// Use dynamic require to access fs module at runtime
-			const fs = require('fs') as typeof import('fs');
+		// If environment variables don't indicate WSL, check /proc/version (only exists in Linux/WSL)
+		// This check only works on Linux (including WSL), not on Windows
+		if (!isWSL && !isWindows) {
 			try {
+				// Use dynamic require to access fs module at runtime
+				const fs = require('fs') as typeof import('fs');
 				if (fs.existsSync('/proc/version')) {
 					const procVersion = fs.readFileSync('/proc/version', 'utf8');
 					isWSL = procVersion.toLowerCase().includes('microsoft');
@@ -204,7 +263,12 @@ export class DiagnosticsService extends Disposable implements IDiagnosticsServic
 				return localize('diagnostics.symlinkSupport.name', 'Symlink Support');
 			case 'wslDetection':
 				return localize('diagnostics.wslDetection.name', 'WSL Detection');
+			default:
+				// This should never happen due to TypeScript exhaustiveness checking
+				return String(checkId);
 		}
 	}
 }
+
+registerSingleton(IDiagnosticsService, DiagnosticsService, InstantiationType.Delayed);
 

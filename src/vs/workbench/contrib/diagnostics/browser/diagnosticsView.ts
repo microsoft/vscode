@@ -19,15 +19,17 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { append, $, clearNode } from '../../../../base/browser/dom.js';
+import { append, $, clearNode, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { assertNever } from '../../../../base/common/assert.js';
 import type { DiagnosticResult } from '../common/diagnosticsTypes.js';
 
 export class DiagnosticsView extends ViewPane {
 	private readonly resultsContainer: HTMLElement;
 	private readonly disposables = this._register(new DisposableStore());
+	private readonly resultItemDisposables = this._register(new DisposableStore());
 	private isRefreshing = false;
 
 	constructor(
@@ -63,11 +65,12 @@ export class DiagnosticsView extends ViewPane {
 
 	private updateResults(): void {
 		clearNode(this.resultsContainer);
+		this.resultItemDisposables.clear();
 		const results = this.diagnosticsService.getResults();
 
 		if (results.length === 0) {
 			const emptyMessage = append(this.resultsContainer, $('.diagnostics-empty'));
-			emptyMessage.textContent = localize('diagnostics.empty', 'No diagnostic results available. Click refresh to run checks.');
+			emptyMessage.textContent = localize('diagnostics.empty', 'No diagnostic results available. Checks run automatically when the workspace opens.');
 			return;
 		}
 
@@ -98,6 +101,8 @@ export class DiagnosticsView extends ViewPane {
 				icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 				icon.style.color = 'var(--vscode-textLink-foreground)';
 				break;
+			default:
+				assertNever(result.status);
 		}
 
 		const content = append(item, $('.diagnostics-content'));
@@ -121,10 +126,10 @@ export class DiagnosticsView extends ViewPane {
 			const link = append(content, $('a.diagnostics-link')) as HTMLAnchorElement;
 			link.textContent = localize('diagnostics.viewDocumentation', 'View Documentation');
 			link.href = '#';
-			link.onclick = (e) => {
+			this.resultItemDisposables.add(addDisposableListener(link, EventType.CLICK, (e) => {
 				e.preventDefault();
 				this.openDocumentation(result.documentationLink!);
-			};
+			}));
 		}
 
 		return item;
@@ -137,10 +142,14 @@ export class DiagnosticsView extends ViewPane {
 			return;
 		}
 
-		const contributingUri = URI.joinPath(workspaceRoot, 'CONTRIBUTING.md');
-		const fragment = anchor.startsWith('#') ? anchor.slice(1) : anchor;
-		const uri = contributingUri.with({ fragment });
-		await this.openerService.open(uri);
+		try {
+			const contributingUri = URI.joinPath(workspaceRoot, 'CONTRIBUTING.md');
+			const fragment = anchor.startsWith('#') ? anchor.slice(1) : anchor;
+			const uri = contributingUri.with({ fragment });
+			await this.openerService.open(uri);
+		} catch (error) {
+			// Silently fail - openerService should handle most errors, but catch any unexpected ones
+		}
 	}
 
 	async refresh(): Promise<void> {
@@ -150,14 +159,18 @@ export class DiagnosticsView extends ViewPane {
 
 		this.isRefreshing = true;
 
-		await this.progressService.withProgress(
-			{ location: ProgressLocation.Window },
-			async () => {
-				await this.diagnosticsService.runDiagnostics();
-			}
-		);
-
-		this.isRefreshing = false;
+		try {
+			await this.progressService.withProgress(
+				{ location: ProgressLocation.Window },
+				async () => {
+					await this.diagnosticsService.runDiagnostics();
+				}
+			);
+		} catch (error) {
+			// Error is already logged by diagnosticsService, just ensure isRefreshing is reset
+		} finally {
+			this.isRefreshing = false;
+		}
 	}
 }
 
