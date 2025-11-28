@@ -10,7 +10,7 @@
 
 	.agent-sessions-new-session-container {
 		padding: 6px 12px;
-		flex: 0 0 auto !important;
+		flex: 0 0 auto;
 	}
 
 	.agent-sessions-new-session-container .monaco-dropdown-button {

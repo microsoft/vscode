@@ -5,7 +5,7 @@
 
 .agent-sessions-viewer {
 
-	flex: 1 1 auto !important;
+	flex: 1 1 auto;
 	min-height: 0;
 
 	.monaco-list-row .force-no-twistie {
@@ -107,6 +107,10 @@
 		.agent-session-status {
 			padding: 0 4px 0 8px; /* to align with diff area above */
 			font-variant-numeric: tabular-nums;
+
+			/* In case the changes toolbar to the left is greedy, we give up space */
+			overflow: hidden;
+			text-overflow: ellipsis;
 		}
 	}
 }

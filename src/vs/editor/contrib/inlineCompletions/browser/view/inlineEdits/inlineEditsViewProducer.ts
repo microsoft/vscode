@@ -35,7 +35,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 
 		let diffEdits: TextEdit | undefined;
 
-		if (action?.kind === 'edit') {
+		if (action?.kind === 'edit' || action?.kind === 'rename') {
 			const editOffset = action.stringEdit;
 
 			const edits = editOffset.replacements.map(e => {
