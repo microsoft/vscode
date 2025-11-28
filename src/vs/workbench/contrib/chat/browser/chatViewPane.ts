@@ -266,7 +266,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.any(
 			this._widget.onDidChangeEmptyState,
 			Event.fromObservable(this.welcomeController.isShowingWelcome),
-			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EmptyChatViewSessionsEnabled))
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EmptyChatViewRecentSessionsEnabled))
 		)(() => {
 			this.sessionsControl?.clearFocus(); // improve visual appearance when switching visibility by clearing focus
 			this.notifySessionsControlChanged();
@@ -277,6 +277,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private createSessionsControl(parent: HTMLElement): void {
 		const that = this;
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
+
+		// Recent Sessions Title
+		const titleContainer = append(sessionsContainer, $('.agent-sessions-title-container'));
+		const title = append(titleContainer, $('span.agent-sessions-title'));
+		title.textContent = localize('recentSessions', "Recent Sessions");
 
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
@@ -327,7 +332,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		const newSessionsContainerVisible =
-			this.configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewSessionsEnabled) &&	// enabled in settings
+			this.configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewRecentSessionsEnabled) &&	// enabled in settings
 			(!this._widget || this._widget?.isEmpty()) &&													// chat widget empty
 			!this.welcomeController?.isShowingWelcome.get() &&												// welcome not showing
 			this.sessionsCount > 0;																			// has sessions
