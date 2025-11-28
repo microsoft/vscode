@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Barrier, DeferredPromise, Queue, raceCancellation } from '../../../../base/common/async.js';
@@ -14,7 +15,7 @@ import { Lazy } from '../../../../base/common/lazy.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { MovingAverage } from '../../../../base/common/numbers.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -1424,6 +1425,42 @@ export class InlineChatController2 implements IEditorContribution {
 			}
 		}));
 
+		const lastResponseObs = visibleSessionObs.map((session, r) => {
+			if (!session) {
+				return;
+			}
+			const lastRequest = observableFromEvent(this, session.chatModel.onDidChange, () => session.chatModel.getRequests().at(-1)).read(r);
+			return lastRequest?.response;
+		});
+
+		const lastResponseProgressObs = lastResponseObs.map((response, r) => {
+			if (!response) {
+				return;
+			}
+			return observableFromEvent(this, response.onDidChange, () => response.response.value.findLast(part => part.kind === 'progressMessage')).read(r);
+		});
+
+		this._store.add(autorun(r => {
+			const response = lastResponseObs.read(r);
+
+			if (!response?.isInProgress.read(r)) {
+				// no response or not in progress
+				this._zone.value.widget.domNode.classList.toggle('request-in-progress', false);
+				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder', "Edit, refactor, and generate code"));
+				return;
+			}
+
+			this._zone.value.widget.domNode.classList.toggle('request-in-progress', true);
+			let placeholder = response.request?.message.text;
+
+			const lastProgress = lastResponseProgressObs.read(r);
+			if (lastProgress) {
+				placeholder = renderAsPlaintext(lastProgress.content);
+			}
+			this._zone.value.widget.chatWidget.setInputPlaceholder(placeholder || localize('loading', "Working..."));
+
+		}));
+
 		this._store.add(autorun(r => {
 			const session = visibleSessionObs.read(r);
 			if (!session) {
@@ -1434,16 +1471,8 @@ export class InlineChatController2 implements IEditorContribution {
 			if (entry?.state.read(r) === ModifiedFileEntryState.Modified) {
 				entry?.enableReviewModeUntilSettled();
 			}
-
-			const inProgress = session.chatModel.requestInProgress.read(r);
-			this._zone.value.widget.domNode.classList.toggle('request-in-progress', inProgress);
-			if (!inProgress) {
-				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder', "Edit, refactor, and generate code"));
-			} else {
-				const prompt = session.chatModel.getRequests().at(-1)?.message.text;
-				this._zone.value.widget.chatWidget.setInputPlaceholder(prompt || localize('loading', "Working..."));
-			}
 		}));
+
 
 		this._store.add(autorun(r => {
 
