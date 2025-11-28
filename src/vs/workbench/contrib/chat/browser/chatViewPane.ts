@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewPane.css';
-import { $, append, getWindow, isVisible, setVisibility } from '../../../../base/browser/dom.js';
+import { $, append, getWindow, setVisibility } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
@@ -306,22 +306,21 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private notifySessionsControlChanged(newSessionsCount?: number): void {
-		const changedCount = typeof newSessionsCount === 'number' && newSessionsCount !== this.sessionsCount;
+		const countChanged = typeof newSessionsCount === 'number' && newSessionsCount !== this.sessionsCount;
 		this.sessionsCount = newSessionsCount ?? this.sessionsCount;
 
-		const changedVisibility = this.updateSessionsControlVisibility();
-		if (!changedVisibility && !changedCount) {
-			return; // no change to render
-		}
+		const { changed: visibilityChanged, visible } = this.updateSessionsControlVisibility();
 
-		if (this.lastDimensions) {
-			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+		if (visibilityChanged || (countChanged && visible)) {
+			if (this.lastDimensions) {
+				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+			}
 		}
 	}
 
-	private updateSessionsControlVisibility(): boolean {
+	private updateSessionsControlVisibility(): { changed: boolean; visible: boolean } {
 		if (!this.sessionsContainer || !this.viewPaneContainer) {
-			return false;
+			return { changed: false, visible: false };
 		}
 
 		const newSessionsContainerVisible =
@@ -332,10 +331,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.viewPaneContainer.classList.toggle('has-sessions-control', newSessionsContainerVisible);
 
-		const sessionsContainerVisible = isVisible(this.sessionsContainer);
+		const sessionsContainerVisible = this.sessionsContainer.style.display !== 'none';
 		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
 
-		return sessionsContainerVisible !== newSessionsContainerVisible;
+		return {
+			changed: sessionsContainerVisible !== newSessionsContainerVisible,
+			visible: newSessionsContainerVisible
+		};
 	}
 
 	private createChatWidget(parent: HTMLElement): void {
