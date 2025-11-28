@@ -1443,21 +1443,29 @@ export class InlineChatController2 implements IEditorContribution {
 		this._store.add(autorun(r => {
 			const response = lastResponseObs.read(r);
 
+			this._zone.value.widget.updateInfo('');
+
 			if (!response?.isInProgress.read(r)) {
+
+				if (response?.result?.errorDetails) {
+					// ERROR case
+					this._zone.value.widget.updateInfo(`$(error) ${response.result.errorDetails.message}`);
+					alert(response.result.errorDetails.message);
+				}
+
 				// no response or not in progress
 				this._zone.value.widget.domNode.classList.toggle('request-in-progress', false);
 				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder', "Edit, refactor, and generate code"));
-				return;
-			}
 
-			this._zone.value.widget.domNode.classList.toggle('request-in-progress', true);
-			let placeholder = response.request?.message.text;
-
-			const lastProgress = lastResponseProgressObs.read(r);
-			if (lastProgress) {
-				placeholder = renderAsPlaintext(lastProgress.content);
+			} else {
+				this._zone.value.widget.domNode.classList.toggle('request-in-progress', true);
+				let placeholder = response.request?.message.text;
+				const lastProgress = lastResponseProgressObs.read(r);
+				if (lastProgress) {
+					placeholder = renderAsPlaintext(lastProgress.content);
+				}
+				this._zone.value.widget.chatWidget.setInputPlaceholder(placeholder || localize('loading', "Working..."));
 			}
-			this._zone.value.widget.chatWidget.setInputPlaceholder(placeholder || localize('loading', "Working..."));
 
 		}));
 
