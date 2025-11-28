@@ -814,7 +814,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private checkModelSupported(): void {
-		if (this._currentLanguageModel && !this.modelSupportedForDefaultAgent(this._currentLanguageModel)) {
+		if (this._currentLanguageModel && (!this.modelSupportedForDefaultAgent(this._currentLanguageModel) || !this.modelSupportedForInlineChat(this._currentLanguageModel))) {
 			this.setCurrentLanguageModelToDefault();
 		}
 	}
