@@ -269,6 +269,7 @@ suite('ChatResponseModel', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IChatService, new MockChatService());
 	});
 
 	test('timestamp and confirmationAdjustedTimestamp', async () => {
