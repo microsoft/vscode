@@ -1272,7 +1272,7 @@ export class InlineChatController2 implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
-		@IInlineChatSessionService private readonly _inlineChatSessions: IInlineChatSessionService,
+		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
@@ -1360,22 +1360,35 @@ export class InlineChatController2 implements IEditorContribution {
 
 		const editorObs = observableCodeEditor(_editor);
 
-		const sessionsSignal = observableSignalFromEvent(this, _inlineChatSessions.onDidChangeSessions);
+		const sessionsSignal = observableSignalFromEvent(this, _inlineChatSessionService.onDidChangeSessions);
 
 		this._currentSession = derived(r => {
 			sessionsSignal.read(r);
 			const model = editorObs.model.read(r);
-			const value = model && _inlineChatSessions.getSession2(model.uri);
-			return value ?? undefined;
+			const session = model && _inlineChatSessionService.getSession2(model.uri);
+			return session ?? undefined;
 		});
 
+
+		let lastSession: IInlineChatSession2 | undefined = undefined;
 
 		this._store.add(autorun(r => {
 			const session = this._currentSession.read(r);
 			if (!session) {
 				this._isActiveController.set(false, undefined);
+
+				if (lastSession && !lastSession.chatModel.hasRequests) {
+					const state = lastSession.chatModel.inputModel.state.read(undefined);
+					if (!state || (!state.inputText && state.attachments.length === 0)) {
+						lastSession.dispose();
+						lastSession = undefined;
+					}
+				}
 				return;
 			}
+
+			lastSession = session;
+
 			let foundOne = false;
 			for (const editor of codeEditorService.listCodeEditors()) {
 				if (Boolean(InlineChatController2.get(editor)?._isActiveController.read(undefined))) {
@@ -1409,11 +1422,12 @@ export class InlineChatController2 implements IEditorContribution {
 			const session = visibleSessionObs.read(r);
 			if (!session) {
 				this._zone.rawValue?.hide();
+				this._zone.value.widget.chatWidget.setModel(undefined);
 				_editor.focus();
 				ctxInlineChatVisible.reset();
 			} else {
 				ctxInlineChatVisible.set(true);
-				this._zone.value.widget.setChatModel(session.chatModel);
+				this._zone.value.widget.chatWidget.setModel(session.chatModel);
 				if (!this._zone.value.position) {
 					this._zone.value.widget.chatWidget.input.renderAttachedContext(); // TODO - fights layout bug
 					this._zone.value.show(session.initialPosition);
@@ -1537,7 +1551,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 		const uri = this._editor.getModel().uri;
 
-		const existingSession = this._inlineChatSessions.getSession2(uri);
+		const existingSession = this._inlineChatSessionService.getSession2(uri);
 		if (existingSession) {
 			await existingSession.editingSession.accept();
 			existingSession.dispose();
@@ -1545,7 +1559,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 		this._isActiveController.set(true, undefined);
 
-		const session = await this._inlineChatSessions.createSession2(this._editor, uri, CancellationToken.None);
+		const session = await this._inlineChatSessionService.createSession2(this._editor, uri, CancellationToken.None);
 
 		// ADD diagnostics
 		const entries: IChatRequestVariableEntry[] = [];
