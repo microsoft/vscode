@@ -27,6 +27,7 @@ import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { InlineChatConfigKeys } from '../../inlineChat/common/inlineChat.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
@@ -973,7 +974,7 @@ export class ChatService extends Disposable implements IChatService {
 						!commandPart &&
 						!agentSlashCommandPart &&
 						enableCommandDetection &&
-						location !== ChatAgentLocation.EditorInline &&
+						(location !== ChatAgentLocation.EditorInline || !this.configurationService.getValue(InlineChatConfigKeys.EnableV2)) &&
 						options?.modeInfo?.kind !== ChatModeKind.Agent &&
 						options?.modeInfo?.kind !== ChatModeKind.Edit &&
 						!options?.agentIdSilent
