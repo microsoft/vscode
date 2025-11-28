@@ -260,7 +260,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const sessionId = ExtHostChatSessions._sessionHandlePool++;
 		const id = sessionResource.toString();
 		const chatSession = new ExtHostChatSession(session, provider.extension, {
-			sessionId: `${id}.${sessionId}`,
 			sessionResource,
 			requestId: 'ongoing',
 			agentId: id,
