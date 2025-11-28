@@ -11,41 +11,34 @@ const perf = require('@vscode/vscode-perf');
 const VSCODE_FOLDER = path.join(__dirname, '..');
 
 async function main() {
-
 	const args = process.argv;
-	/** @type {string | undefined} */
-	let build = undefined;
+	let build;
 
-	if (args.indexOf('--help') === -1 && args.indexOf('-h') === -1) {
+	if (!args.includes('--help') && !args.includes('-h')) {
 		// get build arg from args
 		let buildArgIndex = args.indexOf('--build');
-		buildArgIndex = buildArgIndex === -1 ? args.indexOf('-b') : buildArgIndex;
+		if (buildArgIndex === -1) buildArgIndex = args.indexOf('-b');
+
 		if (buildArgIndex === -1) {
 			let runtimeArgIndex = args.indexOf('--runtime');
-			runtimeArgIndex = runtimeArgIndex === -1 ? args.indexOf('-r') : runtimeArgIndex;
+			if (runtimeArgIndex === -1) runtimeArgIndex = args.indexOf('-r');
+
 			if (runtimeArgIndex !== -1 && args[runtimeArgIndex + 1] !== 'desktop') {
 				console.error('Please provide the --build argument. It is an executable file for desktop or a URL for web');
 				process.exit(1);
 			}
 			build = getLocalCLIPath();
 		} else {
-			build = args[buildArgIndex + 1];
-			if (build !== 'insider' && build !== 'stable' && build !== 'exploration') {
-				build = getExePath(args[buildArgIndex + 1]);
-			}
+			const val = args[buildArgIndex + 1];
+			build = (val === 'insider' || val === 'stable' || val === 'exploration') ? val : getExePath(val);
 			args.splice(buildArgIndex + 1, 1);
 		}
 
-		args.push('--folder');
-		args.push(VSCODE_FOLDER);
-		args.push('--file');
-		args.push(path.join(VSCODE_FOLDER, 'package.json'));
+		// push arguments
+		args.push('--folder', VSCODE_FOLDER, '--file', path.join(VSCODE_FOLDER, 'package.json'));
 	}
 
-	if (build) {
-		args.push('--build');
-		args.push(build);
-	}
+	if (build) args.push('--build', build);
 
 	await perf.run();
 	process.exit(0);
@@ -57,9 +50,8 @@ async function main() {
  */
 function getExePath(buildPath) {
 	buildPath = path.normalize(path.resolve(buildPath));
-	if (buildPath === path.normalize(getLocalCLIPath())) {
-		return buildPath;
-	}
+	if (buildPath === path.normalize(getLocalCLIPath())) return buildPath;
+
 	let relativeExePath;
 	switch (process.platform) {
 		case 'darwin':
@@ -78,6 +70,7 @@ function getExePath(buildPath) {
 		default:
 			throw new Error('Unsupported platform.');
 	}
+
 	return buildPath.endsWith(relativeExePath) ? buildPath : path.join(buildPath, relativeExePath);
 }
 
@@ -85,7 +78,9 @@ function getExePath(buildPath) {
  * @returns {string}
  */
 function getLocalCLIPath() {
-	return process.platform === 'win32' ? path.join(VSCODE_FOLDER, 'scripts', 'code.bat') : path.join(VSCODE_FOLDER, 'scripts', 'code.sh');
+	return process.platform === 'win32'
+		? path.join(VSCODE_FOLDER, 'scripts', 'code.bat')
+		: path.join(VSCODE_FOLDER, 'scripts', 'code.sh');
 }
 
 main();
