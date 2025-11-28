@@ -330,7 +330,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				context = this.currentThinkingValue.substring(0, 1000);
 			}
 
-			const prompt = `Generate a very concise header for thinking that contains the following thoughts: ${context}. Respond with only the header text, no quotes or punctuation.`;
+			const prompt = `Summarize the following in 6-7 words: ${context}. Respond with only the summary, no quotes or punctuation. Make sure to use past tense.`;
 
 			const response = await this.languageModelsService.sendChatRequest(
 				models[0],
