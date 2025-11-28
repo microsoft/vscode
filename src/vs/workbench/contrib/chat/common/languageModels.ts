@@ -229,6 +229,23 @@ export interface ILanguageModelChatSelector {
 	readonly extension?: ExtensionIdentifier;
 }
 
+
+export function isILanguageModelChatSelector(value: unknown): value is ILanguageModelChatSelector {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const obj = value as Record<string, unknown>;
+	return (
+		(obj.name === undefined || typeof obj.name === 'string') &&
+		(obj.id === undefined || typeof obj.id === 'string') &&
+		(obj.vendor === undefined || typeof obj.vendor === 'string') &&
+		(obj.version === undefined || typeof obj.version === 'string') &&
+		(obj.family === undefined || typeof obj.family === 'string') &&
+		(obj.tokens === undefined || typeof obj.tokens === 'number') &&
+		(obj.extension === undefined || typeof obj.extension === 'object')
+	);
+}
+
 export const ILanguageModelsService = createDecorator<ILanguageModelsService>('ILanguageModelsService');
 
 export interface ILanguageModelChatMetadataAndIdentifier {
