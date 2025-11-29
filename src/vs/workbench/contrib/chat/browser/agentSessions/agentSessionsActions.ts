@@ -97,7 +97,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentSession.unarchive',
 			title: localize('unarchive', "Unarchive"),
-			icon: Codicon.discard,
+			icon: Codicon.inbox,
 			menu: {
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',

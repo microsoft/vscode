@@ -358,10 +358,10 @@ configurationRegistry.registerConfiguration({
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
 		},
-		[ChatConfiguration.EmptyChatViewSessionsEnabled]: {
+		[ChatConfiguration.EmptyChatViewRecentSessionsEnabled]: { // TODO@bpasero decide on a default
 			type: 'boolean',
 			default: product.quality !== 'stable',
-			description: nls.localize('chat.emptyState.sessions.enabled', "Show agent sessions on the empty chat state."),
+			description: nls.localize('chat.emptyState.sessions.enabled', "Show recent agent sessions on the empty chat state."),
 			tags: ['preview', 'experimental'],
 			experiment: {
 				mode: 'auto'

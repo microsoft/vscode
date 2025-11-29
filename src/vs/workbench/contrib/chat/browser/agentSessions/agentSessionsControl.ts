@@ -32,8 +32,11 @@ import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js'
 import { distinct } from '../../../../../base/common/arrays.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
+import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
 
 export interface IAgentSessionsControlOptions {
+	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly filter?: IAgentSessionsFilter;
 	readonly allowNewSessionFromEmptySpace?: boolean;
 	readonly allowOpenSessionsInPanel?: boolean;
@@ -102,6 +105,7 @@ export class AgentSessionsControl extends Disposable {
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter,
+				overrideStyles: this.options?.overrideStyles,
 				paddingBottom: this.options?.allowNewSessionFromEmptySpace ? AgentSessionsListDelegate.ITEM_HEIGHT : undefined,
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}

@@ -1388,10 +1388,6 @@ export function hide(...elements: HTMLElement[]): void {
 	}
 }
 
-export function isVisible(element: HTMLElement): boolean {
-	return element.style.display !== 'none';
-}
-
 function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (isHTMLElement(node) && node.hasAttribute(attribute)) {

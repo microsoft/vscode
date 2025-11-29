@@ -811,6 +811,11 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
+
+		if (s.inlineSuggestion.action?.kind === 'jumpTo') {
+			return true;
+		}
+
 		if (this.showCollapsed.read(reader)) {
 			return true;
 		}
@@ -825,6 +830,9 @@ export class InlineCompletionsModel extends Disposable {
 	public readonly tabShouldAcceptInlineEdit = derived(this, reader => {
 		const s = this.inlineEditState.read(reader);
 		if (!s) {
+			return false;
+		}
+		if (s.inlineSuggestion.action?.kind === 'jumpTo') {
 			return false;
 		}
 		if (this.showCollapsed.read(reader)) {
@@ -1116,26 +1124,37 @@ export class InlineCompletionsModel extends Disposable {
 		const s = this.inlineEditState.get();
 		if (!s) { return; }
 
-		transaction(tx => {
-			this._jumpedToId.set(s.inlineSuggestion.semanticId, tx);
-			this.dontRefetchSignal.trigger(tx);
-			const targetRange = s.inlineSuggestion.targetRange;
-			const targetPosition = targetRange.getStartPosition();
-			this._editor.setPosition(targetPosition, 'inlineCompletions.jump');
+		const suggestion = s.inlineSuggestion;
+		suggestion.addRef();
+		try {
+			transaction(tx => {
+				if (suggestion.action?.kind === 'jumpTo') {
+					this.stop(undefined, tx);
+					suggestion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted });
+				}
 
-			// TODO: consider using view information to reveal it
-			const isSingleLineChange = targetRange.isSingleLine() && (s.inlineSuggestion.hint || (s.inlineSuggestion.action?.kind === 'edit' && !s.inlineSuggestion.action.textReplacement.text.includes('\n')));
-			if (isSingleLineChange) {
-				this._editor.revealPosition(targetPosition, ScrollType.Smooth);
-			} else {
-				const revealRange = new Range(targetRange.startLineNumber - 1, 1, targetRange.endLineNumber + 1, 1);
-				this._editor.revealRange(revealRange, ScrollType.Smooth);
-			}
+				this._jumpedToId.set(s.inlineSuggestion.semanticId, tx);
+				this.dontRefetchSignal.trigger(tx);
+				const targetRange = s.inlineSuggestion.targetRange;
+				const targetPosition = targetRange.getStartPosition();
+				this._editor.setPosition(targetPosition, 'inlineCompletions.jump');
 
-			s.inlineSuggestion.identity.setJumpTo(tx);
+				// TODO: consider using view information to reveal it
+				const isSingleLineChange = targetRange.isSingleLine() && (s.inlineSuggestion.hint || (s.inlineSuggestion.action?.kind === 'edit' && !s.inlineSuggestion.action.textReplacement.text.includes('\n')));
+				if (isSingleLineChange || s.inlineSuggestion.action?.kind === 'jumpTo') {
+					this._editor.revealPosition(targetPosition, ScrollType.Smooth);
+				} else {
+					const revealRange = new Range(targetRange.startLineNumber - 1, 1, targetRange.endLineNumber + 1, 1);
+					this._editor.revealRange(revealRange, ScrollType.Smooth);
+				}
 
-			this._editor.focus();
-		});
+				s.inlineSuggestion.identity.setJumpTo(tx);
+
+				this._editor.focus();
+			});
+		} finally {
+			suggestion.removeRef();
+		}
 	}
 
 	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData): Promise<void> {

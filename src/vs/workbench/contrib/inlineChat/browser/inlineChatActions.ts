@@ -120,7 +120,7 @@ export class StartSessionAction extends Action2 {
 		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
 			options = arg;
 		}
-		InlineChatController.get(editor)?.run({ ...options });
+		return InlineChatController.get(editor)?.run({ ...options });
 	}
 }
 
