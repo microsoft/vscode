@@ -422,14 +422,13 @@ export class ChatService extends Disposable implements IChatService {
 		await this._chatSessionStore.clearAllSessions();
 	}
 
-	startSession(location: ChatAgentLocation, token: CancellationToken, options?: IChatSessionStartOptions): IChatModelReference {
+	startSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference {
 		this.trace('startSession');
 		const sessionId = generateUuid();
 		const sessionResource = LocalChatSessionUri.forSession(sessionId);
 		return this._sessionModels.acquireOrCreate({
 			initialData: undefined,
 			location,
-			token,
 			sessionResource,
 			sessionId,
 			canUseTools: options?.canUseTools ?? true,
@@ -438,17 +437,17 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private _startSession(props: IStartSessionProps): ChatModel {
-		const { initialData, location, token, sessionResource, sessionId, canUseTools, transferEditingSession, disableBackgroundKeepAlive } = props;
+		const { initialData, location, sessionResource, sessionId, canUseTools, transferEditingSession, disableBackgroundKeepAlive } = props;
 		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, sessionId, disableBackgroundKeepAlive });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(true, transferEditingSession);
 		}
 
-		this.initializeSession(model, token);
+		this.initializeSession(model);
 		return model;
 	}
 
-	private initializeSession(model: ChatModel, token: CancellationToken): void {
+	private initializeSession(model: ChatModel): void {
 		this.trace('initializeSession', `Initialize session ${model.sessionResource}`);
 
 		// Activate the default extension provided agent but do not wait
@@ -516,7 +515,6 @@ export class ChatService extends Disposable implements IChatService {
 		const sessionRef = this._sessionModels.acquireOrCreate({
 			initialData: sessionData,
 			location: sessionData.initialLocation ?? ChatAgentLocation.Chat,
-			token: CancellationToken.None,
 			sessionResource,
 			sessionId,
 			canUseTools: true,
@@ -583,7 +581,6 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.acquireOrCreate({
 			initialData: data,
 			location: data.initialLocation ?? ChatAgentLocation.Chat,
-			token: CancellationToken.None,
 			sessionResource,
 			sessionId,
 			canUseTools: true,
@@ -609,7 +606,6 @@ export class ChatService extends Disposable implements IChatService {
 		const modelRef = this._sessionModels.acquireOrCreate({
 			initialData: undefined,
 			location,
-			token: CancellationToken.None,
 			sessionResource: chatSessionResource,
 			canUseTools: false,
 			transferEditingSession: providedSession.initialEditingSession,
