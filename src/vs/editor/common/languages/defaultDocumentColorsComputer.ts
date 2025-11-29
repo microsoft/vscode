@@ -98,15 +98,56 @@ function _findMatches(model: IDocumentColorComputerTarget | string, regex: RegEx
 	}
 }
 
+function _isPrivateJavaScriptMember(model: IDocumentColorComputerTarget | string, match: RegExpMatchArray): boolean {
+	// Check if this match looks like a private JavaScript class member (e.g., #add, #myMethod)
+	// Private members follow the pattern: [whitespace or {]#[identifier]
+	// We need to check what comes after the hex color match
+	const matchText = match[0];
+	const afterMatch = match.index !== undefined ? match.index + matchText.length : -1;
+
+	if (afterMatch < 0) {
+		return false;
+	}
+
+	const documentText = typeof model === 'string' ? model : model.getValue();
+	const charAfter = documentText[afterMatch];
+
+	// If followed by ( or { or space and then (, it looks like a method/property definition
+	if (charAfter === '(' || charAfter === '{' || charAfter === ' ' || charAfter === '\t' || charAfter === '\n') {
+		// Check if the matched hex color is actually all valid hex digits
+		const hexValueMatch = matchText.match(/#([A-Fa-f0-9]+)/);
+		if (!hexValueMatch) {
+			return false;
+		}
+
+		const hexValue = hexValueMatch[1];
+		// If it's 3-4 characters and followed by an identifier continuation char, it's likely a method/property
+		if ((hexValue.length === 3 || hexValue.length === 4) && (charAfter === '(' || charAfter === '{' || charAfter === ' ')) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 function computeColors(model: IDocumentColorComputerTarget): IColorInformation[] {
 	const result: IColorInformation[] = [];
 	// Early validation for RGB and HSL
-	const initialValidationRegex = /\b(rgb|rgba|hsl|hsla)(\([0-9\s,.\%]*\))|^(#)([A-Fa-f0-9]{3})\b|^(#)([A-Fa-f0-9]{4})\b|^(#)([A-Fa-f0-9]{6})\b|^(#)([A-Fa-f0-9]{8})\b|(?<=['"\s])(#)([A-Fa-f0-9]{3})\b|(?<=['"\s])(#)([A-Fa-f0-9]{4})\b|(?<=['"\s])(#)([A-Fa-f0-9]{6})\b|(?<=['"\s])(#)([A-Fa-f0-9]{8})\b/gm;
+	// Note: Use negative lookahead (?![A-Fa-f0-9_\w]) to prevent matching private JavaScript identifiers like #add or #ADD
+	// Private member names in JS are written as #identifier, so we ensure hex colors don't continue into valid identifier characters
+	// For hex colors to be valid, they must end at a word/identifier boundary to avoid matching private member names like #add.
+	// Use negative lookahead to reject colors that have identifier characters after them.
+	const initialValidationRegex = /\b(rgb|rgba|hsl|hsla)(\([0-9\s,\.\%]*\))|^(#)([A-Fa-f0-9]{3})(?!\s*[\(\{])\b|^(#)([A-Fa-f0-9]{4})(?!\s*[\(\{])\b|^(#)([A-Fa-f0-9]{6})(?!\s*[\(\{])\b|^(#)([A-Fa-f0-9]{8})(?!\s*[\(\{])\b|(?<=['"\s])(#)([A-Fa-f0-9]{3})(?![A-Fa-f0-9a-zA-Z_]|\s*[\(\{])|(?<=['"\s])(#)([A-Fa-f0-9]{4})(?![A-Fa-f0-9a-zA-Z_]|\s*[\(\{])|(?<=['"\s])(#)([A-Fa-f0-9]{6})(?!\s*[\(\{])\b|(?<=['"\s])(#)([A-Fa-f0-9]{8})(?!\s*[\(\{])\b/gm;
 	const initialValidationMatches = _findMatches(model, initialValidationRegex);
 
 	// Potential colors have been found, validate the parameters
 	if (initialValidationMatches.length > 0) {
 		for (const initialMatch of initialValidationMatches) {
+			// Skip if this looks like a private JavaScript class member
+			if (_isPrivateJavaScriptMember(model, initialMatch)) {
+				continue;
+			}
+
 			const initialCaptureGroups = initialMatch.filter(captureGroup => captureGroup !== undefined);
 			const colorScheme = initialCaptureGroups[1];
 			const colorParameters = initialCaptureGroups[2];
