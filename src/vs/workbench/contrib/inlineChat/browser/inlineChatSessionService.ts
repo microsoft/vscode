@@ -67,7 +67,7 @@ export interface IInlineChatSessionService {
 
 	createSession2(editor: ICodeEditor, uri: URI, token: CancellationToken): Promise<IInlineChatSession2>;
 	getSession2(uri: URI): IInlineChatSession2 | undefined;
-	getSession2(sessionId: string): IInlineChatSession2 | undefined;
+	getSessionBySessionUri(uri: URI): IInlineChatSession2 | undefined;
 	readonly onDidChangeSessions: Event<this>;
 }
 

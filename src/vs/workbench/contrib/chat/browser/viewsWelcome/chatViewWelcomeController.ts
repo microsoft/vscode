@@ -148,6 +148,8 @@ export interface IChatViewWelcomeRenderOptions {
 export class ChatViewWelcomePart extends Disposable {
 	public readonly element: HTMLElement;
 
+	private visible = true;
+
 	constructor(
 		public readonly content: IChatViewWelcomeContent,
 		options: IChatViewWelcomeRenderOptions | undefined,
@@ -321,18 +323,26 @@ export class ChatViewWelcomePart extends Disposable {
 		return actions;
 	}
 
+	public setVisible(visible: boolean): void {
+		this.visible = visible;
+
+		this.element.style.visibility = this.visible ? '' : 'hidden';
+	}
+
 	public needsRerender(content: IChatViewWelcomeContent): boolean {
 		// Heuristic based on content that changes between states
 		return !!(
-			this.content.title !== content.title ||
-			this.content.message.value !== content.message.value ||
-			this.content.additionalMessage !== content.additionalMessage ||
-			this.content.tips?.value !== content.tips?.value ||
-			this.content.suggestedPrompts?.length !== content.suggestedPrompts?.length ||
-			this.content.suggestedPrompts?.some((prompt, index) => {
-				const incoming = content.suggestedPrompts?.[index];
-				return incoming?.label !== prompt.label || incoming?.description !== prompt.description;
-			}));
+			this.visible && (
+				this.content.title !== content.title ||
+				this.content.message.value !== content.message.value ||
+				this.content.additionalMessage !== content.additionalMessage ||
+				this.content.tips?.value !== content.tips?.value ||
+				this.content.suggestedPrompts?.length !== content.suggestedPrompts?.length ||
+				this.content.suggestedPrompts?.some((prompt, index) => {
+					const incoming = content.suggestedPrompts?.[index];
+					return incoming?.label !== prompt.label || incoming?.description !== prompt.description;
+				}))
+		);
 	}
 
 	private renderMarkdownMessageContent(content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IRenderedMarkdown {

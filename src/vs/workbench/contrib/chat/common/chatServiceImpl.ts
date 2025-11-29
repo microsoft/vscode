@@ -27,6 +27,7 @@ import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { InlineChatConfigKeys } from '../../inlineChat/common/inlineChat.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
@@ -928,7 +929,6 @@ export class ChatService extends Disposable implements IChatService {
 						}
 
 						const agentRequest: IChatAgentRequest = {
-							sessionId: model.sessionId,
 							sessionResource: model.sessionResource,
 							requestId: request.id,
 							agentId: agent.id,
@@ -974,13 +974,13 @@ export class ChatService extends Disposable implements IChatService {
 						!commandPart &&
 						!agentSlashCommandPart &&
 						enableCommandDetection &&
-						location !== ChatAgentLocation.EditorInline &&
+						(location !== ChatAgentLocation.EditorInline || !this.configurationService.getValue(InlineChatConfigKeys.EnableV2)) &&
 						options?.modeInfo?.kind !== ChatModeKind.Agent &&
 						options?.modeInfo?.kind !== ChatModeKind.Edit &&
 						!options?.agentIdSilent
 					) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
-						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, model.sessionId, location, defaultAgent.id);
+						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, location, defaultAgent.id);
 
 						// Prepare the request object that we will send to the participant detection provider
 						const chatAgentRequest = prepareChatAgentRequest(defaultAgent, undefined, enableCommandDetection, undefined, false);
@@ -1000,7 +1000,7 @@ export class ChatService extends Disposable implements IChatService {
 					await this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`);
 
 					// Recompute history in case the agent or command changed
-					const history = this.getHistoryEntriesFromModel(requests, model.sessionId, location, agent.id);
+					const history = this.getHistoryEntriesFromModel(requests, location, agent.id);
 					const requestProps = prepareChatAgentRequest(agent, command, enableCommandDetection, request /* Reuse the request object if we already created it for participant detection */, !!detectedAgent);
 					const pendingRequest = this._pendingRequests.get(sessionResource);
 					if (pendingRequest && !pendingRequest.requestId) {
@@ -1023,7 +1023,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					// Use LLM to generate the chat title
 					if (model.getRequests().length === 1 && !model.customTitle) {
-						const chatHistory = this.getHistoryEntriesFromModel(model.getRequests(), model.sessionId, location, agent.id);
+						const chatHistory = this.getHistoryEntriesFromModel(model.getRequests(), location, agent.id);
 						chatTitlePromise = this.chatAgentService.getChatTitle(agent.id, chatHistory, CancellationToken.None).then(
 							(title) => {
 								// Since not every chat agent implements title generation, we can fallback to the default agent
@@ -1157,7 +1157,7 @@ export class ChatService extends Disposable implements IChatService {
 		return attachedContextVariables;
 	}
 
-	private getHistoryEntriesFromModel(requests: IChatRequestModel[], sessionId: string, location: ChatAgentLocation, forAgentId: string): IChatAgentHistoryEntry[] {
+	private getHistoryEntriesFromModel(requests: IChatRequestModel[], location: ChatAgentLocation, forAgentId: string): IChatAgentHistoryEntry[] {
 		const history: IChatAgentHistoryEntry[] = [];
 		const agent = this.chatAgentService.getAgent(forAgentId);
 		for (const request of requests) {
@@ -1178,7 +1178,6 @@ export class ChatService extends Disposable implements IChatService {
 
 			const promptTextResult = getPromptText(request.message);
 			const historyRequest: IChatAgentRequest = {
-				sessionId: sessionId,
 				sessionResource: request.session.sessionResource,
 				requestId: request.id,
 				agentId: request.response.agent?.id ?? '',
