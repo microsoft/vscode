@@ -189,7 +189,7 @@ export class AgentSessionsView extends ViewPane {
 		actions.push(new Separator());
 		actions.push(toAction({
 			id: 'install-extensions',
-			label: localize('chatSessions.installExtensions', "Install Chat Extensions..."),
+			label: localize('chatSessions.installExtensions', "Install Agents..."),
 			run: () => this.commandService.executeCommand('chat.sessions.gettingStarted')
 		}));
 

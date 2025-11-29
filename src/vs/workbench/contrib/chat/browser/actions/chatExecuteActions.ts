@@ -693,6 +693,8 @@ class SendToNewChatAction extends Action2 {
 			return;
 		}
 
+		const inputBeforeClear = widget.getInput();
+
 		// Cancel any in-progress request before clearing
 		if (widget.viewModel) {
 			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource);
@@ -706,7 +708,7 @@ class SendToNewChatAction extends Action2 {
 		}
 
 		await widget.clear();
-		widget.acceptInput(context?.inputValue);
+		widget.acceptInput(inputBeforeClear);
 	}
 }
 

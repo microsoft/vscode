@@ -36,7 +36,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '..
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, ICustomAgent, ICustomAgentQueryOptions, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -1070,6 +1070,58 @@ suite('PromptsService', () => {
 			assert.strictEqual(actual[0].storage, PromptsStorage.extension);
 			assert.strictEqual(actual[0].type, PromptsType.instructions);
 			registered.dispose();
+		});
+
+		test('Custom agent provider', async () => {
+			const agentUri = URI.parse('file://extensions/my-extension/myAgent.agent.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+
+			// Mock the agent file content
+			await mockFiles(fileService, [
+				{
+					path: agentUri.path,
+					contents: [
+						'---',
+						'description: \'My custom agent from provider\'',
+						'tools: [ tool1, tool2 ]',
+						'---',
+						'I am a custom agent from a provider.',
+					]
+				}
+			]);
+
+			const provider = {
+				provideCustomAgents: async (_options: ICustomAgentQueryOptions, _token: CancellationToken) => {
+					return [
+						{
+							name: 'myAgent',
+							description: 'My custom agent from provider',
+							uri: agentUri
+						}
+					];
+				}
+			};
+
+			const registered = service.registerCustomAgentsProvider(extension, provider);
+
+			const actual = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(actual.length, 1);
+			assert.strictEqual(actual[0].name, 'myAgent');
+			assert.strictEqual(actual[0].description, 'My custom agent from provider');
+			assert.strictEqual(actual[0].uri.toString(), agentUri.toString());
+			assert.strictEqual(actual[0].source.storage, PromptsStorage.extension);
+			if (actual[0].source.storage === PromptsStorage.extension) {
+				assert.strictEqual(actual[0].source.type, ExtensionAgentSourceType.provider);
+			}
+
+			registered.dispose();
+
+			// After disposal, the agent should no longer be listed
+			const actualAfterDispose = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(actualAfterDispose.length, 0);
 		});
 	});
 

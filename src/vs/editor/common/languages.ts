@@ -857,6 +857,8 @@ export interface InlineCompletion {
 	readonly correlationId?: string | undefined;
 
 	readonly jumpToPosition?: IPosition;
+
+	readonly doNotLog?: boolean;
 }
 
 export interface InlineCompletionWarning {
@@ -1076,6 +1078,8 @@ export type LifetimeSummary = {
 	renameDuration?: number;
 	renameTimedOut: boolean;
 	editKind: string | undefined;
+	longDistanceHintVisible?: boolean;
+	longDistanceHintDistance?: number;
 };
 
 export interface CodeAction {

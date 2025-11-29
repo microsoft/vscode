@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -146,7 +147,14 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	private async getHistoryItems(): Promise<ChatSessionItemWithProvider[]> {
 		try {
 			const historyItems = await this.chatService.getHistorySessionItems();
-			return coalesce(historyItems.map(history => this.toChatSessionItem(history)));
+			return coalesce(historyItems.map(history => {
+				const sessionItem = this.toChatSessionItem(history);
+				return sessionItem ? {
+					...sessionItem,
+					//todo@bpasero remove this property once classic view is gone
+					history: true
+				} : undefined;
+			}));
 		} catch (error) {
 			return [];
 		}
@@ -169,7 +177,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			if (!description) {
 				const responseValue = lastResponse?.response.toString();
 				if (responseValue) {
-					description = truncate(responseValue.replace(/\r?\n/g, ' '), 100);
+					description = truncate(renderAsPlaintext({ value: responseValue }).replace(/\r?\n/g, ' '), 100); // ensure to strip any markdown
 				}
 			}
 

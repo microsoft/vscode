@@ -6,6 +6,7 @@
 .agent-sessions-viewer .agent-session-item .agent-session-details-toolbar {
 
 	.monaco-action-bar .actions-container .action-item .action-label {
+		background-color: var(--vscode-toolbar-hoverBackground);
 		padding: 0;
 	}
 

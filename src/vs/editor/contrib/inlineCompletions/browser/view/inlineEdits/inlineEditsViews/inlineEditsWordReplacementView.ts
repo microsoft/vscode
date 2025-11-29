@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow, n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
+import { getWindow, ModifierKeyEmitter, n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
+import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
 import { editorBackground, editorHoverForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
@@ -21,7 +24,7 @@ import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getModifiedBorderColor, getOriginalBorderColor, modifiedChangedTextOverlayColor, originalChangedTextOverlayColor } from '../theme.js';
+import { getModifiedBorderColor, getOriginalBorderColor, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
 import { getEditorValidOverlayRect, mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 const BORDER_WIDTH = 1;
@@ -48,8 +51,10 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 		private readonly _editor: ObservableCodeEditor,
 		/** Must be single-line in both sides */
 		private readonly _edit: TextReplacement,
+		private readonly _rename: boolean,
 		protected readonly _tabAction: IObservable<InlineEditTabAction>,
 		@ILanguageService private readonly _languageService: ILanguageService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
 		this._onDidClick = this._register(new Emitter<IMouseEvent>());
@@ -76,6 +81,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			this._line.style.width = `${res.minWidthInPx}px`;
 		});
 		const modifiedLineHeight = this._editor.observeLineHeightForPosition(this._edit.range.getStartPosition());
+		const altPressed = observableFromEvent(this, ModifierKeyEmitter.getInstance().event, keyStatus => keyStatus?.altKey ?? ModifierKeyEmitter.getInstance().keyStatus.altKey);
 		this._layout = derived(this, reader => {
 			this._renderTextEffect.read(reader);
 			const widgetStart = this._start.read(reader);
@@ -94,15 +100,26 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			const modifiedTopOffset = 4;
 			const modifiedOffset = new Point(modifiedLeftOffset, modifiedTopOffset);
 
-			const originalLine = Rect.fromPoints(widgetStart, widgetEnd).withHeight(lineHeight).translateX(-scrollLeft);
-			const modifiedLine = Rect.fromPointSize(originalLine.getLeftBottom().add(modifiedOffset), new Point(this._edit.text.length * w, originalLine.height));
+			let label = undefined;
+			if (this._rename) { // TODO: make this customizable and not rename specific
+				if (altPressed.read(reader)) {
+					label = { content: 'Edit', icon: Codicon.edit };
+				} else {
+					label = { content: 'Rename', icon: Codicon.replaceAll };
+				}
+			}
 
+			const originalLine = Rect.fromPoints(widgetStart, widgetEnd).withHeight(lineHeight).translateX(-scrollLeft);
+			const codeLine = Rect.fromPointSize(originalLine.getLeftBottom().add(modifiedOffset), new Point(this._edit.text.length * w, originalLine.height));
+			const modifiedLine = codeLine.withWidth(codeLine.width + (label ? label.content.length * w + 8 + 4 + 12 : 0));
 			const lowerBackground = modifiedLine.withLeft(originalLine.left);
 
 			// debugView(debugLogRects({ lowerBackground }, this._editor.editor.getContainerDomNode()), reader);
 
 			return {
+				label,
 				originalLine,
+				codeLine,
 				modifiedLine,
 				lowerBackground,
 				lineHeight,
@@ -126,6 +143,8 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 				const originalBorderColor = getOriginalBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
 				const modifiedBorderColor = getModifiedBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
+				const renameBorderColor = observeColor(editorHoverForeground, this._themeService).map(c => c.transparent(0.5).toString()).read(reader);
+				this._line.style.lineHeight = `${layout.read(reader).modifiedLine.height + 2 * BORDER_WIDTH}px`;
 
 				return [
 					n.div({
@@ -157,23 +176,55 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).modifiedLine.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH)),
-								fontFamily: this._editor.getOption(EditorOption.fontFamily),
-								fontSize: this._editor.getOption(EditorOption.fontSize),
-								fontWeight: this._editor.getOption(EditorOption.fontWeight),
-
+								width: undefined,
 								pointerEvents: 'none',
 								boxSizing: 'border-box',
 								borderRadius: '4px',
-								border: `${BORDER_WIDTH}px solid ${modifiedBorderColor}`,
 
-								background: asCssVariable(modifiedChangedTextOverlayColor),
+								background: asCssVariable(editorBackground),
 								display: 'flex',
-								justifyContent: 'center',
-								alignItems: 'center',
+								justifyContent: 'left',
 
 								outline: `2px solid ${asCssVariable(editorBackground)}`,
 							}
-						}, [this._line]),
+						}, [
+							n.div({
+								style: {
+									fontFamily: this._editor.getOption(EditorOption.fontFamily),
+									fontSize: this._editor.getOption(EditorOption.fontSize),
+									fontWeight: this._editor.getOption(EditorOption.fontWeight),
+									width: rectToProps(reader => layout.read(reader).codeLine.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH)).width,
+									borderRadius: layout.map(l => l.label ? '4px 0 0 4px' : '4px'),
+									border: `${BORDER_WIDTH}px solid ${modifiedBorderColor}`,
+									boxSizing: 'border-box',
+									padding: `${BORDER_WIDTH}px`,
+
+									background: asCssVariable(modifiedChangedTextOverlayColor),
+									display: 'flex',
+									justifyContent: 'left',
+									alignItems: 'center',
+								}
+							}, [this._line]),
+							derived(this, reader => {
+								const label = layout.read(reader).label;
+								if (!label) {
+									return undefined;
+								}
+								return n.div({
+									style: {
+										borderRadius: '0 4px 4px 0',
+										borderTop: `${BORDER_WIDTH}px solid ${renameBorderColor}`,
+										borderRight: `${BORDER_WIDTH}px solid ${renameBorderColor}`,
+										borderBottom: `${BORDER_WIDTH}px solid ${renameBorderColor}`,
+										display: 'flex',
+										justifyContent: 'center',
+										alignItems: 'center',
+										padding: '0 4px',
+									},
+									class: 'inline-edit-rename-label',
+								}, [renderIcon(label.icon), label.content]);
+							})
+						]),
 						n.div({
 							style: {
 								position: 'absolute',

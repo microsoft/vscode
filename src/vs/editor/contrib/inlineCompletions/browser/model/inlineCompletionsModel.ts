@@ -51,6 +51,7 @@ import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -183,6 +184,13 @@ export class InlineCompletionsModel extends Disposable {
 			const jumpToReset = this.state.map((s, reader) => !s || s.kind === 'inlineEdit' && !s.cursorAtInlineEdit.read(reader)).read(reader);
 			if (jumpToReset) {
 				this._jumpedToId.set(undefined, undefined);
+			}
+		}));
+
+		this._register(autorun(reader => {
+			const inlineSuggestion = this.state.map(s => s?.inlineSuggestion).read(reader);
+			if (inlineSuggestion) {
+				inlineSuggestion.addPerformanceMarker('activeSuggestion');
 			}
 		}));
 
@@ -630,7 +638,7 @@ export class InlineCompletionsModel extends Disposable {
 				return undefined;
 			}
 			const cursorAtInlineEdit = this.primaryPosition.map(cursorPos => LineRange.fromRangeInclusive(inlineEditResult.targetRange).addMargin(1, 1).contains(cursorPos.lineNumber));
-			const stringEdit = inlineEditResult.action?.kind === 'edit' ? inlineEditResult.action.stringEdit : undefined;
+			const stringEdit = inlineEditResult.action?.kind === 'edit' || inlineEditResult.action?.kind === 'rename' ? inlineEditResult.action.stringEdit : undefined;
 			const replacements = stringEdit ? TextEdit.fromStringEdit(stringEdit, new TextModelText(this.textModel)).replacements : [];
 
 			const nextEditUri = (item.inlineEdit?.command?.id === 'vscode.open' || item.inlineEdit?.command?.id === '_workbench.open') &&
@@ -803,6 +811,11 @@ export class InlineCompletionsModel extends Disposable {
 			return false;
 		}
 
+
+		if (s.inlineSuggestion.action?.kind === 'jumpTo') {
+			return true;
+		}
+
 		if (this.showCollapsed.read(reader)) {
 			return true;
 		}
@@ -817,6 +830,9 @@ export class InlineCompletionsModel extends Disposable {
 	public readonly tabShouldAcceptInlineEdit = derived(this, reader => {
 		const s = this.inlineEditState.read(reader);
 		if (!s) {
+			return false;
+		}
+		if (s.inlineSuggestion.action?.kind === 'jumpTo') {
 			return false;
 		}
 		if (this.showCollapsed.read(reader)) {
@@ -904,9 +920,13 @@ export class InlineCompletionsModel extends Disposable {
 			editor.pushUndoStop();
 			if (isNextEditUri) {
 				// Do nothing
-			} else if (completion.action?.kind === 'edit') {
+			} else if (completion.action?.kind === 'edit' || completion.action?.kind === 'rename') {
 				const action = completion.action;
-				if (action.snippetInfo) {
+				if (action.kind === 'rename' && !ModifierKeyEmitter.getInstance().keyStatus.altKey) {
+					await this._commandService
+						.executeCommand(action.command.id, ...(action.command.arguments || []))
+						.then(undefined, onUnexpectedExternalError);
+				} else if (action.kind === 'edit' && action.snippetInfo) {
 					const mainEdit = TextReplacement.delete(action.textReplacement.range);
 					const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
 					const edit = TextEdit.fromParallelReplacementsUnsorted([mainEdit, ...additionalEdits]);
@@ -949,12 +969,6 @@ export class InlineCompletionsModel extends Disposable {
 
 			// Reset before invoking the command, as the command might cause a follow up trigger (which we don't want to reset).
 			this.stop();
-
-			if (completion.renameCommand) {
-				await this._commandService
-					.executeCommand(completion.renameCommand.id, ...(completion.renameCommand.arguments || []))
-					.then(undefined, onUnexpectedExternalError);
-			}
 
 			if (completion.command) {
 				await this._commandService
@@ -1110,26 +1124,37 @@ export class InlineCompletionsModel extends Disposable {
 		const s = this.inlineEditState.get();
 		if (!s) { return; }
 
-		transaction(tx => {
-			this._jumpedToId.set(s.inlineSuggestion.semanticId, tx);
-			this.dontRefetchSignal.trigger(tx);
-			const targetRange = s.inlineSuggestion.targetRange;
-			const targetPosition = targetRange.getStartPosition();
-			this._editor.setPosition(targetPosition, 'inlineCompletions.jump');
+		const suggestion = s.inlineSuggestion;
+		suggestion.addRef();
+		try {
+			transaction(tx => {
+				if (suggestion.action?.kind === 'jumpTo') {
+					this.stop(undefined, tx);
+					suggestion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted });
+				}
 
-			// TODO: consider using view information to reveal it
-			const isSingleLineChange = targetRange.isSingleLine() && (s.inlineSuggestion.hint || (s.inlineSuggestion.action?.kind === 'edit' && !s.inlineSuggestion.action.textReplacement.text.includes('\n')));
-			if (isSingleLineChange) {
-				this._editor.revealPosition(targetPosition, ScrollType.Smooth);
-			} else {
-				const revealRange = new Range(targetRange.startLineNumber - 1, 1, targetRange.endLineNumber + 1, 1);
-				this._editor.revealRange(revealRange, ScrollType.Smooth);
-			}
+				this._jumpedToId.set(s.inlineSuggestion.semanticId, tx);
+				this.dontRefetchSignal.trigger(tx);
+				const targetRange = s.inlineSuggestion.targetRange;
+				const targetPosition = targetRange.getStartPosition();
+				this._editor.setPosition(targetPosition, 'inlineCompletions.jump');
 
-			s.inlineSuggestion.identity.setJumpTo(tx);
+				// TODO: consider using view information to reveal it
+				const isSingleLineChange = targetRange.isSingleLine() && (s.inlineSuggestion.hint || (s.inlineSuggestion.action?.kind === 'edit' && !s.inlineSuggestion.action.textReplacement.text.includes('\n')));
+				if (isSingleLineChange || s.inlineSuggestion.action?.kind === 'jumpTo') {
+					this._editor.revealPosition(targetPosition, ScrollType.Smooth);
+				} else {
+					const revealRange = new Range(targetRange.startLineNumber - 1, 1, targetRange.endLineNumber + 1, 1);
+					this._editor.revealRange(revealRange, ScrollType.Smooth);
+				}
 
-			this._editor.focus();
-		});
+				s.inlineSuggestion.identity.setJumpTo(tx);
+
+				this._editor.focus();
+			});
+		} finally {
+			suggestion.removeRef();
+		}
 	}
 
 	public async handleInlineSuggestionShown(inlineCompletion: InlineSuggestionItem, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData): Promise<void> {

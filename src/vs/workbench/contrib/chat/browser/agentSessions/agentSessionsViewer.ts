@@ -181,7 +181,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			return Codicon.error;
 		}
 
-		return session.icon;
+		return Codicon.pass;
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -244,7 +244,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			}
 
 			if (!timeLabel) {
-				timeLabel = fromNow(session.timing.endTime || session.timing.startTime, true);
+				timeLabel = fromNow(session.timing.endTime || session.timing.startTime);
 			}
 			return `${session.providerLabel} • ${timeLabel}`;
 		};
@@ -295,7 +295,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<IAgentSession> {
 
-	static readonly ITEM_HEIGHT = 44;
+	static readonly ITEM_HEIGHT = 52;
 
 	getHeight(element: IAgentSession): number {
 		return AgentSessionsListDelegate.ITEM_HEIGHT;
