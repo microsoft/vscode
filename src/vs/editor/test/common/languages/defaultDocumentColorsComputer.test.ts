@@ -89,6 +89,12 @@ suite('Default Document Colors Computer', () => {
 		});
 	});
 
+	test('Private class members that look like hex should NOT be detected', () => {
+		const model = new TestDocumentModel(`class Calc {\n   #add(a, b) { return a + b; }\n   #sub(a, b) { return a - b; }\n}`);
+		const colors = computeDefaultDocumentColors(model);
+		assert.strictEqual(colors.length, 0, 'Private member names that look like hex should not be detected as colors');
+	});
+
 	test('8-digit hex colors should also work', () => {
 		const model = new TestDocumentModel(`const color = '#ff0000ff';`);
 		const colors = computeDefaultDocumentColors(model);

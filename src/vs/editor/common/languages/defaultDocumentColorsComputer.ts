@@ -128,6 +128,20 @@ function computeColors(model: IDocumentColorComputerTarget): IColorInformation[]
 				colorInformation = _findHSLColorInformation(_findRange(model, initialMatch), _findMatches(colorParameters, regexParameters), true);
 			} else if (colorScheme === '#') {
 				colorInformation = _findHexColorInformation(_findRange(model, initialMatch), colorScheme + colorParameters);
+				// Heuristic: if the character immediately after the match is an opening
+				// parenthesis, this is likely a private method/field declaration in JS
+				// (e.g. `#add(...)`) rather than a color literal. In that case, skip
+				// treating it as a color.
+				if (colorInformation && typeof initialMatch.index === 'number') {
+					const idx = initialMatch.index + initialMatch[0].length;
+					const full = model.getValue();
+					if (full && idx < full.length) {
+						const nextChar = full.charAt(idx);
+						if (nextChar === '(') {
+							colorInformation = undefined;
+						}
+					}
+				}
 			}
 			if (colorInformation) {
 				result.push(colorInformation);
