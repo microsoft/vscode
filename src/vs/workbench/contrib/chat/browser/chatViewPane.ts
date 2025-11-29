@@ -49,7 +49,6 @@ import { Event } from '../../../../base/common/event.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
-	hasMigratedCurrentSession?: boolean;
 }
 
 type ChatViewPaneOpenedClassification = {
@@ -113,34 +112,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Location context key
 		ChatContextKeys.panelLocation.bindTo(contextKeyService).set(viewDescriptorService.getViewLocationById(options.id) ?? ViewContainerLocation.AuxiliaryBar);
 
-		this.maybeMigrateCurrentSession();
-
 		this.registerListeners();
-	}
-
-	private maybeMigrateCurrentSession(): void {
-		if (this.chatOptions.location === ChatAgentLocation.Chat && !this.viewState.hasMigratedCurrentSession) {
-			const editsMemento = new Memento<IChatViewPaneState>(`interactive-session-view-${CHAT_PROVIDER_ID}-edits`, this.storageService);
-			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			if (lastEditsState.sessionId) {
-				this.logService.trace(`ChatViewPane: last edits session was ${lastEditsState.sessionId}`);
-				if (!this.chatService.isPersistedSessionEmpty(LocalChatSessionUri.forSession(lastEditsState.sessionId))) {
-					this.logService.info(`ChatViewPane: migrating ${lastEditsState.sessionId} to unified view`);
-					this.viewState.sessionId = lastEditsState.sessionId;
-					// Migrate old inputValue to new inputText, and old chatMode to new mode structure
-					if (lastEditsState.inputText) {
-						this.viewState.inputText = lastEditsState.inputText;
-					}
-					if (lastEditsState.mode) {
-						this.viewState.mode = lastEditsState.mode;
-					} else {
-						// Default to Edit mode for migrated edits sessions
-						this.viewState.mode = { id: ChatModeKind.Edit, kind: ChatModeKind.Edit };
-					}
-					this.viewState.hasMigratedCurrentSession = true;
-				}
-			}
-		}
 	}
 
 	private registerListeners(): void {
