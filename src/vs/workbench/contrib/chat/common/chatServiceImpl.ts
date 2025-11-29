@@ -168,7 +168,7 @@ export class ChatService extends Disposable implements IChatService {
 			createModel: (props: IStartSessionProps) => this._startSession(props),
 			willDisposeModel: async (model: ChatModel) => {
 				const localSessionId = LocalChatSessionUri.parseLocalSessionId(model.sessionResource);
-				if (localSessionId && (model.initialLocation === ChatAgentLocation.Chat)) {
+				if (localSessionId && this.shouldStoreSession(model)) {
 					// Always preserve sessions that have custom titles, even if empty
 					if (model.getRequests().length === 0 && !model.customTitle) {
 						await this._chatSessionStore.deleteSession(localSessionId);
@@ -234,14 +234,19 @@ export class ChatService extends Disposable implements IChatService {
 
 	private saveState(): void {
 		const liveChats = Array.from(this._sessionModels.values())
-			.filter(session => {
-				if (!LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
-					return false;
-				}
-				return session.initialLocation === ChatAgentLocation.Chat;
-			});
+			.filter(session => this.shouldStoreSession(session));
 
 		this._chatSessionStore.storeSessions(liveChats);
+	}
+
+	/**
+	 * Only persist local sessions from chat that are not imported.
+	 */
+	private shouldStoreSession(session: ChatModel): boolean {
+		if (!LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
+			return false;
+		}
+		return session.initialLocation === ChatAgentLocation.Chat && !session.isImported;
 	}
 
 	notifyUserAction(action: IChatUserActionEvent): void {
@@ -345,7 +350,6 @@ export class ChatService extends Disposable implements IChatService {
 					customTitle: metadata.title,
 					creationDate: Date.now(), // Use current time as fallback
 					lastMessageDate: metadata.lastMessageDate,
-					isImported: metadata.isImported || false,
 					initialLocation: metadata.initialLocation,
 					requests: [], // Empty requests array - this is just for title lookup
 					responderUsername: '',
