@@ -22,6 +22,7 @@ import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatElicitationRequest, IChatLocationData, IChatSendRequestOptions } from '../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../common/languageModels.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatInputPart } from './chatInputPart.js';
@@ -177,6 +178,11 @@ export interface IChatWidgetViewOptions {
 	supportsChangingModes?: boolean;
 	dndContainer?: HTMLElement;
 	defaultMode?: IChatMode;
+	/**
+	 * Optional filter for models shown in the model picker.
+	 * Return true to include the model, false to exclude it.
+	 */
+	modelFilter?: (model: ILanguageModelChatMetadataAndIdentifier) => boolean;
 }
 
 export interface IChatViewViewContext {

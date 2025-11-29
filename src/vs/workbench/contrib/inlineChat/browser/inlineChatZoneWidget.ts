@@ -16,6 +16,7 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IOptions, ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -24,7 +25,7 @@ import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
-import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_SIDE, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, InlineChatConfigKeys, MENU_INLINE_CHAT_SIDE, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 
 export class InlineChatZoneWidget extends ZoneWidget {
@@ -58,6 +59,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(editors.editor, InlineChatZoneWidget._options);
 		this.notebookEditor = editors.notebookEditor;
@@ -67,6 +69,11 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._disposables.add(toDisposable(() => {
 			this._ctxCursorPosition.reset();
 		}));
+
+		// When inline chat v2 is enabled, filter models to only those supporting tool calling
+		const modelFilter = configurationService.getValue<boolean>(InlineChatConfigKeys.EnableV2)
+			? (model: { metadata: { capabilities?: { toolCalling?: boolean } } }) => !!model.metadata.capabilities?.toolCalling
+			: undefined;
 
 		this.widget = this._instaService.createInstance(EditorBasedInlineChatWidget, location, this.editor, {
 			statusMenuId: {
@@ -99,7 +106,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 					renderDetectedCommandsWithRequest: true,
 					...options?.rendererOptions
 				},
-				defaultMode: ChatMode.Ask
+				defaultMode: ChatMode.Ask,
+				modelFilter,
 			}
 		});
 		this._disposables.add(this.widget);

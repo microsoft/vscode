@@ -1786,7 +1786,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
 			widgetViewKindTag: this.getWidgetViewKindTag(),
-			defaultMode: this.viewOptions.defaultMode
+			defaultMode: this.viewOptions.defaultMode,
+			modelFilter: this.viewOptions.modelFilter,
 		};
 
 		if (this.viewModel?.editing) {
