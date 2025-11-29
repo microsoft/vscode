@@ -268,7 +268,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'agentSessions.showAll',
 			title: localize('showAllSessions', "Show All Agent Sessions"),
-			icon: Codicon.tasklist,
+			icon: Codicon.listUnordered,
 			menu: {
 				id: MenuId.ChatRecentSessionsToolbar,
 				group: 'navigation',
