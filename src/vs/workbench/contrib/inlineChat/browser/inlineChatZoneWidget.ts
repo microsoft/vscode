@@ -24,6 +24,7 @@ import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
+import { ILanguageModelChatMetadataAndIdentifier } from '../../chat/common/languageModels.js';
 import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
 import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, InlineChatConfigKeys, MENU_INLINE_CHAT_SIDE, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
@@ -72,7 +73,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 		// When inline chat v2 is enabled, filter models to only those supporting tool calling
 		const modelFilter = configurationService.getValue<boolean>(InlineChatConfigKeys.EnableV2)
-			? (model: { metadata: { capabilities?: { toolCalling?: boolean } } }) => !!model.metadata.capabilities?.toolCalling
+			? (model: ILanguageModelChatMetadataAndIdentifier) => !!model.metadata.capabilities?.toolCalling
 			: undefined;
 
 		this.widget = this._instaService.createInstance(EditorBasedInlineChatWidget, location, this.editor, {
