@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Visual Studio Code is built with a layered architecture using TypeScript, web APIs and Electron, combining web technologies with native app capabilities. The codebase is organized into key architectural layers:
+Visual Studio Code is built with a layered architecture using TypeScript, web APIs, and Electron, combining web technologies with native app capabilities. The codebase is organized into key architectural layers:
 
 ### Root Folders
 - `src/`: Main TypeScript source code with unit tests in `src/vs/*/test/` folders
@@ -23,7 +23,7 @@ Visual Studio Code is built with a layered architecture using TypeScript, web AP
   - `workbench/contrib/` - Feature contributions (git, debug, search, terminal, etc.)
   - `workbench/api/` - Extension host and VS Code API implementation
 - `src/vs/code/` - Electron main process specific implementation
-- `src/vs/server/` - Server specific implementation
+- `src/vs/server/` - Server-specific implementation
 
 The core architecture follows these principles:
 - **Layered architecture** - from `base`, `platform`, `editor`, to `workbench`
@@ -51,7 +51,7 @@ Each extension follows the standard VS Code extension structure with `package.js
 MANDATORY: Always check the `VS Code - Build` watch task output via #runTasks/getTaskOutput for compilation errors before running ANY script or declaring work complete, then fix all compilation errors before moving forward.
 
 - NEVER run tests if there are compilation errors
-- NEVER use `npm run compile` to compile TypeScript files but call #runTasks/getTaskOutput instead
+- NEVER use `npm run compile` to compile TypeScript files, but call #runTasks/getTaskOutput instead
 
 ### TypeScript compilation steps
 - Monitor the `VS Code - Build` task outputs for real-time compilation errors as you make changes
@@ -78,7 +78,7 @@ We use tabs, not spaces.
 
 ### Types
 
-- Do not export `types` or `functions` unless you need to share it across multiple components
+- Do not export `types` or `functions` unless you need to share them across multiple components
 - Do not introduce new `types` or `values` to the global namespace
 
 ### Comments
@@ -93,8 +93,8 @@ We use tabs, not spaces.
 - Externalized strings must not use string concatenation. Use placeholders instead (`{0}`).
 
 ### UI labels
-- Use title-style capitalization for command labels, buttons and menu items (each word is capitalized).
-- Don't capitalize prepositions of four or fewer letters unless it's the first or last word (e.g. "in", "with", "for").
+- Use title-style capitalization for command labels, buttons, and menu items (each word is capitalized).
+- Don't capitalize prepositions of four or fewer letters unless it's the first or last word (e.g., "in", "with", "for").
 
 ### Style
 
@@ -124,13 +124,13 @@ function f(x: number, y: string): void { }
 
 ### Code Quality
 
-- All files must include Microsoft copyright header
+- All files must include the Microsoft copyright header
 - Prefer `async` and `await` over `Promise` and `then` calls
-- All user facing messages must be localized using the applicable localization framework (for example `nls.localize()` method)
-- Don't add tests to the wrong test suite (e.g., adding to end of file instead of inside relevant suite)
+- All user-facing messages must be localized using the applicable localization framework (for example, `nls.localize()` method)
+- Don't add tests to the wrong test suite (e.g., adding to the end of the file instead of inside the  relevant suite)
 - Look for existing test patterns before creating new structures
 - Use `describe` and `test` consistently with existing patterns
 - If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task
-- Do not use `any` or `unknown` as the type for variables, parameters, or return values unless absolutely necessary. If they need type annotations, they should have proper types or interfaces defined.
+- Do not use `any` or `unknown` as the type for variables, parameters, or return values unless necessary. If they need type annotations, they should have proper types or interfaces defined.
 - Never duplicate imports. Always reuse existing imports if they are present.
 - Prefer regex capture groups with names over numbered capture groups.
