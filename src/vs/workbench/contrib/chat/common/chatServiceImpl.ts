@@ -10,7 +10,7 @@ import { BugIndicatingError, ErrorNoTelemetry } from '../../../../base/common/er
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
@@ -71,38 +71,6 @@ class CancellableRequest implements IDisposable {
 		this.cancellationTokenSource.cancel();
 	}
 }
-
-
-
-class DisposableResourceMap<T extends IDisposable> extends Disposable {
-
-	private readonly _map = this._register(new DisposableMap<string, T>());
-
-	get(sessionResource: URI) {
-		return this._map.get(this.toKey(sessionResource));
-	}
-
-	set(sessionResource: URI, value: T) {
-		this._map.set(this.toKey(sessionResource), value);
-	}
-
-	has(sessionResource: URI) {
-		return this._map.has(this.toKey(sessionResource));
-	}
-
-	deleteAndLeak(sessionResource: URI) {
-		return this._map.deleteAndLeak(this.toKey(sessionResource));
-	}
-
-	deleteAndDispose(sessionResource: URI) {
-		this._map.deleteAndDispose(this.toKey(sessionResource));
-	}
-
-	private toKey(uri: URI): string {
-		return uri.toString();
-	}
-}
-
 
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
