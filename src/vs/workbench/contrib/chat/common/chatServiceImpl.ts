@@ -396,7 +396,7 @@ export class ChatService extends Disposable implements IChatService {
 	async getHistorySessionItems(): Promise<IChatDetail[]> {
 		const index = await this._chatSessionStore.getIndex();
 		return Object.values(index)
-			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && this.shouldBeInHistory(entry) && !entry.isEmpty)
+			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && entry.initialLocation === ChatAgentLocation.Chat && !entry.isEmpty)
 			.map((entry): IChatDetail => {
 				const sessionResource = LocalChatSessionUri.forSession(entry.sessionId);
 				return ({
@@ -407,11 +407,8 @@ export class ChatService extends Disposable implements IChatService {
 			});
 	}
 
-	private shouldBeInHistory(entry: Partial<ChatModel>) {
-		if (entry.sessionResource) {
-			return !entry.isImported && LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
-		}
-		return !entry.isImported && entry.initialLocation === ChatAgentLocation.Chat;
+	private shouldBeInHistory(entry: ChatModel): boolean {
+		return !entry.isImported && !!LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
 	}
 
 	async removeHistoryEntry(sessionResource: URI): Promise<void> {
