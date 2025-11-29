@@ -25,6 +25,7 @@ export enum ChatConfiguration {
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
 	EmptyChatViewRecentSessionsEnabled = 'chat.emptyState.recentSessions.enabled',
+	EmptyChatViewWelcomeBannerEnabled = 'chat.emptyState.welcomeBanner.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 }

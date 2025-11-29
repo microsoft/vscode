@@ -27,13 +27,15 @@ import { getFlatActionBarActions } from '../../../../../platform/actions/browser
 import { IChatService } from '../../common/chatService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
-import { ACTIVE_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { distinct } from '../../../../../base/common/arrays.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
@@ -41,6 +43,7 @@ export interface IAgentSessionsControlOptions {
 	readonly allowNewSessionFromEmptySpace?: boolean;
 	readonly allowOpenSessionsInPanel?: boolean;
 	readonly allowFiltering?: boolean;
+	readonly trackActiveEditor?: boolean;
 }
 
 type AgentSessionOpenedClassification = {
@@ -76,10 +79,43 @@ export class AgentSessionsControl extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super();
 
 		this.createList(this.container);
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		if (this.options?.trackActiveEditor) {
+			this._register(this.editorService.onDidActiveEditorChange(() => this.revealAndFocusActiveEditorSession()));
+		}
+	}
+
+	private revealAndFocusActiveEditorSession(): void {
+		if (!this.visible) {
+			return;
+		}
+
+		const input = this.editorService.activeEditor;
+		if (!(input instanceof ChatEditorInput)) {
+			return;
+		}
+
+		const sessionResource = input.sessionResource;
+		if (!sessionResource) {
+			return;
+		}
+
+		const sessions = this.agentSessionsService.model.sessions;
+		const matchingSession = sessions.find(session => isEqual(session.resource, sessionResource));
+		if (matchingSession && this.sessionsList?.hasNode(matchingSession)) {
+			this.sessionsList.reveal(matchingSession, 0.5);
+			this.sessionsList.setFocus([matchingSession]);
+			this.sessionsList.setSelection([matchingSession]);
+		}
 	}
 
 	private createList(container: HTMLElement): void {
