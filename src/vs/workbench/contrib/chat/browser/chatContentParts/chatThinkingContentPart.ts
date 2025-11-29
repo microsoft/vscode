@@ -41,7 +41,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	public readonly codeblocksPartId: undefined;
 
 	private id: string | undefined;
-	private readonly content: IChatThinkingPart;
+	private content: IChatThinkingPart;
 	private currentThinkingValue: string;
 	private currentTitle: string;
 	private defaultTitle = localize('chat.thinking.header', 'Thinking...');
@@ -238,6 +238,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this._store.isDisposed) {
 			return;
 		}
+		this.content = content;
 		const raw = extractTextFromPart(content);
 		const next = raw;
 		if (next === this.currentThinkingValue) {
@@ -292,9 +293,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		if (this.content.generatedTitle) {
 			this.currentTitle = this.content.generatedTitle;
-			if (this._collapseButton) {
-				this._collapseButton.label = this.content.generatedTitle;
-			}
+			super.setTitle(this.content.generatedTitle);
 			return;
 		}
 
@@ -303,9 +302,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const title = this.extractedTitles[0];
 			this.currentTitle = title;
 			this.content.generatedTitle = title;
-			if (this._collapseButton) {
-				this._collapseButton.label = title;
-			}
+			super.setTitle(title);
 			return;
 		}
 
@@ -330,7 +327,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				context = this.currentThinkingValue.substring(0, 1000);
 			}
 
-			const prompt = `Generate a very concise header for thinking that contains the following thoughts: ${context}. Respond with only the header text, no quotes or punctuation.`;
+			const prompt = `Summarize the following in 6-7 words: ${context}. Respond with only the summary, no quotes or punctuation. Make sure to use past tense.`;
 
 			const response = await this.languageModelsService.sendChatRequest(
 				models[0],
@@ -432,7 +429,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	protected override setTitle(title: string, omitPrefix?: boolean): void {
-		if (!title) {
+		if (!title || this.context.element.isComplete) {
 			return;
 		}
 
