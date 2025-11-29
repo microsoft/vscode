@@ -293,9 +293,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		if (this.content.generatedTitle) {
 			this.currentTitle = this.content.generatedTitle;
-			if (this._collapseButton) {
-				this._collapseButton.label = this.content.generatedTitle;
-			}
+			super.setTitle(this.content.generatedTitle);
 			return;
 		}
 
@@ -304,9 +302,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const title = this.extractedTitles[0];
 			this.currentTitle = title;
 			this.content.generatedTitle = title;
-			if (this._collapseButton) {
-				this._collapseButton.label = title;
-			}
+			super.setTitle(title);
 			return;
 		}
 
@@ -433,7 +429,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	protected override setTitle(title: string, omitPrefix?: boolean): void {
-		if (!title) {
+		if (!title || this.context.element.isComplete) {
 			return;
 		}
 
