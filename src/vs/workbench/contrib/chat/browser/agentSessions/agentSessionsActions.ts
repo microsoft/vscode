@@ -15,7 +15,7 @@ import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '..
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, openAgentSessionsView } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatService } from '../../common/chatService.js';
@@ -258,5 +258,27 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsTitle, {
 	order: 100,
 	icon: Codicon.filter
 } satisfies ISubmenuItem);
+
+//#endregion
+
+//#region Recent Sessions in Chat View Actions
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSessions.showAll',
+			title: localize('showAllSessions', "Show All Agent Sessions"),
+			icon: Codicon.tasklist,
+			menu: {
+				id: MenuId.ChatRecentSessionsToolbar,
+				group: 'navigation',
+				order: 1,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor, session: IAgentSession): void {
+		openAgentSessionsView(accessor);
+	}
+});
 
 //#endregion
