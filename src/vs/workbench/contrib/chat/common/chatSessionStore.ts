@@ -383,11 +383,10 @@ export class ChatSessionStore extends Disposable {
 	}
 }
 
-interface IChatSessionEntryMetadata {
+export interface IChatSessionEntryMetadata {
 	sessionId: string;
 	title: string;
 	lastMessageDate: number;
-	isImported?: boolean;
 	initialLocation?: ChatAgentLocation;
 
 	/**
@@ -447,7 +446,6 @@ function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSe
 		sessionId: session.sessionId,
 		title: title || localize('newChat', "New Chat"),
 		lastMessageDate: session.lastMessageDate,
-		isImported: session.isImported,
 		initialLocation: session.initialLocation,
 		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0
 	};
