@@ -1850,7 +1850,8 @@ registerAction2(class ToggleEmptyChatViewRecentSessionsAction extends Action2 {
 			menu: {
 				id: MenuId.ChatWelcomeContext,
 				group: '1_modify',
-				order: 1
+				order: 1,
+				when: ChatContextKeys.inChatEditor.negate()
 			}
 		});
 	}
