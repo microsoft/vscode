@@ -213,6 +213,7 @@ export class AgentSessionsView extends ViewPane {
 				filter: sessionsFilter,
 				allowNewSessionFromEmptySpace: true,
 				allowFiltering: true,
+				trackActiveEditor: true,
 			}
 		));
 		this.sessionsControl.setVisible(this.isBodyVisible());
