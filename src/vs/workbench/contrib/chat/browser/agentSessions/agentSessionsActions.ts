@@ -77,7 +77,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'agentSession.archive',
-			title: localize('archive', "Archive"),
+			title: localize2('archive', "Archive"),
 			icon: Codicon.archive,
 			menu: {
 				id: MenuId.AgentSessionItemToolbar,
@@ -96,7 +96,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'agentSession.unarchive',
-			title: localize('unarchive', "Unarchive"),
+			title: localize2('unarchive', "Unarchive"),
 			icon: Codicon.inbox,
 			menu: {
 				id: MenuId.AgentSessionItemToolbar,
@@ -253,7 +253,7 @@ registerAction2(class extends ViewAction<AgentSessionsView> {
 
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsTitle, {
 	submenu: MenuId.AgentSessionsFilterSubMenu,
-	title: localize('filterAgentSessions', "Filter Agent Sessions"),
+	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
 	group: 'navigation',
 	order: 100,
 	icon: Codicon.filter
@@ -267,7 +267,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'agentSessions.showAll',
-			title: localize('showAllSessions', "Show All Agent Sessions"),
+			title: localize2('showAllSessions', "Show All Agent Sessions"),
 			icon: Codicon.listUnordered,
 			menu: {
 				id: MenuId.ChatRecentSessionsToolbar,
@@ -276,7 +276,7 @@ registerAction2(class extends Action2 {
 			}
 		});
 	}
-	run(accessor: ServicesAccessor, session: IAgentSession): void {
+	run(accessor: ServicesAccessor): void {
 		openAgentSessionsView(accessor);
 	}
 });
