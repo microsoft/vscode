@@ -99,6 +99,10 @@ div.chat-welcome-view {
 			color: var(--vscode-textLink-foreground);
 		}
 
+		a:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+		}
+
 		p {
 			margin-top: 8px;
 			margin-bottom: 8px;
@@ -142,6 +146,10 @@ div.chat-welcome-view {
 
 		a {
 			color: var(--vscode-textLink-foreground);
+		}
+
+		a:focus {
+			outline: 1px solid var(--vscode-focusBorder);
 		}
 	}
 }
