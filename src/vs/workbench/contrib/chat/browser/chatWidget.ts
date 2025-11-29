@@ -455,6 +455,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.settingChangeCounter++;
 				this.onDidChangeItems();
 			}
+
+			if (e.affectsConfiguration(ChatConfiguration.EmptyChatViewWelcomeBannerEnabled)) {
+				const showWelcome = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewWelcomeBannerEnabled) !== false;
+				if (this.welcomePart.value) {
+					this.welcomePart.value.setVisible(showWelcome);
+					if (showWelcome) {
+						this.renderWelcomeViewContentIfNeeded();
+					}
+				}
+			}
 		}));
 
 		this._register(autorun(r => {
@@ -922,6 +932,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							getAnchor: () => new StandardMouseEvent(dom.getWindow(this.welcomeMessageContainer), e)
 						});
 					});
+					this.welcomePart.value.setVisible(this.configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewWelcomeBannerEnabled) !== false);
 				}
 			}
 
