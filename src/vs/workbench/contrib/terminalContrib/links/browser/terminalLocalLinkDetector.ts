@@ -101,25 +101,11 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				continue;
 			}
 
-			// https://github.com/microsoft/vscode/issues/247568
-			// If the path ends with an ISO 8601 timestamp pattern and has a suffix,
-			// the suffix is likely part of the timestamp, not a line:col. Extend the path to include it.
-			let pathForCandidate = parsedLink.path.text;
-			let additionalLength = 0;
-			if (parsedLink.suffix && parsedLink.path.text.match(/\d{4}-\d{2}-\d{2}T\d{2}$/)) {
-				const suffixEnd = parsedLink.suffix.suffix.index + parsedLink.suffix.suffix.text.length;
-				const afterSuffix = text.substring(suffixEnd).match(/^[^\s]*/)?.[0] || '';
-				pathForCandidate = parsedLink.path.text + parsedLink.suffix.suffix.text + afterSuffix;
-				additionalLength = afterSuffix.length;
-			}
-
 			// Convert the link text's string index into a wrapped buffer range
 			const bufferRange = convertLinkRangeToBuffer(lines, this.xterm.cols, {
 				startColumn: (parsedLink.prefix?.index ?? parsedLink.path.index) + 1,
 				startLineNumber: 1,
-				endColumn: parsedLink.suffix
-					? parsedLink.suffix.suffix.index + parsedLink.suffix.suffix.text.length + additionalLength + 1
-					: parsedLink.path.index + parsedLink.path.text.length + 1,
+				endColumn: parsedLink.path.index + parsedLink.path.text.length + (parsedLink.suffix?.suffix.text.length ?? 0) + 1,
 				endLineNumber: 1
 			}, startLine);
 
@@ -128,10 +114,10 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 			const osPath = osPathModule(os);
 			const isUri = parsedLink.path.text.startsWith('file://');
 			if (osPath.isAbsolute(parsedLink.path.text) || parsedLink.path.text.startsWith('~') || isUri) {
-				linkCandidates.push(pathForCandidate);
+				linkCandidates.push(parsedLink.path.text);
 			} else {
 				if (this._capabilities.has(TerminalCapability.CommandDetection)) {
-					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, pathForCandidate, osPath, this._logService);
+					const absolutePath = updateLinkWithRelativeCwd(this._capabilities, bufferRange.start.y, parsedLink.path.text, osPath, this._logService);
 					// Only add a single exact link candidate if the cwd is available, this may cause
 					// the link to not be resolved but that should only occur when the actual file does
 					// not exist. Doing otherwise could cause unexpected results where handling via the
@@ -142,7 +128,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				}
 				// Fallback to resolving against the initial cwd, removing any relative directory prefixes
 				if (linkCandidates.length === 0) {
-					linkCandidates.push(pathForCandidate);
+					linkCandidates.push(parsedLink.path.text);
 					if (parsedLink.path.text.match(/^(\.\.[\/\\])+/)) {
 						linkCandidates.push(parsedLink.path.text.replace(/^(\.\.[\/\\])+/, ''));
 					}
@@ -170,6 +156,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 				}
 			}
 			linkCandidates.push(...specialEndLinkCandidates);
+			linkCandidates.push(text);
 			this._logService.trace('terminalLocalLinkDetector#detect linkCandidates', linkCandidates);
 
 			// Validate the path and convert to the outgoing type
@@ -228,8 +215,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 					links.push(simpleLink);
 				}
 
-				// Only match a single fallback matcher
-				break;
 			}
 		}
 

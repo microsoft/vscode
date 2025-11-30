@@ -519,6 +519,22 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				});
 			});
 
+			test('should not misinterpret ISO 8601 timestamps as line:column numbers', async () => {
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, '/folder', localFileOpener, localFolderOpener, () => OperatingSystem.Linux);
+				// Intentionally not set the file so it does not get picked up as localFile.
+				fileService.setFiles([]);
+				await opener.open({
+					text: 'test-2025-04-28T11:03:09+02:00.log',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 34, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'test-2025-04-28T11:03:09+02:00.log',
+					source: 'search'
+				});
+			});
 		});
 
 		suite('Windows', () => {
