@@ -4,6 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-session {
+	display: flex;
+	flex-direction: column;
+	max-width: 950px;
+	height: 100%;
+	margin: auto;
+	position: relative; /* Enable absolute positioning for child elements */
+
 	/* 11px when base font is 13px */
 	--vscode-chat-font-size-body-xs: 0.846em;
 	/* 12px when base font is 13px */
@@ -16,13 +23,6 @@
 	--vscode-chat-font-size-body-xl: 1.231em;
 	/* 20px when base font is 13px */
 	--vscode-chat-font-size-body-xxl: 1.538em;
-}
-
-.interactive-session {
-	max-width: 950px;
-	margin: auto;
-	position: relative;
-	/* For chat dnd */
 }
 
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {

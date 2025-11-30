@@ -62,7 +62,7 @@ export class InlineEditsView extends Disposable {
 		private readonly _editor: ICodeEditor,
 		private readonly _model: IObservable<ModelPerInlineEdit | undefined>,
 		private readonly _simpleModel: IObservable<SimpleInlineSuggestModel | undefined>,
-		private readonly _suggestInfo: IObservable<InlineSuggestionGutterMenuData | undefined>,
+		private readonly _inlineSuggestInfo: IObservable<InlineSuggestionGutterMenuData | undefined>,
 		private readonly _showCollapsed: IObservable<boolean>,
 
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
@@ -133,7 +133,8 @@ export class InlineEditsView extends Disposable {
 					edit: s.edit,
 					diff: s.diff,
 					model: this._simpleModel.read(reader)!,
-					suggestInfo: this._suggestInfo.read(reader)!,
+					inlineSuggestInfo: this._inlineSuggestInfo.read(reader)!,
+					nextCursorPosition: s.nextCursorPosition,
 				}) : undefined),
 				this._previewTextModel,
 				this._tabAction,
@@ -156,7 +157,7 @@ export class InlineEditsView extends Disposable {
 			};
 		});
 		this._inlineDiffView = this._register(new OriginalEditorInlineDiffView(this._editor, this._inlineDiffViewState, this._previewTextModel));
-		this._jumpToView = this._register(this._instantiationService.createInstance(JumpToView, this._editorObs, derived(reader => {
+		this._jumpToView = this._register(this._instantiationService.createInstance(JumpToView, this._editorObs, { style: 'label' }, derived(reader => {
 			const s = this._uiState.read(reader);
 			if (s?.state?.kind === InlineCompletionViewKind.JumpTo) {
 				return { jumpToPosition: s.state.position };
@@ -278,7 +279,7 @@ export class InlineEditsView extends Disposable {
 		if (model.inlineEdit.inlineCompletion.identity.jumpedTo.read(reader)) {
 			return undefined;
 		}
-		if (model.inlineEdit.action?.kind !== 'edit') {
+		if (model.inlineEdit.action === undefined) {
 			return undefined;
 		}
 		if (this._currentInlineEditCache?.inlineSuggestionIdentity !== model.inlineEdit.inlineCompletion.identity) {
@@ -303,6 +304,7 @@ export class InlineEditsView extends Disposable {
 		newTextLineCount: number;
 		isInDiffEditor: boolean;
 		longDistanceHint: ILongDistanceHint | undefined;
+		nextCursorPosition: Position | null;
 	} | undefined>(this, reader => {
 		const model = this._model.read(reader);
 		const textModel = this._editorObs.model.read(reader);
@@ -369,6 +371,8 @@ export class InlineEditsView extends Disposable {
 
 		model.handleInlineEditShown(state.kind, state.viewData); // call this in the next animation frame
 
+		const nextCursorPosition = inlineEdit.action?.kind === 'jumpTo' ? inlineEdit.action.position : null;
+
 		return {
 			state,
 			diff,
@@ -377,6 +381,7 @@ export class InlineEditsView extends Disposable {
 			newTextLineCount: inlineEdit.modifiedLineRange.length,
 			isInDiffEditor: model.isInDiffEditor,
 			longDistanceHint,
+			nextCursorPosition: nextCursorPosition,
 		};
 	});
 

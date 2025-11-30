@@ -25,7 +25,6 @@ import { ISelection } from '../../../../editor/common/core/selection.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { migrateLegacyTerminalToolSpecificData } from './chat.js';
@@ -1239,7 +1238,6 @@ export interface IExportableChatData {
 export interface ISerializableChatData1 extends IExportableChatData {
 	sessionId: string;
 	creationDate: number;
-	isImported: boolean;
 
 	/** Indicates that this session was created in this window. Is cleared after the chat has been written to storage once. Needed to sync chat creations/deletions between empty windows. */
 	isNew?: boolean;
@@ -1400,8 +1398,9 @@ function getLastYearDate(): number {
 }
 
 export function isExportableSessionData(obj: unknown): obj is IExportableChatData {
-	const data = obj as IExportableChatData;
-	return typeof data === 'object';
+	return !!obj &&
+		Array.isArray((obj as IExportableChatData).requests) &&
+		typeof (obj as IExportableChatData).responderUsername === 'string';
 }
 
 export function isSerializableSessionData(obj: unknown): obj is ISerializableChatData {
@@ -1652,26 +1651,26 @@ export class ChatModel extends Disposable implements IChatModel {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
 		@IChatService chatService: IChatService,
-		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
-		const isValid = isSerializableSessionData(initialData);
-		if (initialData && !isValid) {
+		const isValidExportedData = isExportableSessionData(initialData);
+		const isValidFullData = isValidExportedData && isSerializableSessionData(initialData);
+		if (initialData && !isValidExportedData) {
 			this.logService.warn(`ChatModel#constructor: Loaded malformed session data: ${JSON.stringify(initialData)}`);
 		}
 
-		this._isImported = (!!initialData && !isValid) || (initialData?.isImported ?? false);
-		this._sessionId = (isValid && initialData.sessionId) || initialModelProps.sessionId || generateUuid();
+		this._isImported = !!initialData && isValidExportedData && !isValidFullData;
+		this._sessionId = (isValidFullData && initialData.sessionId) || initialModelProps.sessionId || generateUuid();
 		this._sessionResource = initialModelProps.resource ?? LocalChatSessionUri.forSession(this._sessionId);
 
 		this._requests = initialData ? this._deserialize(initialData) : [];
-		this._timestamp = (isValid && initialData.creationDate) || Date.now();
-		this._lastMessageDate = (isValid && initialData.lastMessageDate) || this._timestamp;
-		this._customTitle = isValid ? initialData.customTitle : undefined;
+		this._timestamp = (isValidFullData && initialData.creationDate) || Date.now();
+		this._lastMessageDate = (isValidFullData && initialData.lastMessageDate) || this._timestamp;
+		this._customTitle = isValidFullData ? initialData.customTitle : undefined;
 
 		// Initialize input model from serialized data (undefined for new chats)
-		const serializedInputState = isValid && initialData.inputState ? initialData.inputState : undefined;
+		const serializedInputState = isValidFullData && initialData.inputState ? initialData.inputState : undefined;
 		this.inputModel = new InputModel(serializedInputState && {
 			attachments: serializedInputState.attachments,
 			mode: serializedInputState.mode,
@@ -2121,7 +2120,6 @@ export class ChatModel extends Disposable implements IChatModel {
 			...this.toExport(),
 			sessionId: this.sessionId,
 			creationDate: this._timestamp,
-			isImported: this._isImported,
 			lastMessageDate: this._lastMessageDate,
 			customTitle: this._customTitle,
 			// Only include inputState if it has been set

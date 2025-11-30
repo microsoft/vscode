@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -139,7 +138,7 @@ suite('ChatService', () => {
 	}
 
 	function startSessionModel(service: IChatService, location: ChatAgentLocation = ChatAgentLocation.Chat): IChatModelReference {
-		const ref = testDisposables.add(service.startSession(location, CancellationToken.None));
+		const ref = testDisposables.add(service.startSession(location));
 		return ref;
 	}
 
@@ -207,11 +206,11 @@ suite('ChatService', () => {
 	test('retrieveSession', async () => {
 		const testService = createChatService();
 		// Don't add refs to testDisposables so we can control disposal
-		const session1Ref = testService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
+		const session1Ref = testService.startSession(ChatAgentLocation.Chat);
 		const session1 = session1Ref.object as ChatModel;
 		session1.addRequest({ parts: [], text: 'request 1' }, { variables: [] }, 0);
 
-		const session2Ref = testService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
+		const session2Ref = testService.startSession(ChatAgentLocation.Chat);
 		const session2 = session2Ref.object as ChatModel;
 		session2.addRequest({ parts: [], text: 'request 2' }, { variables: [] }, 0);
 
@@ -400,7 +399,7 @@ suite('ChatService', () => {
 
 	test('onDidDisposeSession', async () => {
 		const testService = createChatService();
-		const modelRef = testService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
+		const modelRef = testService.startSession(ChatAgentLocation.Chat);
 		const model = modelRef.object;
 
 		let disposed = false;
