@@ -237,7 +237,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.any(
 			this._widget.onDidChangeEmptyState,
 			Event.fromObservable(this.welcomeController.isShowingWelcome),
-			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.EmptyChatViewRecentSessionsEnabled))
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewRecentSessionsEnabled))
 		)(() => {
 			this.sessionsControl?.clearFocus(); // improve visual appearance when switching visibility by clearing focus
 			this.notifySessionsControlChanged();
@@ -301,7 +301,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		const newSessionsContainerVisible =
-			this.configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewRecentSessionsEnabled) &&	// enabled in settings
+			this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewRecentSessionsEnabled) &&	// enabled in settings
 			(!this._widget || this._widget?.isEmpty()) &&															// chat widget empty
 			!this.welcomeController?.isShowingWelcome.get() &&														// welcome not showing
 			this.sessionsCount > 0;																					// has sessions

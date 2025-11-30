@@ -358,19 +358,19 @@ configurationRegistry.registerConfiguration({
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
 		},
-		[ChatConfiguration.EmptyChatViewRecentSessionsEnabled]: { // TODO@bpasero decide on a default
+		[ChatConfiguration.ChatViewRecentSessionsEnabled]: { // TODO@bpasero decide on a default
 			type: 'boolean',
 			default: product.quality !== 'stable',
-			description: nls.localize('chat.emptyState.sessions.enabled', "Show recent agent sessions when chat view is empty."),
+			description: nls.localize('chat.sessions.enabled', "Show recent chat agent sessions when chat is empty."),
 			tags: ['preview', 'experimental'],
 			experiment: {
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.EmptyChatViewWelcomeBannerEnabled]: {
+		[ChatConfiguration.ChatViewWelcomeBannerEnabled]: {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('chat.emptyState.welcome.enabled', "Show welcome banner when chat view is empty."),
+			description: nls.localize('chat.welcome.enabled', "Show welcome banner when chat is empty."),
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
