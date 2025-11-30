@@ -38,7 +38,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		private readonly tokenizationTextModelPart: TokenizationTextModelPart
 	) {
 		super();
-		this.tokenizationTextModelPart.onDidChangeFontTokens(fontChanges => {
+		this._register(this.tokenizationTextModelPart.onDidChangeFontTokens(fontChanges => {
 
 			const linesChanged = new Set<number>();
 			const fontTokenAnnotations: IAnnotationUpdate<IFontTokenAnnotation>[] = [];
@@ -100,7 +100,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			this._fontAnnotatedString.setAnnotations(AnnotationsUpdate.create(fontTokenAnnotations));
 			this._onDidChangeLineHeight.fire(affectedLineHeights);
 			this._onDidChangeFont.fire(affectedLineFonts);
-		});
+		}));
 	}
 
 	public handleDidChangeContent(change: IModelContentChangedEvent) {
