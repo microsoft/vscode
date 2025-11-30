@@ -165,7 +165,7 @@ export class InlineEditsView extends Disposable {
 			return undefined;
 		})));
 		const wordReplacements = derivedOpts({
-			equalsFn: itemsEquals(itemEquals())
+			equalsFn: itemsEquals(itemEquals<WordReplacementsViewData>())
 		}, reader => {
 			const s = this._uiState.read(reader);
 			return s?.state?.kind === InlineCompletionViewKind.WordReplacements ? s.state.replacements.map(replacement => new WordReplacementsViewData(replacement, s.state?.alternativeAction)) : [];
