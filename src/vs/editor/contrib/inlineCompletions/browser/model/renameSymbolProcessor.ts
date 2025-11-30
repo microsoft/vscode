@@ -15,7 +15,7 @@ import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
-import { Command, type LocationLink, type Rejection, type WorkspaceEdit } from '../../../../common/languages.js';
+import { Command, type Rejection, type WorkspaceEdit } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../../common/services/languageFeatures.js';
@@ -335,6 +335,7 @@ export class RenameSymbolProcessor extends Disposable {
 		}
 
 		const id = suggestItem.identity.id;
+
 		const source = EditSources.inlineCompletionAccept({
 			nes: suggestItem.isInlineEdit,
 			requestUuid: suggestItem.requestUuid,
@@ -343,7 +344,7 @@ export class RenameSymbolProcessor extends Disposable {
 		});
 		const command: Command = {
 			id: renameSymbolCommandId,
-			title: label,
+			title: localize('rename', "Rename"),
 			arguments: [textModel, position, newName, source],
 		};
 		const textReplacement = renameEdits[0];
@@ -355,22 +356,15 @@ export class RenameSymbolProcessor extends Disposable {
 			alternativeAction: command,
 			uri: textModel.uri
 		};
-		return InlineSuggestionItem.create(suggestItem.withRename(renameAction), textModel);
-	}
 
-	public validateDefinitions(definitions: readonly LocationLink[] | undefined, textModel: ITextModel, range: Range): boolean {
-		if (definitions === undefined || definitions.length === 0) {
-			return false;
+		if (this._renameRunnable !== undefined) {
+			this._renameRunnable.runnable.cancel();
+			this._renameRunnable = undefined;
 		}
-		for (const definition of definitions) {
-			if (definition.targetSelectionRange === undefined) {
-				continue;
-			}
-			if (definition.uri.toString() === textModel.uri.toString() && Range.containsRange(definition.targetSelectionRange, range)) {
-				return true;
-			}
-		}
-		return false;
+		const runnable = new RenameSymbolRunnable(this._languageFeaturesService, textModel, position, newName, source);
+		this._renameRunnable = { id, runnable };
+
+		return InlineSuggestionItem.create(suggestItem.withAction(renameAction), textModel);
 	}
 
 	private async checkRenamePrecondition(textModel: ITextModel, position: Position, oldName: string, newName: string): Promise<RenameKind> {
