@@ -33,7 +33,7 @@ import type { IMarker } from '@xterm/headless';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 
 interface ITerminalLinkActivationResult {
-	source: 'editor' | 'search' | 'LocalFile';
+	source: 'editor' | 'search';
 	link: string;
 	selection?: ITextEditorSelection;
 }
@@ -555,7 +555,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				});
 				deepStrictEqual(activationResult, {
 					link: 'file:///folder/test-2025-04-28T14%3A30%3A00%2B02%3A00.log',
-					source: 'LocalFile'
+					source: 'editor'
 				});
 			});
 
@@ -1001,7 +1001,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				});
 				deepStrictEqual(activationResult, {
 					link: 'file:///c%3A/folder/test-2025-04-28T14%3A30%3A00%2B02%3A00.log',
-					source: 'LocalFile'
+					source: 'editor'
 				});
 			});
 		});
