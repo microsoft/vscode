@@ -16,6 +16,16 @@ fi
 function code() {
 	cd "$ROOT"
 
+	VSCODE_SYSROOT="${VSCODE_SYSROOT:-$HOME/.local/vscode-sysroot}"
+	if [[ -d "$VSCODE_SYSROOT" ]]; then
+		export PATH="$VSCODE_SYSROOT/usr/bin${PATH:+:$PATH}"
+		export PKG_CONFIG_PATH="$VSCODE_SYSROOT/usr/lib/x86_64-linux-gnu/pkgconfig:$VSCODE_SYSROOT/usr/share/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+		export C_INCLUDE_PATH="$VSCODE_SYSROOT/usr/include${C_INCLUDE_PATH:+:$C_INCLUDE_PATH}"
+		export CPLUS_INCLUDE_PATH="$VSCODE_SYSROOT/usr/include${CPLUS_INCLUDE_PATH:+:$CPLUS_INCLUDE_PATH}"
+		export LIBRARY_PATH="$VSCODE_SYSROOT/usr/lib/x86_64-linux-gnu${LIBRARY_PATH:+:$LIBRARY_PATH}"
+		export LD_LIBRARY_PATH="$VSCODE_SYSROOT/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+	fi
+
 	if [[ "$OSTYPE" == "darwin"* ]]; then
 		NAME=`node -p "require('./product.json').nameLong"`
 		CODE="./.build/electron/$NAME.app/Contents/MacOS/Electron"

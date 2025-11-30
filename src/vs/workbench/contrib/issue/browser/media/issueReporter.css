@@ -126,65 +126,65 @@
 /* Font Families (with CJK support) */
 
 .issue-reporter-body .mac.web {
-	font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+	font-family: "Ubuntu", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .issue-reporter-body .mac.web:lang(zh-Hans) {
-	font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif;
+	font-family: "Ubuntu", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif;
 }
 
 .issue-reporter-body .mac.web:lang(zh-Hant) {
-	font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif;
+	font-family: "Ubuntu", -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif;
 }
 
 .issue-reporter-body .mac.web:lang(ja) {
-	font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif;
+	font-family: "Ubuntu", -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif;
 }
 
 .issue-reporter-body .mac.web:lang(ko) {
-	font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Nanum Gothic", "AppleGothic", sans-serif;
+	font-family: "Ubuntu", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Nanum Gothic", "AppleGothic", sans-serif;
 }
 
 .issue-reporter-body .windows.web {
-	font-family: "Segoe WPC", "Segoe UI", sans-serif;
+	font-family: "Ubuntu", "Segoe WPC", "Segoe UI", sans-serif;
 }
 
 .issue-reporter-body .windows.web:lang(zh-Hans) {
-	font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif;
+	font-family: "Ubuntu", "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif;
 }
 
 .issue-reporter-body .windows.web:lang(zh-Hant) {
-	font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif;
+	font-family: "Ubuntu", "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif;
 }
 
 .issue-reporter-body .windows.web:lang(ja) {
-	font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif;
+	font-family: "Ubuntu", "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif;
 }
 
 .issue-reporter-body .windows.web:lang(ko) {
-	font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif;
+	font-family: "Ubuntu", "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif;
 }
 
 
-/* Linux: add `system-ui` as first font and not `Ubuntu` to allow other distribution pick their standard OS font */
+/* Linux: prefer Ubuntu while still allowing distro-specific fallbacks */
 .issue-reporter-body .linux.web {
-	font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif;
+	font-family: "Ubuntu", system-ui, "Droid Sans", sans-serif;
 }
 
 .issue-reporter-body .linux.web:lang(zh-Hans) {
-	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif;
+	font-family: "Ubuntu", system-ui, "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif;
 }
 
 .issue-reporter-body .linux.web:lang(zh-Hant) {
-	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif;
+	font-family: "Ubuntu", system-ui, "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif;
 }
 
 .issue-reporter-body .linux.web:lang(ja) {
-	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif;
+	font-family: "Ubuntu", system-ui, "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif;
 }
 
 .issue-reporter-body .linux.web:lang(ko) {
-	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif;
+	font-family: "Ubuntu", system-ui, "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif;
 }
 
 body.issue-reporter-body  {
