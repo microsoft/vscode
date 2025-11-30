@@ -41,6 +41,8 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		this.tokenizationTextModelPart.onDidChangeFontTokens(fontChanges => {
 
 			const linesTouched = new Set<number>();
+			const fontTokenAnnotations: IAnnotationUpdate<IFontTokenAnnotation>[] = [];
+
 			const affectedLineHeights = new Set<LineHeightChangingDecoration>();
 			const affectedLineFonts = new Set<LineFontChangingDecoration>();
 
@@ -73,13 +75,17 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 						annotation: fontTokenDecoration
 					};
 					TokenizationFontDecorationProvider.DECORATION_COUNT++;
+					fontTokenAnnotations.push(fontTokenAnnotation);
 					if (annotation.annotation.lineHeight) {
 						affectedLineHeights.add(new LineHeightChangingDecoration(0, decorationId, lineNumber, annotation.annotation.lineHeight));
 					}
 					affectedLineFonts.add(new LineFontChangingDecoration(0, decorationId, lineNumber));
 				}
-				this._fontAnnotatedString.setAnnotations(AnnotationsUpdate.create([fontTokenAnnotation]));
 			}
+			/**
+			 * We assume the lines touched are entirely retokenized.
+			 * Hence we can remove the line height and font info for these specific lines
+			 */
 			for (const lineNumber of linesTouched) {
 				const lineNumberStartOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
 				const lineNumberEndOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
@@ -91,6 +97,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 					affectedLineFonts.add(new LineFontChangingDecoration(0, decorationId, lineNumber));
 				}
 			}
+			this._fontAnnotatedString.setAnnotations(AnnotationsUpdate.create(fontTokenAnnotations));
 			this._onDidChangeLineHeight.fire(affectedLineHeights);
 			this._onDidChangeFont.fire(affectedLineFonts);
 		});
@@ -103,7 +110,23 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 			const stringEdit = StringEdit.replace(offsetRange, c.text);
 			edits = edits.compose(stringEdit);
 		}
-		this._fontAnnotatedString.applyEdit(edits);
+		const deletedAnnotations = this._fontAnnotatedString.applyEdit(edits);
+		if (deletedAnnotations.length === 0) {
+			return;
+		}
+		/* Fire events if decorations have been added or removed
+		 * No decorations are added on edit, but they can be removed */
+		const affectedLineHeights = new Set<LineHeightChangingDecoration>();
+		const affectedLineFonts = new Set<LineFontChangingDecoration>();
+		for (const deletedAnnotation of deletedAnnotations) {
+			const startPosition = this.textModel.getPositionAt(deletedAnnotation.range.start);
+			const lineNumber = startPosition.lineNumber;
+			const decorationId = deletedAnnotation.annotation.decorationId;
+			affectedLineHeights.add(new LineHeightChangingDecoration(0, decorationId, lineNumber, null));
+			affectedLineFonts.add(new LineFontChangingDecoration(0, decorationId, lineNumber));
+		}
+		this._onDidChangeLineHeight.fire(affectedLineHeights);
+		this._onDidChangeFont.fire(affectedLineFonts);
 	}
 
 	public getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
