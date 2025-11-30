@@ -326,6 +326,31 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from '../../platform/window/electron-b
 					return windowBorderDescription;
 				})(),
 				'included': isWindows
+			},
+			'window.vibrancy': {
+				'type': 'string',
+				'enum': ['off', 'under-window', 'fullscreen-ui'],
+				'enumDescriptions': [
+					localize('window.vibrancy.off', "Disable window vibrancy effect."),
+					localize('window.vibrancy.underWindow', "Apply vibrancy effect that shows content behind the window."),
+					localize('window.vibrancy.fullscreenUI', "Apply vibrancy effect suitable for fullscreen UI.")
+				],
+				'default': 'off',
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('window.vibrancy', "Enables macOS-style translucent window with vibrancy effect. This creates a frosted glass appearance that blends with the desktop background. Requires a restart to take effect."),
+				'included': isMacintosh
+			},
+			'window.roundedCorners': {
+				'type': 'string',
+				'enum': ['off', 'default', 'large'],
+				'enumDescriptions': [
+					localize('window.roundedCorners.off', "Disable rounded corners on the window."),
+					localize('window.roundedCorners.default', "Apply default rounded corners (12px radius)."),
+					localize('window.roundedCorners.large', "Apply large rounded corners (18px radius) similar to macOS Tahoe.")
+				],
+				'default': isMacintosh ? 'default' : 'off',
+				'scope': ConfigurationScope.APPLICATION,
+				'description': localize('window.roundedCorners', "Controls the rounded corners of the window. This setting creates a macOS-style rounded rectangle appearance."),
 			}
 		}
 	});

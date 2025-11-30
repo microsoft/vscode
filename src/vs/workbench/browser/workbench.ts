@@ -12,6 +12,7 @@ import { mark } from '../../base/common/performance.js';
 import { onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { isWindows, isLinux, isWeb, isNative, isMacintosh } from '../../base/common/platform.js';
+import { getWindowRoundedCorners, getWindowVibrancy, WindowRoundedCorners, WindowVibrancy } from '../../platform/window/common/window.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../common/contributions.js';
 import { IEditorFactoryRegistry, EditorExtensions } from '../common/editor.js';
 import { getSingletonServiceDescriptors } from '../../platform/instantiation/common/extensions.js';
@@ -320,11 +321,17 @@ export class Workbench extends Layout {
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
+		const vibrancyEnabled = isMacintosh && isNative && getWindowVibrancy(configurationService) !== WindowVibrancy.OFF;
+		const roundedCorners = isNative ? getWindowRoundedCorners(configurationService) : WindowRoundedCorners.OFF;
+		const roundedCornersClass = roundedCorners === WindowRoundedCorners.LARGE ? 'rounded-large' :
+			roundedCorners === WindowRoundedCorners.DEFAULT ? 'rounded' : undefined;
 		const workbenchClasses = coalesce([
 			'monaco-workbench',
 			platformClass,
 			isWeb ? 'web' : undefined,
 			isChrome ? 'chromium' : isFirefox ? 'firefox' : isSafari ? 'safari' : undefined,
+			vibrancyEnabled ? 'vibrancy' : undefined,
+			roundedCornersClass,
 			...this.getLayoutClasses(),
 			...(this.options?.extraClasses ? this.options.extraClasses : [])
 		]);

@@ -211,6 +211,20 @@ export interface IWindowSettings {
 	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
 	readonly border: 'off' | 'default' | 'system' | string /* color in RGB or other formats */;
+	readonly vibrancy: WindowVibrancy;
+	readonly roundedCorners: WindowRoundedCorners;
+}
+
+export const enum WindowRoundedCorners {
+	OFF = 'off',
+	DEFAULT = 'default',
+	LARGE = 'large'
+}
+
+export const enum WindowVibrancy {
+	OFF = 'off',
+	UNDER_WINDOW = 'under-window',
+	FULLSCREEN_UI = 'fullscreen-ui'
 }
 
 export interface IDensitySettings {
@@ -325,6 +339,29 @@ export function useNativeFullScreen(configurationService: IConfigurationService)
 	}
 
 	return windowConfig.nativeFullScreen !== false;
+}
+
+export function getWindowVibrancy(configurationService: IConfigurationService): WindowVibrancy {
+	if (!isMacintosh) {
+		return WindowVibrancy.OFF; // only supported on macOS
+	}
+
+	const windowConfig = configurationService.getValue<IWindowSettings | undefined>('window');
+	if (!windowConfig || !windowConfig.vibrancy) {
+		return WindowVibrancy.OFF; // default
+	}
+
+	return windowConfig.vibrancy;
+}
+
+export function getWindowRoundedCorners(configurationService: IConfigurationService): WindowRoundedCorners {
+	const windowConfig = configurationService.getValue<IWindowSettings | undefined>('window');
+	if (!windowConfig || !windowConfig.roundedCorners) {
+		// Default to 'default' on macOS, 'off' on other platforms
+		return isMacintosh ? WindowRoundedCorners.DEFAULT : WindowRoundedCorners.OFF;
+	}
+
+	return windowConfig.roundedCorners;
 }
 
 

@@ -93,6 +93,144 @@ body {
 	border-radius: 18px; /* macOS Tahoe increased rounded corners size even more */
 }
 
+/* macOS Vibrancy/Translucent Window Effect */
+.monaco-workbench.mac.vibrancy {
+	background-color: transparent !important;
+}
+
+.monaco-workbench.mac.vibrancy .part {
+	background-color: rgba(30, 30, 30, 0.7) !important;
+	backdrop-filter: blur(20px) saturate(180%);
+	-webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.monaco-workbench.mac.vibrancy.vs .part {
+	background-color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.monaco-workbench.mac.vibrancy .part.sidebar {
+	background-color: rgba(30, 30, 30, 0.6) !important;
+}
+
+.monaco-workbench.mac.vibrancy.vs .part.sidebar {
+	background-color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.monaco-workbench.mac.vibrancy .part.auxiliarybar {
+	background-color: rgba(30, 30, 30, 0.6) !important;
+}
+
+.monaco-workbench.mac.vibrancy.vs .part.auxiliarybar {
+	background-color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.monaco-workbench.mac.vibrancy .part.panel {
+	background-color: rgba(30, 30, 30, 0.65) !important;
+}
+
+.monaco-workbench.mac.vibrancy.vs .part.panel {
+	background-color: rgba(255, 255, 255, 0.65) !important;
+}
+
+.monaco-workbench.mac.vibrancy .part.editor {
+	background-color: rgba(30, 30, 30, 0.75) !important;
+}
+
+.monaco-workbench.mac.vibrancy.vs .part.editor {
+	background-color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.monaco-workbench.mac.vibrancy .part.titlebar {
+	background-color: rgba(30, 30, 30, 0.8) !important;
+}
+
+.monaco-workbench.mac.vibrancy.vs .part.titlebar {
+	background-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.monaco-workbench.mac.vibrancy .part.statusbar {
+	background-color: rgba(30, 30, 30, 0.8) !important;
+}
+
+.monaco-workbench.mac.vibrancy.vs .part.statusbar {
+	background-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.monaco-workbench.mac.vibrancy .part.activitybar {
+	background-color: rgba(30, 30, 30, 0.6) !important;
+}
+
+.monaco-workbench.mac.vibrancy.vs .part.activitybar {
+	background-color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Editor background transparency for vibrancy */
+.monaco-workbench.mac.vibrancy .monaco-editor,
+.monaco-workbench.mac.vibrancy .monaco-editor .monaco-editor-background,
+.monaco-workbench.mac.vibrancy .monaco-editor .margin {
+	background-color: transparent !important;
+}
+
+/* Rounded Corners */
+.monaco-workbench.rounded:not(.fullscreen) {
+	border-radius: 12px;
+	overflow: hidden;
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+}
+
+.monaco-workbench.rounded-large:not(.fullscreen) {
+	border-radius: 18px;
+	overflow: hidden;
+	box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28);
+}
+
+/* Rounded corners for internal parts - titlebar */
+.monaco-workbench.rounded:not(.fullscreen) .part.titlebar,
+.monaco-workbench.rounded-large:not(.fullscreen) .part.titlebar {
+	border-top-left-radius: inherit;
+	border-top-right-radius: inherit;
+}
+
+/* Rounded corners for internal parts - statusbar */
+.monaco-workbench.rounded:not(.fullscreen) .part.statusbar,
+.monaco-workbench.rounded-large:not(.fullscreen) .part.statusbar {
+	border-bottom-left-radius: inherit;
+	border-bottom-right-radius: inherit;
+}
+
+/* Rounded corners for sidebar when at edge */
+.monaco-workbench.rounded:not(.fullscreen) .part.sidebar.left,
+.monaco-workbench.rounded-large:not(.fullscreen) .part.sidebar.left {
+	border-bottom-left-radius: inherit;
+}
+
+.monaco-workbench.rounded:not(.fullscreen) .part.sidebar.right,
+.monaco-workbench.rounded-large:not(.fullscreen) .part.sidebar.right {
+	border-bottom-right-radius: inherit;
+}
+
+/* Rounded corners for activity bar when at edge */
+.monaco-workbench.rounded:not(.fullscreen) .part.activitybar.left,
+.monaco-workbench.rounded-large:not(.fullscreen) .part.activitybar.left {
+	border-bottom-left-radius: inherit;
+}
+
+.monaco-workbench.rounded:not(.fullscreen) .part.activitybar.right,
+.monaco-workbench.rounded-large:not(.fullscreen) .part.activitybar.right {
+	border-bottom-right-radius: inherit;
+}
+
+/* Rounded corners for auxiliarybar when at edge */
+.monaco-workbench.rounded:not(.fullscreen) .part.auxiliarybar.left,
+.monaco-workbench.rounded-large:not(.fullscreen) .part.auxiliarybar.left {
+	border-bottom-left-radius: inherit;
+}
+
+.monaco-workbench.rounded:not(.fullscreen) .part.auxiliarybar.right,
+.monaco-workbench.rounded-large:not(.fullscreen) .part.auxiliarybar.right {
+	border-bottom-right-radius: inherit;
+}
+
 .monaco-workbench img {
 	border: 0;
 }
