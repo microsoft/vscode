@@ -25,7 +25,7 @@ import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { computeEditKind, InlineSuggestionEditKind } from './editKind.js';
-import { IInlineSuggestDataActionEdit, IInlineSuggestDataActionRename, InlineSuggestData, InlineSuggestionList, PartialAcceptance, RenameInfo, SnippetInfo } from './provideInlineCompletions.js';
+import { IInlineSuggestDataAction, IInlineSuggestDataActionEdit, InlineSuggestData, InlineSuggestionList, PartialAcceptance, RenameInfo, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
 export type InlineSuggestionItem = InlineEditItem | InlineCompletionItem;
@@ -43,7 +43,7 @@ export namespace InlineSuggestionItem {
 	}
 }
 
-export type InlineSuggestionAction = IInlineSuggestionActionEdit | IInlineSuggestionActionJumpTo | IInlineSuggestionActionRename;
+export type InlineSuggestionAction = IInlineSuggestionActionEdit | IInlineSuggestionActionJumpTo;
 
 export interface IInlineSuggestionActionEdit {
 	kind: 'edit';
@@ -51,6 +51,7 @@ export interface IInlineSuggestionActionEdit {
 	snippetInfo: SnippetInfo | undefined;
 	stringEdit: StringEdit;
 	uri: URI | undefined;
+	alternativeAction: Command | undefined;
 }
 
 export interface IInlineSuggestionActionJumpTo {
@@ -60,16 +61,8 @@ export interface IInlineSuggestionActionJumpTo {
 	uri: URI | undefined;
 }
 
-export interface IInlineSuggestionActionRename {
-	kind: 'rename';
-	textReplacement: TextReplacement;
-	stringEdit: StringEdit;
-	uri: URI | undefined;
-	command: Command;
-}
-
 function hashInlineSuggestionAction(action: InlineSuggestionAction | undefined): string {
-	const obj = action?.kind === 'rename' ? { ...action, command: action.command.id } : action;
+	const obj = action?.kind === 'edit' ? { ...action, alternativeAction: action.alternativeAction?.id } : action;
 	return JSON.stringify(obj);
 }
 
@@ -96,7 +89,7 @@ abstract class InlineSuggestionItemBase {
 		if (this.hint) {
 			return this.hint.range;
 		}
-		if (this.action?.kind === 'edit' || this.action?.kind === 'rename') {
+		if (this.action?.kind === 'edit') {
 			return this.action.textReplacement.range;
 		} else if (this.action?.kind === 'jumpTo') {
 			return Range.fromPositions(this.action.position);
@@ -145,7 +138,7 @@ abstract class InlineSuggestionItemBase {
 	}
 
 	public reportInlineEditShown(commandService: ICommandService, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, model: ITextModel) {
-		const insertText = this.action?.kind === 'edit' || this.action?.kind === 'rename' ? this.action.textReplacement.text : ''; // TODO@hediet support insertText === undefined
+		const insertText = this.action?.kind === 'edit' ? this.action.textReplacement.text : ''; // TODO@hediet support insertText === undefined
 		this._data.reportInlineEditShown(commandService, insertText, viewKind, viewData, this.computeEditKind(model));
 	}
 
@@ -180,8 +173,8 @@ abstract class InlineSuggestionItemBase {
 		this._data.setRenameProcessingInfo(info);
 	}
 
-	public withRename(renameAction: IInlineSuggestDataActionRename): InlineSuggestData {
-		return this._data.withRename(renameAction);
+	public withAction(action: IInlineSuggestDataAction): InlineSuggestData {
+		return this._data.withAction(action);
 	}
 
 	public addPerformanceMarker(marker: string): void {
@@ -295,6 +288,7 @@ export class InlineCompletionItem extends InlineSuggestionItemBase {
 			snippetInfo: this.snippetInfo,
 			stringEdit: new StringEdit([this._trimmedEdit]),
 			uri: undefined,
+			alternativeAction: undefined,
 		};
 	}
 
@@ -438,6 +432,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 				stringEdit: offsetEdit,
 				textReplacement: singleTextEdit,
 				uri: data.action.uri,
+				alternativeAction: data.action.alternativeAction,
 			};
 		} else if (data.action?.kind === 'jumpTo') {
 			action = {
@@ -446,8 +441,6 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 				offset: textModel.getOffsetAt(data.action.position),
 				uri: data.action.uri,
 			};
-		} else if (data.action?.kind === 'rename') {
-			action = data.action;
 		} else {
 			action = undefined;
 			if (!data.hint) {
@@ -548,6 +541,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 				snippetInfo: this.snippetInfo,
 				stringEdit: newEdit,
 				uri: this.action.uri,
+				alternativeAction: this.action.alternativeAction,
 			};
 		} else if (this.action?.kind === 'jumpTo') {
 			const jumpToOffset = this.action.offset;
@@ -587,7 +581,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 	}
 
 	override computeEditKind(model: ITextModel): InlineSuggestionEditKind | undefined {
-		const edit = this.action?.kind === 'edit' || this.action?.kind === 'rename' ? this.action.stringEdit : undefined;
+		const edit = this.action?.kind === 'edit' ? this.action.stringEdit : undefined;
 		if (!edit) {
 			return undefined;
 		}

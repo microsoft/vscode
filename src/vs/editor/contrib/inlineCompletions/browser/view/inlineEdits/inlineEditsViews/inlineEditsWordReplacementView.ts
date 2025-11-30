@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow, ModifierKeyEmitter, n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
-import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { ModifierKeyEmitter, n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
+import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { ResolvedChord, ResolvedKeybinding, SingleModifierChord } from '../../../../../../../base/common/keybindings.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableFromEvent, observableValue } from '../../../../../../../base/common/observable.js';
+import { OS } from '../../../../../../../base/common/platform.js';
 import { editorBackground, editorHoverForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
@@ -21,11 +21,23 @@ import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { StringReplacement } from '../../../../../../common/core/edits/stringEdit.js';
 import { TextReplacement } from '../../../../../../common/core/edits/textEdit.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
+import { Command } from '../../../../../../common/languages.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
-import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
 import { getModifiedBorderColor, getOriginalBorderColor, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
 import { getEditorValidOverlayRect, mapOutFalsy, rectToProps } from '../utils/utils.js';
+
+export class WordReplacementsViewData {
+	constructor(
+		public readonly edit: TextReplacement,
+		public readonly alternativeAction: Command | undefined,
+	) { }
+
+	equals(other: WordReplacementsViewData): boolean {
+		return this.edit.equals(other.edit) && this.alternativeAction === other.alternativeAction;
+	}
+}
 
 const BORDER_WIDTH = 1;
 
@@ -33,15 +45,16 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 	public static MAX_LENGTH = 100;
 
-	private readonly _onDidClick;
-	readonly onDidClick;
+	private readonly _onDidClick = this._register(new Emitter<InlineEditClickEvent>());
+	readonly onDidClick = this._onDidClick.event;
 
 	private readonly _start;
 	private readonly _end;
 
 	private readonly _line;
 
-	private readonly _hoverableElement;
+	private readonly _primaryElement;
+	private readonly _secondaryElement;
 
 	readonly isHovered;
 
@@ -49,39 +62,35 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
-		/** Must be single-line in both sides */
-		private readonly _edit: TextReplacement,
-		private readonly _rename: boolean,
+		private readonly _viewData: WordReplacementsViewData,
 		protected readonly _tabAction: IObservable<InlineEditTabAction>,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
-		this._onDidClick = this._register(new Emitter<IMouseEvent>());
-		this.onDidClick = this._onDidClick.event;
-		this._start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
-		this._end = this._editor.observePosition(constObservable(this._edit.range.getEndPosition()), this._store);
+		this._start = this._editor.observePosition(constObservable(this._viewData.edit.range.getStartPosition()), this._store);
+		this._end = this._editor.observePosition(constObservable(this._viewData.edit.range.getEndPosition()), this._store);
 		this._line = document.createElement('div');
-		this._hoverableElement = observableValue<ObserverNodeWithElement | null>(this, null);
-		this.isHovered = this._hoverableElement.map((e, reader) => e?.didMouseMoveDuringHover.read(reader) ?? false);
+		this._primaryElement = observableValue<ObserverNodeWithElement | null>(this, null);
+		this._secondaryElement = observableValue<ObserverNodeWithElement | null>(this, null);
+		this.isHovered = this._primaryElement.map((e, reader) => e?.didMouseMoveDuringHover.read(reader) ?? false);
 		this._renderTextEffect = derived(this, _reader => {
 			const tm = this._editor.model.get()!;
-			const origLine = tm.getLineContent(this._edit.range.startLineNumber);
+			const origLine = tm.getLineContent(this._viewData.edit.range.startLineNumber);
 
-			const edit = StringReplacement.replace(new OffsetRange(this._edit.range.startColumn - 1, this._edit.range.endColumn - 1), this._edit.text);
+			const edit = StringReplacement.replace(new OffsetRange(this._viewData.edit.range.startColumn - 1, this._viewData.edit.range.endColumn - 1), this._viewData.edit.text);
 			const lineToTokenize = edit.replace(origLine);
-			const t = tm.tokenization.tokenizeLinesAt(this._edit.range.startLineNumber, [lineToTokenize])?.[0];
+			const t = tm.tokenization.tokenizeLinesAt(this._viewData.edit.range.startLineNumber, [lineToTokenize])?.[0];
 			let tokens: LineTokens;
 			if (t) {
-				tokens = TokenArray.fromLineTokens(t).slice(edit.getRangeAfterReplace()).toLineTokens(this._edit.text, this._languageService.languageIdCodec);
+				tokens = TokenArray.fromLineTokens(t).slice(edit.getRangeAfterReplace()).toLineTokens(this._viewData.edit.text, this._languageService.languageIdCodec);
 			} else {
-				tokens = LineTokens.createEmpty(this._edit.text, this._languageService.languageIdCodec);
+				tokens = LineTokens.createEmpty(this._viewData.edit.text, this._languageService.languageIdCodec);
 			}
 			const res = renderLines(new LineSource([tokens]), RenderOptions.fromEditor(this._editor.editor).withSetWidth(false).withScrollBeyondLastColumn(0), [], this._line, true);
 			this._line.style.width = `${res.minWidthInPx}px`;
 		});
-		const modifiedLineHeight = this._editor.observeLineHeightForPosition(this._edit.range.getStartPosition());
-		const altPressed = observableFromEvent(this, ModifierKeyEmitter.getInstance().event, keyStatus => keyStatus?.altKey ?? ModifierKeyEmitter.getInstance().keyStatus.altKey);
+		const modifiedLineHeight = this._editor.observeLineHeightForPosition(this._viewData.edit.range.getStartPosition());
 		this._layout = derived(this, reader => {
 			this._renderTextEffect.read(reader);
 			const widgetStart = this._start.read(reader);
@@ -100,24 +109,24 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			const modifiedTopOffset = 4;
 			const modifiedOffset = new Point(modifiedLeftOffset, modifiedTopOffset);
 
-			let label = undefined;
-			if (this._rename) { // TODO: make this customizable and not rename specific
-				if (altPressed.read(reader)) {
-					label = { content: 'Edit', icon: Codicon.edit };
-				} else {
-					label = { content: 'Rename', icon: Codicon.replaceAll };
-				}
+			let alternativeAction = undefined;
+			if (this._viewData.alternativeAction) { // TODO: make this customizable and not rename specific
+				const modifier = ModifierKeyEmitter.getInstance();
+				alternativeAction = {
+					label: this._viewData.alternativeAction.title,
+					active: observableFromEvent(this, modifier.event, () => modifier.keyStatus.shiftKey)
+				};
 			}
 
 			const originalLine = Rect.fromPoints(widgetStart, widgetEnd).withHeight(lineHeight).translateX(-scrollLeft);
-			const codeLine = Rect.fromPointSize(originalLine.getLeftBottom().add(modifiedOffset), new Point(this._edit.text.length * w, originalLine.height));
-			const modifiedLine = codeLine.withWidth(codeLine.width + (label ? label.content.length * w + 8 + 4 + 12 : 0));
+			const codeLine = Rect.fromPointSize(originalLine.getLeftBottom().add(modifiedOffset), new Point(this._viewData.edit.text.length * w, originalLine.height));
+			const modifiedLine = codeLine.withWidth(codeLine.width + (alternativeAction ? alternativeAction.label.length * w + 8 + 4 + 12 : 0));
 			const lowerBackground = modifiedLine.withLeft(originalLine.left);
 
 			// debugView(debugLogRects({ lowerBackground }, this._editor.editor.getContainerDomNode()), reader);
 
 			return {
-				label,
+				alternativeAction,
 				originalLine,
 				codeLine,
 				modifiedLine,
@@ -143,8 +152,26 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 				const originalBorderColor = getOriginalBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
 				const modifiedBorderColor = getModifiedBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
-				const renameBorderColor = observeColor(editorHoverForeground, this._themeService).map(c => c.transparent(0.5).toString()).read(reader);
 				this._line.style.lineHeight = `${layout.read(reader).modifiedLine.height + 2 * BORDER_WIDTH}px`;
+
+				const secondaryElementHovered = constObservable(false);//this._secondaryElement.map((e, r) => e?.isHovered.read(r) ?? false);
+				const alternativeAction = layout.map(l => l.alternativeAction);
+				const alternativeActionActive = derived(reader => (alternativeAction.read(reader)?.active.read(reader) ?? false) || secondaryElementHovered.read(reader));
+
+				const activeStyles = {
+					borderColor: modifiedBorderColor,
+					backgroundColor: asCssVariable(modifiedChangedTextOverlayColor),
+					opacity: '1',
+				};
+
+				const passiveStyles = {
+					borderColor: observeColor(editorHoverForeground, this._themeService).map(c => c.transparent(0.2).toString()).read(reader),
+					backgroundColor: asCssVariable(editorBackground),
+					opacity: '0.7',
+				};
+
+				const primaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? passiveStyles : activeStyles);
+				const secondaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? activeStyles : passiveStyles);
 
 				return [
 					n.div({
@@ -160,17 +187,10 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).lowerBackground.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH, BORDER_WIDTH, 0)),
 								background: asCssVariable(editorBackground),
-								//boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
-								cursor: 'pointer',
-								pointerEvents: 'auto',
 							},
 							onmousedown: e => {
 								e.preventDefault(); // This prevents that the editor loses focus
 							},
-							onmouseup: (e) => this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e)),
-							obsRef: (elem) => {
-								this._hoverableElement.set(elem, undefined);
-							}
 						}),
 						n.div({
 							style: {
@@ -186,7 +206,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								justifyContent: 'left',
 
 								outline: `2px solid ${asCssVariable(editorBackground)}`,
-							}
+							},
 						}, [
 							n.div({
 								style: {
@@ -194,35 +214,55 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 									fontSize: this._editor.getOption(EditorOption.fontSize),
 									fontWeight: this._editor.getOption(EditorOption.fontWeight),
 									width: rectToProps(reader => layout.read(reader).codeLine.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH)).width,
-									borderRadius: layout.map(l => l.label ? '4px 0 0 4px' : '4px'),
-									border: `${BORDER_WIDTH}px solid ${modifiedBorderColor}`,
+									borderRadius: '4px',
+									border: primaryActionStyles.map(s => `${BORDER_WIDTH}px solid ${s.borderColor}`),
 									boxSizing: 'border-box',
 									padding: `${BORDER_WIDTH}px`,
-
-									background: asCssVariable(modifiedChangedTextOverlayColor),
+									opacity: primaryActionStyles.map(s => s.opacity),
+									background: primaryActionStyles.map(s => s.backgroundColor),
 									display: 'flex',
 									justifyContent: 'left',
 									alignItems: 'center',
+									pointerEvents: 'auto',
+									cursor: 'pointer',
+								},
+								onmouseup: (e) => this._onDidClick.fire(InlineEditClickEvent.create(e, false)),
+								obsRef: (elem) => {
+									this._primaryElement.set(elem, undefined);
 								}
 							}, [this._line]),
 							derived(this, reader => {
-								const label = layout.read(reader).label;
-								if (!label) {
+								const altAction = alternativeAction.read(reader);
+								if (!altAction) {
 									return undefined;
 								}
+								const keybinding = document.createElement('div');
+								const keybindingLabel = reader.store.add(new KeybindingLabel(keybinding, OS, { ...unthemedKeybindingLabelOptions, disableTitle: true }));
+								keybindingLabel.set(new ShiftKeybinding(), undefined);
 								return n.div({
 									style: {
-										borderRadius: '0 4px 4px 0',
-										borderTop: `${BORDER_WIDTH}px solid ${renameBorderColor}`,
-										borderRight: `${BORDER_WIDTH}px solid ${renameBorderColor}`,
-										borderBottom: `${BORDER_WIDTH}px solid ${renameBorderColor}`,
+										borderRadius: '4px',
+										borderTop: `${BORDER_WIDTH}px solid`,
+										borderRight: `${BORDER_WIDTH}px solid`,
+										borderBottom: `${BORDER_WIDTH}px solid`,
+										borderLeft: `${BORDER_WIDTH}px solid`,
+										borderColor: secondaryActionStyles.map(s => s.borderColor),
+										opacity: secondaryActionStyles.map(s => s.opacity),
 										display: 'flex',
 										justifyContent: 'center',
 										alignItems: 'center',
-										padding: '0 4px',
+										padding: '0 2px',
+										marginLeft: '4px',
+										background: secondaryActionStyles.map(s => s.backgroundColor),
+										pointerEvents: 'auto',
+										cursor: 'pointer',
 									},
-									class: 'inline-edit-rename-label',
-								}, [renderIcon(label.icon), label.content]);
+									class: 'inline-edit-alternative-action-label',
+									onmouseup: (e) => this._onDidClick.fire(InlineEditClickEvent.create(e, true)),
+									obsRef: (elem) => {
+										this._secondaryElement.set(elem, undefined);
+									}
+								}, [keybinding, /* renderIcon(altAction.icon), */ altAction.label]);
 							})
 						]),
 						n.div({
@@ -276,4 +316,34 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 	private readonly _layout;
 
 	private readonly _root;
+}
+
+class ShiftKeybinding extends ResolvedKeybinding {
+	getLabel(): string | null {
+		return 'Shift';
+	}
+	getAriaLabel(): string | null {
+		return 'Shift';
+	}
+	getElectronAccelerator(): string | null {
+		return null;
+	}
+	getUserSettingsLabel(): string | null {
+		return 'shift';
+	}
+	isWYSIWYG(): boolean {
+		return true;
+	}
+	hasMultipleChords(): boolean {
+		return false;
+	}
+	getChords(): ResolvedChord[] {
+		return [new ResolvedChord(false, false, false, false, 'Shift', 'Shift')];
+	}
+	getDispatchChords(): (string | null)[] {
+		return [null];
+	}
+	getSingleModifierDispatchChords(): (SingleModifierChord | null)[] {
+		return ['shift'];
+	}
 }

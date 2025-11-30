@@ -10,7 +10,7 @@ import { localize } from '../../../../../nls.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../browser/editorExtensions.js';
 import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
-import { TextEdit } from '../../../../common/core/edits/textEdit.js';
+import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { StandardTokenType } from '../../../../common/encodedTokenAttributes.js';
@@ -22,11 +22,11 @@ import { EditSources, TextModelEditSource } from '../../../../common/textModelEd
 import { hasProvider, prepareRename, rename } from '../../../rename/browser/rename.js';
 import { renameSymbolCommandId } from '../controller/commandIds.js';
 import { InlineSuggestionItem } from './inlineSuggestionItem.js';
-import { IInlineSuggestDataActionRename } from './provideInlineCompletions.js';
+import { IInlineSuggestDataActionEdit } from './provideInlineCompletions.js';
 
 export type RenameEdits = {
-	renames: { edits: TextEdit[]; position: Position; oldName: string; newName: string };
-	others: { edits: TextEdit[] };
+	renames: { edits: TextReplacement[]; position: Position; oldName: string; newName: string };
+	others: { edits: TextReplacement[] };
 };
 
 export class RenameInferenceEngine {
@@ -47,8 +47,8 @@ export class RenameInferenceEngine {
 			insertText +
 			textModel.getValueInRange(new Range(extendedRange.endLineNumber, extendedRange.endColumn - endDiff, extendedRange.endLineNumber, extendedRange.endColumn));
 
-		const others: TextEdit[] = [];
-		const renames: TextEdit[] = [];
+		const others: TextReplacement[] = [];
+		const renames: TextReplacement[] = [];
 		let oldName: string | undefined = undefined;
 		let newName: string | undefined = undefined;
 		let position: Position | undefined = undefined;
@@ -161,10 +161,10 @@ export class RenameInferenceEngine {
 					position = tokenInfo.range.getStartPosition();
 				}
 
-				renames.push(TextEdit.replace(range, insertedTextSegment));
+				renames.push(new TextReplacement(range, insertedTextSegment));
 				tokenDiff += diff;
 			} else {
-				others.push(TextEdit.replace(range, insertedTextSegment));
+				others.push(new TextReplacement(range, insertedTextSegment));
 				tokenDiff += insertedTextSegment.length - change.originalLength;
 			}
 		}
@@ -242,12 +242,18 @@ export class RenameSymbolProcessor extends Disposable {
 			return suggestItem;
 		}
 
-		const { oldName, newName, position } = edits.renames;
+		const { oldName, newName, position, edits: renameEdits } = edits.renames;
 		let timedOut = false;
 		const loc = await raceTimeout(prepareRename(this._languageFeaturesService.renameProvider, textModel, position), 1000, () => { timedOut = true; });
 		const renamePossible = loc !== undefined && !loc.rejectReason && loc.text === oldName;
 
-		suggestItem.setRenameProcessingInfo({ createdRename: renamePossible, duration: Date.now() - start, timedOut });
+		suggestItem.setRenameProcessingInfo({
+			createdRename: renamePossible,
+			duration: Date.now() - start,
+			timedOut,
+			droppedOtherEdits: renamePossible ? edits.others.edits.length : undefined,
+			droppedRenameEdits: renamePossible ? renameEdits.length - 1 : undefined,
+		});
 
 		if (!renamePossible) {
 			return suggestItem;
@@ -259,19 +265,20 @@ export class RenameSymbolProcessor extends Disposable {
 			providerId: suggestItem.source.provider.providerId,
 			languageId: textModel.getLanguageId(),
 		});
-		const label = localize('renameSymbol', "Rename '{0}' to '{1}'", oldName, newName);
 		const command: Command = {
 			id: renameSymbolCommandId,
-			title: label,
+			title: localize('rename', "Rename"),
 			arguments: [textModel, position, newName, source],
 		};
-		const renameAction: IInlineSuggestDataActionRename = {
-			kind: 'rename',
-			textReplacement: edit,
-			stringEdit: suggestItem.action.stringEdit,
-			command,
+		const textReplacement = renameEdits[0];
+		const renameAction: IInlineSuggestDataActionEdit = {
+			kind: 'edit',
+			range: textReplacement.range,
+			insertText: textReplacement.text,
+			snippetInfo: suggestItem.snippetInfo,
+			alternativeAction: command,
 			uri: textModel.uri
 		};
-		return InlineSuggestionItem.create(suggestItem.withRename(renameAction), textModel);
+		return InlineSuggestionItem.create(suggestItem.withAction(renameAction), textModel);
 	}
 }

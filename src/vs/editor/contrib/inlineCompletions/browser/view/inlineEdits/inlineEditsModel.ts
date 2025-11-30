@@ -39,8 +39,8 @@ export class ModelPerInlineEdit {
 		this.onDidAccept = this._model.onDidAccept;
 	}
 
-	accept() {
-		this._model.accept();
+	accept(alternativeAction?: boolean) {
+		this._model.accept(undefined, alternativeAction);
 	}
 
 	handleInlineEditShown(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
