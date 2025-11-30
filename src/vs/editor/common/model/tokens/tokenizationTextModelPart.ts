@@ -117,10 +117,11 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	_hasListeners(): boolean {
+		// Note: _onDidChangeFontTokens is intentionally excluded because it's an internal event
+		// that TokenizationFontDecorationProvider subscribes to during TextModel construction
 		return (this._onDidChangeLanguage.hasListeners()
 			|| this._onDidChangeLanguageConfiguration.hasListeners()
-			|| this._onDidChangeTokens.hasListeners())
-			|| this._onDidChangeFontTokens.hasListeners();
+			|| this._onDidChangeTokens.hasListeners());
 	}
 
 	public handleLanguageConfigurationServiceChange(e: LanguageConfigurationServiceChangeEvent): void {
