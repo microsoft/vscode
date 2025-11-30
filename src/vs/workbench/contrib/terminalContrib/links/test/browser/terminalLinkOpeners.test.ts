@@ -534,7 +534,32 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					link: 'test-2025-04-28T11:03:09+02:00.log',
 					source: 'search'
 				});
+				await opener.open({
+					text: './test-2025-04-28T11:03:09+02:00.log',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 34, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'test-2025-04-28T11:03:09+02:00.log',
+					source: 'search'
+				});
+
+				// Test when file exists, and there are preceding arguments
+				fileService.setFiles([
+					URI.from({ scheme: Schemas.file, path: '/folder/test-2025-04-28T14:30:00+02:00.log' })
+				]);
+				await opener.open({
+					text: './test-2025-04-28T14:30:00+02:00.log',
+					bufferRange: { start: { x: 10, y: 1 }, end: { x: 46, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///folder/test-2025-04-28T14%3A30%3A00%2B02%3A00.log',
+					source: 'editor'
+				});
 			});
+
+
 		});
 
 		suite('Windows', () => {
@@ -937,6 +962,46 @@ suite('Workbench - TerminalLinkOpeners', () => {
 						endColumn: undefined,
 						endLineNumber: undefined
 					},
+				});
+			});
+
+			test('should not misinterpret ISO 8601 timestamps as line:column numbers', async () => {
+				localFileOpener = instantiationService.createInstance(TerminalLocalFileLinkOpener);
+				const localFolderOpener = instantiationService.createInstance(TerminalLocalFolderInWorkspaceLinkOpener);
+				opener = instantiationService.createInstance(TestTerminalSearchLinkOpener, capabilities, 'c:/folder', localFileOpener, localFolderOpener, () => OperatingSystem.Windows);
+				// Intentionally not set the file so it does not get picked up as localFile.
+				fileService.setFiles([]);
+				await opener.open({
+					text: 'test-2025-04-28T11:03:09+02:00.log',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 34, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'test-2025-04-28T11:03:09+02:00.log',
+					source: 'search'
+				});
+				await opener.open({
+					text: '.\\test-2025-04-28T11:03:09+02:00.log',
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 36, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'test-2025-04-28T11:03:09+02:00.log',
+					source: 'search'
+				});
+
+				// Test when file exists, and there are preceding arguments
+				fileService.setFiles([
+					URI.from({ scheme: Schemas.file, path: 'c:/folder/test-2025-04-28T14:30:00+02:00.log' })
+				]);
+				await opener.open({
+					text: '.\\test-2025-04-28T14:30:00+02:00.log',
+					bufferRange: { start: { x: 10, y: 1 }, end: { x: 47, y: 1 } },
+					type: TerminalBuiltinLinkType.Search
+				});
+				deepStrictEqual(activationResult, {
+					link: 'file:///c%3A/folder/test-2025-04-28T14%3A30%3A00%2B02%3A00.log',
+					source: 'editor'
 				});
 			});
 		});
