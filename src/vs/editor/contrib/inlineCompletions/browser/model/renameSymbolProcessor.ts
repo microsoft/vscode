@@ -284,7 +284,6 @@ export class RenameSymbolProcessor extends Disposable {
 				self._renameRunnable = undefined;
 				const runnable = new RenameSymbolRunnable(self._languageFeaturesService, textModel, position, newName, source);
 				workspaceEdit = await runnable.getWorkspaceEdit();
-				return;
 			} else {
 				workspaceEdit = await self._renameRunnable.runnable.getWorkspaceEdit();
 				self._renameRunnable = undefined;
