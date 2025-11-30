@@ -155,8 +155,17 @@ export interface IModelTokensChangedEvent {
  * @internal
  */
 export interface IFontTokenOption {
+	/**
+	 * Font family of the token.
+	 */
 	readonly fontFamily?: string;
+	/**
+	 * Font size of the token.
+	 */
 	readonly fontSize?: string;
+	/**
+	 * Line height of the token.
+	 */
 	readonly lineHeight?: number;
 }
 

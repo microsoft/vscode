@@ -150,7 +150,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 
 				LineTokens.convertToEndOffset(r.tokens, text.length);
 				tokenBuilder.add(lineToTokenize.lineNumber, r.tokens);
-				fontTokensUpdate.push(...this._getFontTokens(lineToTokenize.lineNumber, r));
+				fontTokensUpdate.push(...this._getFontTokensUpdate(lineToTokenize.lineNumber, r));
 
 				const deltaMs = new Date().getTime() - startTime;
 				if (deltaMs > 20) {
@@ -182,8 +182,15 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 		}
 	}
 
-	private _getFontTokens(lineNumber: number, r: EncodedTokenizationResult): IAnnotationUpdate<IFontTokenOption>[] {
+	private _getFontTokensUpdate(lineNumber: number, r: EncodedTokenizationResult): IAnnotationUpdate<IFontTokenOption>[] {
 		const fontTokens: IAnnotationUpdate<IFontTokenOption>[] = [];
+		const offsetAtLineStart = this._getOffsetAtLineStart(lineNumber);
+		const offsetAtNextLineStart = this._getOffsetAtLineStart(lineNumber + 1);
+		const offsetAtLineEnd = offsetAtNextLineStart > 0 ? offsetAtNextLineStart - 1 : 0;
+		fontTokens.push({
+			range: new OffsetRange(offsetAtLineStart, offsetAtLineEnd),
+			annotation: undefined
+		});
 		if (r.fontInfo.length) {
 			for (const fontInfo of r.fontInfo) {
 				const offsetAtLineStart = this._getOffsetAtLineStart(lineNumber);
@@ -196,14 +203,6 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 					}
 				});
 			}
-		} else {
-			const offsetAtLineStart = this._getOffsetAtLineStart(lineNumber);
-			const offsetAtNextLineStart = this._getOffsetAtLineStart(lineNumber + 1);
-			const offsetAtLineEnd = offsetAtNextLineStart > 0 ? offsetAtNextLineStart - 1 : 0;
-			fontTokens.push({
-				range: new OffsetRange(offsetAtLineStart, offsetAtLineEnd),
-				annotation: undefined
-			});
 		}
 		return fontTokens;
 	}
