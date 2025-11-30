@@ -51,7 +51,6 @@ import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -638,7 +637,7 @@ export class InlineCompletionsModel extends Disposable {
 				return undefined;
 			}
 			const cursorAtInlineEdit = this.primaryPosition.map(cursorPos => LineRange.fromRangeInclusive(inlineEditResult.targetRange).addMargin(1, 1).contains(cursorPos.lineNumber));
-			const stringEdit = inlineEditResult.action?.kind === 'edit' || inlineEditResult.action?.kind === 'rename' ? inlineEditResult.action.stringEdit : undefined;
+			const stringEdit = inlineEditResult.action?.kind === 'edit' ? inlineEditResult.action.stringEdit : undefined;
 			const replacements = stringEdit ? TextEdit.fromStringEdit(stringEdit, new TextModelText(this.textModel)).replacements : [];
 
 			const nextEditUri = (item.inlineEdit?.command?.id === 'vscode.open' || item.inlineEdit?.command?.id === '_workbench.open') &&
@@ -893,7 +892,7 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}
 
-	public async accept(editor: ICodeEditor = this._editor): Promise<void> {
+	public async accept(editor: ICodeEditor = this._editor, alternativeAction: boolean = false): Promise<void> {
 		if (editor.getModel() !== this.textModel) {
 			throw new BugIndicatingError();
 		}
@@ -920,13 +919,13 @@ export class InlineCompletionsModel extends Disposable {
 			editor.pushUndoStop();
 			if (isNextEditUri) {
 				// Do nothing
-			} else if (completion.action?.kind === 'edit' || completion.action?.kind === 'rename') {
+			} else if (completion.action?.kind === 'edit') {
 				const action = completion.action;
-				if (action.kind === 'rename' && !ModifierKeyEmitter.getInstance().keyStatus.altKey) {
+				if (action.alternativeAction && alternativeAction) {
 					await this._commandService
-						.executeCommand(action.command.id, ...(action.command.arguments || []))
+						.executeCommand(action.alternativeAction?.id, ...(action.alternativeAction?.arguments || []))
 						.then(undefined, onUnexpectedExternalError);
-				} else if (action.kind === 'edit' && action.snippetInfo) {
+				} else if (action.snippetInfo) {
 					const mainEdit = TextReplacement.delete(action.textReplacement.range);
 					const additionalEdits = completion.additionalTextEdits.map(e => new TextReplacement(Range.lift(e.range), e.text ?? ''));
 					const edit = TextEdit.fromParallelReplacementsUnsorted([mainEdit, ...additionalEdits]);
