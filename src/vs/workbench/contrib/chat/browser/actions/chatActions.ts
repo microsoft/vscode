@@ -514,7 +514,7 @@ export function registerChatActions() {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.and(
 							ContextKeyExpr.equals('view', ChatViewId),
-							ContextKeyExpr.equals(`config.${ChatConfiguration.EmptyChatViewRecentSessionsEnabled}`, false)
+							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, false)
 						),
 						group: 'navigation',
 						order: 2
@@ -523,7 +523,7 @@ export function registerChatActions() {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.and(
 							ContextKeyExpr.equals('view', ChatViewId),
-							ContextKeyExpr.equals(`config.${ChatConfiguration.EmptyChatViewRecentSessionsEnabled}`, true)
+							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, true)
 						),
 						group: '2_history',
 						order: 1
@@ -1846,7 +1846,7 @@ registerAction2(class ToggleEmptyChatViewRecentSessionsAction extends Action2 {
 			title: localize2('chat.toggleEmptyChatViewRecentSessions.label', "Show Recent Agent Sessions"),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.EmptyChatViewRecentSessionsEnabled}`, true),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, true),
 			menu: {
 				id: MenuId.ChatWelcomeContext,
 				group: '1_modify',
@@ -1859,8 +1859,8 @@ registerAction2(class ToggleEmptyChatViewRecentSessionsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const emptyChatViewRecentSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewRecentSessionsEnabled);
-		await configurationService.updateValue(ChatConfiguration.EmptyChatViewRecentSessionsEnabled, !emptyChatViewRecentSessionsEnabled);
+		const emptyChatViewRecentSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewRecentSessionsEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewRecentSessionsEnabled, !emptyChatViewRecentSessionsEnabled);
 	}
 });
 
@@ -1871,7 +1871,7 @@ registerAction2(class ToggleChatViewWelcomeBannerAction extends Action2 {
 			title: localize2('chat.toggleEmptyChatViewWelcomeBanner.label', "Show Welcome Banner"),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.EmptyChatViewWelcomeBannerEnabled}`, true),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeBannerEnabled}`, true),
 			menu: {
 				id: MenuId.ChatWelcomeContext,
 				group: '1_modify',
@@ -1883,7 +1883,7 @@ registerAction2(class ToggleChatViewWelcomeBannerAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const emptyChatViewWelcomeBannerEnabled = configurationService.getValue<boolean>(ChatConfiguration.EmptyChatViewWelcomeBannerEnabled);
-		await configurationService.updateValue(ChatConfiguration.EmptyChatViewWelcomeBannerEnabled, !emptyChatViewWelcomeBannerEnabled);
+		const emptyChatViewWelcomeBannerEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeBannerEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeBannerEnabled, !emptyChatViewWelcomeBannerEnabled);
 	}
 });
