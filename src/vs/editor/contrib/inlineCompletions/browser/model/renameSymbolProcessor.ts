@@ -335,7 +335,6 @@ export class RenameSymbolProcessor extends Disposable {
 		}
 
 		const id = suggestItem.identity.id;
-
 		const source = EditSources.inlineCompletionAccept({
 			nes: suggestItem.isInlineEdit,
 			requestUuid: suggestItem.requestUuid,
@@ -345,7 +344,7 @@ export class RenameSymbolProcessor extends Disposable {
 		const command: Command = {
 			id: renameSymbolCommandId,
 			title: localize('rename', "Rename"),
-			arguments: [textModel, position, newName, source],
+			arguments: [textModel, position, newName, source, id],
 		};
 		const textReplacement = renameEdits[0];
 		const renameAction: IInlineSuggestDataActionEdit = {
