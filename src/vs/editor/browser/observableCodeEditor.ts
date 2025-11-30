@@ -5,7 +5,7 @@
 
 import { equalsIfDefined, itemsEquals } from '../../base/common/equals.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
-import { DebugLocation, IObservable, IObservableWithChange, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableValue, observableValueOpts } from '../../base/common/observable.js';
+import { DebugLocation, IObservable, IObservableWithChange, IReader, ITransaction, TransactionImpl, autorun, autorunOpts, derived, derivedOpts, derivedWithSetter, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts } from '../../base/common/observable.js';
 import { EditorOption, FindComputedEditorOptionValueById } from '../common/config/editorOptions.js';
 import { LineRange } from '../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../common/core/ranges/offsetRange.js';
@@ -148,6 +148,9 @@ export class ObservableCodeEditor extends Disposable {
 		this.layoutInfoVerticalScrollbarWidth = this.layoutInfo.map(l => l.verticalScrollbarWidth);
 		this.contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
 		this.contentHeight = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentHeight());
+		this._onDidChangeViewZones = observableSignalFromEvent(this, this.editor.onDidChangeViewZones);
+		this._onDidHiddenAreasChanged = observableSignalFromEvent(this, this.editor.onDidChangeHiddenAreas);
+		this._onDidLineHeightChanged = observableSignalFromEvent(this, this.editor.onDidChangeLineHeight);
 
 		this._widgetCounter = 0;
 		this.openedPeekWidgets = observableValue(this, 0);
@@ -364,6 +367,23 @@ export class ObservableCodeEditor extends Disposable {
 		});
 	}
 
+	/**
+	 * Uses an approximation if the exact position cannot be determined.
+	 */
+	getLeftOfPosition(position: Position, reader: IReader | undefined): number {
+		this.layoutInfo.read(reader);
+		this.value.read(reader);
+
+		let offset = this.editor.getOffsetForColumn(position.lineNumber, position.column);
+		if (offset === -1) {
+			// approximation
+			const typicalHalfwidthCharacterWidth = this.editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
+			const approximation = position.column * typicalHalfwidthCharacterWidth;
+			offset = approximation;
+		}
+		return offset;
+	}
+
 	public observePosition(position: IObservable<Position | null>, store: DisposableStore): IObservable<Point | null> {
 		let pos = position.get();
 		const result = observableValueOpts<Point | null>({ owner: this, debugName: () => `topLeftOfPosition${pos?.toString()}`, equalsFn: equalsIfDefined(Point.equals) }, new Point(0, 0));
@@ -376,6 +396,7 @@ export class ObservableCodeEditor extends Disposable {
 			},
 			getId: () => contentWidgetId,
 			allowEditorOverflow: false,
+			useDisplayNone: true,
 			afterRender: (position, coordinate) => {
 				const model = this._model.get();
 				if (model && pos && pos.lineNumber > model.getLineCount()) {
@@ -456,6 +477,37 @@ export class ObservableCodeEditor extends Disposable {
 		});
 	}
 
+	private readonly _onDidChangeViewZones;
+	private readonly _onDidHiddenAreasChanged;
+	private readonly _onDidLineHeightChanged;
+
+	/**
+	 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
+	 */
+	observeTopForLineNumber(lineNumber: number): IObservable<number> {
+		return derived(reader => {
+			this.layoutInfo.read(reader);
+			this._onDidChangeViewZones.read(reader);
+			this._onDidHiddenAreasChanged.read(reader);
+			this._onDidLineHeightChanged.read(reader);
+			this._versionId.read(reader);
+			return this.editor.getTopForLineNumber(lineNumber);
+		});
+	}
+
+	/**
+	 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
+	 */
+	observeBottomForLineNumber(lineNumber: number): IObservable<number> {
+		return derived(reader => {
+			this.layoutInfo.read(reader);
+			this._onDidChangeViewZones.read(reader);
+			this._onDidHiddenAreasChanged.read(reader);
+			this._onDidLineHeightChanged.read(reader);
+			this._versionId.read(reader);
+			return this.editor.getBottomForLineNumber(lineNumber);
+		});
+	}
 }
 
 interface IObservableOverlayWidget {

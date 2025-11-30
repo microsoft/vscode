@@ -5,11 +5,11 @@
 
 import fs from 'fs';
 import path from 'path';
-import { sign, SignOptions } from '@electron/osx-sign';
+import { sign, type SignOptions } from '@electron/osx-sign';
 import { spawn } from '@malept/cross-spawn-promise';
 
-const root = path.dirname(path.dirname(__dirname));
-const baseDir = path.dirname(__dirname);
+const root = path.dirname(path.dirname(import.meta.dirname));
+const baseDir = path.dirname(import.meta.dirname);
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 const helperAppBaseName = product.nameShort;
 const gpuHelperAppName = helperAppBaseName + ' Helper (GPU).app';
@@ -31,6 +31,35 @@ function getEntitlementsForFile(filePath: string): string {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist');
 	}
 	return path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist');
+}
+
+async function retrySignOnKeychainError<T>(fn: () => Promise<T>, maxRetries: number = 3): Promise<T> {
+	let lastError: Error | undefined;
+
+	for (let attempt = 1; attempt <= maxRetries; attempt++) {
+		try {
+			return await fn();
+		} catch (error) {
+			lastError = error as Error;
+
+			// Check if this is the specific keychain error we want to retry
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			const isKeychainError = errorMessage.includes('The specified item could not be found in the keychain.');
+
+			if (!isKeychainError || attempt === maxRetries) {
+				throw error;
+			}
+
+			console.log(`Signing attempt ${attempt} failed with keychain error, retrying...`);
+			console.log(`Error: ${errorMessage}`);
+
+			const delay = 1000 * Math.pow(2, attempt - 1);
+			console.log(`Waiting ${Math.round(delay)}ms before retry ${attempt}/${maxRetries}...`);
+			await new Promise(resolve => setTimeout(resolve, delay));
+		}
+	}
+
+	throw lastError;
 }
 
 async function main(buildDir?: string): Promise<void> {
@@ -90,10 +119,10 @@ async function main(buildDir?: string): Promise<void> {
 		]);
 	}
 
-	await sign(appOpts);
+	await retrySignOnKeychainError(() => sign(appOpts));
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main(process.argv[2]).catch(async err => {
 		console.error(err);
 		const tempDir = process.env['AGENT_TEMPDIRECTORY'];

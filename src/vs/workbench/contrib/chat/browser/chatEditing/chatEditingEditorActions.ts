@@ -21,8 +21,9 @@ import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiff
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
+import { ctxCursorInChangeRange, ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -170,7 +171,7 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 			tooltip: _keep
 				? localize2('accept3', 'Keep Chat Edits in this File')
 				: localize2('discard3', 'Undo Chat Edits in this File'),
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
+			precondition: ContextKeyExpr.and(ctxIsGlobalEditingSession, ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
 			icon: _keep
 				? Codicon.check
 				: Codicon.discard,
@@ -186,10 +187,7 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
 				order: _keep ? 0 : 1,
-				when: ContextKeyExpr.or(
-					ContextKeyExpr.and(ctxIsGlobalEditingSession.negate(), ctxIsCurrentlyBeingModified.negate()), // Inline chat
-					ContextKeyExpr.and(ctxIsGlobalEditingSession, !_keep ? ctxReviewModeEnabled : undefined), // Panel chat
-				)
+				when: !_keep ? ctxReviewModeEnabled : undefined
 			}
 		});
 	}
@@ -226,18 +224,20 @@ export class RejectAction extends KeepOrUndoAction {
 	}
 }
 
+const acceptHunkId = 'chatEditor.action.acceptHunk';
+const undoHunkId = 'chatEditor.action.undoHunk';
 abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 
 	constructor(private readonly _accept: boolean) {
 		super(
 			{
-				id: _accept ? 'chatEditor.action.acceptHunk' : 'chatEditor.action.undoHunk',
+				id: _accept ? acceptHunkId : undoHunkId,
 				title: _accept ? localize2('acceptHunk', 'Keep this Change') : localize2('undo', 'Undo this Change'),
+				shortTitle: _accept ? localize2('acceptHunkShort', 'Keep') : localize2('undoShort', 'Undo'),
 				precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
-				icon: _accept ? Codicon.check : Codicon.discard,
 				f1: true,
 				keybinding: {
-					when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED),
+					when: ContextKeyExpr.and(ctxCursorInChangeRange, ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED)),
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: _accept
 						? KeyMod.CtrlCmd | KeyCode.KeyY
@@ -265,6 +265,24 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 			// no more changes, move to next file
 			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
 		}
+	}
+}
+
+export class AcceptHunkAction extends AcceptRejectHunkAction {
+
+	static readonly ID = acceptHunkId;
+
+	constructor() {
+		super(true);
+	}
+}
+
+export class RejectHunkAction extends AcceptRejectHunkAction {
+
+	static readonly ID = undoHunkId;
+
+	constructor() {
+		super(false);
 	}
 }
 
@@ -363,7 +381,7 @@ export class AcceptAllEditsAction extends ChatEditingEditorAction {
 		});
 	}
 
-	override async runChatEditingCommand(_accessor: ServicesAccessor, session: IChatEditingSession, _entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: any[]): Promise<void> {
+	override async runChatEditingCommand(_accessor: ServicesAccessor, session: IChatEditingSession, _entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): Promise<void> {
 		await session.accept();
 	}
 }
@@ -405,7 +423,7 @@ abstract class MultiDiffAcceptDiscardAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.getEditingSession(editor.resource.authority);
+		const session = chatEditingService.getEditingSession(LocalChatSessionUri.forSession(editor.resource.authority));
 		if (this.accept) {
 			await session?.accept();
 		} else {
@@ -422,8 +440,8 @@ export function registerChatEditorActions() {
 	registerAction2(AcceptAction);
 	registerAction2(RejectAction);
 	registerAction2(AcceptAllEditsAction);
-	registerAction2(class AcceptHunkAction extends AcceptRejectHunkAction { constructor() { super(true); } });
-	registerAction2(class RejectHunkAction extends AcceptRejectHunkAction { constructor() { super(false); } });
+	registerAction2(AcceptHunkAction);
+	registerAction2(RejectHunkAction);
 	registerAction2(ToggleDiffAction);
 	registerAction2(ToggleAccessibleDiffViewAction);
 

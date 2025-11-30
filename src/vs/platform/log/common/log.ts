@@ -41,7 +41,7 @@ export enum LogLevel {
 export const DEFAULT_LOG_LEVEL: LogLevel = LogLevel.Info;
 
 export interface ILogger extends IDisposable {
-	onDidChangeLogLevel: Event<LogLevel>;
+	readonly onDidChangeLogLevel: Event<LogLevel>;
 	getLevel(): LogLevel;
 	setLevel(level: LogLevel): void;
 
@@ -326,7 +326,7 @@ export abstract class AbstractMessageLogger extends AbstractLogger implements IL
 	error(message: string | Error, ...args: unknown[]): void {
 		if (this.canLog(LogLevel.Error)) {
 			if (message instanceof Error) {
-				const array = Array.prototype.slice.call(arguments) as any[];
+				const array = Array.prototype.slice.call(arguments);
 				array[0] = message.stack;
 				this.log(LogLevel.Error, format(array));
 			} else {

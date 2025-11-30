@@ -341,10 +341,8 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 					return;
 				}
 				this._state = DevModeContributionState.WaitingForCapability;
-				this._activeDevModeDisposables.value = this._ctx.instance.capabilities.onDidAddCapabilityType(e => {
-					if (e === TerminalCapability.CommandDetection) {
-						this._updateDevMode();
-					}
+				this._activeDevModeDisposables.value = this._ctx.instance.capabilities.onDidAddCommandDetectionCapability(e => {
+					this._updateDevMode();
 				});
 			}
 		} else {

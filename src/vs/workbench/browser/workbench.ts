@@ -45,9 +45,11 @@ import { IHoverService, WorkbenchHoverDelegate } from '../../platform/hover/brow
 import { setHoverDelegateFactory } from '../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { setBaseLayerHoverDelegate } from '../../base/browser/ui/hover/hoverDelegate2.js';
 import { AccessibilityProgressSignalScheduler } from '../../platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler.js';
-import { setProgressAcccessibilitySignalScheduler } from '../../base/browser/ui/progressbar/progressAccessibilitySignal.js';
+import { setProgressAccessibilitySignalScheduler } from '../../base/browser/ui/progressbar/progressAccessibilitySignal.js';
 import { AccessibleViewRegistry } from '../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { NotificationAccessibleView } from './parts/notifications/notificationAccessibleView.js';
+import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
+import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 
 export interface IWorkbenchOptions {
 
@@ -138,6 +140,10 @@ export class Workbench extends Layout {
 				const hoverService = accessor.get(IHoverService);
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
+				const markdownRendererService = accessor.get(IMarkdownRendererService);
+
+				// Set code block renderer for markdown rendering
+				markdownRendererService.setDefaultCodeBlockRenderer(instantiationService.createInstance(EditorMarkdownCodeBlockRenderer));
 
 				// Default Hover Delegate must be registered before creating any workbench/layout components
 				// as these possibly will use the default hover delegate
@@ -310,7 +316,7 @@ export class Workbench extends Layout {
 
 		// ARIA & Signals
 		setARIAContainer(this.mainContainer);
-		setProgressAcccessibilitySignalScheduler((msDelayTime: number, msLoopTime?: number) => instantiationService.createInstance(AccessibilityProgressSignalScheduler, msDelayTime, msLoopTime));
+		setProgressAccessibilitySignalScheduler((msDelayTime: number, msLoopTime?: number) => instantiationService.createInstance(AccessibilityProgressSignalScheduler, msDelayTime, msLoopTime));
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';

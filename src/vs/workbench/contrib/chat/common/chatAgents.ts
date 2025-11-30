@@ -38,6 +38,19 @@ export interface IChatAgentHistoryEntry {
 	result: IChatAgentResult;
 }
 
+export interface IChatAgentAttachmentCapabilities {
+	supportsFileAttachments?: boolean;
+	supportsToolAttachments?: boolean;
+	supportsMCPAttachments?: boolean;
+	supportsImageAttachments?: boolean;
+	supportsSearchResultAttachments?: boolean;
+	supportsInstructionAttachments?: boolean;
+	supportsSourceControlAttachments?: boolean;
+	supportsProblemAttachments?: boolean;
+	supportsSymbolAttachments?: boolean;
+	supportsTerminalAttachments?: boolean;
+}
+
 export interface IChatAgentData {
 	id: string;
 	name: string;
@@ -57,16 +70,14 @@ export interface IChatAgentData {
 	isDynamic?: boolean;
 	/** This agent is contributed from core and not from an extension */
 	isCore?: boolean;
+	canAccessPreviousChatHistory?: boolean;
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
 	/** This is only relevant for isDefault agents. Others should have all modes available. */
 	modes: ChatModeKind[];
 	disambiguation: { category: string; description: string; examples: string[] }[];
-	capabilities?: {
-		supportsToolAttachments?: boolean;
-		supportsFileAttachments?: boolean;
-	};
+	capabilities?: IChatAgentAttachmentCapabilities;
 }
 
 export interface IChatWelcomeMessageContent {
@@ -104,15 +115,6 @@ export interface IChatAgentCommand extends IRawChatCommandContribution {
 	followupPlaceholder?: string;
 }
 
-export interface IChatRequesterInformation {
-	name: string;
-
-	/**
-	 * A full URI for the icon of the requester.
-	 */
-	icon?: URI;
-}
-
 export interface IChatAgentMetadata {
 	helpTextPrefix?: string | IMarkdownString;
 	helpTextPostfix?: string | IMarkdownString;
@@ -123,7 +125,6 @@ export interface IChatAgentMetadata {
 	supportIssueReporting?: boolean;
 	followupPlaceholder?: string;
 	isSticky?: boolean;
-	requester?: IChatRequesterInformation;
 	additionalWelcomeMessage?: string | IMarkdownString;
 }
 
@@ -131,7 +132,7 @@ export type UserSelectedTools = Record<string, boolean>;
 
 
 export interface IChatAgentRequest {
-	sessionId: string;
+	sessionResource: URI;
 	requestId: string;
 	agentId: string;
 	command?: string;
@@ -142,20 +143,14 @@ export interface IChatAgentRequest {
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
 	locationData?: Revived<IChatLocationData>;
-	acceptedConfirmationData?: any[];
-	rejectedConfirmationData?: any[];
+	acceptedConfirmationData?: unknown[];
+	rejectedConfirmationData?: unknown[];
 	userSelectedModelId?: string;
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+	isSubagent?: boolean;
 
-	/**
-	 * Summary data for chat sessions context
-	 */
-	chatSummary?: {
-		prompt?: string;
-		history?: string;
-	};
 }
 
 export interface IChatQuestion {
@@ -173,7 +168,7 @@ export interface IChatAgentResult {
 	errorDetails?: IChatResponseErrorDetails;
 	timings?: IChatAgentResultTimings;
 	/** Extra properties that the agent can use to identify a result */
-	readonly metadata?: { readonly [key: string]: any };
+	readonly metadata?: { readonly [key: string]: unknown };
 	readonly details?: string;
 	nextQuestion?: IChatQuestion;
 }

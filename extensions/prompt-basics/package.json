@@ -20,8 +20,7 @@
           "prompt"
         ],
         "extensions": [
-          ".prompt.md",
-          "copilot-instructions.md"
+          ".prompt.md"
         ],
         "configuration": "./language-configuration.json"
       },
@@ -38,13 +37,17 @@
         "configuration": "./language-configuration.json"
       },
       {
-        "id": "chatmode",
+        "id": "chatagent",
         "aliases": [
-          "Chat Mode",
-          "chat mode"
+          "Agent",
+          "chat agent"
         ],
         "extensions": [
+          ".agent.md",
           ".chatmode.md"
+        ],
+        "filenamePatterns": [
+          "**/.github/agents/*.md"
         ],
         "configuration": "./language-configuration.json"
       }
@@ -69,7 +72,7 @@
         ]
       },
       {
-        "language": "chatmode",
+        "language": "chatagent",
         "path": "./syntaxes/prompt.tmLanguage.json",
         "scopeName": "text.html.markdown.prompt",
         "unbalancedBracketScopes": [
@@ -80,37 +83,49 @@
     ],
     "configurationDefaults": {
       "[prompt]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false,
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
           "comments": "off",
-          "strings": "off",
-          "other": "off"
-        }
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
       },
       "[instructions]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false,
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
           "comments": "off",
-          "strings": "off",
-          "other": "off"
-        }
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
       },
-      "[chatmode]": {
+      "[chatagent]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.autoIndent": "advanced",
         "editor.unicodeHighlight.ambiguousCharacters": false,
         "editor.unicodeHighlight.invisibleCharacters": false,
         "diffEditor.ignoreTrimWhitespace": false,
         "editor.wordWrap": "on",
         "editor.quickSuggestions": {
           "comments": "off",
-          "strings": "off",
-          "other": "off"
-        }
+          "strings": "on",
+          "other": "on"
+        },
+        "editor.wordBasedSuggestions": "off"
       }
     }
   },

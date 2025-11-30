@@ -1162,7 +1162,7 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
 	getRemoteExecServer(authority: string): Promise<vscode.ExecServer | undefined>;
 
-	onDidChangeRemoteConnectionData: Event<void>;
+	readonly onDidChangeRemoteConnectionData: Event<void>;
 	getRemoteConnectionData(): IRemoteConnectionData | null;
 }
 

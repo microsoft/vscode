@@ -45,6 +45,7 @@ import {
 	widgetShadow
 } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
 
 /** for debugging */
 const _sticky = false
@@ -345,7 +346,7 @@ export class RenameWidget implements IRenameWidget, IContentWidget, IDisposable 
 			totalHeightAvailable = this._nPxAvailableAbove;
 		}
 
-		this._renameCandidateListView!.layout({
+		this._renameCandidateListView.layout({
 			height: totalHeightAvailable - labelHeight - inputBoxHeight,
 			width: dom.getTotalWidth(this._inputWithButton.domNode),
 		});
@@ -930,15 +931,12 @@ class InputWithButton implements IDisposable {
 			this._buttonNode.className = 'rename-suggestions-button';
 			this._buttonNode.setAttribute('tabindex', '0');
 
-			this._buttonGenHoverText = nls.localize('generateRenameSuggestionsButton', "Generate new name suggestions");
+			this._buttonGenHoverText = nls.localize('generateRenameSuggestionsButton', "Generate New Name Suggestions");
 			this._buttonCancelHoverText = nls.localize('cancelRenameSuggestionsButton', "Cancel");
 			this._buttonHoverContent = this._buttonGenHoverText;
 			this._disposables.add(getBaseLayerHoverDelegate().setupDelayedHover(this._buttonNode, () => ({
 				content: this._buttonHoverContent,
-				appearance: {
-					showPointer: true,
-					compact: true,
-				}
+				style: HoverStyle.Pointer,
 			})));
 
 			this._domNode.appendChild(this._buttonNode);

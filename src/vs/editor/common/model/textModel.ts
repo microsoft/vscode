@@ -52,6 +52,7 @@ import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
 import { TokenizationFontDecorationProvider } from './tokens/tokenizationFontDecorationsProvider.js';
 import { LineFontChangingDecoration, LineHeightChangingDecoration } from './decorationProvider.js';
+import { isDark } from '../../../platform/theme/common/theme.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -2314,7 +2315,7 @@ export class ModelDecorationOverviewRulerOptions extends DecorationOptions {
 
 	public getColor(theme: IColorTheme): string {
 		if (!this._resolvedColor) {
-			if (theme.type !== 'light' && this.darkColor) {
+			if (isDark(theme.type) && this.darkColor) {
 				this._resolvedColor = this._resolveColor(this.darkColor, theme);
 			} else {
 				this._resolvedColor = this._resolveColor(this.color, theme);
@@ -2364,7 +2365,7 @@ export class ModelDecorationMinimapOptions extends DecorationOptions {
 
 	public getColor(theme: IColorTheme): Color | undefined {
 		if (!this._resolvedColor) {
-			if (theme.type !== 'light' && this.darkColor) {
+			if (isDark(theme.type) && this.darkColor) {
 				this._resolvedColor = this._resolveColor(this.darkColor, theme);
 			} else {
 				this._resolvedColor = this._resolveColor(this.color, theme);

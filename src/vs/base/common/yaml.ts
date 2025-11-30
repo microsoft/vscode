@@ -746,13 +746,24 @@ class YamlParser {
 					const nextIndent = this.lexer.getIndentation();
 
 					if (nextIndent > currentIndent) {
-						// Nested content - determine if it's an object or array
+						// Nested content - determine if it's an object, array, or just a scalar value
 						this.lexer.skipWhitespace();
 
 						if (this.lexer.getCurrentChar() === '-') {
 							value = this.parseBlockArray(nextIndent);
 						} else {
-							value = this.parseBlockObject(nextIndent);
+							// Check if this looks like an object property (has a colon)
+							const currentLine = this.lexer.getCurrentLineText();
+							const currentPos = this.lexer.getCurrentCharNumber();
+							const remainingLine = currentLine.substring(currentPos);
+
+							if (remainingLine.includes(':') && !remainingLine.trim().startsWith('#')) {
+								// It's a nested object
+								value = this.parseBlockObject(nextIndent);
+							} else {
+								// It's just a scalar value on the next line
+								value = this.parseValue();
+							}
 						}
 					} else if (!fromCurrentPosition && nextIndent === currentIndent) {
 						// Same indentation level - check if it's an array item

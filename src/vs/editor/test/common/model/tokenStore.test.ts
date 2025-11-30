@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TextModel } from '../../../common/model/textModel.js';
-import { TokenQuality, TokenStore } from '../../../common/model/tokens/treeSitter/tokenStore.js';
+import { LeafNode, ListNode, TokenQuality, TokenStore } from '../../../common/model/tokens/treeSitter/tokenStore.js';
 
 suite('TokenStore', () => {
 	let textModel: TextModel;
@@ -54,8 +54,7 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 6, length: 2, token: 4 }
 		], TokenQuality.Accurate);
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const root = store.root as any;
+		const root = store.root as ListNode;
 		assert.ok(root.children);
 		assert.strictEqual(root.children.length, 2);
 		assert.strictEqual(root.children[0].length, 4);
@@ -75,14 +74,13 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 7, length: 1, token: 8 }
 		], TokenQuality.Accurate);
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const root = store.root as any;
+		const root = store.root as ListNode;
 		assert.ok(root.children);
 		assert.strictEqual(root.children.length, 2);
-		assert.ok(root.children[0].children);
-		assert.strictEqual(root.children[0].children.length, 2);
-		assert.ok(root.children[0].children[0].children);
-		assert.strictEqual(root.children[0].children[0].children.length, 2);
+		assert.ok((root.children[0] as ListNode).children);
+		assert.strictEqual((root.children[0] as ListNode).children.length, 2);
+		assert.ok(((root.children[0] as ListNode).children[0] as ListNode).children);
+		assert.strictEqual(((root.children[0] as ListNode).children[0] as ListNode).children.length, 2);
 	});
 
 	test('updates single token in middle', () => {
@@ -97,11 +95,10 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 3, length: 3, token: 4 }
 		], TokenQuality.Accurate);
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const tokens = store.root as any;
-		assert.strictEqual(tokens.children[0].token, 1);
-		assert.strictEqual(tokens.children[1].token, 4);
-		assert.strictEqual(tokens.children[2].token, 3);
+		const tokens = store.root as ListNode;
+		assert.strictEqual((tokens.children[0] as LeafNode).token, 1);
+		assert.strictEqual((tokens.children[1] as LeafNode).token, 4);
+		assert.strictEqual((tokens.children[2] as LeafNode).token, 3);
 	});
 
 	test('updates multiple consecutive tokens', () => {
@@ -117,11 +114,10 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 6, length: 3, token: 5 }
 		], TokenQuality.Accurate);
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const tokens = store.root as any;
-		assert.strictEqual(tokens.children[0].token, 1);
-		assert.strictEqual(tokens.children[1].token, 4);
-		assert.strictEqual(tokens.children[2].token, 5);
+		const tokens = store.root as ListNode;
+		assert.strictEqual((tokens.children[0] as LeafNode).token, 1);
+		assert.strictEqual((tokens.children[1] as LeafNode).token, 4);
+		assert.strictEqual((tokens.children[2] as LeafNode).token, 5);
 	});
 
 	test('updates tokens at start of document', () => {
@@ -136,11 +132,10 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 0, length: 3, token: 4 }
 		], TokenQuality.Accurate);
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const tokens = store.root as any;
-		assert.strictEqual(tokens.children[0].token, 4);
-		assert.strictEqual(tokens.children[1].token, 2);
-		assert.strictEqual(tokens.children[2].token, 3);
+		const tokens = store.root as ListNode;
+		assert.strictEqual((tokens.children[0] as LeafNode).token, 4);
+		assert.strictEqual((tokens.children[1] as LeafNode).token, 2);
+		assert.strictEqual((tokens.children[2] as LeafNode).token, 3);
 	});
 
 	test('updates tokens at end of document', () => {
@@ -155,11 +150,10 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 6, length: 3, token: 4 }
 		], TokenQuality.Accurate);
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const tokens = store.root as any;
-		assert.strictEqual(tokens.children[0].token, 1);
-		assert.strictEqual(tokens.children[1].token, 2);
-		assert.strictEqual(tokens.children[2].token, 4);
+		const tokens = store.root as ListNode;
+		assert.strictEqual((tokens.children[0] as LeafNode).token, 1);
+		assert.strictEqual((tokens.children[1] as LeafNode).token, 2);
+		assert.strictEqual((tokens.children[2] as LeafNode).token, 4);
 	});
 
 	test('updates length of tokens', () => {
@@ -174,11 +168,10 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 3, length: 5, token: 4 }
 		], TokenQuality.Accurate);
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const tokens = store.root as any;
-		assert.strictEqual(tokens.children[0].token, 1);
+		const tokens = store.root as ListNode;
+		assert.strictEqual((tokens.children[0] as LeafNode).token, 1);
 		assert.strictEqual(tokens.children[0].length, 3);
-		assert.strictEqual(tokens.children[1].token, 4);
+		assert.strictEqual((tokens.children[1] as LeafNode).token, 4);
 		assert.strictEqual(tokens.children[1].length, 5);
 	});
 
@@ -200,11 +193,10 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 3, length: 3, token: 9 }
 		], TokenQuality.Accurate);
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const root = store.root as any;
+		const root = store.root as ListNode;
 		// Verify the structure remains balanced
 		assert.strictEqual(root.children.length, 3);
-		assert.strictEqual(root.children[0].children.length, 2);
+		assert.strictEqual((root.children[0] as ListNode).children.length, 2);
 
 		// Verify the lengths are updated correctly
 		assert.strictEqual(root.children[0].length, 2); // First 2 tokens
@@ -231,11 +223,10 @@ suite('TokenStore', () => {
 			{ startOffsetInclusive: 16, length: 4, token: 10 }
 		], TokenQuality.Accurate);
 
-		// eslint-disable-next-line local/code-no-any-casts
-		const root = store.root as any;
+		const root = store.root as ListNode;
 		// Verify the structure remains balanced
 		assert.strictEqual(root.children.length, 2);
-		assert.strictEqual(root.children[0].children.length, 2);
+		assert.strictEqual((root.children[0] as ListNode).children.length, 2);
 
 		// Verify the lengths are updated correctly
 		assert.strictEqual(root.children[0].length, 12);

@@ -30,7 +30,7 @@ import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatService } from '../../common/chatService.js';
-import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
@@ -65,7 +65,7 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 
 	const chatWidgetService = accessor.get(IChatWidgetService);
 	const chatEditingService = accessor.get(IChatEditingService);
-	let chatWidget = context ? chatWidgetService.getWidgetBySessionId(context.sessionId) : undefined;
+	let chatWidget = context ? chatWidgetService.getWidgetBySessionResource(context.sessionResource) : undefined;
 	if (!chatWidget) {
 		chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).find(w => w.supportsChangingModes);
 	}
@@ -74,9 +74,7 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 		return;
 	}
 
-	const chatSessionId = chatWidget.viewModel.model.sessionId;
-	const editingSession = chatEditingService.getEditingSession(chatSessionId);
-
+	const editingSession = chatEditingService.getEditingSession(chatWidget.viewModel.model.sessionResource);
 	return { editingSession, chatWidget };
 }
 
@@ -307,9 +305,9 @@ async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item:
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
-	const widget = chatWidgetService.lastFocusedWidget;
+	const widget = chatWidgetService.getWidgetBySessionResource(item.sessionResource);
 	const chatService = accessor.get(IChatService);
-	const chatModel = chatService.getSession(item.sessionId);
+	const chatModel = chatService.getSession(item.sessionResource);
 	if (!chatModel) {
 		return;
 	}
@@ -405,7 +403,7 @@ registerAction2(class RemoveAction extends Action2 {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const configurationService = accessor.get(IConfigurationService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
@@ -453,7 +451,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
@@ -495,7 +493,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const chatService = accessor.get(IChatService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
@@ -504,7 +502,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 			return;
 		}
 
-		const chatModel = chatService.getSession(item.sessionId);
+		const chatModel = chatService.getSession(item.sessionResource);
 		if (!chatModel) {
 			return;
 		}
@@ -554,7 +552,7 @@ registerAction2(class EditAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		let item = args[0] as ChatTreeItem | undefined;
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
+		const widget = (isChatTreeItem(item) && chatWidgetService.getWidgetBySessionResource(item.sessionResource)) || chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
 			item = widget?.getFocus();
 		}
@@ -568,6 +566,13 @@ registerAction2(class EditAction extends Action2 {
 		}
 	}
 });
+
+export interface ChatEditingActionContext {
+	readonly sessionResource: URI;
+	readonly requestId: string;
+	readonly uri: URI;
+	readonly stopId: string | undefined;
+}
 
 registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 
@@ -585,8 +590,8 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const context = args[0] as { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined;
-		if (!context?.sessionId) {
+		const context = args[0] as ChatEditingActionContext | undefined;
+		if (!context?.sessionResource) {
 			return;
 		}
 
@@ -611,8 +616,8 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-		const context = args[0] as { sessionId: string; requestId: string; uri: URI; stopId: string | undefined } | undefined;
-		if (!context?.sessionId) {
+		const context = args[0] as ChatEditingActionContext | undefined;
+		if (!context?.sessionResource) {
 			return;
 		}
 
@@ -620,14 +625,14 @@ registerAction2(class OpenWorkingSetHistoryAction extends Action2 {
 		const chatEditingService = accessor.get(IChatEditingService);
 		const editorService = accessor.get(IEditorService);
 
-		const chatModel = chatService.getSession(context.sessionId);
+		const chatModel = chatService.getSession(context.sessionResource);
 		if (!chatModel) {
 			return;
 		}
 
-		const snapshot = chatEditingService.getEditingSession(chatModel.sessionId)?.getSnapshotUri(context.requestId, context.uri, context.stopId);
+		const snapshot = chatEditingService.getEditingSession(chatModel.sessionResource)?.getSnapshotUri(context.requestId, context.uri, context.stopId);
 		if (snapshot) {
-			const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot)', basename(context.uri)), options: { transient: true, activation: EditorActivation.ACTIVATE } });
+			const editor = await editorService.openEditor({ resource: snapshot, label: localize('chatEditing.snapshot', '{0} (Snapshot)', basename(context.uri)), options: { activation: EditorActivation.ACTIVATE } });
 			if (isCodeEditor(editor)) {
 				editor.updateOptions({ readOnly: true });
 			}

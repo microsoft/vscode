@@ -65,8 +65,7 @@ Navigation End -->
 		instantiationService.stub(IPreferencesService, <Partial<IPreferencesService>>{
 			_serviceBrand: undefined,
 			onDidDefaultSettingsContentChanged: new Emitter<URI>().event,
-			// eslint-disable-next-line local/code-no-any-casts
-			userSettingsResource: undefined as any,
+			userSettingsResource: URI.parse('test://test'),
 			workspaceSettingsResource: null,
 			getFolderSettingsResource: () => null,
 			createPreferencesEditorModel: async () => null,
@@ -88,8 +87,7 @@ Navigation End -->
 			getSetting: (id: string) => {
 				if (id === testSettingId) {
 					// Provide the minimal fields accessed by SimpleSettingRenderer
-					// eslint-disable-next-line local/code-no-any-casts
-					return <any>{
+					return {
 						key: testSettingId,
 						value: 'off',
 						type: 'string'

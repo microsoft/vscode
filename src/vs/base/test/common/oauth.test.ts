@@ -18,6 +18,7 @@ import {
 	parseWWWAuthenticateHeader,
 	fetchDynamicRegistration,
 	fetchResourceMetadata,
+	fetchAuthorizationServerMetadata,
 	scopesMatch,
 	IAuthorizationJWTClaims,
 	IAuthorizationServerMetadata,
@@ -1317,6 +1318,698 @@ suite('OAuth', () => {
 			assert.strictEqual(headers['Accept'], 'application/json');
 			assert.strictEqual(headers['X-Test-Header'], 'test-value');
 			assert.strictEqual(headers['X-Custom-Header'], 'value');
+		});
+
+		test('should handle fetchImpl throwing network error and continue to next URL', async () => {
+			const targetResource = 'https://example.com/api/v1';
+			const expectedMetadata = {
+				resource: 'https://example.com/api/v1',
+				scopes_supported: ['read', 'write']
+			};
+
+			// First call throws network error, second succeeds
+			fetchStub.onFirstCall().rejects(new Error('Network connection failed'));
+
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata)
+			});
+
+			const result = await fetchResourceMetadata(
+				targetResource,
+				undefined,
+				{ fetch: fetchStub }
+			);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 2);
+			// First attempt with path should have thrown error
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://example.com/.well-known/oauth-protected-resource/api/v1');
+			// Second attempt at root should succeed
+			assert.strictEqual(fetchStub.secondCall.args[0], 'https://example.com/.well-known/oauth-protected-resource');
+		});
+
+		test('should throw AggregateError when fetchImpl throws on all URLs', async () => {
+			const targetResource = 'https://example.com/api/v1';
+
+			// Both calls throw network errors
+			fetchStub.rejects(new Error('Network connection failed'));
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, undefined, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 2, 'Should contain 2 errors');
+					assert.ok(/Network connection failed/.test(error.errors[0].message), 'First error should mention network failure');
+					assert.ok(/Network connection failed/.test(error.errors[1].message), 'Second error should mention network failure');
+					return true;
+				}
+			);
+
+			assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should handle mix of fetch error and non-200 response', async () => {
+			const targetResource = 'https://example.com/api/v1';
+
+			// First call throws network error
+			fetchStub.onFirstCall().rejects(new Error('Connection timeout'));
+
+			// Second call returns 404
+			fetchStub.onSecondCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found'
+			});
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, undefined, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 2, 'Should contain 2 errors');
+					assert.ok(/Connection timeout/.test(error.errors[0].message), 'First error should be network error');
+					assert.ok(/Failed to fetch resource metadata.*404/.test(error.errors[1].message), 'Second error should be 404');
+					return true;
+				}
+			);
+
+			assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should handle fetchImpl throwing error with explicit resourceMetadataUrl', async () => {
+			const targetResource = 'https://example.com/api';
+			const resourceMetadataUrl = 'https://example.com/.well-known/oauth-protected-resource';
+
+			fetchStub.rejects(new Error('DNS resolution failed'));
+
+			await assert.rejects(
+				async () => fetchResourceMetadata(targetResource, resourceMetadataUrl, { fetch: fetchStub }),
+				/DNS resolution failed/
+			);
+
+			// Should only try once when explicit URL is provided
+			assert.strictEqual(fetchStub.callCount, 1);
+			assert.strictEqual(fetchStub.firstCall.args[0], resourceMetadataUrl);
+		});
+	});
+
+	suite('fetchAuthorizationServerMetadata', () => {
+		let sandbox: sinon.SinonSandbox;
+		let fetchStub: sinon.SinonStub;
+
+		setup(() => {
+			sandbox = sinon.createSandbox();
+			fetchStub = sandbox.stub();
+		});
+
+		teardown(() => {
+			sandbox.restore();
+		});
+
+		test('should successfully fetch metadata from OAuth discovery endpoint with path insertion', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant',
+				authorization_endpoint: 'https://auth.example.com/tenant/authorize',
+				token_endpoint: 'https://auth.example.com/tenant/token',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			// Should try OAuth discovery with path insertion: https://auth.example.com/.well-known/oauth-authorization-server/tenant
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server/tenant');
+			assert.strictEqual(fetchStub.firstCall.args[1].method, 'GET');
+		});
+
+		test('should fallback to OpenID Connect discovery with path insertion', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant',
+				authorization_endpoint: 'https://auth.example.com/tenant/authorize',
+				token_endpoint: 'https://auth.example.com/tenant/token',
+				response_types_supported: ['code']
+			};
+
+			// First call fails, second succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 2);
+			// First attempt: OAuth discovery
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server/tenant');
+			// Second attempt: OpenID Connect discovery with path insertion
+			assert.strictEqual(fetchStub.secondCall.args[0], 'https://auth.example.com/.well-known/openid-configuration/tenant');
+		});
+
+		test('should fallback to OpenID Connect discovery with path addition', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant',
+				authorization_endpoint: 'https://auth.example.com/tenant/authorize',
+				token_endpoint: 'https://auth.example.com/tenant/token',
+				response_types_supported: ['code']
+			};
+
+			// First two calls fail, third succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			fetchStub.onSecondCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			fetchStub.onThirdCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 3);
+			// First attempt: OAuth discovery
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server/tenant');
+			// Second attempt: OpenID Connect discovery with path insertion
+			assert.strictEqual(fetchStub.secondCall.args[0], 'https://auth.example.com/.well-known/openid-configuration/tenant');
+			// Third attempt: OpenID Connect discovery with path addition
+			assert.strictEqual(fetchStub.thirdCall.args[0], 'https://auth.example.com/tenant/.well-known/openid-configuration');
+		});
+
+		test('should handle authorization server at root without extra path', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/',
+				authorization_endpoint: 'https://auth.example.com/authorize',
+				token_endpoint: 'https://auth.example.com/token',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			// For root URLs, no extra path is added
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server');
+		});
+
+		test('should handle authorization server with trailing slash', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant/';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant/',
+				authorization_endpoint: 'https://auth.example.com/tenant/authorize',
+				token_endpoint: 'https://auth.example.com/tenant/token',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+		});
+
+		test('should include additional headers in all requests', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+			const additionalHeaders = {
+				'X-Custom-Header': 'custom-value',
+				'Authorization': 'Bearer token123'
+			};
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, additionalHeaders });
+
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['X-Custom-Header'], 'custom-value');
+			assert.strictEqual(headers['Authorization'], 'Bearer token123');
+			assert.strictEqual(headers['Accept'], 'application/json');
+		});
+		test('should throw AggregateError when all discovery endpoints fail', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+
+			fetchStub.resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 3, 'Should contain 3 errors (one for each URL)');
+					assert.strictEqual(error.message, 'Failed to fetch authorization server metadata from all attempted URLs');
+					// Verify each error includes the URL it attempted
+					assert.ok(/oauth-authorization-server.*404/.test(error.errors[0].message), 'First error should mention OAuth discovery and 404');
+					assert.ok(/openid-configuration.*404/.test(error.errors[1].message), 'Second error should mention OpenID path insertion and 404');
+					assert.ok(/openid-configuration.*404/.test(error.errors[2].message), 'Third error should mention OpenID path addition and 404');
+					return true;
+				}
+			);
+
+			// Should have tried all three endpoints
+			assert.strictEqual(fetchStub.callCount, 3);
+		});
+
+		test('should throw single error (not AggregateError) when only one URL is tried and fails', async () => {
+			const authorizationServer = 'https://auth.example.com';
+
+			// First attempt succeeds on second try, so only one error is collected for first URL
+			fetchStub.onFirstCall().resolves({
+				status: 500,
+				text: async () => 'Internal Server Error',
+				statusText: 'Internal Server Error',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			// Should succeed on second attempt
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should throw AggregateError when multiple URLs fail with mixed error types', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+
+			// First call: network error
+			fetchStub.onFirstCall().rejects(new Error('Connection timeout'));
+
+			// Second call: 404
+			fetchStub.onSecondCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			// Third call: 500
+			fetchStub.onThirdCall().resolves({
+				status: 500,
+				text: async () => 'Internal Server Error',
+				statusText: 'Internal Server Error',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 3, 'Should contain 3 errors');
+					// First error is network error
+					assert.ok(/Connection timeout/.test(error.errors[0].message), 'First error should be network error');
+					// Second error is 404
+					assert.ok(/404.*Not Found/.test(error.errors[1].message), 'Second error should be 404');
+					// Third error is 500
+					assert.ok(/500.*Internal Server Error/.test(error.errors[2].message), 'Third error should be 500');
+					return true;
+				}
+			);
+
+			assert.strictEqual(fetchStub.callCount, 3);
+		});
+
+		test('should handle invalid JSON response', async () => {
+			const authorizationServer = 'https://auth.example.com';
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => { throw new Error('Invalid JSON'); },
+				text: async () => 'Invalid JSON',
+				statusText: 'OK'
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				/Failed to fetch authorization server metadata/
+			);
+		});
+
+		test('should handle valid JSON but invalid metadata structure', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			const invalidMetadata = {
+				// Missing required 'issuer' field
+				authorization_endpoint: 'https://auth.example.com/authorize'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => invalidMetadata,
+				text: async () => JSON.stringify(invalidMetadata),
+				statusText: 'OK'
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				/Failed to fetch authorization server metadata/
+			);
+		});
+
+		test('should use global fetch when custom fetch is not provided', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/',
+				response_types_supported: ['code']
+			};
+
+			// eslint-disable-next-line local/code-no-any-casts
+			const globalFetchStub = sandbox.stub(globalThis, 'fetch').resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			} as any);
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer);
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(globalFetchStub.callCount, 1);
+		});
+
+		test('should handle network fetch failure and continue to next endpoint', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/',
+				response_types_supported: ['code']
+			};
+
+			// First call throws network error, second succeeds
+			fetchStub.onFirstCall().rejects(new Error('Network error'));
+			fetchStub.onSecondCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			// Should have tried two endpoints
+			assert.strictEqual(fetchStub.callCount, 2);
+		});
+
+		test('should throw error when network fails on all endpoints', async () => {
+			const authorizationServer = 'https://auth.example.com';
+
+			fetchStub.rejects(new Error('Network error'));
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 3, 'Should contain 3 errors');
+					assert.strictEqual(error.message, 'Failed to fetch authorization server metadata from all attempted URLs');
+					// All errors should be network errors
+					assert.ok(/Network error/.test(error.errors[0].message), 'First error should be network error');
+					assert.ok(/Network error/.test(error.errors[1].message), 'Second error should be network error');
+					assert.ok(/Network error/.test(error.errors[2].message), 'Third error should be network error');
+					return true;
+				}
+			);
+
+			// Should have tried all three endpoints
+			assert.strictEqual(fetchStub.callCount, 3);
+		});
+
+		test('should handle mix of network error and non-200 response', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant',
+				response_types_supported: ['code']
+			};
+
+			// First call throws network error
+			fetchStub.onFirstCall().rejects(new Error('Connection timeout'));
+
+			// Second call returns 404
+			fetchStub.onSecondCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			// Third call succeeds
+			fetchStub.onThirdCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			// Should have tried all three endpoints
+			assert.strictEqual(fetchStub.callCount, 3);
+		});
+
+		test('should handle response.text() failure in error case', async () => {
+			const authorizationServer = 'https://auth.example.com';
+
+			fetchStub.resolves({
+				status: 500,
+				text: async () => { throw new Error('Cannot read text'); },
+				statusText: 'Internal Server Error',
+				json: async () => { throw new Error('Cannot read json'); }
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 3, 'Should contain 3 errors');
+					// All errors should include status code and statusText (fallback when text() fails)
+					for (const err of error.errors) {
+						assert.ok(/500 Internal Server Error/.test(err.message), `Error should mention 500 and statusText: ${err.message}`);
+					}
+					return true;
+				}
+			);
+		});
+
+		test('should correctly handle path addition with trailing slash', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant/';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant/',
+				response_types_supported: ['code']
+			};
+
+			// First two calls fail, third succeeds
+			fetchStub.onFirstCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			fetchStub.onSecondCall().resolves({
+				status: 404,
+				text: async () => 'Not Found',
+				statusText: 'Not Found',
+				json: async () => { throw new Error('Not JSON'); }
+			});
+
+			fetchStub.onThirdCall().resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 3);
+			// Third attempt should correctly handle trailing slash (not double-slash)
+			assert.strictEqual(fetchStub.thirdCall.args[0], 'https://auth.example.com/tenant/.well-known/openid-configuration');
+		});
+
+		test('should handle deeply nested paths', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant/org/sub';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant/org/sub',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+			// Should correctly insert well-known path with nested paths
+			assert.strictEqual(fetchStub.firstCall.args[0], 'https://auth.example.com/.well-known/oauth-authorization-server/tenant/org/sub');
+		});
+
+		test('should handle 200 response with non-metadata JSON', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			const invalidResponse = {
+				error: 'not_supported',
+				message: 'Metadata not available'
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => invalidResponse,
+				text: async () => JSON.stringify(invalidResponse),
+				statusText: 'OK'
+			});
+
+			await assert.rejects(
+				async () => fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub }),
+				(error: any) => {
+					assert.ok(error instanceof AggregateError, 'Should be an AggregateError');
+					assert.strictEqual(error.errors.length, 3, 'Should contain 3 errors');
+					// All errors should indicate failed to fetch with status code
+					for (const err of error.errors) {
+						assert.ok(/Failed to fetch authorization server metadata from/.test(err.message), `Error should mention failed fetch: ${err.message}`);
+					}
+					return true;
+				}
+			);
+
+			// Should try all three endpoints
+			assert.strictEqual(fetchStub.callCount, 3);
+		});
+
+		test('should validate metadata according to isAuthorizationServerMetadata', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			// Valid metadata with all required fields
+			const validMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/',
+				authorization_endpoint: 'https://auth.example.com/authorize',
+				token_endpoint: 'https://auth.example.com/token',
+				jwks_uri: 'https://auth.example.com/jwks',
+				registration_endpoint: 'https://auth.example.com/register',
+				response_types_supported: ['code', 'token']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => validMetadata,
+				text: async () => JSON.stringify(validMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, validMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+		});
+
+		test('should handle URLs with query parameters', async () => {
+			const authorizationServer = 'https://auth.example.com/tenant?version=v2';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/tenant?version=v2',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			const result = await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub });
+
+			assert.deepStrictEqual(result, expectedMetadata);
+			assert.strictEqual(fetchStub.callCount, 1);
+		});
+
+		test('should handle empty additionalHeaders', async () => {
+			const authorizationServer = 'https://auth.example.com';
+			const expectedMetadata: IAuthorizationServerMetadata = {
+				issuer: 'https://auth.example.com/',
+				response_types_supported: ['code']
+			};
+
+			fetchStub.resolves({
+				status: 200,
+				json: async () => expectedMetadata,
+				text: async () => JSON.stringify(expectedMetadata),
+				statusText: 'OK'
+			});
+
+			await fetchAuthorizationServerMetadata(authorizationServer, { fetch: fetchStub, additionalHeaders: {} });
+
+			const headers = fetchStub.firstCall.args[1].headers;
+			assert.strictEqual(headers['Accept'], 'application/json');
 		});
 	});
 });

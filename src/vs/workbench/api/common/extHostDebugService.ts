@@ -38,15 +38,15 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 
 	readonly _serviceBrand: undefined;
 
-	onDidStartDebugSession: Event<vscode.DebugSession>;
-	onDidTerminateDebugSession: Event<vscode.DebugSession>;
-	onDidChangeActiveDebugSession: Event<vscode.DebugSession | undefined>;
+	readonly onDidStartDebugSession: Event<vscode.DebugSession>;
+	readonly onDidTerminateDebugSession: Event<vscode.DebugSession>;
+	readonly onDidChangeActiveDebugSession: Event<vscode.DebugSession | undefined>;
 	activeDebugSession: vscode.DebugSession | undefined;
 	activeDebugConsole: vscode.DebugConsole;
-	onDidReceiveDebugSessionCustomEvent: Event<vscode.DebugSessionCustomEvent>;
-	onDidChangeBreakpoints: Event<vscode.BreakpointsChangeEvent>;
+	readonly onDidReceiveDebugSessionCustomEvent: Event<vscode.DebugSessionCustomEvent>;
+	readonly onDidChangeBreakpoints: Event<vscode.BreakpointsChangeEvent>;
 	breakpoints: vscode.Breakpoint[];
-	onDidChangeActiveStackItem: Event<vscode.DebugThread | vscode.DebugStackFrame | undefined>;
+	readonly onDidChangeActiveStackItem: Event<vscode.DebugThread | vscode.DebugStackFrame | undefined>;
 	activeStackItem: vscode.DebugThread | vscode.DebugStackFrame | undefined;
 
 	addBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;

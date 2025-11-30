@@ -394,7 +394,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		return this.threadId;
 	}
 
-	async setVariable(value: string, stackFrame: IStackFrame): Promise<any> {
+	async setVariable(value: string, stackFrame: IStackFrame): Promise<void> {
 		if (!this.session) {
 			return;
 		}
@@ -464,6 +464,10 @@ export class Scope extends ExpressionContainer implements IScope {
 		public readonly range?: IRange
 	) {
 		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${id}`, namedVariables, indexedVariables);
+	}
+
+	get childrenHaveBeenLoaded(): boolean {
+		return !!this.children;
 	}
 
 	override toString(): string {
@@ -717,35 +721,35 @@ export class Thread implements IThread {
 		return Promise.resolve(undefined);
 	}
 
-	next(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+	next(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		return this.session.next(this.threadId, granularity);
 	}
 
-	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		return this.session.stepIn(this.threadId, undefined, granularity);
 	}
 
-	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		return this.session.stepOut(this.threadId, granularity);
 	}
 
-	stepBack(granularity?: DebugProtocol.SteppingGranularity): Promise<any> {
+	stepBack(granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		return this.session.stepBack(this.threadId, granularity);
 	}
 
-	continue(): Promise<any> {
+	continue(): Promise<void> {
 		return this.session.continue(this.threadId);
 	}
 
-	pause(): Promise<any> {
+	pause(): Promise<void> {
 		return this.session.pause(this.threadId);
 	}
 
-	terminate(): Promise<any> {
+	terminate(): Promise<void> {
 		return this.session.terminateThreads([this.threadId]);
 	}
 
-	reverseContinue(): Promise<any> {
+	reverseContinue(): Promise<void> {
 		return this.session.reverseContinue(this.threadId);
 	}
 }
@@ -987,14 +991,14 @@ export interface IBreakpointOptions extends IBaseBreakpointOptions {
 	uri: uri;
 	lineNumber: number;
 	column: number | undefined;
-	adapterData: any;
+	adapterData: unknown;
 	triggeredBy: string | undefined;
 }
 
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	private sessionsDidTrigger?: Set<string>;
 	private readonly _uri: uri;
-	private _adapterData: any;
+	private _adapterData: unknown;
 	private _lineNumber: number;
 	private _column: number | undefined;
 	public triggeredBy: string | undefined;
@@ -1064,7 +1068,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return super.message;
 	}
 
-	get adapterData(): any {
+	get adapterData(): unknown {
 		return this.data && this.data.source && this.data.source.adapterData ? this.data.source.adapterData : this._adapterData;
 	}
 

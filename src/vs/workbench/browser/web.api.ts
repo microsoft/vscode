@@ -521,7 +521,7 @@ export interface ITunnel {
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
-	onDidDispose: Event<void>;
+	readonly onDidDispose: Event<void>;
 
 	dispose(): Promise<void> | void;
 }

@@ -408,7 +408,7 @@ interface ICacheRow {
 	// TODO@roblou - never actually canceled
 	promise: CancelablePromise<[ISearchEngineSuccess, IRawFileMatch[]]>;
 	resolved: boolean;
-	event: Event<IFileSearchProgressItem>;
+	readonly event: Event<IFileSearchProgressItem>;
 }
 
 class Cache {

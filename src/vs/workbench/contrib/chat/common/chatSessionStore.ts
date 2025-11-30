@@ -20,8 +20,8 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
-import { ChatAgentLocation, ChatModeKind } from './constants.js';
+import { ChatModel, IChatModelInputState, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
+import { ChatAgentLocation } from './constants.js';
 
 const maxPersistedSessions = 25;
 
@@ -383,11 +383,10 @@ export class ChatSessionStore extends Disposable {
 	}
 }
 
-interface IChatSessionEntryMetadata {
+export interface IChatSessionEntryMetadata {
 	sessionId: string;
 	title: string;
 	lastMessageDate: number;
-	isImported?: boolean;
 	initialLocation?: ChatAgentLocation;
 
 	/**
@@ -441,15 +440,12 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 }
 
 function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSessionEntryMetadata {
-	const title = session instanceof ChatModel ?
-		session.customTitle || (session.getRequests().length > 0 ? ChatModel.getDefaultTitle(session.getRequests()) : '') :
-		session.customTitle ?? (session.requests.length > 0 ? ChatModel.getDefaultTitle(session.requests) : '');
+	const title = session.customTitle || (session instanceof ChatModel ? session.title : undefined);
 
 	return {
 		sessionId: session.sessionId,
-		title, // Empty string for sessions without content - UI will handle display
+		title: title || localize('newChat', "New Chat"),
 		lastMessageDate: session.lastMessageDate,
-		isImported: session.isImported,
 		initialLocation: session.initialLocation,
 		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0
 	};
@@ -458,9 +454,8 @@ function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSe
 export interface IChatTransfer {
 	toWorkspace: URI;
 	timestampInMilliseconds: number;
-	inputValue: string;
+	inputState: IChatModelInputState | undefined;
 	location: ChatAgentLocation;
-	mode: ChatModeKind;
 }
 
 export interface IChatTransfer2 extends IChatTransfer {

@@ -8,7 +8,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Color } from '../../../../base/common/color.js';
 import { Event } from '../../../../base/common/event.js';
-import { IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
+import { IJSONSchema, IJSONSchemaSnippet } from '../../../../base/common/jsonSchema.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import severity from '../../../../base/common/severity.js';
 import { URI, UriComponents, URI as uri } from '../../../../base/common/uri.js';
@@ -445,7 +445,7 @@ export interface IDebugSession extends ITreeElement, IDisposable {
 
 	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): Promise<void>;
 	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void>;
-	dataBreakpointInfo(name: string, variablesReference?: number): Promise<IDataBreakpointInfoResponse | undefined>;
+	dataBreakpointInfo(name: string, variablesReference?: number, frameId?: number): Promise<IDataBreakpointInfoResponse | undefined>;
 	dataBytesBreakpointInfo(address: string, bytes: number): Promise<IDataBreakpointInfoResponse | undefined>;
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
 	sendInstructionBreakpoints(dbps: IInstructionBreakpoint[]): Promise<void>;
@@ -459,7 +459,7 @@ export interface IDebugSession extends ITreeElement, IDisposable {
 	scopes(frameId: number, threadId: number): Promise<DebugProtocol.ScopesResponse | undefined>;
 	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse | undefined>;
 	evaluate(expression: string, frameId?: number, context?: string, location?: IDebugEvaluatePosition): Promise<DebugProtocol.EvaluateResponse | undefined>;
-	customRequest(request: string, args: any): Promise<DebugProtocol.Response | undefined>;
+	customRequest(request: string, args: unknown): Promise<DebugProtocol.Response | undefined>;
 	cancel(progressId: string): Promise<DebugProtocol.CancelResponse | undefined>;
 	disassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<DebugProtocol.DisassembledInstruction[] | undefined>;
 	readMemory(memoryReference: string, offset: number, count: number): Promise<DebugProtocol.ReadMemoryResponse | undefined>;
@@ -538,14 +538,14 @@ export interface IThread extends ITreeElement {
 	 */
 	readonly stopped: boolean;
 
-	next(granularity?: DebugProtocol.SteppingGranularity): Promise<any>;
-	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<any>;
-	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<any>;
-	stepBack(granularity?: DebugProtocol.SteppingGranularity): Promise<any>;
-	continue(): Promise<any>;
-	pause(): Promise<any>;
-	terminate(): Promise<any>;
-	reverseContinue(): Promise<any>;
+	next(granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
+	stepIn(granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
+	stepOut(granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
+	stepBack(granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
+	continue(): Promise<void>;
+	pause(): Promise<void>;
+	terminate(): Promise<void>;
+	reverseContinue(): Promise<void>;
 }
 
 export interface IScope extends IExpressionContainer {
@@ -553,6 +553,7 @@ export interface IScope extends IExpressionContainer {
 	readonly expensive: boolean;
 	readonly range?: IRange;
 	readonly hasChildren: boolean;
+	readonly childrenHaveBeenLoaded: boolean;
 }
 
 export interface IStackFrame extends ITreeElement {
@@ -567,7 +568,7 @@ export interface IStackFrame extends ITreeElement {
 	getScopes(): Promise<IScope[]>;
 	getMostSpecificScopes(range: IRange): Promise<ReadonlyArray<IScope>>;
 	forgetScopes(): void;
-	restart(): Promise<any>;
+	restart(): Promise<void>;
 	toString(): string;
 	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<IEditorPane | undefined>;
 	equals(other: IStackFrame): boolean;
@@ -630,7 +631,7 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	readonly endLineNumber?: number;
 	readonly column?: number;
 	readonly endColumn?: number;
-	readonly adapterData: any;
+	readonly adapterData: unknown;
 	readonly sessionAgnosticData: { lineNumber: number; column: number | undefined };
 	/** An ID of the breakpoint that triggers this breakpoint. */
 	readonly triggeredBy?: string;
@@ -720,17 +721,17 @@ export interface IViewModel extends ITreeElement {
 
 	isMultiSessionView(): boolean;
 
-	onDidFocusSession: Event<IDebugSession | undefined>;
-	onDidFocusThread: Event<{ thread: IThread | undefined; explicit: boolean; session: IDebugSession | undefined }>;
-	onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined; explicit: boolean; session: IDebugSession | undefined }>;
-	onDidSelectExpression: Event<{ expression: IExpression; settingWatch: boolean } | undefined>;
-	onDidEvaluateLazyExpression: Event<IExpressionContainer>;
+	readonly onDidFocusSession: Event<IDebugSession | undefined>;
+	readonly onDidFocusThread: Event<{ thread: IThread | undefined; explicit: boolean; session: IDebugSession | undefined }>;
+	readonly onDidFocusStackFrame: Event<{ stackFrame: IStackFrame | undefined; explicit: boolean; session: IDebugSession | undefined }>;
+	readonly onDidSelectExpression: Event<{ expression: IExpression; settingWatch: boolean } | undefined>;
+	readonly onDidEvaluateLazyExpression: Event<IExpressionContainer>;
 	/**
 	 * Fired when `setVisualizedExpression`, to migrate elements currently
 	 * rendered as `original` to the `replacement`.
 	 */
-	onDidChangeVisualization: Event<{ original: IExpression; replacement: IExpression }>;
-	onWillUpdateViews: Event<void>;
+	readonly onDidChangeVisualization: Event<{ original: IExpression; replacement: IExpression }>;
+	readonly onWillUpdateViews: Event<void>;
 
 	evaluateLazyExpression(expression: IExpressionContainer): void;
 }
@@ -762,16 +763,16 @@ export interface IDebugModel extends ITreeElement {
 	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
 	registerBreakpointModes(debugType: string, modes: DebugProtocol.BreakpointMode[]): void;
 	getBreakpointModes(forBreakpointType: 'source' | 'exception' | 'data' | 'instruction'): DebugProtocol.BreakpointMode[];
-	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
-	onDidChangeCallStack: Event<void>;
+	readonly onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
+	readonly onDidChangeCallStack: Event<void>;
 	/**
 	 * The expression has been added, removed, or repositioned.
 	 */
-	onDidChangeWatchExpressions: Event<IExpression | undefined>;
+	readonly onDidChangeWatchExpressions: Event<IExpression | undefined>;
 	/**
 	 * The expression's value has changed.
 	 */
-	onDidChangeWatchExpressionValue: Event<IExpression | undefined>;
+	readonly onDidChangeWatchExpressionValue: Event<IExpression | undefined>;
 
 	fetchCallstack(thread: IThread, levels?: number): Promise<void>;
 }
@@ -865,7 +866,7 @@ export interface IConfig extends IEnvConfig {
 	// internals
 	__configurationTarget?: ConfigurationTarget;
 	__sessionId?: string;
-	__restart?: any;
+	__restart?: unknown;
 	__autoAttach?: boolean;
 	port?: number; // TODO
 }
@@ -886,7 +887,7 @@ export interface IDebugAdapter extends IDisposable {
 	startSession(): Promise<void>;
 	sendMessage(message: DebugProtocol.ProtocolMessage): void;
 	sendResponse(response: DebugProtocol.Response): void;
-	sendRequest(command: string, args: any, clb: (result: DebugProtocol.Response) => void, timeout?: number): number;
+	sendRequest(command: string, args: unknown, clb: (result: DebugProtocol.Response) => void, timeout?: number): number;
 	stopSession(): Promise<void>;
 }
 
@@ -952,14 +953,16 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	languages?: string[];
 
 	// debug configuration support
-	configurationAttributes?: any;
-	initialConfigurations?: any[];
+	configurationAttributes?: Record<string, IJSONSchema>;
+	initialConfigurations?: unknown[];
 	configurationSnippets?: IJSONSchemaSnippet[];
 	variables?: { [key: string]: string };
 	when?: string;
 	hiddenWhen?: string;
 	deprecated?: string;
 	strings?: { [key in DebuggerString]: string };
+	/** @deprecated */
+	uiMessages?: { [key in DebuggerString]: string };
 }
 
 export interface IBreakpointContribution {
@@ -1020,12 +1023,12 @@ export interface IConfigurationManager {
 	/**
 	 * Allows to register on change of selected debug configuration.
 	 */
-	onDidSelectConfiguration: Event<void>;
+	readonly onDidSelectConfiguration: Event<void>;
 
 	/**
 	 * Allows to register on change of selected debug configuration.
 	 */
-	onDidChangeConfigurationProviders: Event<void>;
+	readonly onDidChangeConfigurationProviders: Event<void>;
 
 	hasDebugConfigurationProvider(debugType: string, triggerKind?: DebugConfigurationProviderTriggerKind): boolean;
 	getDynamicProviders(): Promise<{ label: string; type: string; pick: () => Promise<{ launch: ILaunch; config: IConfig; label: string } | undefined> }[]>;
@@ -1034,7 +1037,7 @@ export interface IConfigurationManager {
 	registerDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): IDisposable;
 	unregisterDebugConfigurationProvider(debugConfigurationProvider: IDebugConfigurationProvider): void;
 
-	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: any, token: CancellationToken): Promise<any>;
+	resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, debugConfiguration: unknown, token: CancellationToken): Promise<IConfig | null | undefined>;
 }
 
 export enum DebuggerString {
@@ -1043,7 +1046,7 @@ export enum DebuggerString {
 
 export interface IAdapterManager {
 
-	onDidRegisterDebugger: Event<void>;
+	readonly onDidRegisterDebugger: Event<void>;
 
 	hasEnabledDebuggers(): boolean;
 	getDebugAdapterDescriptor(session: IDebugSession): Promise<IAdapterDescriptor | undefined>;
@@ -1137,19 +1140,19 @@ export interface IDebugService {
 	/**
 	 * Allows to register on debug state changes.
 	 */
-	onDidChangeState: Event<State>;
+	readonly onDidChangeState: Event<State>;
 
 	/**
 	 * Allows to register on sessions about to be created (not yet fully initialised).
 	 * This is fired exactly one time for any given session.
 	 */
-	onWillNewSession: Event<IDebugSession>;
+	readonly onWillNewSession: Event<IDebugSession>;
 
 	/**
 	 * Fired when a new debug session is started. This may fire multiple times
 	 * for a single session due to restarts.
 	 */
-	onDidNewSession: Event<IDebugSession>;
+	readonly onDidNewSession: Event<IDebugSession>;
 
 	/**
 	 * Allows to register on end session events.
@@ -1157,7 +1160,7 @@ export interface IDebugService {
 	 * Contains a boolean indicating whether the session will restart. If restart
 	 * is true, the session should not considered to be dead yet.
 	 */
-	onDidEndSession: Event<{ session: IDebugSession; restart: boolean }>;
+	readonly onDidEndSession: Event<{ session: IDebugSession; restart: boolean }>;
 
 	/**
 	 * Gets the configuration manager.
@@ -1205,7 +1208,7 @@ export interface IDebugService {
 	 * Removes all breakpoints. If id is passed only removes the breakpoint associated with that id.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	removeBreakpoints(id?: string): Promise<any>;
+	removeBreakpoints(id?: string): Promise<void>;
 
 	/**
 	 * Adds a new function breakpoint for the given name.
@@ -1266,12 +1269,12 @@ export interface IDebugService {
 	 * Sends all breakpoints to the passed session.
 	 * If session is not passed, sends all breakpoints to each session.
 	 */
-	sendAllBreakpoints(session?: IDebugSession): Promise<any>;
+	sendAllBreakpoints(session?: IDebugSession): Promise<void>;
 
 	/**
 	 * Sends breakpoints of the given source to the passed session.
 	 */
-	sendBreakpoints(modelUri: uri, sourceModified?: boolean, session?: IDebugSession): Promise<any>;
+	sendBreakpoints(modelUri: uri, sourceModified?: boolean, session?: IDebugSession): Promise<void>;
 
 	/**
 	 * Adds a new watch expression and evaluates it against the debug adapter.
@@ -1306,12 +1309,12 @@ export interface IDebugService {
 	/**
 	 * Restarts a session or creates a new one if there is no active session.
 	 */
-	restartSession(session: IDebugSession, restartData?: any): Promise<any>;
+	restartSession(session: IDebugSession, restartData?: unknown): Promise<void>;
 
 	/**
 	 * Stops the session. If no session is specified then all sessions are stopped.
 	 */
-	stopSession(session: IDebugSession | undefined, disconnect?: boolean, suspend?: boolean): Promise<any>;
+	stopSession(session: IDebugSession | undefined, disconnect?: boolean, suspend?: boolean): Promise<void>;
 
 	/**
 	 * Makes unavailable all sources with the passed uri. Source will appear as grayed out in callstack view.
@@ -1344,7 +1347,7 @@ export const enum BreakpointWidgetContext {
 
 export interface IDebugEditorContribution extends editorCommon.IEditorContribution {
 	showHover(range: Position, focus: boolean): Promise<void>;
-	addLaunchConfiguration(): Promise<any>;
+	addLaunchConfiguration(): Promise<void>;
 	closeExceptionWidget(): void;
 }
 

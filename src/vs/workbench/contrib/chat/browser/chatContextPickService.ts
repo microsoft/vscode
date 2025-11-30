@@ -9,19 +9,22 @@ import { compare } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isObject } from '../../../../base/common/types.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatWidget } from './chat.js';
 
 
-export interface IChatContextPickerPickItem {
+export interface IChatContextPickerPickItem extends Partial<IQuickItem> {
 	label: string;
 	iconClass?: string;
+	iconClasses?: readonly string[];
 	description?: string;
 	detail?: string;
 	disabled?: boolean;
-	asAttachment(): IChatRequestVariableEntry | Promise<IChatRequestVariableEntry>;
+	asAttachment(): ChatContextPickAttachment | Promise<ChatContextPickAttachment>;
 }
+
+export type ChatContextPickAttachment = IChatRequestVariableEntry | IChatRequestVariableEntry[] | 'noop';
 
 export function isChatContextPickerPickItem(item: unknown): item is IChatContextPickerPickItem {
 	return isObject(item) && typeof (item as IChatContextPickerPickItem).asAttachment === 'function';
@@ -52,10 +55,15 @@ export interface IChatContextPicker {
 	 */
 	readonly picks: Promise<ChatContextPick[]> | ((query: IObservable<string>, token: CancellationToken) => IObservable<{ busy: boolean; picks: ChatContextPick[] }>);
 
+	/** Return true to cancel the default behavior */
+	readonly goBack?: () => boolean;
+
 	readonly configure?: {
 		label: string;
 		commandId: string;
 	};
+
+	readonly dispose?: () => void;
 }
 
 export interface IChatContextPickerItem extends IChatContextItem {

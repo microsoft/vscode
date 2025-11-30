@@ -146,6 +146,7 @@ export namespace TerminalContextKeys {
 	export const shouldShowViewInlineActions = ContextKeyExpr.and(
 		ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 		ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
+		ContextKeyExpr.equals('hasHiddenChatTerminals', false),
 		ContextKeyExpr.or(
 			ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
 			ContextKeyExpr.and(

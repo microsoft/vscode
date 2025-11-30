@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableFromEvent, ObservableMap } from '../../../../base/common/observable.js';
+import { derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -15,6 +15,7 @@ import { UserSelectedTools } from '../common/chatAgents.js';
 import { IChatMode } from '../common/chatModes.js';
 import { ChatModeKind } from '../common/constants.js';
 import { ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, ToolSet } from '../common/languageModelToolsService.js';
+import { PromptsStorage } from '../common/promptSyntax/service/promptsService.js';
 import { PromptFileRewriter } from './promptSyntax/promptFileRewriter.js';
 
 
@@ -88,7 +89,8 @@ namespace ToolEnablementStates {
 export enum ToolsScope {
 	Global,
 	Session,
-	Mode
+	Agent,
+	Agent_ReadOnly,
 }
 
 export class ChatSelectedTools extends Disposable {
@@ -96,8 +98,6 @@ export class ChatSelectedTools extends Disposable {
 	private readonly _globalState: ObservableMemento<ToolEnablementStates>;
 
 	private readonly _sessionStates = new ObservableMap<string, ToolEnablementStates | undefined>();
-
-	private readonly _allTools: IObservable<Readonly<IToolData>[]>;
 
 	constructor(
 		private readonly _mode: IObservable<IChatMode>,
@@ -114,8 +114,7 @@ export class ChatSelectedTools extends Disposable {
 			toStorage: ToolEnablementStates.toStorage
 		});
 
-		this._globalState = this._store.add(globalStateMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE, _storageService));
-		this._allTools = observableFromEvent(_toolsService.onDidChangeTools, () => Array.from(_toolsService.getTools()));
+		this._globalState = this._store.add(globalStateMemento(StorageScope.PROFILE, StorageTarget.MACHINE, _storageService));
 	}
 
 	/**
@@ -130,13 +129,14 @@ export class ChatSelectedTools extends Disposable {
 		if (!currentMap && currentMode.kind === ChatModeKind.Agent) {
 			const modeTools = currentMode.customTools?.read(r);
 			if (modeTools) {
-				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools));
+				const target = currentMode.target?.read(r);
+				currentMap = ToolEnablementStates.fromMap(this._toolsService.toToolAndToolSetEnablementMap(modeTools, target));
 			}
 		}
 		if (!currentMap) {
 			currentMap = this._globalState.read(r);
 		}
-		for (const tool of this._allTools.read(r)) {
+		for (const tool of this._toolsService.toolsObservable.read(r)) {
 			if (tool.canBeReferencedInPrompt) {
 				map.set(tool, currentMap.tools.get(tool.id) !== false); // if unknown, it's enabled
 			}
@@ -169,7 +169,7 @@ export class ChatSelectedTools extends Disposable {
 			return ToolsScope.Session;
 		}
 		if (mode.kind === ChatModeKind.Agent && mode.customTools?.get() && mode.uri) {
-			return ToolsScope.Mode;
+			return mode.source?.storage !== PromptsStorage.extension ? ToolsScope.Agent : ToolsScope.Agent_ReadOnly;
 		}
 		return ToolsScope.Global;
 	}
@@ -190,9 +190,15 @@ export class ChatSelectedTools extends Disposable {
 			return;
 		}
 		if (mode.kind === ChatModeKind.Agent && mode.customTools?.get() && mode.uri) {
-			// apply directly to mode file.
-			this.updateCustomModeTools(mode.uri.get(), enablementMap);
-			return;
+			if (mode.source?.storage !== PromptsStorage.extension) {
+				// apply directly to mode file.
+				this.updateCustomModeTools(mode.uri.get(), enablementMap);
+				return;
+			} else {
+				// can not write to extensions, store
+				this._sessionStates.set(mode.id, ToolEnablementStates.fromMap(enablementMap));
+				return;
+			}
 		}
 		this._globalState.set(ToolEnablementStates.fromMap(enablementMap), undefined);
 	}

@@ -5,7 +5,8 @@
 
 import { compareBy, numberComparator } from './arrays.js';
 import { groupBy } from './collections.js';
-import { SetMap } from './map.js';
+import { SetMap, ResourceMap } from './map.js';
+import { URI } from './uri.js';
 import { createSingleCallFunction } from './functional.js';
 import { Iterable } from './iterator.js';
 import { BugIndicatingError, onUnexpectedError } from './errors.js';
@@ -206,7 +207,9 @@ export class DisposableTracker implements IDisposableTracker {
 				const continuations = groupBy([...prevStarts].map(d => getStackTracePath(d)[i]), v => v);
 				delete continuations[stackTracePath[i]];
 				for (const [cont, set] of Object.entries(continuations)) {
-					stackTraceFormattedLines.unshift(`    - stacktraces of ${set.length} other leaks continue with ${cont}`);
+					if (set) {
+						stackTraceFormattedLines.unshift(`    - stacktraces of ${set.length} other leaks continue with ${cont}`);
+					}
 				}
 
 				stackTraceFormattedLines.unshift(line);
@@ -313,7 +316,7 @@ export interface IDisposable {
 /**
  * Check if `thing` is {@link IDisposable disposable}.
  */
-export function isDisposable<E extends any>(thing: E): thing is E & IDisposable {
+export function isDisposable<E>(thing: E): thing is E & IDisposable {
 	// eslint-disable-next-line local/code-no-any-casts
 	return typeof thing === 'object' && thing !== null && typeof (<IDisposable><any>thing).dispose === 'function' && (<IDisposable><any>thing).dispose.length === 0;
 }
@@ -503,8 +506,7 @@ export class DisposableStore implements IDisposable {
 		if (!o) {
 			return;
 		}
-		if (this._toDispose.has(o)) {
-			this._toDispose.delete(o);
+		if (this._toDispose.delete(o)) {
 			setParentOfDisposable(o, null);
 		}
 	}
@@ -754,10 +756,11 @@ export function disposeOnReturn(fn: (store: DisposableStore) => void): void {
  */
 export class DisposableMap<K, V extends IDisposable = IDisposable> implements IDisposable {
 
-	private readonly _store = new Map<K, V>();
+	private readonly _store: Map<K, V>;
 	private _isDisposed = false;
 
-	constructor() {
+	constructor(store: Map<K, V> = new Map<K, V>()) {
+		this._store = store;
 		trackDisposable(this);
 	}
 
@@ -876,4 +879,10 @@ export function thenRegisterOrDispose<T extends IDisposable>(promise: Promise<T>
 		}
 		return disposable;
 	});
+}
+
+export class DisposableResourceMap<V extends IDisposable = IDisposable> extends DisposableMap<URI, V> {
+	constructor() {
+		super(new ResourceMap());
+	}
 }

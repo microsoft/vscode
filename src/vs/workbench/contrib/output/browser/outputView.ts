@@ -190,7 +190,7 @@ export class OutputViewPane extends FilterViewPane {
 		const input = this.createInput(channel);
 		if (!this.editor.input || !input.matches(this.editor.input)) {
 			this.editorPromise?.cancel();
-			this.editorPromise = createCancelablePromise(token => this.editor.setInput(this.createInput(channel), { preserveFocus: true }, Object.create(null), token));
+			this.editorPromise = createCancelablePromise(token => this.editor.setInput(input, { preserveFocus: true }, Object.create(null), token));
 		}
 
 	}
@@ -274,12 +274,12 @@ export class OutputEditor extends AbstractTextResourceEditor {
 			ambiguousCharacters: false,
 		};
 
-		const outputConfig = this.configurationService.getValue<any>('[Log]');
+		const outputConfig = this.configurationService.getValue<{ 'editor.minimap.enabled'?: boolean; 'editor.wordWrap'?: 'off' | 'on' | 'wordWrapColumn' | 'bounded' }>('[Log]');
 		if (outputConfig) {
 			if (outputConfig['editor.minimap.enabled']) {
 				options.minimap = { enabled: true };
 			}
-			if ('editor.wordWrap' in outputConfig) {
+			if (outputConfig['editor.wordWrap']) {
 				options.wordWrap = outputConfig['editor.wordWrap'];
 			}
 		}

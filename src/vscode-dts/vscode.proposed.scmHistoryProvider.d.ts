@@ -19,12 +19,12 @@ declare module 'vscode' {
 		 * Fires when the current history item refs (local, remote, base)
 		 * change after a user action (ex: commit, checkout, fetch, pull, push)
 		 */
-		onDidChangeCurrentHistoryItemRefs: Event<void>;
+		readonly onDidChangeCurrentHistoryItemRefs: Event<void>;
 
 		/**
 		 * Fires when history item refs change
 		 */
-		onDidChangeHistoryItemRefs: Event<SourceControlHistoryItemRefsChangeEvent>;
+		readonly onDidChangeHistoryItemRefs: Event<SourceControlHistoryItemRefsChangeEvent>;
 
 		provideHistoryItemRefs(historyItemRefs: string[] | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItemRef[]>;
 		provideHistoryItems(options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
@@ -61,6 +61,7 @@ declare module 'vscode' {
 		readonly timestamp?: number;
 		readonly statistics?: SourceControlHistoryItemStatistics;
 		readonly references?: SourceControlHistoryItemRef[];
+		readonly tooltip?: MarkdownString | Array<MarkdownString> | undefined;
 	}
 
 	export interface SourceControlHistoryItemRef {

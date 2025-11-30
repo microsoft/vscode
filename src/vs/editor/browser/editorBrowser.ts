@@ -178,6 +178,13 @@ export interface IContentWidget {
 	 * Render this content widget in a location where it could overflow the editor's view dom node.
 	 */
 	allowEditorOverflow?: boolean;
+
+	/**
+	 * If true, this widget doesn't have a visual representation.
+	 * The element will have display set to 'none'.
+	*/
+	useDisplayNone?: boolean;
+
 	/**
 	 * Call preventDefault() on mousedown events that target the content widget.
 	 */
@@ -272,7 +279,7 @@ export interface IOverlayWidgetPosition {
 	 * When set, stacks with other overlay widgets with the same preference,
 	 * in an order determined by the ordinal value.
 	 */
-	stackOridinal?: number;
+	stackOrdinal?: number;
 }
 /**
  * An overlay widgets renders on top of the text.
@@ -281,7 +288,7 @@ export interface IOverlayWidget {
 	/**
 	 * Event fired when the widget layout changes.
 	 */
-	onDidLayout?: Event<void>;
+	readonly onDidLayout?: Event<void>;
 	/**
 	 * Render this overlay widget in a location where it could overflow the editor's view dom node.
 	 */
@@ -825,6 +832,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	*/
 	readonly onEndUpdate: Event<void>;
 
+	readonly onDidChangeViewZones: Event<void>;
+
 	/**
 	 * Saves current view state of the editor in a serializable object.
 	 */
@@ -898,14 +907,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 * @event
 	 */
-	onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
+	readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent>;
 
 	/**
 	 * An event emitted when the font of the editor has changed.
 	 * @internal
 	 * @event
 	 */
-	onDidChangeFont: Event<ModelFontChangedEvent>;
+	readonly onDidChangeFont: Event<ModelFontChangedEvent>;
 
 	/**
 	 * Get value of the current model attached to this editor.
@@ -1011,6 +1020,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param command The commands to execute
 	 */
 	executeCommands(source: string | null | undefined, commands: (editorCommon.ICommand | null)[]): void;
+
+	/**
+	 * Scroll vertically or horizontally as necessary and reveal the current cursors.
+	 */
+	revealAllCursors(revealHorizontal: boolean, minimalReveal?: boolean): void;
 
 	/**
 	 * @internal
@@ -1188,6 +1202,8 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Use this method with caution.
 	 */
 	getOffsetForColumn(lineNumber: number, column: number): number;
+
+	getWidthOfLine(lineNumber: number): number;
 
 	/**
 	 * Force an editor render now.

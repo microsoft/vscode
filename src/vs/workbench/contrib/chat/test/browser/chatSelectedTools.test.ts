@@ -102,7 +102,7 @@ suite('ChatSelectedTools', () => {
 
 			await timeout(1000); // UGLY the tools service updates its state sync but emits the event async (750ms) delay. This affects the observable that depends on the event
 
-			assert.strictEqual(selectedTools.entriesMap.get().size, 4); // 1 toolset, 3 tools
+			assert.strictEqual(selectedTools.entriesMap.get().size, 7); // 1 toolset (+3 vscode, execute, read toolsets), 3 tools
 
 			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, false]]);
 			selectedTools.set(toSet, false);
@@ -166,7 +166,7 @@ suite('ChatSelectedTools', () => {
 
 			await timeout(1000); // UGLY the tools service updates its state sync but emits the event async (750ms) delay. This affects the observable that depends on the event
 
-			assert.strictEqual(selectedTools.entriesMap.get().size, 4); // 1 toolset, 3 tools
+			assert.strictEqual(selectedTools.entriesMap.get().size, 7); // 1 toolset (+3 vscode, execute, read toolsets), 3 tools
 
 			// Toolset is checked, tools 2 and 3 are unchecked
 			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, true]]);

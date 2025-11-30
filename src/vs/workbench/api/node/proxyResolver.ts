@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService, LogLevel as LogServiceLevel } from '../../../platform/log/common/log.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates, ResolveProxyWithRequest } from '@vscode/proxy-agent';
-import { AuthInfo } from '../../../platform/request/common/request.js';
+import { AuthInfo, systemCertificatesNodeDefault } from '../../../platform/request/common/request.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { createRequire } from 'node:module';
 import type * as undiciType from 'undici-types';
@@ -54,6 +54,7 @@ export function connectProxyResolver(
 		isAdditionalFetchSupportEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.fetchAdditionalSupport', true),
 		addCertificatesV1: () => certSettingV1(configProvider, isRemote),
 		addCertificatesV2: () => certSettingV2(configProvider, isRemote),
+		loadSystemCertificatesFromNode: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', systemCertificatesNodeDefault),
 		log: extHostLogService,
 		getLogLevel: () => {
 			const level = extHostLogService.getLevel();
@@ -78,22 +79,31 @@ export function connectProxyResolver(
 			return intervalSeconds * 1000;
 		},
 		loadAdditionalCertificates: async () => {
+			const useNodeSystemCerts = getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', systemCertificatesNodeDefault);
 			const promises: Promise<string[]>[] = [];
-			if (initData.remote.isRemote) {
-				promises.push(loadSystemCertificates({ log: extHostLogService }));
+			if (isRemote) {
+				promises.push(loadSystemCertificates({
+					loadSystemCertificatesFromNode: () => useNodeSystemCerts,
+					log: extHostLogService,
+				}));
 			}
 			if (loadLocalCertificates) {
-				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading certificates from main process');
-				const certs = extHostWorkspace.loadCertificates(); // Loading from main process to share cache.
-				certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
-				promises.push(certs);
+				if (!isRemote && useNodeSystemCerts) {
+					promises.push(loadSystemCertificates({
+						loadSystemCertificatesFromNode: () => useNodeSystemCerts,
+						log: extHostLogService,
+					}));
+				} else {
+					extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading certificates from main process');
+					const certs = extHostWorkspace.loadCertificates(); // Loading from main process to share cache.
+					certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
+					promises.push(certs);
+				}
 			}
 			// Using https.globalAgent because it is shared with proxy.test.ts and mutable.
-			// eslint-disable-next-line local/code-no-any-casts
-			if (initData.environment.extensionTestsLocationURI && (https.globalAgent as any).testCertificates?.length) {
+			if (initData.environment.extensionTestsLocationURI && https.globalAgent.testCertificates?.length) {
 				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
-				// eslint-disable-next-line local/code-no-any-casts
-				promises.push(Promise.resolve((https.globalAgent as any).testCertificates as string[]));
+				promises.push(Promise.resolve(https.globalAgent.testCertificates as string[]));
 			}
 			return (await Promise.all(promises)).flat();
 		},
@@ -370,8 +380,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 						cache[request] = undici;
 					} else {
 						const mod = lookup[request];
-						// eslint-disable-next-line local/code-no-any-casts
-						cache[request] = <any>{ ...mod }; // Copy to work around #93167.
+						cache[request] = { ...mod }; // Copy to work around #93167.
 					}
 				}
 				return cache[request];

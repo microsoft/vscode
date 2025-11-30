@@ -14,7 +14,7 @@ import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { EndOfLinePreference, IModelDeltaDecoration } from '../../../../common/model.js';
 import { ViewConfigurationChangedEvent, ViewCursorStateChangedEvent, ViewDecorationsChangedEvent, ViewFlushedEvent, ViewLinesChangedEvent, ViewLinesDeletedEvent, ViewLinesInsertedEvent, ViewScrollChangedEvent, ViewZonesChangedEvent } from '../../../../common/viewEvents.js';
 import { ViewContext } from '../../../../common/viewModel/viewContext.js';
-import { RestrictedRenderingContext, RenderingContext } from '../../../view/renderingContext.js';
+import { RestrictedRenderingContext, RenderingContext, HorizontalPosition } from '../../../view/renderingContext.js';
 import { ViewController } from '../../../view/viewController.js';
 import { ClipboardEventUtils, ClipboardStoredMetadata, getDataToCopy, InMemoryClipboardMetadataManager } from '../clipboardUtils.js';
 import { AbstractEditContext } from '../editContext.js';
@@ -33,6 +33,7 @@ import { IME } from '../../../../../base/common/ime.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
+import { inputLatency } from '../../../../../base/browser/performance.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -60,7 +61,7 @@ export class NativeEditContext extends AbstractEditContext {
 	private _editContextPrimarySelection: Selection = new Selection(1, 1, 1, 1);
 
 	// Overflow guard container
-	private _parent: HTMLElement | undefined;
+	private readonly _parent: HTMLElement;
 	private _decorations: string[] = [];
 	private _primarySelection: Selection = new Selection(1, 1, 1, 1);
 
@@ -125,12 +126,16 @@ export class NativeEditContext extends AbstractEditContext {
 			this.logService.trace('NativeEditContext#cut (before viewController.cut)');
 			this._viewController.cut();
 		}));
+		this._register(addDisposableListener(this.domNode.domNode, 'selectionchange', () => {
+			inputLatency.onSelectionChange();
+		}));
 
 		this._register(addDisposableListener(this.domNode.domNode, 'keyup', (e) => this._onKeyUp(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'keydown', async (e) => this._onKeyDown(e)));
 		this._register(addDisposableListener(this._imeTextArea.domNode, 'keyup', (e) => this._onKeyUp(e)));
 		this._register(addDisposableListener(this._imeTextArea.domNode, 'keydown', async (e) => this._onKeyDown(e)));
 		this._register(addDisposableListener(this.domNode.domNode, 'beforeinput', async (e) => {
+			inputLatency.onBeforeInput();
 			if (e.inputType === 'insertParagraph' || e.inputType === 'insertLineBreak') {
 				this._onType(this._viewController, { text: '\n', replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 });
 			}
@@ -166,6 +171,7 @@ export class NativeEditContext extends AbstractEditContext {
 		this._register(editContextAddDisposableListener(this._editContext, 'characterboundsupdate', (e) => this._updateCharacterBounds(e)));
 		let highSurrogateCharacter: string | undefined;
 		this._register(editContextAddDisposableListener(this._editContext, 'textupdate', (e) => {
+			inputLatency.onInput();
 			const text = e.text;
 			if (text.length === 1) {
 				const charCode = text.charCodeAt(0);
@@ -241,9 +247,13 @@ export class NativeEditContext extends AbstractEditContext {
 		return this._primarySelection.getPosition();
 	}
 
-	public prepareRender(ctx: RenderingContext): void {
+	public override prepareRender(ctx: RenderingContext): void {
 		this._screenReaderSupport.prepareRender(ctx);
-		this._updateSelectionAndControlBounds(ctx);
+		this._updateSelectionAndControlBoundsData(ctx);
+	}
+
+	public override onDidRender(): void {
+		this._updateSelectionAndControlBoundsAfterRender();
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
@@ -351,10 +361,12 @@ export class NativeEditContext extends AbstractEditContext {
 	// --- Private methods ---
 
 	private _onKeyUp(e: KeyboardEvent) {
+		inputLatency.onKeyUp();
 		this._viewController.emitKeyUp(new StandardKeyboardEvent(e));
 	}
 
 	private _onKeyDown(e: KeyboardEvent) {
+		inputLatency.onKeyDown();
 		const standardKeyboardEvent = new StandardKeyboardEvent(e);
 		// When the IME is visible, the keys, like arrow-left and arrow-right, should be used to navigate in the IME, and should not be propagated further
 		if (standardKeyboardEvent.keyCode === KeyCode.KEY_IN_COMPOSITION) {
@@ -483,26 +495,35 @@ export class NativeEditContext extends AbstractEditContext {
 		this._decorations = this._context.viewModel.model.deltaDecorations(this._decorations, decorations);
 	}
 
-	private _updateSelectionAndControlBounds(ctx: RenderingContext) {
-		if (!this._parent) {
-			return;
+	private _linesVisibleRanges: HorizontalPosition | null = null;
+	private _updateSelectionAndControlBoundsData(ctx: RenderingContext): void {
+		const viewSelection = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(this._primarySelection);
+		if (this._primarySelection.isEmpty()) {
+			const linesVisibleRanges = ctx.visibleRangeForPosition(viewSelection.getStartPosition());
+			this._linesVisibleRanges = linesVisibleRanges;
+		} else {
+			this._linesVisibleRanges = null;
 		}
+	}
+
+	private _updateSelectionAndControlBoundsAfterRender() {
 		const options = this._context.configuration.options;
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;
-		const parentBounds = this._parent.getBoundingClientRect();
+
 		const viewSelection = this._context.viewModel.coordinatesConverter.convertModelRangeToViewRange(this._primarySelection);
 		const verticalOffsetStart = this._context.viewLayout.getVerticalOffsetForLineNumber(viewSelection.startLineNumber);
-
-		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
 		const verticalOffsetEnd = this._context.viewLayout.getVerticalOffsetAfterLineNumber(viewSelection.endLineNumber);
+
+		// Make sure this doesn't force an extra layout (i.e. don't call it before rendering finished)
+		const parentBounds = this._parent.getBoundingClientRect();
+		const top = parentBounds.top + verticalOffsetStart - this._scrollTop;
 		const height = verticalOffsetEnd - verticalOffsetStart;
 		let left = parentBounds.left + contentLeft - this._scrollLeft;
 		let width: number;
 
 		if (this._primarySelection.isEmpty()) {
-			const linesVisibleRanges = ctx.visibleRangeForPosition(viewSelection.getStartPosition());
-			if (linesVisibleRanges) {
-				left += linesVisibleRanges.left;
+			if (this._linesVisibleRanges) {
+				left += this._linesVisibleRanges.left;
 			}
 			width = 0;
 		} else {
@@ -515,9 +536,6 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _updateCharacterBounds(e: CharacterBoundsUpdateEvent): void {
-		if (!this._parent) {
-			return;
-		}
 		const options = this._context.configuration.options;
 		const typicalHalfWidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		const contentLeft = options.get(EditorOption.layoutInfo).contentLeft;

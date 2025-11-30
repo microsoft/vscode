@@ -12,20 +12,19 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { AccessibleDiffViewer, IAccessibleDiffViewerModel } from '../../../../editor/browser/widget/diffEditor/components/accessibleDiffViewer.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { EditorOption, IComputedEditorOptions } from '../../../../editor/common/config/editorOptions.js';
-import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { LineRange } from '../../../../editor/common/core/ranges/lineRange.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../../editor/common/diff/rangeMapping.js';
 import { ICodeEditorViewState, ScrollType } from '../../../../editor/common/editorCommon.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
-import product from '../../../../platform/product/common/product.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
@@ -39,6 +38,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import product from '../../../../platform/product/common/product.js';
 import { asCssVariable, asCssVariableName, editorBackground, inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
@@ -47,10 +48,11 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { MarkUnhelpfulActionId } from '../../chat/browser/actions/chatTitleActions.js';
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { ChatVoteDownButton } from '../../chat/browser/chatListRenderer.js';
-import { ChatWidget, IChatViewState, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
+import { ChatWidget, IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { chatRequestBackground } from '../../chat/common/chatColors.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { IChatModel } from '../../chat/common/chatModel.js';
+import { ChatMode } from '../../chat/common/chatModes.js';
 import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
@@ -127,6 +129,7 @@ export class InlineChatWidget {
 		@IChatService private readonly _chatService: IChatService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
+		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 	) {
 		this.scopedContextKeyService = this._store.add(_contextKeyService.createScoped(this._elements.chatWidget));
 		const scopedInstaService = _instantiationService.createChild(
@@ -163,6 +166,7 @@ export class InlineChatWidget {
 					return true;
 				},
 				dndContainer: this._elements.root,
+				defaultMode: ChatMode.Ask,
 				..._options.chatWidgetViewOptions
 			},
 			{
@@ -205,7 +209,7 @@ export class InlineChatWidget {
 
 			viewModelStore.add(viewModel.onDidChange(() => {
 
-				this._requestInProgress.set(viewModel.requestInProgress, undefined);
+				this._requestInProgress.set(viewModel.model.requestInProgress.get(), undefined);
 
 				const last = viewModel.getItems().at(-1);
 				toolbar2.context = last;
@@ -279,7 +283,7 @@ export class InlineChatWidget {
 		}));
 
 		this._store.add(this._chatService.onDidPerformUserAction(e => {
-			if (e.sessionId === this._chatWidget.viewModel?.model.sessionId && e.action.kind === 'vote') {
+			if (isEqual(e.sessionResource, this._chatWidget.viewModel?.model.sessionResource) && e.action.kind === 'vote') {
 				this.updateStatus(localize('feedbackThanks', "Thank you for your feedback!"), { resetAfter: 1250 });
 			}
 		}));
@@ -316,8 +320,7 @@ export class InlineChatWidget {
 			this._elements.disclaimerLabel.classList.toggle('hidden', !showDisclaimer);
 
 			if (showDisclaimer) {
-				const markdown = this._instantiationService.createInstance(MarkdownRenderer, {});
-				const renderedMarkdown = disposables.add(markdown.render(new MarkdownString(localize({ key: 'termsDisclaimer', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.termsStatementUrl ?? '', product.defaultChatAgent?.privacyStatementUrl ?? ''), { isTrusted: true })));
+				const renderedMarkdown = disposables.add(this._markdownRendererService.render(new MarkdownString(localize({ key: 'termsDisclaimer', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.termsStatementUrl ?? '', product.defaultChatAgent?.privacyStatementUrl ?? ''), { isTrusted: true })));
 				this._elements.disclaimerLabel.appendChild(renderedMarkdown.element);
 			}
 
@@ -448,7 +451,7 @@ export class InlineChatWidget {
 		if (!item) {
 			return;
 		}
-		return viewModel.codeBlockModelCollection.get(viewModel.sessionId, item, codeBlockIndex)?.model;
+		return viewModel.codeBlockModelCollection.get(viewModel.sessionResource, item, codeBlockIndex)?.model;
 	}
 
 	get responseContent(): string | undefined {
@@ -461,8 +464,9 @@ export class InlineChatWidget {
 		return this._chatWidget.viewModel?.model;
 	}
 
-	setChatModel(chatModel: IChatModel, state?: IChatViewState) {
-		this._chatWidget.setModel(chatModel, { ...state, inputValue: undefined });
+	setChatModel(chatModel: IChatModel) {
+		chatModel.inputModel.setState({ inputText: '', selections: [] });
+		this._chatWidget.setModel(chatModel);
 	}
 
 	updateInfo(message: string): void {
@@ -546,6 +550,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IHoverService hoverService: IHoverService,
 		@ILayoutService layoutService: ILayoutService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 	) {
 		const overflowWidgetsNode = layoutService.getContainer(getWindow(_parentEditor.getContainerDomNode())).appendChild($('.inline-chat-overflow.monaco-editor'));
 		super(location, {
@@ -554,7 +559,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 				...options.chatWidgetViewOptions,
 				editorOverflowWidgetsDomNode: overflowWidgetsNode
 			}
-		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService, chatEntitlementService);
+		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService, chatEntitlementService, markdownRendererService);
 
 		this._store.add(toDisposable(() => {
 			overflowWidgetsNode.remove();
@@ -590,6 +595,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 
 	override reset() {
 		this._accessibleViewer.clear();
+		this.chatWidget.setInput();
 		super.reset();
 	}
 

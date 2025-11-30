@@ -156,8 +156,7 @@ export class UriTemplate {
 					const pairs: string[] = [];
 					for (const k in value) {
 						if (Object.prototype.hasOwnProperty.call(value, k)) {
-							// eslint-disable-next-line local/code-no-any-casts
-							const thisVal = String((value as any)[k]);
+							const thisVal = String((value as Record<string, unknown>)[k]);
 							if (isParam) {
 								pairs.push(k + '=' + thisVal);
 							} else if (isForm || isFormCont) {
@@ -188,8 +187,7 @@ export class UriTemplate {
 					for (const k in value) {
 						if (Object.prototype.hasOwnProperty.call(value, k)) {
 							pairs.push(k);
-							// eslint-disable-next-line local/code-no-any-casts
-							pairs.push(String((value as any)[k]));
+							pairs.push(String((value as Record<string, unknown>)[k]));
 						}
 					}
 					// For label, param, form, join as keys=semi,;,dot,.,comma,, (no encoding of , or ;)

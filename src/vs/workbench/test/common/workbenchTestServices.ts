@@ -265,9 +265,9 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
 	declare readonly _serviceBrand: undefined;
 
-	onWillRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
-	onDidFailWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
-	onDidRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+	readonly onWillRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+	readonly onDidFailWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+	readonly onDidRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
 
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable { return Disposable.None; }
 

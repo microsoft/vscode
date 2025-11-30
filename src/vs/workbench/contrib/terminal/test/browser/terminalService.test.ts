@@ -15,6 +15,7 @@ import { TerminalService } from '../../browser/terminalService.js';
 import { TERMINAL_CONFIG_SECTION } from '../../common/terminal.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import type { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
 
 suite('Workbench - TerminalService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,129 +56,115 @@ suite('Workbench - TerminalService', () => {
 
 		test('should not show prompt when confirmOnKill is never', async () => {
 			await setConfirmOnKill(configurationService, 'never');
-			// eslint-disable-next-line local/code-no-any-casts
 			await terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Editor,
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
-			// eslint-disable-next-line local/code-no-any-casts
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			await terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 		});
 		test('should not show prompt when any terminal editor is closed (handled by editor itself)', async () => {
 			await setConfirmOnKill(configurationService, 'editor');
-			// eslint-disable-next-line local/code-no-any-casts
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Editor,
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			await setConfirmOnKill(configurationService, 'always');
-			// eslint-disable-next-line local/code-no-any-casts
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Editor,
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 		});
 		test('should not show prompt when confirmOnKill is editor and panel terminal is closed', async () => {
 			await setConfirmOnKill(configurationService, 'editor');
-			// eslint-disable-next-line local/code-no-any-casts
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 		});
 		test('should show prompt when confirmOnKill is panel and panel terminal is closed', async () => {
 			await setConfirmOnKill(configurationService, 'panel');
 			// No child process cases
 			dialogService.setConfirmResult({ confirmed: false });
-			// eslint-disable-next-line local/code-no-any-casts
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: false,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			dialogService.setConfirmResult({ confirmed: true });
-			// eslint-disable-next-line local/code-no-any-casts
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: false,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			// Child process cases
 			dialogService.setConfirmResult({ confirmed: false });
-			// eslint-disable-next-line local/code-no-any-casts
 			await terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
 				dispose: () => fail()
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			dialogService.setConfirmResult({ confirmed: true });
-			// eslint-disable-next-line local/code-no-any-casts
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 		});
 		test('should show prompt when confirmOnKill is always and panel terminal is closed', async () => {
 			await setConfirmOnKill(configurationService, 'always');
 			// No child process cases
 			dialogService.setConfirmResult({ confirmed: false });
-			// eslint-disable-next-line local/code-no-any-casts
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: false,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			dialogService.setConfirmResult({ confirmed: true });
-			// eslint-disable-next-line local/code-no-any-casts
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: false,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			// Child process cases
 			dialogService.setConfirmResult({ confirmed: false });
-			// eslint-disable-next-line local/code-no-any-casts
 			await terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
 				dispose: () => fail()
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 			dialogService.setConfirmResult({ confirmed: true });
-			// eslint-disable-next-line local/code-no-any-casts
 			terminalService.safeDisposeTerminal({
 				target: TerminalLocation.Panel,
 				hasChildProcesses: true,
 				onExit: onExitEmitter.event,
 				dispose: () => onExitEmitter.fire(undefined)
-			} as Partial<ITerminalInstance> as any);
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 		});
 	});
 });
 
 async function setConfirmOnKill(configurationService: TestConfigurationService, value: 'never' | 'always' | 'panel' | 'editor') {
 	await configurationService.setUserConfiguration(TERMINAL_CONFIG_SECTION, { confirmOnKill: value });
-	// eslint-disable-next-line local/code-no-any-casts
 	configurationService.onDidChangeConfigurationEmitter.fire({
 		affectsConfiguration: () => true,
 		affectedKeys: ['terminal.integrated.confirmOnKill']
-	} as any);
+	} as unknown as IConfigurationChangeEvent);
 }

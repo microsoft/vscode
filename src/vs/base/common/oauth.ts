@@ -257,6 +257,13 @@ export interface IAuthorizationServerMetadata {
 	 * OPTIONAL. JSON array containing a list of PKCE code challenge methods supported.
 	 */
 	code_challenge_methods_supported?: string[];
+
+	/**
+	 * OPTIONAL. Boolean flag indicating whether the authorization server supports the
+	 * client_id_metadata document.
+	 * ref https://datatracker.ietf.org/doc/html/draft-parecki-oauth-client-id-metadata-document-03
+	 */
+	client_id_metadata_document_supported?: boolean;
 }
 
 /**
@@ -1073,7 +1080,7 @@ export function scopesMatch(scopes1: readonly string[] | undefined, scopes2: rea
 interface CommonResponse {
 	status: number;
 	statusText: string;
-	json(): Promise<any>;
+	json(): Promise<unknown>;
 	text(): Promise<string>;
 }
 
@@ -1184,5 +1191,137 @@ export async function fetchResourceMetadata(
 		throw errors[0];
 	} else {
 		throw new AggregateError(errors, 'Failed to fetch resource metadata from all attempted URLs');
+	}
+}
+
+export interface IFetchAuthorizationServerMetadataOptions {
+	/**
+	 * Headers to include in the requests
+	 */
+	additionalHeaders?: Record<string, string>;
+	/**
+	 * Optional custom fetch implementation (defaults to global fetch)
+	 */
+	fetch?: IFetcher;
+}
+
+/** Helper to try parsing the response as authorization server metadata */
+async function tryParseAuthServerMetadata(response: CommonResponse): Promise<IAuthorizationServerMetadata | undefined> {
+	if (response.status !== 200) {
+		return undefined;
+	}
+	try {
+		const body = await response.json();
+		if (isAuthorizationServerMetadata(body)) {
+			return body;
+		}
+	} catch {
+		// Failed to parse as JSON or not valid metadata
+	}
+	return undefined;
+}
+
+/** Helper to get error text from response */
+async function getErrText(res: CommonResponse): Promise<string> {
+	try {
+		return await res.text();
+	} catch {
+		return res.statusText;
+	}
+}
+
+/**
+ * Fetches and validates OAuth 2.0 authorization server metadata from the given authorization server URL.
+ *
+ * This function tries multiple discovery endpoints in the following order:
+ * 1. OAuth 2.0 Authorization Server Metadata with path insertion (RFC 8414)
+ * 2. OpenID Connect Discovery with path insertion
+ * 3. OpenID Connect Discovery with path addition
+ *
+ * Path insertion: For issuer URLs with path components (e.g., https://example.com/tenant),
+ * the well-known path is inserted after the origin and before the path:
+ * https://example.com/.well-known/oauth-authorization-server/tenant
+ *
+ * Path addition: The well-known path is simply appended to the existing path:
+ * https://example.com/tenant/.well-known/openid-configuration
+ *
+ * @param authorizationServer The authorization server URL (issuer identifier)
+ * @param options Configuration options for the fetch operation
+ * @returns Promise that resolves to the validated authorization server metadata
+ * @throws Error if all discovery attempts fail or the response is invalid
+ *
+ * @see https://datatracker.ietf.org/doc/html/rfc8414#section-3
+ */
+export async function fetchAuthorizationServerMetadata(
+	authorizationServer: string,
+	options: IFetchAuthorizationServerMetadataOptions = {}
+): Promise<IAuthorizationServerMetadata> {
+	const {
+		additionalHeaders = {},
+		fetch: fetchImpl = fetch
+	} = options;
+
+	const authorizationServerUrl = new URL(authorizationServer);
+	const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
+
+	const errors: Error[] = [];
+
+	const doFetch = async (url: string): Promise<IAuthorizationServerMetadata | undefined> => {
+		try {
+			const rawResponse = await fetchImpl(url, {
+				method: 'GET',
+				headers: {
+					...additionalHeaders,
+					'Accept': 'application/json'
+				}
+			});
+			const metadata = await tryParseAuthServerMetadata(rawResponse);
+			if (metadata) {
+				return metadata;
+			}
+			// No metadata found, collect error from response
+			errors.push(new Error(`Failed to fetch authorization server metadata from ${url}: ${rawResponse.status} ${await getErrText(rawResponse)}`));
+			return undefined;
+		} catch (e) {
+			// Collect error from fetch failure
+			errors.push(e instanceof Error ? e : new Error(String(e)));
+			return undefined;
+		}
+	};
+
+	// For the oauth server metadata discovery path, we _INSERT_
+	// the well known path after the origin and before the path.
+	// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+	const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
+	let metadata = await doFetch(pathToFetch);
+	if (metadata) {
+		return metadata;
+	}
+
+	// Try fetching the OpenID Connect Discovery with path insertion.
+	// For issuer URLs with path components, this inserts the well-known path
+	// after the origin and before the path.
+	const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
+	metadata = await doFetch(openidPathInsertionUrl);
+	if (metadata) {
+		return metadata;
+	}
+
+	// Try fetching the other discovery URL. For the openid metadata discovery
+	// path, we _ADD_ the well known path after the existing path.
+	// https://datatracker.ietf.org/doc/html/rfc8414#section-3
+	const openidPathAdditionUrl = authorizationServer.endsWith('/')
+		? authorizationServer + OPENID_CONNECT_DISCOVERY_PATH.substring(1) // Remove leading slash if authServer ends with slash
+		: authorizationServer + OPENID_CONNECT_DISCOVERY_PATH;
+	metadata = await doFetch(openidPathAdditionUrl);
+	if (metadata) {
+		return metadata;
+	}
+
+	// If we've tried all URLs and none worked, throw the error(s)
+	if (errors.length === 1) {
+		throw errors[0];
+	} else {
+		throw new AggregateError(errors, 'Failed to fetch authorization server metadata from all attempted URLs');
 	}
 }

@@ -41,7 +41,7 @@ import * as icons from './debugIcons.js';
 import { CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugConfiguration, IDebugService, IDebugSession, IInstructionBreakpoint, State } from '../common/debug.js';
 import { InstructionBreakpoint } from '../common/debugModel.js';
 import { getUriFromSource } from '../common/debugSource.js';
-import { isUri, sourcesEqual } from '../common/debugUtils.js';
+import { isUriString, sourcesEqual } from '../common/debugUtils.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -270,6 +270,9 @@ export class DisassemblyView extends EditorPane {
 		}
 
 		this._register(this._disassembledInstructions.onDidScroll(e => {
+			if (this._disassembledInstructions?.row(0) === disassemblyNotAvailable) {
+				return;
+			}
 			if (this._loadingLock) {
 				return;
 			}
@@ -281,11 +284,10 @@ export class DisassemblyView extends EditorPane {
 					if (loaded > 0) {
 						this._disassembledInstructions!.reveal(prevTop + loaded, 0);
 					}
-					this._loadingLock = false;
-				});
+				}).finally(() => { this._loadingLock = false; });
 			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
 				this._loadingLock = true;
-				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() => { this._loadingLock = false; });
+				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).finally(() => { this._loadingLock = false; });
 			}
 		}));
 
@@ -954,7 +956,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	private getUriFromSource(instruction: DebugProtocol.DisassembledInstruction): URI {
 		// Try to resolve path before consulting the debugSession.
 		const path = instruction.location!.path;
-		if (path && isUri(path)) {	// path looks like a uri
+		if (path && isUriString(path)) {	// path looks like a uri
 			return this.uriService.asCanonicalUri(URI.parse(path));
 		}
 		// assume a filesystem path

@@ -31,6 +31,7 @@ import { IViewModel } from '../common/viewModel.js';
 import { ISelection } from '../common/core/selection.js';
 import { getActiveElement, isEditableElement } from '../../base/browser/dom.js';
 import { EnterOperation } from '../common/cursor/cursorTypeEditOperations.js';
+import { TextEditorSelectionSource } from '../../platform/editor/common/editor.js';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
@@ -604,13 +605,16 @@ export namespace CoreNavigationCommands {
 		}
 
 		private _runCursorMove(viewModel: IViewModel, source: string | null | undefined, args: CursorMove_.ParsedArguments): void {
+			// If noHistory is true, use PROGRAMMATIC source to prevent adding to navigation history
+			const effectiveSource = args.noHistory ? TextEditorSelectionSource.PROGRAMMATIC : source;
+
 			viewModel.model.pushStackElement();
 			viewModel.setCursorStates(
-				source,
+				effectiveSource,
 				CursorChangeReason.Explicit,
 				CursorMoveImpl._move(viewModel, viewModel.getCursorStates(), args)
 			);
-			viewModel.revealAllCursors(source, true);
+			viewModel.revealAllCursors(effectiveSource, true);
 		}
 
 		private static _move(viewModel: IViewModel, cursors: CursorState[], args: CursorMove_.ParsedArguments): PartialCursorState[] | null {
@@ -1319,8 +1323,7 @@ export namespace CoreNavigationCommands {
 				EditorScroll_.Unit.WrappedLine,
 				EditorScroll_.Unit.Page,
 				EditorScroll_.Unit.HalfPage,
-				EditorScroll_.Unit.Editor,
-				EditorScroll_.Unit.Column
+				EditorScroll_.Unit.Editor
 			];
 			const horizontalDirections = [EditorScroll_.Direction.Left, EditorScroll_.Direction.Right];
 			const verticalDirections = [EditorScroll_.Direction.Up, EditorScroll_.Direction.Down];
