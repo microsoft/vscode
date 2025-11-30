@@ -551,7 +551,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				await opener.open({
 					text: './test-2025-04-28T14:30:00+02:00.log',
 					bufferRange: { start: { x: 10, y: 1 }, end: { x: 45, y: 1 } },
-					type: TerminalBuiltinLinkType.Search
+					type: TerminalBuiltinLinkType.LocalFile
 				});
 				deepStrictEqual(activationResult, {
 					link: 'file:///folder/test-2025-04-28T14%3A30%3A00%2B02%3A00.log',
@@ -997,7 +997,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				await opener.open({
 					text: '.\\test-2025-04-28T14:30:00+02:00.log',
 					bufferRange: { start: { x: 10, y: 1 }, end: { x: 45, y: 1 } },
-					type: TerminalBuiltinLinkType.Search
+					type: TerminalBuiltinLinkType.LocalFile
 				});
 				deepStrictEqual(activationResult, {
 					link: 'file:///c%3A/folder/test-2025-04-28T14%3A30%3A00%2B02%3A00.log',
