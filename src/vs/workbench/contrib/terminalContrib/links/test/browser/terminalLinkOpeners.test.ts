@@ -536,7 +536,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				});
 				await opener.open({
 					text: './test-2025-04-28T11:03:09+02:00.log',
-					bufferRange: { start: { x: 1, y: 1 }, end: { x: 34, y: 1 } },
+					bufferRange: { start: { x: 1, y: 1 }, end: { x: 36, y: 1 } },
 					type: TerminalBuiltinLinkType.Search
 				});
 				deepStrictEqual(activationResult, {
@@ -550,7 +550,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				]);
 				await opener.open({
 					text: './test-2025-04-28T14:30:00+02:00.log',
-					bufferRange: { start: { x: 10, y: 1 }, end: { x: 46, y: 1 } },
+					bufferRange: { start: { x: 10, y: 1 }, end: { x: 45, y: 1 } },
 					type: TerminalBuiltinLinkType.Search
 				});
 				deepStrictEqual(activationResult, {
@@ -996,7 +996,7 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				]);
 				await opener.open({
 					text: '.\\test-2025-04-28T14:30:00+02:00.log',
-					bufferRange: { start: { x: 10, y: 1 }, end: { x: 47, y: 1 } },
+					bufferRange: { start: { x: 10, y: 1 }, end: { x: 45, y: 1 } },
 					type: TerminalBuiltinLinkType.Search
 				});
 				deepStrictEqual(activationResult, {
