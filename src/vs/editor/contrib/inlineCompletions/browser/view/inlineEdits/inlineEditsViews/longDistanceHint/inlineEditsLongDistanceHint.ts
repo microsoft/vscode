@@ -85,7 +85,8 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 					return {
 						diff: viewState.diff,
 						model: viewState.model,
-						suggestInfo: viewState.suggestInfo,
+						inlineSuggestInfo: viewState.inlineSuggestInfo,
+						nextCursorPosition: viewState.nextCursorPosition,
 					} satisfies ILongDistancePreviewProps;
 				}),
 				this._editor,
@@ -371,7 +372,8 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 					// Outline Element
 					const source = this._originalOutlineSource.read(reader);
-					const outlineItems = source?.getAt(viewState.edit.lineEdit.lineRange.startLineNumber, reader).slice(0, 1) ?? [];
+					const originalTargetLineNumber = this._originalTargetLineNumber.read(reader);
+					const outlineItems = source?.getAt(originalTargetLineNumber, reader).slice(0, 1) ?? [];
 					const outlineElements: ChildNode[] = [];
 					if (outlineItems.length > 0) {
 						for (let i = 0; i < outlineItems.length; i++) {
@@ -394,7 +396,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 					children.push(n.div({ class: 'outline-elements', style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, outlineElements));
 
 					// Show Edit Direction
-					const arrowIcon = isEditBelowHint(viewState) ? Codicon.arrowDown : Codicon.arrowUp;
+					const arrowIcon = viewState.hint.lineNumber < originalTargetLineNumber ? Codicon.arrowDown : Codicon.arrowUp;
 					const keybinding = this._keybindingService.lookupKeybinding(jumpToNextInlineEditId);
 					let label = 'Go to suggestion';
 					if (keybinding && keybinding.getLabel() === 'Tab') {
@@ -415,6 +417,20 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 		])
 	);
 
+	// Drives breadcrumbs and symbol icon
+	private readonly _originalTargetLineNumber = derived(this, (reader) => {
+		const viewState = this._viewState.read(reader);
+		if (!viewState) {
+			return -1;
+		}
+
+		if (viewState.edit.action?.kind === 'jumpTo') {
+			return viewState.edit.action.position.lineNumber;
+		}
+
+		return viewState.diff[0]?.original.startLineNumber ?? -1;
+	});
+
 	private readonly _originalOutlineSource = derivedDisposable(this, (reader) => {
 		const m = this._editorObs.model.read(reader);
 		const factory = HideUnchangedRegionsFeature._breadcrumbsSourceFactory.read(reader);
@@ -432,9 +448,10 @@ export interface ILongDistanceViewState {
 	newTextLineCount: number;
 	edit: InlineEditWithChanges;
 	diff: DetailedLineRangeMapping[];
+	nextCursorPosition: Position | null;
 
 	model: SimpleInlineSuggestModel;
-	suggestInfo: InlineSuggestionGutterMenuData;
+	inlineSuggestInfo: InlineSuggestionGutterMenuData;
 }
 
 function lengthsToOffsetRanges(lengths: number[], initialOffset = 0): OffsetRange[] {
@@ -494,12 +511,6 @@ function getSums<T>(array: T[], fn: (item: T) => number): number[] {
 		result.push(sum);
 	}
 	return result;
-}
-
-function isEditBelowHint(viewState: ILongDistanceViewState): boolean {
-	const hintLineNumber = viewState.hint.lineNumber;
-	const editStartLineNumber = viewState.diff[0]?.original.startLineNumber;
-	return hintLineNumber < editStartLineNumber;
 }
 
 export function drawEditorWidths(e: ICodeEditor, reader: IReader) {

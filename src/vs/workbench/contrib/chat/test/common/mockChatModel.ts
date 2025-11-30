@@ -60,7 +60,6 @@ export class MockChatModel extends Disposable implements IChatModel {
 			version: 3,
 			sessionId: this.sessionId,
 			creationDate: this.timestamp,
-			isImported: false,
 			lastMessageDate: this.timestamp,
 			customTitle: undefined,
 			initialLocation: this.initialLocation,
