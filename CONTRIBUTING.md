@@ -29,7 +29,7 @@ Can you recreate the issue even after [disabling all extensions](https://code.vi
 
 ### Look For an Existing Issue
 
-Before you create a new issue, please do a search in [open issues](https://github.com/microsoft/vscode/issues) to see if the issue or feature request has already been filed.
+Before you create a new issue, please search for [open issues](https://github.com/microsoft/vscode/issues) to see if the issue or feature request has already been filed.
 
 Be sure to scan through the [most popular](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc) feature requests.
 
@@ -58,7 +58,7 @@ Please include the following with each issue:
 * Reproducible steps (1... 2... 3...) that cause the issue
 * What you expected to see, versus what you actually saw
 * Images, animations, or a link to a video showing the issue occurring
-* A code snippet that demonstrates the issue or a link to a code repository the developers can easily pull down to recreate the issue locally
+* A code snippet that demonstrates the issue or a link to a code repository that the developers can easily pull down to recreate the issue locally
   * **Note:** Because the developers need to copy and paste the code snippet, including a code snippet as a media file (i.e. .gif) is not sufficient.
 * Errors from the Dev Tools Console (open from the menu: Help > Toggle Developer Tools)
 
