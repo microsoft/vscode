@@ -10,7 +10,7 @@ import { BugIndicatingError, ErrorNoTelemetry } from '../../../../base/common/er
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
@@ -71,38 +71,6 @@ class CancellableRequest implements IDisposable {
 		this.cancellationTokenSource.cancel();
 	}
 }
-
-
-
-class DisposableResourceMap<T extends IDisposable> extends Disposable {
-
-	private readonly _map = this._register(new DisposableMap<string, T>());
-
-	get(sessionResource: URI) {
-		return this._map.get(this.toKey(sessionResource));
-	}
-
-	set(sessionResource: URI, value: T) {
-		this._map.set(this.toKey(sessionResource), value);
-	}
-
-	has(sessionResource: URI) {
-		return this._map.has(this.toKey(sessionResource));
-	}
-
-	deleteAndLeak(sessionResource: URI) {
-		return this._map.deleteAndLeak(this.toKey(sessionResource));
-	}
-
-	deleteAndDispose(sessionResource: URI) {
-		this._map.deleteAndDispose(this.toKey(sessionResource));
-	}
-
-	private toKey(uri: URI): string {
-		return uri.toString();
-	}
-}
-
 
 export class ChatService extends Disposable implements IChatService {
 	declare _serviceBrand: undefined;
@@ -396,7 +364,7 @@ export class ChatService extends Disposable implements IChatService {
 	async getHistorySessionItems(): Promise<IChatDetail[]> {
 		const index = await this._chatSessionStore.getIndex();
 		return Object.values(index)
-			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && this.shouldBeInHistory(entry) && !entry.isEmpty)
+			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && entry.initialLocation === ChatAgentLocation.Chat && !entry.isEmpty)
 			.map((entry): IChatDetail => {
 				const sessionResource = LocalChatSessionUri.forSession(entry.sessionId);
 				return ({
@@ -407,11 +375,8 @@ export class ChatService extends Disposable implements IChatService {
 			});
 	}
 
-	private shouldBeInHistory(entry: Partial<ChatModel>) {
-		if (entry.sessionResource) {
-			return !entry.isImported && LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
-		}
-		return !entry.isImported && entry.initialLocation === ChatAgentLocation.Chat;
+	private shouldBeInHistory(entry: ChatModel): boolean {
+		return !entry.isImported && !!LocalChatSessionUri.parseLocalSessionId(entry.sessionResource) && entry.initialLocation === ChatAgentLocation.Chat;
 	}
 
 	async removeHistoryEntry(sessionResource: URI): Promise<void> {
@@ -422,14 +387,13 @@ export class ChatService extends Disposable implements IChatService {
 		await this._chatSessionStore.clearAllSessions();
 	}
 
-	startSession(location: ChatAgentLocation, token: CancellationToken, options?: IChatSessionStartOptions): IChatModelReference {
+	startSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference {
 		this.trace('startSession');
 		const sessionId = generateUuid();
 		const sessionResource = LocalChatSessionUri.forSession(sessionId);
 		return this._sessionModels.acquireOrCreate({
 			initialData: undefined,
 			location,
-			token,
 			sessionResource,
 			sessionId,
 			canUseTools: options?.canUseTools ?? true,
@@ -438,17 +402,17 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private _startSession(props: IStartSessionProps): ChatModel {
-		const { initialData, location, token, sessionResource, sessionId, canUseTools, transferEditingSession, disableBackgroundKeepAlive } = props;
+		const { initialData, location, sessionResource, sessionId, canUseTools, transferEditingSession, disableBackgroundKeepAlive } = props;
 		const model = this.instantiationService.createInstance(ChatModel, initialData, { initialLocation: location, canUseTools, resource: sessionResource, sessionId, disableBackgroundKeepAlive });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(true, transferEditingSession);
 		}
 
-		this.initializeSession(model, token);
+		this.initializeSession(model);
 		return model;
 	}
 
-	private initializeSession(model: ChatModel, token: CancellationToken): void {
+	private initializeSession(model: ChatModel): void {
 		this.trace('initializeSession', `Initialize session ${model.sessionResource}`);
 
 		// Activate the default extension provided agent but do not wait
@@ -516,7 +480,6 @@ export class ChatService extends Disposable implements IChatService {
 		const sessionRef = this._sessionModels.acquireOrCreate({
 			initialData: sessionData,
 			location: sessionData.initialLocation ?? ChatAgentLocation.Chat,
-			token: CancellationToken.None,
 			sessionResource,
 			sessionId,
 			canUseTools: true,
@@ -583,7 +546,6 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.acquireOrCreate({
 			initialData: data,
 			location: data.initialLocation ?? ChatAgentLocation.Chat,
-			token: CancellationToken.None,
 			sessionResource,
 			sessionId,
 			canUseTools: true,
@@ -609,7 +571,6 @@ export class ChatService extends Disposable implements IChatService {
 		const modelRef = this._sessionModels.acquireOrCreate({
 			initialData: undefined,
 			location,
-			token: CancellationToken.None,
 			sessionResource: chatSessionResource,
 			canUseTools: false,
 			transferEditingSession: providedSession.initialEditingSession,

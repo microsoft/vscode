@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatViewPane.css';
 import { $, append, getWindow, setVisibility } from '../../../../base/browser/dom.js';
-import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -42,10 +42,10 @@ import { LocalChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { showCloseActiveChatNotification } from './actions/chatCloseNotification.js';
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
-import { ChatWidget } from './chatWidget.js';
-import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 import { AgentSessionsListDelegate } from './agentSessions/agentSessionsViewer.js';
-import { Event } from '../../../../base/common/event.js';
+import { ChatWidget } from './chatWidget.js';
+import './media/chatViewPane.css';
+import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -179,7 +179,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const ref = modelRef ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === this.chatOptions.location
 			? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(this.chatService.transferredSessionData.sessionId))
-			: this.chatService.startSession(this.chatOptions.location, CancellationToken.None));
+			: this.chatService.startSession(this.chatOptions.location));
 		if (!ref) {
 			throw new Error('Could not start chat session');
 		}
