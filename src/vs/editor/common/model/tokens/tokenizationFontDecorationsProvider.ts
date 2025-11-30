@@ -75,12 +75,12 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 						annotation: fontTokenDecoration
 					};
 					TokenizationFontDecorationProvider.DECORATION_COUNT++;
-					fontTokenAnnotations.push(fontTokenAnnotation);
 					if (annotation.annotation.lineHeight) {
 						affectedLineHeights.add(new LineHeightChangingDecoration(0, decorationId, lineNumber, annotation.annotation.lineHeight));
 					}
 					affectedLineFonts.add(new LineFontChangingDecoration(0, decorationId, lineNumber));
 				}
+				fontTokenAnnotations.push(fontTokenAnnotation);
 			}
 			/**
 			 * We assume the lines touched are entirely retokenized.
