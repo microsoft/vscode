@@ -32,6 +32,19 @@
 .monaco-workbench.windows { --monaco-monospace-font: Consolas, "Courier New", monospace; }
 .monaco-workbench.linux { --monaco-monospace-font: "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace; }
 
+.monaco-workbench:not(.hc-black):not(.hc-light) .monaco-list-row {
+	border-radius: 9px;
+	transition: background 120ms ease, box-shadow 120ms ease, color 120ms ease;
+}
+
+.monaco-workbench:not(.hc-black):not(.hc-light) .monaco-list-row:hover,
+.monaco-workbench:not(.hc-black):not(.hc-light) .monaco-list-row.focused,
+.monaco-workbench:not(.hc-black):not(.hc-light) .monaco-list-row.selected {
+	background: linear-gradient(135deg, #246bff 0%, #61b4ff 100%);
+	color: #f6fbff;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
 /* Global Styles */
 
 body {

@@ -1022,8 +1022,13 @@ export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): s
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
-	border-radius: 5px;
+	border-radius: 10px;
 	min-width: 160px;
+	background: rgba(20, 27, 43, 0.82);
+	backdrop-filter: blur(24px);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
+	color: #e8edf7;
 }
 
 ${formatRule(Codicon.menuSelection)}
@@ -1141,7 +1146,8 @@ ${formatRule(Codicon.menuSubmenu)}
 	align-items: center;
 	position: relative;
 	margin: 0 4px;
-	border-radius: 4px;
+	border-radius: 9px;
+	transition: background 120ms ease, box-shadow 120ms ease, color 120ms ease;
 }
 
 .monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .keybinding,
@@ -1156,6 +1162,7 @@ ${formatRule(Codicon.menuSubmenu)}
 	background: none;
 	font-size: 12px;
 	line-height: 1;
+	color: inherit;
 }
 
 .monaco-menu .monaco-action-bar.vertical .keybinding,
@@ -1166,7 +1173,7 @@ ${formatRule(Codicon.menuSubmenu)}
 	text-align: right;
 	font-size: 12px;
 	line-height: 1;
-	opacity: 0.7;
+	opacity: 0.78;
 }
 
 .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
@@ -1308,6 +1315,27 @@ ${formatRule(Codicon.menuSubmenu)}
 	height: 100%;
 	mask-size: 10px 10px;
 	-webkit-mask-size: 10px 10px;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover,
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:focus,
+.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item,
+.monaco-menu .monaco-action-bar.vertical .action-menu-item.checked {
+	background: linear-gradient(135deg, #246bff 0%, #61b4ff 100%);
+	color: #ffffff;
+	box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:hover .keybinding,
+.monaco-menu .monaco-action-bar.vertical .action-menu-item:focus .keybinding,
+.monaco-menu .monaco-action-bar.vertical .action-item.focused .action-menu-item .keybinding,
+.monaco-menu .monaco-action-bar.vertical .action-menu-item.checked .keybinding {
+	color: #ffffff;
+	opacity: 0.95;
+}
+
+.monaco-menu .monaco-action-bar.vertical .action-label.separator {
+	border-color: rgba(255, 255, 255, 0.06);
 }
 
 .monaco-menu .action-item {
