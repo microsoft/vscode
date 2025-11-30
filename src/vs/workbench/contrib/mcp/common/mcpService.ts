@@ -12,9 +12,26 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
-import { IAutostartResult, IMcpServer, IMcpService, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, McpServerCacheState, McpServerDefinition, McpStartServerInteraction, McpToolName, UserInteractionRequiredError } from './mcpTypes.js';
+import { IAutostartResult, IMcpServer, IMcpService, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, McpServerCacheState, McpServerDefinition, McpServerLaunch, McpStartServerInteraction, McpToolName, UserInteractionRequiredError } from './mcpTypes.js';
+
+type ServerDeduplicationData = {
+	serverId: string;
+	collectionId: string;
+	scope: StorageScope;
+	replaced: boolean;
+};
+
+type ServerDeduplicationClassification = {
+	owner: 'microsoft';
+	comment: 'MCP server deduplication event tracking';
+	serverId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the server being deduplicated' };
+	collectionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the collection containing the server' };
+	scope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The scope of the collection (user, workspace, etc.)' };
+	replaced: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the server was replaced by a higher priority one' };
+};
 import { startServerAndWaitForLiveTools } from './mcpTypesUtils.js';
 
 type IMcpServerRec = { object: IMcpServer; toolPrefix: string };
@@ -36,7 +53,8 @@ export class McpService extends Disposable implements IMcpService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -156,11 +174,11 @@ export class McpService extends Disposable implements IMcpService {
 
 	private async _activateCollections() {
 		const collections = await this._mcpRegistry.discoverCollections();
-		this.updateCollectedServers();
+		await this.updateCollectedServers();
 		return new Set(collections.map(c => c.id));
 	}
 
-	public updateCollectedServers() {
+	public async updateCollectedServers(): Promise<void> {
 		const prefixGenerator = new McpPrefixGenerator();
 		const definitions = this._mcpRegistry.collections.get().flatMap(collectionDefinition =>
 			collectionDefinition.serverDefinitions.get().map(serverDefinition => {
@@ -169,10 +187,12 @@ export class McpService extends Disposable implements IMcpService {
 			})
 		);
 
-		const nextDefinitions = new Set(definitions);
+		// Deduplicate server definitions based on server ID and complete configuration
+		const deduplicatedDefinitions = await this.deduplicateServerDefinitions(definitions);
+		const nextDefinitions = new Set(deduplicatedDefinitions);
 		const currentServers = this._servers.get();
 		const nextServers: IMcpServerRec[] = [];
-		const pushMatch = (match: (typeof definitions)[0], rec: IMcpServerRec) => {
+		const pushMatch = (match: (typeof deduplicatedDefinitions)[0], rec: IMcpServerRec) => {
 			nextDefinitions.delete(match);
 			nextServers.push(rec);
 			const connection = rec.object.connection.get();
@@ -185,7 +205,7 @@ export class McpService extends Disposable implements IMcpService {
 
 		// Transfer over any servers that are still valid.
 		for (const server of currentServers) {
-			const match = definitions.find(d => defsEqual(server.object, d) && server.toolPrefix === d.toolPrefix);
+			const match = deduplicatedDefinitions.find(d => defsEqual(server.object, d) && server.toolPrefix === d.toolPrefix);
 			if (match) {
 				pushMatch(match, server);
 			} else {
@@ -211,6 +231,111 @@ export class McpService extends Disposable implements IMcpService {
 		transaction(tx => {
 			this._servers.set(nextServers, tx);
 		});
+	}
+
+	/**
+	 * Deduplicates server definitions with priority-based logic.
+	 * Keeps the highest priority server definition when duplicates are found.
+	 * Uses comprehensive key generation that includes all launch configuration properties.
+	 *
+	 * @param definitions Array of server definitions to deduplicate
+	 * @returns Deduplicated array of server definitions
+	 * @internal
+	 */
+	private async deduplicateServerDefinitions(definitions: Array<{ serverDefinition: McpServerDefinition; collectionDefinition: McpCollectionDefinition; toolPrefix: string }>): Promise<Array<{ serverDefinition: McpServerDefinition; collectionDefinition: McpCollectionDefinition; toolPrefix: string }>> {
+		const seen = new Map<string, { serverDefinition: McpServerDefinition; collectionDefinition: McpCollectionDefinition; toolPrefix: string }>();
+		const deduplicated: Array<{ serverDefinition: McpServerDefinition; collectionDefinition: McpCollectionDefinition; toolPrefix: string }> = [];
+
+		// Generate keys for all definitions
+		const keyPromises = definitions.map(async (def) => ({
+			def,
+			key: await this.getServerDefinitionKey(def.serverDefinition)
+		}));
+		const keyedDefinitions = await Promise.all(keyPromises);
+
+		for (const { def, key } of keyedDefinitions) {
+			const existing = seen.get(key);
+
+			if (existing) {
+				// Found a duplicate - check priority
+				const existingPriority = this.getCollectionPriority(existing.collectionDefinition);
+				const currentPriority = this.getCollectionPriority(def.collectionDefinition);
+
+				if (currentPriority > existingPriority) {
+					// Current definition has higher priority, replace existing
+					seen.set(key, def);
+					const existingIndex = deduplicated.findIndex(d => d === existing);
+					if (existingIndex !== -1) {
+						deduplicated[existingIndex] = def;
+					}
+
+					// Track deduplication telemetry
+					this._telemetryService.publicLog2<ServerDeduplicationData, ServerDeduplicationClassification>('mcp/serverDeduplication', {
+						serverId: def.serverDefinition.id,
+						collectionId: def.collectionDefinition.id,
+						scope: def.collectionDefinition.scope,
+						replaced: true
+					});
+
+					this._logService.debug(`MCP deduplication: Replaced server ${def.serverDefinition.id} from collection ${existing.collectionDefinition.id} with higher priority from ${def.collectionDefinition.id}`);
+				} else {
+					// Existing definition has higher or equal priority, skip current
+					this._telemetryService.publicLog2<ServerDeduplicationData, ServerDeduplicationClassification>('mcp/serverDeduplication', {
+						serverId: def.serverDefinition.id,
+						collectionId: def.collectionDefinition.id,
+						scope: def.collectionDefinition.scope,
+						replaced: false
+					});
+
+					this._logService.debug(`MCP deduplication: Skipping duplicate server ${def.serverDefinition.id} from collection ${def.collectionDefinition.id} (lower priority than ${existing.collectionDefinition.id})`);
+				}
+			} else {
+				seen.set(key, def);
+				deduplicated.push(def);
+			}
+		}
+
+		return deduplicated;
+	}
+
+	/**
+	 * Gets a unique key for a server definition to identify duplicates.
+	 * Uses the existing McpServerLaunch.hash() method which includes all relevant properties:
+	 * - For stdio: command, args, cwd, env, envFile
+	 * - For HTTP: uri, headers
+	 * - Handles variable resolution through the existing hash mechanism
+	 *
+	 * @param serverDefinition The server definition to generate a key for
+	 * @returns A unique string key based on server ID and complete launch configuration
+	 * @internal
+	 */
+	private async getServerDefinitionKey(serverDefinition: McpServerDefinition): Promise<string> {
+		// Use the existing McpServerLaunch.hash() method which already handles all properties
+		// including environment variables, cwd, headers, and variable resolution
+		const launchHash = await McpServerLaunch.hash(serverDefinition.launch);
+		return `${serverDefinition.id}:${launchHash}`;
+	}
+
+	/**
+	 * Gets the priority of a collection for deduplication.
+	 * Higher numbers indicate higher priority.
+	 *
+	 * @param collection The collection to get priority for
+	 * @returns Priority number (higher = more important)
+	 * @internal
+	 */
+	private getCollectionPriority(collection: McpCollectionDefinition): number {
+		// Priority order: user settings > workspace > extensions
+		switch (collection.scope) {
+			case StorageScope.PROFILE:
+				return 3; // User settings - highest priority
+			case StorageScope.WORKSPACE:
+				return 2; // Workspace settings - medium priority
+			case StorageScope.APPLICATION:
+				return 1; // Extensions - lowest priority
+			default:
+				return 0;
+		}
 	}
 
 	public override dispose(): void {
