@@ -10,7 +10,10 @@
 }
 
 .monaco-workbench.mac .part.titlebar {
-	flex-direction: row-reverse;
+	flex-direction: row;
+	background: rgba(27, 31, 46, 0.82);
+	backdrop-filter: blur(18px);
+	border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* Root Container */
@@ -36,6 +39,8 @@
 /* Platform specific root element */
 .monaco-workbench.mac .part.titlebar > .titlebar-container {
 	line-height: 22px;
+	gap: 12px;
+	justify-content: flex-start;
 }
 
 .monaco-workbench.web .part.titlebar > .titlebar-container,
@@ -337,7 +342,8 @@
 }
 
 .monaco-workbench:not(.web).mac .part.titlebar .window-controls-container {
-	width: 70px;
+	width: 86px;
+	padding-left: 10px;
 }
 
 /* Window Control Icons */
@@ -374,6 +380,58 @@
 
 .monaco-workbench .part.titlebar .window-controls-container .window-icon.window-close:hover {
 	color: white;
+}
+
+/* macOS Big Sur style traffic lights */
+.monaco-workbench.mac .part.titlebar .window-controls-container {
+	gap: 8px;
+}
+
+.monaco-workbench.mac .part.titlebar .window-controls-container > .window-icon {
+	width: 14px;
+	height: 14px;
+	min-width: 14px;
+	min-height: 14px;
+	border-radius: 50%;
+	padding: 0;
+	position: relative;
+	justify-content: center;
+	align-items: center;
+	transition: box-shadow 150ms ease, filter 150ms ease;
+	color: transparent;
+}
+
+.monaco-workbench.mac .part.titlebar .window-controls-container > .window-icon::before {
+	content: '';
+	display: block;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+}
+
+.monaco-workbench.mac .part.titlebar .window-controls-container > .window-icon.window-close::before {
+	background: linear-gradient(145deg, #ff8f82 0%, #ff5f57 100%);
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.monaco-workbench.mac .part.titlebar .window-controls-container > .window-icon.window-minimize::before {
+	background: linear-gradient(145deg, #ffd18c 0%, #febc2e 100%);
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.monaco-workbench.mac .part.titlebar .window-controls-container > .window-icon.window-maximize::before {
+	background: linear-gradient(145deg, #98e56f 0%, #2acb42 100%);
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.monaco-workbench.mac .part.titlebar .window-controls-container > .window-icon:hover {
+	background: transparent;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+	filter: brightness(1.05);
+}
+
+.monaco-workbench.mac .part.titlebar .window-controls-container > .window-icon.window-close:hover::before {
+	filter: brightness(0.95);
 }
 
 /* Action Tool Bar Controls */

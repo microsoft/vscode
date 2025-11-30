@@ -76,18 +76,21 @@ body {
 .monaco-workbench.border:not(.fullscreen) {
 	box-sizing: border-box;
 	border: 1px solid var(--window-border-color);
+	border-radius: 12px;
+	box-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+	overflow: hidden;
 }
 
 .monaco-workbench.border.mac {
-	border-radius: 5px;
+	border-radius: 12px;
 }
 
 .monaco-workbench.border.mac.macos-rounded-default {
-	border-radius: 10px; /* macOS Big Sur increased rounded corners size */
+	border-radius: 14px; /* macOS Big Sur increased rounded corners size */
 }
 
 .monaco-workbench.border.mac.macos-rounded-tahoe {
-	border-radius: 16px; /* macOS Tahoe increased rounded corners size even more */
+	border-radius: 18px; /* macOS Tahoe increased rounded corners size even more */
 }
 
 .monaco-workbench img {
