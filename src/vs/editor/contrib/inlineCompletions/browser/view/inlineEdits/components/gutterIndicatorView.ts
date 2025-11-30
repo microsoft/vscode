@@ -25,7 +25,7 @@ import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulBorder, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
+import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorSuccessfulBackground, inlineEditIndicatorSuccessfulBorder, inlineEditIndicatorSuccessfulForeground } from '../theme.js';
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
 import { assertNever } from '../../../../../../../base/common/assert.js';
@@ -158,9 +158,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 				border: getEditorBlendedColor(inlineEditIndicatorPrimaryBorder, this._themeService).read(reader).toString()
 			};
 			case InlineEditTabAction.Accept: return {
-				background: getEditorBlendedColor(inlineEditIndicatorsuccessfulBackground, this._themeService).read(reader).toString(),
-				foreground: getEditorBlendedColor(inlineEditIndicatorsuccessfulForeground, this._themeService).read(reader).toString(),
-				border: getEditorBlendedColor(inlineEditIndicatorsuccessfulBorder, this._themeService).read(reader).toString()
+				background: getEditorBlendedColor(inlineEditIndicatorSuccessfulBackground, this._themeService).read(reader).toString(),
+				foreground: getEditorBlendedColor(inlineEditIndicatorSuccessfulForeground, this._themeService).read(reader).toString(),
+				border: getEditorBlendedColor(inlineEditIndicatorSuccessfulBorder, this._themeService).read(reader).toString()
 			};
 			default:
 				assertNever(v);
