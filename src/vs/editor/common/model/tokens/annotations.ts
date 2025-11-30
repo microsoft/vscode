@@ -72,6 +72,7 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 
 	private _getStartIndexOfIntersectingAnnotation(offset: number): number {
+		// Find index to the left of the offset
 		const startIndexWhereToReplace = binarySearch2(this._annotations.length, (index) => {
 			return this._annotations[index].range.start - offset;
 		});
@@ -90,6 +91,7 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 
 	private _getEndIndexOfIntersectingAnnotation(offset: number): number {
+		// Find index to the right of the offset
 		const endIndexWhereToReplace = binarySearch2(this._annotations.length, (index) => {
 			return this._annotations[index].range.endExclusive - offset;
 		});
@@ -112,88 +114,95 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 	}
 
 	public applyEdit(edit: StringEdit): IAnnotation<T>[] {
-		const annotationsCopy = this._annotations.slice();
+		const annotations = this._annotations.slice();
 
 		// treat edits as deletion of the replace range and then as insertion that extends the first range
-		const result: IAnnotation<T>[] = [];
-		const deleted: IAnnotation<T>[] = [];
+		const finalAnnotations: IAnnotation<T>[] = [];
+		const deletedAnnotations: IAnnotation<T>[] = [];
 
 		let offset = 0;
 
 		for (const e of edit.replacements) {
 			while (true) {
 				// ranges before the current edit
-				const r = annotationsCopy[0];
-				if (!r) {
+				const annotation = annotations[0];
+				if (!annotation) {
 					break;
 				}
-				const range = r.range;
+				const range = annotation.range;
 				if (range.endExclusive >= e.replaceRange.start) {
 					break;
 				}
-				annotationsCopy.shift();
-				result.push({ range: r.range.delta(offset), annotation: r.annotation });
+				annotations.shift();
+				const newAnnotation = { range: range.delta(offset), annotation: annotation.annotation };
+				if (!newAnnotation.range.isEmpty) {
+					finalAnnotations.push(newAnnotation);
+				} else {
+					deletedAnnotations.push(newAnnotation);
+				}
 			}
 
 			const intersecting: IAnnotation<T>[] = [];
 			while (true) {
-				const typedRange = annotationsCopy[0];
-				if (!typedRange) {
+				const annotation = annotations[0];
+				if (!annotation) {
 					break;
 				}
-				const range = typedRange.range;
+				const range = annotation.range;
 				if (!range.intersectsOrTouches(e.replaceRange)) {
 					break;
 				}
-				annotationsCopy.shift();
-				intersecting.push(typedRange);
+				annotations.shift();
+				intersecting.push(annotation);
 			}
 
 			for (let i = intersecting.length - 1; i >= 0; i--) {
-				const typedRange = intersecting[i];
-				let r = typedRange.range;
+				const annotation = intersecting[i];
+				let r = annotation.range;
 
+				// Inserted text will extend the first intersecting annotation, if the edit truly overlaps it
 				const shouldExtend = i === 0 && (e.replaceRange.endExclusive > r.start) && (e.replaceRange.start < r.endExclusive);
+				// Annotation shrinks by the overlap then grows with the new text length
 				const overlap = r.intersect(e.replaceRange)!.length;
 				r = r.deltaEnd(-overlap + (shouldExtend ? e.newText.length : 0));
 
+				// If the annotation starts after the edit start, shift left to the edit start position
 				const rangeAheadOfReplaceRange = r.start - e.replaceRange.start;
 				if (rangeAheadOfReplaceRange > 0) {
 					r = r.delta(-rangeAheadOfReplaceRange);
 				}
 
+				// If annotation shouldn't be extended AND it is after or on edit start, move it after the newly inserted text
 				if (!shouldExtend && rangeAheadOfReplaceRange >= 0) {
 					r = r.delta(e.newText.length);
 				}
 
 				// We already took our offset into account.
 				// Because we add r back to the queue (which then adds offset again),
-				// we have to remove it here.
+				// we have to remove it here so as to not double count it.
 				r = r.delta(-(e.newText.length - e.replaceRange.length));
 
-				annotationsCopy.unshift({ annotation: typedRange.annotation, range: r });
+				annotations.unshift({ annotation: annotation.annotation, range: r });
 			}
 
 			offset += e.newText.length - e.replaceRange.length;
 		}
 
 		while (true) {
-			const typedRange = annotationsCopy[0];
-			if (!typedRange) {
+			const annotation = annotations[0];
+			if (!annotation) {
 				break;
 			}
-			annotationsCopy.shift();
-			result.push({ annotation: typedRange.annotation, range: typedRange.range.delta(offset) });
-		}
-		const filteredResult = result.filter(a => {
-			if (a.range.isEmpty) {
-				deleted.push(a);
-				return false;
+			annotations.shift();
+			const newAnnotation = { annotation: annotation.annotation, range: annotation.range.delta(offset) };
+			if (!newAnnotation.range.isEmpty) {
+				finalAnnotations.push(newAnnotation);
+			} else {
+				deletedAnnotations.push(newAnnotation);
 			}
-			return true;
-		});
-		this._annotations = filteredResult;
-		return deleted;
+		}
+		this._annotations = finalAnnotations;
+		return deletedAnnotations;
 	}
 
 	public clone(): IAnnotatedString<T> {
@@ -204,7 +213,7 @@ export class AnnotatedString<T> implements IAnnotatedString<T> {
 export type ISerializedProperty = { [property: string]: string | number } | undefined;
 
 export type ISerializedAnnotation = {
-	range: [number, number];
+	range: { start: number; endExclusive: number };
 	annotation: ISerializedProperty;
 };
 
@@ -233,7 +242,7 @@ export class AnnotationsUpdate<T> {
 	static serialize<T>(update: AnnotationsUpdate<T>, serializingFunc: (annotation: T | undefined) => ISerializedProperty): ISerializedAnnotation[] {
 		return update.annotations.map(annotation => {
 			return {
-				range: [annotation.range.start, annotation.range.endExclusive],
+				range: { start: annotation.range.start, endExclusive: annotation.range.endExclusive },
 				annotation: serializingFunc(annotation.annotation)
 			};
 		});
@@ -242,7 +251,7 @@ export class AnnotationsUpdate<T> {
 	static deserialize<T>(serializedAnnotations: ISerializedAnnotation[], deserializingFunc: (annotation: ISerializedProperty) => T): AnnotationsUpdate<T> {
 		const annotations: IAnnotationUpdate<T>[] = serializedAnnotations.map(serializedAnnotation => {
 			return {
-				range: new OffsetRange(serializedAnnotation.range[0], serializedAnnotation.range[1]),
+				range: new OffsetRange(serializedAnnotation.range.start, serializedAnnotation.range.endExclusive),
 				annotation: deserializingFunc(serializedAnnotation.annotation)
 			};
 		});

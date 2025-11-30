@@ -40,7 +40,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		super();
 		this.tokenizationTextModelPart.onDidChangeFontTokens(fontChanges => {
 
-			const linesTouched = new Set<number>();
+			const linesChanged = new Set<number>();
 			const fontTokenAnnotations: IAnnotationUpdate<IFontTokenAnnotation>[] = [];
 
 			const affectedLineHeights = new Set<LineHeightChangingDecoration>();
@@ -56,7 +56,6 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 					continue;
 				}
 				const lineNumber = startPosition.lineNumber;
-				linesTouched.add(lineNumber);
 
 				let fontTokenAnnotation: IAnnotationUpdate<IFontTokenAnnotation>;
 				if (annotation.annotation === undefined) {
@@ -75,26 +74,27 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 						annotation: fontTokenDecoration
 					};
 					TokenizationFontDecorationProvider.DECORATION_COUNT++;
+
 					if (annotation.annotation.lineHeight) {
 						affectedLineHeights.add(new LineHeightChangingDecoration(0, decorationId, lineNumber, annotation.annotation.lineHeight));
 					}
 					affectedLineFonts.add(new LineFontChangingDecoration(0, decorationId, lineNumber));
+
 				}
 				fontTokenAnnotations.push(fontTokenAnnotation);
-			}
-			/**
-			 * We assume the lines touched are entirely retokenized.
-			 * Hence we can remove the line height and font info for these specific lines
-			 */
-			for (const lineNumber of linesTouched) {
-				const lineNumberStartOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
-				const lineNumberEndOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
-				const lineOffsetRange = new OffsetRange(lineNumberStartOffset, lineNumberEndOffset);
-				const currentAnnotations = this._fontAnnotatedString.getAnnotationsIntersecting(lineOffsetRange);
-				for (const annotation of currentAnnotations) {
-					const decorationId = annotation.annotation.decorationId;
-					affectedLineHeights.add(new LineHeightChangingDecoration(0, decorationId, lineNumber, null));
-					affectedLineFonts.add(new LineFontChangingDecoration(0, decorationId, lineNumber));
+
+				if (!linesChanged.has(lineNumber)) {
+					// Signal the removal of the font tokenization decorations on the line number
+					const lineNumberStartOffset = this.textModel.getOffsetAt(new Position(lineNumber, 1));
+					const lineNumberEndOffset = this.textModel.getOffsetAt(new Position(lineNumber, this.textModel.getLineMaxColumn(lineNumber)));
+					const lineOffsetRange = new OffsetRange(lineNumberStartOffset, lineNumberEndOffset);
+					const lineAnnotations = this._fontAnnotatedString.getAnnotationsIntersecting(lineOffsetRange);
+					for (const annotation of lineAnnotations) {
+						const decorationId = annotation.annotation.decorationId;
+						affectedLineHeights.add(new LineHeightChangingDecoration(0, decorationId, lineNumber, null));
+						affectedLineFonts.add(new LineFontChangingDecoration(0, decorationId, lineNumber));
+					}
+					linesChanged.add(lineNumber);
 				}
 			}
 			this._fontAnnotatedString.setAnnotations(AnnotationsUpdate.create(fontTokenAnnotations));
@@ -114,7 +114,7 @@ export class TokenizationFontDecorationProvider extends Disposable implements De
 		if (deletedAnnotations.length === 0) {
 			return;
 		}
-		/* Fire events if decorations have been added or removed
+		/* We should fire line and font change events if decorations have been added or removed
 		 * No decorations are added on edit, but they can be removed */
 		const affectedLineHeights = new Set<LineHeightChangingDecoration>();
 		const affectedLineFonts = new Set<LineFontChangingDecoration>();
