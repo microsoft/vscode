@@ -239,7 +239,16 @@
 	background: linear-gradient(to left, var(--vscode-editorWidget-background) 0, transparent 12px);
 }
 
-.inline-edit-rename-label .codicon {
+.inline-edit-alternative-action-label .codicon {
 	font-size: 12px !important;
 	padding-right: 4px;
 }
+
+.inline-edit-alternative-action-label .monaco-keybinding-key {
+	padding: 2px 3px;
+}
+
+.inline-edit-alternative-action-label .monaco-keybinding-key:last-child {
+	margin-right: 3px;
+}
+
