@@ -285,7 +285,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 				let additionalGlobalIndex = finalGlobalIndex;
 				let additionalIndexInSection = 0;
-				const additionalSection = 'similar commands';
+				let additionalSection = 'similar commands';
 
 				const commandPicks: Array<ICommandQuickPick | IQuickPickSeparator> = [];
 
@@ -298,6 +298,12 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				for (const commandPick of additionalCommandPicks) {
 					if (commandPick.type === 'separator') {
 						commandPicks.push(commandPick);
+						// Reset index in section when encountering a separator
+						// Use the separator label if available, otherwise keep current section
+						if (commandPick.label) {
+							additionalSection = commandPick.label;
+						}
+						additionalIndexInSection = 0;
 					} else {
 						commandPicks.push(this.toCommandPick(commandPick, runOptions, {
 							index: additionalGlobalIndex,
