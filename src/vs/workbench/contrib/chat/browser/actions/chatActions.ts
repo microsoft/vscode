@@ -1835,7 +1835,7 @@ registerAction2(class ToggleEmptyChatViewRecentSessionsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.toggleEmptyChatViewRecentSessions',
-			title: localize2('chat.toggleEmptyChatViewRecentSessions.label', "Show Recent Agent Sessions"),
+			title: localize2('chat.toggleEmptyChatViewRecentSessions.label', "Show Recent Sessions"),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, true),
@@ -1860,7 +1860,7 @@ registerAction2(class ToggleChatViewWelcomeBannerAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.chat.toggleEmptyChatViewWelcomeBanner',
-			title: localize2('chat.toggleEmptyChatViewWelcomeBanner.label', "Show Welcome Banner"),
+			title: localize2('chat.toggleEmptyChatViewWelcomeBanner.label', "Show Welcome"),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeBannerEnabled}`, true),
