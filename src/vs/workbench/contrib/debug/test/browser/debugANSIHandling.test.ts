@@ -87,6 +87,7 @@ suite('Debug - ANSI Handling', () => {
 		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root, [], hoverBehavior);
 		assert.strictEqual(1, root.children.length);
 		const child: Node = root.lastChild!;
+		hoverBehavior.store.dispose();
 		if (isHTMLSpanElement(child)) {
 			return child;
 		} else {
