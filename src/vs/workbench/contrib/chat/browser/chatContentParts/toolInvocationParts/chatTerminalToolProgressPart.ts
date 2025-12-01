@@ -468,14 +468,16 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._showOutputActionAdded = true;
 	}
 
-	private _clearCommandAssociation(): void {
+	private _clearCommandAssociation(options?: { clearPersistentData?: boolean }): void {
 		this._terminalCommandUri = undefined;
 		this._storedCommandId = undefined;
-		if (this._terminalData.terminalCommandUri) {
-			delete this._terminalData.terminalCommandUri;
-		}
-		if (this._terminalData.terminalToolSessionId) {
-			delete this._terminalData.terminalToolSessionId;
+		if (options?.clearPersistentData) {
+			if (this._terminalData.terminalCommandUri) {
+				delete this._terminalData.terminalCommandUri;
+			}
+			if (this._terminalData.terminalToolSessionId) {
+				delete this._terminalData.terminalToolSessionId;
+			}
 		}
 		this._decoration.update();
 	}
@@ -516,7 +518,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			if (this._terminalInstance === terminalInstance) {
 				this._terminalInstance = undefined;
 			}
-			this._clearCommandAssociation();
+			this._clearCommandAssociation({ clearPersistentData: true });
 			commandDetectionListener.clear();
 			if (!this._store.isDisposed) {
 				this._actionBar.clear();
