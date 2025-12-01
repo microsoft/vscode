@@ -14,7 +14,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { registerColors } from '../../../terminal/common/terminalColorRegistry.js';
 import { appendStylizedStringToContainer, calcANSI8bitColor, handleANSIOutput } from '../../browser/debugANSIHandling.js';
 import { DebugSession } from '../../browser/debugSession.js';
-import { LinkDetector } from '../../browser/linkDetector.js';
+import { DebugLinkHoverBehavior, LinkDetector } from '../../browser/linkDetector.js';
 import { DebugModel } from '../../common/debugModel.js';
 import { createTestSession } from './callStack.test.js';
 import { createMockDebugModel } from './mockDebugModel.js';
@@ -51,8 +51,9 @@ suite('Debug - ANSI Handling', () => {
 
 		assert.strictEqual(0, root.children.length);
 
-		appendStylizedStringToContainer(root, 'content1', ['class1', 'class2'], linkDetector, session.root, undefined, undefined, undefined, undefined, 0);
-		appendStylizedStringToContainer(root, 'content2', ['class2', 'class3'], linkDetector, session.root, undefined, undefined, undefined, undefined, 0);
+		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
+		appendStylizedStringToContainer(root, 'content1', ['class1', 'class2'], linkDetector, session.root, undefined, undefined, undefined, undefined, 0, hoverBehavior);
+		appendStylizedStringToContainer(root, 'content2', ['class2', 'class3'], linkDetector, session.root, undefined, undefined, undefined, undefined, 0, hoverBehavior);
 
 		assert.strictEqual(2, root.children.length);
 
@@ -82,7 +83,8 @@ suite('Debug - ANSI Handling', () => {
 	 * @returns An {@link HTMLSpanElement} that contains the stylized text.
 	 */
 	function getSequenceOutput(sequence: string): HTMLSpanElement {
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root, []);
+		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root, hoverBehavior, []);
 		assert.strictEqual(1, root.children.length);
 		const child: Node = root.lastChild!;
 		if (isHTMLSpanElement(child)) {
@@ -395,7 +397,8 @@ suite('Debug - ANSI Handling', () => {
 		if (elementsExpected === undefined) {
 			elementsExpected = assertions.length;
 		}
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root, []);
+		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root, hoverBehavior, []);
 		assert.strictEqual(elementsExpected, root.children.length);
 		for (let i = 0; i < elementsExpected; i++) {
 			const child: Node = root.children[i];

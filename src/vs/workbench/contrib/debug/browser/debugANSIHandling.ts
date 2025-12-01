@@ -63,8 +63,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 				unprintedChars += 2 + ansiSequence.length;
 
 				// Flush buffer with previous styles.
-				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, highlights, highlights, currentPos - buffer.length - unprintedChars);
-
+				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, hoverBehavior, currentPos - buffer.length - unprintedChars, highlights);
 				buffer = '';
 
 				/*
@@ -109,7 +108,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 
 	// Flush remaining text buffer if not empty.
 	if (buffer) {
-		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, hoverBehavior, highlights, currentPos - buffer.length,);
+		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length, highlights);
 	}
 
 	return root;

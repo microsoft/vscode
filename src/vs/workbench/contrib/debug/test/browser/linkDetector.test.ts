@@ -5,13 +5,14 @@
 
 import assert from 'assert';
 import { isHTMLAnchorElement } from '../../../../../base/browser/dom.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel.js';
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
-import { LinkDetector } from '../../browser/linkDetector.js';
+import { DebugLinkHoverBehavior, LinkDetector } from '../../browser/linkDetector.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { IHighlight } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 
@@ -28,6 +29,10 @@ suite('Debug - Link Detector', () => {
 		instantiationService.stub(ITunnelService, { canTunnel: () => false });
 		linkDetector = instantiationService.createInstance(LinkDetector);
 	});
+
+	function createHoverBehavior() {
+		return { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
+	}
 
 	/**
 	 * Assert that a given Element is an anchor element.
