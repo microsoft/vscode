@@ -84,7 +84,7 @@ suite('Debug - ANSI Handling', () => {
 	 */
 	function getSequenceOutput(sequence: string): HTMLSpanElement {
 		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root, hoverBehavior, []);
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root, [], hoverBehavior);
 		assert.strictEqual(1, root.children.length);
 		const child: Node = root.lastChild!;
 		if (isHTMLSpanElement(child)) {
@@ -398,7 +398,7 @@ suite('Debug - ANSI Handling', () => {
 			elementsExpected = assertions.length;
 		}
 		const hoverBehavior = { type: DebugLinkHoverBehavior.None, store: new DisposableStore() };
-		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root, hoverBehavior, []);
+		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, session.root, [], hoverBehavior);
 		assert.strictEqual(elementsExpected, root.children.length);
 		for (let i = 0; i < elementsExpected; i++) {
 			const child: Node = root.children[i];

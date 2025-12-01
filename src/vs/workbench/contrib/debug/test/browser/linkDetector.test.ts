@@ -46,7 +46,8 @@ suite('Debug - Link Detector', () => {
 	test('noLinks', () => {
 		const input = 'I am a string';
 		const expectedOutput = '<span>I am a string</span>';
-		const output = linkDetector.linkify(input);
+		const hoverBehavior = createHoverBehavior();
+		const output = linkDetector.linkify(input, hoverBehavior);
 
 		assert.strictEqual(0, output.children.length);
 		assert.strictEqual('SPAN', output.tagName);
