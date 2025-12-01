@@ -59,9 +59,9 @@ suite('MCP Language Model Tool Contribution - Retry Logic', () => {
 		) {
 			const annotations = tool.definition.annotations;
 			const canRetry = annotations?.readOnlyHint === true || annotations?.idempotentHint === true;
+			const maxAttempts = canRetry ? MCP_TOOL_RETRIES : 1;
 
-			let lastError: Error | undefined;
-			for (let attempt = 0; attempt < MCP_TOOL_RETRIES; attempt++) {
+			for (let attempt = 1; ; attempt++) {
 				try {
 					return await tool.callWithProgress(
 						parameters,
@@ -70,19 +70,14 @@ suite('MCP Language Model Tool Contribution - Retry Logic', () => {
 						token
 					);
 				} catch (err) {
-					lastError = err as Error;
 					// Only retry on connection failures for idempotent/read-only tools
-					if (!canRetry || !(err instanceof McpConnectionFailedError)) {
-						throw err;
-					}
-					// Last attempt, throw the error
-					if (attempt === MCP_TOOL_RETRIES - 1) {
+					const shouldRetry = err instanceof McpConnectionFailedError && attempt < maxAttempts;
+					if (!shouldRetry) {
 						throw err;
 					}
 					// Otherwise, loop and retry
 				}
 			}
-			throw lastError;
 		}
 
 		test('does not retry when tool has no annotations', async () => {

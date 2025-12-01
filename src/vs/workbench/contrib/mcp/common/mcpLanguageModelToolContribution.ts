@@ -350,9 +350,9 @@ class McpToolImplementation implements IToolImpl {
 	private async _callWithRetry(invocation: IToolInvocation, progress: ToolProgress, token: CancellationToken) {
 		const annotations = this._tool.definition.annotations;
 		const canRetry = annotations?.readOnlyHint === true || annotations?.idempotentHint === true;
+		const maxAttempts = canRetry ? MCP_TOOL_RETRIES : 1;
 
-		let lastError: Error | undefined;
-		for (let attempt = 0; attempt < MCP_TOOL_RETRIES; attempt++) {
+		for (let attempt = 1; ; attempt++) {
 			try {
 				return await this._tool.callWithProgress(
 					invocation.parameters as Record<string, unknown>,
@@ -361,20 +361,14 @@ class McpToolImplementation implements IToolImpl {
 					token
 				);
 			} catch (err) {
-				lastError = err as Error;
 				// Only retry on connection failures for idempotent/read-only tools
-				if (!canRetry || !(err instanceof McpConnectionFailedError)) {
-					throw err;
-				}
-				// Last attempt, throw the error
-				if (attempt === MCP_TOOL_RETRIES - 1) {
+				const shouldRetry = err instanceof McpConnectionFailedError && attempt < maxAttempts;
+				if (!shouldRetry) {
 					throw err;
 				}
 				// Otherwise, loop and retry
 			}
 		}
-		// This should not be reached, but TypeScript requires it
-		throw lastError;
 	}
 
 }
