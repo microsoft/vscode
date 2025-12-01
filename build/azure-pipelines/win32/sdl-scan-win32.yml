@@ -26,7 +26,7 @@ steps:
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
-  - powershell: node build/setup-npm-registry.js $env:NPM_REGISTRY
+  - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
@@ -92,10 +92,10 @@ steps:
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
 
-  - script: node build/azure-pipelines/distro/mixin-npm
+  - script: node build/azure-pipelines/distro/mixin-npm.ts
     displayName: Mixin distro node modules
 
-  - script: node build/azure-pipelines/distro/mixin-quality
+  - script: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
     env:
       VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
@@ -114,6 +114,16 @@ steps:
       Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.node"
       Get-ChildItem '$(Agent.BuildDirectory)\scanbin' -Recurse -Filter "*.pdb"
     displayName: List files
+
+  - task: PublishSymbols@2
+    displayName: 'Publish Symbols to Artifacts'
+    inputs:
+      SymbolsFolder: '$(Agent.BuildDirectory)\scanbin'
+      SearchPattern: '**/*.pdb'
+      IndexSources: false
+      PublishSymbols: true
+      SymbolServerType: 'TeamServices'
+      SymbolsProduct: 'vscode-client'
 
   - task: CopyFiles@2
     displayName: 'Collect Symbols for API Scan'

@@ -25,6 +25,9 @@ import { TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { PositionOffsetTransformer } from '../../../../common/core/text/positionToOffset.js';
 import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
+import { IBulkEditService } from '../../../../browser/services/bulkEditService.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { Event } from '../../../../../base/common/event.js';
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -243,6 +246,19 @@ export async function withAsyncTestCodeEditorAndInlineCompletionsModel<T>(
 					playSignal: async () => { },
 					isSoundEnabled(signal: unknown) { return false; },
 				} as any);
+				options.serviceCollection.set(IBulkEditService, {
+					apply: async () => { throw new Error('IBulkEditService.apply not implemented'); },
+					hasPreviewHandler: () => { throw new Error('IBulkEditService.hasPreviewHandler not implemented'); },
+					setPreviewHandler: () => { throw new Error('IBulkEditService.setPreviewHandler not implemented'); },
+					_serviceBrand: undefined,
+				});
+				options.serviceCollection.set(IDefaultAccountService, {
+					_serviceBrand: undefined,
+					onDidChangeDefaultAccount: Event.None,
+					getDefaultAccount: async () => null,
+					setDefaultAccount: () => { },
+				});
+
 				const d = languageFeaturesService.inlineCompletionsProvider.register({ pattern: '**' }, options.provider);
 				disposableStore.add(d);
 			}

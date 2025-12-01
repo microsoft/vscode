@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
@@ -23,6 +22,7 @@ import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { isString } from '../../../../base/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
 export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
@@ -69,18 +69,6 @@ interface IMcpRegistryProvider {
 
 interface IMcpRegistryResponse {
 	readonly mcp_registries: ReadonlyArray<IMcpRegistryProvider>;
-}
-
-export const IDefaultAccountService = createDecorator<IDefaultAccountService>('defaultAccountService');
-
-export interface IDefaultAccountService {
-
-	readonly _serviceBrand: undefined;
-
-	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
-
-	getDefaultAccount(): Promise<IDefaultAccount | null>;
-	setDefaultAccount(account: IDefaultAccount | null): void;
 }
 
 export class DefaultAccountService extends Disposable implements IDefaultAccountService {
@@ -241,6 +229,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	private async findMatchingProviderSession(authProviderId: string, allScopes: string[][]): Promise<AuthenticationSession | undefined> {
 		const sessions = await this.authenticationService.getSessions(authProviderId, undefined, undefined, true);
 		for (const session of sessions) {
+			this.logService.debug('[DefaultAccount] Checking session with scopes', session.scopes);
 			for (const scopes of allScopes) {
 				if (this.scopesMatch(session.scopes, scopes)) {
 					return session;

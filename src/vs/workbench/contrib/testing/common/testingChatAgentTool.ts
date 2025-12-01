@@ -53,6 +53,7 @@ export class TestingChatAgentToolContribution extends Disposable implements IWor
 		super();
 		const runTestsTool = instantiationService.createInstance(RunTestTool);
 		this._register(toolsService.registerTool(RunTestTool.DEFINITION, runTestsTool));
+		this._register(toolsService.executeToolSet.addTool(RunTestTool.DEFINITION));
 
 		// todo@connor4312: temporary for 1.103 release during changeover
 		contextKeyService.createKey('chat.coreTestFailureToolEnabled', true).set(true);
@@ -74,7 +75,7 @@ class RunTestTool implements IToolImpl {
 	public static readonly DEFINITION: IToolData = {
 		id: this.ID,
 		toolReferenceName: 'runTests',
-		canBeReferencedInPrompt: true,
+		legacyToolReferenceFullNames: ['runTests'],
 		when: TestingContextKeys.hasRunnableTests,
 		displayName: 'Run tests',
 		modelDescription: 'Runs unit tests in files. Use this tool if the user asks to run tests or when you want to validate changes using unit tests, and prefer using this tool instead of the terminal tool. When possible, always try to provide `files` paths containing the relevant unit tests in order to avoid unnecessarily long test runs. This tool outputs detailed information about the results of the test run. Set mode="coverage" to also collect coverage and optionally provide coverageFiles for focused reporting.',
@@ -104,7 +105,7 @@ class RunTestTool implements IToolImpl {
 				}
 			},
 		},
-		userDescription: localize('runTestTool.userDescription', 'Runs unit tests (optionally with coverage)'),
+		userDescription: localize('runTestTool.userDescription', 'Run unit tests (optionally with coverage)'),
 		source: ToolDataSource.Internal,
 		tags: [
 			'vscode_editing_with_tests',

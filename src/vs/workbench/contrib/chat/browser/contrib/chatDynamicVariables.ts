@@ -100,11 +100,12 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		}));
 	}
 
-	getInputState(): any {
-		return this.variables;
+	getInputState(contrib: Record<string, unknown>): void {
+		contrib[ChatDynamicVariableModel.ID] = this.variables;
 	}
 
-	setInputState(s: any): void {
+	setInputState(contrib: Readonly<Record<string, unknown>>): void {
+		let s = contrib[ChatDynamicVariableModel.ID] as unknown[];
 		if (!Array.isArray(s)) {
 			s = [];
 		}
@@ -176,6 +177,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 /**
  * Loose check to filter objects that are obviously missing data
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isDynamicVariable(obj: any): obj is IDynamicVariable {
 	return obj &&
 		typeof obj.id === 'string' &&
@@ -193,6 +195,7 @@ export interface IAddDynamicVariableContext {
 	command?: Command;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isAddDynamicVariableContext(context: any): context is IAddDynamicVariableContext {
 	return 'widget' in context &&
 		'range' in context &&

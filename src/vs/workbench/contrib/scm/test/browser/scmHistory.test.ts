@@ -603,7 +603,7 @@ suite('toISCMHistoryItemViewModelArray', () => {
 	 * 	* e(f)
 	 * 	* f(g)
 	*/
-	test('graph with incoming/outgoing changes', () => {
+	test('graph with incoming/outgoing changes (remote ref first)', () => {
 		const models = [
 			toSCMHistoryItem('a', ['b'], [{ id: 'origin/main', name: 'origin/main' }]),
 			toSCMHistoryItem('b', ['e']),
@@ -648,52 +648,48 @@ suite('toISCMHistoryItemViewModelArray', () => {
 		assert.strictEqual(viewModels[1].outputSwimlanes[0].id, SCMIncomingHistoryItemId);
 		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, historyItemRemoteRefColor);
 
-		// outgoing changes node
-		assert.strictEqual(viewModels[2].kind, 'outgoing-changes');
+		// incoming changes node
+		assert.strictEqual(viewModels[2].kind, 'incoming-changes');
 		assert.strictEqual(viewModels[2].inputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[2].inputSwimlanes[0].id, SCMIncomingHistoryItemId);
 		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, historyItemRemoteRefColor);
 
-		assert.strictEqual(viewModels[2].outputSwimlanes.length, 2);
-		assert.strictEqual(viewModels[2].outputSwimlanes[0].id, SCMIncomingHistoryItemId);
+		assert.strictEqual(viewModels[2].outputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[2].outputSwimlanes[0].id, 'e');
 		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, historyItemRemoteRefColor);
-		assert.strictEqual(viewModels[2].outputSwimlanes[1].id, 'c');
-		assert.strictEqual(viewModels[2].outputSwimlanes[1].color, historyItemRefColor);
 
-		// node c
-		assert.strictEqual(viewModels[3].kind, 'HEAD');
-		assert.strictEqual(viewModels[3].inputSwimlanes.length, 2);
-		assert.strictEqual(viewModels[3].inputSwimlanes[0].id, SCMIncomingHistoryItemId);
+		// outgoing changes node
+		assert.strictEqual(viewModels[3].kind, 'outgoing-changes');
+		assert.strictEqual(viewModels[3].inputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[3].inputSwimlanes[0].id, 'e');
 		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, historyItemRemoteRefColor);
-		assert.strictEqual(viewModels[3].inputSwimlanes[1].id, 'c');
-		assert.strictEqual(viewModels[3].inputSwimlanes[1].color, historyItemRefColor);
 
 		assert.strictEqual(viewModels[3].outputSwimlanes.length, 2);
-		assert.strictEqual(viewModels[3].outputSwimlanes[0].id, SCMIncomingHistoryItemId);
+		assert.strictEqual(viewModels[3].outputSwimlanes[0].id, 'e');
 		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, historyItemRemoteRefColor);
-		assert.strictEqual(viewModels[3].outputSwimlanes[1].id, 'd');
+		assert.strictEqual(viewModels[3].outputSwimlanes[1].id, 'c');
 		assert.strictEqual(viewModels[3].outputSwimlanes[1].color, historyItemRefColor);
 
-		// node d
-		assert.strictEqual(viewModels[4].kind, 'node');
+		// node c
+		assert.strictEqual(viewModels[4].kind, 'HEAD');
 		assert.strictEqual(viewModels[4].inputSwimlanes.length, 2);
-		assert.strictEqual(viewModels[4].inputSwimlanes[0].id, SCMIncomingHistoryItemId);
+		assert.strictEqual(viewModels[4].inputSwimlanes[0].id, 'e');
 		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, historyItemRemoteRefColor);
-		assert.strictEqual(viewModels[4].inputSwimlanes[1].id, 'd');
+		assert.strictEqual(viewModels[4].inputSwimlanes[1].id, 'c');
 		assert.strictEqual(viewModels[4].inputSwimlanes[1].color, historyItemRefColor);
 
 		assert.strictEqual(viewModels[4].outputSwimlanes.length, 2);
-		assert.strictEqual(viewModels[4].outputSwimlanes[0].id, SCMIncomingHistoryItemId);
+		assert.strictEqual(viewModels[4].outputSwimlanes[0].id, 'e');
 		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, historyItemRemoteRefColor);
-		assert.strictEqual(viewModels[4].outputSwimlanes[1].id, 'e');
+		assert.strictEqual(viewModels[4].outputSwimlanes[1].id, 'd');
 		assert.strictEqual(viewModels[4].outputSwimlanes[1].color, historyItemRefColor);
 
-		// incoming changes node
-		assert.strictEqual(viewModels[5].kind, 'incoming-changes');
+		// node d
+		assert.strictEqual(viewModels[5].kind, 'node');
 		assert.strictEqual(viewModels[5].inputSwimlanes.length, 2);
-		assert.strictEqual(viewModels[5].inputSwimlanes[0].id, SCMIncomingHistoryItemId);
+		assert.strictEqual(viewModels[5].inputSwimlanes[0].id, 'e');
 		assert.strictEqual(viewModels[5].inputSwimlanes[0].color, historyItemRemoteRefColor);
-		assert.strictEqual(viewModels[5].inputSwimlanes[1].id, 'e');
+		assert.strictEqual(viewModels[5].inputSwimlanes[1].id, 'd');
 		assert.strictEqual(viewModels[5].inputSwimlanes[1].color, historyItemRefColor);
 
 		assert.strictEqual(viewModels[5].outputSwimlanes.length, 2);
@@ -723,6 +719,134 @@ suite('toISCMHistoryItemViewModelArray', () => {
 		assert.strictEqual(viewModels[7].outputSwimlanes.length, 1);
 		assert.strictEqual(viewModels[7].outputSwimlanes[0].id, 'g');
 		assert.strictEqual(viewModels[7].outputSwimlanes[0].color, historyItemRemoteRefColor);
+	});
+
+	/**
+	 * 	* a(b) [main]
+	 * 	* b(e)
+	 * 	| * c(d) [origin/main]
+	 * 	| * d(e)
+	 * 	|/
+	 * 	* e(f)
+	 * 	* f(g)
+	*/
+	test('graph with incoming/outgoing changes (local ref first)', () => {
+		const models = [
+			toSCMHistoryItem('a', ['b'], [{ id: 'main', name: 'main' }]),
+			toSCMHistoryItem('b', ['e']),
+			toSCMHistoryItem('c', ['d'], [{ id: 'origin/main', name: 'origin/main' }]),
+			toSCMHistoryItem('d', ['e']),
+			toSCMHistoryItem('e', ['f']),
+			toSCMHistoryItem('f', ['g']),
+		] satisfies ISCMHistoryItem[];
+
+		const colorMap = new Map<string, ColorIdentifier>([
+			['origin/main', historyItemRemoteRefColor],
+			['main', historyItemRefColor]
+		]);
+
+		const viewModels = toISCMHistoryItemViewModelArray(
+			models,
+			colorMap,
+			{ id: 'main', name: 'main', revision: 'a' },
+			{ id: 'origin/main', name: 'origin/main', revision: 'c' },
+			undefined,
+			true,
+			true,
+			'e'
+		);
+
+		assert.strictEqual(viewModels.length, 8);
+
+		// outgoing changes node
+		assert.strictEqual(viewModels[0].kind, 'outgoing-changes');
+		assert.strictEqual(viewModels[0].inputSwimlanes.length, 0);
+
+		assert.strictEqual(viewModels[0].outputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[0].outputSwimlanes[0].id, 'a');
+		assert.strictEqual(viewModels[0].outputSwimlanes[0].color, historyItemRefColor);
+
+		// node a
+		assert.strictEqual(viewModels[1].kind, 'HEAD');
+		assert.strictEqual(viewModels[1].inputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[1].inputSwimlanes[0].id, 'a');
+		assert.strictEqual(viewModels[1].inputSwimlanes[0].color, historyItemRefColor);
+
+		assert.strictEqual(viewModels[1].outputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[1].outputSwimlanes[0].id, 'b');
+		assert.strictEqual(viewModels[1].outputSwimlanes[0].color, historyItemRefColor);
+
+		// node b
+		assert.strictEqual(viewModels[2].kind, 'node');
+		assert.strictEqual(viewModels[2].inputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[2].inputSwimlanes[0].id, 'b');
+		assert.strictEqual(viewModels[2].inputSwimlanes[0].color, historyItemRefColor);
+
+		assert.strictEqual(viewModels[2].outputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[2].outputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[2].outputSwimlanes[0].color, historyItemRefColor);
+
+		// node c
+		assert.strictEqual(viewModels[3].kind, 'node');
+		assert.strictEqual(viewModels[3].inputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[3].inputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[3].inputSwimlanes[0].color, historyItemRefColor);
+
+		assert.strictEqual(viewModels[3].outputSwimlanes.length, 2);
+		assert.strictEqual(viewModels[3].outputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[3].outputSwimlanes[0].color, historyItemRefColor);
+		assert.strictEqual(viewModels[3].outputSwimlanes[1].id, 'd');
+		assert.strictEqual(viewModels[3].outputSwimlanes[1].color, historyItemRemoteRefColor);
+
+		// node d
+		assert.strictEqual(viewModels[4].kind, 'node');
+		assert.strictEqual(viewModels[4].inputSwimlanes.length, 2);
+		assert.strictEqual(viewModels[4].inputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[4].inputSwimlanes[0].color, historyItemRefColor);
+		assert.strictEqual(viewModels[4].inputSwimlanes[1].id, 'd');
+		assert.strictEqual(viewModels[4].inputSwimlanes[1].color, historyItemRemoteRefColor);
+
+		assert.strictEqual(viewModels[4].outputSwimlanes.length, 2);
+		assert.strictEqual(viewModels[4].outputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[4].outputSwimlanes[0].color, historyItemRefColor);
+		assert.strictEqual(viewModels[4].outputSwimlanes[1].id, SCMIncomingHistoryItemId);
+		assert.strictEqual(viewModels[4].outputSwimlanes[1].color, historyItemRemoteRefColor);
+
+		// incoming changes node
+		assert.strictEqual(viewModels[5].kind, 'incoming-changes');
+		assert.strictEqual(viewModels[5].inputSwimlanes.length, 2);
+		assert.strictEqual(viewModels[5].inputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[5].inputSwimlanes[0].color, historyItemRefColor);
+		assert.strictEqual(viewModels[5].inputSwimlanes[1].id, SCMIncomingHistoryItemId);
+		assert.strictEqual(viewModels[5].inputSwimlanes[1].color, historyItemRemoteRefColor);
+
+		assert.strictEqual(viewModels[5].outputSwimlanes.length, 2);
+		assert.strictEqual(viewModels[5].outputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[5].outputSwimlanes[0].color, historyItemRefColor);
+		assert.strictEqual(viewModels[5].outputSwimlanes[1].id, 'e');
+		assert.strictEqual(viewModels[5].outputSwimlanes[1].color, historyItemRemoteRefColor);
+
+		// node e
+		assert.strictEqual(viewModels[6].kind, 'node');
+		assert.strictEqual(viewModels[6].inputSwimlanes.length, 2);
+		assert.strictEqual(viewModels[6].inputSwimlanes[0].id, 'e');
+		assert.strictEqual(viewModels[6].inputSwimlanes[0].color, historyItemRefColor);
+		assert.strictEqual(viewModels[6].inputSwimlanes[1].id, 'e');
+		assert.strictEqual(viewModels[6].inputSwimlanes[1].color, historyItemRemoteRefColor);
+
+		assert.strictEqual(viewModels[6].outputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[6].outputSwimlanes[0].id, 'f');
+		assert.strictEqual(viewModels[6].outputSwimlanes[0].color, historyItemRefColor);
+
+		// node f
+		assert.strictEqual(viewModels[7].kind, 'node');
+		assert.strictEqual(viewModels[7].inputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[7].inputSwimlanes[0].id, 'f');
+		assert.strictEqual(viewModels[7].inputSwimlanes[0].color, historyItemRefColor);
+
+		assert.strictEqual(viewModels[7].outputSwimlanes.length, 1);
+		assert.strictEqual(viewModels[7].outputSwimlanes[0].id, 'g');
+		assert.strictEqual(viewModels[7].outputSwimlanes[0].color, historyItemRefColor);
 	});
 
 	/**

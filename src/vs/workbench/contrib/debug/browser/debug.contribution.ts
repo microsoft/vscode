@@ -65,6 +65,7 @@ import { StatusBarColorProvider } from './statusbarColorProvider.js';
 import { SET_VARIABLE_ID, VIEW_MEMORY_ID, VariablesView } from './variablesView.js';
 import { ADD_WATCH_ID, ADD_WATCH_LABEL, REMOVE_WATCH_EXPRESSIONS_COMMAND_ID, REMOVE_WATCH_EXPRESSIONS_LABEL, WatchExpressionsView } from './watchExpressionsView.js';
 import { WelcomeView } from './welcomeView.js';
+import { DebugChatContextContribution } from './debugChatIntegration.js';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -82,6 +83,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(StatusBarColorProvider, LifecyclePhase.Eventually);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DisassemblyViewContribution, LifecyclePhase.Eventually);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugLifecycle, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(DebugChatContextContribution.ID, DebugChatContextContribution, WorkbenchPhase.AfterRestored);
 
 // Register Quick Access
 Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({

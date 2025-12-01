@@ -163,8 +163,8 @@ export class GettingStartedPage extends EditorPane {
 	private readonly categoriesSlideDisposables: DisposableStore;
 	private showFeaturedWalkthrough = true;
 
-	get editorInput(): GettingStartedInput {
-		return this._input as GettingStartedInput;
+	get editorInput(): GettingStartedInput | undefined {
+		return this._input as GettingStartedInput | undefined;
 	}
 
 	constructor(
@@ -347,11 +347,16 @@ export class GettingStartedPage extends EditorPane {
 
 	override async setInput(newInput: GettingStartedInput, options: GettingStartedEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		await super.setInput(newInput, options, context, token);
-		await this.applyInput(options);
+		const selectedCategory = options?.selectedCategory ?? newInput.selectedCategory;
+		const selectedStep = options?.selectedStep ?? newInput.selectedStep;
+		await this.applyInput({ ...options, selectedCategory, selectedStep });
 	}
 
 	override async setOptions(options: GettingStartedEditorOptions | undefined): Promise<void> {
 		super.setOptions(options);
+		if (!this.editorInput) {
+			return;
+		}
 
 		if (
 			this.editorInput.selectedCategory !== options?.selectedCategory ||
@@ -362,6 +367,9 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async applyInput(options: GettingStartedEditorOptions | undefined): Promise<void> {
+		if (!this.editorInput) {
+			return;
+		}
 		this.editorInput.showTelemetryNotice = options?.showTelemetryNotice ?? true;
 		this.editorInput.selectedCategory = options?.selectedCategory;
 		this.editorInput.selectedStep = options?.selectedStep;
@@ -768,6 +776,9 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	async selectStepLoose(id: string) {
+		if (!this.editorInput) {
+			return;
+		}
 		// Allow passing in id with a category appended or with just the id of the step
 		if (id.startsWith(`${this.editorInput.selectedCategory}#`)) {
 			this.selectStep(id);
@@ -786,6 +797,9 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private async selectStep(id: string | undefined, delayFocus = true) {
+		if (!this.editorInput) {
+			return;
+		}
 		if (id) {
 			// eslint-disable-next-line no-restricted-syntax
 			let stepElement = this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`);
@@ -948,20 +962,21 @@ export class GettingStartedPage extends EditorPane {
 		this.updateCategoryProgress();
 		this.registerDispatchListeners();
 
-		if (this.editorInput?.selectedCategory) {
-			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
+		const editorInput = this.editorInput;
+		if (editorInput?.selectedCategory) {
+			this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === editorInput.selectedCategory);
 
 			if (!this.currentWalkthrough) {
 				this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
-				this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === this.editorInput.selectedCategory);
+				this.currentWalkthrough = this.gettingStartedCategories.find(category => category.id === editorInput.selectedCategory);
 				if (this.currentWalkthrough) {
-					this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
+					this.buildCategorySlide(editorInput.selectedCategory, editorInput.selectedStep);
 					this.setSlide('details');
 					return;
 				}
 			}
 			else {
-				this.buildCategorySlide(this.editorInput.selectedCategory, this.editorInput.selectedStep);
+				this.buildCategorySlide(editorInput.selectedCategory, editorInput.selectedStep);
 				this.setSlide('details');
 				return;
 			}
@@ -1255,6 +1270,9 @@ export class GettingStartedPage extends EditorPane {
 		}
 
 		this.inProgressScroll = this.inProgressScroll.then(async () => {
+			if (!this.editorInput) {
+				return;
+			}
 			reset(this.stepsContent);
 			this.editorInput.selectedCategory = categoryID;
 			this.editorInput.selectedStep = stepId;
@@ -1301,7 +1319,7 @@ export class GettingStartedPage extends EditorPane {
 			const commandURI = URI.parse(command);
 
 			// execute as command
-			let args: any = [];
+			let args = [];
 			try {
 				args = parse(decodeURIComponent(commandURI.query));
 			} catch {
@@ -1321,13 +1339,13 @@ export class GettingStartedPage extends EditorPane {
 				commandURI.path === OpenFolderAction.ID.toString()) &&
 				this.workspaceContextService.getWorkspace().folders.length === 0) {
 
-				const selectedStepIndex = this.currentWalkthrough?.steps.findIndex(step => step.id === this.editorInput.selectedStep);
+				const selectedStepIndex = this.currentWalkthrough?.steps.findIndex(step => step.id === this.editorInput?.selectedStep);
 
 				// and there are a few more steps after this step which are yet to be completed...
 				if (selectedStepIndex !== undefined &&
 					selectedStepIndex > -1 &&
 					this.currentWalkthrough?.steps.slice(selectedStepIndex + 1).some(step => !step.done)) {
-					const restoreData: RestoreWalkthroughsConfigurationValue = { folder: UNKNOWN_EMPTY_WINDOW_WORKSPACE.id, category: this.editorInput.selectedCategory, step: this.editorInput.selectedStep };
+					const restoreData: RestoreWalkthroughsConfigurationValue = { folder: UNKNOWN_EMPTY_WINDOW_WORKSPACE.id, category: this.editorInput?.selectedCategory, step: this.editorInput?.selectedStep };
 
 					// save state to restore after reload
 					this.storageService.store(
@@ -1337,14 +1355,14 @@ export class GettingStartedPage extends EditorPane {
 				}
 			}
 
-			this.commandService.executeCommand<any>(commandURI.path, ...args).then(result => {
-				const toOpen: URI = result?.openFolder;
+			this.commandService.executeCommand(commandURI.path, ...args).then(result => {
+				const toOpen = (result as { openFolder?: URI })?.openFolder;
 				if (toOpen) {
 					if (!URI.isUri(toOpen)) {
 						console.warn('Warn: Running walkthrough command', href, 'yielded non-URI `openFolder` result', toOpen, '. It will be disregarded.');
 						return;
 					}
-					const restoreData: RestoreWalkthroughsConfigurationValue = { folder: toOpen.toString(), category: this.editorInput.selectedCategory, step: this.editorInput.selectedStep };
+					const restoreData: RestoreWalkthroughsConfigurationValue = { folder: toOpen.toString(), category: this.editorInput?.selectedCategory, step: this.editorInput?.selectedStep };
 					this.storageService.store(
 						restoreWalkthroughsConfigurationKey,
 						JSON.stringify(restoreData),
@@ -1421,6 +1439,9 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private buildCategorySlide(categoryID: string, selectedStep?: string) {
+		if (!this.editorInput) {
+			return;
+		}
 		if (this.detailsScrollbar) { this.detailsScrollbar.dispose(); }
 
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
@@ -1451,7 +1472,7 @@ export class GettingStartedPage extends EditorPane {
 		this.detailsPageDisposables.add(addDisposableListener(stepListContainer, 'keydown', (e) => {
 			const event = new StandardKeyboardEvent(e);
 			const currentStepIndex = () =>
-				category.steps.findIndex(e => e.id === this.editorInput.selectedStep);
+				category.steps.findIndex(e => e.id === this.editorInput?.selectedStep);
 
 			if (event.keyCode === KeyCode.UpArrow) {
 				const toExpand = category.steps.filter((step, index) => index < currentStepIndex() && this.contextService.contextMatchesRules(step.when));
@@ -1533,7 +1554,7 @@ export class GettingStartedPage extends EditorPane {
 		buildStepList();
 
 		this.detailsPageDisposables.add(this.contextService.onDidChangeContext(e => {
-			if (e.affectsSome(contextKeysToWatch) && this.currentWalkthrough) {
+			if (e.affectsSome(contextKeysToWatch) && this.currentWalkthrough && this.editorInput) {
 				buildStepList();
 				this.registerDispatchListeners();
 				this.selectStep(this.editorInput.selectedStep, false);
@@ -1607,10 +1628,12 @@ export class GettingStartedPage extends EditorPane {
 				this.makeCategoryVisibleWhenAvailable(this.currentWalkthrough.id);
 			} else {
 				this.currentWalkthrough = undefined;
-				this.editorInput.selectedCategory = undefined;
-				this.editorInput.selectedStep = undefined;
-				this.editorInput.showTelemetryNotice = false;
-				this.editorInput.walkthroughPageTitle = undefined;
+				if (this.editorInput) {
+					this.editorInput.selectedCategory = undefined;
+					this.editorInput.selectedStep = undefined;
+					this.editorInput.showTelemetryNotice = false;
+					this.editorInput.walkthroughPageTitle = undefined;
+				}
 
 				if (this.gettingStartedCategories.length !== this.gettingStartedList?.itemCount) {
 					// extensions may have changed in the time since we last displayed the walkthrough list
@@ -1630,7 +1653,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	escape() {
-		if (this.editorInput.selectedCategory) {
+		if (this.editorInput?.selectedCategory) {
 			this.scrollPrev();
 		} else {
 			this.runSkip();
@@ -1656,7 +1679,7 @@ export class GettingStartedPage extends EditorPane {
 			slideManager.classList.remove('showCategories');
 			// eslint-disable-next-line no-restricted-syntax
 			const prevButton = this.container.querySelector<HTMLButtonElement>('.prev-button.button-link');
-			prevButton!.style.display = this.editorInput.showWelcome || this.prevWalkthrough ? 'block' : 'none';
+			prevButton!.style.display = this.editorInput?.showWelcome || this.prevWalkthrough ? 'block' : 'none';
 			// eslint-disable-next-line no-restricted-syntax
 			const moreTextElement = prevButton!.querySelector('.moreText');
 			moreTextElement!.textContent = firstLaunch ? localize('welcome', "Welcome") : localize('goBack', "Go Back");

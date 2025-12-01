@@ -6,7 +6,6 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Orientation, Sash } from '../../../../base/browser/ui/sash/sash.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -25,10 +24,10 @@ import { editorBackground, inputBackground, quickInputBackground, quickInputFore
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { ChatModel, isCellTextEditOperationArray } from '../common/chatModel.js';
+import { isCellTextEditOperationArray } from '../common/chatModel.js';
 import { ChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
-import { IChatProgress, IChatService } from '../common/chatService.js';
+import { IChatModelReference, IChatProgress, IChatService } from '../common/chatService.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { IChatWidgetService, IQuickChatOpenOptions, IQuickChatService } from './chat.js';
 import { ChatWidget } from './chatWidget.js';
@@ -155,13 +154,12 @@ class QuickChat extends Disposable {
 
 	private widget!: ChatWidget;
 	private sash!: Sash;
-	private model: ChatModel | undefined;
-	private _currentQuery: string | undefined;
+	private modelRef: IChatModelReference | undefined;
 	private readonly maintainScrollTimer: MutableDisposable<IDisposable> = this._register(new MutableDisposable<IDisposable>());
 	private _deferUpdatingDynamicLayout: boolean = false;
 
 	public get sessionResource() {
-		return this.model?.sessionResource;
+		return this.modelRef?.object.sessionResource;
 	}
 
 	constructor(
@@ -177,8 +175,8 @@ class QuickChat extends Disposable {
 	}
 
 	private clear() {
-		this.model?.dispose();
-		this.model = undefined;
+		this.modelRef?.dispose();
+		this.modelRef = undefined;
 		this.updateModel();
 		this.widget.inputEditor.setValue('');
 		return Promise.resolve();
@@ -301,9 +299,6 @@ class QuickChat extends Disposable {
 				this._deferUpdatingDynamicLayout = true;
 			}
 		}));
-		this._register(this.widget.inputEditor.onDidChangeModelContent((e) => {
-			this._currentQuery = this.widget.inputEditor.getValue();
-		}));
 		this._register(this.widget.onDidChangeHeight((e) => this.sash.layout()));
 		const width = parent.offsetWidth;
 		this._register(this.sash.onDidStart(() => {
@@ -328,11 +323,12 @@ class QuickChat extends Disposable {
 
 	async openChatView(): Promise<void> {
 		const widget = await this.chatWidgetService.revealWidget();
-		if (!widget?.viewModel || !this.model) {
+		const model = this.modelRef?.object;
+		if (!widget?.viewModel || !model) {
 			return;
 		}
 
-		for (const request of this.model.getRequests()) {
+		for (const request of model.getRequests()) {
 			if (request.response?.response.value || request.response?.result) {
 
 
@@ -381,9 +377,9 @@ class QuickChat extends Disposable {
 			}
 		}
 
-		const value = this.widget.inputEditor.getValue();
+		const value = this.widget.getViewState();
 		if (value) {
-			widget.inputEditor.setValue(value);
+			widget.viewModel.model.inputModel.setState(value);
 		}
 		widget.focusInput();
 	}
@@ -398,11 +394,19 @@ class QuickChat extends Disposable {
 	}
 
 	private updateModel(): void {
-		this.model ??= this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
-		if (!this.model) {
+		this.modelRef ??= this.chatService.startSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true });
+		const model = this.modelRef?.object;
+		if (!model) {
 			throw new Error('Could not start chat session');
 		}
 
-		this.widget.setModel(this.model, { inputValue: this._currentQuery });
+		this.modelRef.object.inputModel.setState({ inputText: '', selections: [] });
+		this.widget.setModel(model);
+	}
+
+	override dispose(): void {
+		this.modelRef?.dispose();
+		this.modelRef = undefined;
+		super.dispose();
 	}
 }

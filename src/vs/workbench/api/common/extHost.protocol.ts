@@ -60,11 +60,12 @@ import { IChatContextItem, IChatContextSupport } from '../../contrib/chat/common
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData } from '../../contrib/chat/common/chatModel.js';
 import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatExternalEditsDto, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
-import { IChatSessionItem, IChatSessionProviderOptionGroup } from '../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
 import { IPreparedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep, IToolResult, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
+import { ICustomAgentQueryOptions, IExternalCustomAgent } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../contrib/mcp/common/mcpTypes.js';
 import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
@@ -479,6 +480,16 @@ export interface IdentifiableInlineCompletion extends languages.InlineCompletion
 	suggestionId: EditSuggestionId | undefined;
 }
 
+export interface IInlineCompletionModelDto {
+	readonly id: string;
+	readonly name: string;
+}
+
+export interface IInlineCompletionModelInfoDto {
+	readonly models: IInlineCompletionModelDto[];
+	readonly currentModelId: string;
+}
+
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$unregister(handle: number): void;
 	$registerDocumentSymbolProvider(handle: number, selector: IDocumentFilterDto[], label: string): void;
@@ -509,8 +520,24 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerDocumentRangeSemanticTokensProvider(handle: number, selector: IDocumentFilterDto[], legend: languages.SemanticTokensLegend, eventHandle: number | undefined): void;
 	$emitDocumentRangeSemanticTokensEvent(eventHandle: number): void;
 	$registerCompletionsProvider(handle: number, selector: IDocumentFilterDto[], triggerCharacters: string[], supportsResolveDetails: boolean, extensionId: ExtensionIdentifier): void;
-	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleDidShowCompletionItem: boolean, extensionId: string, extensionVersion: string, yieldToId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, excludesExtensionIds: string[], eventHandle: number | undefined): void;
+	$registerInlineCompletionsSupport(
+		handle: number,
+		selector: IDocumentFilterDto[],
+		supportsHandleEvents: boolean,
+		extensionId: string,
+		extensionVersion: string,
+		groupId: string | undefined,
+		yieldsToExtensionIds: string[],
+		displayName: string | undefined,
+		debounceDelayMs: number | undefined,
+		excludesExtensionIds: string[],
+		supportsSetModelId: boolean,
+		supportsOnDidChange: boolean,
+		initialModelInfo: IInlineCompletionModelInfoDto | undefined,
+		supportsOnDidChangeModelInfo: boolean,
+	): void;
 	$emitInlineCompletionsChange(handle: number): void;
+	$emitInlineCompletionModelInfoChange(handle: number, data: IInlineCompletionModelInfoDto | undefined): void;
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void;
 	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined): void;
 	$emitInlayHintsEvent(eventHandle: number): void;
@@ -1367,6 +1394,9 @@ export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDi
 	$unregisterChatParticipantDetectionProvider(handle: number): void;
 	$registerRelatedFilesProvider(handle: number, metadata: IChatRelatedFilesProviderMetadata): void;
 	$unregisterRelatedFilesProvider(handle: number): void;
+	$registerCustomAgentsProvider(handle: number, extension: ExtensionIdentifier): void;
+	$unregisterCustomAgentsProvider(handle: number): void;
+	$onDidChangeCustomAgents(handle: number): void;
 	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
@@ -1428,9 +1458,10 @@ export interface ExtHostChatAgentsShape2 {
 	$invokeCompletionProvider(handle: number, query: string, token: CancellationToken): Promise<IChatAgentCompletionItem[]>;
 	$provideChatTitle(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined>;
 	$provideChatSummary(handle: number, context: IChatAgentHistoryEntryDto[], token: CancellationToken): Promise<string | undefined>;
-	$releaseSession(sessionId: string): void;
+	$releaseSession(sessionResource: UriComponents): void;
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$provideRelatedFiles(handle: number, request: Dto<IChatRequestDraft>, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined>;
+	$provideCustomAgents(handle: number, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<Dto<IExternalCustomAgent>[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 }
 export interface IChatParticipantMetadata {
@@ -1447,7 +1478,8 @@ export interface IChatParticipantDetectionResult {
 export interface IToolDataDto {
 	id: string;
 	toolReferenceName?: string;
-	tags?: string[];
+	legacyToolReferenceFullNames?: readonly string[];
+	tags?: readonly string[];
 	displayName: string;
 	userDescription?: string;
 	modelDescription: string;
@@ -1712,7 +1744,7 @@ export interface SCMHistoryItemDto {
 		readonly deletions: number;
 	};
 	readonly references?: SCMHistoryItemRefDto[];
-	readonly tooltip?: string | IMarkdownString | undefined;
+	readonly tooltip?: IMarkdownString | Array<IMarkdownString> | undefined;
 }
 
 export interface SCMHistoryItemChangeDto {
@@ -1725,6 +1757,7 @@ export interface SCMArtifactGroupDto {
 	readonly id: string;
 	readonly name: string;
 	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+	readonly supportsFolders?: boolean;
 }
 
 export interface SCMArtifactDto {
@@ -2457,6 +2490,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$handleInlineCompletionRejection(handle: number, pid: number, idx: number): void;
 	$freeInlineCompletionsList(handle: number, pid: number, reason: languages.InlineCompletionsDisposeReason): void;
 	$acceptInlineCompletionsUnificationState(state: IInlineCompletionsUnificationState): void;
+	$handleInlineCompletionSetCurrentModelId(handle: number, modelId: string): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: languages.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
 	$releaseSignatureHelp(handle: number, id: number): void;
 	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<IInlayHintsDto | undefined>;
@@ -3224,6 +3258,7 @@ export interface MainThreadChatStatusShape {
 }
 
 export type IChatSessionHistoryItemDto = {
+	id?: string;
 	type: 'request';
 	prompt: string;
 	participant: string;
@@ -3246,7 +3281,7 @@ export interface ChatSessionDto {
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
 	supportsInterruption: boolean;
-	options?: Record<string, string>;
+	options?: Record<string, string | IChatSessionProviderOptionItem>;
 }
 
 export interface IChatSessionProviderOptions {

@@ -5,29 +5,72 @@
 
 import './media/agentsessionsactions.css';
 import { localize, localize2 } from '../../../../../nls.js';
-import { IAgentSessionViewModel } from './agentSessionViewModel.js';
+import { IAgentSession } from './agentSessionsModel.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { EventHelper, h, hide, show } from '../../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
-import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, openAgentSessionsView } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatService } from '../../common/chatService.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 
-//#region Diff Statistics Action
+//#region Item Title Actions
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSession.archive',
+			title: localize2('archive', "Archive"),
+			icon: Codicon.archive,
+			menu: {
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.isArchivedItem.negate(),
+			}
+		});
+	}
+	run(accessor: ServicesAccessor, session: IAgentSession): void {
+		session.setArchived(true);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSession.unarchive',
+			title: localize2('unarchive', "Unarchive"),
+			icon: Codicon.inbox,
+			menu: {
+				id: MenuId.AgentSessionItemToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.isArchivedItem,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor, session: IAgentSession): void {
+		session.setArchived(false);
+	}
+});
+
+//#endregion
+
+//#region Item Detail Actions
 
 export class AgentSessionShowDiffAction extends Action {
 
 	static ID = 'agentSession.showDiff';
 
 	constructor(
-		private readonly session: IAgentSessionViewModel
+		private readonly session: IAgentSession
 	) {
 		super(AgentSessionShowDiffAction.ID, localize('showDiff', "Open Changes"), undefined, true);
 	}
@@ -36,7 +79,7 @@ export class AgentSessionShowDiffAction extends Action {
 		// This will be handled by the action view item
 	}
 
-	getSession(): IAgentSessionViewModel {
+	getSession(): IAgentSession {
 		return this.session;
 	}
 }
@@ -83,14 +126,14 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 			hide(elements.filesSpan);
 		}
 
-		if (diff.insertions > 0) {
+		if (diff.insertions >= 0 /* render even `0` for more homogeneity */) {
 			elements.addedSpan.textContent = `+${diff.insertions}`;
 			show(elements.addedSpan);
 		} else {
 			hide(elements.addedSpan);
 		}
 
-		if (diff.deletions > 0) {
+		if (diff.deletions >= 0 /* render even `0` for more homogeneity */) {
 			elements.removedSpan.textContent = `-${diff.deletions}`;
 			show(elements.removedSpan);
 		} else {
@@ -160,10 +203,32 @@ registerAction2(class extends ViewAction<AgentSessionsView> {
 
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsTitle, {
 	submenu: MenuId.AgentSessionsFilterSubMenu,
-	title: localize('filterAgentSessions', "Filter Agent Sessions"),
+	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
 	group: 'navigation',
 	order: 100,
 	icon: Codicon.filter
 } satisfies ISubmenuItem);
+
+//#endregion
+
+//#region Recent Sessions in Chat View Actions
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSessions.showAll',
+			title: localize2('showAllSessions', "Show All Agent Sessions"),
+			icon: Codicon.history,
+			menu: {
+				id: MenuId.ChatRecentSessionsToolbar,
+				group: 'navigation',
+				order: 1,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		openAgentSessionsView(accessor);
+	}
+});
 
 //#endregion

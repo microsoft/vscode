@@ -79,6 +79,7 @@ export class MenuId {
 	static readonly DebugDisassemblyContext = new MenuId('DebugDisassemblyContext');
 	static readonly DebugCallStackToolbar = new MenuId('DebugCallStackToolbar');
 	static readonly DebugCreateConfiguration = new MenuId('DebugCreateConfiguration');
+	static readonly DebugScopesContext = new MenuId('DebugScopesContext');
 	static readonly EditorContext = new MenuId('EditorContext');
 	static readonly SimpleEditorContext = new MenuId('SimpleEditorContext');
 	static readonly EditorContent = new MenuId('EditorContent');
@@ -225,6 +226,7 @@ export class MenuId {
 	static readonly TimelineFilterSubMenu = new MenuId('TimelineFilterSubMenu');
 	static readonly AgentSessionsTitle = new MenuId('AgentSessionsTitle');
 	static readonly AgentSessionsFilterSubMenu = new MenuId('AgentSessionsFilterSubMenu');
+	static readonly AgentSessionItemToolbar = new MenuId('AgentSessionItemToolbar');
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly SidebarTitle = new MenuId('SidebarTitle');
 	static readonly PanelTitle = new MenuId('PanelTitle');
@@ -249,7 +251,6 @@ export class MenuId {
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
-	static readonly ChatHistory = new MenuId('ChatHistory');
 	static readonly ChatWelcomeContext = new MenuId('ChatWelcomeContext');
 	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatExecute = new MenuId('ChatExecute');
@@ -278,6 +279,7 @@ export class MenuId {
 	static readonly ChatMultiDiffContext = new MenuId('ChatMultiDiffContext');
 	static readonly ChatSessionsMenu = new MenuId('ChatSessionsMenu');
 	static readonly ChatSessionsCreateSubMenu = new MenuId('ChatSessionsCreateSubMenu');
+	static readonly ChatRecentSessionsToolbar = new MenuId('ChatRecentSessionsToolbar');
 	static readonly ChatConfirmationMenu = new MenuId('ChatConfirmationMenu');
 	static readonly ChatEditorInlineExecute = new MenuId('ChatEditorInputExecute');
 	static readonly ChatEditorInlineInputSide = new MenuId('ChatEditorInputSide');

@@ -16,7 +16,6 @@ import { derived, IObservable, IReader, ITransaction, observableValue, transacti
 import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IBulkEditService } from '../../../../../editor/browser/services/bulkEditService.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
@@ -89,7 +88,7 @@ class ThrottledSequencer extends Sequencer {
 	}
 }
 
-function createOpeningEditCodeBlock(uri: URI, isNotebook: boolean): IChatProgress[] {
+function createOpeningEditCodeBlock(uri: URI, isNotebook: boolean, undoStopId: string): IChatProgress[] {
 	return [
 		{
 			kind: 'markdownContent',
@@ -98,7 +97,8 @@ function createOpeningEditCodeBlock(uri: URI, isNotebook: boolean): IChatProgres
 		{
 			kind: 'codeblockUri',
 			uri,
-			isEdit: true
+			isEdit: true,
+			undoStopId
 		},
 		{
 			kind: 'markdownContent',
@@ -198,6 +198,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			chatSessionResource,
 			this._getTimelineDelegate(),
 		);
+
 		this.canRedo = this._timeline.canRedo.map((hasHistory, reader) =>
 			hasHistory && this._state.read(reader) === ChatEditingSessionState.Idle);
 		this.canUndo = this._timeline.canUndo.map((hasHistory, reader) =>
@@ -314,6 +315,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	public getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string) {
 		return this._timeline.getEntryDiffBetweenRequests(uri, startRequestId, stopRequestId);
+	}
+
+	public getDiffsForFilesInSession() {
+		return this._timeline.getDiffsForFilesInSession();
+	}
+
+	public getDiffForSession() {
+		return this._timeline.getDiffForSession();
 	}
 
 	public createSnapshot(requestId: string, undoStop: string | undefined): void {
@@ -523,15 +532,11 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		};
 	}
 
-	async startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[]): Promise<IChatProgress[]> {
+	async startExternalEdits(responseModel: IChatResponseModel, operationId: number, resources: URI[], undoStopId: string): Promise<IChatProgress[]> {
 		const snapshots = new ResourceMap<string | undefined>();
 		const acquiredLockPromises: DeferredPromise<void>[] = [];
 		const releaseLockPromises: DeferredPromise<void>[] = [];
-		const undoStopId = generateUuid();
-		const progress: IChatProgress[] = [{
-			kind: 'undoStop',
-			id: undoStopId,
-		}];
+		const progress: IChatProgress[] = [];
 		const telemetryInfo = this._getTelemetryInfoForModel(responseModel);
 
 		await chatEditingSessionIsReady(this);
@@ -557,7 +562,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 
 				const notebookUri = CellUri.parse(resource)?.notebook || resource;
-				progress.push(...createOpeningEditCodeBlock(resource, this._notebookService.hasSupportedNotebooks(notebookUri)));
+				progress.push(...createOpeningEditCodeBlock(resource, this._notebookService.hasSupportedNotebooks(notebookUri), undoStopId));
 
 				// Save to disk to ensure disk state is current before external edits
 				await entry?.save();
