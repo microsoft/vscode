@@ -30,6 +30,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { InlineChatConfigKeys } from '../../inlineChat/common/inlineChat.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
+import { chatEditingSessionIsReady } from './chatEditingService.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { ChatModelStore, IStartSessionProps } from './chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
@@ -180,7 +181,9 @@ export class ChatService extends Disposable implements IChatService {
 
 		// When using file storage, populate _persistedSessions with session metadata from the index
 		// This ensures that getPersistedSessionTitle() can find titles for inactive sessions
-		this.initializePersistedSessionsFromFileStorage();
+		this.initializePersistedSessionsFromFileStorage().then(() => {
+			this.reviveSessionsWithEdits();
+		});
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
 
@@ -302,6 +305,25 @@ export class ChatService extends Disposable implements IChatService {
 		return transferred;
 	}
 
+	/**
+	 * todo@connor4312 This will be cleaned up with the globalization of edits.
+	 */
+	private async reviveSessionsWithEdits(): Promise<void> {
+		await Promise.all(Object.values(this._persistedSessions).map(async session => {
+			if (!session.hasPendingEdits) {
+				return;
+			}
+
+			const sessionResource = LocalChatSessionUri.forSession(session.sessionId);
+			const sessionRef = await this.getOrRestoreSession(sessionResource);
+			if (sessionRef?.object.editingSession) {
+				await chatEditingSessionIsReady(sessionRef.object.editingSession);
+				// the session will hold a self-reference as long as there are modified files
+				sessionRef.dispose();
+			}
+		}));
+	}
+
 	private async initializePersistedSessionsFromFileStorage(): Promise<void> {
 
 		const index = await this._chatSessionStore.getIndex();
@@ -322,6 +344,7 @@ export class ChatService extends Disposable implements IChatService {
 					requests: [], // Empty requests array - this is just for title lookup
 					responderUsername: '',
 					responderAvatarIconUri: undefined,
+					hasPendingEdits: metadata.hasPendingEdits,
 				};
 
 				this._persistedSessions[sessionId] = minimalSession;

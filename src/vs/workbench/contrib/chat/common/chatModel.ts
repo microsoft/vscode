@@ -29,7 +29,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { migrateLegacyTerminalToolSpecificData } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from './chatAgents.js';
-import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatModelReference, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { LocalChatSessionUri } from './chatUri.js';
@@ -1168,6 +1168,8 @@ export interface IChatModel extends IDisposable {
 	readonly inputModel: IInputModel;
 	readonly hasRequests: boolean;
 	readonly lastRequest: IChatRequestModel | undefined;
+	/** Whether this model will be kept alive while it is running or has edits */
+	readonly willKeepAlive: boolean;
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
 
@@ -1252,6 +1254,11 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
 	version: 3;
 	customTitle: string | undefined;
+	/**
+	 * Whether the session had pending edits when it was stored.
+	 * todo@connor4312 This will be cleaned up with the globalization of edits.
+	 */
+	hasPendingEdits?: boolean;
 	/** Current draft input state (added later, fully backwards compatible) */
 	inputState?: ISerializableChatModelInputState;
 }
@@ -1644,13 +1651,18 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._canUseTools;
 	}
 
+	private _disableBackgroundKeepAlive: boolean;
+	get willKeepAlive(): boolean {
+		return !this._disableBackgroundKeepAlive;
+	}
+
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
 		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
-		@IChatService chatService: IChatService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -1663,6 +1675,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._isImported = !!initialData && isValidExportedData && !isValidFullData;
 		this._sessionId = (isValidFullData && initialData.sessionId) || initialModelProps.sessionId || generateUuid();
 		this._sessionResource = initialModelProps.resource ?? LocalChatSessionUri.forSession(this._sessionId);
+		this._disableBackgroundKeepAlive = initialModelProps.disableBackgroundKeepAlive ?? false;
 
 		this._requests = initialData ? this._deserialize(initialData) : [];
 		this._timestamp = (isValidFullData && initialData.creationDate) || Date.now();
@@ -1737,6 +1750,20 @@ export class ChatModel extends Disposable implements IChatModel {
 					? this.chatEditingService.startOrContinueGlobalEditingSession(this)
 					: this.chatEditingService.createEditingSession(this)
 		);
+
+		if (!this._disableBackgroundKeepAlive) {
+			// todo@connor4312: hold onto a reference so background sessions don't
+			// trigger early disposal. This will be cleaned up with the globalization of edits.
+			const selfRef = this._register(new MutableDisposable<IChatModelReference>());
+			this._register(autorun(r => {
+				const hasModified = session.entries.read(r).some(e => e.state.read(r) === ModifiedFileEntryState.Modified);
+				if (hasModified && !selfRef.value) {
+					selfRef.value = this.chatService.getActiveSessionReference(this._sessionResource);
+				} else if (!hasModified && selfRef.value) {
+					selfRef.clear();
+				}
+			}));
+		}
 
 		this._register(autorun(reader => {
 			this._setDisabledRequests(session.requestDisablement.read(reader));
@@ -2122,6 +2149,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			creationDate: this._timestamp,
 			lastMessageDate: this._lastMessageDate,
 			customTitle: this._customTitle,
+			hasPendingEdits: !!(this._editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)),
 			// Only include inputState if it has been set
 			...(inputState ? {
 				inputState: {

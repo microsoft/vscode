@@ -30,7 +30,7 @@ import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ISelection, Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { TextEdit, VersionedExtensionId } from '../../../../editor/common/languages.js';
-import { IValidEditOperation } from '../../../../editor/common/model.js';
+import { ITextModel, IValidEditOperation } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { DefaultModelSHA1Computer } from '../../../../editor/common/services/modelService.js';
@@ -182,6 +182,11 @@ export class InlineChatController implements IEditorContribution {
 	}
 }
 
+// TODO@jrieken THIS should be shared with the code in MainThreadEditors
+function getEditorId(editor: ICodeEditor, model: ITextModel): string {
+	return `${editor.getId()},${model.id}`;
+}
+
 /**
  * @deprecated
  */
@@ -250,6 +255,7 @@ export class InlineChatController1 implements IEditorContribution {
 					assertType(this._session);
 					return {
 						type: ChatAgentLocation.EditorInline,
+						id: getEditorId(this._editor, this._session.textModelN),
 						selection: this._editor.getSelection(),
 						document: this._session.textModelN.uri,
 						wholeRange: this._session?.wholeRange.trackedInitialRange,
@@ -1298,6 +1304,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 					return {
 						type: ChatAgentLocation.EditorInline,
+						id: getEditorId(this._editor, this._editor.getModel()),
 						selection: this._editor.getSelection(),
 						document,
 						wholeRange,

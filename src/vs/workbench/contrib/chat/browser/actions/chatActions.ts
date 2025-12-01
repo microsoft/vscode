@@ -58,8 +58,8 @@ import { SCMHistoryItemChangeRangeContentProvider, ScmHistoryItemChangeRangeUriF
 import { ISCMService } from '../../../scm/common/scm.js';
 import { IChatAgentResult, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
+import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IChatModel, IChatResponseModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -73,7 +73,7 @@ import { ILanguageModelToolsConfirmationService } from '../../common/languageMod
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
+import { ChatEditorInput, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -373,9 +373,8 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const currentMode = chatWidget.input.currentModeKind;
 
 		if (switchToMode) {
-			const editingSession = chatWidget.viewModel?.model.editingSession;
-			const requestCount = chatWidget.viewModel?.model.getRequests().length ?? 0;
-			const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, currentMode, switchToMode.kind, requestCount, editingSession);
+			const model = chatWidget.viewModel?.model;
+			const chatModeCheck = model ? await instaService.invokeFunction(handleModeSwitch, currentMode, switchToMode.kind, model.getRequests().length, model) : { needToClearSession: false };
 			if (!chatModeCheck) {
 				return;
 			}
@@ -1002,12 +1001,9 @@ export function registerChatActions() {
 				return;
 			}
 
-			const editingSession = view.widget.viewModel.model.editingSession;
-			if (editingSession) {
-				const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
-				if (!await handleCurrentEditingSession(editingSession, phrase, dialogService)) {
-					return;
-				}
+			const phrase = localize('switchChat.confirmPhrase', "Switching chats will end your current edit session.");
+			if (!await handleCurrentEditingSession(view.widget.viewModel.model, phrase, dialogService)) {
+				return;
 			}
 
 			// Check if there are any non-local chat session item providers registered
@@ -1715,12 +1711,8 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 /**
  * Returns whether we can continue clearing/switching chat sessions, false to cancel.
  */
-export async function handleCurrentEditingSession(currentEditingSession: IChatEditingSession, phrase: string | undefined, dialogService: IDialogService): Promise<boolean> {
-	if (shouldShowClearEditingSessionConfirmation(currentEditingSession)) {
-		return showClearEditingSessionConfirmation(currentEditingSession, dialogService, { messageOverride: phrase });
-	}
-
-	return true;
+export async function handleCurrentEditingSession(model: IChatModel, phrase: string | undefined, dialogService: IDialogService): Promise<boolean> {
+	return showClearEditingSessionConfirmation(model, dialogService, { messageOverride: phrase });
 }
 
 /**
@@ -1731,9 +1723,9 @@ export async function handleModeSwitch(
 	fromMode: ChatModeKind,
 	toMode: ChatModeKind,
 	requestCount: number,
-	editingSession: IChatEditingSession | undefined,
+	model: IChatModel | undefined,
 ): Promise<false | { needToClearSession: boolean }> {
-	if (!editingSession || fromMode === toMode) {
+	if (!model?.editingSession || fromMode === toMode) {
 		return { needToClearSession: false };
 	}
 
@@ -1744,10 +1736,10 @@ export async function handleModeSwitch(
 		// If not using edits2 and switching into or out of edit mode, ask to discard the session
 		const phrase = localize('switchMode.confirmPhrase', "Switching agents will end your current edit session.");
 
-		const currentEdits = editingSession.entries.get();
+		const currentEdits = model.editingSession.entries.get();
 		const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
 		if (undecidedEdits.length > 0) {
-			if (!await handleCurrentEditingSession(editingSession, phrase, dialogService)) {
+			if (!await handleCurrentEditingSession(model, phrase, dialogService)) {
 				return false;
 			}
 
@@ -1839,11 +1831,11 @@ registerAction2(class EditToolApproval extends Action2 {
 	}
 });
 
-registerAction2(class ToggleEmptyChatViewRecentSessionsAction extends Action2 {
+registerAction2(class ToggleChatViewRecentSessionsAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.toggleEmptyChatViewRecentSessions',
-			title: localize2('chat.toggleEmptyChatViewRecentSessions.label', "Show Recent Agent Sessions"),
+			id: 'workbench.action.chat.toggleChatViewRecentSessions',
+			title: localize2('chat.toggleChatViewRecentSessions.label', "Show Recent Sessions"),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, true),
@@ -1859,19 +1851,19 @@ registerAction2(class ToggleEmptyChatViewRecentSessionsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const emptyChatViewRecentSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewRecentSessionsEnabled);
-		await configurationService.updateValue(ChatConfiguration.ChatViewRecentSessionsEnabled, !emptyChatViewRecentSessionsEnabled);
+		const chatViewRecentSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewRecentSessionsEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewRecentSessionsEnabled, !chatViewRecentSessionsEnabled);
 	}
 });
 
-registerAction2(class ToggleChatViewWelcomeBannerAction extends Action2 {
+registerAction2(class ToggleChatViewWelcomeAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.toggleEmptyChatViewWelcomeBanner',
-			title: localize2('chat.toggleEmptyChatViewWelcomeBanner.label', "Show Welcome Banner"),
+			id: 'workbench.action.chat.toggleChatViewWelcome',
+			title: localize2('chat.toggleChatViewWelcome.label', "Show Welcome"),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeBannerEnabled}`, true),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeEnabled}`, true),
 			menu: {
 				id: MenuId.ChatWelcomeContext,
 				group: '1_modify',
@@ -1883,7 +1875,7 @@ registerAction2(class ToggleChatViewWelcomeBannerAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const emptyChatViewWelcomeBannerEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeBannerEnabled);
-		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeBannerEnabled, !emptyChatViewWelcomeBannerEnabled);
+		const chatViewWelcomeEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeEnabled, !chatViewWelcomeEnabled);
 	}
 });

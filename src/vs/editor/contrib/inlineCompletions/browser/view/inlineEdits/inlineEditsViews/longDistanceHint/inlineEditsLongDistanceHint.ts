@@ -400,7 +400,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 					const keybinding = this._keybindingService.lookupKeybinding(jumpToNextInlineEditId);
 					let label = 'Go to suggestion';
 					if (keybinding && keybinding.getLabel() === 'Tab') {
-						label = 'Tab to suggestion';
+						label = 'Tab to jump';
 					}
 					children.push(n.div({
 						class: 'go-to-label',

@@ -24,6 +24,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, derived, derivedOpts, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
@@ -73,6 +74,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions, setupSimpleEditorSelectionStyling } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { InlineChatConfigKeys } from '../../inlineChat/common/inlineChat.js';
+import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../common/chatEditingService.js';
@@ -1995,7 +1997,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatEditsActionsDisposables.add(this.instantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, MenuId.ChatEditingWidgetToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: {
-				arg: { sessionResource: chatEditingSession.chatSessionResource },
+				arg: {
+					$mid: MarshalledId.ChatViewContext,
+					sessionResource: chatEditingSession.chatSessionResource,
+				} satisfies IChatViewTitleActionContext,
 			},
 			buttonConfigProvider: (action) => {
 				if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id) {

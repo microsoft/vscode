@@ -456,8 +456,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.onDidChangeItems();
 			}
 
-			if (e.affectsConfiguration(ChatConfiguration.ChatViewWelcomeBannerEnabled)) {
-				const showWelcome = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeBannerEnabled) !== false;
+			if (e.affectsConfiguration(ChatConfiguration.ChatViewWelcomeEnabled)) {
+				const showWelcome = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled) !== false;
 				if (this.welcomePart.value) {
 					this.welcomePart.value.setVisible(showWelcome);
 					if (showWelcome) {
@@ -932,7 +932,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							getAnchor: () => new StandardMouseEvent(dom.getWindow(this.welcomeMessageContainer), e)
 						});
 					});
-					this.welcomePart.value.setVisible(this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeBannerEnabled) !== false);
+					this.welcomePart.value.setVisible(this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled) !== false);
 				}
 			}
 
@@ -2501,7 +2501,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const agent = this.chatModeService.findModeByName(agentName);
 			if (agent) {
 				if (currentAgent.kind !== agent.kind) {
-					const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentAgent.kind, agent.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
+					const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentAgent.kind, agent.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model);
 					if (!chatModeCheck) {
 						return;
 					}
