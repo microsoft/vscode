@@ -58,7 +58,7 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		}
 
 		this._isEnabled = true;
-		if (this.chatEntitlementService.entitlement !== ChatEntitlement.Free) {
+		if (!this.chatEntitlementService.isInternal) {
 			return;
 		}
 
@@ -106,15 +106,7 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		}
 
 		this.messageElement.textContent = localize('chat.quotaExceeded.message', "Free tier chat message limit reached.");
-		let buttonLabel: string;
-		switch (this.chatEntitlementService.entitlement) {
-			// TODO@bhavyaus update messageing and button label for various entitlements
-			case ChatEntitlement.Free:
-			default:
-				buttonLabel = localize('chat.quotaExceeded.increaseLimit', "Increase Limit");
-				break;
-		}
-		this.actionButton.label = buttonLabel;
+		this.actionButton.label = localize('chat.quotaExceeded.increaseLimit', "Increase Limit");
 
 		this._onDidChangeHeight.fire();
 	}
@@ -128,7 +120,7 @@ registerAction2(class ToggleChatQuotaExceededAction extends Action2 {
 			title: localize2('chat.toggleStatusWidget.label', "Toggle Chat Status Widget State"),
 			f1: true,
 			category: Categories.Developer,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatEntitlementContextKeys.Entitlement.internal),
 		});
 	}
 
