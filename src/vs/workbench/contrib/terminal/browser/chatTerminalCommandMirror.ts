@@ -52,7 +52,11 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			return { lineCount: 0 };
 		}
 		const detached = await this._detachedTerminal;
-		detached.xterm.write(vt.text);
+		await new Promise<void>(resolve => {
+			detached.xterm.write(vt.text, () => {
+				resolve();
+			});
+		});
 		return { lineCount: vt.lineCount };
 	}
 
