@@ -867,7 +867,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private _getOutputContentHeight(lineCount: number, rowHeight: number, padding: number): number {
 		const contentRows = Math.max(lineCount, MIN_OUTPUT_ROWS);
-		return (contentRows * rowHeight) + padding;
+		const adjustedRows = contentRows + (lineCount > MAX_OUTPUT_ROWS ? 1 : 0);
+		return (adjustedRows * rowHeight) + padding;
 	}
 
 	private _getOutputPadding(): number {
