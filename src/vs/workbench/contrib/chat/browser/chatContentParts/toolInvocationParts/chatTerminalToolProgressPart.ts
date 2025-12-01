@@ -824,40 +824,13 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private async _updateTerminalContent(): Promise<void> {
-		const terminalInstance = await this._ensureTerminalInstance();
-		const liveTerminalInstance = terminalInstance && !terminalInstance.isDisposed ? terminalInstance : undefined;
+		const liveTerminalInstance = await this._resolveLiveTerminal();
 		const command = liveTerminalInstance ? this._resolveCommand() : undefined;
 		const snapshot = this._getTerminalCommandOutput();
 
 		if (liveTerminalInstance && command) {
-			const hadSnapshot = !!this._snapshotMirror;
-			this._disposeSnapshotMirror();
-			// Only clear when we're reattaching a new mirror or when coming from a snapshot.
-			if (!this._mirror || hadSnapshot) {
-				dom.clearNode(this._terminalContainer);
-			}
-			if (!this._mirror) {
-				await liveTerminalInstance.xtermReadyPromise;
-				if (liveTerminalInstance.isDisposed || !liveTerminalInstance.xterm) {
-					this._disposeLiveMirror();
-				} else {
-					this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm!, command));
-				}
-			}
-			if (this._mirror) {
-				await this._mirror.attach(this._terminalContainer);
-				const result = await this._mirror.renderCommand();
-				if (!result) {
-					this._showEmptyMessage(localize('chat.terminalOutputPending', 'Command output will appear here once available.'));
-					return;
-				}
-
-				if (result.lineCount === 0) {
-					this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
-				} else {
-					this._hideEmptyMessage();
-				}
-				this._layoutOutput(result.lineCount);
+			const handled = await this._renderLiveOutput(liveTerminalInstance, command);
+			if (handled) {
 				return;
 			}
 		}
@@ -866,37 +839,82 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._disposeLiveMirror();
 
 		if (snapshot) {
-			if (!this._snapshotMirror) {
-				dom.clearNode(this._terminalContainer);
-				this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
-			} else {
-				if (hadLiveMirror) {
-					dom.clearNode(this._terminalContainer);
-				}
-				this._snapshotMirror.setOutput(snapshot);
-			}
-			await this._snapshotMirror.attach(this._terminalContainer);
-			const result = await this._snapshotMirror.render();
-			const hasText = !!snapshot.text && snapshot.text.length > 0;
-			if (hasText) {
-				this._hideEmptyMessage();
-			} else {
-				this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
-			}
-			const lineCount = result?.lineCount ?? snapshot.lineCount;
-			if (lineCount) {
-				this._layoutOutput(lineCount);
-			}
+			await this._renderSnapshotOutput(snapshot, hadLiveMirror);
 			return;
 		}
 
-		dom.clearNode(this._terminalContainer);
+		this._renderUnavailableMessage(liveTerminalInstance);
+	}
 
+	private async _renderLiveOutput(liveTerminalInstance: ITerminalInstance, command: ITerminalCommand): Promise<boolean> {
+		const hadSnapshot = !!this._snapshotMirror;
+		this._disposeSnapshotMirror();
+		if (!this._mirror || hadSnapshot) {
+			dom.clearNode(this._terminalContainer);
+		}
+		if (!this._mirror) {
+			await liveTerminalInstance.xtermReadyPromise;
+			if (liveTerminalInstance.isDisposed || !liveTerminalInstance.xterm) {
+				this._disposeLiveMirror();
+				return false;
+			}
+			this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm!, command));
+		}
+		if (!this._mirror) {
+			return false;
+		}
+		await this._mirror.attach(this._terminalContainer);
+		const result = await this._mirror.renderCommand();
+		if (!result) {
+			this._showEmptyMessage(localize('chat.terminalOutputPending', 'Command output will appear here once available.'));
+			return true;
+		}
+
+		if (result.lineCount === 0) {
+			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
+		} else {
+			this._hideEmptyMessage();
+		}
+		this._layoutOutput(result.lineCount);
+		return true;
+	}
+
+	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>, hadLiveMirror: boolean): Promise<void> {
+		if (!this._snapshotMirror) {
+			dom.clearNode(this._terminalContainer);
+			this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
+		} else {
+			if (hadLiveMirror) {
+				dom.clearNode(this._terminalContainer);
+			}
+			this._snapshotMirror.setOutput(snapshot);
+		}
+		await this._snapshotMirror.attach(this._terminalContainer);
+		const result = await this._snapshotMirror.render();
+		const hasText = !!snapshot.text && snapshot.text.length > 0;
+		if (hasText) {
+			this._hideEmptyMessage();
+		} else {
+			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
+		}
+		const lineCount = result?.lineCount ?? snapshot.lineCount;
+		if (lineCount) {
+			this._layoutOutput(lineCount);
+		}
+	}
+
+	private _renderUnavailableMessage(liveTerminalInstance: ITerminalInstance | undefined): void {
+		dom.clearNode(this._terminalContainer);
 		if (!liveTerminalInstance) {
 			this._showEmptyMessage(localize('chat.terminalOutputTerminalMissing', 'Terminal is no longer available.'));
-			return;
+		} else {
+			this._showEmptyMessage(localize('chat.terminalOutputCommandMissing', 'Command information is not available.'));
 		}
-		this._showEmptyMessage(localize('chat.terminalOutputCommandMissing', 'Command information is not available.'));
+	}
+
+	private async _resolveLiveTerminal(): Promise<ITerminalInstance | undefined> {
+		const instance = await this._ensureTerminalInstance();
+		return instance && !instance.isDisposed ? instance : undefined;
 	}
 
 	private _showEmptyMessage(message: string): void {
