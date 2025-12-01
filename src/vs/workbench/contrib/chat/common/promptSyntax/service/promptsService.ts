@@ -16,6 +16,11 @@ import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 
 /**
+ * Activation event for custom agent providers.
+ */
+export const CUSTOM_AGENTS_ACTIVATION_EVENT = 'onCustomAgentsProvider';
+
+/**
  * Target environment for custom agents.
  */
 export enum CustomAgentTarget {
@@ -51,6 +56,11 @@ export interface IExternalCustomAgent {
 	 * The URI to the agent or prompt resource file.
 	 */
 	readonly uri: URI;
+
+	/**
+	 * Indicates whether the custom agent resource is editable. Defaults to false.
+	 */
+	readonly isEditable?: boolean;
 }
 
 /**
