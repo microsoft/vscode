@@ -112,7 +112,10 @@ export class AgentSessionsControl extends Disposable {
 		const sessions = this.agentSessionsService.model.sessions;
 		const matchingSession = sessions.find(session => isEqual(session.resource, sessionResource));
 		if (matchingSession && this.sessionsList?.hasNode(matchingSession)) {
-			this.sessionsList.reveal(matchingSession, 0.5);
+			if (this.sessionsList.getRelativeTop(matchingSession) === null) {
+				this.sessionsList.reveal(matchingSession, 0.5); // only reveal when not already visible
+			}
+
 			this.sessionsList.setFocus([matchingSession]);
 			this.sessionsList.setSelection([matchingSession]);
 		}
