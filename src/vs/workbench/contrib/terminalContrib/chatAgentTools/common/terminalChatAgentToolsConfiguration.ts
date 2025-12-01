@@ -20,6 +20,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 	OutputLocation = 'chat.tools.terminal.outputLocation',
+	TerminalSandbox = 'chat.tools.terminal.sandbox',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
@@ -62,6 +63,60 @@ const terminalChatAgentProfileSchema: IJSONSchema = {
 		...terminalProfileBaseProperties,
 	}
 };
+
+export const terminalSandboxPropertySchema: IJSONSchema = {
+	type: 'object',
+	required: ['enabled'],
+	properties: {
+		enabled: {
+			type: 'boolean',
+			description: localize('terminalSandbox.enabled', "Controls whether to run commands in a sandboxed terminal for the run in terminal tool."),
+		},
+		fileSystem: {
+			type: 'object',
+			description: localize('terminalSandbox.fileSystem', "Controls file system access in the terminal sandbox."),
+			properties: {
+				denyRead: {
+					type: 'array',
+					description: localize('terminalSandbox.fileSystem.denyRead', "List of denied file system paths for reading."),
+					items: { type: 'string' },
+					default: []
+				},
+				allowWrite: {
+					type: 'array',
+					description: localize('terminalSandbox.fileSystem.allowWrite', "List of allowed file system paths for writing."),
+					items: { type: 'string' },
+					default: []
+				},
+				denyWrite: {
+					type: 'array',
+					description: localize('terminalSandbox.fileSystem.denyWrite', "List of denied file system paths for writing."),
+					items: { type: 'string' },
+					default: []
+				}
+			}
+		},
+		network: {
+			type: 'object',
+			description: localize('terminalSandbox.network', "Controls network access in the terminal sandbox."),
+			properties: {
+				allowedDomains: {
+					type: 'array',
+					description: localize('terminalSandbox.network.allowedDomains', "List of allowed network domains."),
+					items: { type: 'string' },
+					default: []
+				},
+				deniedDomains: {
+					type: 'array',
+					description: localize('terminalSandbox.network.deniedDomains', "List of denied network domains."),
+					items: { type: 'string' },
+					default: []
+				}
+			}
+		}
+	}
+};
+
 
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalChatAgentToolsSettingId.EnableAutoApprove]: {
@@ -419,6 +474,32 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			localize('outputLocation.none', "Do not reveal the terminal automatically."),
 		],
 		default: product.quality !== 'stable' ? 'none' : 'terminal',
+		tags: ['experimental'],
+		experiment: {
+			mode: 'auto'
+		}
+	},
+	// Experimental settings for object storage that control sandboxing with properties like allowed/denied system calls could go here in future.
+	[TerminalChatAgentToolsSettingId.TerminalSandbox]: {
+		markdownDescription: localize('terminalSandbox.description', "Controls whether to run commands in a sandboxed terminal. Support for sandboxed terminals is enabled for Linux and macOS."),
+		type: ['object', 'null'],
+		'anyOf': [
+			{ type: 'null' },
+			terminalSandboxPropertySchema
+		],
+		default: {
+			enabled: false,
+			filesystem: {
+				denyRead: [],
+				denyWrite: [],
+				allowWrite: ['.']
+			},
+			network: {
+				allowedDomains: [],
+				deniedDomains: []
+			}
+		},
+
 		tags: ['experimental'],
 		experiment: {
 			mode: 'auto'

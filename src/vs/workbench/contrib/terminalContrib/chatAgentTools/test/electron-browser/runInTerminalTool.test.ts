@@ -969,7 +969,6 @@ suite('RunInTerminalTool', () => {
 				instance: mockTerminal2,
 				shellIntegrationQuality: ShellIntegrationQuality.None
 			});
-
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId1), 'Session 1 terminal association should exist');
 			ok(runInTerminalTool.sessionTerminalAssociations.has(sessionId2), 'Session 2 terminal association should exist');
 

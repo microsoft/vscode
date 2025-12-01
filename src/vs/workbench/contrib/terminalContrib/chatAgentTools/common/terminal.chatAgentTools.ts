@@ -5,4 +5,5 @@
 
 export const enum TerminalChatAgentToolsCommandId {
 	ChatAddTerminalSelection = 'workbench.action.terminal.chat.addTerminalSelection',
+	RetryWithoutSandboxing = 'workbench.action.terminal.retryWithoutSandboxing'
 }

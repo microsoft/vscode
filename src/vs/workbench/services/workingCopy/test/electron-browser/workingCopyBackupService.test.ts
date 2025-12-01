@@ -51,7 +51,8 @@ const NULL_PROFILE = {
 	snippetsHome: joinPath(homeDir, 'snippets'),
 	promptsHome: joinPath(homeDir, 'prompts'),
 	extensionsResource: joinPath(homeDir, 'extensions.json'),
-	cacheHome: joinPath(homeDir, 'cache')
+	cacheHome: joinPath(homeDir, 'cache'),
+	sandboxSettingsResource: joinPath(homeDir, 'sandbox-settings.json')
 };
 
 const TestNativeWindowConfiguration: INativeWindowConfiguration = {

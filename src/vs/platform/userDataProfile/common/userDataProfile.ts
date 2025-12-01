@@ -56,6 +56,7 @@ export interface IUserDataProfile {
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 	readonly isTransient?: boolean;
 	readonly workspaces?: readonly URI[];
+	readonly sandboxSettingsResource: URI;
 }
 
 export function isUserDataProfile(thing: unknown): thing is IUserDataProfile {
@@ -145,6 +146,7 @@ export function reviveProfile(profile: UriDto<IUserDataProfile>, scheme: string)
 		useDefaultFlags: profile.useDefaultFlags,
 		isTransient: profile.isTransient,
 		workspaces: profile.workspaces?.map(w => URI.revive(w)),
+		sandboxSettingsResource: URI.revive(profile.sandboxSettingsResource).with({ scheme })
 	};
 }
 
@@ -167,6 +169,7 @@ export function toUserDataProfile(id: string, name: string, location: URI, profi
 		useDefaultFlags: options?.useDefaultFlags,
 		isTransient: options?.transient,
 		workspaces: options?.workspaces,
+		sandboxSettingsResource: joinPath(location, 'sandbox-settings.json')
 	};
 }
 

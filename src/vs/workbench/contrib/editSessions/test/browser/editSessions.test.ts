@@ -166,6 +166,7 @@ suite('Edit session sync', () => {
 				promptsHome: URI.file('promptsHome'),
 				extensionsResource: URI.file('extensionsResource'),
 				cacheHome: URI.file('cacheHome'),
+				sandboxSettingsResource: URI.file('sandbox-settings.json')
 			};
 		});
 
