@@ -252,12 +252,12 @@ class MarkerSourceColumnRenderer implements ITableRenderer<MarkerTableItem, IMar
 	}
 }
 
-class MarkersTableVirtualDelegate implements ITableVirtualDelegate<any> {
+class MarkersTableVirtualDelegate implements ITableVirtualDelegate<MarkerTableItem> {
 	static readonly HEADER_ROW_HEIGHT = 24;
 	static readonly ROW_HEIGHT = 24;
 	readonly headerRowHeight = MarkersTableVirtualDelegate.HEADER_ROW_HEIGHT;
 
-	getHeight(item: any) {
+	getHeight(item: MarkerTableItem) {
 		return MarkersTableVirtualDelegate.ROW_HEIGHT;
 	}
 }
@@ -341,8 +341,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 		// mouseover/mouseleave event handlers
 		const onRowHover = Event.chain(this._register(new DomEmitter(list, 'mouseover')).event, $ =>
 			$.map(e => DOM.findParentWithClass(e.target as HTMLElement, 'monaco-list-row', 'monaco-list-rows'))
-				// eslint-disable-next-line local/code-no-any-casts
-				.filter<HTMLElement>(((e: HTMLElement | null) => !!e) as any)
+				.filter<HTMLElement>(e => !!e)
 				.map(e => parseInt(e.getAttribute('data-index')!))
 		);
 

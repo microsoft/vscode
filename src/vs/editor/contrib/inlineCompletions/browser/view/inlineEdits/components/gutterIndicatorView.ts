@@ -25,11 +25,11 @@ import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { StickyScrollController } from '../../../../../stickyScroll/browser/stickyScrollController.js';
 import { InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulBorder, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
+import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorSuccessfulBackground, inlineEditIndicatorSuccessfulBorder, inlineEditIndicatorSuccessfulForeground } from '../theme.js';
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
 import { assertNever } from '../../../../../../../base/common/assert.js';
-import { Command, InlineCompletionCommand } from '../../../../../../common/languages.js';
+import { Command, InlineCompletionCommand, IInlineCompletionModelInfo } from '../../../../../../common/languages.js';
 import { InlineSuggestionItem } from '../../../model/inlineSuggestionItem.js';
 import { localize } from '../../../../../../../nls.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
@@ -45,9 +45,11 @@ export class InlineEditsGutterIndicatorData {
 export class InlineSuggestionGutterMenuData {
 	public static fromInlineSuggestion(suggestion: InlineSuggestionItem): InlineSuggestionGutterMenuData {
 		return new InlineSuggestionGutterMenuData(
-			suggestion.action,
+			suggestion.gutterMenuLinkAction,
 			suggestion.source.provider.displayName ?? localize('inlineSuggestion', "Inline Suggestion"),
 			suggestion.source.inlineSuggestions.commands ?? [],
+			suggestion.source.provider.modelInfo,
+			suggestion.source.provider.setModelId?.bind(suggestion.source.provider),
 		);
 	}
 
@@ -55,6 +57,8 @@ export class InlineSuggestionGutterMenuData {
 		readonly action: Command | undefined,
 		readonly displayName: string,
 		readonly extensionCommands: InlineCompletionCommand[],
+		readonly modelInfo: IInlineCompletionModelInfo | undefined,
+		readonly setModelId: ((modelId: string) => Promise<void>) | undefined,
 	) { }
 }
 
@@ -154,9 +158,9 @@ export class InlineEditsGutterIndicator extends Disposable {
 				border: getEditorBlendedColor(inlineEditIndicatorPrimaryBorder, this._themeService).read(reader).toString()
 			};
 			case InlineEditTabAction.Accept: return {
-				background: getEditorBlendedColor(inlineEditIndicatorsuccessfulBackground, this._themeService).read(reader).toString(),
-				foreground: getEditorBlendedColor(inlineEditIndicatorsuccessfulForeground, this._themeService).read(reader).toString(),
-				border: getEditorBlendedColor(inlineEditIndicatorsuccessfulBorder, this._themeService).read(reader).toString()
+				background: getEditorBlendedColor(inlineEditIndicatorSuccessfulBackground, this._themeService).read(reader).toString(),
+				foreground: getEditorBlendedColor(inlineEditIndicatorSuccessfulForeground, this._themeService).read(reader).toString(),
+				border: getEditorBlendedColor(inlineEditIndicatorSuccessfulBorder, this._themeService).read(reader).toString()
 			};
 			default:
 				assertNever(v);

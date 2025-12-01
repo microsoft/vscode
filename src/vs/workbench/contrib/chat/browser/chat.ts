@@ -15,7 +15,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
-import { IChatResponseModel } from '../common/chatModel.js';
+import { IChatResponseModel, IChatModelInputState } from '../common/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
@@ -25,7 +25,7 @@ import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { ChatInputPart } from './chatInputPart.js';
-import { ChatWidget, IChatViewState, IChatWidgetContrib } from './chatWidget.js';
+import { ChatWidget, IChatWidgetContrib } from './chatWidget.js';
 import { ICodeBlockActionContext } from './codeBlockPart.js';
 
 export const IChatWidgetService = createDecorator<IChatWidgetService>('chatWidgetService');
@@ -36,6 +36,10 @@ export interface IChatWidgetService {
 
 	/**
 	 * Returns the most recently focused widget if any.
+	 *
+	 * ⚠️ Consider carefully if this is appropriate for your use case. If you
+	 * can know what session you're interacting with, prefer {@link getWidgetBySessionResource}
+	 * or similar methods to work nicely with multiple chat widgets.
 	 */
 	readonly lastFocusedWidget: IChatWidget | undefined;
 
@@ -103,6 +107,7 @@ export const IChatAccessibilityService = createDecorator<IChatAccessibilityServi
 export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
 	acceptRequest(): number;
+	disposeRequest(requestId: number): void;
 	acceptResponse(widget: ChatWidget, container: HTMLElement, response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void;
 	acceptElicitation(message: IChatElicitationRequest): void;
 }
@@ -223,6 +228,7 @@ export interface IChatWidget {
 	readonly input: ChatInputPart;
 	readonly attachmentModel: ChatAttachmentModel;
 	readonly locationData?: IChatLocationData;
+	readonly contribs: readonly IChatWidgetContrib[];
 
 	readonly supportsChangingModes: boolean;
 
@@ -254,7 +260,7 @@ export interface IChatWidget {
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
 	clear(): Promise<void>;
-	getViewState(): IChatViewState;
+	getViewState(): IChatModelInputState | undefined;
 	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
@@ -273,3 +279,4 @@ export interface IChatCodeBlockContextProviderService {
 }
 
 export const ChatViewId = `workbench.panel.chat.view.${CHAT_PROVIDER_ID}`;
+export const ChatViewContainerId = 'workbench.panel.chat';

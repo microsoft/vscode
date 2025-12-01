@@ -9,7 +9,7 @@ import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationCo
 import { IToolData } from '../../common/languageModelToolsService.js';
 
 export class MockLanguageModelToolsConfirmationService implements ILanguageModelToolsConfirmationService {
-	manageConfirmationPreferences(tools: Readonly<IToolData>[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void {
+	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session' }): void {
 		throw new Error('Method not implemented.');
 	}
 	registerConfirmationContribution(toolName: string, contribution: ILanguageModelToolConfirmationContribution): IDisposable {

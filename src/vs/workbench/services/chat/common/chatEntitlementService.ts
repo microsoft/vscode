@@ -1056,14 +1056,7 @@ export class ChatEntitlementRequests extends Disposable {
 	async signIn(options?: { useSocialProvider?: string; additionalScopes?: readonly string[] }) {
 		const providerId = ChatEntitlementRequests.providerId(this.configurationService);
 
-		let defaultProviderScopes: string[];
-		if (this.configurationService.getValue<unknown>('chat.signInWithAlternateScopes') === true) {
-			defaultProviderScopes = defaultChat.providerScopes.at(-1) ?? [];
-		} else {
-			defaultProviderScopes = defaultChat.providerScopes.at(0) ?? [];
-		}
-
-		const scopes = options?.additionalScopes ? distinct([...defaultProviderScopes, ...options.additionalScopes]) : defaultProviderScopes;
+		const scopes = options?.additionalScopes ? distinct([...defaultChat.providerScopes[0], ...options.additionalScopes]) : defaultChat.providerScopes[0];
 		const session = await this.authenticationService.createSession(
 			providerId,
 			scopes,

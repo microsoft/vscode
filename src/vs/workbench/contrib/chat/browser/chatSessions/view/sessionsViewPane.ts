@@ -10,11 +10,9 @@ import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/act
 import { IBaseActionViewItemOptions } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ITreeContextMenuEvent } from '../../../../../../base/browser/ui/tree/tree.js';
 import { IAction, toAction } from '../../../../../../base/common/actions.js';
-import { coalesce } from '../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
 import { truncate } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
@@ -47,7 +45,7 @@ import { IChatWidgetService } from '../../chat.js';
 import { IChatEditorOptions } from '../../chatEditor.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ChatSessionItemWithProvider, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
-import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
+import { LocalAgentsSessionsProvider } from '../../agentSessions/localAgentSessionsProvider.js';
 import { ArchivedSessionItems, GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
 // Identity provider for session items
@@ -107,7 +105,7 @@ export class SessionsViewPane extends ViewPane {
 		this.minimumBodySize = 44;
 
 		// Listen for changes in the provider if it's a LocalChatSessionsProvider
-		if (provider instanceof LocalChatSessionsProvider) {
+		if (provider instanceof LocalAgentsSessionsProvider) {
 			this._register(provider.onDidChange(() => {
 				if (this.tree && this.isBodyVisible()) {
 					this.refreshTreeWithProgress();
@@ -304,11 +302,7 @@ export class SessionsViewPane extends ViewPane {
 		const renderer = this.instantiationService.createInstance(SessionsRenderer, this.viewDescriptorService.getViewLocationById(this.viewId));
 		this._register(renderer);
 
-		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
-			if (isEqual(element.resource, LocalChatSessionsProvider.CHAT_WIDGET_VIEW_RESOURCE)) {
-				return null;
-			}
-
+		const getResourceForElement = (element: ChatSessionItemWithProvider): URI => {
 			return element.resource;
 		};
 
@@ -324,14 +318,17 @@ export class SessionsViewPane extends ViewPane {
 					onDragStart: (data, originalEvent) => {
 						try {
 							const elements = data.getData() as ChatSessionItemWithProvider[];
-							const uris = coalesce(elements.map(getResourceForElement));
+							const uris = elements.map(getResourceForElement);
 							this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, uris, originalEvent));
 						} catch {
 							// noop
 						}
 					},
-					getDragURI: (element: ChatSessionItemWithProvider) => {
-						return getResourceForElement(element)?.toString() ?? null;
+					getDragURI: (element: ChatSessionItemWithProvider | ArchivedSessionItems) => {
+						if (element instanceof ArchivedSessionItems) {
+							return null;
+						}
+						return getResourceForElement(element).toString();
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {
 						if (elements.length === 1) {
@@ -415,7 +412,7 @@ export class SessionsViewPane extends ViewPane {
 		const items: IGettingStartedItem[] = [
 			{
 				id: 'install-extensions',
-				label: nls.localize('chatSessions.installExtensions', "Install Chat Extensions"),
+				label: nls.localize('chatSessions.installExtensions', "Install Agents..."),
 				icon: Codicon.extensions,
 				commandId: 'chat.sessions.gettingStarted'
 			},
@@ -497,7 +494,6 @@ export class SessionsViewPane extends ViewPane {
 		const contextOverlay = getSessionItemContextOverlay(
 			session,
 			sessionWithProvider.provider,
-			this.chatWidgetService,
 			this.chatService,
 			this.editorGroupsService
 		);
@@ -515,7 +511,8 @@ export class SessionsViewPane extends ViewPane {
 		// Get actions and filter for context menu (all actions that are NOT inline)
 		const actions = menu.getActions({ arg: marshalledSession, shouldForwardArgs: true });
 
-		const { secondary } = getActionBarActions(actions, 'inline'); this.contextMenuService.showContextMenu({
+		const { secondary } = getActionBarActions(actions, 'inline');
+		this.contextMenuService.showContextMenu({
 			getActions: () => secondary,
 			getAnchor: () => e.anchor,
 			getActionsContext: () => marshalledSession,

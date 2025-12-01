@@ -132,8 +132,6 @@ export type UserSelectedTools = Record<string, boolean>;
 
 
 export interface IChatAgentRequest {
-	/** @deprecated Use {@linkcode sessionResource} instead */
-	sessionId: string;
 	sessionResource: URI;
 	requestId: string;
 	agentId: string;
@@ -153,13 +151,6 @@ export interface IChatAgentRequest {
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 	isSubagent?: boolean;
 
-	/**
-	 * Summary data for chat sessions context
-	 */
-	chatSummary?: {
-		prompt?: string;
-		history?: string;
-	};
 }
 
 export interface IChatQuestion {

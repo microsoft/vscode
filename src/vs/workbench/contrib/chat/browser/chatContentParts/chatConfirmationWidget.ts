@@ -46,7 +46,7 @@ export interface IChatConfirmationWidgetOptions<T> {
 	message: string | IMarkdownString;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
-	toolbarData?: { arg: any; partType: string; partSource?: string };
+	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 	silent?: boolean;
 }
 
@@ -201,10 +201,12 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		const elements = dom.h('.chat-confirmation-widget-container@container', [
 			dom.h('.chat-confirmation-widget@root', [
 				dom.h('.chat-confirmation-widget-title@title'),
-				dom.h('.chat-confirmation-widget-message@message'),
-				dom.h('.chat-buttons-container@buttonsContainer', [
-					dom.h('.chat-buttons@buttons'),
-					dom.h('.chat-toolbar@toolbar'),
+				dom.h('.chat-confirmation-widget-message-container', [
+					dom.h('.chat-confirmation-widget-message@message'),
+					dom.h('.chat-buttons-container@buttonsContainer', [
+						dom.h('.chat-buttons@buttons'),
+						dom.h('.chat-toolbar@toolbar'),
+					]),
 				]),
 			]),
 		]);
@@ -328,7 +330,7 @@ export interface IChatConfirmationWidget2Options<T> {
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
-	toolbarData?: { arg: any; partType: string; partSource?: string };
+	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 }
 
 abstract class BaseChatConfirmationWidget<T> extends Disposable {
