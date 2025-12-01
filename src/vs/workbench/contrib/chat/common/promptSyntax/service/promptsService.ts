@@ -38,7 +38,7 @@ export interface IInstructionQueryOptions { }
 /**
  * Represents a custom agent resource from an external provider.
  */
-export interface IExternalCustomAgent {
+export interface IExternalCustomAgentResource {
 	/**
 	 * The unique identifier/name of the custom agent resource.
 	 */
@@ -359,7 +359,7 @@ export interface IPromptsService extends IDisposable {
 	 */
 	registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
 		onDidChangeCustomAgents?: Event<void>;
-		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
 	}): IDisposable;
 
 	/**
@@ -371,7 +371,7 @@ export interface IPromptsService extends IDisposable {
 	 */
 	registerInstructionsProvider(extension: IExtensionDescription, provider: {
 		onDidChangeInstructions?: Event<void>;
-		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalInstruction[] | undefined>;
+		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
 	}): IDisposable;
 
 	/**

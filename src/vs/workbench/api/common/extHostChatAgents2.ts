@@ -35,7 +35,7 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { ExtHostLanguageModelTools } from './extHostLanguageModelTools.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { ICustomAgentQueryOptions, IExternalCustomAgent, IInstructionQueryOptions, IExternalInstruction } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ICustomAgentQueryOptions, IExternalCustomAgentResource, IInstructionQueryOptions } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 
 export class ChatAgentResponseStream {
@@ -535,7 +535,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return await provider.provider.provideRelatedFiles(extRequestDraft, token) ?? undefined;
 	}
 
-	async $provideCustomAgents(handle: number, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<IExternalCustomAgent[] | undefined> {
+	async $provideCustomAgents(handle: number, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<IExternalCustomAgentResource[] | undefined> {
 		const providerData = this._customAgentsProviders.get(handle);
 		if (!providerData) {
 			return Promise.resolve(undefined);
@@ -544,7 +544,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return await providerData.provider.provideCustomAgents(options, token) ?? undefined;
 	}
 
-	async $provideInstructions(handle: number, options: IInstructionQueryOptions, token: CancellationToken): Promise<IExternalInstruction[] | undefined> {
+	async $provideInstructions(handle: number, options: IInstructionQueryOptions, token: CancellationToken): Promise<IExternalCustomAgentResource[] | undefined> {
 		const providerData = this._instructionsProviders.get(handle);
 		if (!providerData) {
 			return Promise.resolve(undefined);

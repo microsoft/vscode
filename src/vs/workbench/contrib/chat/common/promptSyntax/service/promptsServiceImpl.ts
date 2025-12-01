@@ -30,7 +30,7 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent, ExtensionAgentSourceType, CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT, IInstructionQueryOptions, IExternalInstruction, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgentResource, ExtensionAgentSourceType, CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT, IInstructionQueryOptions, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -166,7 +166,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly customAgentsProviders: Array<{
 		extension: IExtensionDescription;
 		onDidChangeCustomAgents?: Event<void>;
-		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
 	}> = [];
 
 	/**
@@ -175,7 +175,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly instructionsProviders: Array<{
 		extension: IExtensionDescription;
 		onDidChangeInstructions?: Event<void>;
-		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalInstruction[] | undefined>;
+		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
 	}> = [];
 
 	/**
@@ -184,7 +184,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	public registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
 		onDidChangeCustomAgents?: Event<void>;
-		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
 	}): IDisposable {
 		const providerEntry = { extension, ...provider };
 		this.customAgentsProviders.push(providerEntry);
@@ -223,7 +223,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	public registerInstructionsProvider(extension: IExtensionDescription, provider: {
 		onDidChangeInstructions?: Event<void>;
-		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalInstruction[] | undefined>;
+		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
 	}): IDisposable {
 		const providerEntry = { extension, ...provider };
 		this.instructionsProviders.push(providerEntry);
