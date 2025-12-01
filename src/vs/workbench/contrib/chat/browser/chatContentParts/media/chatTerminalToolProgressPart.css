@@ -157,6 +157,7 @@
 }
 div.chat-terminal-content-part.progress-step > div.chat-terminal-output-container.expanded > div > div.chat-terminal-output-body > div > div.chat-terminal-output-terminal > div > div.xterm-scrollable-element {
 	padding-left: 12px;
+	padding-right: 12px;
 }
 .chat-terminal-output-body {
 	padding: 4px 0px;
