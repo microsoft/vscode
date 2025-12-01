@@ -2501,7 +2501,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const agent = this.chatModeService.findModeByName(agentName);
 			if (agent) {
 				if (currentAgent.kind !== agent.kind) {
-					const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentAgent.kind, agent.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
+					const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentAgent.kind, agent.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model);
 					if (!chatModeCheck) {
 						return;
 					}

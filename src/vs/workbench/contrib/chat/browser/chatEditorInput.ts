@@ -146,7 +146,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 		const titleOverride = nls.localize('chatEditorConfirmTitle', "Close Chat Editor");
 		const messageOverride = nls.localize('chat.startEditing.confirmation.pending.message.default', "Closing the chat editor will end your current edit session.");
-		const result = await showClearEditingSessionConfirmation(this.model.editingSession, this.dialogService, { titleOverride, messageOverride });
+		const result = await showClearEditingSessionConfirmation(this.model, this.dialogService, { titleOverride, messageOverride });
 		return result ? ConfirmResult.SAVE : ConfirmResult.CANCEL;
 	}
 
@@ -428,7 +428,12 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 	}
 }
 
-export async function showClearEditingSessionConfirmation(editingSession: IChatEditingSession, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
+export async function showClearEditingSessionConfirmation(model: IChatModel, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
+	if (!model.editingSession || model.willKeepAlive) {
+		return true; // safe to dispose without confirmation
+	}
+
+	const editingSession = model.editingSession;
 	const defaultPhrase = nls.localize('chat.startEditing.confirmation.pending.message.default1', "Starting a new chat will end your current edit session.");
 	const defaultTitle = nls.localize('chat.startEditing.confirmation.title', "Start new chat?");
 	const phrase = options?.messageOverride ?? defaultPhrase;
@@ -436,6 +441,9 @@ export async function showClearEditingSessionConfirmation(editingSession: IChatE
 
 	const currentEdits = editingSession.entries.get();
 	const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+	if (!undecidedEdits.length) {
+		return true; // No pending edits, can just continue
+	}
 
 	const { result } = await dialogService.prompt({
 		title,
