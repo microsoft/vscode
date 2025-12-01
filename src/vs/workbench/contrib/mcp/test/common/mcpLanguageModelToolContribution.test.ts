@@ -80,7 +80,6 @@ suite('MCP Language Model Tool Contribution - Retry Logic', () => {
 					// Otherwise, loop and retry
 				}
 			}
-			// This should never be reached since the loop always returns or throws
 			throw lastError;
 		}
 
