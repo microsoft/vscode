@@ -960,7 +960,32 @@ export async function createAuthMetadata(
 
 	const baseUrl = new URL(originalResponse.url).origin;
 
-	// Headers to use when fetching from the same origin as the MCP server
+	// =============================================================================
+	// Authorization Server (AS) Metadata Resolution
+	// =============================================================================
+	//
+	// We attempt to resolve AS metadata in the following order:
+	//
+	// Flow 1: PRM specifies an authorization server (serverMetadataUrl is set)
+	//   - Try fetching AS metadata from PRM's authorization_servers URL
+	//   - If successful → return with AS metadata from PRM
+	//   - If failed AND serverMetadataUrl is on a different origin → continue to Flow 2
+	//   - If failed AND serverMetadataUrl is same origin as baseUrl → skip to Flow 3
+	//     (to avoid duplicate request to the same origin)
+	//
+	// Flow 2: Fallback to base URL (no PRM authorization server, or PRM's AS failed)
+	//   - Try fetching AS metadata from the MCP server's base URL
+	//   - If successful → return with AS metadata from base URL
+	//   - If failed → continue to Flow 3
+	//
+	// Flow 3: Use default metadata (no AS metadata found anywhere)
+	//   - Construct default OAuth endpoints based on the base URL
+	//   - Return with default metadata
+	//
+	// =============================================================================
+
+	// Headers to include when fetching from the same origin as the MCP server.
+	// We pass along launch headers and protocol version for same-origin requests.
 	const sameOriginHeaders: Record<string, string> = {
 		...Object.fromEntries(launchHeaders),
 		'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
@@ -975,10 +1000,12 @@ export async function createAuthMetadata(
 		}
 	};
 
-	// Try to fetch AS metadata from PRM's authorization_servers if available
+	// ---------------------------------------------------------------------------
+	// Flow 1: Try PRM's authorization_servers if available
+	// ---------------------------------------------------------------------------
 	if (serverMetadataUrl) {
 		try {
-			log(LogLevel.Debug, `Fetching auth server metadata from PRM's authorization_servers: ${serverMetadataUrl} ...`);
+			log(LogLevel.Debug, `[Flow 1] Fetching AS metadata from PRM's authorization_servers: ${serverMetadataUrl}`);
 			const additionalHeaders = isSameOrigin(serverMetadataUrl) ? sameOriginHeaders : {};
 			const serverMetadataResponse = await fetchAuthorizationServerMetadata(serverMetadataUrl, {
 				additionalHeaders,
@@ -993,21 +1020,22 @@ export async function createAuthMetadata(
 				log
 			);
 		} catch (e) {
-			log(LogLevel.Warning, `Error fetching auth server metadata from ${serverMetadataUrl}: ${String(e)}`);
+			log(LogLevel.Warning, `[Flow 1] Failed to fetch AS metadata from ${serverMetadataUrl}: ${String(e)}`);
+			// Flow 1 failed - continue to Flow 2 (unless serverMetadataUrl was same origin)
 		}
 	}
 
-	// This point is only reached if:
-	// 1. No serverMetadataUrl was provided by PRM, OR
-	// 2. The fetch from serverMetadataUrl failed (the success path returns above)
-	//
-	// If serverMetadataUrl was on a different origin and failed, we should try the base URL.
-	// If serverMetadataUrl was on the same origin (i.e., equals baseUrl) and failed,
-	// we skip trying baseUrl again to avoid duplicate requests.
+	// ---------------------------------------------------------------------------
+	// Flow 2: Fallback to base URL for AS metadata
+	// ---------------------------------------------------------------------------
+	// Only attempt if:
+	// - No serverMetadataUrl was provided (PRM had no authorization_servers), OR
+	// - serverMetadataUrl was on a different origin (so base URL is worth trying)
+	// Skip if serverMetadataUrl was same origin as baseUrl (we'd just retry the same origin)
 	const shouldTryBaseUrl = !serverMetadataUrl || !isSameOrigin(serverMetadataUrl);
 	if (shouldTryBaseUrl) {
 		try {
-			log(LogLevel.Debug, `Fetching auth server metadata from base URL: ${baseUrl} ...`);
+			log(LogLevel.Debug, `[Flow 2] Fetching AS metadata from base URL: ${baseUrl}`);
 			const serverMetadataResponse = await fetchAuthorizationServerMetadata(baseUrl, {
 				additionalHeaders: sameOriginHeaders,
 				fetch: (url, init) => fetch(url, init as MinimalRequestInit)
@@ -1021,13 +1049,16 @@ export async function createAuthMetadata(
 				log
 			);
 		} catch (e) {
-			log(LogLevel.Warning, `Error fetching auth server metadata from base URL ${baseUrl}: ${String(e)}`);
+			log(LogLevel.Warning, `[Flow 2] Failed to fetch AS metadata from base URL ${baseUrl}: ${String(e)}`);
+			// Flow 2 failed - continue to Flow 3
 		}
 	}
 
-	// If there's no well-known server metadata, then use the default values based off of the url.
+	// ---------------------------------------------------------------------------
+	// Flow 3: Use default metadata (no AS metadata found)
+	// ---------------------------------------------------------------------------
 	const defaultMetadata = getDefaultMetadataForUrl(new URL(baseUrl));
-	log(LogLevel.Info, 'Using default auth metadata');
+	log(LogLevel.Info, '[Flow 3] Using default auth metadata');
 	return new AuthMetadata(
 		URI.parse(baseUrl),
 		defaultMetadata,

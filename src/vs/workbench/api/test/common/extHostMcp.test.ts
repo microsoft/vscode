@@ -964,10 +964,10 @@ suite('ExtHostMcp', () => {
 				// PRM should be undefined
 				assert.strictEqual(authMetadata.resourceMetadata, undefined);
 
-				// Should log using default metadata
+				// Should log using default metadata (Flow 3)
 				assert.ok(logMessages.some(m =>
 					m.level === LogLevel.Info &&
-					m.message.includes('Using default auth metadata')
+					m.message.includes('[Flow 3] Using default auth metadata')
 				));
 			});
 
