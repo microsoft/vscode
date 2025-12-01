@@ -11,13 +11,13 @@ import { registerThemingParticipant } from '../../../../platform/theme/common/th
 import { IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { ansiColorIdentifiers } from '../../terminal/common/terminalColorRegistry.js';
-import { ILinkDetector } from './linkDetector.js';
+import { DebugLinkHoverBehaviorTypeData, ILinkDetector } from './linkDetector.js';
 
 /**
  * @param text The content to stylize.
  * @returns An {@link HTMLSpanElement} that contains the potentially stylized text.
  */
-export function handleANSIOutput(text: string, linkDetector: ILinkDetector, workspaceFolder: IWorkspaceFolder | undefined, highlights: IHighlight[] | undefined): HTMLSpanElement {
+export function handleANSIOutput(text: string, linkDetector: ILinkDetector, workspaceFolder: IWorkspaceFolder | undefined, hoverBehavior: DebugLinkHoverBehaviorTypeData, highlights?: IHighlight[]): HTMLSpanElement {
 
 	const root: HTMLSpanElement = document.createElement('span');
 	const textLength: number = text.length;
@@ -63,7 +63,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 				unprintedChars += 2 + ansiSequence.length;
 
 				// Flush buffer with previous styles.
-				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length - unprintedChars);
+				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, highlights, highlights, currentPos - buffer.length - unprintedChars);
 
 				buffer = '';
 
@@ -109,7 +109,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 
 	// Flush remaining text buffer if not empty.
 	if (buffer) {
-		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length);
+		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, hoverBehavior, highlights, currentPos - buffer.length,);
 	}
 
 	return root;
@@ -401,6 +401,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
  * @param customUnderlineColor If provided, will apply custom textDecorationColor with inline style.
  * @param highlights The ranges to highlight.
  * @param offset The starting index of the stringContent in the original text.
+ * @param hoverBehavior Optional hover behavior with disposable store for managing event listeners.
  */
 export function appendStylizedStringToContainer(
 	root: HTMLElement,
@@ -411,8 +412,9 @@ export function appendStylizedStringToContainer(
 	customTextColor: RGBA | string | undefined,
 	customBackgroundColor: RGBA | string | undefined,
 	customUnderlineColor: RGBA | string | undefined,
-	highlights: IHighlight[] | undefined,
 	offset: number,
+	highlights: IHighlight[] | undefined,
+	hoverBehavior: DebugLinkHoverBehaviorTypeData,
 ): void {
 	if (!root || !stringContent) {
 		return;
@@ -420,9 +422,9 @@ export function appendStylizedStringToContainer(
 
 	const container = linkDetector.linkify(
 		stringContent,
+		hoverBehavior,
 		true,
 		workspaceFolder,
-		undefined,
 		undefined,
 		highlights?.map(h => ({ start: h.start - offset, end: h.end - offset, extraClasses: h.extraClasses })),
 	);
