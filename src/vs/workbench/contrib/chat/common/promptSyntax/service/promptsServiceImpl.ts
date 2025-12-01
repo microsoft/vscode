@@ -235,9 +235,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 			disposables.add(provider.onDidChangeInstructions(() => {
 				// Invalidate instruction cache when providers change
 				this.cachedFileLocations[PromptsType.instructions] = undefined;
-				if (this.cachedInstructions && typeof this.cachedInstructions.refresh === 'function') {
-					this.cachedInstructions.refresh();
-				}
 			}));
 		}
 
@@ -246,6 +243,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const index = this.instructionsProviders.findIndex((p) => p === providerEntry);
 				if (index >= 0) {
 					this.instructionsProviders.splice(index, 1);
+					this.cachedFileLocations[PromptsType.instructions] = undefined;
 				}
 			}
 		});
