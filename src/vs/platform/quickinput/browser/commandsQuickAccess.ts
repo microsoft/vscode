@@ -299,10 +299,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 					if (commandPick.type === 'separator') {
 						commandPicks.push(commandPick);
 						// Reset index in section when encountering a separator
-						// Use the separator label if available, otherwise keep current section
-						if (commandPick.label) {
-							additionalSection = commandPick.label;
-						}
+						// Keep section as 'similar commands' since all additional picks are in this category
 						additionalIndexInSection = 0;
 					} else {
 						commandPicks.push(this.toCommandPick(commandPick, runOptions, {
