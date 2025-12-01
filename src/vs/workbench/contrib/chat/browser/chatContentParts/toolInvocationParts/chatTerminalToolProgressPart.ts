@@ -835,11 +835,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 			}
 		}
 
-		const hadLiveMirror = !!this._mirror;
 		this._disposeLiveMirror();
 
 		if (snapshot) {
-			await this._renderSnapshotOutput(snapshot, hadLiveMirror);
+			await this._renderSnapshotOutput(snapshot);
 			return;
 		}
 
@@ -859,11 +858,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 				return false;
 			}
 			this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm!, command));
+			await this._mirror.attach(this._terminalContainer);
 		}
-		if (!this._mirror) {
-			return false;
-		}
-		await this._mirror.attach(this._terminalContainer);
 		const result = await this._mirror.renderCommand();
 		if (!result) {
 			this._showEmptyMessage(localize('chat.terminalOutputPending', 'Command output will appear here once available.'));
@@ -879,17 +875,13 @@ class ChatTerminalToolOutputSection extends Disposable {
 		return true;
 	}
 
-	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>, hadLiveMirror: boolean): Promise<void> {
+	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
 		if (!this._snapshotMirror) {
 			dom.clearNode(this._terminalContainer);
 			this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
-		} else {
-			if (hadLiveMirror) {
-				dom.clearNode(this._terminalContainer);
-			}
-			this._snapshotMirror.setOutput(snapshot);
+			await this._snapshotMirror.attach(this._terminalContainer);
 		}
-		await this._snapshotMirror.attach(this._terminalContainer);
+		this._snapshotMirror.setOutput(snapshot);
 		const result = await this._snapshotMirror.render();
 		const hasText = !!snapshot.text && snapshot.text.length > 0;
 		if (hasText) {
@@ -1006,7 +998,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 class DetachedTerminalSnapshotMirror extends Disposable {
 	private _detachedTerminal: Promise<IDetachedTerminalInstance> | undefined;
 	private _output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined;
+	private _attachedContainer: HTMLElement | undefined;
 	private _container: HTMLElement | undefined;
+	private _dirty = true;
+	private _lastRenderedLineCount: number | undefined;
 
 	constructor(
 		output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
@@ -1019,12 +1014,16 @@ class DetachedTerminalSnapshotMirror extends Disposable {
 
 	public setOutput(output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined): void {
 		this._output = output;
+		this._dirty = true;
 	}
 
 	public async attach(container: HTMLElement): Promise<void> {
 		const terminal = await this._getTerminal();
 		container.classList.add('chat-terminal-output-terminal');
-		terminal.attachToElement(container);
+		if (this._attachedContainer !== container || container.firstChild === null) {
+			terminal.attachToElement(container);
+			this._attachedContainer = container;
+		}
 		this._container = container;
 		this._applyTheme(container);
 	}
@@ -1033,6 +1032,9 @@ class DetachedTerminalSnapshotMirror extends Disposable {
 		const output = this._output;
 		if (!output) {
 			return undefined;
+		}
+		if (!this._dirty) {
+			return { lineCount: this._lastRenderedLineCount ?? output.lineCount };
 		}
 		const terminal = await this._getTerminal();
 		terminal.xterm.clearBuffer();
@@ -1044,9 +1046,13 @@ class DetachedTerminalSnapshotMirror extends Disposable {
 		const text = output.text ?? '';
 		const lineCount = output.lineCount ?? this._estimateLineCount(text);
 		if (!text) {
+			this._dirty = false;
+			this._lastRenderedLineCount = lineCount;
 			return { lineCount: 0 };
 		}
 		await new Promise<void>(resolve => terminal.xterm.write(text, resolve));
+		this._dirty = false;
+		this._lastRenderedLineCount = lineCount;
 		return { lineCount };
 	}
 
