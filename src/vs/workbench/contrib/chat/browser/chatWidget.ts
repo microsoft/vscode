@@ -1386,13 +1386,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * then clears the widget.
 	 */
 	private async _handleDelegationExit(): Promise<void> {
-		if (!this.viewModel) {
+		const viewModel = this.viewModel;
+		if (!viewModel) {
 			return;
 		}
 
 		// Check if response is already complete without pending confirmations
 		const checkForComplete = () => {
-			const items = this.viewModel?.getItems() ?? [];
+			const items = viewModel.getItems();
 			const lastItem = items[items.length - 1];
 			if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
 				return true;
@@ -1407,7 +1408,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Wait for response to complete with a timeout
 		await new Promise<void>(resolve => {
-			const disposable = this.viewModel!.onDidChange(() => {
+			const disposable = viewModel.onDidChange(() => {
 				if (checkForComplete()) {
 					cleanup();
 					resolve();
