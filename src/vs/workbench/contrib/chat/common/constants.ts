@@ -28,6 +28,7 @@ export enum ChatConfiguration {
 	ChatViewWelcomeEnabled = 'chat.welcome.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
+	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
 }
 
 /**

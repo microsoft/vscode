@@ -791,6 +791,15 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.RestoreLastPanelSession]: { // TODO@bpasero review this setting later
+			type: 'boolean',
+			description: nls.localize('chat.restoreLastPanelSession', "Controls whether the last session is restored in panel after restart."),
+			default: true,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		'chat.extensionUnification.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.extensionUnification.enabled', "Enables the unification of GitHub Copilot extensions. When enabled, all GitHub Copilot functionality is served from the GitHub Copilot Chat extension. When disabled, the GitHub Copilot and GitHub Copilot Chat extensions operate independently."),
