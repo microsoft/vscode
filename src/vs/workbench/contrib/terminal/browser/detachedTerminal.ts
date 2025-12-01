@@ -10,6 +10,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ITerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { IMergedEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
 import { ITerminalBackend } from '../../../../platform/terminal/common/terminal.js';
@@ -22,7 +23,7 @@ import { ITerminalProcessInfo, ProcessState } from '../common/terminal.js';
 
 export class DetachedTerminal extends Disposable implements IDetachedTerminalInstance {
 	private readonly _widgets = this._register(new TerminalWidgetManager());
-	public readonly capabilities = new TerminalCapabilityStore();
+	public readonly capabilities: ITerminalCapabilityStore;
 	private readonly _contributions: Map<string, ITerminalContribution> = new Map();
 
 	public domElement?: HTMLElement;
@@ -37,6 +38,7 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
+		this.capabilities = this._register(new TerminalCapabilityStore());
 		this._register(_xterm);
 
 		// Initialize contributions
@@ -115,7 +117,7 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
  * properties are stubbed. Properties are mutable and can be updated by
  * the instantiator.
  */
-export class DetachedProcessInfo implements ITerminalProcessInfo {
+export class DetachedProcessInfo extends Disposable implements ITerminalProcessInfo {
 	processState = ProcessState.Running;
 	ptyProcessReady = Promise.resolve();
 	shellProcessId: number | undefined;
@@ -129,11 +131,13 @@ export class DetachedProcessInfo implements ITerminalProcessInfo {
 	hasWrittenData = false;
 	hasChildProcesses = false;
 	backend: ITerminalBackend | undefined;
-	capabilities = new TerminalCapabilityStore();
+	capabilities: ITerminalCapabilityStore;
 	shellIntegrationNonce = '';
 	extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
 
 	constructor(initialValues: Partial<ITerminalProcessInfo>) {
+		super();
 		Object.assign(this, initialValues);
+		this.capabilities = this._register(new TerminalCapabilityStore());
 	}
 }
