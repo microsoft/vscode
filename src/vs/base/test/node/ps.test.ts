@@ -3,44 +3,62 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual } from 'assert';
+import { deepStrictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+import { JS_FILENAME_PATTERN } from '../../node/ps.js';
 
-function findName(cmd: string, isOldVersion: boolean): string {
-	const TYPE = /--type=([a-zA-Z-]+)/;
-	// find "--type=xxxx"
-	let matches = TYPE.exec(cmd);
-	// find all xxxx.js
-	const JS = isOldVersion ? /[a-zA-Z-]+\.js/g : /[a-zA-Z-]+\.js\b/g;
-	let result = '';
-	do {
-		matches = JS.exec(cmd);
-		if (matches) {
-			result += matches + ' ';
-		}
-	} while (matches);
-
-	if (result) {
-		if (cmd.indexOf('node ') < 0 && cmd.indexOf('node.exe') < 0) {
-			return `electron-nodejs (${result})`;
-		}
-	}
-	return cmd;
-}
-
-const processCmd = `/Users/yaxiaoliu666/.trae/extensions/bradlc.vscode-tailwindcss-0.14.29-universal/dist/tailwindServer.js ... VSCODE_L10N_BUNDLE_LOCATION=file:///Users/yaxiaoliu666/work/code/lib/vscode/extensions/json-language-features/l10n/bundle.l10n.zh-cn.json ...`;
-
-suite('find all xxxx.js', () => {
-
-	test('test old error regexp', () => {
-
-		strictEqual(findName(processCmd, true), 'electron-nodejs (tailwindServer.js zh-cn.js )');
-	});
-
-	test('test correctly regexp', () => {
-
-		strictEqual(findName(processCmd, false), 'electron-nodejs (tailwindServer.js )');
-	});
+suite('Process Utils', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('JS file regex', () => {
+
+		function findJsFiles(cmd: string): string[] {
+			const matches: string[] = [];
+			let match;
+			while ((match = JS_FILENAME_PATTERN.exec(cmd)) !== null) {
+				matches.push(match[0]);
+			}
+			return matches;
+		}
+
+		test('should match simple .js files', () => {
+			deepStrictEqual(findJsFiles('node bootstrap.js'), ['bootstrap.js']);
+		});
+
+		test('should match multiple .js files', () => {
+			deepStrictEqual(findJsFiles('node server.js --require helper.js'), ['server.js', 'helper.js']);
+		});
+
+		test('should match .js files with hyphens', () => {
+			deepStrictEqual(findJsFiles('node my-script.js'), ['my-script.js']);
+		});
+
+		test('should not match .json files', () => {
+			deepStrictEqual(findJsFiles('cat package.json'), []);
+		});
+
+		test('should not match .js prefix in .json extension (regression test for \\b fix)', () => {
+			// Without the \b word boundary, the regex would incorrectly match "package.js" from "package.json"
+			deepStrictEqual(findJsFiles('node --config tsconfig.json'), []);
+			deepStrictEqual(findJsFiles('eslint.json'), []);
+		});
+
+		test('should not match .jsx files', () => {
+			deepStrictEqual(findJsFiles('node component.jsx'), []);
+		});
+
+		test('should match .js but not .json in same command', () => {
+			deepStrictEqual(findJsFiles('node app.js --config settings.json'), ['app.js']);
+		});
+
+		test('should not match partial matches inside other extensions', () => {
+			deepStrictEqual(findJsFiles('file.jsmith'), []);
+		});
+
+		test('should match .js at end of command', () => {
+			deepStrictEqual(findJsFiles('/path/to/script.js'), ['script.js']);
+		});
+	});
 });
+
