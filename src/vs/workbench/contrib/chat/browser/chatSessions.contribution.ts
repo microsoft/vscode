@@ -901,7 +901,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		return description || localize('chat.sessions.description.working', "Working...");
+		return description;
 	}
 
 	private extractFileNameFromLink(filePath: string): string {
