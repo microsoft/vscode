@@ -113,7 +113,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			lifecycleService.startupKind !== StartupKind.ReloadedWindow &&
 			this.configurationService.getValue<boolean>(ChatConfiguration.RestoreLastPanelSession) === false
 		) {
-			this.viewState.sessionId = undefined; // clear persisted session on fresh start/reload
+			this.viewState.sessionId = undefined; // clear persisted session on fresh start
 		}
 
 		// Location context key
