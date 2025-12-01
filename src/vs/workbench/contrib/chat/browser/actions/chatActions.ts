@@ -1863,7 +1863,7 @@ registerAction2(class ToggleChatViewWelcomeBannerAction extends Action2 {
 			title: localize2('chat.toggleEmptyChatViewWelcomeBanner.label', "Show Welcome"),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeBannerEnabled}`, true),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeEnabled}`, true),
 			menu: {
 				id: MenuId.ChatWelcomeContext,
 				group: '1_modify',
@@ -1875,7 +1875,7 @@ registerAction2(class ToggleChatViewWelcomeBannerAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const emptyChatViewWelcomeBannerEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeBannerEnabled);
-		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeBannerEnabled, !emptyChatViewWelcomeBannerEnabled);
+		const emptyChatViewWelcomeBannerEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeEnabled, !emptyChatViewWelcomeBannerEnabled);
 	}
 });
