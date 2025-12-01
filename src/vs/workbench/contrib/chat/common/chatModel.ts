@@ -669,6 +669,7 @@ export class Response extends AbstractResponse implements IDisposable {
 			const uri = notebookUri ?? progress.uri;
 			let found = false;
 			const groupKind = progress.kind === 'textEdit' && !notebookUri ? 'textEditGroup' : 'notebookEditGroup';
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const edits: any = groupKind === 'textEditGroup' ? progress.edits : progress.edits.map(edit => TextEdit.isTextEdit(edit) ? { uri: progress.uri, edit } : edit);
 			const isExternalEdit = progress.isExternalEdit;
 			for (let i = 0; !found && i < this._responseParts.length; i++) {
@@ -1392,7 +1393,7 @@ function normalizeOldFields(raw: ISerializableChatDataIn): void {
 		}
 	}
 
-	// eslint-disable-next-line local/code-no-any-casts
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
 	if ((raw.initialLocation as any) === 'editing-session') {
 		raw.initialLocation = ChatAgentLocation.Chat;
 	}
@@ -1811,7 +1812,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modelId: raw.modelId,
 				});
 				request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
-				// eslint-disable-next-line local/code-no-any-casts
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
 				if (raw.response || raw.result || (raw as any).responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						reviveSerializedAgent(raw.agent) : undefined;
@@ -2104,6 +2105,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			requests: this._requests.map((r): ISerializableChatRequestData => {
 				const message = {
 					...r.message,
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					parts: r.message.parts.map((p: any) => p && 'toJSON' in p ? (p.toJSON as Function)() : p)
 				};
 				const agent = r.response?.agent;
@@ -2123,7 +2125,7 @@ export class ChatModel extends Disposable implements IChatModel {
 							} else if (item.kind === 'confirmation') {
 								return { ...item, isLive: false };
 							} else {
-								// eslint-disable-next-line local/code-no-any-casts
+								// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 								return item as any; // TODO
 							}
 						})
