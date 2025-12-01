@@ -1856,11 +1856,11 @@ registerAction2(class ToggleEmptyChatViewRecentSessionsAction extends Action2 {
 	}
 });
 
-registerAction2(class ToggleChatViewWelcomeBannerAction extends Action2 {
+registerAction2(class ToggleChatViewWelcomeAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.toggleEmptyChatViewWelcomeBanner',
-			title: localize2('chat.toggleEmptyChatViewWelcomeBanner.label', "Show Welcome"),
+			id: 'workbench.action.chat.toggleEmptyChatViewWelcome',
+			title: localize2('chat.toggleEmptyChatViewWelcome.label', "Show Welcome"),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeEnabled}`, true),
@@ -1875,7 +1875,7 @@ registerAction2(class ToggleChatViewWelcomeBannerAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const emptyChatViewWelcomeBannerEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled);
-		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeEnabled, !emptyChatViewWelcomeBannerEnabled);
+		const emptyChatViewWelcomeEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeEnabled, !emptyChatViewWelcomeEnabled);
 	}
 });
