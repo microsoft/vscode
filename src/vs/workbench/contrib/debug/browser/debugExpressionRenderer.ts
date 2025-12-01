@@ -187,7 +187,7 @@ export class DebugExpressionRenderer {
 		}
 
 		if (supportsANSI) {
-			container.appendChild(handleANSIOutput(value, linkDetector, session ? session.root : undefined, hoverBehavior, options.highlights));
+			container.appendChild(handleANSIOutput(value, linkDetector, session ? session.root : undefined, options.highlights, hoverBehavior));
 		} else {
 			container.appendChild(linkDetector.linkify(value, hoverBehavior, false, session?.root, true, options.highlights));
 		}
@@ -202,7 +202,7 @@ export class DebugExpressionRenderer {
 				if (supportsANSI) {
 					// note: intentionally using `this.linkDetector` so we don't blindly linkify the
 					// entire contents and instead only link file paths that it contains.
-					hoverContentsPre.appendChild(handleANSIOutput(value, this.linkDetector, session ? session.root : undefined, hoverBehavior, options.highlights));
+					hoverContentsPre.appendChild(handleANSIOutput(value, this.linkDetector, session ? session.root : undefined, options.highlights, hoverBehavior));
 				} else {
 					hoverContentsPre.textContent = value;
 				}

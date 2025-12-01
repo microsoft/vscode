@@ -63,7 +63,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 				unprintedChars += 2 + ansiSequence.length;
 
 				// Flush buffer with previous styles.
-				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, currentPos - buffer.length - unprintedChars, highlights, hoverBehavior);
+				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length - unprintedChars, hoverBehavior);
 				buffer = '';
 
 				/*
@@ -108,7 +108,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 
 	// Flush remaining text buffer if not empty.
 	if (buffer) {
-		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, currentPos - buffer.length, highlights, hoverBehavior);
+		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length, hoverBehavior);
 	}
 
 	return root;
@@ -411,8 +411,8 @@ export function appendStylizedStringToContainer(
 	customTextColor: RGBA | string | undefined,
 	customBackgroundColor: RGBA | string | undefined,
 	customUnderlineColor: RGBA | string | undefined,
-	offset: number,
 	highlights: IHighlight[] | undefined,
+	offset: number,
 	hoverBehavior: DebugLinkHoverBehaviorTypeData,
 ): void {
 	if (!root || !stringContent) {
