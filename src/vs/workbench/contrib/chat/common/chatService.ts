@@ -891,6 +891,7 @@ export interface IChatSendRequestData extends IChatSendRequestResponseState {
 
 export interface IChatEditorLocationData {
 	type: ChatAgentLocation.EditorInline;
+	id: string;
 	document: URI;
 	selection: ISelection;
 	wholeRange: IRange;
