@@ -181,7 +181,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			return Codicon.error;
 		}
 
-		return session.icon;
+		return Codicon.pass;
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
@@ -244,7 +244,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			}
 
 			if (!timeLabel) {
-				timeLabel = fromNow(session.timing.endTime || session.timing.startTime, true);
+				timeLabel = fromNow(session.timing.endTime || session.timing.startTime);
 			}
 			return `${session.providerLabel} • ${timeLabel}`;
 		};
@@ -295,7 +295,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 export class AgentSessionsListDelegate implements IListVirtualDelegate<IAgentSession> {
 
-	static readonly ITEM_HEIGHT = 44;
+	static readonly ITEM_HEIGHT = 52;
 
 	getHeight(element: IAgentSession): number {
 		return AgentSessionsListDelegate.ITEM_HEIGHT;
@@ -319,15 +319,27 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 
 export interface IAgentSessionsFilter {
 
-	readonly onDidChange: Event<void>;
+	readonly onDidChange?: Event<void>;
 
-	exclude(session: IAgentSession): boolean;
+	/**
+	 * Optional limit on the number of sessions to show.
+	 */
+	readonly limitResults?: number;
+
+	/**
+	 * A callback to notify the filter about the number of
+	 * results after filtering.
+	 */
+	notifyResults?(count: number): void;
+
+	exclude?(session: IAgentSession): boolean;
 }
 
 export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsModel, IAgentSession> {
 
 	constructor(
-		private readonly filter: IAgentSessionsFilter | undefined
+		private readonly filter: IAgentSessionsFilter | undefined,
+		private readonly sorter: ITreeSorter<IAgentSession>,
 	) { }
 
 	hasChildren(element: IAgentSessionsModel | IAgentSession): boolean {
@@ -339,7 +351,19 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 			return [];
 		}
 
-		return element.sessions.filter(session => !this.filter?.exclude(session));
+		// Apply filter if configured
+		let filteredSessions = element.sessions.filter(session => !this.filter?.exclude?.(session));
+
+		// Apply limiter if configured (requires sorting)
+		if (this.filter?.limitResults !== undefined) {
+			filteredSessions.sort(this.sorter.compare.bind(this.sorter));
+			filteredSessions = filteredSessions.slice(0, this.filter.limitResults);
+		}
+
+		// Callback results count
+		this.filter?.notifyResults?.(filteredSessions.length);
+
+		return filteredSessions;
 	}
 }
 

@@ -27,7 +27,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { IChatAgentService } from '../../common/chatAgents.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../actions/chatExecuteActions.js';
 
@@ -43,22 +43,24 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatModeService chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService commandService: ICommandService,
 		@IProductService productService: IProductService
 	) {
-		// Category definitions (use empty labels if you want no visible group headers)
+		// Category definitions
 		const builtInCategory = { label: localize('built-in', "Built-In"), order: 0 };
 		const customCategory = { label: localize('custom', "Custom"), order: 1 };
-		const policyDisabledCategory = { label: localize('managedByOrganization', "Managed by your organization"), order: 999 };
+		const policyDisabledCategory = { label: localize('managedByOrganization', "Managed by your organization"), order: 999, showHeader: true };
+
+		const agentModeDisabledViaPolicy = configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled).policyValue === false;
 
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
-			const agentModeDisabledViaPolicy =
+			const isDisabledViaPolicy =
 				mode.kind === ChatModeKind.Agent &&
-				this.configurationService.inspect<boolean>(ChatConfiguration.AgentEnabled).policyValue === false;
+				agentModeDisabledViaPolicy;
 
 			const tooltip = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip;
 
@@ -66,13 +68,13 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 				...action,
 				id: getOpenChatActionIdForMode(mode),
 				label: mode.label.get(),
-				icon: agentModeDisabledViaPolicy ? ThemeIcon.fromId(Codicon.lock.id) : undefined,
-				class: agentModeDisabledViaPolicy ? 'disabled-by-policy' : undefined,
-				enabled: !agentModeDisabledViaPolicy,
-				checked: !agentModeDisabledViaPolicy && currentMode.id === mode.id,
+				icon: isDisabledViaPolicy ? ThemeIcon.fromId(Codicon.lock.id) : undefined,
+				class: isDisabledViaPolicy ? 'disabled-by-policy' : undefined,
+				enabled: !isDisabledViaPolicy,
+				checked: !isDisabledViaPolicy && currentMode.id === mode.id,
 				tooltip,
 				run: async () => {
-					if (agentModeDisabledViaPolicy) {
+					if (isDisabledViaPolicy) {
 						return; // Block interaction if disabled by policy
 					}
 					const result = await commandService.executeCommand(
@@ -82,15 +84,17 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 					this.renderLabel(this.element!);
 					return result;
 				},
-				category: agentModeDisabledViaPolicy ? policyDisabledCategory : builtInCategory
+				category: isDisabledViaPolicy ? policyDisabledCategory : builtInCategory
 			};
 		};
 
-		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
-			...makeAction(mode, currentMode),
-			tooltip: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
-			category: customCategory
-		});
+		const makeActionFromCustomMode = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => {
+			return {
+				...makeAction(mode, currentMode),
+				tooltip: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
+				category: agentModeDisabledViaPolicy ? policyDisabledCategory : customCategory
+			};
+		};
 
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
@@ -100,12 +104,12 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 				const otherBuiltinModes = modes.builtin.filter(mode => mode.id !== ChatMode.Agent.id);
 				const customModes = groupBy(
 					modes.custom,
-					mode => mode.source?.storage === PromptsStorage.extension && mode.source.extensionId.value === productService.defaultChatAgent?.chatExtensionId ?
+					mode => mode.source?.storage === PromptsStorage.extension && mode.source.extensionId.value === productService.defaultChatAgent?.chatExtensionId && mode.source.type === ExtensionAgentSourceType.contribution ?
 						'builtin' : 'custom');
 
 				const customBuiltinModeActions = customModes.builtin?.map(mode => {
 					const action = makeActionFromCustomMode(mode, currentMode);
-					action.category = builtInCategory;
+					action.category = agentModeDisabledViaPolicy ? policyDisabledCategory : builtInCategory;
 					return action;
 				}) ?? [];
 

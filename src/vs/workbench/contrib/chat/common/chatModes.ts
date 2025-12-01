@@ -20,7 +20,7 @@ import { IChatAgentService } from './chatAgents.js';
 import { ChatContextKeys } from './chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/promptFileParser.js';
-import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
 export interface IChatModeService {
@@ -99,7 +99,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		}
 	}
 
-	private deserializeCachedModes(cachedCustomModes: any): void {
+	private deserializeCachedModes(cachedCustomModes: unknown): void {
 		if (!Array.isArray(cachedCustomModes)) {
 			this.logService.error('Invalid cached custom modes data: expected array');
 			return;
@@ -214,8 +214,8 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	}
 
 	private getCustomModes(): IChatMode[] {
-		// Show custom modes only when agent mode is enabled
-		return this.chatAgentService.hasToolsAgent ? Array.from(this._customModeInstances.values()) : [];
+		// Show custom modes when agent mode is enabled OR when disabled by policy (to show them in the policy-managed group)
+		return this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy() ? Array.from(this._customModeInstances.values()) : [];
 	}
 
 	private updateAgentModePolicyContextKey(): void {
@@ -419,7 +419,7 @@ export class CustomChatMode implements IChatMode {
 }
 
 type IChatModeSourceData =
-	| { readonly storage: PromptsStorage.extension; readonly extensionId: string }
+	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: ExtensionAgentSourceType }
 	| { readonly storage: PromptsStorage.local | PromptsStorage.user };
 
 function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
@@ -438,7 +438,7 @@ function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSou
 		return undefined;
 	}
 	if (source.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value };
+		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value, type: source.type };
 	}
 	return { storage: source.storage };
 }
@@ -448,7 +448,7 @@ function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSour
 		return undefined;
 	}
 	if (data.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId) };
+		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId), type: data.type ?? ExtensionAgentSourceType.contribution };
 	}
 	return { storage: data.storage };
 }

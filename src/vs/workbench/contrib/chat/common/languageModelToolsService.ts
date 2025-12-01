@@ -126,6 +126,7 @@ export namespace ToolDataSource {
 export interface IToolInvocation {
 	callId: string;
 	toolId: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: Record<string, any>;
 	tokenBudget?: number;
 	context: IToolInvocationContext | undefined;
@@ -146,11 +147,13 @@ export interface IToolInvocationContext {
 	readonly sessionResource: URI;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isToolInvocationContext(obj: any): obj is IToolInvocationContext {
 	return typeof obj === 'object' && typeof obj.sessionId === 'string' && URI.isUri(obj.sessionResource);
 }
 
 export interface IToolInvocationPreparationContext {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: any;
 	chatRequestId?: string;
 	chatSessionId?: string;
@@ -187,10 +190,12 @@ export interface IToolResultOutputDetails {
 	readonly output: { type: 'data'; mimeType: string; value: VSBuffer };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isToolResultInputOutputDetails(obj: any): obj is IToolResultInputOutputDetails {
 	return typeof obj === 'object' && typeof obj?.input === 'string' && (typeof obj?.output === 'string' || Array.isArray(obj?.output));
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isToolResultOutputDetails(obj: any): obj is IToolResultOutputDetails {
 	return typeof obj === 'object' && typeof obj?.output === 'object' && typeof obj?.output?.mimeType === 'string' && obj?.output?.type === 'data';
 }
@@ -262,6 +267,7 @@ export interface IToolConfirmationAction {
 	label: string;
 	disabled?: boolean;
 	tooltip?: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	data: any;
 }
 
