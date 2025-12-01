@@ -592,10 +592,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 class ChatSetupExtensionUrlHandler implements IExtensionUrlHandlerOverride {
 	constructor(
-		private readonly productService: IProductService,
-		private readonly commandService: ICommandService,
-		private readonly telemetryService: ITelemetryService,
-		private readonly chatModeService: IChatModeService,
+		@IProductService private readonly productService: IProductService,
+		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 	) { }
 
 	canHandleURL(url: URI): boolean {

@@ -20,6 +20,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { ModifiedFileEntryState } from './chatEditingService.js';
 import { ChatModel, IChatModelInputState, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
 import { ChatAgentLocation } from './constants.js';
 
@@ -383,12 +384,12 @@ export class ChatSessionStore extends Disposable {
 	}
 }
 
-interface IChatSessionEntryMetadata {
+export interface IChatSessionEntryMetadata {
 	sessionId: string;
 	title: string;
 	lastMessageDate: number;
-	isImported?: boolean;
 	initialLocation?: ChatAgentLocation;
+	hasPendingEdits?: boolean;
 
 	/**
 	 * This only exists because the migrated data from the storage service had empty sessions persisted, and it's impossible to know which ones are
@@ -447,8 +448,8 @@ function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSe
 		sessionId: session.sessionId,
 		title: title || localize('newChat', "New Chat"),
 		lastMessageDate: session.lastMessageDate,
-		isImported: session.isImported,
 		initialLocation: session.initialLocation,
+		hasPendingEdits: session instanceof ChatModel ? (session.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)) : false,
 		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0
 	};
 }

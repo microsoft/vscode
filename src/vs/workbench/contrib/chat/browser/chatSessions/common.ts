@@ -68,7 +68,7 @@ export function extractTimestamp(item: IChatSessionItem): number | undefined {
 
 	// For other items, timestamp might already be set
 	if ('timestamp' in item) {
-		// eslint-disable-next-line local/code-no-any-casts
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		return (item as any).timestamp;
 	}
 
@@ -109,7 +109,9 @@ export function getSessionItemContextOverlay(
 	provider?: IChatSessionItemProvider,
 	chatService?: IChatService,
 	editorGroupsService?: IEditorGroupsService
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): [string, any][] {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const overlay: [string, any][] = [];
 	if (provider) {
 		overlay.push([ChatContextKeys.sessionType.key, provider.chatSessionType]);
