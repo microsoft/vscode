@@ -7,7 +7,7 @@ import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -172,6 +172,7 @@ suite('ChatService', () => {
 			override startOrContinueGlobalEditingSession(): IChatEditingSession {
 				return {
 					requestDisablement: observableValue('requestDisablement', []),
+					entries: constObservable([]),
 					dispose: () => { }
 				} as unknown as IChatEditingSession;
 			}

@@ -344,7 +344,7 @@ class ToggleChatModeAction extends Action2 {
 			return;
 		}
 
-		const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, widget.input.currentModeKind, switchToMode.kind, requestCount, widget.viewModel?.model.editingSession);
+		const chatModeCheck = await instaService.invokeFunction(handleModeSwitch, widget.input.currentModeKind, switchToMode.kind, requestCount, widget.viewModel?.model);
 		if (!chatModeCheck) {
 			return;
 		}
@@ -700,9 +700,8 @@ class SendToNewChatAction extends Action2 {
 			chatService.cancelCurrentRequestForSession(widget.viewModel.sessionResource);
 		}
 
-		const editingSession = widget.viewModel?.model.editingSession;
-		if (editingSession) {
-			if (!(await handleCurrentEditingSession(editingSession, undefined, dialogService))) {
+		if (widget.viewModel?.model) {
+			if (!(await handleCurrentEditingSession(widget.viewModel.model, undefined, dialogService))) {
 				return;
 			}
 		}
