@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
 import { DetachedProcessInfo } from './detachedTerminal.js';
@@ -51,13 +52,54 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			return { lineCount: 0 };
 		}
 		const detached = await this._detachedTerminal;
-		detached.xterm.write(vt.text);
+		await new Promise<void>(resolve => {
+			detached.xterm.write(vt.text, () => {
+				resolve();
+			});
+		});
 		return { lineCount: vt.lineCount };
 	}
 
 	private async _getCommandOutputAsVT(): Promise<{ text: string; lineCount: number } | undefined> {
 		const executedMarker = this._command.executedMarker;
 		const endMarker = this._command.endMarker;
+		// If there's no executedMarker, but there's an endMarker, the command marker was disposed
+		// in scrollback. Still provide output in that case.
+
+		if (executedMarker?.isDisposed && endMarker && !endMarker.isDisposed) {
+			// Fall back to the earliest retained buffer line when the execution marker has been trimmed.
+			const raw = this._xtermTerminal.raw;
+			const buffer = raw.buffer.active;
+			const offsets = [
+				-(buffer.baseY + buffer.cursorY),
+				-buffer.baseY,
+				0
+			];
+			let startMarker: IXtermMarker | undefined;
+			for (const offset of offsets) {
+				startMarker = raw.registerMarker(offset);
+				if (startMarker) {
+					break;
+				}
+			}
+			if (!startMarker || startMarker.isDisposed) {
+				return { text: '', lineCount: 0 };
+			}
+			const startLine = startMarker.line;
+			let text: string | undefined;
+			try {
+				text = await this._xtermTerminal.getRangeAsVT(startMarker, endMarker, true);
+			} finally {
+				startMarker.dispose();
+			}
+			if (!text) {
+				return { text: '', lineCount: 0 };
+			}
+			const endLine = endMarker.line - 1;
+			const lineCount = Math.max(endLine - startLine + 1, 0);
+			return { text, lineCount };
+		}
+
 		if (!executedMarker || executedMarker.isDisposed || !endMarker || endMarker.isDisposed) {
 			return undefined;
 		}

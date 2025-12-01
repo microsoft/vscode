@@ -42,6 +42,7 @@ export enum ChatErrorLevel {
 }
 
 export interface IChatResponseErrorDetailsConfirmationButton {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	data: any;
 	label: string;
 	isSecondary?: boolean;
@@ -194,6 +195,7 @@ export interface IChatUndoStop {
 
 export interface IChatExternalEditsDto {
 	kind: 'externalEdits';
+	undoStopId: string;
 	start: boolean; /** true=start, false=stop */
 	resources: UriComponents[];
 }
@@ -228,6 +230,7 @@ export interface IChatResponseCodeblockUriPart {
 	kind: 'codeblockUri';
 	uri: URI;
 	isEdit?: boolean;
+	undoStopId?: string;
 }
 
 export interface IChatAgentMarkdownContentWithVulnerability {
@@ -271,6 +274,7 @@ export interface IChatNotebookEdit {
 export interface IChatConfirmation {
 	title: string;
 	message: string | IMarkdownString;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	data: any;
 	/** Indicates whether this came from a current chat session (true/undefined) or a restored historic session (false) */
 	isLive?: boolean;
@@ -317,7 +321,9 @@ export interface IChatThinkingPart {
 	kind: 'thinking';
 	value?: string | string[];
 	id?: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
+	generatedTitle?: string;
 }
 
 export interface IChatTerminalToolInvocationData {
@@ -366,6 +372,7 @@ export interface ILegacyChatTerminalToolInvocationData {
 
 export interface IChatToolInputInvocationData {
 	kind: 'input';
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rawInput: any;
 }
 
@@ -850,6 +857,7 @@ export interface IChatDynamicRequest {
 	/**
 	 * Any extra metadata/context that will go to the provider.
 	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: any;
 }
 
@@ -888,6 +896,7 @@ export interface IChatSendRequestData extends IChatSendRequestResponseState {
 
 export interface IChatEditorLocationData {
 	type: ChatAgentLocation.EditorInline;
+	id: string;
 	document: URI;
 	selection: ISelection;
 	wholeRange: IRange;
@@ -916,7 +925,9 @@ export interface IChatSendRequestOptions {
 	parserContext?: IChatParserContext;
 	attempt?: number;
 	noCommandDetection?: boolean;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	acceptedConfirmationData?: any[];
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rejectedConfirmationData?: any[];
 	attachedContext?: IChatRequestVariableEntry[];
 
@@ -943,9 +954,14 @@ export interface IChatService {
 
 	readonly onDidSubmitRequest: Event<{ readonly chatSessionResource: URI }>;
 
+	/**
+	 * An observable containing all live chat models.
+	 */
+	readonly chatModels: IObservable<Iterable<IChatModel>>;
+
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken, options?: { canUseTools?: boolean }): IChatModelReference;
+	startSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference;
 
 	/**
 	 * Get an active session without holding a reference to it.
@@ -979,7 +995,6 @@ export interface IChatService {
 	adoptRequest(sessionResource: URI, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionResource: URI, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionResource: URI): void;
-	forceClearSession(sessionResource: URI): Promise<void>;
 	addCompleteRequest(sessionResource: URI, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): void;
 	setChatSessionTitle(sessionResource: URI, title: string): void;
 	getLocalSessionHistory(): Promise<IChatDetail[]>;
@@ -1015,3 +1030,8 @@ export interface IChatSessionContext {
 }
 
 export const KEYWORD_ACTIVIATION_SETTING_ID = 'accessibility.voice.keywordActivation';
+
+export interface IChatSessionStartOptions {
+	canUseTools?: boolean;
+	disableBackgroundKeepAlive?: boolean;
+}

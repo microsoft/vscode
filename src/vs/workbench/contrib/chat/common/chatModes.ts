@@ -20,7 +20,7 @@ import { IChatAgentService } from './chatAgents.js';
 import { ChatContextKeys } from './chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/promptFileParser.js';
-import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
 export interface IChatModeService {
@@ -99,7 +99,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		}
 	}
 
-	private deserializeCachedModes(cachedCustomModes: any): void {
+	private deserializeCachedModes(cachedCustomModes: unknown): void {
 		if (!Array.isArray(cachedCustomModes)) {
 			this.logService.error('Invalid cached custom modes data: expected array');
 			return;
@@ -119,6 +119,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						agentInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 						handOffs: cachedMode.handOffs,
 						target: cachedMode.target,
+						infer: cachedMode.infer,
 						source: reviveChatModeSource(cachedMode.source) ?? { storage: PromptsStorage.local }
 					};
 					const instance = new CustomChatMode(customChatMode);
@@ -213,8 +214,8 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	}
 
 	private getCustomModes(): IChatMode[] {
-		// Show custom modes only when agent mode is enabled
-		return this.chatAgentService.hasToolsAgent ? Array.from(this._customModeInstances.values()) : [];
+		// Show custom modes when agent mode is enabled OR when disabled by policy (to show them in the policy-managed group)
+		return this.chatAgentService.hasToolsAgent || this.isAgentModeDisabledByPolicy() ? Array.from(this._customModeInstances.values()) : [];
 	}
 
 	private updateAgentModePolicyContextKey(): void {
@@ -240,6 +241,7 @@ export interface IChatModeData {
 	readonly uri?: URI;
 	readonly source?: IChatModeSourceData;
 	readonly target?: string;
+	readonly infer?: boolean;
 }
 
 export interface IChatMode {
@@ -257,6 +259,7 @@ export interface IChatMode {
 	readonly uri?: IObservable<URI>;
 	readonly source?: IAgentSource;
 	readonly target?: IObservable<string | undefined>;
+	readonly infer?: IObservable<boolean | undefined>;
 }
 
 export interface IVariableReference {
@@ -287,7 +290,8 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		(mode.handOffs === undefined || Array.isArray(mode.handOffs)) &&
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null)) &&
 		(mode.source === undefined || isChatModeSourceData(mode.source)) &&
-		(mode.target === undefined || typeof mode.target === 'string');
+		(mode.target === undefined || typeof mode.target === 'string') &&
+		(mode.infer === undefined || typeof mode.infer === 'boolean');
 }
 
 export class CustomChatMode implements IChatMode {
@@ -300,6 +304,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _argumentHintObservable: ISettableObservable<string | undefined>;
 	private readonly _handoffsObservable: ISettableObservable<readonly IHandOff[] | undefined>;
 	private readonly _targetObservable: ISettableObservable<string | undefined>;
+	private readonly _inferObservable: ISettableObservable<boolean | undefined>;
 	private _source: IAgentSource;
 
 	public readonly id: string;
@@ -352,6 +357,10 @@ export class CustomChatMode implements IChatMode {
 		return this._targetObservable;
 	}
 
+	get infer(): IObservable<boolean | undefined> {
+		return this._inferObservable;
+	}
+
 	public readonly kind = ChatModeKind.Agent;
 
 	constructor(
@@ -365,6 +374,7 @@ export class CustomChatMode implements IChatMode {
 		this._argumentHintObservable = observableValue('argumentHint', customChatMode.argumentHint);
 		this._handoffsObservable = observableValue('handOffs', customChatMode.handOffs);
 		this._targetObservable = observableValue('target', customChatMode.target);
+		this._inferObservable = observableValue('infer', customChatMode.infer);
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.agentInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 		this._source = customChatMode.source;
@@ -382,6 +392,7 @@ export class CustomChatMode implements IChatMode {
 			this._argumentHintObservable.set(newData.argumentHint, tx);
 			this._handoffsObservable.set(newData.handOffs, tx);
 			this._targetObservable.set(newData.target, tx);
+			this._inferObservable.set(newData.infer, tx);
 			this._modeInstructions.set(newData.agentInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
 			this._source = newData.source;
@@ -401,13 +412,14 @@ export class CustomChatMode implements IChatMode {
 			uri: this.uri.get(),
 			handOffs: this.handOffs.get(),
 			source: serializeChatModeSource(this._source),
-			target: this.target.get()
+			target: this.target.get(),
+			infer: this.infer.get()
 		};
 	}
 }
 
 type IChatModeSourceData =
-	| { readonly storage: PromptsStorage.extension; readonly extensionId: string }
+	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: ExtensionAgentSourceType }
 	| { readonly storage: PromptsStorage.local | PromptsStorage.user };
 
 function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
@@ -426,7 +438,7 @@ function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSou
 		return undefined;
 	}
 	if (source.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value };
+		return { storage: PromptsStorage.extension, extensionId: source.extensionId.value, type: source.type };
 	}
 	return { storage: source.storage };
 }
@@ -436,7 +448,7 @@ function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSour
 		return undefined;
 	}
 	if (data.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId) };
+		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId), type: data.type ?? ExtensionAgentSourceType.contribution };
 	}
 	return { storage: data.storage };
 }

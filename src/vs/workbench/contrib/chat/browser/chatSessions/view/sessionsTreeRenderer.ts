@@ -45,7 +45,6 @@ import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSes
 import { LocalChatSessionUri } from '../../../common/chatUri.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IMarshalledChatSessionContext } from '../../actions/chatSessionActions.js';
-import { IChatWidgetService } from '../../chat.js';
 import { allowedChatMarkdownHtmlTags } from '../../chatContentMarkdownRenderer.js';
 import '../../media/chatSessions.css';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
@@ -87,6 +86,7 @@ export interface IGettingStartedItem {
 	label: string;
 	commandId: string;
 	icon?: ThemeIcon;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	args?: any[];
 }
 
@@ -141,7 +141,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -360,7 +359,6 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 		const contextOverlay = getSessionItemContextOverlay(
 			session,
 			session.provider,
-			this.chatWidgetService,
 			this.chatService,
 			this.editorGroupsService
 		);
@@ -573,7 +571,7 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 				this.archivedItems.clear();
 				let ungroupedItems = items.map(item => {
 					const itemWithProvider = { ...item, provider: this.provider, timing: { startTime: extractTimestamp(item) ?? 0 } };
-					if (itemWithProvider.archived) {
+					if (itemWithProvider.history) {
 						this.archivedItems.pushItem(itemWithProvider);
 						return;
 					}

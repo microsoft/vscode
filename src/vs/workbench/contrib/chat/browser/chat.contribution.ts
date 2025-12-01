@@ -111,10 +111,10 @@ import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
 import { ChatTerminalOutputAccessibleView } from './chatTerminalOutputAccessibleView.js';
-import { LocalChatSessionsProvider } from './chatSessions/localChatSessionsProvider.js';
+import { LocalAgentsSessionsProvider } from './agentSessions/localAgentSessionsProvider.js';
 import { ChatSessionsView, ChatSessionsViewContrib } from './chatSessions/view/chatSessionsView.js';
-import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js';
-import { ChatStatusBarEntry } from './chatStatus.js';
+import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
+import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
 import { ChatVariablesService } from './chatVariables.js';
 import { ChatWidget } from './chatWidget.js';
 import { ChatCodeBlockContextProviderService } from './codeBlockContextProviderService.js';
@@ -132,6 +132,7 @@ import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { ChatWidgetService } from './chatWidgetService.js';
+import { AgentSessionsService, IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -357,11 +358,19 @@ configurationRegistry.registerConfiguration({
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
 		},
-		[ChatConfiguration.EmptyStateHistoryEnabled]: {
+		[ChatConfiguration.ChatViewRecentSessionsEnabled]: { // TODO@bpasero decide on a default
 			type: 'boolean',
-			default: product.quality === 'insiders',
-			description: nls.localize('chat.emptyState.history.enabled', "Show recent chat history on the empty chat state."),
-			tags: ['preview']
+			default: product.quality !== 'stable',
+			description: nls.localize('chat.sessions.enabled', "Show recent chat agent sessions when chat is empty."),
+			tags: ['preview', 'experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
+		[ChatConfiguration.ChatViewWelcomeEnabled]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.welcome.enabled', "Show welcome banner when chat is empty."),
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
@@ -528,7 +537,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
-			enum: ['disabled', 'view', 'single-view'],
+			enum: ['disabled', 'view', 'single-view'], // TODO@bpasero remove this setting eventually
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
 			default: product.quality === 'stable' ? 'view' : 'single-view',
 			tags: ['experimental'],
@@ -752,14 +761,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.agent.thinking.collapsedTools': {
 			type: 'string',
-			default: 'readOnly',
-			enum: ['none', 'all', 'readOnly'],
+			default: product.quality !== 'stable' ? 'always' : 'withThinking',
+			enum: ['off', 'withThinking', 'always'],
 			enumDescriptions: [
-				nls.localize('chat.agent.thinking.collapsedTools.none', "No tool calls are added into the collapsible thinking section."),
-				nls.localize('chat.agent.thinking.collapsedTools.all', "All tool calls are added into the collapsible thinking section."),
-				nls.localize('chat.agent.thinking.collapsedTools.readOnly', "Only read-only tool calls are added into the collapsible thinking section."),
+				nls.localize('chat.agent.thinking.collapsedTools.off', "Tool calls are shown separately, not collapsed into thinking."),
+				nls.localize('chat.agent.thinking.collapsedTools.withThinking', "Tool calls are collapsed into thinking sections when thinking is present."),
+				nls.localize('chat.agent.thinking.collapsedTools.always', "Tool calls are always collapsed, even without thinking."),
 			],
-			markdownDescription: nls.localize('chat.agent.thinking.collapsedTools', "When enabled, tool calls are added into the collapsible thinking section according to the selected mode."),
+			markdownDescription: nls.localize('chat.agent.thinking.collapsedTools', "Controls how tool calls are displayed in relation to thinking sections."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {
@@ -782,16 +791,10 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		'chat.hideNewButtonInAgentSessionsView': { // TODO@bpasero remove me eventually
+		[ChatConfiguration.RestoreLastPanelSession]: { // TODO@bpasero review this setting later
 			type: 'boolean',
-			description: nls.localize('chat.hideNewButtonInAgentSessionsView', "Controls whether the new session button is hidden in the Agent Sessions view."),
-			default: false,
-			tags: ['preview']
-		},
-		'chat.signInWithAlternateScopes': { // TODO@bpasero remove me eventually
-			type: 'boolean',
-			description: nls.localize('chat.signInWithAlternateScopes', "Controls whether sign-in with alternate scopes is used."),
-			default: false,
+			description: nls.localize('chat.restoreLastPanelSession', "Controls whether the last session is restored in panel after restart."),
+			default: true,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -1144,7 +1147,7 @@ registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribu
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(LocalChatSessionsProvider.ID, LocalChatSessionsProvider, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(LocalAgentsSessionsProvider.ID, LocalAgentsSessionsProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatSessionsViewContrib.ID, ChatSessionsViewContrib, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
@@ -1201,6 +1204,7 @@ registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, I
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
+registerSingleton(IAgentSessionsService, AgentSessionsService, InstantiationType.Delayed);
 
 registerAction2(ConfigureToolSets);
 registerAction2(RenameChatSessionAction);

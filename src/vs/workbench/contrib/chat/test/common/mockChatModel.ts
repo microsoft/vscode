@@ -24,6 +24,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly inputPlaceholder = undefined;
 	readonly editingSession = undefined;
 	readonly checkpoint = undefined;
+	readonly willKeepAlive = true;
 	readonly inputModel: IInputModel = {
 		state: observableValue('inputModelState', undefined),
 		setState: () => { },
@@ -35,6 +36,9 @@ export class MockChatModel extends Disposable implements IChatModel {
 	constructor(readonly sessionResource: URI) {
 		super();
 	}
+
+	readonly hasRequests = false;
+	readonly lastRequest: IChatRequestModel | undefined;
 
 	override dispose() {
 		this.isDisposed = true;
@@ -57,7 +61,6 @@ export class MockChatModel extends Disposable implements IChatModel {
 			version: 3,
 			sessionId: this.sessionId,
 			creationDate: this.timestamp,
-			isImported: false,
 			lastMessageDate: this.timestamp,
 			customTitle: undefined,
 			initialLocation: this.initialLocation,

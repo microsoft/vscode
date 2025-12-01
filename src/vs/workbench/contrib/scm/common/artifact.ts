@@ -18,6 +18,7 @@ export interface ISCMArtifactGroup {
 	readonly id: string;
 	readonly name: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	readonly supportsFolders?: boolean;
 }
 
 export interface ISCMArtifact {

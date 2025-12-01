@@ -14,14 +14,12 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../browser/languageModelToolsService.js';
 import { ChatMode, CustomChatMode, IChatModeService } from '../../../common/chatModes.js';
-import { IChatService } from '../../../common/chatService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../../common/languageModelToolsService.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
 import { PromptHoverProvider } from '../../../common/promptSyntax/languageProviders/promptHovers.js';
 import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
-import { MockChatService } from '../../common/mockChatService.js';
 import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
@@ -43,9 +41,6 @@ suite('PromptHoverProvider', () => {
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
 			configurationService: () => testConfigService
 		}, disposables);
-
-		const chatService = new MockChatService();
-		instaService.stub(IChatService, chatService);
 
 		const toolService = disposables.add(instaService.createInstance(LanguageModelToolsService));
 
@@ -92,7 +87,8 @@ suite('PromptHoverProvider', () => {
 
 	async function getHover(content: string, line: number, column: number, promptType: PromptsType): Promise<string | undefined> {
 		const languageId = getLanguageIdForPromptsType(promptType);
-		const model = disposables.add(createTextModel(content, languageId, undefined, URI.parse('test://test' + getPromptFileExtension(promptType))));
+		const uri = URI.parse('test:///test' + getPromptFileExtension(promptType));
+		const model = disposables.add(createTextModel(content, languageId, undefined, uri));
 		const position = new Position(line, column);
 		const hover = await hoverProvider.provideHover(model, position, CancellationToken.None);
 		if (!hover || hover.contents.length === 0) {
@@ -276,6 +272,18 @@ suite('PromptHoverProvider', () => {
 			].join('\n');
 			const hover = await getHover(content, 2, 1, PromptsType.agent);
 			assert.strictEqual(hover, 'The name of the agent as shown in the UI.');
+		});
+
+		test('hover on infer attribute shows description', async () => {
+			const content = [
+				'---',
+				'name: "Test Agent"',
+				'description: "Test agent"',
+				'infer: true',
+				'---',
+			].join('\n');
+			const hover = await getHover(content, 4, 1, PromptsType.agent);
+			assert.strictEqual(hover, 'Whether the agent can be used as a subagent.');
 		});
 	});
 
