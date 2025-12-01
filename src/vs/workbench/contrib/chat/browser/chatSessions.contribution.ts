@@ -186,9 +186,9 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					}
 				},
 				canDelegate: {
-					description: localize('chatSessionsExtPoint.canDelegate', 'Whether delegation is supported. Defaults to true.'),
+					description: localize('chatSessionsExtPoint.canDelegate', 'Whether delegation is supported. Default is false. Note that enabling this is experimental and may not be respected at all times.'),
 					type: 'boolean',
-					default: true
+					default: false
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -561,7 +561,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					});
 					await editorService.openEditor({ resource, options });
 					if (chatOptions?.prompt) {
-						await chatService.sendRequest(resource, chatOptions.prompt, { attachedContext: chatOptions.attachedContext });
+						await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
 					}
 				} catch (e) {
 					logService.error(`Failed to open new '${type}' chat session editor`, e);
@@ -631,6 +631,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private _registerAgent(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): IDisposable {
 		const { type: id, name, displayName, description } = contribution;
+		const storedIcon = this._sessionTypeIcons.get(id);
+		const icons = ThemeIcon.isThemeIcon(storedIcon)
+			? { themeIcon: storedIcon, icon: undefined, iconDark: undefined }
+			: storedIcon
+				? { icon: storedIcon.light, iconDark: storedIcon.dark }
+				: { themeIcon: Codicon.sendToRemoteAgent };
+
 		const agentData: IChatAgentData = {
 			id,
 			name,
@@ -644,8 +651,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask],
 			disambiguation: [],
 			metadata: {
-				themeIcon: Codicon.sendToRemoteAgent,
-				isSticky: false,
+				...icons,
 			},
 			capabilities: contribution.capabilities,
 			canAccessPreviousChatHistory: true,
@@ -895,7 +901,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		return description || localize('chat.sessions.description.working', "Working...");
+		return description;
 	}
 
 	private extractFileNameFromLink(filePath: string): string {
@@ -914,6 +920,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 */
 	public async getNewChatSessionItem(chatSessionType: string, options: {
 		request: IChatAgentRequest;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem> {
 		if (!(await this.activateChatSessionItemProvider(chatSessionType))) {
@@ -961,7 +968,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		return session;
 	}
-
 
 	public hasAnySessionOptions(sessionResource: URI): boolean {
 		const session = this._sessions.get(sessionResource);

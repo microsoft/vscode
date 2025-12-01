@@ -3020,15 +3020,19 @@
       "git.tags": [
         {
           "command": "git.createTag",
-          "group": "tags@1"
+          "group": "1_tags@1"
         },
         {
           "command": "git.deleteTag",
-          "group": "tags@2"
+          "group": "1_tags@2"
         },
         {
           "command": "git.deleteRemoteTag",
-          "group": "tags@3"
+          "group": "1_tags@3"
+        },
+        {
+          "command": "git.pushTags",
+          "group": "2_tags@1"
         }
       ],
       "git.worktrees": [
