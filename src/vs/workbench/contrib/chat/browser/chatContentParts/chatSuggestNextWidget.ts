@@ -117,7 +117,7 @@ export class ChatSuggestNextWidget extends Disposable {
 
 		// Get chat session contributions to show in chevron dropdown
 		const contributions = this.chatSessionsService.getAllChatSessionContributions();
-		const availableContributions = contributions.filter(c => c.canDelegate !== false);
+		const availableContributions = contributions.filter(c => c.canDelegate);
 
 		if (showContinueOn && availableContributions.length > 0) {
 			const separator = dom.append(button, dom.$('.chat-suggest-next-separator'));

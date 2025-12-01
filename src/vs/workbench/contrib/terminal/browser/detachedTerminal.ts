@@ -6,7 +6,7 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { OperatingSystem } from '../../../../base/common/platform.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -25,6 +25,7 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 	private readonly _widgets = this._register(new TerminalWidgetManager());
 	public readonly capabilities: ITerminalCapabilityStore;
 	private readonly _contributions: Map<string, ITerminalContribution> = new Map();
+	private readonly _attachDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	public domElement?: HTMLElement;
 
@@ -97,6 +98,14 @@ export class DetachedTerminal extends Disposable implements IDetachedTerminalIns
 		this.domElement = container;
 		const screenElement = this._xterm.attachToElement(container, options);
 		this._widgets.attachToElement(screenElement);
+
+		const attachStore = new DisposableStore();
+		const scheduleFocus = () => {
+			// Defer so scrollable containers can handle focus first; ensures textarea focus sticks
+			setTimeout(() => this.focus(true), 0);
+		};
+		attachStore.add(dom.addDisposableListener(container, dom.EventType.MOUSE_DOWN, scheduleFocus));
+		this._attachDisposables.value = attachStore;
 	}
 
 	forceScrollbarVisibility(): void {

@@ -191,6 +191,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private readonly _actionBar: ActionBar;
 
+	private readonly _titleElement: HTMLElement;
 	private readonly _outputView: ChatTerminalToolOutputSection;
 	private readonly _terminalOutputContextKey: IContextKey<boolean>;
 	private _terminalSessionRegistration: IDisposable | undefined;
@@ -256,6 +257,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			]),
 			h('.chat-terminal-content-message@message')
 		]);
+		this._titleElement = elements.title;
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 		this._terminalOutputContextKey = ChatContextKeys.inChatTerminalToolOutput.bindTo(this._contextKeyService);
@@ -542,9 +544,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private async _toggleOutput(expanded: boolean): Promise<boolean> {
 		const didChange = await this._outputView.toggle(expanded);
-		this._showOutputAction.value?.syncPresentation(this._outputView.isExpanded);
+		const isExpanded = this._outputView.isExpanded;
+		this._titleElement.classList.toggle('chat-terminal-content-title-no-bottom-radius', isExpanded);
+		this._showOutputAction.value?.syncPresentation(isExpanded);
 		if (didChange) {
-			expandedStateByInvocation.set(this.toolInvocation, this._outputView.isExpanded);
+			expandedStateByInvocation.set(this.toolInvocation, isExpanded);
 		}
 		return didChange;
 	}
