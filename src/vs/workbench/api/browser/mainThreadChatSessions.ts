@@ -439,7 +439,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					resource: uri,
 					iconPath: session.iconPath,
 					tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined,
-					description: description || session.description || localize('chat.sessions.description.finished', "Finished")
+					description: description || session.description
 				};
 			});
 		} catch (error) {
