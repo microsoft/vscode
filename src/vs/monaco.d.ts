@@ -7719,8 +7719,10 @@ declare namespace monaco.languages {
 		availableProviders: string;
 		sku: string | undefined;
 		renameCreated: boolean;
-		renameDuration?: number;
+		renameDuration: number | undefined;
 		renameTimedOut: boolean;
+		renameDroppedOtherEdits: number | undefined;
+		renameDroppedRenameEdits: number | undefined;
 		editKind: string | undefined;
 		longDistanceHintVisible?: boolean;
 		longDistanceHintDistance?: number;

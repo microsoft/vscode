@@ -15,7 +15,7 @@ import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '..
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, openAgentSessionsView } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatService } from '../../common/chatService.js';
@@ -77,7 +77,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'agentSession.archive',
-			title: localize('archive', "Archive"),
+			title: localize2('archive', "Archive"),
 			icon: Codicon.archive,
 			menu: {
 				id: MenuId.AgentSessionItemToolbar,
@@ -96,7 +96,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'agentSession.unarchive',
-			title: localize('unarchive', "Unarchive"),
+			title: localize2('unarchive', "Unarchive"),
 			icon: Codicon.inbox,
 			menu: {
 				id: MenuId.AgentSessionItemToolbar,
@@ -253,10 +253,32 @@ registerAction2(class extends ViewAction<AgentSessionsView> {
 
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsTitle, {
 	submenu: MenuId.AgentSessionsFilterSubMenu,
-	title: localize('filterAgentSessions', "Filter Agent Sessions"),
+	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
 	group: 'navigation',
 	order: 100,
 	icon: Codicon.filter
 } satisfies ISubmenuItem);
+
+//#endregion
+
+//#region Recent Sessions in Chat View Actions
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSessions.showAll',
+			title: localize2('showAllSessions', "Show All Agent Sessions"),
+			icon: Codicon.history,
+			menu: {
+				id: MenuId.ChatRecentSessionsToolbar,
+				group: 'navigation',
+				order: 1,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		openAgentSessionsView(accessor);
+	}
+});
 
 //#endregion

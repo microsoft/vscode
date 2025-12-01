@@ -25,12 +25,11 @@ import { ISelection } from '../../../../editor/common/core/selection.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
 import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { migrateLegacyTerminalToolSpecificData } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from './chatAgents.js';
-import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatModelReference, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { LocalChatSessionUri } from './chatUri.js';
@@ -1169,6 +1168,8 @@ export interface IChatModel extends IDisposable {
 	readonly inputModel: IInputModel;
 	readonly hasRequests: boolean;
 	readonly lastRequest: IChatRequestModel | undefined;
+	/** Whether this model will be kept alive while it is running or has edits */
+	readonly willKeepAlive: boolean;
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
 
@@ -1239,7 +1240,6 @@ export interface IExportableChatData {
 export interface ISerializableChatData1 extends IExportableChatData {
 	sessionId: string;
 	creationDate: number;
-	isImported: boolean;
 
 	/** Indicates that this session was created in this window. Is cleared after the chat has been written to storage once. Needed to sync chat creations/deletions between empty windows. */
 	isNew?: boolean;
@@ -1254,6 +1254,11 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
 	version: 3;
 	customTitle: string | undefined;
+	/**
+	 * Whether the session had pending edits when it was stored.
+	 * todo@connor4312 This will be cleaned up with the globalization of edits.
+	 */
+	hasPendingEdits?: boolean;
 	/** Current draft input state (added later, fully backwards compatible) */
 	inputState?: ISerializableChatModelInputState;
 }
@@ -1400,8 +1405,9 @@ function getLastYearDate(): number {
 }
 
 export function isExportableSessionData(obj: unknown): obj is IExportableChatData {
-	const data = obj as IExportableChatData;
-	return typeof data === 'object';
+	return !!obj &&
+		Array.isArray((obj as IExportableChatData).requests) &&
+		typeof (obj as IExportableChatData).responderUsername === 'string';
 }
 
 export function isSerializableSessionData(obj: unknown): obj is ISerializableChatData {
@@ -1645,33 +1651,39 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._canUseTools;
 	}
 
+	private _disableBackgroundKeepAlive: boolean;
+	get willKeepAlive(): boolean {
+		return !this._disableBackgroundKeepAlive;
+	}
+
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
 		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
-		@IChatService chatService: IChatService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
-		const isValid = isSerializableSessionData(initialData);
-		if (initialData && !isValid) {
+		const isValidExportedData = isExportableSessionData(initialData);
+		const isValidFullData = isValidExportedData && isSerializableSessionData(initialData);
+		if (initialData && !isValidExportedData) {
 			this.logService.warn(`ChatModel#constructor: Loaded malformed session data: ${JSON.stringify(initialData)}`);
 		}
 
-		this._isImported = (!!initialData && !isValid) || (initialData?.isImported ?? false);
-		this._sessionId = (isValid && initialData.sessionId) || initialModelProps.sessionId || generateUuid();
+		this._isImported = !!initialData && isValidExportedData && !isValidFullData;
+		this._sessionId = (isValidFullData && initialData.sessionId) || initialModelProps.sessionId || generateUuid();
 		this._sessionResource = initialModelProps.resource ?? LocalChatSessionUri.forSession(this._sessionId);
+		this._disableBackgroundKeepAlive = initialModelProps.disableBackgroundKeepAlive ?? false;
 
 		this._requests = initialData ? this._deserialize(initialData) : [];
-		this._timestamp = (isValid && initialData.creationDate) || Date.now();
-		this._lastMessageDate = (isValid && initialData.lastMessageDate) || this._timestamp;
-		this._customTitle = isValid ? initialData.customTitle : undefined;
+		this._timestamp = (isValidFullData && initialData.creationDate) || Date.now();
+		this._lastMessageDate = (isValidFullData && initialData.lastMessageDate) || this._timestamp;
+		this._customTitle = isValidFullData ? initialData.customTitle : undefined;
 
 		// Initialize input model from serialized data (undefined for new chats)
-		const serializedInputState = isValid && initialData.inputState ? initialData.inputState : undefined;
+		const serializedInputState = isValidFullData && initialData.inputState ? initialData.inputState : undefined;
 		this.inputModel = new InputModel(serializedInputState && {
 			attachments: serializedInputState.attachments,
 			mode: serializedInputState.mode,
@@ -1738,6 +1750,20 @@ export class ChatModel extends Disposable implements IChatModel {
 					? this.chatEditingService.startOrContinueGlobalEditingSession(this)
 					: this.chatEditingService.createEditingSession(this)
 		);
+
+		if (!this._disableBackgroundKeepAlive) {
+			// todo@connor4312: hold onto a reference so background sessions don't
+			// trigger early disposal. This will be cleaned up with the globalization of edits.
+			const selfRef = this._register(new MutableDisposable<IChatModelReference>());
+			this._register(autorun(r => {
+				const hasModified = session.entries.read(r).some(e => e.state.read(r) === ModifiedFileEntryState.Modified);
+				if (hasModified && !selfRef.value) {
+					selfRef.value = this.chatService.getActiveSessionReference(this._sessionResource);
+				} else if (!hasModified && selfRef.value) {
+					selfRef.clear();
+				}
+			}));
+		}
 
 		this._register(autorun(reader => {
 			this._setDisabledRequests(session.requestDisablement.read(reader));
@@ -2121,9 +2147,9 @@ export class ChatModel extends Disposable implements IChatModel {
 			...this.toExport(),
 			sessionId: this.sessionId,
 			creationDate: this._timestamp,
-			isImported: this._isImported,
 			lastMessageDate: this._lastMessageDate,
 			customTitle: this._customTitle,
+			hasPendingEdits: !!(this._editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)),
 			// Only include inputState if it has been set
 			...(inputState ? {
 				inputState: {

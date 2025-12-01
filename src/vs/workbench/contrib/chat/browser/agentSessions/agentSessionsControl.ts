@@ -193,7 +193,6 @@ export class AgentSessionsControl extends Disposable {
 		sessionOptions.ignoreInView = true;
 
 		const options: IChatEditorOptions = {
-			preserveFocus: false,
 			...sessionOptions,
 			...e.editorOptions,
 		};

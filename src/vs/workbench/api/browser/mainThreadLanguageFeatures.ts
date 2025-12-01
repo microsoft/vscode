@@ -1451,6 +1451,8 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			renameCreated: lifetimeSummary.renameCreated,
 			renameDuration: lifetimeSummary.renameDuration,
 			renameTimedOut: lifetimeSummary.renameTimedOut,
+			renameDroppedOtherEdits: lifetimeSummary.renameDroppedOtherEdits,
+			renameDroppedRenameEdits: lifetimeSummary.renameDroppedRenameEdits,
 			editKind: lifetimeSummary.editKind,
 			longDistanceHintVisible: lifetimeSummary.longDistanceHintVisible,
 			longDistanceHintDistance: lifetimeSummary.longDistanceHintDistance,
