@@ -3,15 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import {
-	IBrowserViewService,
-	ipcBrowserViewChannelName
-} from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewService, ipcBrowserViewChannelName } from '../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { Event } from '../../../../base/common/event.js';
 
 export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
@@ -47,18 +43,4 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 
 		return model;
 	}
-
-	getBrowserViewModel(id: string): IBrowserViewModel | undefined {
-		return this._models.get(id);
-	}
-
-	async destroyBrowserViewModel(id: string): Promise<void> {
-		const model = this._models.get(id);
-		if (model) {
-			model.dispose(); // This will also destroy the underlying browser view
-			this._models.delete(id);
-		}
-	}
 }
-
-registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);

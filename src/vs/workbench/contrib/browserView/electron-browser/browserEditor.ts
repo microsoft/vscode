@@ -4,26 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/browser.css';
-import { localize, localize2 } from '../../../../nls.js';
+import { localize } from '../../../../nls.js';
 import { $, addDisposableListener, disposableWindowInterval, EventType } from '../../../../base/browser/dom.js';
-
 import { Emitter, Event } from '../../../../base/common/event.js';
-
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { Action2, registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
-import { ServicesAccessor, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { RawContextKey, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../common/editor.js';
 import { BrowserEditorInput } from './browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { IBrowserViewModel } from '../../../services/browserView/common/browserView.js';
+import { IBrowserViewModel } from '../../browserView/common/browserView.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -40,9 +34,9 @@ import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 
-const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browserCanGoBack', "Whether the browser can go back"));
-const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browserCanGoForward', "Whether the browser can go forward"));
-const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', false, localize('browserEditorFocused', "Whether the browser editor is focused"));
+export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
+export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
+export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', false, localize('browser.editorFocused', "Whether the browser editor is focused"));
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _onDidNavigate = this._register(new Emitter<string>());
@@ -84,7 +78,7 @@ class BrowserNavigationBar extends Disposable {
 		// URL input
 		this._urlInput = $<HTMLInputElement>('input.browser-url-input');
 		this._urlInput.type = 'text';
-		this._urlInput.placeholder = localize('browserUrlPlaceholder', "Enter URL...");
+		this._urlInput.placeholder = localize('browser.urlPlaceholder', "Enter URL...");
 
 		// Create actions toolbar (right side) with scoped context
 		const actionsContainer = $('.browser-actions-toolbar');
@@ -368,7 +362,7 @@ export class BrowserEditor extends EditorPane {
 
 			const errorContent = $('.browser-error-content');
 			const errorTitle = $('.browser-error-title');
-			errorTitle.textContent = localize('browserLoadError', "Failed to Load Page");
+			errorTitle.textContent = localize('browser.loadErrorLabel', "Failed to Load Page");
 
 			const errorMessage = $('.browser-error-detail');
 			const errorText = $('span');
@@ -377,7 +371,7 @@ export class BrowserEditor extends EditorPane {
 
 			const errorUrl = $('.browser-error-detail');
 			const urlLabel = $('strong');
-			urlLabel.textContent = localize('browserErrorUrl', "URL:");
+			urlLabel.textContent = localize('browser.errorUrlLabel', "URL:");
 			const urlValue = $('code');
 			urlValue.textContent = error.url;
 			errorUrl.appendChild(urlLabel);
@@ -504,116 +498,3 @@ export class BrowserEditor extends EditorPane {
 		super.clearInput();
 	}
 }
-
-// Context key expression to check if browser editor is active
-const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
-
-// Browser navigation commands
-
-class GoBackAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.goBack';
-
-	constructor() {
-		super({
-			id: GoBackAction.ID,
-			title: localize2('browserGoBack', 'Go Back'),
-			icon: Codicon.arrowLeft,
-			f1: true,
-			menu: {
-				id: MenuId.BrowserNavigationToolbar,
-				group: 'navigation',
-				order: 1,
-			},
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_BACK),
-			keybinding: {
-				when: BROWSER_EDITOR_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Alt | KeyCode.LeftArrow,
-				secondary: [KeyCode.BrowserBack],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow, secondary: [KeyCode.BrowserBack] }
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof BrowserEditor) {
-			await activeEditorPane.goBack();
-		}
-	}
-}
-
-class GoForwardAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.goForward';
-
-	constructor() {
-		super({
-			id: GoForwardAction.ID,
-			title: localize2('browserGoForward', 'Go Forward'),
-			icon: Codicon.arrowRight,
-			f1: true,
-			menu: {
-				id: MenuId.BrowserNavigationToolbar,
-				group: 'navigation',
-				order: 2,
-				when: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_FORWARD)
-			},
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_CAN_GO_FORWARD),
-			keybinding: {
-				when: BROWSER_EDITOR_ACTIVE,
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Alt | KeyCode.RightArrow,
-				secondary: [KeyCode.BrowserForward],
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow, secondary: [KeyCode.BrowserForward] }
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof BrowserEditor) {
-			await activeEditorPane.goForward();
-		}
-	}
-}
-
-class ReloadAction extends Action2 {
-	static readonly ID = 'workbench.action.browser.reload';
-
-	constructor() {
-		super({
-			id: ReloadAction.ID,
-			title: localize2('browserReloadPage', 'Reload'),
-			icon: Codicon.refresh,
-			f1: true,
-			menu: {
-				id: MenuId.BrowserNavigationToolbar,
-				group: 'navigation',
-				order: 3,
-			},
-			precondition: BROWSER_EDITOR_ACTIVE,
-			keybinding: {
-				when: CONTEXT_BROWSER_FOCUSED, // Keybinding is only active when focus is within the browser editor
-				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over debug
-				primary: KeyCode.F5,
-				secondary: [KeyMod.CtrlCmd | KeyCode.KeyR],
-				mac: { primary: KeyCode.F5, secondary: [KeyMod.CtrlCmd | KeyCode.KeyR] }
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane instanceof BrowserEditor) {
-			await activeEditorPane.reload();
-		}
-	}
-}
-
-// Register actions
-registerAction2(GoBackAction);
-registerAction2(GoForwardAction);
-registerAction2(ReloadAction);

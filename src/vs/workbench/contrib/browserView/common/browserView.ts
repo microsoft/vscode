@@ -16,11 +16,13 @@ import {
 	IBrowserViewTitleChangeEvent,
 	IBrowserViewFaviconChangeEvent,
 	IBrowserViewNewPageRequest,
-	IBrowserViewService
+	IBrowserViewService,
+	BrowserViewStorageScope
 } from '../../../../platform/browserView/common/browserView.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhost } from '../../../../platform/tunnel/common/tunnel.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 type IntegratedBrowserNavigationEvent = {
 	navigationType: 'urlInput' | 'goBack' | 'goForward' | 'reload';
@@ -49,19 +51,6 @@ export interface IBrowserViewWorkbenchService {
 	 * @returns A browser view model that proxies to the main process
 	 */
 	getOrCreateBrowserViewModel(id: string): Promise<IBrowserViewModel>;
-
-	/**
-	 * Get an existing browser view model by ID
-	 * @param id The browser view identifier
-	 * @returns The browser view model if it exists, undefined otherwise
-	 */
-	getBrowserViewModel(id: string): IBrowserViewModel | undefined;
-
-	/**
-	 * Destroy a browser view model and its underlying view
-	 * @param id The browser view identifier
-	 */
-	destroyBrowserViewModel(id: string): Promise<void>;
 }
 
 
@@ -119,7 +108,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		public readonly id: string,
 		private readonly browserViewService: IBrowserViewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -165,8 +155,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	 * Initialize the model with the current state from the main process
 	 */
 	async initialize(): Promise<void> {
+		const dataStorageSetting = this.configurationService.getValue<BrowserViewStorageScope>(
+			'workbench.browser.dataStorage'
+		) ?? BrowserViewStorageScope.Workspace;
+
 		const workspaceId = this.workspaceContextService.getWorkspace().id;
-		const state = await this.browserViewService.getOrCreateBrowserView(this.id, workspaceId);
+		const state = await this.browserViewService.getOrCreateBrowserView(this.id, dataStorageSetting, workspaceId);
 
 		this._url = state.url;
 		this._title = state.title;

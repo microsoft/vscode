@@ -13,7 +13,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { TAB_ACTIVE_FOREGROUND } from '../../../common/theme.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IBrowserViewWorkbenchService, IBrowserViewModel } from '../../../services/browserView/common/browserView.js';
+import { IBrowserViewWorkbenchService, IBrowserViewModel } from '../common/browserView.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
 import { BrowserEditor } from './browserEditor.js';
@@ -37,7 +37,7 @@ export interface IBrowserEditorInputData {
 
 export class BrowserEditorInput extends EditorInput {
 	static readonly ID = 'workbench.editorinputs.browser';
-	private static readonly DEFAULT_LABEL = localize('browserEditorLabel', "Browser");
+	private static readonly DEFAULT_LABEL = localize('browser.editorLabel', "Browser");
 
 	private readonly _id: string;
 	private readonly _initialData: IBrowserEditorInputData;

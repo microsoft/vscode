@@ -71,6 +71,12 @@ export interface IBrowserViewNewPageRequest {
 	background: boolean;
 }
 
+export enum BrowserViewStorageScope {
+	Global = 'global',
+	Workspace = 'workspace',
+	Ephemeral = 'ephemeral'
+}
+
 export const ipcBrowserViewChannelName = 'browserView';
 
 export interface IBrowserViewService {
@@ -88,9 +94,10 @@ export interface IBrowserViewService {
 	/**
 	 * Get or create a browser view instance
 	 * @param id The browser view identifier
-	 * @param workspaceId Optional workspace identifier for session isolation
+	 * @param scope The storage scope for the browser view. Ignored if the view already exists.
+	 * @param workspaceId Workspace identifier for session isolation. Only used if scope is 'workspace'.
 	 */
-	getOrCreateBrowserView(id: string, workspaceId?: string): Promise<IBrowserViewState>;
+	getOrCreateBrowserView(id: string, scope: BrowserViewStorageScope, workspaceId?: string): Promise<IBrowserViewState>;
 
 	/**
 	 * Destroy a browser view instance

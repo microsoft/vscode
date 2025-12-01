@@ -11,10 +11,8 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { BrowserEditor } from './browserEditor.js';
 import { BrowserEditorInput, BrowserEditorSerializer } from './browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IBrowserOverlayManager, BrowserOverlayManager } from './overlayManager.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -24,12 +22,18 @@ import { CopyAction, CutAction, PasteAction } from '../../../../editor/contrib/c
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { IBrowserViewWorkbenchService } from '../common/browserView.js';
+import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
+
+// Register actions
+import './browserViewActions.js';
+import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		BrowserEditor,
 		BrowserEditor.ID,
-		localize('browserEditor', "Browser")
+		localize('browser.editorLabel', "Browser")
 	),
 	[
 		new SyncDescriptor(BrowserEditorInput)
@@ -52,7 +56,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 			`${Schemas.vscodeBrowser}:/**`,
 			{
 				id: BrowserEditor.ID,
-				label: localize('browserEditor', "Browser"),
+				label: localize('browser.editorLabel', "Browser"),
 				priority: RegisteredEditorPriority.exclusive
 			},
 			{
@@ -90,26 +94,7 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 
 registerWorkbenchContribution2(BrowserEditorResolverContribution.ID, BrowserEditorResolverContribution, WorkbenchPhase.BlockStartup);
 
-class OpenIntegratedBrowserAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.openIntegratedBrowser',
-			title: { value: localize('openIntegratedBrowser', "Open Integrated Browser"), original: 'Open Integrated Browser' },
-			category: Categories.View,
-			f1: true
-		});
-	}
-
-	async run(accessor: ServicesAccessor, url?: string): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const resource = BrowserViewUri.forUrl(url);
-
-		await editorService.openEditor({ resource });
-	}
-}
-
-registerAction2(OpenIntegratedBrowserAction);
-
+registerSingleton(IBrowserViewWorkbenchService, BrowserViewWorkbenchService, InstantiationType.Delayed);
 registerSingleton(IBrowserOverlayManager, BrowserOverlayManager, InstantiationType.Delayed);
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
@@ -117,10 +102,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		'workbench.browser.dataStorage': {
 			type: 'string',
-			enum: ['global', 'workspace', 'ephemeral'],
-			default: 'workspace',
+			enum: [
+				BrowserViewStorageScope.Global,
+				BrowserViewStorageScope.Workspace,
+				BrowserViewStorageScope.Ephemeral
+			],
+			default: BrowserViewStorageScope.Workspace,
 			markdownDescription: localize(
-				'browserDataStorage',
+				'browser.dataStorage',
 				'Controls how browser data (cookies, cache, storage) is shared between browser views.\n\n- `global`: All browser views share a single persistent session across all workspaces.\n- `workspace`: Browser views within the same workspace share a persistent session.\n- `ephemeral`: Each browser view has its own session that is cleaned up when closed.'
 			),
 			scope: ConfigurationScope.WINDOW,
