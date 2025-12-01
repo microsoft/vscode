@@ -17,7 +17,7 @@ import { DebugLinkHoverBehaviorTypeData, ILinkDetector } from './linkDetector.js
  * @param text The content to stylize.
  * @returns An {@link HTMLSpanElement} that contains the potentially stylized text.
  */
-export function handleANSIOutput(text: string, linkDetector: ILinkDetector, workspaceFolder: IWorkspaceFolder | undefined, hoverBehavior: DebugLinkHoverBehaviorTypeData, highlights?: IHighlight[]): HTMLSpanElement {
+export function handleANSIOutput(text: string, linkDetector: ILinkDetector, workspaceFolder: IWorkspaceFolder | undefined, highlights: IHighlight[] | undefined, hoverBehavior: DebugLinkHoverBehaviorTypeData): HTMLSpanElement {
 
 	const root: HTMLSpanElement = document.createElement('span');
 	const textLength: number = text.length;
@@ -63,7 +63,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 				unprintedChars += 2 + ansiSequence.length;
 
 				// Flush buffer with previous styles.
-				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, hoverBehavior, currentPos - buffer.length - unprintedChars, highlights);
+				appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, currentPos - buffer.length - unprintedChars, highlights, hoverBehavior);
 				buffer = '';
 
 				/*
@@ -108,7 +108,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
 
 	// Flush remaining text buffer if not empty.
 	if (buffer) {
-		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, highlights, currentPos - buffer.length, highlights);
+		appendStylizedStringToContainer(root, buffer, styleNames, linkDetector, workspaceFolder, customFgColor, customBgColor, customUnderlineColor, currentPos - buffer.length, highlights, hoverBehavior);
 	}
 
 	return root;
