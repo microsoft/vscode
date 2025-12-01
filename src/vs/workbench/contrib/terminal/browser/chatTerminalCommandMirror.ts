@@ -12,6 +12,72 @@ import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../common/theme.js';
 
+export async function getCommandOutputSnapshot(
+	xtermTerminal: XtermTerminal,
+	command: ITerminalCommand,
+	log?: (reason: 'fallback' | 'primary', error: unknown) => void
+): Promise<{ text: string; lineCount: number } | undefined> {
+	const executedMarker = command.executedMarker;
+	const endMarker = command.endMarker;
+
+	if (!endMarker || endMarker.isDisposed) {
+		return undefined;
+	}
+
+	if (!executedMarker || executedMarker.isDisposed) {
+		const raw = xtermTerminal.raw;
+		const buffer = raw.buffer.active;
+		const offsets = [
+			-(buffer.baseY + buffer.cursorY),
+			-buffer.baseY,
+			0
+		];
+		let startMarker: IXtermMarker | undefined;
+		for (const offset of offsets) {
+			startMarker = raw.registerMarker(offset);
+			if (startMarker) {
+				break;
+			}
+		}
+		if (!startMarker || startMarker.isDisposed) {
+			return { text: '', lineCount: 0 };
+		}
+		const startLine = startMarker.line;
+		let text: string | undefined;
+		try {
+			text = await xtermTerminal.getRangeAsVT(startMarker, endMarker, true);
+		} catch (error) {
+			log?.('fallback', error);
+			return undefined;
+		} finally {
+			startMarker.dispose();
+		}
+		if (!text) {
+			return { text: '', lineCount: 0 };
+		}
+		const endLine = endMarker.line - 1;
+		const lineCount = Math.max(endLine - startLine + 1, 0);
+		return { text, lineCount };
+	}
+
+	const startLine = executedMarker.line;
+	const endLine = endMarker.line - 1;
+	const lineCount = Math.max(endLine - startLine + 1, 0);
+
+	let text: string | undefined;
+	try {
+		text = await xtermTerminal.getRangeAsVT(executedMarker, endMarker, true);
+	} catch (error) {
+		log?.('primary', error);
+		return undefined;
+	}
+	if (!text) {
+		return { text: '', lineCount: 0 };
+	}
+
+	return { text, lineCount };
+}
+
 interface IDetachedTerminalCommandMirror {
 	attach(container: HTMLElement): Promise<void>;
 	renderCommand(): Promise<{ lineCount?: number } | undefined>;
@@ -36,15 +102,16 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 
 	async attach(container: HTMLElement): Promise<void> {
 		const terminal = await this._detachedTerminal;
-		if (this._attachedContainer !== container) {
-			container.classList.add('chat-terminal-output-terminal');
+		container.classList.add('chat-terminal-output-terminal');
+		const needsAttach = this._attachedContainer !== container || container.firstChild === null;
+		if (needsAttach) {
 			terminal.attachToElement(container);
 			this._attachedContainer = container;
 		}
 	}
 
 	async renderCommand(): Promise<{ lineCount?: number } | undefined> {
-		const vt = await this._getCommandOutputAsVT();
+		const vt = await getCommandOutputSnapshot(this._xtermTerminal, this._command);
 		if (!vt) {
 			return undefined;
 		}
@@ -52,68 +119,12 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 			return { lineCount: 0 };
 		}
 		const detached = await this._detachedTerminal;
+		detached.xterm.clearBuffer();
+		detached.xterm.clearSearchDecorations?.();
 		await new Promise<void>(resolve => {
-			detached.xterm.write(vt.text, () => {
-				resolve();
-			});
+			detached.xterm.write(vt.text, () => resolve());
 		});
 		return { lineCount: vt.lineCount };
-	}
-
-	private async _getCommandOutputAsVT(): Promise<{ text: string; lineCount: number } | undefined> {
-		const executedMarker = this._command.executedMarker;
-		const endMarker = this._command.endMarker;
-		// If there's no executedMarker, but there's an endMarker, the command marker was disposed
-		// in scrollback. Still provide output in that case.
-
-		if (executedMarker?.isDisposed && endMarker && !endMarker.isDisposed) {
-			// Fall back to the earliest retained buffer line when the execution marker has been trimmed.
-			const raw = this._xtermTerminal.raw;
-			const buffer = raw.buffer.active;
-			const offsets = [
-				-(buffer.baseY + buffer.cursorY),
-				-buffer.baseY,
-				0
-			];
-			let startMarker: IXtermMarker | undefined;
-			for (const offset of offsets) {
-				startMarker = raw.registerMarker(offset);
-				if (startMarker) {
-					break;
-				}
-			}
-			if (!startMarker || startMarker.isDisposed) {
-				return { text: '', lineCount: 0 };
-			}
-			const startLine = startMarker.line;
-			let text: string | undefined;
-			try {
-				text = await this._xtermTerminal.getRangeAsVT(startMarker, endMarker, true);
-			} finally {
-				startMarker.dispose();
-			}
-			if (!text) {
-				return { text: '', lineCount: 0 };
-			}
-			const endLine = endMarker.line - 1;
-			const lineCount = Math.max(endLine - startLine + 1, 0);
-			return { text, lineCount };
-		}
-
-		if (!executedMarker || executedMarker.isDisposed || !endMarker || endMarker.isDisposed) {
-			return undefined;
-		}
-
-		const startLine = executedMarker.line;
-		const endLine = endMarker.line - 1;
-		const lineCount = Math.max(endLine - startLine + 1, 0);
-
-		const text = await this._xtermTerminal.getRangeAsVT(executedMarker, endMarker, true);
-		if (!text) {
-			return { text: '', lineCount: 0 };
-		}
-
-		return { text, lineCount };
 	}
 
 	private async _createTerminal(): Promise<IDetachedTerminalInstance> {
