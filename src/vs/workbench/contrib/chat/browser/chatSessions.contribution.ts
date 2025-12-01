@@ -32,7 +32,7 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionDelegationEvent, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
 import { LEGACY_AGENT_SESSIONS_VIEW_ID, ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
@@ -260,6 +260,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _onDidChangeContentProviderSchemes = this._register(new Emitter<{ readonly added: string[]; readonly removed: string[] }>());
 	public get onDidChangeContentProviderSchemes() { return this._onDidChangeContentProviderSchemes.event; }
+
+	private readonly _onDidDelegateToNewSession = this._register(new Emitter<IChatSessionDelegationEvent>());
+	public get onDidDelegateToNewSession() { return this._onDidDelegateToNewSession.event; }
 
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeOptions: Map<string, IChatSessionProviderOptionGroup[]> = new Map();
@@ -939,6 +942,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 		const chatSessionItem = await provider.provideNewChatSessionItem(options, token);
 		this._onDidChangeSessionItems.fire(chatSessionType);
+
+		// Fire delegation event so the source session can exit
+		this._onDidDelegateToNewSession.fire({
+			sourceSessionResource: options.request.sessionResource,
+			targetSessionType: chatSessionType,
+			targetSessionResource: chatSessionItem.resource,
+		});
+
 		return chatSessionItem;
 	}
 

@@ -23,6 +23,26 @@ export const enum ChatSessionStatus {
 	InProgress = 2
 }
 
+/**
+ * Event fired when a new chat session is created via delegation.
+ */
+export interface IChatSessionDelegationEvent {
+	/**
+	 * The source session resource where the delegation originated from.
+	 */
+	readonly sourceSessionResource: URI;
+
+	/**
+	 * The type of the target session that was delegated to.
+	 */
+	readonly targetSessionType: string;
+
+	/**
+	 * The resource of the newly created session.
+	 */
+	readonly targetSessionResource: URI;
+}
+
 export interface IChatSessionCommandContribution {
 	name: string;
 	description: string;
@@ -161,6 +181,12 @@ export interface IChatSessionsService {
 
 	readonly onDidChangeAvailability: Event<void>;
 	readonly onDidChangeInProgress: Event<void>;
+
+	/**
+	 * Event fired when a new chat session is created via delegation from another session.
+	 * This event is used to signal that the source session should exit after the delegation completes.
+	 */
+	readonly onDidDelegateToNewSession: Event<IChatSessionDelegationEvent>;
 
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
 	activateChatSessionItemProvider(chatSessionType: string): Promise<IChatSessionItemProvider | undefined>;

@@ -566,6 +566,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.inputPart.renderChatTodoListWidget(sessionResource);
 			}
 		}));
+
+		// Listen for delegation events from the chatSessions API
+		// When a participant delegates to another session type, we should exit this panel after the response completes
+		this._register(this.chatSessionsService.onDidDelegateToNewSession((event) => {
+			if (!isEqual(this.viewModel?.sessionResource, event.sourceSessionResource)) {
+				return;
+			}
+
+			// Handle the delegation - clear the widget after the response completes
+			this._handleDelegationExit().catch(e => this.logService.error('Failed to handle delegation exit', e));
+		}));
 	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
@@ -1367,6 +1378,53 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.acceptInput();
 			}
 		}
+	}
+
+	/**
+	 * Handles the exit of the panel chat when a delegation to another session occurs.
+	 * Waits for the response to complete and any pending confirmations to be resolved,
+	 * then clears the widget.
+	 */
+	private async _handleDelegationExit(): Promise<void> {
+		if (!this.viewModel) {
+			return;
+		}
+
+		// Check if response is already complete without pending confirmations
+		const checkForComplete = () => {
+			const items = this.viewModel?.getItems() ?? [];
+			const lastItem = items[items.length - 1];
+			if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
+				return true;
+			}
+			return false;
+		};
+
+		if (checkForComplete()) {
+			await this.clear();
+			return;
+		}
+
+		// Wait for response to complete with a timeout
+		await new Promise<void>(resolve => {
+			const disposable = this.viewModel!.onDidChange(() => {
+				if (checkForComplete()) {
+					cleanup();
+					resolve();
+				}
+			});
+			const timeout = setTimeout(() => {
+				cleanup();
+				resolve();
+			}, 30_000); // 30 second timeout
+			const cleanup = () => {
+				clearTimeout(timeout);
+				disposable.dispose();
+			};
+		});
+
+		// Clear the widget after delegation completes
+		await this.clear();
 	}
 
 	setVisible(visible: boolean): void {
