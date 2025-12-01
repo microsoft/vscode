@@ -470,14 +470,16 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._showOutputActionAdded = true;
 	}
 
-	private _clearCommandAssociation(): void {
+	private _clearCommandAssociation(options?: { clearPersistentData?: boolean }): void {
 		this._terminalCommandUri = undefined;
 		this._storedCommandId = undefined;
-		if (this._terminalData.terminalCommandUri) {
-			delete this._terminalData.terminalCommandUri;
-		}
-		if (this._terminalData.terminalToolSessionId) {
-			delete this._terminalData.terminalToolSessionId;
+		if (options?.clearPersistentData) {
+			if (this._terminalData.terminalCommandUri) {
+				delete this._terminalData.terminalCommandUri;
+			}
+			if (this._terminalData.terminalToolSessionId) {
+				delete this._terminalData.terminalToolSessionId;
+			}
 		}
 		this._decoration.update();
 	}
@@ -499,10 +501,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 			commandDetectionListener.value = commandDetection.onCommandFinished(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				commandDetectionListener.clear();
+				const resolvedCommand = this._getResolvedCommand(terminalInstance);
+				if (resolvedCommand?.endMarker) {
+					commandDetectionListener.clear();
+				}
 			});
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
+				commandDetectionListener.clear();
 				return;
 			}
 		};
@@ -514,7 +520,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			if (this._terminalInstance === terminalInstance) {
 				this._terminalInstance = undefined;
 			}
-			this._clearCommandAssociation();
+			this._clearCommandAssociation({ clearPersistentData: true });
 			commandDetectionListener.clear();
 			if (!this._store.isDisposed) {
 				this._actionBar.clear();
@@ -861,7 +867,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private _getOutputContentHeight(lineCount: number, rowHeight: number, padding: number): number {
 		const contentRows = Math.max(lineCount, MIN_OUTPUT_ROWS);
-		return (contentRows * rowHeight) + padding;
+		const adjustedRows = contentRows + (lineCount > MAX_OUTPUT_ROWS ? 1 : 0);
+		return (adjustedRows * rowHeight) + padding;
 	}
 
 	private _getOutputPadding(): number {
