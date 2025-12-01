@@ -61,31 +61,6 @@ export interface IExternalCustomAgentResource {
 }
 
 /**
- * Represents an instruction resource from an external provider.
- */
-export interface IExternalInstruction {
-	/**
-	 * The unique identifier/name of the instruction resource.
-	 */
-	readonly name: string;
-
-	/**
-	 * A description of what the instruction resource does.
-	 */
-	readonly description: string;
-
-	/**
-	 * The URI to the instruction resource file.
-	 */
-	readonly uri: URI;
-
-	/**
-	 * Indicates whether the instruction resource is editable. Defaults to false.
-	 */
-	readonly isEditable?: boolean;
-}
-
-/**
  * Provides prompt services.
  */
 export const IPromptsService = createDecorator<IPromptsService>('IPromptsService');
