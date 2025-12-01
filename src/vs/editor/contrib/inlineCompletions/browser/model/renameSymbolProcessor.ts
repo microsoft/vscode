@@ -23,7 +23,8 @@ import { EditSources, TextModelEditSource } from '../../../../common/textModelEd
 import { hasProvider, rawRename } from '../../../rename/browser/rename.js';
 import { renameSymbolCommandId } from '../controller/commandIds.js';
 import { InlineSuggestionItem } from './inlineSuggestionItem.js';
-import { IInlineSuggestDataActionEdit, InlineSuggestAlternativeAction } from './provideInlineCompletions.js';
+import { IInlineSuggestDataActionEdit } from './provideInlineCompletions.js';
+import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction.js';
 
 enum RenameKind {
 	no = 'no',

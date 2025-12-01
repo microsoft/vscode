@@ -33,7 +33,7 @@ import { Command, InlineCompletionCommand, IInlineCompletionModelInfo } from '..
 import { InlineSuggestionItem } from '../../../model/inlineSuggestionItem.js';
 import { localize } from '../../../../../../../nls.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
-import { InlineSuggestAlternativeAction } from '../../../model/provideInlineCompletions.js';
+import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
 
 export class InlineEditsGutterIndicatorData {
 	constructor(
