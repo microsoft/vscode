@@ -2960,6 +2960,7 @@ export abstract class AbstractInstallExtensionsInServerAction extends Action {
 
 	constructor(
 		id: string,
+		private readonly serverToQuery: IExtensionManagementServer | undefined,
 		@IExtensionsWorkbenchService protected readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -2967,7 +2968,7 @@ export abstract class AbstractInstallExtensionsInServerAction extends Action {
 	) {
 		super(id);
 		this.update();
-		this.extensionsWorkbenchService.queryLocal().then(() => this.updateExtensions());
+		this.extensionsWorkbenchService.queryLocal(this.serverToQuery).then(() => this.updateExtensions());
 		this._register(this.extensionsWorkbenchService.onChange(() => {
 			if (this.extensions) {
 				this.updateExtensions();
@@ -2990,7 +2991,7 @@ export abstract class AbstractInstallExtensionsInServerAction extends Action {
 	}
 
 	private async queryExtensionsToInstall(): Promise<IExtension[]> {
-		const local = await this.extensionsWorkbenchService.queryLocal();
+		const local = await this.extensionsWorkbenchService.queryLocal(this.serverToQuery);
 		return this.getExtensionsToInstall(local);
 	}
 
@@ -3055,7 +3056,7 @@ export class InstallLocalExtensionsInRemoteAction extends AbstractInstallExtensi
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 	) {
-		super('workbench.extensions.actions.installLocalExtensionsInRemote', extensionsWorkbenchService, quickInputService, notificationService, progressService);
+		super('workbench.extensions.actions.installLocalExtensionsInRemote', extensionManagementServerService.localExtensionManagementServer || undefined, extensionsWorkbenchService, quickInputService, notificationService, progressService);
 	}
 
 	override get label(): string {
@@ -3119,7 +3120,7 @@ export class InstallRemoteExtensionsInLocalAction extends AbstractInstallExtensi
 		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
 	) {
-		super(id, extensionsWorkbenchService, quickInputService, notificationService, progressService);
+		super(id, undefined, extensionsWorkbenchService, quickInputService, notificationService, progressService);
 	}
 
 	override get label(): string {
