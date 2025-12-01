@@ -11,13 +11,13 @@
 .chat-terminal-content-part .chat-terminal-content-title {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
-	padding: 5px 9px 5px 5px;
+	padding: 0px 9px 0px 5px;
 	max-width: 100%;
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: row;
 	align-items: flex-start;
-	gap: 10px;
+	gap: 12px;
 
 	.rendered-markdown {
 		display: flex;
@@ -138,7 +138,7 @@
 	overflow: hidden;
 	position: relative;
 	max-width: 100%;
-	padding: 5px 9px;
+	padding: 5px 0px;
 }
 
 .chat-terminal-content-title.expanded {
@@ -155,8 +155,11 @@
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }
+div.chat-terminal-content-part.progress-step > div.chat-terminal-output-container.expanded > div > div.chat-terminal-output-body > div > div.chat-terminal-output-terminal > div > div.xterm-scrollable-element {
+	padding-left: 12px;
+}
 .chat-terminal-output-body {
-	padding: 4px 6px;
+	padding: 4px 0px;
 	max-width: 100%;
 	box-sizing: border-box;
 	min-height: 0;
