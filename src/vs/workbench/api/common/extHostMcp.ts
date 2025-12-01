@@ -997,8 +997,13 @@ export async function createAuthMetadata(
 		}
 	}
 
-	// If PRM didn't provide an authorization server URL, or if fetching from that URL failed
-	// and it was a different origin, try the base URL
+	// This point is only reached if:
+	// 1. No serverMetadataUrl was provided by PRM, OR
+	// 2. The fetch from serverMetadataUrl failed (the success path returns above)
+	//
+	// If serverMetadataUrl was on a different origin and failed, we should try the base URL.
+	// If serverMetadataUrl was on the same origin (i.e., equals baseUrl) and failed,
+	// we skip trying baseUrl again to avoid duplicate requests.
 	const shouldTryBaseUrl = !serverMetadataUrl || !isSameOrigin(serverMetadataUrl);
 	if (shouldTryBaseUrl) {
 		try {
