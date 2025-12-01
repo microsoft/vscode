@@ -25,8 +25,10 @@ import { ChatResponseResource, getAttachableImageExtension } from '../../chat/co
 import { LanguageModelPartAudience } from '../../chat/common/languageModels.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpResourceURI, McpToolResourceLinkMimeType } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, McpConnectionFailedError, McpResourceURI, McpToolResourceLinkMimeType } from './mcpTypes.js';
 import { mcpServerToSourceData } from './mcpTypesUtils.js';
+
+const MCP_TOOL_RETRIES = 3;
 
 interface ISyncedToolData {
 	toolData: IToolData;
@@ -223,7 +225,7 @@ class McpToolImplementation implements IToolImpl {
 			content: []
 		};
 
-		const callResult = await this._tool.callWithProgress(invocation.parameters as Record<string, unknown>, progress, { chatRequestId: invocation.chatRequestId, chatSessionId: invocation.context?.sessionId }, token);
+		const callResult = await this._callWithRetry(invocation, progress, token);
 		const details: IToolResultInputOutputDetails = {
 			input: JSON.stringify(invocation.parameters, undefined, 2),
 			output: [],
@@ -343,6 +345,36 @@ class McpToolImplementation implements IToolImpl {
 
 		result.toolResultDetails = details;
 		return result;
+	}
+
+	private async _callWithRetry(invocation: IToolInvocation, progress: ToolProgress, token: CancellationToken) {
+		const annotations = this._tool.definition.annotations;
+		const canRetry = annotations?.readOnlyHint === true || annotations?.idempotentHint === true;
+
+		let lastError: Error | undefined;
+		for (let attempt = 0; attempt < MCP_TOOL_RETRIES; attempt++) {
+			try {
+				return await this._tool.callWithProgress(
+					invocation.parameters as Record<string, unknown>,
+					progress,
+					{ chatRequestId: invocation.chatRequestId, chatSessionId: invocation.context?.sessionId },
+					token
+				);
+			} catch (err) {
+				lastError = err as Error;
+				// Only retry on connection failures for idempotent/read-only tools
+				if (!canRetry || !(err instanceof McpConnectionFailedError)) {
+					throw err;
+				}
+				// Last attempt, throw the error
+				if (attempt === MCP_TOOL_RETRIES - 1) {
+					throw err;
+				}
+				// Otherwise, loop and retry
+			}
+		}
+		// This should not be reached, but TypeScript requires it
+		throw lastError;
 	}
 
 }
