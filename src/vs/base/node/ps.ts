@@ -89,7 +89,7 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 			}
 
 			// find all xxxx.js
-			const JS = /[a-zA-Z-]+\.js/g;
+			const JS = /[a-zA-Z-]+\.js\b/g;
 			let result = '';
 			do {
 				matches = JS.exec(cmd);
