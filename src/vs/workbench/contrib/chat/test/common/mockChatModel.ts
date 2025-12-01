@@ -24,6 +24,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	readonly inputPlaceholder = undefined;
 	readonly editingSession = undefined;
 	readonly checkpoint = undefined;
+	readonly willKeepAlive = true;
 	readonly inputModel: IInputModel = {
 		state: observableValue('inputModelState', undefined),
 		setState: () => { },
