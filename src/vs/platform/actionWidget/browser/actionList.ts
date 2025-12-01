@@ -217,8 +217,8 @@ export class ActionList<T> extends Disposable {
 
 	private readonly _list: List<IActionListItem<T>>;
 
-	private readonly _actionLineHeight = 22;
-	private readonly _headerLineHeight = 22;
+	private readonly _actionLineHeight = 24;
+	private readonly _headerLineHeight = 24;
 	private readonly _separatorLineHeight = 8;
 
 	private readonly _allMenuItems: readonly IActionListItem<T>[];
