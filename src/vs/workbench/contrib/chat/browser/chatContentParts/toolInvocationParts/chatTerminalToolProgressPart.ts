@@ -846,20 +846,16 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private async _renderLiveOutput(liveTerminalInstance: ITerminalInstance, command: ITerminalCommand): Promise<boolean> {
-		const hadSnapshot = !!this._snapshotMirror;
-		this._disposeSnapshotMirror();
-		if (!this._mirror || hadSnapshot) {
-			dom.clearNode(this._terminalContainer);
+		if (this._mirror) {
+			return true;
 		}
-		if (!this._mirror) {
-			await liveTerminalInstance.xtermReadyPromise;
-			if (liveTerminalInstance.isDisposed || !liveTerminalInstance.xterm) {
-				this._disposeLiveMirror();
-				return false;
-			}
-			this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm!, command));
-			await this._mirror.attach(this._terminalContainer);
+		await liveTerminalInstance.xtermReadyPromise;
+		if (liveTerminalInstance.isDisposed || !liveTerminalInstance.xterm) {
+			this._disposeLiveMirror();
+			return false;
 		}
+		this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm!, command));
+		await this._mirror.attach(this._terminalContainer);
 		const result = await this._mirror.renderCommand();
 		if (!result) {
 			this._showEmptyMessage(localize('chat.terminalOutputPending', 'Command output will appear here once available.'));
@@ -876,11 +872,13 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
-		if (!this._snapshotMirror) {
-			dom.clearNode(this._terminalContainer);
-			this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
-			await this._snapshotMirror.attach(this._terminalContainer);
+		if (this._snapshotMirror) {
+			this._layoutOutput(snapshot.lineCount);
+			return;
 		}
+		dom.clearNode(this._terminalContainer);
+		this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
+		await this._snapshotMirror.attach(this._terminalContainer);
 		this._snapshotMirror.setOutput(snapshot);
 		const result = await this._snapshotMirror.render();
 		const hasText = !!snapshot.text && snapshot.text.length > 0;
@@ -923,13 +921,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		if (this._mirror) {
 			this._mirror.dispose();
 			this._mirror = undefined;
-		}
-	}
-
-	private _disposeSnapshotMirror(): void {
-		if (this._snapshotMirror) {
-			this._snapshotMirror.dispose();
-			this._snapshotMirror = undefined;
 		}
 	}
 
