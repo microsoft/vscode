@@ -430,7 +430,7 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 
 export async function showClearEditingSessionConfirmation(model: IChatModel, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
 	if (!model.editingSession || model.willKeepAlive) {
-		return true; // save to dispose without confirmation
+		return true; // safe to dispose without confirmation
 	}
 
 	const editingSession = model.editingSession;

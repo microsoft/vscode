@@ -701,7 +701,7 @@ class SendToNewChatAction extends Action2 {
 		}
 
 		if (widget.viewModel?.model) {
-			if (!(await handleCurrentEditingSession(widget.viewModel?.model, undefined, dialogService))) {
+			if (!(await handleCurrentEditingSession(widget.viewModel.model, undefined, dialogService))) {
 				return;
 			}
 		}

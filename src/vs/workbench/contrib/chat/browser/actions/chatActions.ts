@@ -374,7 +374,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 
 		if (switchToMode) {
 			const model = chatWidget.viewModel?.model;
-			const chatModeCheck = model ? await instaService.invokeFunction(handleModeSwitch, currentMode, switchToMode.kind, model.getRequests().length ?? 0, model) : { needToClearSession: false };
+			const chatModeCheck = model ? await instaService.invokeFunction(handleModeSwitch, currentMode, switchToMode.kind, model.getRequests().length, model) : { needToClearSession: false };
 			if (!chatModeCheck) {
 				return;
 			}
