@@ -232,16 +232,18 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async setChatSessionTitle(sessionResource: URI, title: string): Promise<void> {
-		const sessionId = this.toLocalSessionId(sessionResource);
 		const model = this._sessionModels.get(sessionResource);
 		if (model) {
 			model.setCustomTitle(title);
 		}
 
 		// Update the title in the file storage
-		await this._chatSessionStore.setSessionTitle(sessionId, title);
-		// Trigger immediate save to ensure consistency
-		this.saveState();
+		const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+		if (localSessionId) {
+			await this._chatSessionStore.setSessionTitle(localSessionId, title);
+			// Trigger immediate save to ensure consistency
+			this.saveState();
+		}
 	}
 
 	private trace(method: string, message?: string): void {
