@@ -1039,7 +1039,6 @@ class DetachedTerminalSnapshotMirror extends Disposable {
 		const terminal = await this._getTerminal();
 		terminal.xterm.clearBuffer();
 		terminal.xterm.clearSearchDecorations?.();
-		await new Promise<void>(resolve => terminal.xterm.write('\x1bc', resolve));
 		if (this._container) {
 			this._applyTheme(this._container);
 		}
