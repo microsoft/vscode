@@ -68,16 +68,20 @@ export class LongDistancePreviewEditor extends Disposable {
 			return (state?.mode === 'original' ? decorations?.originalDecorations : decorations?.modifiedDecorations) ?? [];
 		})));
 
-		this._register(this._instantiationService.createInstance(JumpToView, this._previewEditorObs, { style: 'cursor' }, derived(reader => {
-			const p = this._properties.read(reader);
-			if (!p || !p.nextCursorPosition) {
-				return undefined;
-			}
-			return {
-				jumpToPosition: p.nextCursorPosition,
+		const showJumpToDecoration = false;
 
-			};
-		})));
+		if (showJumpToDecoration) {
+			this._register(this._instantiationService.createInstance(JumpToView, this._previewEditorObs, { style: 'cursor' }, derived(reader => {
+				const p = this._properties.read(reader);
+				if (!p || !p.nextCursorPosition) {
+					return undefined;
+				}
+				return {
+					jumpToPosition: p.nextCursorPosition,
+
+				};
+			})));
+		}
 
 		// Mirror the cursor position. Allows the gutter arrow to point in the correct direction.
 		this._register(autorun((reader) => {
