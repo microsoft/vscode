@@ -234,7 +234,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (provider.onDidChangeInstructions) {
 			disposables.add(provider.onDidChangeInstructions(() => {
 				// Invalidate instruction cache when providers change
-				// Instructions might be used for various purposes, trigger refresh
+				this.cachedFileLocations[PromptsType.instructions] = undefined;
+				if (this.cachedInstructions && typeof this.cachedInstructions.refresh === 'function') {
+					this.cachedInstructions.refresh();
+				}
 			}));
 		}
 
