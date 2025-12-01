@@ -497,10 +497,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 			commandDetectionListener.value = commandDetection.onCommandFinished(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				commandDetectionListener.clear();
+				const resolvedCommand = this._getResolvedCommand(terminalInstance);
+				if (resolvedCommand?.endMarker) {
+					commandDetectionListener.clear();
+				}
 			});
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
+				commandDetectionListener.clear();
 				return;
 			}
 		};
