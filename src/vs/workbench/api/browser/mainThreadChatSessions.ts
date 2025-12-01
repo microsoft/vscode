@@ -120,7 +120,8 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 						prompt: turn.prompt,
 						participant: turn.participant,
 						command: turn.command,
-						variableData: variables ? { variables } : undefined
+						variableData: variables ? { variables } : undefined,
+						id: turn.id
 					};
 				}
 
@@ -419,9 +420,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					options,
 				},
 			}], originalGroup);
-		} else {
-			this._logService.warn(`Original chat session editor not found for resource ${originalResource.toString()}`);
-			this._editorService.openEditor({ resource: modifiedResource }, originalGroup);
 		}
 	}
 
@@ -441,7 +439,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					resource: uri,
 					iconPath: session.iconPath,
 					tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined,
-					description: description || session.description || localize('chat.sessions.description.finished', "Finished")
+					description: description || session.description
 				};
 			});
 		} catch (error) {

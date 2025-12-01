@@ -174,6 +174,7 @@ class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeEleme
 		// Label
 		if (isSCMArtifactTreeElement(artifactOrFolder)) {
 			// Artifact
+			const artifactGroup = artifactOrFolder.group;
 			const artifact = artifactOrFolder.artifact;
 
 			const artifactIcon = artifact.icon ?? artifactOrFolder.group.icon;
@@ -181,7 +182,9 @@ class ArtifactRenderer implements ICompressibleTreeRenderer<SCMArtifactTreeEleme
 				? `icon ${ThemeIcon.asClassName(artifactIcon)}`
 				: '';
 
-			const artifactLabel = artifact.name.split('/').pop() ?? artifact.name;
+			const artifactLabel = artifactGroup.supportsFolders
+				? artifact.name.split('/').pop() ?? artifact.name
+				: artifact.name;
 			templateData.label.setLabel(artifactLabel, artifact.description);
 		} else if (isSCMArtifactNode(artifactOrFolder)) {
 			// Folder
@@ -294,24 +297,36 @@ class RepositoryTreeDataSource extends Disposable implements IAsyncDataSource<IS
 			const repository = inputOrElement.repository;
 			const artifacts = await repository.provider.artifactProvider.get()?.provideArtifacts(inputOrElement.artifactGroup.id) ?? [];
 
-			// Create resource tree for artifacts
-			const artifactsTree = new ResourceTree<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>(inputOrElement);
-			for (const artifact of artifacts) {
-				artifactsTree.add(URI.from({
-					scheme: 'scm-artifact', path: artifact.name
-				}), {
+			if (inputOrElement.artifactGroup.supportsFolders) {
+				// Resource tree for artifacts
+				const artifactsTree = new ResourceTree<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>(inputOrElement);
+				for (const artifact of artifacts) {
+					artifactsTree.add(URI.from({
+						scheme: 'scm-artifact', path: artifact.name
+					}), {
+						repository,
+						group: inputOrElement.artifactGroup,
+						artifact,
+						type: 'artifact'
+					});
+				}
+
+				return Iterable.map(artifactsTree.root.children, node => node.element ?? node);
+			}
+
+			// Flat list of artifacts
+			return artifacts.map(artifact => (
+				{
 					repository,
 					group: inputOrElement.artifactGroup,
 					artifact,
 					type: 'artifact'
-				});
-			}
-
-			return Iterable.map(artifactsTree.root.children, node => node.element ?? node);
+				} satisfies SCMArtifactTreeElement
+			));
 		} else if (isSCMArtifactNode(inputOrElement)) {
 			return Iterable.map(inputOrElement.children,
 				node => node.element && node.childrenCount === 0 ? node.element : node);
-		} else if (isSCMArtifactTreeElement(inputOrElement)) { }
+		}
 
 		return [];
 	}

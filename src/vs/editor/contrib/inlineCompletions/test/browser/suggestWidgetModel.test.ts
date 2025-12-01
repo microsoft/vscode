@@ -36,6 +36,7 @@ import { autorun } from '../../../../../base/common/observable.js';
 import { setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 
 suite('Suggest Widget Model', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -164,7 +165,12 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 				[IAccessibilitySignalService, {
 					playSignal: async () => { },
 					isSoundEnabled(signal: unknown) { return false; },
-				} as any]
+				} as any],
+				[IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
+					override onDidChangeDefaultAccount = Event.None;
+					override getDefaultAccount = async () => null;
+					override setDefaultAccount = () => { };
+				}],
 			);
 
 			if (options.provider) {
