@@ -18,25 +18,12 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 /**
  * Activation event for custom agent providers.
  */
-export const CUSTOM_AGENTS_ACTIVATION_EVENT = 'onCustomAgentsProvider';
-
-/**
- * Target environment for custom agents.
- */
-export enum CustomAgentTarget {
-	GitHubCopilot = 'github-copilot',
-	VSCode = 'vscode',
-}
+export const CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentsProvider';
 
 /**
  * Options for querying custom agents.
  */
-export interface ICustomAgentQueryOptions {
-	/**
-	 * Filter agents by target environment.
-	 */
-	readonly target?: CustomAgentTarget;
-}
+export interface ICustomAgentQueryOptions { }
 
 /**
  * Represents a custom agent resource from an external provider.
