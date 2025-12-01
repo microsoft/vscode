@@ -30,7 +30,7 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent, ExtensionAgentSourceType, CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent, ExtensionAgentSourceType, CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT, IInstructionQueryOptions, IExternalInstruction, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -170,6 +170,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}> = [];
 
 	/**
+	 * Registry of InstructionsProvider instances. Extensions can register providers via the proposed API.
+	 */
+	private readonly instructionsProviders: Array<{
+		extension: IExtensionDescription;
+		onDidChangeInstructions?: Event<void>;
+		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalInstruction[] | undefined>;
+	}> = [];
+
+	/**
 	 * Registers a CustomAgentsProvider. This will be called by the extension host bridge when
 	 * an extension registers a provider via vscode.chat.registerCustomAgentsProvider().
 	 */
@@ -201,6 +210,39 @@ export class PromptsService extends Disposable implements IPromptsService {
 					this.customAgentsProviders.splice(index, 1);
 					this.cachedFileLocations[PromptsType.agent] = undefined;
 					this.cachedCustomAgents.refresh();
+				}
+			}
+		});
+
+		return disposables;
+	}
+
+	/**
+	 * Registers an InstructionsProvider. This will be called by the extension host bridge when
+	 * an extension registers a provider via vscode.chat.registerInstructionsProvider().
+	 */
+	public registerInstructionsProvider(extension: IExtensionDescription, provider: {
+		onDidChangeInstructions?: Event<void>;
+		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalInstruction[] | undefined>;
+	}): IDisposable {
+		const providerEntry = { extension, ...provider };
+		this.instructionsProviders.push(providerEntry);
+
+		const disposables = new DisposableStore();
+
+		// Listen to provider change events
+		if (provider.onDidChangeInstructions) {
+			disposables.add(provider.onDidChangeInstructions(() => {
+				// Invalidate instruction cache when providers change
+				// Instructions might be used for various purposes, trigger refresh
+			}));
+		}
+
+		disposables.add({
+			dispose: () => {
+				const index = this.instructionsProviders.findIndex((p) => p === providerEntry);
+				if (index >= 0) {
+					this.instructionsProviders.splice(index, 1);
 				}
 			}
 		});

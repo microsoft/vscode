@@ -26,7 +26,7 @@ import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIde
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
-import { ICustomAgentQueryOptions, IPromptsService } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ICustomAgentQueryOptions, IPromptsService, IInstructionQueryOptions } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatModel } from '../../contrib/chat/common/chatModel.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
@@ -98,6 +98,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	private readonly _customAgentsProviders = this._register(new DisposableMap<number, IDisposable>());
 	private readonly _customAgentsProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
+	private readonly _instructionsProviders = this._register(new DisposableMap<number, IDisposable>());
+	private readonly _instructionsProviderEmitters = this._register(new DisposableMap<number, Emitter<void>>());
 
 	private readonly _pendingProgress = new Map<string, { progress: (parts: IChatProgress[]) => void; chatSession: IChatModel | undefined }>();
 	private readonly _proxy: ExtHostChatAgentsShape2;
@@ -464,6 +466,46 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 	$onDidChangeCustomAgents(handle: number): void {
 		const emitter = this._customAgentsProviderEmitters.get(handle);
+		if (emitter) {
+			emitter.fire();
+		}
+	}
+
+	async $registerInstructionsProvider(handle: number, extensionId: ExtensionIdentifier): Promise<void> {
+		const extension = await this._extensionService.getExtension(extensionId.value);
+		if (!extension) {
+			this._logService.error(`[MainThreadChatAgents2] Could not find extension for InstructionsProvider: ${extensionId.value}`);
+			return;
+		}
+
+		const emitter = new Emitter<void>();
+		this._instructionsProviderEmitters.set(handle, emitter);
+
+		const disposable = this._promptsService.registerInstructionsProvider(extension, {
+			onDidChangeInstructions: emitter.event,
+			provideInstructions: async (options: IInstructionQueryOptions, token: CancellationToken) => {
+				const instructions = await this._proxy.$provideInstructions(handle, options, token);
+				if (!instructions) {
+					return undefined;
+				}
+				// Convert UriComponents to URI
+				return instructions.map(instruction => ({
+					...instruction,
+					uri: URI.revive(instruction.uri)
+				}));
+			}
+		});
+
+		this._instructionsProviders.set(handle, disposable);
+	}
+
+	$unregisterInstructionsProvider(handle: number): void {
+		this._instructionsProviders.deleteAndDispose(handle);
+		this._instructionsProviderEmitters.deleteAndDispose(handle);
+	}
+
+	$onDidChangeInstructions(handle: number): void {
+		const emitter = this._instructionsProviderEmitters.get(handle);
 		if (emitter) {
 			emitter.fire();
 		}

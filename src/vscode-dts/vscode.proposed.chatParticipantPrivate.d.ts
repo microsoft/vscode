@@ -370,6 +370,33 @@ declare module 'vscode' {
 		provideCustomAgents(options: CustomAgentQueryOptions, token: CancellationToken): ProviderResult<CustomAgentResource[]>;
 	}
 
+	// #endregion
+
+	// #region InstructionsProvider
+
+	/**
+	 * Options for querying instructions.
+	 */
+	export interface InstructionQueryOptions { }
+
+	/**
+	 * A provider that supplies instruction resources for repositories.
+	 */
+	export interface InstructionsProvider {
+		/**
+		 * An optional event to signal that instructions have changed.
+		 */
+		readonly onDidChangeInstructions?: Event<void>;
+
+		/**
+		 * Provide the list of instruction resources available for a given repository.
+		 * @param options Optional query parameters.
+		 * @param token A cancellation token.
+		 * @returns An array of instruction resources or a promise that resolves to such.
+		 */
+		provideInstructions(options: InstructionQueryOptions, token: CancellationToken): ProviderResult<CustomAgentResource[]>;
+	}
+
 	export namespace chat {
 		/**
 		 * Register a provider for custom agents.
@@ -377,6 +404,13 @@ declare module 'vscode' {
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
 		export function registerCustomAgentsProvider(provider: CustomAgentsProvider): Disposable;
+
+		/**
+		 * Register a provider for instructions.
+		 * @param provider The instructions provider.
+		 * @returns A disposable that unregisters the provider when disposed.
+		 */
+		export function registerInstructionsProvider(provider: InstructionsProvider): Disposable;
 	}
 
 	// #endregion

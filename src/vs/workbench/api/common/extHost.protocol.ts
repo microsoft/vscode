@@ -65,7 +65,7 @@ import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariabl
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatMetadataAndIdentifier, ILanguageModelChatSelector } from '../../contrib/chat/common/languageModels.js';
 import { IPreparedToolInvocation, IToolInvocation, IToolInvocationPreparationContext, IToolProgressStep, IToolResult, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
-import { ICustomAgentQueryOptions, IExternalCustomAgent } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ICustomAgentQueryOptions, IExternalCustomAgent, IInstructionQueryOptions, IExternalInstruction } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from '../../contrib/debug/common/debug.js';
 import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch } from '../../contrib/mcp/common/mcpTypes.js';
 import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
@@ -1397,6 +1397,9 @@ export interface MainThreadChatAgentsShape2 extends IChatAgentProgressShape, IDi
 	$registerCustomAgentsProvider(handle: number, extension: ExtensionIdentifier): void;
 	$unregisterCustomAgentsProvider(handle: number): void;
 	$onDidChangeCustomAgents(handle: number): void;
+	$registerInstructionsProvider(handle: number, extension: ExtensionIdentifier): void;
+	$unregisterInstructionsProvider(handle: number): void;
+	$onDidChangeInstructions(handle: number): void;
 	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void;
 	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
@@ -1462,6 +1465,7 @@ export interface ExtHostChatAgentsShape2 {
 	$detectChatParticipant(handle: number, request: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, options: { participants: IChatParticipantMetadata[]; location: ChatAgentLocation }, token: CancellationToken): Promise<IChatParticipantDetectionResult | null | undefined>;
 	$provideRelatedFiles(handle: number, request: Dto<IChatRequestDraft>, token: CancellationToken): Promise<Dto<IChatRelatedFile>[] | undefined>;
 	$provideCustomAgents(handle: number, options: ICustomAgentQueryOptions, token: CancellationToken): Promise<Dto<IExternalCustomAgent>[] | undefined>;
+	$provideInstructions(handle: number, options: IInstructionQueryOptions, token: CancellationToken): Promise<Dto<IExternalInstruction>[] | undefined>;
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 }
 export interface IChatParticipantMetadata {

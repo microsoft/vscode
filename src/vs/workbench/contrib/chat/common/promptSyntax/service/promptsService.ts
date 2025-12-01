@@ -21,9 +21,19 @@ import { ResourceSet } from '../../../../../../base/common/map.js';
 export const CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentsProvider';
 
 /**
+ * Activation event for instructions providers.
+ */
+export const INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT = 'onInstructionsProvider';
+
+/**
  * Options for querying custom agents.
  */
 export interface ICustomAgentQueryOptions { }
+
+/**
+ * Options for querying instructions.
+ */
+export interface IInstructionQueryOptions { }
 
 /**
  * Represents a custom agent resource from an external provider.
@@ -46,6 +56,31 @@ export interface IExternalCustomAgent {
 
 	/**
 	 * Indicates whether the custom agent resource is editable. Defaults to false.
+	 */
+	readonly isEditable?: boolean;
+}
+
+/**
+ * Represents an instruction resource from an external provider.
+ */
+export interface IExternalInstruction {
+	/**
+	 * The unique identifier/name of the instruction resource.
+	 */
+	readonly name: string;
+
+	/**
+	 * A description of what the instruction resource does.
+	 */
+	readonly description: string;
+
+	/**
+	 * The URI to the instruction resource file.
+	 */
+	readonly uri: URI;
+
+	/**
+	 * Indicates whether the instruction resource is editable. Defaults to false.
 	 */
 	readonly isEditable?: boolean;
 }
@@ -325,6 +360,18 @@ export interface IPromptsService extends IDisposable {
 	registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
 		onDidChangeCustomAgents?: Event<void>;
 		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+	}): IDisposable;
+
+	/**
+	 * Registers an InstructionsProvider that can provide instructions for repositories.
+	 * This is part of the proposed API and requires the chatParticipantPrivate proposal.
+	 * @param extension The extension registering the provider.
+	 * @param provider The provider implementation with optional change event.
+	 * @returns A disposable that unregisters the provider when disposed.
+	 */
+	registerInstructionsProvider(extension: IExtensionDescription, provider: {
+		onDidChangeInstructions?: Event<void>;
+		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalInstruction[] | undefined>;
 	}): IDisposable;
 
 	/**

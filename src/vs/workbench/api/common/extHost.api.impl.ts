@@ -1545,6 +1545,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return extHostChatAgents2.registerCustomAgentsProvider(extension, provider);
 			},
+			registerInstructionsProvider(provider: vscode.InstructionsProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+				return extHostChatAgents2.registerInstructionsProvider(extension, provider);
+			},
 		};
 
 		// namespace: lm
