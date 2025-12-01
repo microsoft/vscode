@@ -30,10 +30,10 @@
 }
 
 .chat-diff-change-content-widget .monaco-action-bar .action-item .action-label {
-		border-radius: 4px;
-		font-size: 11px;
-		line-height: 14px;
-		padding: 4px 6px;
+	border-radius: 4px;
+	font-size: 11px;
+	line-height: 14px;
+	padding: 4px 6px;
 }
 
 .chat-diff-change-content-widget .monaco-action-bar .action-item.primary .action-label {
