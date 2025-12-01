@@ -948,7 +948,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 		const chatSessionItem = await provider.provideNewChatSessionItem(options, token);
 		this._onDidChangeSessionItems.fire(chatSessionType);
-
 		return chatSessionItem;
 	}
 

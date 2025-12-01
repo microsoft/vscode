@@ -566,7 +566,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.inputPart.renderChatTodoListWidget(sessionResource);
 			}
 		}));
-
 	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
