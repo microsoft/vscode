@@ -400,7 +400,7 @@ export function handleANSIOutput(text: string, linkDetector: ILinkDetector, work
  * @param customUnderlineColor If provided, will apply custom textDecorationColor with inline style.
  * @param highlights The ranges to highlight.
  * @param offset The starting index of the stringContent in the original text.
- * @param hoverBehavior Optional hover behavior with disposable store for managing event listeners.
+ * @param hoverBehavior hover behavior with disposable store for managing event listeners.
  */
 export function appendStylizedStringToContainer(
 	root: HTMLElement,
