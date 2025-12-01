@@ -176,6 +176,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			du: true,
 			df: true,
 			sleep: true,
+			nl: true,
 
 			// grep
 			// - Variable
@@ -330,7 +331,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		type: 'boolean',
 		default: false,
 		tags: ['experimental'],
-		markdownDescription: localize('ignoreDefaultAutoApproveRules.description', "Whether to ignore the built-in default auto-approve rules used by the run in terminal tool as defined in {0}. Setting to false will disable any rule that comes from the default set, enabling only rules from user, remote and workspace settings. Use this at your own risk, the default denial rules are designed to protect you against running dangerous commands.", `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``),
+		markdownDescription: localize('ignoreDefaultAutoApproveRules.description', "Whether to ignore the built-in default auto-approve rules used by the run in terminal tool as defined in {0}. When this setting is enabled, the run in terminal tool will ignore any rule that comes from the default set but still follow rules defined in the user, remote and workspace settings. Use this setting at your own risk; the default auto-approve rules are designed to protect you against running dangerous commands.", `\`#${TerminalChatAgentToolsSettingId.AutoApprove}#\``),
 	},
 	[TerminalChatAgentToolsSettingId.BlockDetectedFileWrites]: {
 		type: 'string',

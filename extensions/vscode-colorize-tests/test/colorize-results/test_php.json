@@ -1347,12 +1347,12 @@
 		"c": "for",
 		"t": "text.html.php meta.embedded.block.php source.php keyword.control.for.php",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -2075,12 +2075,12 @@
 		"c": "if",
 		"t": "text.html.php meta.embedded.block.php source.php keyword.control.if.php",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -2411,12 +2411,12 @@
 		"c": "else",
 		"t": "text.html.php meta.embedded.block.php source.php keyword.control.else.php",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -3419,12 +3419,12 @@
 		"c": "for",
 		"t": "text.html.php meta.embedded.block.php source.php keyword.control.for.php",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}
@@ -3783,12 +3783,12 @@
 		"c": "if",
 		"t": "text.html.php meta.embedded.block.php source.php keyword.control.if.php",
 		"r": {
-			"dark_plus": "keyword.control: #CE92A4",
+			"dark_plus": "keyword.control: #C586C0",
 			"light_plus": "keyword.control: #AF00DB",
 			"dark_vs": "keyword.control: #569CD6",
 			"light_vs": "keyword.control: #0000FF",
 			"hc_black": "keyword.control: #C586C0",
-			"dark_modern": "keyword.control: #CE92A4",
+			"dark_modern": "keyword.control: #C586C0",
 			"hc_light": "keyword.control: #B5200D",
 			"light_modern": "keyword.control: #AF00DB"
 		}

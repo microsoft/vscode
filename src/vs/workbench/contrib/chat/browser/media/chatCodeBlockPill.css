@@ -3,66 +3,137 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.chat-codeblock-pill-widget {
-	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-	border-radius: 4px;
-	text-wrap: nowrap;
-	width: fit-content;
-	font-weight: normal;
-	text-decoration: none;
-	font-size: var(--vscode-chat-font-size-body-xs);
-	padding: 0 3px;
-	cursor: pointer;
+.interactive-item-container.interactive-response .value .chat-markdown-part.rendered-markdown .code:has(.chat-codeblock-pill-container) {
+	margin-bottom: 8px;
 }
 
-.chat-codeblock-pill-widget .icon-label {
-	padding: 0px 3px;
-	text-wrap: wrap;
-}
-
-.interactive-item-container .value .rendered-markdown .chat-codeblock-pill-widget {
-	color: inherit;
-}
-
-.chat-codeblock-pill-widget:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.chat-codeblock-pill-widget .icon {
-	vertical-align: middle;
-	line-height: 1em;
-	font-size: 90%;
-	overflow: hidden;
-}
-
-.show-file-icons.chat-codeblock-pill-widget .icon::before {
-	display: inline-block;
-	line-height: 100%;
-	overflow: hidden;
-	background-size: contain;
-	background-position: center;
-	background-repeat: no-repeat;
-	flex-shrink: 0;
-}
-
-span.label-detail {
-	padding-left: 4px;
-	font-style: italic;
+.chat-markdown-part.rendered-markdown .code .chat-codeblock-pill-container {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	margin: 0 0 6px 4px;
+	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 
-	&:empty {
-		display: none;
+	.status-indicator-container {
+		display: flex;
+		align-items: center;
+		gap: 7px;
+		flex-shrink: 0;
+
+		.status-icon {
+			display: inline-flex;
+			align-items: center;
+			line-height: 1em;
+			top: 1px;
+			color: var(--vscode-icon-foreground) !important;
+
+			&::before {
+				font-size: var(--vscode-chat-font-size-body-s);
+			}
+		}
+
+		.status-label {
+			color: var(--vscode-descriptionForeground);
+			white-space: nowrap;
+		}
 	}
-}
 
-span.label-added {
-	font-weight: bold;
-	padding-left: 4px;
-	color: var(--vscode-chat-linesAddedForeground);
-}
+	.chat-codeblock-pill-widget {
+		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+		border-radius: 4px;
+		text-wrap: nowrap;
+		width: fit-content;
+		font-weight: normal;
+		text-decoration: none;
+		padding: 1px 3px;
+		cursor: pointer;
+		position: relative;
+		overflow: hidden;
+		line-height: 1em;
 
-span.label-removed {
-	font-weight: bold;
-	padding-left: 4px;
-	color: var(--vscode-chat-linesRemovedForeground);
+		.progress-fill {
+			display: none;
+			position: absolute;
+			top: 0;
+			left: 0;
+			height: 100%;
+			width: 0%;
+			background-color: var(--vscode-list-hoverBackground);
+			pointer-events: none;
+			transition: width 0.2s ease-out;
+			z-index: 0;
+		}
+
+		&.progress-filling .progress-fill {
+			display: block;
+		}
+
+		.icon, .icon-label, .label-detail, span.label-added, span.label-removed {
+			position: relative;
+			z-index: 1;
+		}
+
+		.icon {
+			vertical-align: middle;
+			line-height: 1em;
+			overflow: hidden;
+			font-size: 90%;
+			top: 1px;
+		}
+
+		.icon-label {
+			padding: 0px 3px;
+			text-wrap: wrap;
+			vertical-align: middle;
+			line-height: 1em;
+		}
+
+		.icon::before {
+			display: inline-block;
+			line-height: 100%;
+			overflow: hidden;
+			background-size: contain;
+			background-position: center;
+			background-repeat: no-repeat;
+			font-size: 100% !important;
+			margin-bottom: 1px;
+		}
+
+		span.label-detail {
+			padding-left: 4px;
+			font-style: italic;
+			font-size: var(--vscode-chat-font-size-body-s);
+			color: var(--vscode-descriptionForeground);
+
+			&:empty {
+				display: none;
+			}
+		}
+
+		span.label-added, span.label-removed {
+			padding-left: 4px;
+			font-size: var(--vscode-chat-font-size-body-s);
+			vertical-align: middle;
+			line-height: 1em;
+
+			&:empty {
+				padding: 0;
+			}
+		}
+
+		span.label-removed {
+			padding-right: 2px;
+			color: var(--vscode-chat-linesRemovedForeground);
+		}
+
+		span.label-added {
+			color: var(--vscode-chat-linesAddedForeground);
+		}
+
+		&:hover {
+			background-color: var(--vscode-list-hoverBackground);
+			color: var(--vscode-textLink-foreground);
+		}
+	}
 }

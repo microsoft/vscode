@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { DefaultAccountService, IDefaultAccountService } from '../../../accounts/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { DefaultAccountService } from '../../../accounts/common/defaultAccount.js';
 import { AccountPolicyService } from '../../common/accountPolicyService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';

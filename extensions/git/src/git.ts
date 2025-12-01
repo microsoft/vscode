@@ -44,6 +44,8 @@ export interface Stash {
 	readonly index: number;
 	readonly description: string;
 	readonly branchName?: string;
+	readonly authorDate?: Date;
+	readonly commitDate?: Date;
 }
 
 interface MutableRemote extends Remote {
@@ -117,7 +119,7 @@ function findGitDarwin(onValidate: (path: string) => boolean): Promise<IGit> {
 			}
 
 			// must check if XCode is installed
-			cp.exec('xcode-select -p', (err: any) => {
+			cp.exec('xcode-select -p', (err) => {
 				if (err && err.code === 2) {
 					// git is not installed, and launching /usr/bin/git
 					// will prompt the user to install it
@@ -370,7 +372,7 @@ function sanitizeRelativePath(path: string): string {
 }
 
 const COMMIT_FORMAT = '%H%n%aN%n%aE%n%at%n%ct%n%P%n%D%n%B';
-const STASH_FORMAT = '%H%n%P%n%gd%n%gs';
+const STASH_FORMAT = '%H%n%P%n%gd%n%gs%n%at%n%ct';
 
 export interface ICloneOptions {
 	readonly parentPath: string;
@@ -999,12 +1001,12 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
-const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)*on([^:]+):(.*)(?:\x00)/gmi;
+const stashRegex = /([0-9a-f]{40})\n(.*)\nstash@{(\d+)}\n(WIP\s)?on\s([^:]+):\s(.*)\n(\d+)\n(\d+)(?:\x00)/gmi;
 
 function parseGitStashes(raw: string): Stash[] {
 	const result: Stash[] = [];
 
-	let match, hash, parents, index, wip, branchName, description;
+	let match, hash, parents, index, wip, branchName, description, authorDate, commitDate;
 
 	do {
 		match = stashRegex.exec(raw);
@@ -1012,13 +1014,15 @@ function parseGitStashes(raw: string): Stash[] {
 			break;
 		}
 
-		[, hash, parents, index, wip, branchName, description] = match;
+		[, hash, parents, index, wip, branchName, description, authorDate, commitDate] = match;
 		result.push({
 			hash,
 			parents: parents.split(' '),
 			index: parseInt(index),
 			branchName: branchName.trim(),
-			description: wip ? `WIP (${description.trim()})` : description.trim()
+			description: wip ? `WIP (${description.trim()})` : description.trim(),
+			authorDate: authorDate ? new Date(Number(authorDate) * 1000) : undefined,
+			commitDate: commitDate ? new Date(Number(commitDate) * 1000) : undefined,
 		});
 	} while (true);
 
@@ -1658,6 +1662,10 @@ export class Repository {
 		return result.stdout;
 	}
 
+	async diffIndexWithHEADShortStats(path?: string): Promise<CommitShortStat> {
+		return this.diffFilesShortStat(undefined, { cached: true, path });
+	}
+
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffIndexWith(ref: string, path?: string | undefined): Promise<string | Change[]>;
@@ -1971,11 +1979,12 @@ export class Repository {
 		}
 	}
 
-	private async handleCommitError(commitErr: any): Promise<void> {
-		if (/not possible because you have unmerged files/.test(commitErr.stderr || '')) {
+
+	private async handleCommitError(commitErr: unknown): Promise<void> {
+		if (commitErr instanceof GitError && /not possible because you have unmerged files/.test(commitErr.stderr || '')) {
 			commitErr.gitErrorCode = GitErrorCodes.UnmergedChanges;
 			throw commitErr;
-		} else if (/Aborting commit due to empty commit message/.test(commitErr.stderr || '')) {
+		} else if (commitErr instanceof GitError && /Aborting commit due to empty commit message/.test(commitErr.stderr || '')) {
 			commitErr.gitErrorCode = GitErrorCodes.EmptyCommitMessage;
 			throw commitErr;
 		}
@@ -2109,8 +2118,8 @@ export class Repository {
 		const pathsByGroup = groupBy(paths.map(sanitizePath), p => path.dirname(p));
 		const groups = Object.keys(pathsByGroup).map(k => pathsByGroup[k]);
 
-		const limiter = new Limiter(5);
-		const promises: Promise<any>[] = [];
+		const limiter = new Limiter<IExecutionResult<string>>(5);
+		const promises: Promise<IExecutionResult<string>>[] = [];
 		const args = ['clean', '-f', '-q'];
 
 		for (const paths of groups) {
@@ -2456,13 +2465,19 @@ export class Repository {
 		}
 	}
 
-	async popStash(index?: number): Promise<void> {
+	async popStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
 		const args = ['stash', 'pop'];
+		if (options?.reinstateStagedChanges) {
+			args.push('--index');
+		}
 		await this.popOrApplyStash(args, index);
 	}
 
-	async applyStash(index?: number): Promise<void> {
+	async applyStash(index?: number, options?: { reinstateStagedChanges?: boolean }): Promise<void> {
 		const args = ['stash', 'apply'];
+		if (options?.reinstateStagedChanges) {
+			args.push('--index');
+		}
 		await this.popOrApplyStash(args, index);
 	}
 

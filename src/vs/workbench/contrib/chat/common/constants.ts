@@ -15,16 +15,19 @@ export enum ChatConfiguration {
 	EditRequests = 'chat.editRequests',
 	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
+	AutoApprovedUrls = 'chat.tools.urls.autoApprove',
+	EligibleForAutoApproval = 'chat.tools.eligibleForAutoApproval',
 	EnableMath = 'chat.math.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	TodosShowWidget = 'chat.tools.todos.showWidget',
-	UseCloudButtonV2 = 'chat.useCloudButtonV2',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
-	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
 	NotifyWindowOnResponseReceived = 'chat.notifyWindowOnResponseReceived',
+	ChatViewRecentSessionsEnabled = 'chat.recentSessions.enabled',
+	ChatViewWelcomeBannerEnabled = 'chat.welcomeBanner.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
+	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 }
 
 /**
@@ -56,6 +59,12 @@ export enum ThinkingDisplayMode {
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	FixedScrolling = 'fixedScrolling',
+}
+
+export enum CollapsedToolsDisplayMode {
+	Off = 'off',
+	WithThinking = 'withThinking',
+	Always = 'always',
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
@@ -118,7 +127,8 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 	return true;
 }
 
-export const AGENT_SESSIONS_VIEWLET_ID = 'workbench.view.chat.sessions'; // TODO@bpasero clear once settled
+/** @deprecated */
+export const LEGACY_AGENT_SESSIONS_VIEW_ID = 'workbench.view.chat.sessions'; // TODO@bpasero clear once settled
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
 export const ChatEditorTitleMaxLength = 30;
 

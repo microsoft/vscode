@@ -53,6 +53,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		location: IChatWidgetLocationOptions,
 		options: IChatWidgetViewOptions | undefined,
 		editors: { editor: ICodeEditor; notebookEditor?: INotebookEditor },
+		/** @deprecated should go away with inline2 */
+		clearDelegate: () => Promise<void>,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private _logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -87,6 +89,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 					telemetrySource: 'interactiveEditorWidget-toolbar',
 					inputSideToolbar: MENU_INLINE_CHAT_SIDE
 				},
+				clear: clearDelegate,
 				...options,
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
@@ -287,7 +290,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		const scrollState = StableEditorBottomScrollState.capture(this.editor);
 		this._scrollUp.disable();
 		this._ctxCursorPosition.reset();
-		this.widget.reset();
 		this.widget.chatWidget.setVisible(false);
 		super.hide();
 		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));

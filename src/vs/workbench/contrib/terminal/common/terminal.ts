@@ -288,7 +288,7 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	readonly onProcessData: Event<IProcessDataEvent>;
 	readonly onProcessReplayComplete: Event<void>;
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
-	readonly onDidChangeProperty: Event<IProcessProperty<any>>;
+	readonly onDidChangeProperty: Event<IProcessProperty>;
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onRestoreCommands: Event<ISerializedCommandDetectionCapability>;
 
@@ -336,7 +336,7 @@ export interface ITerminalProcessExtHostProxy extends IDisposable {
 	readonly instanceId: number;
 
 	emitData(data: string): void;
-	emitProcessProperty(property: IProcessProperty<any>): void;
+	emitProcessProperty(property: IProcessProperty): void;
 	emitReady(pid: number, cwd: string, windowsPty: IProcessReadyWindowsPty | undefined): void;
 	emitExit(exitCode: number | undefined): void;
 

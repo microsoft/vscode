@@ -546,6 +546,9 @@ export interface ICodeCompareBlockData {
 	readonly diffData: Promise<ICodeCompareBlockDiffData | undefined>;
 
 	readonly parentContextKeyService?: IContextKeyService;
+
+	readonly horizontalPadding?: number;
+	readonly isReadOnly?: boolean;
 	// readonly hideToolbar?: boolean;
 }
 
@@ -561,9 +564,11 @@ export class CodeCompareBlockPart extends Disposable {
 	private readonly toolbar: MenuWorkbenchToolBar;
 	readonly element: HTMLElement;
 	private readonly messageElement: HTMLElement;
+	private readonly editorHeader: HTMLElement;
 
 	private readonly _lastDiffEditorViewModel = this._store.add(new MutableDisposable());
 	private currentScrollWidth = 0;
+	private currentHorizontalPadding = 0;
 
 	constructor(
 		private readonly options: ChatEditorOptions,
@@ -600,7 +605,7 @@ export class CodeCompareBlockPart extends Disposable {
 				}
 			}],
 		)));
-		const editorHeader = dom.append(this.element, $('.interactive-result-header.show-file-icons'));
+		const editorHeader = this.editorHeader = dom.append(this.element, $('.interactive-result-header.show-file-icons'));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.diffEditor = this.createDiffEditor(scopedInstantiationService, editorElement, {
 			...getSimpleEditorOptions(this.configurationService),
@@ -765,12 +770,12 @@ export class CodeCompareBlockPart extends Disposable {
 	layout(width: number): void {
 		const editorBorder = 2;
 
-		const toolbar = dom.getTotalHeight(this.toolbar.getElement());
+		const toolbar = dom.getTotalHeight(this.editorHeader);
 		const content = this.diffEditor.getModel()
 			? this.diffEditor.getContentHeight()
 			: dom.getTotalHeight(this.messageElement);
 
-		const dimension = new dom.Dimension(width - editorBorder, toolbar + content);
+		const dimension = new dom.Dimension(width - editorBorder - this.currentHorizontalPadding * 2, toolbar + content);
 		this.element.style.height = `${dimension.height}px`;
 		this.element.style.width = `${dimension.width}px`;
 		this.diffEditor.layout(dimension.with(undefined, content - editorBorder));
@@ -779,6 +784,8 @@ export class CodeCompareBlockPart extends Disposable {
 
 
 	async render(data: ICodeCompareBlockData, width: number, token: CancellationToken) {
+		this.currentHorizontalPadding = data.horizontalPadding || 0;
+
 		if (data.parentContextKeyService) {
 			this.contextKeyService.updateParent(data.parentContextKeyService);
 		}
@@ -792,12 +799,17 @@ export class CodeCompareBlockPart extends Disposable {
 		await this.updateEditor(data, token);
 
 		this.layout(width);
-		this.diffEditor.updateOptions({ ariaLabel: localize('chat.compareCodeBlockLabel', "Code Edits") });
+		this.diffEditor.updateOptions({
+			ariaLabel: localize('chat.compareCodeBlockLabel', "Code Edits"),
+			readOnly: !!data.isReadOnly,
+		});
 
 		this.resourceLabel.element.setFile(data.edit.uri, {
 			fileKind: FileKind.FILE,
 			fileDecorations: { colors: true, badges: false }
 		});
+
+		this._onDidChangeContentHeight.fire();
 	}
 
 	reset() {

@@ -26,6 +26,8 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLoggingOnly } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { WebWorkerDescriptor } from '../../../../platform/webWorker/browser/webWorkerDescriptor.js';
+import { IWebWorkerService } from '../../../../platform/webWorker/browser/webWorkerService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
 import { ExtensionHostExitCode, IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from '../common/extensionHostProtocol.js';
@@ -69,6 +71,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		@IProductService private readonly _productService: IProductService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IWebWorkerService private readonly _webWorkerService: IWebWorkerService,
 	) {
 		super();
 		this._isTerminating = false;
@@ -116,8 +119,13 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			console.warn(`The web worker extension host is started in a same-origin iframe!`);
 		}
 
-		const relativeExtensionHostIframeSrc = FileAccess.asBrowserUri(iframeModulePath);
-		return `${relativeExtensionHostIframeSrc.toString(true)}${suffix}`;
+		const relativeExtensionHostIframeSrc = this._webWorkerService.getWorkerUrl(new WebWorkerDescriptor({
+			esmModuleLocation: FileAccess.asBrowserUri(iframeModulePath),
+			esmModuleLocationBundler: new URL(`../worker/webWorkerExtensionHostIframe.html`, import.meta.url),
+			label: 'webWorkerExtensionHostIframe'
+		}));
+
+		return `${relativeExtensionHostIframeSrc}${suffix}`;
 	}
 
 	public async start(): Promise<IMessagePassingProtocol> {
@@ -135,7 +143,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const iframe = document.createElement('iframe');
 		iframe.setAttribute('class', 'web-worker-ext-host-iframe');
 		iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-		iframe.setAttribute('allow', 'usb; serial; hid; cross-origin-isolated;');
+		iframe.setAttribute('allow', 'usb; serial; hid; cross-origin-isolated; local-network-access;');
 		iframe.setAttribute('aria-hidden', 'true');
 		iframe.style.display = 'none';
 
@@ -186,7 +194,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				iframe.contentWindow!.postMessage({
 					type: event.data.type,
 					data: {
-						workerUrl: FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorkerMain.js').toString(true),
+						workerUrl: this._webWorkerService.getWorkerUrl(extensionHostWorkerMainDescriptor),
 						fileRoot: globalThis._VSCODE_FILE_ROOT,
 						nls: {
 							messages: getNLSMessages(),
@@ -342,3 +350,9 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		};
 	}
 }
+
+const extensionHostWorkerMainDescriptor = new WebWorkerDescriptor({
+	label: 'extensionHostWorkerMain',
+	esmModuleLocation: () => FileAccess.asBrowserUri('vs/workbench/api/worker/extensionHostWorkerMain.js'),
+	esmModuleLocationBundler: () => new URL('../../../api/worker/extensionHostWorkerMain.ts?workerModule', import.meta.url),
+});

@@ -142,7 +142,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 				break;
 		}
 
-		const elicitationCount = element.response.value.filter(v => v.kind === 'elicitation');
+		const elicitationCount = element.response.value.filter(v => v.kind === 'elicitation2' || v.kind === 'elicitationSerialized');
 		let elicitationHint = '';
 		for (const elicitation of elicitationCount) {
 			const title = typeof elicitation.title === 'string' ? elicitation.title : elicitation.title.value;

@@ -50,8 +50,15 @@ import { CommandLineCdPrefixRewriter } from './commandLineRewriter/commandLineCd
 import { CommandLinePwshChainOperatorRewriter } from './commandLineRewriter/commandLinePwshChainOperatorRewriter.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IHistoryService } from '../../../../../services/history/common/history.js';
+import { TerminalCommandArtifactCollector } from './terminalCommandArtifactCollector.js';
+import { isNumber, isString } from '../../../../../../base/common/types.js';
+import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 
 // #region Tool data
+
+const TOOL_REFERENCE_NAME = 'runInTerminal';
+const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 
 function createPowerShellModelDescription(shell: string): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
@@ -59,10 +66,9 @@ function createPowerShellModelDescription(shell: string): string {
 		`This tool allows you to execute ${isWinPwsh ? 'Windows PowerShell 5.1' : 'PowerShell'} commands in a persistent terminal session, preserving environment variables, working directory, and other context across multiple commands.`,
 		'',
 		'Command Execution:',
-		// TODO: Even for pwsh 7+ we want to use `;` to chain commands since the tree sitter grammar
-		// doesn't parse `&&`. We want to change this to avoid `&&` only in Windows PowerShell when
-		// the grammar supports it https://github.com/airbus-cert/tree-sitter-powershell/issues/27
-		'- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly',
+		// IMPORTANT: PowerShell 5 does not support `&&` so always re-write them to `;`. Note that
+		// the behavior of `&&` differs a little from `;` but in general it's fine
+		isWinPwsh ? '- Use semicolons ; to chain commands on one line, NEVER use && even when asked explicitly' : '- Prefer ; when chaining commands on one line',
 		'- Prefer pipelines | for object-based data flow',
 		'- Never create a sub-shell (eg. powershell -c "command") unless explicitly asked',
 		'',
@@ -188,10 +194,11 @@ export async function createRunInTerminalToolData(
 
 	return {
 		id: 'run_in_terminal',
-		toolReferenceName: 'runInTerminal',
+		toolReferenceName: TOOL_REFERENCE_NAME,
+		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
 		modelDescription,
-		userDescription: localize('runInTerminalTool.userDescription', 'Tool for running commands in the terminal'),
+		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
 		icon: Codicon.terminal,
 		inputSchema: {
@@ -254,6 +261,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _terminalToolCreator: ToolTerminalCreator;
 	private readonly _treeSitterCommandParser: TreeSitterCommandParser;
 	private readonly _telemetry: RunInTerminalToolTelemetry;
+	private readonly _commandArtifactCollector: TerminalCommandArtifactCollector;
 	protected readonly _profileFetcher: TerminalProfileFetcher;
 
 	private readonly _commandLineRewriters: ICommandLineRewriter[];
@@ -285,6 +293,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -293,6 +302,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._terminalToolCreator = this._instantiationService.createInstance(ToolTerminalCreator);
 		this._treeSitterCommandParser = this._register(this._instantiationService.createInstance(TreeSitterCommandParser));
 		this._telemetry = this._instantiationService.createInstance(RunInTerminalToolTelemetry);
+		this._commandArtifactCollector = this._instantiationService.createInstance(TerminalCommandArtifactCollector);
 		this._profileFetcher = this._instantiationService.createInstance(TerminalProfileFetcher);
 
 		this._commandLineRewriters = [
@@ -397,9 +407,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// commands that would be auto approved if it were enabled.
 		const commandLine = rewrittenCommand ?? args.command;
 
+		const isEligibleForAutoApproval = () => {
+			const config = this._configurationService.getValue<Record<string, boolean>>(ChatConfiguration.EligibleForAutoApproval);
+			if (config && typeof config === 'object') {
+				if (Object.prototype.hasOwnProperty.call(config, TOOL_REFERENCE_NAME)) {
+					return config[TOOL_REFERENCE_NAME];
+				}
+				for (const legacyName of LEGACY_TOOL_REFERENCE_FULL_NAMES) {
+					if (Object.prototype.hasOwnProperty.call(config, legacyName)) {
+						return config[legacyName];
+					}
+				}
+			}
+			// Default
+			return true;
+		};
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 		const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-		const isAutoApproveAllowed = isAutoApproveEnabled && isAutoApproveWarningAccepted;
+		const isAutoApproveAllowed = isEligibleForAutoApproval() && isAutoApproveEnabled && isAutoApproveWarningAccepted;
 
 		const commandLineAnalyzerOptions: ICommandLineAnalyzerOptions = {
 			commandLine,
@@ -408,6 +433,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			shell,
 			treeSitterLanguage: isPowerShell(shell, os) ? TreeSitterCommandParserLanguage.PowerShell : TreeSitterCommandParserLanguage.Bash,
 			terminalToolSessionId,
+			chatSessionId: context.chatSessionId,
 		};
 		const commandLineAnalyzerResults = await Promise.all(this._commandLineAnalyzers.map(e => e.analyze(commandLineAnalyzerOptions)));
 
@@ -418,7 +444,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 
 		const analyzersIsAutoApproveAllowed = commandLineAnalyzerResults.every(e => e.isAutoApproveAllowed);
-		const customActions = analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
+		const customActions = isEligibleForAutoApproval() && analyzersIsAutoApproveAllowed ? commandLineAnalyzerResults.map(e => e.customActions ?? []).flat() : undefined;
 
 		let shellType = basename(shell, '.exe');
 		if (shellType === 'powershell') {
@@ -460,6 +486,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (!toolSpecificData) {
 			throw new Error('toolSpecificData must be provided for this tool');
 		}
+		const commandId = toolSpecificData.terminalCommandId;
 		if (toolSpecificData.alternativeRecommendation) {
 			return {
 				content: [{
@@ -503,7 +530,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			? this._initBackgroundTerminal(chatSessionId, termId, terminalToolSessionId, token)
 			: this._initForegroundTerminal(chatSessionId, termId, terminalToolSessionId, token));
 
-		this._handleTerminalVisibility(toolTerminal);
+		this._handleTerminalVisibility(toolTerminal, chatSessionId);
 
 		const timingConnectMs = Date.now() - timingStart;
 
@@ -528,7 +555,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId, commandId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
@@ -539,6 +565,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
+
+				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+				const state = toolSpecificData.terminalCommandState ?? {};
+				state.timestamp = state.timestamp ?? timingStart;
+				toolSpecificData.terminalCommandState = state;
 
 				let resultText = (
 					didUserEditCommand
@@ -627,12 +658,24 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context?.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context, token, command));
 					}
 				}));
-				const commandId = (toolSpecificData as IChatTerminalToolInvocationData).terminalCommandId;
 				const executeResult = await strategy.execute(command, token, commandId);
 				// Reset user input state after command execution completes
 				toolTerminal.receivedUserInput = false;
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
+				}
+
+				await this._commandArtifactCollector.capture(toolSpecificData, toolTerminal.instance, commandId);
+				{
+					const state = toolSpecificData.terminalCommandState ?? {};
+					state.timestamp = state.timestamp ?? timingStart;
+					if (executeResult.exitCode !== undefined) {
+						state.exitCode = executeResult.exitCode;
+						if (state.timestamp !== undefined) {
+							state.duration = state.duration ?? Math.max(0, Date.now() - state.timestamp);
+						}
+					}
+					toolSpecificData.terminalCommandState = state;
 				}
 
 				this._logService.debug(`RunInTerminalTool: Finished \`${strategy.type}\` execute strategy with exitCode \`${executeResult.exitCode}\`, result.length \`${executeResult.output?.length}\`, error \`${executeResult.error}\``);
@@ -705,8 +748,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 	}
 
-	private _handleTerminalVisibility(toolTerminal: IToolTerminal) {
-		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'terminal') {
+	private _handleTerminalVisibility(toolTerminal: IToolTerminal, chatSessionId: string) {
+		const chatSessionOpenInWidget = !!this._chatWidgetService.getWidgetBySessionResource(LocalChatSessionUri.forSession(chatSessionId));
+		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.OutputLocation) === 'terminal' && chatSessionOpenInWidget) {
 			this._terminalService.setActiveInstance(toolTerminal.instance);
 			this._terminalService.revealTerminal(toolTerminal.instance, true);
 		}
@@ -813,7 +857,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				timeout(5000).then(() => { throw new Error('Timeout'); })
 			]);
 
-			if (typeof pid === 'number') {
+			if (isNumber(pid)) {
 				const storedAssociations = this._storageService.get(TerminalToolStorageKeysInternal.TerminalSession, StorageScope.WORKSPACE, '{}');
 				const associations: Record<number, IStoredTerminalAssociation> = JSON.parse(storedAssociations);
 
@@ -965,7 +1009,7 @@ export class TerminalProfileFetcher {
 		if (profile === null || profile === undefined || typeof profile !== 'object') {
 			return false;
 		}
-		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
+		if ('path' in profile && isString((profile as { path: unknown }).path)) {
 			return true;
 		}
 		return false;

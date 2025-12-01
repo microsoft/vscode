@@ -205,7 +205,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 				const cx = Math.floor(cursorPos.x) - x;
 				const cy = Math.floor(cursorPos.y) - y;
 
-				// TODO@bpasero TODO@deepak1556 workaround for https://github.com/microsoft/vscode/issues/250626
+				// TODO@deepak1556 workaround for https://github.com/microsoft/vscode/issues/250626
 				// where showing the custom menu seems broken on Windows
 				if (isLinux) {
 					if (cx > 35 /* Cursor is beyond app icon in title bar */) {
@@ -1042,6 +1042,16 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private onConfigurationUpdated(e?: IConfigurationChangeEvent): void {
 
+		// Swipe command support (macOS)
+		if (isMacintosh && (!e || e.affectsConfiguration('workbench.editor.swipeToNavigate'))) {
+			const swipeToNavigate = this.configurationService.getValue<boolean>('workbench.editor.swipeToNavigate');
+			if (swipeToNavigate) {
+				this.registerSwipeListener();
+			} else {
+				this.swipeListenerDisposable.clear();
+			}
+		}
+
 		// Menubar
 		if (!e || e.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
 			const newMenuBarVisibility = this.getMenuBarVisibility();
@@ -1083,6 +1093,22 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				electron.app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 			}
 		}
+	}
+
+	private readonly swipeListenerDisposable = this._register(new MutableDisposable());
+
+	private registerSwipeListener(): void {
+		this.swipeListenerDisposable.value = Event.fromNodeEventEmitter<string>(this._win, 'swipe', (event: Electron.Event, cmd: string) => cmd)(cmd => {
+			if (!this.isReady) {
+				return; // window must be ready
+			}
+
+			if (cmd === 'left') {
+				this.send('vscode:runAction', { id: 'workbench.action.openPreviousRecentlyUsedEditor', from: 'mouse' });
+			} else if (cmd === 'right') {
+				this.send('vscode:runAction', { id: 'workbench.action.openNextRecentlyUsedEditor', from: 'mouse' });
+			}
+		});
 	}
 
 	addTabbedWindow(window: ICodeWindow): void {
@@ -1132,7 +1158,13 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL
-		this._win.loadURL(FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true));
+		let windowUrl: string;
+		if (process.env.VSCODE_DEV && process.env.VSCODE_DEV_SERVER_URL) {
+			windowUrl = process.env.VSCODE_DEV_SERVER_URL; // support URL override for development
+		} else {
+			windowUrl = FileAccess.asBrowserUri(`vs/code/electron-browser/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true);
+		}
+		this._win.loadURL(windowUrl);
 
 		// Remember that we did load
 		const wasLoaded = this.wasLoaded;

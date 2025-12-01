@@ -31,8 +31,9 @@ import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
 import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
-import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
+import { ChatMarkdownContentPart } from '../chatMarkdownContentPart.js';
 import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
+import { EditorPool } from '../chatContentCodePools.js';
 
 const SHOW_MORE_MESSAGE_HEIGHT_TRIGGER = 45;
 
@@ -129,7 +130,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 		const { message, disclaimer } = this.toolInvocation.confirmationMessages!;
 		const toolInvocation = this.toolInvocation as IChatToolInvocation;
 
-		if (typeof message === 'string') {
+		if (typeof message === 'string' && !disclaimer) {
 			return message;
 		} else {
 			const codeBlockRenderOptions: ICodeBlockRenderOptions = {
@@ -322,7 +323,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 			undefined,
 			this.currentWidthDelegate(),
 			this.codeBlockModelCollection,
-			{ codeBlockRenderOptions }
+			{ codeBlockRenderOptions },
 		));
 		renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
 		container.append(part.domNode);

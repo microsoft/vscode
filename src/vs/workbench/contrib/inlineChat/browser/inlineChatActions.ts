@@ -29,8 +29,6 @@ import { IChatService } from '../../chat/common/chatService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { HunkInformation } from './inlineChatSession.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { IInlineChatSessionService } from './inlineChatSessionService.js';
-import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
@@ -122,7 +120,7 @@ export class StartSessionAction extends Action2 {
 		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
 			options = arg;
 		}
-		InlineChatController.get(editor)?.run({ ...options });
+		return InlineChatController.get(editor)?.run({ ...options });
 	}
 }
 
@@ -623,21 +621,14 @@ class KeepOrUndoSessionAction extends AbstractInline2ChatAction {
 		super(desc);
 	}
 
-	override async runInlineChatCommand(accessor: ServicesAccessor, _ctrl: InlineChatController2, editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
-		const inlineChatSessions = accessor.get(IInlineChatSessionService);
-		if (!editor.hasModel()) {
-			return;
+	override async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController2, editor: ICodeEditor, ..._args: unknown[]): Promise<void> {
+		if (this._keep) {
+			await ctrl.acceptSession();
+		} else {
+			await ctrl.rejectSession();
 		}
-		const textModel = editor.getModel();
-		const session = inlineChatSessions.getSession2(textModel.uri);
-		if (session) {
-			if (this._keep) {
-				await session.editingSession.accept();
-			} else {
-				await session.editingSession.reject();
-			}
+		if (editor.hasModel()) {
 			editor.setSelection(editor.getSelection().collapseToStart());
-			session.dispose();
 		}
 	}
 }
@@ -653,7 +644,6 @@ export class KeepSessionAction2 extends KeepOrUndoSessionAction {
 				CTX_INLINE_CHAT_VISIBLE,
 				ctxHasRequestInProgress.negate(),
 				ctxHasEditorModification,
-				ChatContextKeys.location.isEqualTo(ChatAgentLocation.EditorInline)
 			),
 			keybinding: [{
 				when: ContextKeyExpr.and(ChatContextKeys.inputHasFocus, ChatContextKeys.inputHasText.negate()),
