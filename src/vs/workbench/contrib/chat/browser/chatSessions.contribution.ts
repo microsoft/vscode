@@ -8,12 +8,12 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as resources from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -529,45 +529,70 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
-		return registerAction2(class OpenNewChatSessionEditorAction extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
-					title: localize2('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
-					category: CHAT_CATEGORY,
-					icon: Codicon.plus,
-					f1: true, // Show in command palette
-					precondition: ChatContextKeys.enabled
-				});
-			}
-
-			async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
-				const editorService = accessor.get(IEditorService);
-				const logService = accessor.get(ILogService);
-				const chatService = accessor.get(IChatService);
-				const { type } = contribution;
-
-				try {
-					const options: IChatEditorOptions = {
-						override: ChatEditorInput.EditorID,
-						pinned: true,
-						title: {
-							fallback: localize('chatEditorContributionName', "{0}", contribution.displayName),
-						}
-					};
-					const resource = URI.from({
-						scheme: type,
-						path: `/untitled-${generateUuid()}`,
+		return combinedDisposable(
+			registerAction2(class OpenChatSessionAction extends Action2 {
+				constructor() {
+					super({
+						id: `workbench.action.chat.openSessionWithPrompt.${contribution.type}`,
+						title: localize2('interactiveSession.openSessionWithPrompt', "New {0} with Prompt", contribution.displayName),
+						category: CHAT_CATEGORY,
+						icon: Codicon.plus,
+						f1: false,
+						precondition: ChatContextKeys.enabled
 					});
-					await editorService.openEditor({ resource, options });
-					if (chatOptions?.prompt) {
-						await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
-					}
-				} catch (e) {
-					logService.error(`Failed to open new '${type}' chat session editor`, e);
 				}
-			}
-		});
+
+				async run(accessor: ServicesAccessor, chatOptions?: { resource: UriComponents; prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
+					const chatService = accessor.get(IChatService);
+					const { type } = contribution;
+
+					if (chatOptions) {
+						const ref = await chatService.loadSessionForResource(URI.revive(chatOptions.resource), ChatAgentLocation.Chat, CancellationToken.None);
+						await chatService.sendRequest(URI.revive(chatOptions.resource), chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
+						ref?.dispose();
+					}
+				}
+			}),
+			registerAction2(class OpenNewChatSessionEditorAction extends Action2 {
+				constructor() {
+					super({
+						id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
+						title: localize2('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
+						category: CHAT_CATEGORY,
+						icon: Codicon.plus,
+						f1: true, // Show in command palette
+						precondition: ChatContextKeys.enabled
+					});
+				}
+
+				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
+					const editorService = accessor.get(IEditorService);
+					const logService = accessor.get(ILogService);
+					const chatService = accessor.get(IChatService);
+					const { type } = contribution;
+
+					try {
+						const options: IChatEditorOptions = {
+							override: ChatEditorInput.EditorID,
+							pinned: true,
+							title: {
+								fallback: localize('chatEditorContributionName', "{0}", contribution.displayName),
+							}
+						};
+						const resource = URI.from({
+							scheme: type,
+							path: `/untitled-${generateUuid()}`,
+						});
+						await editorService.openEditor({ resource, options });
+						if (chatOptions?.prompt) {
+							await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
+						}
+					} catch (e) {
+						logService.error(`Failed to open new '${type}' chat session editor`, e);
+					}
+				}
+			})
+		);
 	}
 
 	private _evaluateAvailability(): void {
