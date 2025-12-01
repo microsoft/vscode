@@ -960,34 +960,69 @@ export async function createAuthMetadata(
 
 	const baseUrl = new URL(originalResponse.url).origin;
 
-	// If we are not given a resource_metadata, see if the well-known server metadata is available
-	// on the base url.
-	let additionalHeaders: Record<string, string> = {};
-	if (!serverMetadataUrl) {
-		serverMetadataUrl = baseUrl;
-		// Maintain the launch headers when talking to the MCP origin.
-		additionalHeaders = {
-			...Object.fromEntries(launchHeaders),
-			'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-		};
+	// Headers to use when fetching from the same origin as the MCP server
+	const sameOriginHeaders: Record<string, string> = {
+		...Object.fromEntries(launchHeaders),
+		'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
+	};
+
+	// Helper to determine if a URL is same-origin as the MCP server
+	const isSameOrigin = (url: string): boolean => {
+		try {
+			return new URL(url).origin === baseUrl;
+		} catch {
+			return false;
+		}
+	};
+
+	// Try to fetch AS metadata from PRM's authorization_servers if available
+	if (serverMetadataUrl) {
+		try {
+			log(LogLevel.Debug, `Fetching auth server metadata from PRM's authorization_servers: ${serverMetadataUrl} ...`);
+			const additionalHeaders = isSameOrigin(serverMetadataUrl) ? sameOriginHeaders : {};
+			const serverMetadataResponse = await fetchAuthorizationServerMetadata(serverMetadataUrl, {
+				additionalHeaders,
+				fetch: (url, init) => fetch(url, init as MinimalRequestInit)
+			});
+			log(LogLevel.Info, 'Populated auth metadata from PRM authorization server');
+			return new AuthMetadata(
+				URI.parse(serverMetadataUrl),
+				serverMetadataResponse,
+				resource,
+				scopesChallenge,
+				log
+			);
+		} catch (e) {
+			log(LogLevel.Warning, `Error fetching auth server metadata from ${serverMetadataUrl}: ${String(e)}`);
+		}
 	}
 
-	try {
-		log(LogLevel.Debug, `Fetching auth server metadata for: ${serverMetadataUrl} ...`);
-		const serverMetadataResponse = await fetchAuthorizationServerMetadata(serverMetadataUrl, {
-			additionalHeaders,
-			fetch: (url, init) => fetch(url, init as MinimalRequestInit)
-		});
-		log(LogLevel.Info, 'Populated auth metadata');
-		return new AuthMetadata(
-			URI.parse(serverMetadataUrl),
-			serverMetadataResponse,
-			resource,
-			scopesChallenge,
-			log
-		);
-	} catch (e) {
-		log(LogLevel.Warning, `Error populating auth server metadata for ${serverMetadataUrl}: ${String(e)}`);
+	// This point is only reached if:
+	// 1. No serverMetadataUrl was provided by PRM, OR
+	// 2. The fetch from serverMetadataUrl failed (the success path returns above)
+	//
+	// If serverMetadataUrl was on a different origin and failed, we should try the base URL.
+	// If serverMetadataUrl was on the same origin (i.e., equals baseUrl) and failed,
+	// we skip trying baseUrl again to avoid duplicate requests.
+	const shouldTryBaseUrl = !serverMetadataUrl || !isSameOrigin(serverMetadataUrl);
+	if (shouldTryBaseUrl) {
+		try {
+			log(LogLevel.Debug, `Fetching auth server metadata from base URL: ${baseUrl} ...`);
+			const serverMetadataResponse = await fetchAuthorizationServerMetadata(baseUrl, {
+				additionalHeaders: sameOriginHeaders,
+				fetch: (url, init) => fetch(url, init as MinimalRequestInit)
+			});
+			log(LogLevel.Info, 'Populated auth metadata from base URL');
+			return new AuthMetadata(
+				URI.parse(baseUrl),
+				serverMetadataResponse,
+				resource,
+				scopesChallenge,
+				log
+			);
+		} catch (e) {
+			log(LogLevel.Warning, `Error fetching auth server metadata from base URL ${baseUrl}: ${String(e)}`);
+		}
 	}
 
 	// If there's no well-known server metadata, then use the default values based off of the url.

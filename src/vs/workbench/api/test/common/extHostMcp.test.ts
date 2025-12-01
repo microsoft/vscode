@@ -731,6 +731,387 @@ suite('ExtHostMcp', () => {
 			// This test documents the actual behavior
 			assert.strictEqual(typeof result, 'boolean');
 		});
+
+		suite('metadata resolution flows', () => {
+			/**
+			 * Helper to create a URL-based mock fetch that returns different responses
+			 * based on URL patterns. This handles the fact that fetchResourceMetadata
+			 * and fetchAuthorizationServerMetadata may try multiple URLs internally.
+			 */
+			function createUrlBasedMockFetch(
+				sandbox: sinon.SinonSandbox,
+				urlResponses: Array<{ urlPattern: string | RegExp; response: CommonResponse }>
+			): sinon.SinonStub {
+				const mockFetch = sandbox.stub();
+				mockFetch.callsFake((url: string) => {
+					for (const { urlPattern, response } of urlResponses) {
+						if (typeof urlPattern === 'string') {
+							if (url.includes(urlPattern)) {
+								return Promise.resolve(response);
+							}
+						} else if (urlPattern.test(url)) {
+							return Promise.resolve(response);
+						}
+					}
+					// Default: return 404 for any unmatched URL
+					return Promise.resolve(createMockResponse({
+						status: 404,
+						url,
+						body: 'Not Found'
+					}));
+				});
+				return mockFetch;
+			}
+
+			test('Scenario 1: PRM exists with authorization_servers, AS exists - should use AS from PRM', async () => {
+				const customAuthServer = 'https://custom-auth.example.com';
+
+				const mockFetch = createUrlBasedMockFetch(sandbox, [
+					// Resource metadata fetch - returns PRM with authorization_servers
+					{
+						urlPattern: 'oauth-protected-resource',
+						response: createMockResponse({
+							status: 200,
+							url: TEST_RESOURCE_METADATA_URL,
+							body: JSON.stringify({
+								resource: TEST_MCP_URL,
+								authorization_servers: [customAuthServer],
+								scopes_supported: ['read', 'write']
+							})
+						})
+					},
+					// Server metadata fetch from custom auth server - succeeds
+					{
+						urlPattern: customAuthServer,
+						response: createMockResponse({
+							status: 200,
+							url: `${customAuthServer}/.well-known/oauth-authorization-server`,
+							body: JSON.stringify({
+								issuer: customAuthServer,
+								authorization_endpoint: `${customAuthServer}/authorize`,
+								token_endpoint: `${customAuthServer}/token`,
+								response_types_supported: ['code']
+							})
+						})
+					}
+				]);
+
+				const originalResponse = createMockResponse({
+					status: 401,
+					url: TEST_MCP_URL,
+					headers: {}
+				});
+
+				const authMetadata = await createAuthMetadata(
+					TEST_MCP_URL,
+					originalResponse,
+					{
+						launchHeaders: new Map(),
+						fetch: mockFetch,
+						log: mockLogger
+					}
+				);
+
+				// Should use the auth server from PRM
+				assert.ok(authMetadata.authorizationServer.toString().startsWith(customAuthServer));
+				assert.strictEqual(authMetadata.serverMetadata.issuer, customAuthServer);
+				assert.ok(authMetadata.resourceMetadata);
+				assert.deepStrictEqual(authMetadata.resourceMetadata?.scopes_supported, ['read', 'write']);
+
+				// Should log that it's using PRM authorization server
+				assert.ok(logMessages.some(m =>
+					m.level === LogLevel.Info &&
+					m.message.includes('Populated auth metadata from PRM authorization server')
+				));
+			});
+
+			test('Scenario 2: PRM exists without authorization_servers - should fallback to base URL for AS', async () => {
+				const mockFetch = createUrlBasedMockFetch(sandbox, [
+					// Resource metadata fetch - PRM exists but no authorization_servers
+					{
+						urlPattern: 'oauth-protected-resource',
+						response: createMockResponse({
+							status: 200,
+							url: TEST_RESOURCE_METADATA_URL,
+							body: JSON.stringify({
+								resource: TEST_MCP_URL,
+								// No authorization_servers
+								scopes_supported: ['read']
+							})
+						})
+					},
+					// Server metadata fetch from base URL (example.com)
+					{
+						urlPattern: /example\.com.*(?:oauth-authorization-server|openid-configuration)/,
+						response: createMockResponse({
+							status: 200,
+							url: 'https://example.com/.well-known/oauth-authorization-server',
+							body: JSON.stringify({
+								issuer: 'https://example.com',
+								authorization_endpoint: 'https://example.com/authorize',
+								token_endpoint: 'https://example.com/token',
+								response_types_supported: ['code']
+							})
+						})
+					}
+				]);
+
+				const originalResponse = createMockResponse({
+					status: 401,
+					url: TEST_MCP_URL,
+					headers: {}
+				});
+
+				const authMetadata = await createAuthMetadata(
+					TEST_MCP_URL,
+					originalResponse,
+					{
+						launchHeaders: new Map(),
+						fetch: mockFetch,
+						log: mockLogger
+					}
+				);
+
+				// Should use the base URL's auth server metadata
+				assert.ok(authMetadata.authorizationServer.toString().startsWith('https://example.com'));
+				assert.strictEqual(authMetadata.serverMetadata.issuer, 'https://example.com');
+				// PRM should still be preserved
+				assert.ok(authMetadata.resourceMetadata);
+
+				// Should log fetching from base URL
+				assert.ok(logMessages.some(m =>
+					m.level === LogLevel.Info &&
+					m.message.includes('Populated auth metadata from base URL')
+				));
+			});
+
+			test('Scenario 3: PRM does not exist, AS exists at base URL - should use AS from base URL', async () => {
+				const mockFetch = createUrlBasedMockFetch(sandbox, [
+					// Resource metadata fetch - fails (PRM doesn't exist)
+					{
+						urlPattern: 'oauth-protected-resource',
+						response: createMockResponse({
+							status: 404,
+							url: TEST_RESOURCE_METADATA_URL,
+							body: 'Not Found'
+						})
+					},
+					// Server metadata fetch from base URL - succeeds
+					{
+						urlPattern: /example\.com.*(?:oauth-authorization-server|openid-configuration)/,
+						response: createMockResponse({
+							status: 200,
+							url: 'https://example.com/.well-known/oauth-authorization-server',
+							body: JSON.stringify({
+								issuer: 'https://example.com',
+								authorization_endpoint: 'https://example.com/authorize',
+								token_endpoint: 'https://example.com/token',
+								response_types_supported: ['code']
+							})
+						})
+					}
+				]);
+
+				const originalResponse = createMockResponse({
+					status: 401,
+					url: TEST_MCP_URL,
+					headers: {}
+				});
+
+				const authMetadata = await createAuthMetadata(
+					TEST_MCP_URL,
+					originalResponse,
+					{
+						launchHeaders: new Map(),
+						fetch: mockFetch,
+						log: mockLogger
+					}
+				);
+
+				// Should use the base URL's auth server metadata
+				assert.ok(authMetadata.authorizationServer.toString().startsWith('https://example.com'));
+				assert.strictEqual(authMetadata.serverMetadata.issuer, 'https://example.com');
+				// PRM should be undefined
+				assert.strictEqual(authMetadata.resourceMetadata, undefined);
+			});
+
+			test('Scenario 4: Neither PRM nor AS exists - should use default metadata', async () => {
+				const mockFetch = createUrlBasedMockFetch(sandbox, [
+					// All requests return 404 - nothing exists
+				]);
+
+				const originalResponse = createMockResponse({
+					status: 401,
+					url: TEST_MCP_URL,
+					headers: {}
+				});
+
+				const authMetadata = await createAuthMetadata(
+					TEST_MCP_URL,
+					originalResponse,
+					{
+						launchHeaders: new Map(),
+						fetch: mockFetch,
+						log: mockLogger
+					}
+				);
+
+				// Should use default metadata based on the URL
+				assert.ok(authMetadata.authorizationServer.toString().startsWith('https://example.com'));
+				// Default metadata should have standard endpoints
+				assert.ok(authMetadata.serverMetadata.authorization_endpoint?.includes('/authorize'));
+				assert.ok(authMetadata.serverMetadata.token_endpoint?.includes('/token'));
+				// PRM should be undefined
+				assert.strictEqual(authMetadata.resourceMetadata, undefined);
+
+				// Should log using default metadata
+				assert.ok(logMessages.some(m =>
+					m.level === LogLevel.Info &&
+					m.message.includes('Using default auth metadata')
+				));
+			});
+
+			test('Scenario 1b: PRM exists with AS on different origin, AS fetch fails - should fallback to base URL', async () => {
+				const customAuthServer = 'https://different-auth.example.com';
+
+				const mockFetch = createUrlBasedMockFetch(sandbox, [
+					// Resource metadata fetch - returns PRM with authorization_servers on different origin
+					{
+						urlPattern: 'oauth-protected-resource',
+						response: createMockResponse({
+							status: 200,
+							url: TEST_RESOURCE_METADATA_URL,
+							body: JSON.stringify({
+								resource: TEST_MCP_URL,
+								authorization_servers: [customAuthServer]
+							})
+						})
+					},
+					// Server metadata fetch from custom auth server - fails
+					{
+						urlPattern: /different-auth\.example\.com/,
+						response: createMockResponse({
+							status: 500,
+							url: `${customAuthServer}/.well-known/oauth-authorization-server`,
+							body: 'Internal Server Error'
+						})
+					},
+					// Server metadata fetch from base URL - succeeds
+					{
+						urlPattern: /^https:\/\/example\.com.*(?:oauth-authorization-server|openid-configuration)/,
+						response: createMockResponse({
+							status: 200,
+							url: 'https://example.com/.well-known/oauth-authorization-server',
+							body: JSON.stringify({
+								issuer: 'https://example.com',
+								authorization_endpoint: 'https://example.com/authorize',
+								token_endpoint: 'https://example.com/token',
+								response_types_supported: ['code']
+							})
+						})
+					}
+				]);
+
+				const originalResponse = createMockResponse({
+					status: 401,
+					url: TEST_MCP_URL,
+					headers: {}
+				});
+
+				const authMetadata = await createAuthMetadata(
+					TEST_MCP_URL,
+					originalResponse,
+					{
+						launchHeaders: new Map(),
+						fetch: mockFetch,
+						log: mockLogger
+					}
+				);
+
+				// Should fallback to base URL after PRM's AS fails
+				assert.ok(authMetadata.authorizationServer.toString().startsWith('https://example.com'));
+				assert.strictEqual(authMetadata.serverMetadata.issuer, 'https://example.com');
+				// PRM should still be preserved
+				assert.ok(authMetadata.resourceMetadata);
+
+				// Should log failure from custom auth server and success from base URL
+				assert.ok(logMessages.some(m =>
+					m.level === LogLevel.Warning &&
+					m.message.includes(customAuthServer)
+				));
+				assert.ok(logMessages.some(m =>
+					m.level === LogLevel.Info &&
+					m.message.includes('Populated auth metadata from base URL')
+				));
+			});
+
+			test('should include same-origin headers when fetching AS metadata from same origin as MCP server', async () => {
+				let capturedAsHeaders: Record<string, string> | undefined;
+
+				const mockFetch = sandbox.stub().callsFake((url: string, init: RequestInit) => {
+					if (url.includes('oauth-protected-resource')) {
+						// Resource metadata fetch - PRM exists with AS on same origin
+						return Promise.resolve(createMockResponse({
+							status: 200,
+							url: TEST_RESOURCE_METADATA_URL,
+							body: JSON.stringify({
+								resource: TEST_MCP_URL,
+								authorization_servers: ['https://example.com'] // Same origin as MCP URL
+							})
+						}));
+					} else if (url.includes('example.com') && (url.includes('oauth-authorization-server') || url.includes('openid-configuration'))) {
+						// Capture headers from AS metadata fetch
+						capturedAsHeaders = init?.headers as Record<string, string>;
+						return Promise.resolve(createMockResponse({
+							status: 200,
+							url: 'https://example.com/.well-known/oauth-authorization-server',
+							body: JSON.stringify({
+								issuer: 'https://example.com',
+								authorization_endpoint: 'https://example.com/authorize',
+								token_endpoint: 'https://example.com/token',
+								response_types_supported: ['code']
+							})
+						}));
+					}
+					return Promise.resolve(createMockResponse({
+						status: 404,
+						url,
+						body: 'Not Found'
+					}));
+				});
+
+				const launchHeaders = new Map<string, string>([
+					['X-Custom-Header', 'custom-value'],
+					['Authorization', 'Bearer existing-token']
+				]);
+
+				const originalResponse = createMockResponse({
+					status: 401,
+					url: TEST_MCP_URL,
+					headers: {}
+				});
+
+				await createAuthMetadata(
+					TEST_MCP_URL,
+					originalResponse,
+					{
+						launchHeaders,
+						fetch: mockFetch,
+						log: mockLogger
+					}
+				);
+
+				// Verify the AS metadata fetch was made
+				assert.ok(mockFetch.called, 'fetch should have been called');
+				assert.ok(capturedAsHeaders, 'AS metadata fetch headers should have been captured');
+
+				// Same-origin headers should be included when fetching from same origin
+				assert.ok(
+					capturedAsHeaders['MCP-Protocol-Version'] || capturedAsHeaders['X-Custom-Header'],
+					'Same-origin headers should be included when fetching from same origin'
+				);
+			});
+		});
 	});
 });
 
