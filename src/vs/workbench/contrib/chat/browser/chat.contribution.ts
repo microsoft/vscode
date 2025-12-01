@@ -89,6 +89,7 @@ import './agentSessions/agentSessionsView.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
 import './chatAttachmentModel.js';
+import './chatStatusWidget.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 import { ChatContextPickService, IChatContextPickService } from './chatContextPickService.js';
@@ -534,6 +535,16 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.codeBlock.showProgressAnimation.description', "When applying edits, show a progress animation in the code block pill. If disabled, shows the progress percentage instead."),
 			default: true,
 			tags: ['experimental'],
+		},
+		['chat.statusWidget.enabled']: {
+			type: 'boolean',
+			description: nls.localize('chat.statusWidget.enabled.description', "Show the status widget in new chat sessions when quota is exceeded."),
+			default: false,
+			tags: ['experimental'],
+			included: false,
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
