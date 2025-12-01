@@ -562,7 +562,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						category: CHAT_CATEGORY,
 						icon: Codicon.plus,
 						f1: true, // Show in command palette
-						precondition: ChatContextKeys.enabled
+						precondition: ChatContextKeys.enabled,
+						menu: {
+							id: MenuId.ChatNewMenu,
+							group: '3_new_special',
+						}
 					});
 				}
 
