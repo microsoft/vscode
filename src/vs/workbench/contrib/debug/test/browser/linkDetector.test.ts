@@ -58,7 +58,6 @@ suite('Debug - Link Detector', () => {
 	test('trailingNewline', () => {
 		const input = 'I am a string\n';
 		const expectedOutput = '<span>I am a string\n</span>';
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior);
 
 		assert.strictEqual(0, output.children.length);
@@ -69,7 +68,6 @@ suite('Debug - Link Detector', () => {
 	test('trailingNewlineSplit', () => {
 		const input = 'I am a string\n';
 		const expectedOutput = '<span>I am a string\n</span>';
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior, true);
 
 		assert.strictEqual(0, output.children.length);
@@ -80,7 +78,6 @@ suite('Debug - Link Detector', () => {
 	test('singleLineLink', () => {
 		const input = isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34';
 		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\foo\\bar.js:12:34<\/a><\/span>' : '<span><a tabindex="0">/Users/foo/bar.js:12:34<\/a><\/span>';
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior);
 
 		assert.strictEqual(1, output.children.length);
@@ -94,7 +91,6 @@ suite('Debug - Link Detector', () => {
 	test('relativeLink', () => {
 		const input = '\./foo/bar.js';
 		const expectedOutput = '<span>\./foo/bar.js</span>';
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior);
 
 		assert.strictEqual(0, output.children.length);
@@ -104,7 +100,6 @@ suite('Debug - Link Detector', () => {
 
 	test('relativeLinkWithWorkspace', async () => {
 		const input = '\./foo/bar.js';
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior, false, new WorkspaceFolder({ uri: URI.file('/path/to/workspace'), name: 'ws', index: 0 }));
 		assert.strictEqual('SPAN', output.tagName);
 		assert.ok(output.outerHTML.indexOf('link') >= 0);
@@ -113,7 +108,6 @@ suite('Debug - Link Detector', () => {
 	test('singleLineLinkAndText', function () {
 		const input = isWindows ? 'The link: C:/foo/bar.js:12:34' : 'The link: /Users/foo/bar.js:12:34';
 		const expectedOutput = /^<span>The link: <a tabindex="0">.*\/foo\/bar.js:12:34<\/a><\/span>$/;
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior);
 
 		assert.strictEqual(1, output.children.length);
@@ -128,7 +122,6 @@ suite('Debug - Link Detector', () => {
 		const input = isWindows ? 'Here is a link C:/foo/bar.js:12:34 and here is another D:/boo/far.js:56:78' :
 			'Here is a link /Users/foo/bar.js:12:34 and here is another /Users/boo/far.js:56:78';
 		const expectedOutput = /^<span>Here is a link <a tabindex="0">.*\/foo\/bar.js:12:34<\/a> and here is another <a tabindex="0">.*\/boo\/far.js:56:78<\/a><\/span>$/;
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior);
 
 		assert.strictEqual(2, output.children.length);
@@ -145,7 +138,6 @@ suite('Debug - Link Detector', () => {
 	test('multilineNoLinks', () => {
 		const input = 'Line one\nLine two\nLine three';
 		const expectedOutput = /^<span><span>Line one\n<\/span><span>Line two\n<\/span><span>Line three<\/span><\/span>$/;
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior, true);
 
 		assert.strictEqual(3, output.children.length);
@@ -159,7 +151,6 @@ suite('Debug - Link Detector', () => {
 	test('multilineTrailingNewline', () => {
 		const input = 'I am a string\nAnd I am another\n';
 		const expectedOutput = '<span><span>I am a string\n<\/span><span>And I am another\n<\/span><\/span>';
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior, true);
 
 		assert.strictEqual(2, output.children.length);
@@ -173,7 +164,6 @@ suite('Debug - Link Detector', () => {
 		const input = isWindows ? 'I have a link for you\nHere it is: C:/foo/bar.js:12:34\nCool, huh?' :
 			'I have a link for you\nHere it is: /Users/foo/bar.js:12:34\nCool, huh?';
 		const expectedOutput = /^<span><span>I have a link for you\n<\/span><span>Here it is: <a tabindex="0">.*\/foo\/bar.js:12:34<\/a>\n<\/span><span>Cool, huh\?<\/span><\/span>$/;
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior, true);
 
 		assert.strictEqual(3, output.children.length);
@@ -191,7 +181,6 @@ suite('Debug - Link Detector', () => {
 		const input = 'I am a string';
 		const highlights: IHighlight[] = [{ start: 2, end: 5 }];
 		const expectedOutput = '<span>I <span class="highlight">am </span>a string</span>';
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior, false, undefined, false, highlights);
 
 		assert.strictEqual(1, output.children.length);
@@ -203,7 +192,6 @@ suite('Debug - Link Detector', () => {
 		const input = isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34';
 		const highlights: IHighlight[] = [{ start: 0, end: 5 }];
 		const expectedOutput = isWindows ? '<span><a tabindex="0"><span class="highlight">C:\\fo</span>o\\bar.js:12:34</a></span>' : '<span><a tabindex="0"><span class="highlight">/User</span>s/foo/bar.js:12:34</a></span>';
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior, false, undefined, false, highlights);
 
 		assert.strictEqual(1, output.children.length);
@@ -217,7 +205,6 @@ suite('Debug - Link Detector', () => {
 		const input = isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34';
 		const highlights: IHighlight[] = [{ start: 0, end: 10 }];
 		const expectedOutput = isWindows ? '<span><a tabindex="0"><span class="highlight">C:\\foo\\bar</span>.js:12:34</a></span>' : '<span><a tabindex="0"><span class="highlight">/Users/foo</span>/bar.js:12:34</a></span>';
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior, false, undefined, false, highlights);
 
 		assert.strictEqual(1, output.children.length);
@@ -231,7 +218,6 @@ suite('Debug - Link Detector', () => {
 		const input = isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34';
 		const highlights: IHighlight[] = [{ start: 10, end: 20 }];
 		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\foo\\bar<span class="highlight">.js:12:34</span></a></span>' : '<span><a tabindex="0">/Users/foo<span class="highlight">/bar.js:12</span>:34</a></span>';
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior, false, undefined, false, highlights);
 
 		assert.strictEqual(1, output.children.length);
@@ -245,7 +231,6 @@ suite('Debug - Link Detector', () => {
 		const input = isWindows ? 'C:\\foo\\bar.js:12:34' : '/Users/foo/bar.js:12:34';
 		const highlights: IHighlight[] = [{ start: 5, end: 15 }];
 		const expectedOutput = isWindows ? '<span><a tabindex="0">C:\\fo<span class="highlight">o\\bar.js:1</span>2:34</a></span>' : '<span><a tabindex="0">/User<span class="highlight">s/foo/bar.</span>js:12:34</a></span>';
-		const hoverBehavior = createHoverBehavior();
 		const output = linkDetector.linkify(input, hoverBehavior, false, undefined, false, highlights);
 
 		assert.strictEqual(1, output.children.length);
