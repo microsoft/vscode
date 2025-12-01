@@ -78,6 +78,18 @@ declare module 'vscode' {
 	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
+		provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
 		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Thenable<void>;
+	}
+
+	/**
+	 * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
+	 */
+	export interface PrepareLanguageModelChatModelOptions {
+		/**
+		 * Configuration for the model. This is only present if the provider has declared that it requires configuration via the `configuration` property.
+		 * The object adheres to the schema that the extension provided during declaration.
+		 */
+		readonly configuration?: any;
 	}
 }

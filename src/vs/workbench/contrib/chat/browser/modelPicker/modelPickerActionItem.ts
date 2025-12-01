@@ -91,8 +91,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 					tooltip: localize('chat.manageModels.tooltip', "Manage Language Models"),
 					class: undefined,
 					run: () => {
-						const commandId = ManageModelsAction.ID;
-						commandService.executeCommand(productService.quality === 'stable' ? commandId : MANAGE_CHAT_COMMAND_ID);
+						commandService.executeCommand(productService.quality === 'stable' ? ManageModelsAction.ID : MANAGE_CHAT_COMMAND_ID);
 					}
 				});
 			}
