@@ -387,6 +387,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const uri = promptPath.uri;
 				const ast = await this.parseNew(uri, token);
 
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				let metadata: any | undefined;
 				if (ast.header) {
 					const advanced = ast.header.getAttribute(PromptHeaderAttributes.advancedOptions);

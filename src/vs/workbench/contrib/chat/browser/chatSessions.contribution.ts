@@ -920,6 +920,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 */
 	public async getNewChatSessionItem(chatSessionType: string, options: {
 		request: IChatAgentRequest;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem> {
 		if (!(await this.activateChatSessionItemProvider(chatSessionType))) {
