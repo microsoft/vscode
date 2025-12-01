@@ -238,6 +238,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			}));
 		}
 
+		// Invalidate instruction cache when provider is registered
+		this.cachedFileLocations[PromptsType.instructions] = undefined;
+
 		disposables.add({
 			dispose: () => {
 				const index = this.instructionsProviders.findIndex((p) => p === providerEntry);
