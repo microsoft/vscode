@@ -186,9 +186,9 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					}
 				},
 				canDelegate: {
-					description: localize('chatSessionsExtPoint.canDelegate', 'Whether delegation is supported. Defaults to true.'),
+					description: localize('chatSessionsExtPoint.canDelegate', 'Whether delegation is supported. Default is false. Note that enabling this is experimental and may not be respected at all times.'),
 					type: 'boolean',
-					default: true
+					default: false
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
