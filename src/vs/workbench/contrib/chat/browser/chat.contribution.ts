@@ -980,7 +980,7 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 
 			// Register new modes
 			for (const mode of custom) {
-				if (!this._modeActionDisposables.has(mode.id)) {
+				if (currentModeIds.has(mode.id) && !this._modeActionDisposables.has(mode.id)) {
 					this._registerModeAction(mode);
 				}
 			}
