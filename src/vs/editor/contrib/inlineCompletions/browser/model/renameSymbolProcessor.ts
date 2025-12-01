@@ -318,7 +318,7 @@ export class RenameSymbolProcessor extends Disposable {
 		const { oldName, newName, position, edits: renameEdits } = edits.renames;
 
 		let timedOut = false;
-		const check = await raceTimeout<RenameKind>(this.checkRenamePrecondition(textModel, position, oldName, newName), 1000, () => { timedOut = true; });
+		const check = await raceTimeout<RenameKind>(this.checkRenamePrecondition(suggestItem, textModel, position, oldName, newName), 1000, () => { timedOut = true; });
 		const renamePossible = check === RenameKind.yes || check === RenameKind.maybe;
 
 		suggestItem.setRenameProcessingInfo({
@@ -365,7 +365,7 @@ export class RenameSymbolProcessor extends Disposable {
 		return InlineSuggestionItem.create(suggestItem.withAction(renameAction), textModel);
 	}
 
-	private async checkRenamePrecondition(textModel: ITextModel, position: Position, oldName: string, newName: string): Promise<RenameKind> {
+	private async checkRenamePrecondition(suggestItem: InlineSuggestionItem, textModel: ITextModel, position: Position, oldName: string, newName: string): Promise<RenameKind> {
 		// const result = await prepareRename(this._languageFeaturesService.renameProvider, textModel, position, CancellationToken.None);
 		// if (result === undefined || result.rejectReason) {
 		// 	return RenameKind.no;
@@ -373,7 +373,7 @@ export class RenameSymbolProcessor extends Disposable {
 		// return oldName === result.text ? RenameKind.yes : RenameKind.no;
 
 		try {
-			const result = await this._commandService.executeCommand<RenameKind>('github.copilot.nes.prepareRename', textModel.uri, position, oldName, newName);
+			const result = await this._commandService.executeCommand<RenameKind>('github.copilot.nes.prepareRename', textModel.uri, position, oldName, newName, suggestItem.requestUuid);
 			if (result === undefined) {
 				return RenameKind.no;
 			} else {
