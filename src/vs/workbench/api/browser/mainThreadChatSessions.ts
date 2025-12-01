@@ -420,9 +420,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					options,
 				},
 			}], originalGroup);
-		} else {
-			this._logService.warn(`Original chat session editor not found for resource ${originalResource.toString()}`);
-			this._editorService.openEditor({ resource: modifiedResource }, originalGroup);
 		}
 	}
 
