@@ -958,19 +958,30 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 		this._register(this.chatModeService.onDidChangeChatModes(() => {
 			const { custom } = this.chatModeService.getModes();
 			const currentModeIds = new Set<string>();
+			const currentModeNames = new Map<string, string>();
 
-			// Register new modes
 			for (const mode of custom) {
-				currentModeIds.add(mode.id);
-				if (!this._modeActionDisposables.has(mode.id)) {
-					this._registerModeAction(mode);
+				const modeName = mode.name.get();
+				if (currentModeNames.has(modeName)) {
+					// if there is a name collision, the later one in the list wins
+					currentModeIds.delete(currentModeNames.get(modeName)!);
 				}
+
+				currentModeNames.set(modeName, mode.id);
+				currentModeIds.add(mode.id);
 			}
 
-			// Remove modes that no longer exist
+			// Remove modes that no longer exist and those replaced by modes later in the list with same name
 			for (const modeId of this._modeActionDisposables.keys()) {
 				if (!currentModeIds.has(modeId)) {
 					this._modeActionDisposables.deleteAndDispose(modeId);
+				}
+			}
+
+			// Register new modes
+			for (const mode of custom) {
+				if (!this._modeActionDisposables.has(mode.id)) {
+					this._registerModeAction(mode);
 				}
 			}
 		}));
