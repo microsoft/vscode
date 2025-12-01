@@ -30,9 +30,10 @@
 }
 
 .chat-diff-change-content-widget .monaco-action-bar .action-item .action-label {
-	border-radius: 4px;
-	padding: 2px 5px;
-	font-size: 12px;
+		border-radius: 4px;
+		font-size: 11px;
+		line-height: 14px;
+		padding: 4px 6px;
 }
 
 .chat-diff-change-content-widget .monaco-action-bar .action-item.primary .action-label {
@@ -45,11 +46,11 @@
 }
 
 .chat-diff-change-content-widget .monaco-action-bar .action-item .action-label.codicon:not(.separator) {
-	width: 20px;
-	height: 20px;
+	width: 22px; /* align with default icon button dimensions */
+	height: 22px;
 	padding: 0;
 	font-size: 16px;
-	line-height: 20px;
+	line-height: 22px;
 	display: flex;
 	align-items: center;
 	justify-content: center;

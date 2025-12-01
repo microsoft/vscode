@@ -56,8 +56,9 @@
 }
 
 .chat-editor-overlay-widget .action-item > .action-label {
-	padding: 2px 5px;
-	font-size: 12px;
+	padding: 4px 6px;
+	font-size: 11px;
+	line-height: 14px;
 	border-radius: 4px; /* same as overlay widget */
 }
 
@@ -80,11 +81,11 @@
 
 .chat-editor-overlay-widget .action-item > .action-label.codicon:not(.separator) {
 	color: var(--vscode-foreground);
-	width: 20px;
-	height: 20px;
+	width: 22px; /* align with default icon button dimensions */
+	height: 22px;
 	padding: 0;
 	font-size: 16px;
-	line-height: 20px;
+	line-height: 22px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
