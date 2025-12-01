@@ -296,6 +296,52 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return result;
 	}
 
+	private async listInstructionsFromProvider(token: CancellationToken): Promise<IPromptPath[]> {
+		const result: IPromptPath[] = [];
+
+		if (this.instructionsProviders.length === 0) {
+			return result;
+		}
+
+		// Activate extensions that might provide instructions
+		await this.extensionService.activateByEvent(INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT);
+
+		// Collect instructions from all providers
+		for (const providerEntry of this.instructionsProviders) {
+			try {
+				const instructions = await providerEntry.provideInstructions({}, token);
+				if (!instructions || token.isCancellationRequested) {
+					continue;
+				}
+
+				for (const instruction of instructions) {
+					if (!instruction.isEditable) {
+						try {
+							await this.filesConfigService.updateReadonly(instruction.uri, true);
+						} catch (e) {
+							const msg = e instanceof Error ? e.message : String(e);
+							this.logger.error(`[listInstructionsFromProvider] Failed to make instruction file readonly: ${instruction.uri}`, msg);
+						}
+					}
+
+					result.push({
+						uri: instruction.uri,
+						name: instruction.name,
+						description: instruction.description,
+						storage: PromptsStorage.extension,
+						type: PromptsType.instructions,
+						extension: providerEntry.extension,
+						source: ExtensionAgentSourceType.provider
+					} satisfies IExtensionPromptPath);
+				}
+			} catch (e) {
+				this.logger.error(`[listInstructionsFromProvider] Failed to get instructions from provider`, e instanceof Error ? e.message : String(e));
+			}
+		}
+
+		return result;
+	}
+
 
 
 	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
@@ -317,6 +363,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (type === PromptsType.agent) {
 			const providerAgents = await this.listCustomAgentsFromProvider(token);
 			return [...contributedFiles, ...providerAgents];
+		}
+		if (type === PromptsType.instructions) {
+			const providerInstructions = await this.listInstructionsFromProvider(token);
+			return [...contributedFiles, ...providerInstructions];
 		}
 		return contributedFiles;
 	}
