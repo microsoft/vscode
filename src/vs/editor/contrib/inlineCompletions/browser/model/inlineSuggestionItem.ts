@@ -25,7 +25,7 @@ import { EndOfLinePreference, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { computeEditKind, InlineSuggestionEditKind } from './editKind.js';
-import { IInlineSuggestDataAction, IInlineSuggestDataActionEdit, InlineSuggestData, InlineSuggestionList, PartialAcceptance, RenameInfo, SnippetInfo } from './provideInlineCompletions.js';
+import { IInlineSuggestDataAction, IInlineSuggestDataActionEdit, InlineSuggestAlternativeAction, InlineSuggestData, InlineSuggestionList, PartialAcceptance, RenameInfo, SnippetInfo } from './provideInlineCompletions.js';
 import { singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 
 export type InlineSuggestionItem = InlineEditItem | InlineCompletionItem;
@@ -51,7 +51,7 @@ export interface IInlineSuggestionActionEdit {
 	snippetInfo: SnippetInfo | undefined;
 	stringEdit: StringEdit;
 	uri: URI | undefined;
-	alternativeAction: Command | undefined;
+	alternativeAction: InlineSuggestAlternativeAction | undefined;
 }
 
 export interface IInlineSuggestionActionJumpTo {
@@ -62,7 +62,7 @@ export interface IInlineSuggestionActionJumpTo {
 }
 
 function hashInlineSuggestionAction(action: InlineSuggestionAction | undefined): string {
-	const obj = action?.kind === 'edit' ? { ...action, alternativeAction: action.alternativeAction?.id } : action;
+	const obj = action?.kind === 'edit' ? { ...action, alternativeAction: InlineSuggestAlternativeAction.toString(action.alternativeAction) } : action;
 	return JSON.stringify(obj);
 }
 

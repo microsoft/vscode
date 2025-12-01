@@ -31,6 +31,7 @@ import { inlineCompletionIsVisible } from './inlineSuggestionItem.js';
 import { EditDeltaInfo } from '../../../../common/textModelEditSource.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InlineSuggestionEditKind } from './editKind.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
 
@@ -313,6 +314,19 @@ export type InlineSuggestViewData = {
 	viewKind?: InlineCompletionViewKind;
 };
 
+export type InlineSuggestAlternativeAction = {
+	label: string;
+	icon?: ThemeIcon;
+	command: Command;
+	count: Promise<number>;
+};
+
+export namespace InlineSuggestAlternativeAction {
+	export function toString(action: InlineSuggestAlternativeAction | undefined): string | undefined {
+		return action?.command.id ?? undefined;
+	}
+}
+
 export type IInlineSuggestDataAction = IInlineSuggestDataActionEdit | IInlineSuggestDataActionJumpTo;
 
 export interface IInlineSuggestDataActionEdit {
@@ -321,7 +335,7 @@ export interface IInlineSuggestDataActionEdit {
 	insertText: string;
 	snippetInfo: SnippetInfo | undefined;
 	uri: URI | undefined;
-	alternativeAction: Command | undefined;
+	alternativeAction: InlineSuggestAlternativeAction | undefined;
 }
 
 export interface IInlineSuggestDataActionJumpTo {
