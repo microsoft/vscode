@@ -36,7 +36,7 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '..
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ExtensionAgentSourceType, ICustomAgent, ICustomAgentQueryOptions, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, ICustomAgent, ICustomAgentQueryOptions, IInstructionQueryOptions, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
@@ -1199,6 +1199,123 @@ suite('PromptsService', () => {
 			assert.ok(editableAgent, 'Editable agent should be found');
 			assert.strictEqual(readonlyAgent!.description, 'Readonly agent from provider');
 			assert.strictEqual(editableAgent!.description, 'Editable agent from provider');
+
+			registered.dispose();
+		});
+
+		test('Instructions provider', async () => {
+			const instructionUri = URI.parse('file://extensions/my-extension/myInstruction.instructions.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+
+			// Mock the instruction file content
+			await mockFiles(fileService, [
+				{
+					path: instructionUri.path,
+					contents: [
+						'# Test instruction content'
+					]
+				}
+			]);
+
+			const provider = {
+				provideInstructions: async (_options: IInstructionQueryOptions, _token: CancellationToken) => {
+					return [
+						{
+							name: 'testInstruction',
+							description: 'Test instruction from provider',
+							uri: instructionUri
+						}
+					];
+				}
+			};
+
+			const registered = service.registerInstructionsProvider(extension, provider);
+
+			const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const providerInstruction = actual.find(i => i.name === 'testInstruction');
+
+			assert.ok(providerInstruction, 'Provider instruction should be found');
+			assert.strictEqual(providerInstruction!.uri.toString(), instructionUri.toString());
+			assert.strictEqual(providerInstruction!.name, 'testInstruction');
+			assert.strictEqual(providerInstruction!.description, 'Test instruction from provider');
+			assert.strictEqual(providerInstruction!.storage, PromptsStorage.extension);
+			assert.strictEqual(providerInstruction!.source, ExtensionAgentSourceType.provider);
+
+			registered.dispose();
+
+			// After disposal, the instruction should no longer be listed
+			const actualAfterDispose = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const foundAfterDispose = actualAfterDispose.find(i => i.name === 'testInstruction');
+			assert.strictEqual(foundAfterDispose, undefined);
+		});
+
+		test('Instructions provider with isEditable flag', async () => {
+			const readonlyInstructionUri = URI.parse('file://extensions/my-extension/readonly.instructions.md');
+			const editableInstructionUri = URI.parse('file://extensions/my-extension/editable.instructions.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+
+			// Mock the instruction file content
+			await mockFiles(fileService, [
+				{
+					path: readonlyInstructionUri.path,
+					contents: [
+						'# Readonly instruction content'
+					]
+				},
+				{
+					path: editableInstructionUri.path,
+					contents: [
+						'# Editable instruction content'
+					]
+				}
+			]);
+
+			const provider = {
+				provideInstructions: async (_options: IInstructionQueryOptions, _token: CancellationToken) => {
+					return [
+						{
+							name: 'readonlyInstruction',
+							description: 'Readonly instruction from provider',
+							uri: readonlyInstructionUri,
+							isEditable: false
+						},
+						{
+							name: 'editableInstruction',
+							description: 'Editable instruction from provider',
+							uri: editableInstructionUri,
+							isEditable: true
+						}
+					];
+				}
+			};
+
+			const registered = service.registerInstructionsProvider(extension, provider);
+
+			// Spy on updateReadonly to verify it's called correctly
+			const filesConfigService = instaService.get(IFilesConfigurationService);
+			const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
+
+			// List prompt files to trigger the readonly check
+			await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+
+			// Verify updateReadonly was called only for the non-editable instruction
+			assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
+			assert.ok(updateReadonlySpy.calledWith(readonlyInstructionUri, true), 'updateReadonly should be called with readonly instruction URI and true');
+
+			const actual = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			const readonlyInstruction = actual.find(i => i.name === 'readonlyInstruction');
+			const editableInstruction = actual.find(i => i.name === 'editableInstruction');
+
+			assert.ok(readonlyInstruction, 'Readonly instruction should be found');
+			assert.ok(editableInstruction, 'Editable instruction should be found');
+			assert.strictEqual(readonlyInstruction!.description, 'Readonly instruction from provider');
+			assert.strictEqual(editableInstruction!.description, 'Editable instruction from provider');
 
 			registered.dispose();
 		});
