@@ -3,54 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createHotClass } from '../../../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { derived, IObservable, ISettableObservable } from '../../../../../../base/common/observable.js';
+import { derived, IObservable } from '../../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ICodeEditor } from '../../../../../browser/editorBrowser.js';
 import { ObservableCodeEditor, observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
-import { LineRange } from '../../../../../common/core/ranges/lineRange.js';
 import { Range } from '../../../../../common/core/range.js';
 import { TextReplacement, TextEdit } from '../../../../../common/core/edits/textEdit.js';
 import { TextModelText } from '../../../../../common/model/textModelText.js';
 import { InlineCompletionsModel } from '../../model/inlineCompletionsModel.js';
-import { InlineEdit } from '../../model/inlineEdit.js';
 import { InlineEditWithChanges } from './inlineEditWithChanges.js';
-import { GhostTextIndicator, InlineEditHost, InlineEditModel } from './inlineEditsModel.js';
+import { ModelPerInlineEdit } from './inlineEditsModel.js';
 import { InlineEditsView } from './inlineEditsView.js';
 import { InlineEditTabAction } from './inlineEditsViewInterface.js';
+import { InlineSuggestionGutterMenuData, SimpleInlineSuggestModel } from './components/gutterIndicatorView.js';
 
 export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This class is no longer a diff producer. Rename it or get rid of it
-	public static readonly hot = createHotClass(this);
-
 	private readonly _editorObs: ObservableCodeEditor;
 
 	private readonly _inlineEdit = derived<InlineEditWithChanges | undefined>(this, (reader) => {
 		const model = this._model.read(reader);
 		if (!model) { return undefined; }
-		const inlineEdit = this._edit.read(reader);
-		if (!inlineEdit) { return undefined; }
 		const textModel = this._editor.getModel();
 		if (!textModel) { return undefined; }
 
-		const editOffset = model.inlineEditState.read(undefined)?.inlineCompletion.updatedEdit;
-		if (!editOffset) { return undefined; }
+		const state = model.inlineEditState.read(reader);
+		if (!state) { return undefined; }
+		const action = state.inlineSuggestion.action;
 
-		const edits = editOffset.replacements.map(e => {
-			const innerEditRange = Range.fromPositions(
-				textModel.getPositionAt(e.replaceRange.start),
-				textModel.getPositionAt(e.replaceRange.endExclusive)
-			);
-			return new TextReplacement(innerEditRange, e.newText);
-		});
-
-		const diffEdits = new TextEdit(edits);
 		const text = new TextModelText(textModel);
 
-		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.read(undefined), model.allPositions.read(undefined), inlineEdit.commands, inlineEdit.inlineCompletion);
+		let diffEdits: TextEdit | undefined;
+
+		if (action?.kind === 'edit') {
+			const editOffset = action.stringEdit;
+
+			const edits = editOffset.replacements.map(e => {
+				const innerEditRange = Range.fromPositions(
+					textModel.getPositionAt(e.replaceRange.start),
+					textModel.getPositionAt(e.replaceRange.endExclusive)
+				);
+				return new TextReplacement(innerEditRange, e.newText);
+			});
+			diffEdits = new TextEdit(edits);
+		} else {
+			diffEdits = undefined;
+		}
+
+		return new InlineEditWithChanges(
+			text,
+			action,
+			diffEdits,
+			model.primaryPosition.read(undefined),
+			model.allPositions.read(undefined),
+			state.inlineSuggestion.source.inlineSuggestions.commands ?? [],
+			state.inlineSuggestion
+		);
 	});
 
-	private readonly _inlineEditModel = derived<InlineEditModel | undefined>(this, reader => {
+	public readonly _inlineEditModel = derived<ModelPerInlineEdit | undefined>(this, reader => {
 		const model = this._model.read(reader);
 		if (!model) { return undefined; }
 		const edit = this._inlineEdit.read(reader);
@@ -65,43 +76,25 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 			return InlineEditTabAction.Inactive;
 		});
 
-		return new InlineEditModel(model, edit, tabAction);
+		return new ModelPerInlineEdit(model, edit, tabAction);
 	});
 
-	private readonly _inlineEditHost = derived<InlineEditHost | undefined>(this, reader => {
-		const model = this._model.read(reader);
-		if (!model) { return undefined; }
-		return new InlineEditHost(model);
-	});
-
-	private readonly _ghostTextIndicator = derived<GhostTextIndicator | undefined>(this, reader => {
-		const model = this._model.read(reader);
-		if (!model) { return undefined; }
-		const state = model.inlineCompletionState.read(reader);
-		if (!state) { return undefined; }
-		const inlineCompletion = state.inlineCompletion;
-		if (!inlineCompletion) { return undefined; }
-
-		if (!inlineCompletion.showInlineEditMenu) {
-			return undefined;
-		}
-
-		const lineRange = LineRange.ofLength(state.primaryGhostText.lineNumber, 1);
-
-		return new GhostTextIndicator(this._editor, model, lineRange, inlineCompletion);
-	});
+	public readonly view: InlineEditsView;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _edit: IObservable<InlineEdit | undefined>,
 		private readonly _model: IObservable<InlineCompletionsModel | undefined>,
-		private readonly _focusIsInMenu: ISettableObservable<boolean>,
+		private readonly _showCollapsed: IObservable<boolean>,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._editorObs = observableCodeEditor(this._editor);
 
-		this._register(instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEditHost, this._inlineEditModel, this._ghostTextIndicator, this._focusIsInMenu));
+		this.view = this._register(instantiationService.createInstance(InlineEditsView, this._editor, this._inlineEditModel,
+			this._model.map(model => model ? SimpleInlineSuggestModel.fromInlineCompletionModel(model) : undefined),
+			this._inlineEdit.map(e => e ? InlineSuggestionGutterMenuData.fromInlineSuggestion(e.inlineCompletion) : undefined),
+			this._showCollapsed,
+		));
 	}
 }

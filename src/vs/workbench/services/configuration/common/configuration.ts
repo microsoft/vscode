@@ -10,7 +10,6 @@ import { refineServiceDecorator } from '../../../../platform/instantiation/commo
 import { Event } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
-import product from '../../../../platform/product/common/product.js';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -100,6 +99,3 @@ export interface IWorkbenchConfigurationService extends IConfigurationService {
 export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';
 
 export const APPLY_ALL_PROFILES_SETTING = 'workbench.settings.applyToAllProfiles';
-
-// Used for extension unification. Should be removed when complete.
-export const IGNORE_VALIDATION_SETTINGS: Set<string> = new Set([product.defaultChatAgent?.completionsEnablementSetting].filter(Boolean) as string[]);

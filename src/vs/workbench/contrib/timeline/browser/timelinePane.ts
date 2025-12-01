@@ -693,7 +693,7 @@ export class TimelinePane extends ViewPane {
 		}
 	}
 
-	private *getItems(): Generator<ITreeElement<TreeElement>, any, any> {
+	private *getItems(): Generator<ITreeElement<TreeElement>, void, undefined> {
 		let more = false;
 
 		if (this.uri === undefined || this.timelinesBySource.size === 0) {
@@ -1362,9 +1362,7 @@ class TimelinePaneCommands extends Disposable {
 					});
 				}
 				run(accessor: ServicesAccessor, ...args: unknown[]) {
-					if (excluded.has(source.id)) {
-						excluded.delete(source.id);
-					} else {
+					if (!excluded.delete(source.id)) {
 						excluded.add(source.id);
 					}
 

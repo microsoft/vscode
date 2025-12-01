@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IObservableWithChange, derivedHandleChanges, derivedWithStore, observableValue, autorunWithStore, runOnChange, IObservable } from '../../../../../base/common/observable.js';
+import { IObservableWithChange, derivedHandleChanges, observableValue, runOnChange, IObservable, autorun, derived } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
+import { StringEdit, StringReplacement } from '../../../../../editor/common/core/edits/stringEdit.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
-import { TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
+import { EditSources, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 
 export abstract class ObservableWorkspace {
-	abstract get documents(): IObservableWithChange<readonly IObservableDocument[]>;
+	abstract get documents(): IObservable<readonly IObservableDocument[]>;
 
 
 	getFirstOpenDocument(): IObservableDocument | undefined {
@@ -59,12 +60,12 @@ export abstract class ObservableWorkspace {
 		*/
 	});
 
-	public readonly lastActiveDocument = derivedWithStore((_reader, store) => {
+	public readonly lastActiveDocument = derived((reader) => {
 		const obs = observableValue('lastActiveDocument', undefined as IObservableDocument | undefined);
-		store.add(autorunWithStore((reader, store) => {
+		reader.store.add(autorun((reader) => {
 			const docs = this.documents.read(reader);
 			for (const d of docs) {
-				store.add(runOnChange(d.value, () => {
+				reader.store.add(runOnChange(d.value, () => {
 					obs.set(d, undefined);
 				}));
 			}
@@ -85,6 +86,10 @@ export interface IObservableDocument {
 }
 
 export class StringEditWithReason extends StringEdit {
+	public static override replace(range: OffsetRange, newText: string, source: TextModelEditSource = EditSources.unknown({})): StringEditWithReason {
+		return new StringEditWithReason([new StringReplacement(range, newText)], source);
+	}
+
 	constructor(
 		replacements: StringEdit['replacements'],
 		public readonly reason: TextModelEditSource,

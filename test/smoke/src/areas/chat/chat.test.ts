@@ -23,7 +23,7 @@ export function setup(logger: Logger) {
 			// assert that AI related commands are not present
 			let expectedFound = false;
 			const unexpectedFound: Set<string> = new Set();
-			for (const term of ['chat', 'agent', 'copilot']) {
+			for (const term of ['chat', 'agent', 'copilot', 'mcp']) {
 				const commands = await app.workbench.quickaccess.getVisibleCommandNames(term);
 				for (const command of commands) {
 					if (command === 'Chat: Use AI Features with Copilot for free...') {
@@ -31,7 +31,7 @@ export function setup(logger: Logger) {
 						continue;
 					}
 
-					if (command.includes('Chat') || command.includes('Agent') || command.includes('Copilot')) {
+					if (command.includes('Chat') || command.includes('Agent') || command.includes('Copilot') || command.includes('MCP')) {
 						unexpectedFound.add(command);
 					}
 				}

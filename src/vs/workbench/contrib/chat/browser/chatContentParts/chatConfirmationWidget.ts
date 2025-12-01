@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatConfirmationWidget.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../base/browser/ui/button/button.js';
@@ -12,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import type { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -21,12 +20,16 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { FocusMode } from '../../../../../platform/native/common/native.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { IChatWidgetService, showChatWidgetInViewOrEditor } from '../chat.js';
+import { IChatWidgetService } from '../chat.js';
+import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { ChatMarkdownContentPart, IChatMarkdownContentPartOptions } from './chatMarkdownContentPart.js';
+import './media/chatConfirmationWidget.css';
 
 export interface IChatConfirmationButton<T> {
 	label: string;
@@ -43,7 +46,7 @@ export interface IChatConfirmationWidgetOptions<T> {
 	message: string | IMarkdownString;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
-	toolbarData?: { arg: any; partType: string; partSource?: string };
+	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 	silent?: boolean;
 }
 
@@ -113,7 +116,6 @@ class ChatConfirmationNotifier extends Disposable {
 
 	constructor(
 		@IHostService private readonly _hostService: IHostService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
@@ -140,7 +142,7 @@ class ChatConfirmationNotifier extends Disposable {
 				await this._hostService.focus(targetWindow, { mode: FocusMode.Force });
 
 				if (widget) {
-					await this._instantiationService.invokeFunction(showChatWidgetInViewOrEditor, widget);
+					await this._chatWidgetService.reveal(widget);
 					widget.focusInput();
 				}
 				disposables.dispose();
@@ -199,10 +201,12 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		const elements = dom.h('.chat-confirmation-widget-container@container', [
 			dom.h('.chat-confirmation-widget@root', [
 				dom.h('.chat-confirmation-widget-title@title'),
-				dom.h('.chat-confirmation-widget-message@message'),
-				dom.h('.chat-buttons-container@buttonsContainer', [
-					dom.h('.chat-buttons@buttons'),
-					dom.h('.chat-toolbar@toolbar'),
+				dom.h('.chat-confirmation-widget-message-container', [
+					dom.h('.chat-confirmation-widget-message@message'),
+					dom.h('.chat-buttons-container@buttonsContainer', [
+						dom.h('.chat-buttons@buttons'),
+						dom.h('.chat-toolbar@toolbar'),
+					]),
 				]),
 			]),
 		]);
@@ -326,7 +330,7 @@ export interface IChatConfirmationWidget2Options<T> {
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
-	toolbarData?: { arg: any; partType: string; partSource?: string };
+	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 }
 
 abstract class BaseChatConfirmationWidget<T> extends Disposable {
@@ -352,8 +356,16 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
-
+	private readonly markdownContentPart = this._register(new MutableDisposable<ChatMarkdownContentPart>());
 	private readonly notificationManager: ChatConfirmationNotifier;
+
+	public get codeblocksPartId() {
+		return this.markdownContentPart.value?.codeblocksPartId;
+	}
+
+	public get codeblocks() {
+		return this.markdownContentPart.value?.codeblocks;
+	}
 
 	constructor(
 		protected readonly _context: IChatContentPartRenderContext,
@@ -363,6 +375,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
 		super();
 
@@ -466,12 +479,32 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	protected renderMessage(element: HTMLElement | IMarkdownString | string, listContainer: HTMLElement): void {
+		this.markdownContentPart.clear();
+
 		if (!dom.isHTMLElement(element)) {
-			const messageElement = this._register(this.markdownRendererService.render(
-				typeof element === 'string' ? new MarkdownString(element) : element,
-				{ asyncRenderCallback: () => this._onDidChangeHeight.fire() }
+			const part = this._register(this.instantiationService.createInstance(ChatMarkdownContentPart,
+				{
+					kind: 'markdownContent',
+					content: typeof element === 'string' ? new MarkdownString().appendMarkdown(element) : element
+				},
+				this._context,
+				this._context.editorPool,
+				false,
+				this._context.codeBlockStartIndex,
+				this.markdownRendererService,
+				undefined,
+				this._context.currentWidth(),
+				this._context.codeBlockModelCollection,
+				{
+					allowInlineDiffs: true,
+					horizontalPadding: 6,
+				} satisfies IChatMarkdownContentPartOptions,
 			));
-			element = messageElement.element;
+			renderFileWidgets(part.domNode, this.instantiationService, this.chatMarkdownAnchorService, this._store);
+			this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
+			this.markdownContentPart.value = part;
+			element = part.domNode;
 		}
 
 		for (const child of this.messageElement.children) {
@@ -498,8 +531,9 @@ export class ChatConfirmationWidget<T> extends BaseChatConfirmationWidget<T> {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
-		super(context, options, instantiationService, markdownRendererService, contextMenuService, configurationService, contextKeyService);
+		super(context, options, instantiationService, markdownRendererService, contextMenuService, configurationService, contextKeyService, chatMarkdownAnchorService);
 		this.renderMessage(options.message, context.container);
 	}
 
@@ -522,8 +556,9 @@ export class ChatCustomConfirmationWidget<T> extends BaseChatConfirmationWidget<
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IChatMarkdownAnchorService chatMarkdownAnchorService: IChatMarkdownAnchorService,
 	) {
-		super(context, options, instantiationService, markdownRendererService, contextMenuService, configurationService, contextKeyService);
+		super(context, options, instantiationService, markdownRendererService, contextMenuService, configurationService, contextKeyService, chatMarkdownAnchorService);
 		this.renderMessage(options.message, context.container);
 	}
 }

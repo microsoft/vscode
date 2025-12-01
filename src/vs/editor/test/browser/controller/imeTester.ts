@@ -112,15 +112,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	const model = new SingleLineTestModel('some  text');
 	const screenReaderStrategy = new SimplePagedScreenReaderStrategy();
 	const textAreaInputHost: ITextAreaInputHost = {
-		getDataToCopy: () => {
-			return {
-				isFromEmptySelection: false,
-				multicursorText: null,
-				text: '',
-				html: undefined,
-				mode: null
-			};
-		},
+		context: null,
 		getScreenReaderContent: (): TextAreaState => {
 			const selection = new Selection(1, 1 + cursorOffset, 1, 1 + cursorOffset + cursorLength);
 

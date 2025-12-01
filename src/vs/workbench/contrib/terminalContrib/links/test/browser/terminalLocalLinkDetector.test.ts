@@ -27,6 +27,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
+import { isString } from '../../../../../../base/common/types.js';
 
 const unixLinks: (string | { link: string; resource: URI })[] = [
 	// Absolute
@@ -48,6 +49,11 @@ const unixLinks: (string | { link: string; resource: URI })[] = [
 	{ link: '../foo', resource: URI.file('/parent/foo') },
 	{ link: 'foo/bar', resource: URI.file('/parent/cwd/foo/bar') },
 	{ link: 'foo/bar+more', resource: URI.file('/parent/cwd/foo/bar+more') },
+];
+
+const unixLinksWithIso: (string | { link: string; resource: URI })[] = [
+	// ISO 8601 timestamps - tested separately to avoid line/column suffix conflicts
+	{ link: './test-2025-04-28T11:03:09+02:00.log', resource: URI.file('/parent/cwd/test-2025-04-28T11:03:09+02:00.log') },
 ];
 
 const windowsLinks: (string | { link: string; resource: URI })[] = [
@@ -80,6 +86,11 @@ const windowsLinks: (string | { link: string; resource: URI })[] = [
 	{ link: 'foo\\[bar].baz', resource: URI.file('C:\\Parent\\Cwd\\foo\\[bar].baz') },
 	{ link: 'foo\\[bar]\\baz', resource: URI.file('C:\\Parent\\Cwd\\foo\\[bar]\\baz') },
 	{ link: 'foo\\bar+more', resource: URI.file('C:\\Parent\\Cwd\\foo\\bar+more') },
+];
+
+const windowsLinksWithIso: (string | { link: string; resource: URI })[] = [
+	// ISO 8601 timestamps - tested separately to avoid line/column suffix conflicts
+	{ link: '.\\test-2025-04-28T11:03:09+02:00.log', resource: URI.file('C:\\Parent\\Cwd\\test-2025-04-28T11:03:09+02:00.log') },
 ];
 
 interface LinkFormatInfo {
@@ -294,8 +305,8 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 		});
 
 		for (const l of unixLinks) {
-			const baseLink = typeof l === 'string' ? l : l.link;
-			const resource = typeof l === 'string' ? URI.file(l) : l.resource;
+			const baseLink = isString(l) ? l : l.link;
+			const resource = isString(l) ? URI.file(l) : l.resource;
 			suite(`Link: ${baseLink}`, () => {
 				for (let i = 0; i < supportedLinkFormats.length; i++) {
 					const linkFormat = supportedLinkFormats[i];
@@ -319,6 +330,19 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			await assertLinks(TerminalBuiltinLinkType.LocalFile, `--- a/foo/bar`, [{ uri: validResources[0], range: [[7, 1], [13, 1]] }]);
 			await assertLinks(TerminalBuiltinLinkType.LocalFile, `+++ b/foo/bar`, [{ uri: validResources[0], range: [[7, 1], [13, 1]] }]);
 		});
+
+		// Test ISO 8601 links separately with only base format to avoid suffix conflicts
+		// Note: Only test plain format as colons are excluded path characters in the regex,
+		// so wrapped contexts (spaces, parentheses, brackets) won't work
+		for (const l of unixLinksWithIso) {
+			const baseLink = typeof l === 'string' ? l : l.link;
+			const resource = typeof l === 'string' ? URI.file(l) : l.resource;
+			test(`should detect ISO 8601 link: ${baseLink}`, async () => {
+				validResources = [resource];
+				fileService.setFiles(validResources);
+				await assertLinks(TerminalBuiltinLinkType.LocalFile, baseLink, [{ uri: resource, range: [[1, 1], [baseLink.length, 1]] }]);
+			});
+		}
 	});
 
 	// Only test these when on Windows because there is special behavior around replacing separators
@@ -346,8 +370,8 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			});
 
 			for (const l of windowsLinks) {
-				const baseLink = typeof l === 'string' ? l : l.link;
-				const resource = typeof l === 'string' ? URI.file(l) : l.resource;
+				const baseLink = isString(l) ? l : l.link;
+				const resource = isString(l) ? URI.file(l) : l.resource;
 				suite(`Link "${baseLink}"`, () => {
 					for (let i = 0; i < supportedLinkFormats.length; i++) {
 						const linkFormat = supportedLinkFormats[i];
@@ -362,8 +386,8 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 			}
 
 			for (const l of windowsFallbackLinks) {
-				const baseLink = typeof l === 'string' ? l : l.link;
-				const resource = typeof l === 'string' ? URI.file(l) : l.resource;
+				const baseLink = isString(l) ? l : l.link;
+				const resource = isString(l) ? URI.file(l) : l.resource;
 				suite(`Fallback link "${baseLink}"`, () => {
 					for (let i = 0; i < supportedFallbackLinkFormats.length; i++) {
 						const linkFormat = supportedFallbackLinkFormats[i];
@@ -390,6 +414,19 @@ suite('Workbench - TerminalLocalLinkDetector', () => {
 				await assertLinks(TerminalBuiltinLinkType.LocalFile, `--- a/foo/bar`, [{ uri: resource, range: [[7, 1], [13, 1]] }]);
 				await assertLinks(TerminalBuiltinLinkType.LocalFile, `+++ b/foo/bar`, [{ uri: resource, range: [[7, 1], [13, 1]] }]);
 			});
+
+			// Test ISO 8601 links separately with only base format to avoid suffix conflicts
+			// Note: Only test plain format as colons are excluded path characters in the regex,
+			// so wrapped contexts (spaces, parentheses, brackets) won't work
+			for (const l of windowsLinksWithIso) {
+				const baseLink = typeof l === 'string' ? l : l.link;
+				const resource = typeof l === 'string' ? URI.file(l) : l.resource;
+				test(`should detect ISO 8601 link: ${baseLink}`, async () => {
+					validResources = [resource];
+					fileService.setFiles(validResources);
+					await assertLinks(TerminalBuiltinLinkType.LocalFile, baseLink, [{ uri: resource, range: [[1, 1], [baseLink.length, 1]] }]);
+				});
+			}
 
 			suite('WSL', () => {
 				test('Unix -> Windows /mnt/ style links', async () => {

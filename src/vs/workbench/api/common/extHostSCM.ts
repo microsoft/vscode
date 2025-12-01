@@ -75,7 +75,9 @@ function getHistoryItemIconDto(icon: vscode.Uri | { light: vscode.Uri; dark: vsc
 
 function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMHistoryItemDto {
 	const authorIcon = getHistoryItemIconDto(historyItem.authorIcon);
-	const tooltip = MarkdownString.fromStrict(historyItem.tooltip);
+	const tooltip = Array.isArray(historyItem.tooltip)
+		? MarkdownString.fromMany(historyItem.tooltip)
+		: historyItem.tooltip ? MarkdownString.from(historyItem.tooltip) : undefined;
 
 	const references = historyItem.references?.map(r => ({
 		...r, icon: getHistoryItemIconDto(r.icon)

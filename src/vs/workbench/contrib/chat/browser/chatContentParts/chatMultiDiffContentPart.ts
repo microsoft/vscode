@@ -136,7 +136,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		const setupActionBar = () => {
 			actionBar.clear();
 
-			let marshalledUri: any | undefined = undefined;
+			let marshalledUri: unknown | undefined = undefined;
 			let contextKeyService: IContextKeyService = this.contextKeyService;
 			if (this.editorService.activeEditor instanceof ChatEditorInput) {
 				contextKeyService = this.contextKeyService.createOverlay([
@@ -293,6 +293,7 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 		});
 
 		const labelElement = templateData.label.element;
+		// eslint-disable-next-line no-restricted-syntax
 		labelElement.querySelector(`.${ChatMultiDiffListRenderer.CHANGES_SUMMARY_CLASS_NAME}`)?.remove();
 
 		if (element.diff?.added || element.diff?.removed) {

@@ -6,7 +6,7 @@
 import { isFalsyOrEmpty } from '../../../../../base/common/arrays.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
-import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { transaction } from '../../../../../base/common/observable.js';
 import { joinPath } from '../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../base/common/strings.js';
@@ -29,6 +29,7 @@ export interface IRawToolContribution {
 	displayName: string;
 	modelDescription: string;
 	toolReferenceName?: string;
+	legacyToolReferenceFullNames?: string[];
 	icon?: string | { light: string; dark: string };
 	when?: string;
 	tags?: string[];
@@ -78,6 +79,14 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					type: 'string',
 					pattern: '^[\\w-]+$'
 				},
+				legacyToolReferenceFullNames: {
+					markdownDescription: localize('legacyToolReferenceFullNames', "An array of deprecated names for backwards compatibility that can also be used to reference this tool in a query. Each name must not contain whitespace. Full names are generally in the format `toolsetName/toolReferenceName` (e.g., `search/readFile`) or just `toolReferenceName` when there is no toolset (e.g., `readFile`)."),
+					type: 'array',
+					items: {
+						type: 'string',
+						pattern: '^[\\w-]+(/[\\w-]+)?$'
+					}
+				},
 				displayName: {
 					description: localize('toolDisplayName', "A human-readable name for this tool that may be used to describe it in the UI."),
 					type: 'string'
@@ -86,6 +95,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 					description: localize('toolUserDescription', "A description of this tool that may be shown to the user."),
 					type: 'string'
 				},
+				// eslint-disable-next-line local/code-no-localized-model-description
 				modelDescription: {
 					description: localize('toolModelDescription', "A description of this tool that may be used by a language model to select it."),
 					type: 'string'
@@ -140,6 +150,7 @@ export interface IRawToolSetContribution {
 	 * @deprecated
 	 */
 	referenceName?: string;
+	legacyFullNames?: string[];
 	description: string;
 	icon?: string;
 	tools: string[];
@@ -167,6 +178,14 @@ const languageModelToolSetsExtensionPoint = extensionsRegistry.ExtensionsRegistr
 					description: localize('toolSetName', "A name for this tool set. Used as reference and should not contain whitespace."),
 					type: 'string',
 					pattern: '^[\\w-]+$'
+				},
+				legacyFullNames: {
+					markdownDescription: localize('toolSetLegacyFullNames', "An array of deprecated names for backwards compatibility that can also be used to reference this tool set. Each name must not contain whitespace. Full names are generally in the format `parentToolSetName/toolSetName` (e.g., `github/repo`) or just `toolSetName` when there is no parent toolset (e.g., `repo`)."),
+					type: 'array',
+					items: {
+						type: 'string',
+						pattern: '^[\\w-]+$'
+					}
 				},
 				description: {
 					description: localize('toolSetDescription', "A description of this tool set."),
@@ -232,6 +251,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 
 					if (rawTool.tags?.some(tag => tag.startsWith('copilot_') || tag.startsWith('vscode_')) && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
 						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT register tool with tags starting with "vscode_" or "copilot_"`);
+					}
+
+					if (rawTool.legacyToolReferenceFullNames && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+						extension.collector.error(`Extension '${extension.description.identifier.value}' CANNOT use 'legacyToolReferenceFullNames' without the 'chatParticipantPrivate' API proposal enabled`);
+						continue;
 					}
 
 					const rawIcon = rawTool.icon;
@@ -307,6 +331,11 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 						continue;
 					}
 
+					if (toolSet.legacyFullNames && !isProposedApiEnabled(extension.description, 'contribLanguageModelToolSets')) {
+						extension.collector.error(`Tool set '${toolSet.name}' CANNOT use 'legacyFullNames' without the 'contribLanguageModelToolSets' API proposal enabled`);
+						continue;
+					}
+
 					if (isFalsyOrEmpty(toolSet.tools)) {
 						extension.collector.error(`Tool set '${toolSet.name}' CANNOT have an empty tools array`);
 						continue;
@@ -335,16 +364,27 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 					}
 
 					const store = new DisposableStore();
+					const referenceName = toolSet.referenceName ?? toolSet.name;
+					const existingToolSet = languageModelToolsService.getToolSetByName(referenceName);
+					const mergeExisting = isBuiltinTool && existingToolSet?.source === ToolDataSource.Internal;
 
-					const obj = languageModelToolsService.createToolSet(
-						source,
-						toToolSetKey(extension.description.identifier, toolSet.name),
-						toolSet.referenceName ?? toolSet.name,
-						{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description }
-					);
+					let obj: ToolSet & IDisposable;
+					// Allow built-in tool to update the tool set if it already exists
+					if (mergeExisting) {
+						obj = existingToolSet as ToolSet & IDisposable;
+					} else {
+						obj = languageModelToolsService.createToolSet(
+							source,
+							toToolSetKey(extension.description.identifier, toolSet.name),
+							referenceName,
+							{ icon: toolSet.icon ? ThemeIcon.fromString(toolSet.icon) : undefined, description: toolSet.description, legacyFullNames: toolSet.legacyFullNames }
+						);
+					}
 
 					transaction(tx => {
-						store.add(obj);
+						if (!mergeExisting) {
+							store.add(obj);
+						}
 						tools.forEach(tool => store.add(obj.addTool(tool, tx)));
 						toolSets.forEach(toolSet => store.add(obj.addToolSet(toolSet, tx)));
 					});

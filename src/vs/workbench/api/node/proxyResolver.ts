@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService, LogLevel as LogServiceLevel } from '../../../platform/log/common/log.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates, ResolveProxyWithRequest } from '@vscode/proxy-agent';
-import { AuthInfo } from '../../../platform/request/common/request.js';
+import { AuthInfo, systemCertificatesNodeDefault } from '../../../platform/request/common/request.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { createRequire } from 'node:module';
 import type * as undiciType from 'undici-types';
@@ -54,6 +54,7 @@ export function connectProxyResolver(
 		isAdditionalFetchSupportEnabled: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.fetchAdditionalSupport', true),
 		addCertificatesV1: () => certSettingV1(configProvider, isRemote),
 		addCertificatesV2: () => certSettingV2(configProvider, isRemote),
+		loadSystemCertificatesFromNode: () => getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', systemCertificatesNodeDefault),
 		log: extHostLogService,
 		getLogLevel: () => {
 			const level = extHostLogService.getLevel();
@@ -78,24 +79,20 @@ export function connectProxyResolver(
 			return intervalSeconds * 1000;
 		},
 		loadAdditionalCertificates: async () => {
-			const useNodeSystemCerts = getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', false);
+			const useNodeSystemCerts = getExtHostConfigValue<boolean>(configProvider, isRemote, 'http.systemCertificatesNode', systemCertificatesNodeDefault);
 			const promises: Promise<string[]>[] = [];
 			if (isRemote) {
-				if (useNodeSystemCerts) {
-					const start = Date.now();
-					const systemCerts = tls.getCACertificates('system');
-					extHostLogService.trace(`ProxyResolver#loadAdditionalCertificates: Loaded Node.js system certificates (${Date.now() - start}ms):`, systemCerts.length);
-					promises.push(Promise.resolve(systemCerts));
-				} else {
-					promises.push(loadSystemCertificates({ log: extHostLogService }));
-				}
+				promises.push(loadSystemCertificates({
+					loadSystemCertificatesFromNode: () => useNodeSystemCerts,
+					log: extHostLogService,
+				}));
 			}
 			if (loadLocalCertificates) {
 				if (!isRemote && useNodeSystemCerts) {
-					const start = Date.now();
-					const systemCerts = tls.getCACertificates('system');
-					extHostLogService.trace(`ProxyResolver#loadAdditionalCertificates: Loaded Node.js system certificates (${Date.now() - start}ms):`, systemCerts.length);
-					promises.push(Promise.resolve(systemCerts));
+					promises.push(loadSystemCertificates({
+						loadSystemCertificatesFromNode: () => useNodeSystemCerts,
+						log: extHostLogService,
+					}));
 				} else {
 					extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading certificates from main process');
 					const certs = extHostWorkspace.loadCertificates(); // Loading from main process to share cache.
