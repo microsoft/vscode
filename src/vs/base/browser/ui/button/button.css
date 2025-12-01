@@ -7,7 +7,7 @@
 	box-sizing: border-box;
 	display: flex;
 	width: 100%;
-	padding: 3px 8px;
+	padding: 4px 8px;
 	border-radius: 4px;
 	text-align: center;
 	cursor: pointer;
@@ -19,8 +19,9 @@
 }
 
 .monaco-text-button.small {
-	line-height: 12px;
+	line-height: 14px;
 	font-size: 11px;
+	padding: 3px 6px;
 }
 
 .monaco-text-button:focus {
