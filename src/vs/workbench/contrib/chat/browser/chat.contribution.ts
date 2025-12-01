@@ -963,7 +963,7 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 			for (const mode of custom) {
 				const modeName = mode.name.get();
 				if (currentModeNames.has(modeName)) {
-					// if there is a name collision, the later one in the list wins
+					// If there is a name collision, the later one in the list wins
 					currentModeIds.delete(currentModeNames.get(modeName)!);
 				}
 
