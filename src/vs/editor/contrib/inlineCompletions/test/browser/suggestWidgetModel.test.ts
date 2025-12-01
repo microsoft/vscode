@@ -37,6 +37,7 @@ import { setUnexpectedErrorHandler } from '../../../../../base/common/errors.js'
 import { IAccessibilitySignalService } from '../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ModifierKeyEmitter } from '../../../../../base/browser/dom.js';
 
 suite('Suggest Widget Model', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -191,6 +192,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			});
 		} finally {
 			disposableStore.dispose();
+			ModifierKeyEmitter.disposeInstance();
 		}
 	});
 }

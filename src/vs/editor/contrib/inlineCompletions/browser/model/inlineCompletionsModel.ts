@@ -922,8 +922,9 @@ export class InlineCompletionsModel extends Disposable {
 			} else if (completion.action?.kind === 'edit') {
 				const action = completion.action;
 				if (action.alternativeAction && alternativeAction) {
+					const altCommand = action.alternativeAction.command;
 					await this._commandService
-						.executeCommand(action.alternativeAction?.id, ...(action.alternativeAction?.arguments || []))
+						.executeCommand(altCommand.id, ...(altCommand.arguments || []))
 						.then(undefined, onUnexpectedExternalError);
 				} else if (action.snippetInfo) {
 					const mainEdit = TextReplacement.delete(action.textReplacement.range);
