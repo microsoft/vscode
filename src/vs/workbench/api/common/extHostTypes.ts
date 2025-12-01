@@ -3493,11 +3493,6 @@ export enum ChatErrorLevel {
 	Error = 2
 }
 
-export enum CustomAgentTarget {
-	GitHubCopilot = 'github-copilot',
-	VSCode = 'vscode',
-}
-
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
 	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage {
