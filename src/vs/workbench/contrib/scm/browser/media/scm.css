@@ -685,6 +685,7 @@
 	padding-right: 2px;
 }
 
+.scm-view .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie,
 .scm-history-view .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie.force-no-twistie {
 	display: none !important;
 }
