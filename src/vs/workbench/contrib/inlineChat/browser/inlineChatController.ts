@@ -173,7 +173,24 @@ function getEditorId(editor: ICodeEditor, model: ITextModel): string {
 }
 
 // InlineChatController1 removed - migrated to V2 architecture
-
+// Stub for backwards compatibility with V1 actions (which are now disabled via CTX_INLINE_CHAT_V1_ENABLED = false)
+/** @deprecated V1 controller removed - use InlineChatController2 */
+export class InlineChatController1 {
+	static get(_editor: ICodeEditor): undefined {
+		return undefined;
+	}
+	// Stub methods for V1 actions (never called since CTX_INLINE_CHAT_V1_ENABLED is false)
+	unstashLastSession(): void { throw new Error('V1 controller removed'); }
+	run(): void { throw new Error('V1 controller removed'); }
+	arrowOut(_up: boolean): void { throw new Error('V1 controller removed'); }
+	acceptHunk(): void { throw new Error('V1 controller removed'); }
+	discardHunk(): void { throw new Error('V1 controller removed'); }
+	get chatWidget(): any { throw new Error('V1 controller removed'); }
+	cancelSession(): void { throw new Error('V1 controller removed'); }
+	moveHunk(_next: boolean): void { throw new Error('V1 controller removed'); }
+	viewInChat(): void { throw new Error('V1 controller removed'); }
+	toggleDiff(): void { throw new Error('V1 controller removed'); }
+}
 
 export class InlineChatController2 implements IEditorContribution {
 

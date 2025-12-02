@@ -7,7 +7,7 @@ import { EditorContributionInstantiation, registerEditorContribution } from '../
 import { IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { InlineChatController, InlineChatController2 } from './inlineChatController.js';
 import * as InlineChatActions from './inlineChatActions.js';
-import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -17,9 +17,8 @@ import { InlineChatAccessibleView } from './inlineChatAccessibleView.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatEnabler, InlineChatEscapeToolContribution, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { CancelAction, ChatSubmitAction } from '../../chat/browser/actions/chatExecuteActions.js';
+import { CancelAction } from '../../chat/browser/actions/chatExecuteActions.js';
 import { localize } from '../../../../nls.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
 
