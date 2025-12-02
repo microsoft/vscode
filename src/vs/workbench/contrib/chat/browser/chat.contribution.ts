@@ -821,7 +821,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.exitAfterDelegation', "Controls whether the chat panel automatically exits after delegating a request to another session."),
 			default: true,
-			tags: ['experimental'],
+			tags: ['preview'],
 		},
 		'chat.extensionUnification.enabled': {
 			type: 'boolean',
