@@ -41,7 +41,12 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatContextExt
 			},
 			required: ['id', 'icon', 'displayName'],
 		}
-	}
+	},
+	activationEventsGenerator: function* (contributions: readonly IChatContextExtensionPoint[]) {
+		for (const contrib of contributions) {
+			yield `onChatContextProvider:${contrib.id}`;
+		}
+	},
 });
 
 export class ChatContextContribution extends Disposable implements IWorkbenchContribution {
