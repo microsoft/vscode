@@ -1052,6 +1052,44 @@ suite('PromptsService', () => {
 				'Must get custom agents with .md extension from .github/agents/ folder.',
 			);
 		});
+
+		test('gracefully handles deleted agent files', async () => {
+			const rootFolderName = 'custom-agents-deleted-file';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create mock filesystem with an agent file
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/existing-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Existing agent.\'',
+						'---',
+						'This agent exists.',
+					]
+				}
+			]);
+
+			// Stub listPromptFiles to return both an existing file and a non-existent file
+			// This simulates the race condition where a file is deleted after listing but before parsing
+			const nonExistentAgentUri = URI.joinPath(rootFolderUri, '.github/agents/deleted-agent.agent.md');
+			const existingAgentUri = URI.joinPath(rootFolderUri, '.github/agents/existing-agent.agent.md');
+
+			sinon.stub(service, 'listPromptFiles')
+				.returns(Promise.resolve([
+					{ uri: existingAgentUri, storage: PromptsStorage.local, type: PromptsType.agent },
+					{ uri: nonExistentAgentUri, storage: PromptsStorage.local, type: PromptsType.agent },
+				]));
+
+			// Should not throw and should return only the existing agent
+			const result = await service.getCustomAgents(CancellationToken.None);
+
+			assert.strictEqual(result.length, 1, 'Should return only the existing agent');
+			assert.strictEqual(result[0].name, 'existing-agent', 'Should have the correct agent name');
+		});
 	});
 
 	suite('listPromptFiles - extensions', () => {
