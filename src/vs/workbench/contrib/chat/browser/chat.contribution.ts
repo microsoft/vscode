@@ -536,10 +536,15 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental'],
 		},
-		['chat.statusWidget.enabled']: {
-			type: 'boolean',
+		['chat.statusWidget.sku']: {
+			type: 'string',
+			enum: ['free', 'anonymous'],
+			enumDescriptions: [
+				nls.localize('chat.statusWidget.sku.free', "Show status widget for free tier users."),
+				nls.localize('chat.statusWidget.sku.anonymous', "Show status widget for anonymous users.")
+			],
 			description: nls.localize('chat.statusWidget.enabled.description', "Show the status widget in new chat sessions when quota is exceeded."),
-			default: false,
+			default: undefined,
 			tags: ['experimental'],
 			included: false,
 			experiment: {
