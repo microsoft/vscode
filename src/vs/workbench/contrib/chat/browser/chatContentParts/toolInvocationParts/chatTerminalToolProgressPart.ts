@@ -41,7 +41,7 @@ import { EditorPool } from '../chatContentCodePools.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { DetachedTerminalCommandMirror } from '../../../../terminal/browser/chatTerminalCommandMirror.js';
 import { DetachedProcessInfo } from '../../../../terminal/browser/detachedTerminal.js';
-import { ITerminalLogService, TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { TerminalContribCommandId } from '../../../../terminal/terminalContribExports.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -50,7 +50,6 @@ import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js'
 import { Color } from '../../../../../../base/common/color.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../../../../terminal/common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../../../common/theme.js';
-
 
 const MIN_OUTPUT_ROWS = 1;
 const MAX_OUTPUT_ROWS = 10;
@@ -215,7 +214,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
 	private readonly _decoration: TerminalCommandDecoration;
-	private _loggedIdMismatch = false;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -245,7 +243,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITerminalLogService private readonly _terminalLogService: ITerminalLogService,
 	) {
 		super(toolInvocation);
 
@@ -451,10 +448,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const hasSnapshot = !!this._terminalData.terminalCommandOutput;
 		if (!resolvedCommand && !hasSnapshot) {
 			return;
-		}
-		if (resolvedCommand && resolvedCommand.id !== this._terminalData.terminalCommandId && !this._loggedIdMismatch) {
-			this._loggedIdMismatch = true;
-			this._terminalLogService.debug(`ChatTerminalToolProgressPart: Resolved command id mismatch. expected=${this._terminalData.terminalCommandId ?? 'none'}, actual=${resolvedCommand.id ?? 'none'}, session=${this._terminalData.terminalToolSessionId ?? 'none'}`);
 		}
 		let showOutputAction = this._showOutputAction.value;
 		if (!showOutputAction) {
