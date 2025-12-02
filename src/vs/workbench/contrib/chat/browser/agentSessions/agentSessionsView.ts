@@ -34,7 +34,7 @@ import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { DeferredPromise, TimeoutTimer } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
-import { MutableDisposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { AGENT_SESSIONS_VIEW_ID, AGENT_SESSIONS_VIEW_CONTAINER_ID, AgentSessionProviders } from './agentSessions.js';
 import { AgentSessionsFilter } from './agentSessionsFilter.js';
