@@ -1053,9 +1053,43 @@ export class SettingsEditor2 extends EditorPane {
 					this.settingsTree.scrollTop = 0;
 				}
 			} else if (element && (!e.browserEvent || !(<IFocusEventFromScroll>e.browserEvent).fromScroll)) {
-				if (this.settingsTree.hasElement(element)) {
-					this.settingsTree.reveal(element, 0);
-					this.settingsTree.setFocus([element]);
+				let targetElement = element;
+				// Searches equvalent old Object currently living in the Tree nodes.
+				if (!this.settingsTree.hasElement(targetElement)) {
+					if (element instanceof SettingsTreeGroupElement) {
+						const targetId = element.id;
+
+						const findInViewNodes = (nodes: any[]): SettingsTreeGroupElement | undefined => {
+							for (const node of nodes) {
+								if (node.element instanceof SettingsTreeGroupElement && node.element.id === targetId) {
+									return node.element;
+								}
+								if (node.children && node.children.length > 0) {
+									const found = findInViewNodes(node.children);
+									if (found) return found;
+								}
+							}
+							return undefined;
+						};
+
+						try {
+							const rootNode = this.settingsTree.getNode(null);
+							if (rootNode && rootNode.children) {
+								const foundOldElement = findInViewNodes(rootNode.children);
+								if (foundOldElement) {
+									// Now we don't reveal the New Object, reveal the Old Object"
+									targetElement = foundOldElement;
+								}
+							}
+						} catch (err) {
+							// Tree might be in an invalid state, ignore
+						}
+					}
+				}
+
+				if (this.settingsTree.hasElement(targetElement)) {
+					this.settingsTree.reveal(targetElement, 0);
+					this.settingsTree.setFocus([targetElement]);
 				}
 			}
 		}));
