@@ -911,6 +911,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		for (let i = responseParts.length - 1; i >= 0; i--) {
 			const part = responseParts[i];
+			if (!description && part.kind === 'confirmation' && typeof part.message === 'string') {
+				description = part.message;
+			}
 			if (!description && part.kind === 'toolInvocation') {
 				const toolInvocation = part as IChatToolInvocation;
 				const state = toolInvocation.state.get();
