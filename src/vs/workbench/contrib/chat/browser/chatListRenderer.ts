@@ -1235,6 +1235,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return false;
 		}
 
+		// Don't pin subagent tools and prepareToolInvocations
+		const isSubagentTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && (part.fromSubAgent || part.toolId === 'runSubagent');
+		if (isSubagentTool) {
+			return false;
+		}
+
 		// Don't pin terminal tools
 		const isTerminalTool = (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && part.toolSpecificData?.kind === 'terminal';
 		if (isTerminalTool) {
