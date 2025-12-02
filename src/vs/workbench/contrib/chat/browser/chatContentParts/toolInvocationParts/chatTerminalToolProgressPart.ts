@@ -41,7 +41,7 @@ import { EditorPool } from '../chatContentCodePools.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { DetachedTerminalCommandMirror } from '../../../../terminal/browser/chatTerminalCommandMirror.js';
 import { DetachedProcessInfo } from '../../../../terminal/browser/detachedTerminal.js';
-import { ITerminalLogService, TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { TerminalContribCommandId } from '../../../../terminal/terminalContribExports.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -214,7 +214,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
 	private readonly _decoration: TerminalCommandDecoration;
-	private _loggedIdMismatch = false;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -244,7 +243,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super(toolInvocation);
 
@@ -444,19 +442,12 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private _ensureShowOutputAction(command?: ITerminalCommand): void {
 		if (this._store.isDisposed) {
-			this._logService.debug(`[ChatTerminalToolProgressPart] _ensureShowOutputAction: store is disposed, skipping (commandId=${this._terminalData.terminalCommandId})`);
 			return;
 		}
 		const resolvedCommand = command ?? this._getResolvedCommand();
 		const hasSnapshot = !!this._terminalData.terminalCommandOutput;
-		this._logService.debug(`[ChatTerminalToolProgressPart] _ensureShowOutputAction: resolvedCommand=${!!resolvedCommand}, hasSnapshot=${hasSnapshot}, commandId=${this._terminalData.terminalCommandId}, hasEndMarker=${resolvedCommand?.endMarker !== undefined}`);
 		if (!resolvedCommand && !hasSnapshot) {
-			this._logService.debug(`[ChatTerminalToolProgressPart] _ensureShowOutputAction: no resolvedCommand and no snapshot, returning early`);
 			return;
-		}
-		if (resolvedCommand && resolvedCommand.id !== this._terminalData.terminalCommandId && !this._loggedIdMismatch) {
-			this._loggedIdMismatch = true;
-			this._logService.debug(`ChatTerminalToolProgressPart: Resolved command id mismatch. expected=${this._terminalData.terminalCommandId ?? 'none'}, actual=${resolvedCommand.id ?? 'none'}, session=${this._terminalData.terminalToolSessionId ?? 'none'}`);
 		}
 		let showOutputAction = this._showOutputAction.value;
 		if (!showOutputAction) {
@@ -511,20 +502,15 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const attachCommandDetection = async (commandDetection: ICommandDetectionCapability | undefined) => {
 			commandDetectionListener.clear();
-			this._logService.debug(`[ChatTerminalToolProgressPart] attachCommandDetection: commandDetection=${!!commandDetection}, commandId=${this._terminalData.terminalCommandId}`);
 			if (!commandDetection) {
-				this._logService.debug(`[ChatTerminalToolProgressPart] attachCommandDetection: no commandDetection capability, trying to resolve command`);
 				await tryResolveCommand();
 				return;
 			}
 
-			commandDetectionListener.value = commandDetection.onCommandFinished((finishedCommand) => {
-				this._logService.debug(`[ChatTerminalToolProgressPart] onCommandFinished fired: finishedCommandId=${finishedCommand?.id}, ourCommandId=${this._terminalData.terminalCommandId}, match=${finishedCommand?.id === this._terminalData.terminalCommandId}`);
+			commandDetectionListener.value = commandDetection.onCommandFinished(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
-				this._logService.debug(`[ChatTerminalToolProgressPart] onCommandFinished: resolvedCommand=${!!resolvedCommand}, hasEndMarker=${resolvedCommand?.endMarker !== undefined}`);
 				if (resolvedCommand?.endMarker) {
-					this._logService.debug(`[ChatTerminalToolProgressPart] onCommandFinished: clearing listener because command has endMarker`);
 					commandDetectionListener.clear();
 				}
 			});
@@ -663,19 +649,15 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private _resolveCommand(instance: ITerminalInstance): ITerminalCommand | undefined {
 		if (instance.isDisposed) {
-			this._logService.debug(`[ChatTerminalToolProgressPart] _resolveCommand: instance is disposed`);
 			return undefined;
 		}
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const commands = commandDetection?.commands;
 		if (!commands || commands.length === 0) {
-			this._logService.debug(`[ChatTerminalToolProgressPart] _resolveCommand: no commands in detection, hasCapability=${!!commandDetection}`);
 			return undefined;
 		}
 
-		const found = commands.find(c => c.id === this._terminalData.terminalCommandId);
-		this._logService.debug(`[ChatTerminalToolProgressPart] _resolveCommand: looking for commandId=${this._terminalData.terminalCommandId}, found=${!!found}, commandCount=${commands.length}, availableIds=${commands.slice(-5).map(c => c.id).join(',')}`);
-		return found;
+		return commands.find(c => c.id === this._terminalData.terminalCommandId);
 	}
 }
 
