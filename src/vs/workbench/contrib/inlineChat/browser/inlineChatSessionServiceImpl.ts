@@ -23,12 +23,10 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
@@ -41,7 +39,7 @@ import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js'
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../chat/common/languageModelToolsService.js';
-import { CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE, CTX_INLINE_CHAT_POSSIBLE } from '../common/inlineChat.js';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
 import { askInPanelChat, IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService.js';
 
@@ -448,7 +446,6 @@ export class InlineChatEnabler {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@IEditorService editorService: IEditorService,
-		@IConfigurationService configService: IConfigurationService,
 	) {
 		this._ctxHasProvider2 = CTX_INLINE_CHAT_HAS_AGENT2.bindTo(contextKeyService);
 		this._ctxHasNotebookInline = CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE.bindTo(contextKeyService);
@@ -456,8 +453,6 @@ export class InlineChatEnabler {
 		this._ctxPossible = CTX_INLINE_CHAT_POSSIBLE.bindTo(contextKeyService);
 
 		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
-		const notebookAgentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.Notebook));
-		const notebookAgentConfigObs = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configService);
 
 		this._store.add(autorun(r => {
 			const agent = agentObs.read(r);
@@ -469,8 +464,10 @@ export class InlineChatEnabler {
 		}));
 
 		this._store.add(autorun(r => {
-			this._ctxHasNotebookInline.set(!notebookAgentConfigObs.read(r) && !!agentObs.read(r));
-			this._ctxHasNotebookProvider.set(notebookAgentConfigObs.read(r) && !!notebookAgentObs.read(r));
+			// All notebook edits now go through v2, so v1 notebook inline is never enabled
+			this._ctxHasNotebookInline.set(false);
+			// v2 for notebooks is enabled when there's an EditorInline agent
+			this._ctxHasNotebookProvider.set(!!agentObs.read(r));
 		}));
 
 		const updateEditor = () => {

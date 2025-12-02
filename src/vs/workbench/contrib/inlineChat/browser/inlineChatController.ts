@@ -45,7 +45,6 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ISharedWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
@@ -138,18 +137,10 @@ export class InlineChatController implements IEditorContribution {
 
 	constructor(
 		editor: ICodeEditor,
-		@IConfigurationService configurationService: IConfigurationService,
-		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService
 	) {
-		const notebookAgent = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configurationService);
-
-		this._delegate = derived(r => {
-			const isNotebookCell = !!this._notebookEditorService.getNotebookForPossibleCell(editor);
-			if (!isNotebookCell || notebookAgent.read(r)) {
-				return InlineChatController2.get(editor)!;
-			} else {
-				return InlineChatController1.get(editor)!;
-			}
+		this._delegate = derived(_r => {
+			// Always use v2 for all editors (notebook cells and regular editors)
+			return InlineChatController2.get(editor)!;
 		});
 	}
 
