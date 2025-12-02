@@ -73,7 +73,10 @@ suite('PromptsService', () => {
 		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instaService.stub(ITelemetryService, NullTelemetryService);
 		instaService.stub(IStorageService, InMemoryStorageService);
-		instaService.stub(IExtensionService, { whenInstalledExtensionsRegistered: () => Promise.resolve(true) });
+		instaService.stub(IExtensionService, {
+			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
+			activateByEvent: () => Promise.resolve()
+		});
 
 		fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
@@ -1122,6 +1125,82 @@ suite('PromptsService', () => {
 			// After disposal, the agent should no longer be listed
 			const actualAfterDispose = await service.getCustomAgents(CancellationToken.None);
 			assert.strictEqual(actualAfterDispose.length, 0);
+		});
+
+		test('Custom agent provider with isEditable', async () => {
+			const readonlyAgentUri = URI.parse('file://extensions/my-extension/readonlyAgent.agent.md');
+			const editableAgentUri = URI.parse('file://extensions/my-extension/editableAgent.agent.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+
+			// Mock the agent file content
+			await mockFiles(fileService, [
+				{
+					path: readonlyAgentUri.path,
+					contents: [
+						'---',
+						'description: \'Readonly agent from provider\'',
+						'---',
+						'I am a readonly agent.',
+					]
+				},
+				{
+					path: editableAgentUri.path,
+					contents: [
+						'---',
+						'description: \'Editable agent from provider\'',
+						'---',
+						'I am an editable agent.',
+					]
+				}
+			]);
+
+			const provider = {
+				provideCustomAgents: async (_options: ICustomAgentQueryOptions, _token: CancellationToken) => {
+					return [
+						{
+							name: 'readonlyAgent',
+							description: 'Readonly agent from provider',
+							uri: readonlyAgentUri,
+							isEditable: false
+						},
+						{
+							name: 'editableAgent',
+							description: 'Editable agent from provider',
+							uri: editableAgentUri,
+							isEditable: true
+						}
+					];
+				}
+			};
+
+			const registered = service.registerCustomAgentsProvider(extension, provider);
+
+			// Spy on updateReadonly to verify it's called correctly
+			const filesConfigService = instaService.get(IFilesConfigurationService);
+			const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
+
+			// List prompt files to trigger the readonly check
+			await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+
+			// Verify updateReadonly was called only for the non-editable agent
+			assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
+			assert.ok(updateReadonlySpy.calledWith(readonlyAgentUri, true), 'updateReadonly should be called with readonly agent URI and true');
+
+			const actual = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(actual.length, 2);
+
+			const readonlyAgent = actual.find(a => a.name === 'readonlyAgent');
+			const editableAgent = actual.find(a => a.name === 'editableAgent');
+
+			assert.ok(readonlyAgent, 'Readonly agent should be found');
+			assert.ok(editableAgent, 'Editable agent should be found');
+			assert.strictEqual(readonlyAgent!.description, 'Readonly agent from provider');
+			assert.strictEqual(editableAgent!.description, 'Editable agent from provider');
+
+			registered.dispose();
 		});
 	});
 

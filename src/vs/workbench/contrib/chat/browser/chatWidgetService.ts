@@ -10,8 +10,8 @@ import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../..
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService, type PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorGroupsService, isEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from './chat.js';
@@ -93,10 +93,14 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	async openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
-		// Reveal if already open
-		const alreadyOpenWidget = await this.revealSessionIfAlreadyOpen(sessionResource, options);
-		if (alreadyOpenWidget) {
-			return alreadyOpenWidget;
+		// Reveal if already open unless an explicit target is specified
+		if (typeof target === 'undefined') {
+			const alreadyOpenWidget = await this.revealSessionIfAlreadyOpen(sessionResource, options);
+			if (alreadyOpenWidget) {
+				return alreadyOpenWidget;
+			}
+		} else {
+			await this.prepareSessionForMove(sessionResource, target);
 		}
 
 		// Load this session in chat view
@@ -113,9 +117,10 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 		// Open in chat editor
 		const pane = await this.editorService.openEditor({
-			resource: sessionResource, options: {
+			resource: sessionResource,
+			options: {
 				...options,
-				revealIfOpened: true // always try to reveal if already opened
+				revealIfOpened: options?.revealIfOpened ?? true // always try to reveal if already opened unless explicitly told not to
 			}
 		}, target);
 		return pane instanceof ChatEditor ? pane.widget : undefined;
@@ -162,6 +167,36 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		}
 
 		return undefined;
+	}
+
+	private async prepareSessionForMove(sessionResource: URI, target: typeof ChatViewPaneTarget | PreferredGroup | undefined): Promise<void> {
+		const existingWidget = this.getWidgetBySessionResource(sessionResource);
+		if (existingWidget) {
+			const existingEditor = isIChatViewViewContext(existingWidget.viewContext) ?
+				undefined :
+				this.editorService.findEditors({ resource: sessionResource, typeId: ChatEditorInput.TypeID, editorId: ChatEditorInput.EditorID }).at(0);
+
+			if (isIChatViewViewContext(existingWidget.viewContext) && target === ChatViewPaneTarget) {
+				return;
+			}
+
+			if (!isIChatViewViewContext(existingWidget.viewContext) && target !== ChatViewPaneTarget && existingEditor && this.isSameEditorTarget(existingEditor.groupId, target)) {
+				return;
+			}
+
+			if (existingEditor) {
+				// widget.clear() on an editor leaves behind an empty chat editor
+				await this.editorService.closeEditor(existingEditor, { preserveFocus: true });
+			} else {
+				await existingWidget.clear();
+			}
+		}
+	}
+
+	private isSameEditorTarget(currentGroupId: number, target?: PreferredGroup): boolean {
+		return typeof target === 'number' && target === currentGroupId ||
+			target === ACTIVE_GROUP && this.editorGroupsService.activeGroup?.id === currentGroupId ||
+			isEditorGroup(target) && target.id === currentGroupId;
 	}
 
 	private setLastFocusedWidget(widget: IChatWidget | undefined): void {

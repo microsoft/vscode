@@ -16,7 +16,7 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
-import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, ProviderId, IInlineCompletionHint, Command } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, ProviderId, IInlineCompletionHint } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
@@ -27,10 +27,11 @@ import { DirectedGraph } from './graph.js';
 import { CachedFunction } from '../../../../../base/common/cache.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { isDefined } from '../../../../../base/common/types.js';
-import { inlineCompletionIsVisible } from './inlineSuggestionItem.js';
+import { inlineCompletionIsVisible } from './inlineCompletionIsVisible.js';
 import { EditDeltaInfo } from '../../../../common/textModelEditSource.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InlineSuggestionEditKind } from './editKind.js';
+import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
 
@@ -321,7 +322,7 @@ export interface IInlineSuggestDataActionEdit {
 	insertText: string;
 	snippetInfo: SnippetInfo | undefined;
 	uri: URI | undefined;
-	alternativeAction: Command | undefined;
+	alternativeAction: InlineSuggestAlternativeAction | undefined;
 }
 
 export interface IInlineSuggestDataActionJumpTo {

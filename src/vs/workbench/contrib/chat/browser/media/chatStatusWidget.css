@@ -1,0 +1,57 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.interactive-session .interactive-input-part > .chat-input-widgets-container .chat-status-widget {
+	padding: 6px 3px 6px 3px;
+	box-sizing: border-box;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-editor-background);
+	border-bottom: none;
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.interactive-session .interactive-input-part > .chat-input-widgets-container .chat-status-widget .chat-status-content {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	min-width: 0;
+	padding-left: 8px;
+}
+
+.interactive-session .interactive-input-part > .chat-input-widgets-container .chat-status-widget .chat-status-message {
+	font-size: 11px;
+	line-height: 16px;
+	color: var(--vscode-foreground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.interactive-session .interactive-input-part > .chat-input-widgets-container .chat-status-widget .chat-status-action {
+	flex-shrink: 0;
+	padding-right: 4px;
+}
+
+.interactive-session .interactive-input-part > .chat-input-widgets-container .chat-status-widget .chat-status-button {
+	font-size: 11px;
+	padding: 2px 8px;
+	min-width: unset;
+	height: 22px;
+}
+
+.interactive-session .interactive-input-part > .chat-input-widgets-container:has(.chat-status-widget:not([style*="display: none"])) + .chat-todo-list-widget-container .chat-todo-list-widget {
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+}
+
+.interactive-session .interactive-input-part > .chat-input-widgets-container:has(.chat-status-widget:not([style*="display: none"])) + .chat-todo-list-widget-container:not(:has(.chat-todo-list-widget.has-todos)) + .chat-editing-session .chat-editing-session-container {
+	border-top-left-radius: 0;
+	border-top-right-radius: 0;
+}

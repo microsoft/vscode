@@ -31,6 +31,7 @@ import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPan
 import { Memento } from '../../../common/memento.js';
 import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
+import { ILifecycleService, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
@@ -100,6 +101,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -107,6 +109,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento(`interactive-session-view-${CHAT_PROVIDER_ID}`, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		if (
+			lifecycleService.startupKind !== StartupKind.ReloadedWindow &&
+			this.configurationService.getValue<boolean>(ChatConfiguration.RestoreLastPanelSession) === false
+		) {
+			this.viewState.sessionId = undefined; // clear persisted session on fresh start
+		}
 
 		// Location context key
 		ChatContextKeys.panelLocation.bindTo(contextKeyService).set(viewDescriptorService.getViewLocationById(options.id) ?? ViewContainerLocation.AuxiliaryBar);
