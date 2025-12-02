@@ -39,6 +39,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private sessionOptions = new ResourceMap<Map<string, string>>();
 	private editableData = new ResourceMap<IEditableData>();
 	private inProgress = new Map<string, number>();
+	private _progressEmitter?: Emitter<void>;
 
 	// For testing: allow triggering events
 	fireDidChangeItemsProviders(provider: IChatSessionItemProvider): void {
@@ -226,6 +227,19 @@ export class MockChatSessionsService implements IChatSessionsService {
 	}
 
 	registerModelProgressListener(models: IChatModel[], type: string): Event<void> {
-		throw new Error('Method not implemented.');
+		// Create an emitter for testing progress events
+		const emitter = new Emitter<void>();
+
+		// Store the emitter so tests can trigger it
+		this._progressEmitter = emitter;
+
+		return emitter.event;
+	}
+
+	// Helper method for tests to trigger progress events
+	triggerProgressEvent(): void {
+		if (this._progressEmitter) {
+			this._progressEmitter.fire();
+		}
 	}
 }
