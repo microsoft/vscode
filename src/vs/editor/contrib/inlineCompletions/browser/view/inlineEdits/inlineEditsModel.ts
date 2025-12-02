@@ -5,6 +5,7 @@
 
 import { Event } from '../../../../../../base/common/event.js';
 import { derived, IObservable } from '../../../../../../base/common/observable.js';
+import { setTimeout0 } from '../../../../../../base/common/platform.js';
 import { InlineCompletionsModel, isSuggestionInViewport } from '../../model/inlineCompletionsModel.js';
 import { InlineSuggestHint } from '../../model/inlineSuggestionItem.js';
 import { InlineCompletionViewData, InlineCompletionViewKind, InlineEditTabAction } from './inlineEditsViewInterface.js';
@@ -43,7 +44,13 @@ export class ModelPerInlineEdit {
 		this._model.accept(undefined, alternativeAction);
 	}
 
-	handleInlineEditShown(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
-		this._model.handleInlineSuggestionShown(this.inlineEdit.inlineCompletion, viewKind, viewData);
+	handleInlineEditShownNextFrame(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
+		const item = this.inlineEdit.inlineCompletion;
+		const timeWhenShown = Date.now();
+		item.addRef();
+		setTimeout0(() => {
+			this._model.handleInlineSuggestionShown(item, viewKind, viewData, timeWhenShown);
+			item.removeRef();
+		});
 	}
 }

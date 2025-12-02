@@ -19,7 +19,7 @@ import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import '../media/chatTerminalToolProgressPart.css';
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
 import { Action, IAction } from '../../../../../../base/common/actions.js';
-import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalConfigurationService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService, type IDetachedTerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -40,11 +40,16 @@ import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { EditorPool } from '../chatContentCodePools.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { DetachedTerminalCommandMirror } from '../../../../terminal/browser/chatTerminalCommandMirror.js';
-import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
+import { DetachedProcessInfo } from '../../../../terminal/browser/detachedTerminal.js';
+import { ITerminalLogService, TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { TerminalContribCommandId } from '../../../../terminal/terminalContribExports.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { isNumber } from '../../../../../../base/common/types.js';
+import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
+import { Color } from '../../../../../../base/common/color.js';
+import { TERMINAL_BACKGROUND_COLOR } from '../../../../terminal/common/terminalColorRegistry.js';
+import { PANEL_BACKGROUND } from '../../../../../common/theme.js';
 
 
 const MIN_OUTPUT_ROWS = 1;
@@ -191,6 +196,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private readonly _actionBar: ActionBar;
 
+	private readonly _titleElement: HTMLElement;
 	private readonly _outputView: ChatTerminalToolOutputSection;
 	private readonly _terminalOutputContextKey: IContextKey<boolean>;
 	private _terminalSessionRegistration: IDisposable | undefined;
@@ -205,9 +211,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _terminalData: IChatTerminalToolInvocationData;
 	private _terminalCommandUri: URI | undefined;
 	private _storedCommandId: string | undefined;
+	private readonly _commandText: string;
 	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
 	private readonly _decoration: TerminalCommandDecoration;
+	private _loggedIdMismatch = false;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -237,6 +245,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ITerminalLogService private readonly _terminalLogService: ITerminalLogService,
 	) {
 		super(toolInvocation);
 
@@ -256,8 +265,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			]),
 			h('.chat-terminal-content-message@message')
 		]);
+		this._titleElement = elements.title;
 
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+		this._commandText = command;
 		this._terminalOutputContextKey = ChatContextKeys.inChatTerminalToolOutput.bindTo(this._contextKeyService);
 
 		this._decoration = this._register(this._instantiationService.createInstance(TerminalCommandDecoration, {
@@ -287,6 +298,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			() => this._onDidChangeHeight.fire(),
 			() => this._ensureTerminalInstance(),
 			() => this._getResolvedCommand(),
+			() => this._terminalData.terminalCommandOutput,
+			() => this._commandText,
+			() => this._terminalData.terminalTheme,
 		));
 		elements.container.append(this._outputView.domNode);
 		this._register(this._outputView.onDidFocus(() => this._handleOutputFocus()));
@@ -433,18 +447,21 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		if (this._store.isDisposed) {
 			return;
 		}
-		let resolvedCommand = command;
-		if (!resolvedCommand) {
-			resolvedCommand = this._getResolvedCommand();
-		}
-		if (!resolvedCommand) {
+		const resolvedCommand = command ?? this._getResolvedCommand();
+		const hasSnapshot = !!this._terminalData.terminalCommandOutput;
+		if (!resolvedCommand && !hasSnapshot) {
 			return;
+		}
+		if (resolvedCommand && resolvedCommand.id !== this._terminalData.terminalCommandId && !this._loggedIdMismatch) {
+			this._loggedIdMismatch = true;
+			this._terminalLogService.debug(`ChatTerminalToolProgressPart: Resolved command id mismatch. expected=${this._terminalData.terminalCommandId ?? 'none'}, actual=${resolvedCommand.id ?? 'none'}, session=${this._terminalData.terminalToolSessionId ?? 'none'}`);
 		}
 		let showOutputAction = this._showOutputAction.value;
 		if (!showOutputAction) {
 			showOutputAction = this._instantiationService.createInstance(ToggleChatTerminalOutputAction, () => this._toggleOutputFromAction());
 			this._showOutputAction.value = showOutputAction;
-			if (resolvedCommand?.exitCode) {
+			const exitCode = resolvedCommand?.exitCode ?? this._terminalData.terminalCommandState?.exitCode;
+			if (exitCode) {
 				this._toggleOutput(true);
 			}
 		}
@@ -468,14 +485,16 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._showOutputActionAdded = true;
 	}
 
-	private _clearCommandAssociation(): void {
+	private _clearCommandAssociation(options?: { clearPersistentData?: boolean }): void {
 		this._terminalCommandUri = undefined;
 		this._storedCommandId = undefined;
-		if (this._terminalData.terminalCommandUri) {
-			delete this._terminalData.terminalCommandUri;
-		}
-		if (this._terminalData.terminalToolSessionId) {
-			delete this._terminalData.terminalToolSessionId;
+		if (options?.clearPersistentData) {
+			if (this._terminalData.terminalCommandUri) {
+				delete this._terminalData.terminalCommandUri;
+			}
+			if (this._terminalData.terminalToolSessionId) {
+				delete this._terminalData.terminalToolSessionId;
+			}
 		}
 		this._decoration.update();
 	}
@@ -497,10 +516,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 			commandDetectionListener.value = commandDetection.onCommandFinished(() => {
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
-				commandDetectionListener.clear();
+				const resolvedCommand = this._getResolvedCommand(terminalInstance);
+				if (resolvedCommand?.endMarker) {
+					commandDetectionListener.clear();
+				}
 			});
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
+				commandDetectionListener.clear();
 				return;
 			}
 		};
@@ -512,7 +535,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			if (this._terminalInstance === terminalInstance) {
 				this._terminalInstance = undefined;
 			}
-			this._clearCommandAssociation();
+			this._clearCommandAssociation({ clearPersistentData: true });
 			commandDetectionListener.clear();
 			if (!this._store.isDisposed) {
 				this._actionBar.clear();
@@ -542,16 +565,24 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private async _toggleOutput(expanded: boolean): Promise<boolean> {
 		const didChange = await this._outputView.toggle(expanded);
-		this._showOutputAction.value?.syncPresentation(this._outputView.isExpanded);
+		const isExpanded = this._outputView.isExpanded;
+		this._titleElement.classList.toggle('chat-terminal-content-title-no-bottom-radius', isExpanded);
+		this._showOutputAction.value?.syncPresentation(isExpanded);
 		if (didChange) {
-			expandedStateByInvocation.set(this.toolInvocation, this._outputView.isExpanded);
+			expandedStateByInvocation.set(this.toolInvocation, isExpanded);
 		}
 		return didChange;
 	}
 
 	private async _ensureTerminalInstance(): Promise<ITerminalInstance | undefined> {
+		if (this._terminalInstance?.isDisposed) {
+			this._terminalInstance = undefined;
+		}
 		if (!this._terminalInstance && this._terminalData.terminalToolSessionId) {
 			this._terminalInstance = await this._terminalChatService.getTerminalInstanceByToolSessionId(this._terminalData.terminalToolSessionId);
+			if (this._terminalInstance?.isDisposed) {
+				this._terminalInstance = undefined;
+			}
 		}
 		return this._terminalInstance;
 	}
@@ -624,6 +655,9 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	private _resolveCommand(instance: ITerminalInstance): ITerminalCommand | undefined {
+		if (instance.isDisposed) {
+			return undefined;
+		}
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const commands = commandDetection?.commands;
 		if (!commands || commands.length === 0) {
@@ -645,6 +679,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _scrollableContainer: DomScrollableElement | undefined;
 	private _renderedOutputHeight: number | undefined;
 	private _mirror: DetachedTerminalCommandMirror | undefined;
+	private _snapshotMirror: DetachedTerminalSnapshotMirror | undefined;
 	private readonly _contentContainer: HTMLElement;
 	private readonly _terminalContainer: HTMLElement;
 	private readonly _emptyElement: HTMLElement;
@@ -658,6 +693,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 		private readonly _onDidChangeHeight: () => void,
 		private readonly _ensureTerminalInstance: () => Promise<ITerminalInstance | undefined>,
 		private readonly _resolveCommand: () => ITerminalCommand | undefined,
+		private readonly _getTerminalCommandOutput: () => IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
+		private readonly _getCommandText: () => string,
+		private readonly _getStoredTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
@@ -725,10 +763,11 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 		const command = this._resolveCommand();
-		if (!command) {
+		const commandText = command?.command ?? this._getCommandText();
+		if (!commandText) {
 			return;
 		}
-		const ariaLabel = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', command.command);
+		const ariaLabel = localize('chatTerminalOutputAriaLabel', 'Terminal output for {0}', commandText);
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
 		scrollableDomNode.setAttribute('role', 'region');
 		const accessibleViewHint = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.TerminalChatOutput);
@@ -740,20 +779,33 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	public getCommandAndOutputAsText(): string | undefined {
 		const command = this._resolveCommand();
-		if (!command) {
+		const commandText = command?.command ?? this._getCommandText();
+		if (!commandText) {
 			return undefined;
 		}
-		const commandHeader = localize('chatTerminalOutputAccessibleViewHeader', 'Command: {0}', command.command);
-		if (!command) {
-			return commandHeader;
+		const commandHeader = localize('chatTerminalOutputAccessibleViewHeader', 'Command: {0}', commandText);
+		if (command) {
+			const rawOutput = command.getOutput();
+			if (!rawOutput || rawOutput.trim().length === 0) {
+				return `${commandHeader}\n${localize('chat.terminalOutputEmpty', 'No output was produced by the command.')}`;
+			}
+			const lines = rawOutput.split('\n');
+			return `${commandHeader}\n${lines.join('\n').trimEnd()}`;
 		}
-		const rawOutput = command.getOutput();
-		if (!rawOutput || rawOutput.trim().length === 0) {
+
+		const snapshot = this._getTerminalCommandOutput();
+		if (!snapshot) {
+			return `${commandHeader}\n${localize('chatTerminalOutputUnavailable', 'Command output is no longer available.')}`;
+		}
+		const plain = removeAnsiEscapeCodes((snapshot.text ?? ''));
+		if (!plain.trim().length) {
 			return `${commandHeader}\n${localize('chat.terminalOutputEmpty', 'No output was produced by the command.')}`;
 		}
-		const lines = rawOutput.split('\n');
-
-		return `${commandHeader}\n${lines.join('\n').trimEnd()}`;
+		let outputText = plain.trimEnd();
+		if (snapshot.truncated) {
+			outputText += `\n${localize('chatTerminalOutputTruncated', 'Output truncated.')}`;
+		}
+		return `${commandHeader}\n${outputText}`;
 	}
 
 	private _setExpanded(expanded: boolean): void {
@@ -778,26 +830,42 @@ class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	private async _updateTerminalContent(): Promise<void> {
-		const terminalInstance = await this._ensureTerminalInstance();
-		if (!terminalInstance) {
-			this._showEmptyMessage(localize('chat.terminalOutputTerminalMissing', 'Terminal is no longer available.'));
+		const liveTerminalInstance = await this._resolveLiveTerminal();
+		const command = liveTerminalInstance ? this._resolveCommand() : undefined;
+		const snapshot = this._getTerminalCommandOutput();
+
+		if (liveTerminalInstance && command) {
+			const handled = await this._renderLiveOutput(liveTerminalInstance, command);
+			if (handled) {
+				return;
+			}
+		}
+
+		this._disposeLiveMirror();
+
+		if (snapshot) {
+			await this._renderSnapshotOutput(snapshot);
 			return;
 		}
 
-		const command = this._resolveCommand();
-		if (!command) {
-			this._showEmptyMessage(localize('chat.terminalOutputCommandMissing', 'Command information is not available.'));
-			return;
+		this._renderUnavailableMessage(liveTerminalInstance);
+	}
+
+	private async _renderLiveOutput(liveTerminalInstance: ITerminalInstance, command: ITerminalCommand): Promise<boolean> {
+		if (this._mirror) {
+			return true;
 		}
-		if (!this._mirror) {
-			await terminalInstance.xtermReadyPromise;
-			this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, terminalInstance.xterm!, command));
+		await liveTerminalInstance.xtermReadyPromise;
+		if (liveTerminalInstance.isDisposed || !liveTerminalInstance.xterm) {
+			this._disposeLiveMirror();
+			return false;
 		}
+		this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm!, command));
 		await this._mirror.attach(this._terminalContainer);
 		const result = await this._mirror.renderCommand();
 		if (!result) {
 			this._showEmptyMessage(localize('chat.terminalOutputPending', 'Command output will appear here once available.'));
-			return;
+			return true;
 		}
 
 		if (result.lineCount === 0) {
@@ -806,6 +874,43 @@ class ChatTerminalToolOutputSection extends Disposable {
 			this._hideEmptyMessage();
 		}
 		this._layoutOutput(result.lineCount);
+		return true;
+	}
+
+	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
+		if (this._snapshotMirror) {
+			this._layoutOutput(snapshot.lineCount);
+			return;
+		}
+		dom.clearNode(this._terminalContainer);
+		this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
+		await this._snapshotMirror.attach(this._terminalContainer);
+		this._snapshotMirror.setOutput(snapshot);
+		const result = await this._snapshotMirror.render();
+		const hasText = !!snapshot.text && snapshot.text.length > 0;
+		if (hasText) {
+			this._hideEmptyMessage();
+		} else {
+			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
+		}
+		const lineCount = result?.lineCount ?? snapshot.lineCount;
+		if (lineCount) {
+			this._layoutOutput(lineCount);
+		}
+	}
+
+	private _renderUnavailableMessage(liveTerminalInstance: ITerminalInstance | undefined): void {
+		dom.clearNode(this._terminalContainer);
+		if (!liveTerminalInstance) {
+			this._showEmptyMessage(localize('chat.terminalOutputTerminalMissing', 'Terminal is no longer available.'));
+		} else {
+			this._showEmptyMessage(localize('chat.terminalOutputCommandMissing', 'Command information is not available.'));
+		}
+	}
+
+	private async _resolveLiveTerminal(): Promise<ITerminalInstance | undefined> {
+		const instance = await this._ensureTerminalInstance();
+		return instance && !instance.isDisposed ? instance : undefined;
 	}
 
 	private _showEmptyMessage(message: string): void {
@@ -816,6 +921,13 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _hideEmptyMessage(): void {
 		this._emptyElement.textContent = '';
 		this._terminalContainer.classList.remove('chat-terminal-output-terminal-no-output');
+	}
+
+	private _disposeLiveMirror(): void {
+		if (this._mirror) {
+			this._mirror.dispose();
+			this._mirror = undefined;
+		}
 	}
 
 	private _scheduleOutputRelayout(): void {
@@ -857,7 +969,8 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private _getOutputContentHeight(lineCount: number, rowHeight: number, padding: number): number {
 		const contentRows = Math.max(lineCount, MIN_OUTPUT_ROWS);
-		return (contentRows * rowHeight) + padding;
+		const adjustedRows = contentRows + (lineCount > MAX_OUTPUT_ROWS ? 1 : 0);
+		return (adjustedRows * rowHeight) + padding;
 	}
 
 	private _getOutputPadding(): number {
@@ -877,6 +990,126 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const lineHeight = hasLineHeight ? font.lineHeight : 1;
 		const rowHeight = Math.ceil(charHeight * lineHeight);
 		return Math.max(rowHeight, 1);
+	}
+}
+
+class DetachedTerminalSnapshotMirror extends Disposable {
+	private _detachedTerminal: Promise<IDetachedTerminalInstance> | undefined;
+	private _output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined;
+	private _attachedContainer: HTMLElement | undefined;
+	private _container: HTMLElement | undefined;
+	private _dirty = true;
+	private _lastRenderedLineCount: number | undefined;
+
+	constructor(
+		output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
+		private readonly _getTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+	) {
+		super();
+		this._output = output;
+	}
+
+	public setOutput(output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined): void {
+		this._output = output;
+		this._dirty = true;
+	}
+
+	public async attach(container: HTMLElement): Promise<void> {
+		const terminal = await this._getTerminal();
+		container.classList.add('chat-terminal-output-terminal');
+		if (this._attachedContainer !== container || container.firstChild === null) {
+			terminal.attachToElement(container);
+			this._attachedContainer = container;
+		}
+		this._container = container;
+		this._applyTheme(container);
+	}
+
+	public async render(): Promise<{ lineCount?: number } | undefined> {
+		const output = this._output;
+		if (!output) {
+			return undefined;
+		}
+		if (!this._dirty) {
+			return { lineCount: this._lastRenderedLineCount ?? output.lineCount };
+		}
+		const terminal = await this._getTerminal();
+		terminal.xterm.clearBuffer();
+		terminal.xterm.clearSearchDecorations?.();
+		if (this._container) {
+			this._applyTheme(this._container);
+		}
+		const text = output.text ?? '';
+		const lineCount = output.lineCount ?? this._estimateLineCount(text);
+		if (!text) {
+			this._dirty = false;
+			this._lastRenderedLineCount = lineCount;
+			return { lineCount: 0 };
+		}
+		await new Promise<void>(resolve => terminal.xterm.write(text, resolve));
+		this._dirty = false;
+		this._lastRenderedLineCount = lineCount;
+		return { lineCount };
+	}
+
+	private _estimateLineCount(text: string): number {
+		if (!text) {
+			return 0;
+		}
+		const sanitized = text.replace(/\r/g, '');
+		const segments = sanitized.split('\n');
+		const count = sanitized.endsWith('\n') ? segments.length - 1 : segments.length;
+		return Math.max(count, 1);
+	}
+
+	private _applyTheme(container: HTMLElement): void {
+		const theme = this._getTheme();
+		if (!theme) {
+			container.style.removeProperty('background-color');
+			container.style.removeProperty('color');
+			return;
+		}
+		if (theme.background) {
+			container.style.backgroundColor = theme.background;
+		}
+		if (theme.foreground) {
+			container.style.color = theme.foreground;
+		}
+	}
+
+	private async _getTerminal(): Promise<IDetachedTerminalInstance> {
+		if (!this._detachedTerminal) {
+			this._detachedTerminal = this._createTerminal();
+		}
+		return this._detachedTerminal;
+	}
+
+	private async _createTerminal(): Promise<IDetachedTerminalInstance> {
+		const terminal = await this._terminalService.createDetachedTerminal({
+			cols: 80,
+			rows: 10,
+			readonly: true,
+			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
+			disableOverviewRuler: true,
+			colorProvider: {
+				getBackgroundColor: theme => {
+					const storedBackground = this._getTheme()?.background;
+					if (storedBackground) {
+						const color = Color.fromHex(storedBackground);
+						if (color) {
+							return color;
+						}
+					}
+					const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
+					if (terminalBackground) {
+						return terminalBackground;
+					}
+					return theme.getColor(PANEL_BACKGROUND);
+				}
+			}
+		});
+		return this._register(terminal);
 	}
 }
 

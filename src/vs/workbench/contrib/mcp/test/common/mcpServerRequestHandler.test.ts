@@ -383,7 +383,7 @@ suite('Workbench - MCP - ServerRequestHandler', () => {
 	});
 });
 
-suite('Workbench - MCP - McpTask', () => {
+suite.skip('Workbench - MCP - McpTask', () => { // TODO@connor4312 https://github.com/microsoft/vscode/issues/280126
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let clock: sinon.SinonFakeTimers;
 

@@ -97,6 +97,7 @@ import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmen
 import { IDisposableReference } from './chatContentParts/chatCollections.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentParts/chatReferencesContentPart.js';
 import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
+import { ChatInputPartWidgetController } from './chatInputPartWidgets.js';
 import { IChatContextService } from './chatContextService.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
@@ -234,6 +235,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	private chatEditingSessionWidgetContainer!: HTMLElement;
 	private chatInputTodoListWidgetContainer!: HTMLElement;
+	private chatInputWidgetsContainer!: HTMLElement;
+	private readonly _widgetController = this._register(new MutableDisposable<ChatInputPartWidgetController>());
 
 	private _inputPartHeight: number = 0;
 	get inputPartHeight() {
@@ -252,6 +255,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get todoListWidgetHeight() {
 		return this.chatInputTodoListWidgetContainer.offsetHeight;
+	}
+
+	get inputWidgetsHeight() {
+		return this.chatInputWidgetsContainer?.offsetHeight ?? 0;
 	}
 
 	get attachmentsHeight() {
@@ -515,10 +522,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (this._inputEditor) {
 				this._inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}
-
-			if (this.implicitContext && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext')) {
-				this.implicitContext.enabled = this._currentModeObservable.get() !== ChatMode.Agent;
-			}
+			this.setImplicitContextEnablement();
 		}));
 		this._register(this._onDidChangeCurrentLanguageModel.event(() => {
 			if (this._currentLanguageModel?.metadata.name) {
@@ -538,6 +542,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Validate the initial mode - if Agent mode is set by default but disabled by policy, switch to Ask
 		this.validateCurrentChatMode();
+	}
+
+	private setImplicitContextEnablement() {
+		if (this.implicitContext && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext')) {
+			this.implicitContext.enabled = this._currentModeObservable.get().kind !== ChatMode.Agent.kind;
+		}
 	}
 
 	public setIsWithinEditSession(inInsideDiff: boolean, isFilePartOfEditSession: boolean) {
@@ -1312,6 +1322,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.interactive-input-and-edit-session', [
+					dom.h('.chat-input-widgets-container@chatInputWidgetsContainer'),
 					dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
@@ -1331,6 +1342,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		} else {
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.interactive-input-followups@followupsContainer'),
+				dom.h('.chat-input-widgets-container@chatInputWidgetsContainer'),
 				dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 				dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
 				dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
@@ -1362,17 +1374,25 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const attachmentToolbarContainer = elements.attachmentToolbar;
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
+		this.chatInputWidgetsContainer = elements.chatInputWidgetsContainer;
 
-		if (this.options.enableImplicitContext) {
+		if (this.options.enableImplicitContext && !this._implicitContext) {
 			this._implicitContext = this._register(
 				this.instantiationService.createInstance(ChatImplicitContext),
 			);
+			this.setImplicitContextEnablement();
 
 			this._register(this._implicitContext.onDidChangeValue(() => {
 				this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 				this._handleAttachedContextChange();
 			}));
+		} else if (!this.options.enableImplicitContext && this._implicitContext) {
+			this._implicitContext?.dispose();
+			this._implicitContext = undefined;
 		}
+
+		this._widgetController.value = this.instantiationService.createInstance(ChatInputPartWidgetController, this.chatInputWidgetsContainer);
+		this._register(this._widgetController.value.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		this.renderAttachedContext();
 		this._register(this._attachmentModel.onDidChange((e) => {
@@ -2197,7 +2217,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get contentHeight(): number {
 		const data = this.getLayoutData();
-		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight + data.todoListWidgetContainerHeight;
+		return data.followupsHeight + data.inputPartEditorHeight + data.inputPartVerticalPadding + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight + data.todoListWidgetContainerHeight + data.inputWidgetsContainerHeight;
 	}
 
 	layout(height: number, width: number) {
@@ -2209,12 +2229,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private previousInputEditorDimension: IDimension | undefined;
 	private _layout(height: number, width: number, allowRecurse = true): void {
 		const data = this.getLayoutData();
-		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.toolbarsHeight - data.chatEditingStateHeight - data.todoListWidgetContainerHeight);
+		const inputEditorHeight = Math.min(data.inputPartEditorHeight, height - data.followupsHeight - data.attachmentsHeight - data.inputPartVerticalPadding - data.toolbarsHeight - data.chatEditingStateHeight - data.todoListWidgetContainerHeight - data.inputWidgetsContainerHeight);
 
 		const followupsWidth = width - data.inputPartHorizontalPadding;
 		this.followupsContainer.style.width = `${followupsWidth}px`;
 
-		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight + data.todoListWidgetContainerHeight;
+		this._inputPartHeight = data.inputPartVerticalPadding + data.followupsHeight + inputEditorHeight + data.inputEditorBorder + data.attachmentsHeight + data.toolbarsHeight + data.chatEditingStateHeight + data.todoListWidgetContainerHeight + data.inputWidgetsContainerHeight;
 		this._followupsHeight = data.followupsHeight;
 		this._editSessionWidgetHeight = data.chatEditingStateHeight;
 
@@ -2265,6 +2285,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			chatEditingStateHeight: this.chatEditingSessionWidgetContainer.offsetHeight,
 			sideToolbarWidth: inputSideToolbarWidth > 0 ? inputSideToolbarWidth + 4 /*gap*/ : 0,
 			todoListWidgetContainerHeight: this.chatInputTodoListWidgetContainer.offsetHeight,
+			inputWidgetsContainerHeight: this.inputWidgetsHeight,
 		};
 	}
 }

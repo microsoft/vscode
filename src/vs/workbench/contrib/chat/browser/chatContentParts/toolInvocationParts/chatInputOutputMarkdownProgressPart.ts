@@ -120,7 +120,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 						}
 
 						// Fall back to text if it's not valid base64
-						const permalinkUri = ChatResponseResource.createUri(context.element.sessionId, toolInvocation.toolCallId, i, permalinkBasename);
+						const permalinkUri = ChatResponseResource.createUri(context.element.sessionResource, toolInvocation.toolCallId, i, permalinkBasename);
 						return { kind: 'data', value: decoded || new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
 					}
 				}),

@@ -1855,27 +1855,3 @@ registerAction2(class ToggleChatViewRecentSessionsAction extends Action2 {
 		await configurationService.updateValue(ChatConfiguration.ChatViewRecentSessionsEnabled, !chatViewRecentSessionsEnabled);
 	}
 });
-
-registerAction2(class ToggleChatViewWelcomeAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.toggleChatViewWelcome',
-			title: localize2('chat.toggleChatViewWelcome.label', "Show Welcome"),
-			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled,
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeEnabled}`, true),
-			menu: {
-				id: MenuId.ChatWelcomeContext,
-				group: '1_modify',
-				order: 2
-			}
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const configurationService = accessor.get(IConfigurationService);
-
-		const chatViewWelcomeEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled);
-		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeEnabled, !chatViewWelcomeEnabled);
-	}
-});
