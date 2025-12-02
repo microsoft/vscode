@@ -39,7 +39,7 @@ import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js'
 import { IChatService } from '../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../chat/common/languageModelToolsService.js';
-import { CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE, CTX_INLINE_CHAT_POSSIBLE } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_POSSIBLE } from '../common/inlineChat.js';
 import { HunkData, Session, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession.js';
 import { askInPanelChat, IInlineChatSession2, IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer } from './inlineChatSessionService.js';
 
@@ -436,8 +436,6 @@ export class InlineChatEnabler {
 	static Id = 'inlineChat.enabler';
 
 	private readonly _ctxHasProvider2: IContextKey<boolean>;
-	private readonly _ctxHasNotebookInline: IContextKey<boolean>;
-	private readonly _ctxHasNotebookProvider: IContextKey<boolean>;
 	private readonly _ctxPossible: IContextKey<boolean>;
 
 	private readonly _store = new DisposableStore();
@@ -448,8 +446,6 @@ export class InlineChatEnabler {
 		@IEditorService editorService: IEditorService,
 	) {
 		this._ctxHasProvider2 = CTX_INLINE_CHAT_HAS_AGENT2.bindTo(contextKeyService);
-		this._ctxHasNotebookInline = CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE.bindTo(contextKeyService);
-		this._ctxHasNotebookProvider = CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT.bindTo(contextKeyService);
 		this._ctxPossible = CTX_INLINE_CHAT_POSSIBLE.bindTo(contextKeyService);
 
 		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
@@ -461,13 +457,6 @@ export class InlineChatEnabler {
 			} else {
 				this._ctxHasProvider2.set(true);
 			}
-		}));
-
-		this._store.add(autorun(r => {
-			// All notebook edits now go through v2, so v1 notebook inline is never enabled
-			this._ctxHasNotebookInline.set(false);
-			// v2 for notebooks is enabled when there's an EditorInline agent
-			this._ctxHasNotebookProvider.set(!!agentObs.read(r));
 		}));
 
 		const updateEditor = () => {
