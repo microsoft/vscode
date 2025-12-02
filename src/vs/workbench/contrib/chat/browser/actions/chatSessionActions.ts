@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { IChatSessionRecommendation } from '../../../../../base/common/product.js';
 import Severity from '../../../../../base/common/severity.js';
 import * as nls from '../../../../../nls.js';
 import { localize } from '../../../../../nls.js';
@@ -15,14 +13,10 @@ import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/c
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
-import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
@@ -316,65 +310,6 @@ export class ToggleAgentSessionsViewLocationAction extends Action2 {
 
 		const viewId = newValue === 'single-view' ? AGENT_SESSIONS_VIEW_ID : `${LEGACY_AGENT_SESSIONS_VIEW_ID}.local`;
 		await viewsService.openView(viewId, true);
-	}
-}
-
-export class ChatSessionsGettingStartedAction extends Action2 {
-	static readonly ID = 'chat.sessions.gettingStarted';
-
-	constructor() {
-		super({
-			id: ChatSessionsGettingStartedAction.ID,
-			title: nls.localize2('chat.sessions.gettingStarted.action', "Getting Started with Chat Sessions"),
-			icon: Codicon.sendToRemoteAgent,
-			f1: false,
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const productService = accessor.get(IProductService);
-		const quickInputService = accessor.get(IQuickInputService);
-		const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
-		const extensionGalleryService = accessor.get(IExtensionGalleryService);
-
-		const recommendations = productService.chatSessionRecommendations;
-		if (!recommendations || recommendations.length === 0) {
-			return;
-		}
-
-		const installedExtensions = await extensionManagementService.getInstalled();
-		const isExtensionAlreadyInstalled = (extensionId: string) => {
-			return installedExtensions.find(installed => installed.identifier.id === extensionId);
-		};
-
-		const quickPickItems = recommendations.map((recommendation: IChatSessionRecommendation) => {
-			const extensionInstalled = !!isExtensionAlreadyInstalled(recommendation.extensionId);
-			return {
-				label: recommendation.displayName,
-				description: recommendation.description,
-				detail: extensionInstalled
-					? nls.localize('chatSessions.extensionAlreadyInstalled', "'{0}' is already installed", recommendation.extensionName)
-					: nls.localize('chatSessions.installExtension', "Installs '{0}'", recommendation.extensionName),
-				extensionId: recommendation.extensionId,
-				disabled: extensionInstalled,
-			};
-		});
-
-		const selected = await quickInputService.pick(quickPickItems, {
-			title: nls.localize('chatSessions.selectExtension', "Install Agents..."),
-			placeHolder: nls.localize('chatSessions.pickPlaceholder', "Install agents from the extension marketplace"),
-			canPickMany: true,
-		});
-
-		if (!selected) {
-			return;
-		}
-
-		const galleryExtensions = await extensionGalleryService.getExtensions(selected.map(item => ({ id: item.extensionId })), CancellationToken.None);
-		if (!galleryExtensions) {
-			return;
-		}
-		await extensionManagementService.installGalleryExtensions(galleryExtensions.map(extension => ({ extension, options: { preRelease: productService.quality !== 'stable' } })));
 	}
 }
 
