@@ -633,8 +633,31 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const disposableStore = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposableStore);
 
-		disposableStore.add(this._registerAgent(contribution, ext));
-		disposableStore.add(this._registerCommands(contribution));
+		const providerDependentDisposables = new MutableDisposable<IDisposable>();
+		disposableStore.add(providerDependentDisposables);
+
+		// NOTE: Only those extensions that register as 'content providers' should have agents and commands auto-registered
+		//       This relationship may change in the future as the API grows.
+		const reconcileProviderRegistrations = () => {
+			if (this._contentProviders.has(contribution.type)) {
+				if (!providerDependentDisposables.value) {
+					providerDependentDisposables.value = combinedDisposable(
+						this._registerAgent(contribution, ext),
+						this._registerCommands(contribution)
+					);
+				}
+			} else {
+				providerDependentDisposables.clear();
+			}
+		};
+
+		reconcileProviderRegistrations();
+		disposableStore.add(this.onDidChangeContentProviderSchemes(({ added, removed }) => {
+			if (added.includes(contribution.type) || removed.includes(contribution.type)) {
+				reconcileProviderRegistrations();
+			}
+		}));
+
 		disposableStore.add(this._registerMenuItems(contribution, ext));
 	}
 
