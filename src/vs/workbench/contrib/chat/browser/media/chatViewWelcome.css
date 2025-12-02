@@ -40,11 +40,8 @@ div.chat-welcome-view {
 	align-items: center;
 	padding: 12px;
 
-	& > .chat-welcome-view-icon {
-		min-height: 48px;
-	}
-
 	& > .chat-welcome-view-icon .codicon {
+		color: var(--vscode-descriptionForeground);
 		font-size: 40px;
 	}
 
@@ -72,8 +69,10 @@ div.chat-welcome-view {
 	}
 
 	& > .chat-welcome-view-title {
-		font-size: 24px;
-		margin-top: 5px;
+		font-size: 14px;
+		font-weight: 500;
+		margin-top: 24px;
+		margin-bottom: 8px;
 		text-align: center;
 		line-height: normal;
 		padding: 0 8px;
@@ -86,6 +85,7 @@ div.chat-welcome-view {
 		padding: 0 20px;
 		margin: 0 auto;
 		color: var(--vscode-input-placeholderForeground);
+		font-size: 12px;
 
 		a {
 			color: var(--vscode-textLink-foreground);
@@ -132,9 +132,14 @@ div.chat-welcome-view {
 	& > .chat-welcome-view-disclaimer {
 		color: var(--vscode-input-placeholderForeground);
 		text-align: center;
-		margin: -16px auto;
-		max-width: 400px;
+		margin: 0;
+		max-width: 256px;
 		padding: 0 12px;
+		font-size: 12px;
+
+		p {
+			margin: 0;
+		}
 
 		a {
 			color: var(--vscode-textLink-foreground);
@@ -163,9 +168,7 @@ div.chat-welcome-view {
 		position: absolute;
 		top: 8px;
 		left: 16px;
-		font-size: 11px;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
+		font-size: 12px;
 		color: var(--vscode-descriptionForeground);
 		margin: 0;
 		text-align: left;
@@ -175,8 +178,8 @@ div.chat-welcome-view {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		height: 24px;
-		padding: 0 8px;
+		height: 20px;
+		padding: 0 6px;
 		border-radius: 4px;
 		background-color: var(--vscode-editorWidget-background);
 		cursor: pointer;
@@ -188,13 +191,13 @@ div.chat-welcome-view {
 		flex: 0 0 auto;
 
 		& > .chat-welcome-view-suggested-prompt-title {
-			font-size: 13px;
+			font-size: 12px;
 			color: var(--vscode-editorWidget-foreground);
 			white-space: nowrap;
 		}
 
 		& > .chat-welcome-view-suggested-prompt-description {
-			font-size: 13px;
+			font-size: 11px;
 			color: var(--vscode-descriptionForeground);
 			overflow: hidden;
 			text-overflow: ellipsis;
