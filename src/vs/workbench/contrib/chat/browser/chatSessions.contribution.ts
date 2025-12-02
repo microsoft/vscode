@@ -699,6 +699,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			.filter(contribution => this._isContributionAvailable(contribution));
 	}
 
+	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined {
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		if (!contribution) {
+			return undefined;
+		}
+
+		return this._isContributionAvailable(contribution) ? contribution : undefined;
+	}
+
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
 		return [...this._itemsProviders.values()].filter(provider => {
 			// Check if the provider's corresponding contribution is available

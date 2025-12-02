@@ -1317,46 +1317,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.setValue(`@${agentId} ${promptToUse}`, false);
 			this.input.focus();
 			// Auto-submit for delegated chat sessions
-			this.acceptInput().then(async (response) => {
-				if (!response || !this.viewModel) {
-					return;
-				}
-
-				// Wait for response to complete without any user-pending confirmations
-				const checkForComplete = () => {
-					const items = this.viewModel?.getItems() ?? [];
-					const lastItem = items[items.length - 1];
-					if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
-						return true;
-					}
-					return false;
-				};
-
-				if (checkForComplete()) {
-					await this.clear();
-					return;
-				}
-
-				await new Promise<void>(resolve => {
-					const disposable = this.viewModel!.onDidChange(() => {
-						if (checkForComplete()) {
-							cleanup();
-							resolve();
-						}
-					});
-					const timeout = setTimeout(() => {
-						cleanup();
-						resolve();
-					}, 30000); // 30 second timeout
-					const cleanup = () => {
-						clearTimeout(timeout);
-						disposable.dispose();
-					};
-				});
-
-				// Clear parent editor
-				await this.clear();
-			}).catch(e => this.logService.error('Failed to handle handoff continueOn', e));
+			this.acceptInput().catch(e => this.logService.error('Failed to handle handoff continueOn', e));
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
@@ -1369,6 +1330,87 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.acceptInput();
 			}
 		}
+	}
+
+	async handleDelegationExitIfNeeded(agent: IChatAgentData | undefined): Promise<void> {
+		if (!this._shouldExitAfterDelegation(agent)) {
+			return;
+		}
+
+		try {
+			await this._handleDelegationExit();
+		} catch (e) {
+			this.logService.error('Failed to handle delegation exit', e);
+		}
+	}
+
+	private _shouldExitAfterDelegation(agent: IChatAgentData | undefined): boolean {
+		if (!agent) {
+			return false;
+		}
+
+		if (!isIChatViewViewContext(this.viewContext)) {
+			return false;
+		}
+
+		const contribution = this.chatSessionsService.getChatSessionContribution(agent.id);
+		if (!contribution) {
+			return false;
+		}
+
+		if (contribution.canDelegate !== true) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Handles the exit of the panel chat when a delegation to another session occurs.
+	 * Waits for the response to complete and any pending confirmations to be resolved,
+	 * then clears the widget.
+	 */
+	private async _handleDelegationExit(): Promise<void> {
+		const viewModel = this.viewModel;
+		if (!viewModel) {
+			return;
+		}
+
+		// Check if response is already complete without pending confirmations
+		const checkForComplete = () => {
+			const items = viewModel.getItems();
+			const lastItem = items[items.length - 1];
+			if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
+				return true;
+			}
+			return false;
+		};
+
+		if (checkForComplete()) {
+			await this.clear();
+			return;
+		}
+
+		// Wait for response to complete with a timeout
+		await new Promise<void>(resolve => {
+			const disposable = viewModel.onDidChange(() => {
+				if (checkForComplete()) {
+					cleanup();
+					resolve();
+				}
+			});
+			const timeout = setTimeout(() => {
+				cleanup();
+				resolve();
+			}, 30_000); // 30 second timeout
+			const cleanup = () => {
+				clearTimeout(timeout);
+				disposable.dispose();
+			};
+		});
+
+		// Clear the widget after delegation completes
+		await this.clear();
 	}
 
 	setVisible(visible: boolean): void {
@@ -2288,6 +2330,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.input.acceptInput(isUserQuery);
 		this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
+		this.handleDelegationExitIfNeeded(result.agent);
 		this.currentRequest = result.responseCompletePromise.then(() => {
 			const responses = this.viewModel?.getItems().filter(isResponseVM);
 			const lastResponse = responses?.[responses.length - 1];
