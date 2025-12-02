@@ -168,10 +168,7 @@
 	border: 1px solid var(--vscode-commandCenter-border);
 	overflow: hidden;
 	margin: 0 6px;
-	border-top-left-radius: 6px;
-	border-bottom-left-radius: 6px;
-	border-top-right-radius: 6px;
-	border-bottom-right-radius: 6px;
+	border-radius: 4px;
 	height: 22px;
 	width: 38vw;
 	max-width: 600px;
