@@ -67,7 +67,7 @@ export class ChatAgentRecommendation extends Disposable implements IWorkbenchCon
 					id: commandId,
 					title,
 					tooltip: recommendation.description,
-					f1: true,
+					f1: false,
 					category: CHAT_CATEGORY,
 					icon: Codicon.extensions,
 					precondition: ContextKeyExpr.equals(availabilityContextId, true),
