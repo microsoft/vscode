@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, getWindow, setVisibility } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, getWindow, setVisibility } from '../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -223,6 +224,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.viewPaneContainer.classList.add('chat-viewpane');
 
 		this.createControls(parent);
+		this.setupContextMenu(parent);
 
 		this.applyModel();
 	}
@@ -365,6 +367,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const updateWidgetVisibility = (reader?: IReader) => this._widget.setVisible(this.isBodyVisible() && !this.welcomeController?.isShowingWelcome.read(reader));
 		this._register(this.onDidChangeBodyVisibility(() => updateWidgetVisibility()));
 		this._register(autorun(reader => updateWidgetVisibility(reader)));
+	}
+
+	private setupContextMenu(parent: HTMLElement): void {
+		addDisposableListener(parent, EventType.CONTEXT_MENU, e => {
+			EventHelper.stop(e, true);
+
+			this.contextMenuService.showContextMenu({
+				menuId: MenuId.ChatWelcomeContext,
+				contextKeyService: this.contextKeyService,
+				getAnchor: () => new StandardMouseEvent(getWindow(parent), e)
+			});
+		});
 	}
 
 	private async applyModel(): Promise<void> {
