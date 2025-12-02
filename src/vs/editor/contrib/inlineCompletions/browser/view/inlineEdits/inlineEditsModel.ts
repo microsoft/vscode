@@ -46,9 +46,10 @@ export class ModelPerInlineEdit {
 
 	handleInlineEditShownNextFrame(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
 		const item = this.inlineEdit.inlineCompletion;
+		const timeWhenShown = Date.now();
 		item.addRef();
 		setTimeout0(() => {
-			this._model.handleInlineSuggestionShown(item, viewKind, viewData);
+			this._model.handleInlineSuggestionShown(item, viewKind, viewData, timeWhenShown);
 			item.removeRef();
 		});
 	}
