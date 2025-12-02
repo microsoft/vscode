@@ -38,8 +38,8 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel, IChatModelInputState } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatModelReference, IChatService } from '../common/chatService.js';
-import { IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../common/chatUri.js';
+import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
+import { LocalChatSessionUri, getChatSessionType } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { showCloseActiveChatNotification } from './actions/chatCloseNotification.js';
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
@@ -193,6 +193,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 		this.modelRef.value = ref;
 		const model = ref.object;
+
+		await this.updateWidgetLockState(model.sessionResource);
 
 		this.viewState.sessionId = model.sessionId;
 		this._widget.setModel(model);
@@ -389,16 +391,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	async loadSession(sessionId: URI): Promise<IChatModel | undefined> {
 
-		// Handle locking for contributed chat sessions
-		// TODO: Is this logic still correct with sessions from different schemes?
-		const local = LocalChatSessionUri.parseLocalSessionId(sessionId);
-		if (local) {
+		const sessionType = getChatSessionType(sessionId);
+		if (sessionType !== localChatSessionType) {
 			await this.chatSessionsService.canResolveChatSession(sessionId);
-			const contributions = this.chatSessionsService.getAllChatSessionContributions();
-			const contribution = contributions.find((c: IChatSessionsExtensionPoint) => c.type === localChatSessionType);
-			if (contribution) {
-				this._widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
-			}
 		}
 
 		const newModelRef = await this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None);
@@ -456,6 +451,33 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			for (const [key, value] of Object.entries(newViewState)) {
 				(this.viewState as Record<string, unknown>)[key] = value; // Assign all props to the memento so they get saved
 			}
+		}
+	}
+
+	private async updateWidgetLockState(sessionResource: URI): Promise<void> {
+		const sessionType = getChatSessionType(sessionResource);
+		if (sessionType === localChatSessionType) {
+			this._widget.unlockFromCodingAgent();
+			return;
+		}
+
+		let canResolve = false;
+		try {
+			canResolve = await this.chatSessionsService.canResolveChatSession(sessionResource);
+		} catch (error) {
+			this.logService.warn(`Failed to resolve chat session '${sessionResource.toString()}' for locking`, error);
+		}
+
+		if (!canResolve) {
+			this._widget.unlockFromCodingAgent();
+			return;
+		}
+
+		const contribution = this.chatSessionsService.getChatSessionContribution(sessionType);
+		if (contribution) {
+			this._widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+		} else {
+			this._widget.unlockFromCodingAgent();
 		}
 	}
 }
