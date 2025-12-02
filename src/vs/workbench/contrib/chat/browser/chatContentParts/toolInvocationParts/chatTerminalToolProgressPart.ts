@@ -246,7 +246,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITerminalLogService private readonly _terminalLogService: ITerminalLogService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super(toolInvocation);
 
@@ -458,7 +458,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		}
 		if (resolvedCommand && resolvedCommand.id !== this._terminalData.terminalCommandId && !this._loggedIdMismatch) {
 			this._loggedIdMismatch = true;
-			this._terminalLogService.debug(`ChatTerminalToolProgressPart: Resolved command id mismatch. expected=${this._terminalData.terminalCommandId ?? 'none'}, actual=${resolvedCommand.id ?? 'none'}, session=${this._terminalData.terminalToolSessionId ?? 'none'}`);
+			this._logService.debug(`ChatTerminalToolProgressPart: Resolved command id mismatch. expected=${this._terminalData.terminalCommandId ?? 'none'}, actual=${resolvedCommand.id ?? 'none'}, session=${this._terminalData.terminalToolSessionId ?? 'none'}`);
 		}
 		let showOutputAction = this._showOutputAction.value;
 		if (!showOutputAction) {
