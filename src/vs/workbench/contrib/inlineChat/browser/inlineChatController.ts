@@ -133,15 +133,13 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(InlineChatController.ID);
 	}
 
-	private readonly _delegate: IObservable<InlineChatController1 | InlineChatController2>;
+	private readonly _delegate: InlineChatController2;
 
 	constructor(
 		editor: ICodeEditor,
 	) {
-		this._delegate = derived(_r => {
-			// Always use v2 for all editors (notebook cells and regular editors)
-			return InlineChatController2.get(editor)!;
-		});
+		// Always use v2 for all editors (notebook cells and regular editors)
+		this._delegate = InlineChatController2.get(editor)!;
 	}
 
 	dispose(): void {
@@ -149,27 +147,27 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	get isActive(): boolean {
-		return this._delegate.get().isActive;
+		return this._delegate.isActive;
 	}
 
 	async run(arg?: InlineChatRunOptions): Promise<boolean> {
-		return this._delegate.get().run(arg);
+		return this._delegate.run(arg);
 	}
 
 	focus() {
-		return this._delegate.get().focus();
+		return this._delegate.focus();
 	}
 
 	get widget(): EditorBasedInlineChatWidget {
-		return this._delegate.get().widget;
+		return this._delegate.widget;
 	}
 
 	getWidgetPosition() {
-		return this._delegate.get().getWidgetPosition();
+		return this._delegate.getWidgetPosition();
 	}
 
 	acceptSession() {
-		return this._delegate.get().acceptSession();
+		return this._delegate.acceptSession();
 	}
 }
 
