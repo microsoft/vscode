@@ -1322,6 +1322,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private _shouldExitAfterDelegation(agent: IChatAgentData | undefined): boolean {
+		if (!this.configurationService.getValue<boolean>(ChatConfiguration.ExitAfterDelegation)) {
+			return false;
+		}
+
 		if (!agent) {
 			return false;
 		}
