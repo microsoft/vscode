@@ -282,9 +282,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				notifyResults(count: number) {
 					that.notifySessionsControlChanged(count);
 				}
-			},
-			overrideStyles: {
-				listBackground: editorWidgetBackground
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));
