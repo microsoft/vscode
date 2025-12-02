@@ -2,12 +2,7 @@
 name: Data
 description: Answer telemetry questions with data queries using Kusto Query Language (KQL)
 tools:
-  - search
-  - runCommands/runInTerminal
-  - Azure MCP/kusto_query
-  - githubRepo
-  - extensions
-  - todos
+  ['vscode/extensions', 'execute/runInTerminal', 'read/readFile', 'search', 'web/githubRepo', 'azure-mcp/kusto_query', 'todo']
 ---
 
 # Role and Objective
