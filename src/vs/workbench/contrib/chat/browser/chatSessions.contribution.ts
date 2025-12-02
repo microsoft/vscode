@@ -833,23 +833,22 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	public registerModelProgressListener(models: IChatModel[], type: string): Event<void> {
-		const changeEmitter = new Emitter<void>();
+		const changeEmitter = this._register(new Emitter<void>());
 		const event = changeEmitter.event;
-		let responseDisposable: IDisposable | undefined = undefined;
+		const responseDisposables = this._register(new DisposableStore());
+
 		for (const model of models) {
 			if (model.sessionResource.scheme === type && !this._registeredModels.has(model)) {
 				this._registeredModels.add(model);
-				const modelDisposables = new DisposableStore();
+				const modelDisposables = this._register(new DisposableStore());
 
 				modelDisposables.add(autorun(reader => {
 					const lastResponse = model.lastRequestObs.read(reader);
 					if (lastResponse?.response) {
-						if (responseDisposable) {
-							responseDisposable.dispose();
-						}
-						responseDisposable = lastResponse.response.onDidChange(() => {
+						responseDisposables.clear();
+						responseDisposables.add(lastResponse.response.onDidChange(() => {
 							changeEmitter.fire();
-						});
+						}));
 					}
 				}));
 
