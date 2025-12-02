@@ -389,52 +389,53 @@ export class PromptsService extends Disposable implements IPromptsService {
 		agentFiles = agentFiles.filter(promptPath => !disabledAgents.has(promptPath.uri));
 		const customAgents = await Promise.all(
 			agentFiles.map(async (promptPath): Promise<ICustomAgent | undefined> => {
-				try {
-					const uri = promptPath.uri;
-					const ast = await this.parseNew(uri, token);
+				const uri = promptPath.uri;
 
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					let metadata: any | undefined;
-					if (ast.header) {
-						const advanced = ast.header.getAttribute(PromptHeaderAttributes.advancedOptions);
-						if (advanced && advanced.value.type === 'object') {
-							metadata = {};
-							for (const [key, value] of Object.entries(advanced.value)) {
-								if (['string', 'number', 'boolean'].includes(value.type)) {
-									metadata[key] = value;
-								}
+				// Skip files that no longer exist (e.g., deleted or renamed)
+				if (!await this.fileService.exists(uri)) {
+					return undefined;
+				}
+
+				const ast = await this.parseNew(uri, token);
+
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				let metadata: any | undefined;
+				if (ast.header) {
+					const advanced = ast.header.getAttribute(PromptHeaderAttributes.advancedOptions);
+					if (advanced && advanced.value.type === 'object') {
+						metadata = {};
+						for (const [key, value] of Object.entries(advanced.value)) {
+							if (['string', 'number', 'boolean'].includes(value.type)) {
+								metadata[key] = value;
 							}
 						}
 					}
-					const toolReferences: IVariableReference[] = [];
-					if (ast.body) {
-						const bodyOffset = ast.body.offset;
-						const bodyVarRefs = ast.body.variableReferences;
-						for (let i = bodyVarRefs.length - 1; i >= 0; i--) { // in reverse order
-							const { name, offset } = bodyVarRefs[i];
-							const range = new OffsetRange(offset - bodyOffset, offset - bodyOffset + name.length + 1);
-							toolReferences.push({ name, range });
-						}
-					}
-
-					const agentInstructions = {
-						content: ast.body?.getContent() ?? '',
-						toolReferences,
-						metadata,
-					} satisfies IAgentInstructions;
-
-					const name = ast.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
-
-					const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
-					if (!ast.header) {
-						return { uri, name, agentInstructions, source };
-					}
-					const { description, model, tools, handOffs, argumentHint, target, infer } = ast.header;
-					return { uri, name, description, model, tools, handOffs, argumentHint, target, infer, agentInstructions, source };
-				} catch (e) {
-					this.logger.warn(`[computeCustomAgents] Failed to load custom agent: ${promptPath.uri}`, e instanceof Error ? e.message : String(e));
-					return undefined;
 				}
+				const toolReferences: IVariableReference[] = [];
+				if (ast.body) {
+					const bodyOffset = ast.body.offset;
+					const bodyVarRefs = ast.body.variableReferences;
+					for (let i = bodyVarRefs.length - 1; i >= 0; i--) { // in reverse order
+						const { name, offset } = bodyVarRefs[i];
+						const range = new OffsetRange(offset - bodyOffset, offset - bodyOffset + name.length + 1);
+						toolReferences.push({ name, range });
+					}
+				}
+
+				const agentInstructions = {
+					content: ast.body?.getContent() ?? '',
+					toolReferences,
+					metadata,
+				} satisfies IAgentInstructions;
+
+				const name = ast.header?.name ?? promptPath.name ?? getCleanPromptName(uri);
+
+				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
+				if (!ast.header) {
+					return { uri, name, agentInstructions, source };
+				}
+				const { description, model, tools, handOffs, argumentHint, target, infer } = ast.header;
+				return { uri, name, description, model, tools, handOffs, argumentHint, target, infer, agentInstructions, source };
 			})
 		);
 		return customAgents.filter((agent): agent is ICustomAgent => agent !== undefined);
