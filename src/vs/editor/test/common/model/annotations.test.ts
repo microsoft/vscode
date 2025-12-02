@@ -580,12 +580,12 @@ suite('Annotations Suite', () => {
 	});
 
 	test('rebase', () => {
-		const a: IAnnotatedString<string> = getRandomAnnotatedString();
+		const a: IAnnotatedString<string> = new AnnotatedString<string>([{ range: new OffsetRange(2, 5), annotation: '' }]);
 		const b = a.clone();
-		const update: AnnotationsUpdate<string> = getRandomAnnotationsUpdate();
+		const update: AnnotationsUpdate<string> = AnnotationsUpdate.create([{ range: new OffsetRange(4, 5), annotation: '' }]);
 
 		b.setAnnotations(update);
-		const edit: StringEdit = getRandomEdit();
+		const edit: StringEdit = StringEdit.replace(new OffsetRange(1, 6), 'abc');
 
 		a.applyEdit(edit);
 		b.applyEdit(edit);
@@ -596,23 +596,3 @@ suite('Annotations Suite', () => {
 		assert.deepStrictEqual(a.getAllAnnotations(), b.getAllAnnotations());
 	});
 });
-
-function getRandomAnnotatedString(): IAnnotatedString<string> {
-	return new AnnotatedString<string>([getAnnotation()]);
-}
-
-function getRandomAnnotationsUpdate(): AnnotationsUpdate<string> {
-	return AnnotationsUpdate.create([getAnnotation()]);
-}
-
-function getRandomEdit(): StringEdit {
-	const start = Math.floor(Math.random() * 100);
-	const delta = Math.floor(Math.random() * (100 - start));
-	return StringEdit.replace(new OffsetRange(start, start + delta), (Math.random() + 1).toString(36).substring(7));
-}
-
-function getAnnotation(): IAnnotation<string> {
-	const start = Math.floor(Math.random() * 100);
-	const delta = Math.floor(Math.random() * (100 - start));
-	return { range: new OffsetRange(start, start + delta), annotation: '' };
-}
