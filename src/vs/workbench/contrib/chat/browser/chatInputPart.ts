@@ -1386,7 +1386,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 				this._handleAttachedContextChange();
 			}));
-		} else {
+		} else if (!this.options.enableImplicitContext && this._implicitContext) {
 			this._implicitContext?.dispose();
 			this._implicitContext = undefined;
 		}
