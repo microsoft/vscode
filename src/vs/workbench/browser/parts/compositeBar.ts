@@ -21,6 +21,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IComposite } from '../../common/composite.js';
 import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D, toggleDropEffect, ICompositeDragAndDropObserverCallbacks } from '../dnd.js';
 import { Gesture, EventType as TouchEventType, GestureEvent } from '../../../base/browser/touch.js';
+import { toDisposable } from '../../../base/common/lifecycle.js';
 
 export interface ICompositeBarItem {
 
@@ -318,6 +319,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		const dndCallback = new CompositeBarDndCallbacks(parent, actionBarDiv, this.model, this.options.dndHandler, this.options.orientation);
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, dndCallback));
 
+		this._register(toDisposable(() => {
+			this.compositeOverflowActionViewItem?.dispose();
+		}));
 		return actionBarDiv;
 	}
 
