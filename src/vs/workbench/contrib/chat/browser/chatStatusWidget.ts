@@ -8,17 +8,15 @@ import * as dom from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ChatEntitlement, ChatEntitlementContextKeys, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatInputPartWidgetsRegistry, IChatInputPartWidget } from './chatInputPartWidgets.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 
 const $ = dom.$;
 
@@ -37,7 +35,6 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 
 	private messageElement: HTMLElement | undefined;
 	private actionButton: Button | undefined;
-	private _isEnabled = false;
 
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
@@ -52,32 +49,28 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 	}
 
 	private initializeIfEnabled(): void {
-		const isEnabled = this.configurationService.getValue<boolean>('chat.statusWidget.enabled');
-		if (!isEnabled) {
+		const enabledSku = this.configurationService.getValue<string | null>('chat.statusWidget.sku');
+		if (enabledSku !== 'free' && enabledSku !== 'anonymous') {
 			return;
 		}
 
-		this._isEnabled = true;
-		if (!this.chatEntitlementService.isInternal) {
-			return;
-		}
 
-		this.createWidgetContent();
-		this.updateContent();
+		this.createWidgetContent(enabledSku);
+		this.updateContent(enabledSku);
 		this.domNode.style.display = '';
 
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
-			this.updateContent();
+			this.updateContent(enabledSku);
 		}));
 
 		this._onDidChangeHeight.fire();
 	}
 
 	get height(): number {
-		return this._isEnabled ? this.domNode.offsetHeight : 0;
+		return this.domNode.offsetHeight;
 	}
 
-	private createWidgetContent(): void {
+	private createWidgetContent(testSku: 'free' | 'anonymous'): void {
 		const contentContainer = $('.chat-status-content');
 		this.messageElement = $('.chat-status-message');
 		contentContainer.appendChild(this.messageElement);
@@ -90,9 +83,9 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		this.actionButton.element.classList.add('chat-status-button');
 
 		this._register(this.actionButton.onDidClick(async () => {
-			const commandId = this.chatEntitlementService.entitlement === ChatEntitlement.Free
-				? 'workbench.action.chat.upgradePlan'
-				: 'workbench.action.chat.manageOverages';
+			const commandId = this.chatEntitlementService.anonymous
+				? CHAT_SETUP_ACTION_ID
+				: 'workbench.action.chat.upgradePlan';
 			await this.commandService.executeCommand(commandId);
 		}));
 
@@ -100,36 +93,25 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		this.domNode.appendChild(actionContainer);
 	}
 
-	private updateContent(): void {
+	private updateContent(enabledSku: 'free' | 'anonymous'): void {
 		if (!this.messageElement || !this.actionButton) {
 			return;
 		}
 
-		this.messageElement.textContent = localize('chat.quotaExceeded.message', "Free tier chat message limit reached.");
-		this.actionButton.label = localize('chat.quotaExceeded.increaseLimit', "Increase Limit");
+		const entitlement = this.chatEntitlementService.entitlement;
+		const isAnonymous = this.chatEntitlementService.anonymous;
+
+		if (enabledSku === 'anonymous' && (isAnonymous || entitlement === ChatEntitlement.Unknown)) {
+			this.messageElement.textContent = localize('chat.anonymousRateLimited.message', "You've reached the limit for chat messages. Try Copilot Pro for free.");
+			this.actionButton.label = localize('chat.anonymousRateLimited.signIn', "Sign In");
+		} else if (enabledSku === 'free' && entitlement === ChatEntitlement.Free) {
+			this.messageElement.textContent = localize('chat.freeQuotaExceeded.message', "You've reached the limit for chat messages.");
+			this.actionButton.label = localize('chat.freeQuotaExceeded.upgrade', "Upgrade");
+		}
 
 		this._onDidChangeHeight.fire();
 	}
 }
-
-// TODO@bhavyaus remove this command after testing complete with team
-registerAction2(class ToggleChatQuotaExceededAction extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.action.chat.toggleStatusWidget',
-			title: localize2('chat.toggleStatusWidget.label', "Toggle Chat Status Widget State"),
-			f1: true,
-			category: Categories.Developer,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatEntitlementContextKeys.Entitlement.internal),
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const contextKeyService = accessor.get(IContextKeyService);
-		const currentValue = ChatEntitlementContextKeys.chatQuotaExceeded.getValue(contextKeyService) ?? false;
-		ChatEntitlementContextKeys.chatQuotaExceeded.bindTo(contextKeyService).set(!currentValue);
-	}
-});
 
 ChatInputPartWidgetsRegistry.register(
 	ChatStatusWidget.ID,
