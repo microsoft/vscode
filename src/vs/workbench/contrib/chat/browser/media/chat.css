@@ -759,8 +759,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
-.interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container {
-	/* Remove top border radius when editing session or todo list is present */
+.interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container,
+.interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container {
+	/* Remove top border radius when editing session, todo list, or status widget is present */
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
 }
@@ -1086,6 +1087,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.interactive-session .interactive-input-part > .chat-input-widgets-container {
+	margin-bottom: -4px;
+	width: 100%;
+	position: relative;
 }
 
 /* Chat Todo List Widget Container - mirrors chat-editing-session styling */

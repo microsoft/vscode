@@ -1615,7 +1615,10 @@ abstract class MemoryBreakpointAction extends Action2 {
 		const end = BigInt(endStr);
 		const address = `0x${start.toString(16)}`;
 		if (sign === '-') {
-			return { address, bytes: Number(start - end) };
+			if (start > end) {
+				return { error: localize('dataBreakpointAddrOrder', 'End ({1}) should be greater than Start ({0})', startStr, endStr) };
+			}
+			return { address, bytes: Number(end - start) };
 		}
 
 		return { address, bytes: Number(end) };
