@@ -1169,6 +1169,7 @@ export interface IChatModel extends IDisposable {
 	readonly inputModel: IInputModel;
 	readonly hasRequests: boolean;
 	readonly lastRequest: IChatRequestModel | undefined;
+	readonly lastRequestObs: IObservable<IChatRequestModel | undefined>;
 	getRequests(): IChatRequestModel[];
 	setCheckpoint(requestId: string | undefined): void;
 
@@ -1557,6 +1558,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	public setContributedChatSession(session: IChatSessionContext | undefined) {
 		this._contributedChatSession = session;
 	}
+	readonly lastRequestObs: IObservable<IChatRequestModel | undefined>;
 
 	// TODO to be clear, this is not the same as the id from the session object, which belongs to the provider.
 	// It's easier to be able to identify this model before its async initialization is complete
@@ -1690,10 +1692,10 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._initialLocation = initialData?.initialLocation ?? initialModelProps.initialLocation;
 		this._canUseTools = initialModelProps.canUseTools;
 
-		const lastRequest = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1));
+		this.lastRequestObs = observableFromEvent(this, this.onDidChange, () => this._requests.at(-1));
 
 		this._register(autorun(reader => {
-			const request = lastRequest.read(reader);
+			const request = this.lastRequestObs.read(reader);
 			if (!request?.response) {
 				return;
 			}
@@ -1705,11 +1707,11 @@ export class ChatModel extends Disposable implements IChatModel {
 			}));
 		}));
 
-		this.requestInProgress = lastRequest.map((request, r) => {
+		this.requestInProgress = this.lastRequestObs.map((request, r) => {
 			return request?.response?.isInProgress.read(r) ?? false;
 		});
 
-		this.requestNeedsInput = lastRequest.map((request, r) => {
+		this.requestNeedsInput = this.lastRequestObs.map((request, r) => {
 			return !!request?.response?.isPendingConfirmation.read(r);
 		});
 
