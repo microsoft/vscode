@@ -821,10 +821,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}));
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
 		scrollableDomNode.tabIndex = 0;
-		const rowHeight = this._computeRowHeightPx();
-		const padding = this._getOutputPadding();
-		const maxHeight = rowHeight * MAX_OUTPUT_ROWS + padding;
-		scrollableDomNode.style.maxHeight = `${maxHeight}px`;
 		this.domNode.appendChild(scrollableDomNode);
 		this.updateAriaLabel();
 	}
