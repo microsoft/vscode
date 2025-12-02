@@ -662,4 +662,113 @@ suite('LocalAgentsSessionsProvider', () => {
 			});
 		});
 	});
+
+	suite('Events', () => {
+		test('should fire onDidChange when a model is added via chatModels observable', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider = createProvider();
+
+				let changeEventCount = 0;
+				disposables.add(provider.onDidChange(() => {
+					changeEventCount++;
+				}));
+
+				const sessionResource = LocalChatSessionUri.forSession('new-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true
+				});
+
+				// Adding a session should trigger the autorun to fire onDidChange
+				mockChatService.addSession(sessionResource, mockModel);
+
+				assert.strictEqual(changeEventCount, 1);
+			});
+		});
+
+		test('should fire onDidChange when a model is removed via chatModels observable', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider = createProvider();
+
+				const sessionResource = LocalChatSessionUri.forSession('removed-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true
+				});
+
+				// Add the session first
+				mockChatService.addSession(sessionResource, mockModel);
+
+				let changeEventCount = 0;
+				disposables.add(provider.onDidChange(() => {
+					changeEventCount++;
+				}));
+
+				// Now remove the session - the observable should trigger onDidChange
+				mockChatService.removeSession(sessionResource);
+
+				assert.strictEqual(changeEventCount, 1);
+			});
+		});
+
+		test('should clean up model listeners when model is removed via chatModels observable', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider = createProvider();
+
+				const sessionResource = LocalChatSessionUri.forSession('cleanup-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true
+				});
+
+				// Add the session first
+				mockChatService.addSession(sessionResource, mockModel);
+
+				// Now remove the session - the observable should trigger cleanup
+				mockChatService.removeSession(sessionResource);
+
+				// Verify the listener was cleaned up by triggering a title change
+				// The onDidChange from registerModelListeners cleanup should fire once
+				// but after that, title changes should NOT fire onDidChange
+				let changeEventCount = 0;
+				disposables.add(provider.onDidChange(() => {
+					changeEventCount++;
+				}));
+
+				(mockModel as unknown as { setCustomTitle: (title: string) => void }).setCustomTitle('New Title');
+
+				assert.strictEqual(changeEventCount, 0, 'onDidChange should NOT fire after model is removed');
+			});
+		});
+
+		test('should fire onDidChange when session items change for local type', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider = createProvider();
+
+				let changeEventFired = false;
+				disposables.add(provider.onDidChange(() => {
+					changeEventFired = true;
+				}));
+
+				mockChatSessionsService.notifySessionItemsChanged(localChatSessionType);
+
+				assert.strictEqual(changeEventFired, true);
+			});
+		});
+
+		test('should not fire onDidChange when session items change for other types', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider = createProvider();
+
+				let changeEventFired = false;
+				disposables.add(provider.onDidChange(() => {
+					changeEventFired = true;
+				}));
+
+				mockChatSessionsService.notifySessionItemsChanged('other-type');
+
+				assert.strictEqual(changeEventFired, false);
+			});
+		});
+	});
 });
