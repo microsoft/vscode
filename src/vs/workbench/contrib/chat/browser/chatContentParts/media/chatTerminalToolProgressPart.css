@@ -135,7 +135,7 @@
 	background: var(--vscode-panel-background);
 	max-height: 300px;
 	box-sizing: border-box;
-	overflow: hidden;
+	overflow: auto;
 	position: relative;
 	max-width: 100%;
 	padding: 5px 0px;
