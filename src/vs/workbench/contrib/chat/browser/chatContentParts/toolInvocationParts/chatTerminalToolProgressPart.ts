@@ -50,8 +50,6 @@ import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js'
 import { Color } from '../../../../../../base/common/color.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../../../../terminal/common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../../../common/theme.js';
-import { ILogService } from '../../../../../../platform/log/common/log.js';
-
 
 const MIN_OUTPUT_ROWS = 1;
 const MAX_OUTPUT_ROWS = 10;
