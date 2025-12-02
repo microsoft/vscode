@@ -20,56 +20,6 @@ import { AgentSessionsView } from './agentSessionsView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
-
-//#region New Chat Session Actions
-
-registerAction2(class NewBackgroundChatAction extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.action.newBackgroundChat`,
-			title: localize2('interactiveSession.newBackgroundChatEditor', "New Background Chat"),
-			f1: true,
-			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled,
-			menu: {
-				id: MenuId.ChatNewMenu,
-				group: '3_new_special',
-				order: 1
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const commandService = accessor.get(ICommandService);
-		return commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Background}`);
-	}
-});
-
-registerAction2(class NewCloudChatAction extends Action2 {
-	constructor() {
-		super({
-			id: `workbench.action.newCloudChat`,
-			title: localize2('interactiveSession.newCloudChat', "New Cloud Chat"),
-			f1: true,
-			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled,
-			menu: {
-				id: MenuId.ChatNewMenu,
-				group: '3_new_special',
-				order: 2
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const commandService = accessor.get(ICommandService);
-		return commandService.executeCommand(`${NEW_CHAT_SESSION_ACTION_ID}.${AgentSessionProviders.Cloud}`);
-	}
-});
-
-//#endregion
 
 //#region Item Title Actions
 

@@ -74,7 +74,7 @@
 	width: 16px;
 	height: 16px;
 	flex-shrink: 0;
-	margin-top: 3px;
+	margin-top: 2px;
 }
 
 .chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration.success,
@@ -141,7 +141,7 @@
 	padding: 5px 0px;
 }
 
-.chat-terminal-content-title.expanded {
+.chat-terminal-content-part .chat-terminal-content-title.chat-terminal-content-title-no-bottom-radius {
 	border-bottom-left-radius: 0px;
 	border-bottom-right-radius: 0px;
 	border-bottom: 0;
@@ -156,7 +156,11 @@
 	outline-offset: 2px;
 }
 div.chat-terminal-content-part.progress-step > div.chat-terminal-output-container.expanded > div > div.chat-terminal-output-body > div > div.chat-terminal-output-terminal > div > div.xterm-scrollable-element {
+	margin-left: -12px;
+	margin-right: -12px;
 	padding-left: 12px;
+	padding-right: 12px;
+	box-sizing: border-box;
 }
 .chat-terminal-output-body {
 	padding: 4px 0px;
