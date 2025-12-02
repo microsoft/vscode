@@ -334,6 +334,7 @@ export interface IInlineSuggestDataActionJumpTo {
 export class InlineSuggestData {
 	private _didShow = false;
 	private _timeUntilShown: number | undefined = undefined;
+	private _timeUntilActuallyShown: number | undefined = undefined;
 	private _showStartTime: number | undefined = undefined;
 	private _shownDuration: number = 0;
 	private _showUncollapsedStartTime: number | undefined = undefined;
@@ -373,8 +374,10 @@ export class InlineSuggestData {
 
 	public get partialAccepts(): PartialAcceptance { return this._partiallyAcceptedSinceOriginal; }
 
+	public get requestStartTime(): number { return this._requestInfo.startTime; }
 
-	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, editKind: InlineSuggestionEditKind | undefined): Promise<void> {
+
+	public async reportInlineEditShown(commandService: ICommandService, updatedInsertText: string, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, editKind: InlineSuggestionEditKind | undefined, timeUntilShown: number): Promise<void> {
 		this.updateShownDuration(viewKind);
 
 		if (this._didShow) {
@@ -385,7 +388,8 @@ export class InlineSuggestData {
 		this._editKind = editKind;
 		this._viewData.viewKind = viewKind;
 		this._viewData.renderData = viewData;
-		this._timeUntilShown = Date.now() - this._requestInfo.startTime;
+		this._timeUntilShown = timeUntilShown;
+		this._timeUntilActuallyShown = Date.now() - this._requestInfo.startTime;
 
 		const editDeltaInfo = new EditDeltaInfo(viewData.lineCountModified, viewData.lineCountOriginal, viewData.characterCountModified, viewData.characterCountOriginal);
 		this.source.provider.handleItemDidShow?.(this.source.inlineSuggestions, this.sourceInlineCompletion, updatedInsertText, editDeltaInfo);
@@ -444,6 +448,7 @@ export class InlineSuggestData {
 				editKind: this._editKind?.toString(),
 				preceeded: this._isPreceeded,
 				timeUntilShown: this._timeUntilShown,
+				timeUntilActuallyShown: this._timeUntilActuallyShown,
 				timeUntilProviderRequest: this._providerRequestInfo.startTime - this._requestInfo.startTime,
 				timeUntilProviderResponse: this._providerRequestInfo.endTime - this._requestInfo.startTime,
 				editorType: this._viewData.editorType,

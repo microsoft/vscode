@@ -44,11 +44,12 @@ export class ModelPerInlineEdit {
 		this._model.accept(undefined, alternativeAction);
 	}
 
-	handleInlineEditShownNextFrame(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData) {
+	handleInlineEditShownNextFrame(viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, requestStartTime: number) {
 		const item = this.inlineEdit.inlineCompletion;
+		const timeUntilShown = Date.now() - requestStartTime;
 		item.addRef();
 		setTimeout0(() => {
-			this._model.handleInlineSuggestionShown(item, viewKind, viewData);
+			this._model.handleInlineSuggestionShown(item, viewKind, viewData, timeUntilShown);
 			item.removeRef();
 		});
 	}

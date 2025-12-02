@@ -111,6 +111,8 @@ abstract class InlineSuggestionItemBase {
 
 	public get requestUuid(): string { return this._data.context.requestUuid; }
 
+	public get requestStartTime(): number { return this._data.requestStartTime; }
+
 	public get partialAccepts(): PartialAcceptance { return this._data.partialAccepts; }
 
 	/**
@@ -137,9 +139,9 @@ abstract class InlineSuggestionItemBase {
 		this.source.removeRef();
 	}
 
-	public reportInlineEditShown(commandService: ICommandService, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, model: ITextModel) {
+	public reportInlineEditShown(commandService: ICommandService, viewKind: InlineCompletionViewKind, viewData: InlineCompletionViewData, model: ITextModel, timeUntilShown: number) {
 		const insertText = this.action?.kind === 'edit' ? this.action.textReplacement.text : ''; // TODO@hediet support insertText === undefined
-		this._data.reportInlineEditShown(commandService, insertText, viewKind, viewData, this.computeEditKind(model));
+		this._data.reportInlineEditShown(commandService, insertText, viewKind, viewData, this.computeEditKind(model), timeUntilShown);
 	}
 
 	public reportPartialAccept(acceptedCharacters: number, info: PartialAcceptInfo, partialAcceptance: PartialAcceptance) {

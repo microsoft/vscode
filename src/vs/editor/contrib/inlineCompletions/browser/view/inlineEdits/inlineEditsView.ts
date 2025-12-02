@@ -368,7 +368,7 @@ export class InlineEditsView extends Disposable {
 			state = { kind: InlineCompletionViewKind.Collapsed as const, viewData: state.viewData };
 		}
 
-		model.handleInlineEditShownNextFrame(state.kind, state.viewData);
+		model.handleInlineEditShownNextFrame(state.kind, state.viewData, inlineEdit.inlineCompletion.requestStartTime);
 
 		const nextCursorPosition = inlineEdit.action?.kind === 'jumpTo' ? inlineEdit.action.position : null;
 
