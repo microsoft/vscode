@@ -951,7 +951,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const measuredBodyHeight = Math.max(this._outputBody.clientHeight, minHeight);
 		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
 		scrollableDomNode.style.maxHeight = `${maxHeight}px`;
-		scrollableDomNode.style.height = `${appliedHeight}px`;
+		scrollableDomNode.style.height = appliedHeight < maxHeight ? `${appliedHeight}px` : '';
 		this._scrollableContainer.scanDomNode();
 		if (this._renderedOutputHeight !== appliedHeight) {
 			this._renderedOutputHeight = appliedHeight;
