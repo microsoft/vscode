@@ -7696,6 +7696,7 @@ declare namespace monaco.languages {
 		shownDuration: number;
 		shownDurationUncollapsed: number;
 		timeUntilShown: number | undefined;
+		timeUntilActuallyShown: number | undefined;
 		timeUntilProviderRequest: number;
 		timeUntilProviderResponse: number;
 		notShownReason: string | undefined;

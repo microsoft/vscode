@@ -135,7 +135,7 @@ export class InlineSuggestionsView extends Disposable {
 				}
 				return {
 					ghostText: ghostText.read(reader),
-					handleInlineCompletionShown: (viewData) => model.handleInlineSuggestionShown(inlineCompletion, InlineCompletionViewKind.GhostText, viewData),
+					handleInlineCompletionShown: (viewData) => model.handleInlineSuggestionShown(inlineCompletion, InlineCompletionViewKind.GhostText, viewData, Date.now()),
 					warning: GhostTextWidgetWarning.from(model?.warning.read(reader)),
 				} satisfies IGhostTextWidgetData;
 			}),
