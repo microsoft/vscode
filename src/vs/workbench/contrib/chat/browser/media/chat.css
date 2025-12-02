@@ -2773,7 +2773,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 6px;
 	height: 100%;
 	padding: 0 4px;
-	margin: 0 -8px 0 0; /* Extend to button edge */
+	/* Negative margin matches the parent button's right padding (8px) to extend clickable area to button edge */
+	margin: 0 -8px 0 0;
 	cursor: pointer;
 	border-radius: 0 4px 4px 0;
 }
