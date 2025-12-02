@@ -330,6 +330,11 @@ configurationRegistry.registerConfiguration({
 				},
 			}
 		},
+		[ChatConfiguration.SuspendThrottling]: {
+			type: 'boolean',
+			description: nls.localize('chat.suspendThrottling', "Controls whether background throttling is suspended when a chat request is in progress, allowing the chat session to continue even when the window is not in focus."),
+			default: true,
+		},
 		'chat.sendElementsToChat.enabled': {
 			default: true,
 			description: nls.localize('chat.sendElementsToChat.enabled', "Controls whether elements can be sent to chat from the Simple Browser."),
