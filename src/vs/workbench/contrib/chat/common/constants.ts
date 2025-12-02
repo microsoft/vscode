@@ -28,6 +28,7 @@ export enum ChatConfiguration {
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	ShowCodeBlockProgressAnimation = 'chat.agent.codeBlockProgress',
 	RestoreLastPanelSession = 'chat.restoreLastPanelSession',
+	SuspendThrottling = 'chat.suspendThrottling',
 }
 
 /**
