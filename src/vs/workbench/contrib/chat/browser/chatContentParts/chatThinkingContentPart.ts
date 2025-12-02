@@ -100,7 +100,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this.fixedScrollingMode) {
 			node.classList.add('chat-thinking-fixed-mode');
 			this.currentTitle = this.defaultTitle;
-			if (this._collapseButton) {
+			if (this._collapseButton && !this.context.element.isComplete) {
 				this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 			}
 		}
@@ -109,7 +109,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this._register(autorun(r => {
 			this.expanded.read(r);
 			if (this._collapseButton && this.wrapper) {
-				if (this.wrapper.classList.contains('chat-thinking-streaming')) {
+				if (this.wrapper.classList.contains('chat-thinking-streaming') && !this.context.element.isComplete) {
 					this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 				} else {
 					this._collapseButton.icon = Codicon.check;
@@ -117,7 +117,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}));
 
-		if (this._collapseButton && !this.streamingCompleted) {
+		if (this._collapseButton && !this.streamingCompleted && !this.context.element.isComplete) {
 			this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 		}
 
