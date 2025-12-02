@@ -212,7 +212,7 @@ export interface IChatSessionsService {
 	getEditableData(sessionResource: URI): IEditableData | undefined;
 	isEditable(sessionResource: URI): boolean;
 	// #endregion
-	registerModelProgressListener(models: Iterable<IChatModel>): void;
+	registerModelProgressListener(model: IChatModel, callback: () => void): void;
 	getSessionDescription(chatModel: IChatModel): string | undefined;
 }
 

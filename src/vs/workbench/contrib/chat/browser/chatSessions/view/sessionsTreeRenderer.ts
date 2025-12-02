@@ -565,7 +565,7 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 				const items = await this.provider.provideChatSessionItems(CancellationToken.None);
 				// Clear archived items from previous calls
 				this.archivedItems.clear();
-				const result = items.map(item => {
+				const result: (ChatSessionItemWithProvider | ArchivedSessionItems)[] = items.map(item => {
 					const itemWithProvider = { ...item, provider: this.provider, timing: { startTime: extractTimestamp(item) ?? 0 } };
 					if (itemWithProvider.archived) {
 						this.archivedItems.pushItem(itemWithProvider);

@@ -217,11 +217,11 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return Array.from(this.contentProviders.keys());
 	}
 
-	getSessionDescription(chatModel: IChatModel): string | undefined {
-		return undefined;
+	registerModelProgressListener(model: IChatModel, callback: () => void): void {
+		// No-op implementation for testing
 	}
 
-	registerModelProgressListener(model: Iterable<IChatModel>): void {
-		throw new Error('Method not implemented.');
+	getSessionDescription(chatModel: IChatModel): string | undefined {
+		return undefined;
 	}
 }
