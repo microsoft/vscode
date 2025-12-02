@@ -50,6 +50,7 @@ import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js'
 import { Color } from '../../../../../../base/common/color.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../../../../terminal/common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../../../common/theme.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 
 const MIN_OUTPUT_ROWS = 1;
@@ -445,11 +446,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private _ensureShowOutputAction(command?: ITerminalCommand): void {
 		if (this._store.isDisposed) {
+			this._logService.debug(`[ChatTerminalToolProgressPart] _ensureShowOutputAction: store is disposed, skipping (commandId=${this._terminalData.terminalCommandId})`);
 			return;
 		}
 		const resolvedCommand = command ?? this._getResolvedCommand();
 		const hasSnapshot = !!this._terminalData.terminalCommandOutput;
+		this._logService.debug(`[ChatTerminalToolProgressPart] _ensureShowOutputAction: resolvedCommand=${!!resolvedCommand}, hasSnapshot=${hasSnapshot}, commandId=${this._terminalData.terminalCommandId}, hasEndMarker=${resolvedCommand?.endMarker !== undefined}`);
 		if (!resolvedCommand && !hasSnapshot) {
+			this._logService.debug(`[ChatTerminalToolProgressPart] _ensureShowOutputAction: no resolvedCommand and no snapshot, returning early`);
 			return;
 		}
 		if (resolvedCommand && resolvedCommand.id !== this._terminalData.terminalCommandId && !this._loggedIdMismatch) {
@@ -509,15 +513,20 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 		const attachCommandDetection = async (commandDetection: ICommandDetectionCapability | undefined) => {
 			commandDetectionListener.clear();
+			this._logService.debug(`[ChatTerminalToolProgressPart] attachCommandDetection: commandDetection=${!!commandDetection}, commandId=${this._terminalData.terminalCommandId}`);
 			if (!commandDetection) {
+				this._logService.debug(`[ChatTerminalToolProgressPart] attachCommandDetection: no commandDetection capability, trying to resolve command`);
 				await tryResolveCommand();
 				return;
 			}
 
-			commandDetectionListener.value = commandDetection.onCommandFinished(() => {
+			commandDetectionListener.value = commandDetection.onCommandFinished((finishedCommand) => {
+				this._logService.debug(`[ChatTerminalToolProgressPart] onCommandFinished fired: finishedCommandId=${finishedCommand?.id}, ourCommandId=${this._terminalData.terminalCommandId}, match=${finishedCommand?.id === this._terminalData.terminalCommandId}`);
 				this._addActions(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
+				this._logService.debug(`[ChatTerminalToolProgressPart] onCommandFinished: resolvedCommand=${!!resolvedCommand}, hasEndMarker=${resolvedCommand?.endMarker !== undefined}`);
 				if (resolvedCommand?.endMarker) {
+					this._logService.debug(`[ChatTerminalToolProgressPart] onCommandFinished: clearing listener because command has endMarker`);
 					commandDetectionListener.clear();
 				}
 			});
@@ -656,15 +665,19 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 
 	private _resolveCommand(instance: ITerminalInstance): ITerminalCommand | undefined {
 		if (instance.isDisposed) {
+			this._logService.debug(`[ChatTerminalToolProgressPart] _resolveCommand: instance is disposed`);
 			return undefined;
 		}
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 		const commands = commandDetection?.commands;
 		if (!commands || commands.length === 0) {
+			this._logService.debug(`[ChatTerminalToolProgressPart] _resolveCommand: no commands in detection, hasCapability=${!!commandDetection}`);
 			return undefined;
 		}
 
-		return commands.find(c => c.id === this._terminalData.terminalCommandId);
+		const found = commands.find(c => c.id === this._terminalData.terminalCommandId);
+		this._logService.debug(`[ChatTerminalToolProgressPart] _resolveCommand: looking for commandId=${this._terminalData.terminalCommandId}, found=${!!found}, commandCount=${commands.length}, availableIds=${commands.slice(-5).map(c => c.id).join(',')}`);
+		return found;
 	}
 }
 

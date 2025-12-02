@@ -428,12 +428,23 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private _ensureCurrentCommandId(commandLine: string | undefined): void {
-		if (this._nextCommandId?.commandId && isString(commandLine) && commandLine.trim() === this._nextCommandId.command.trim()) {
-			if (this._currentCommand.id !== this._nextCommandId.commandId) {
-				this._currentCommand.id = this._nextCommandId.commandId;
+		if (this._nextCommandId?.commandId) {
+			const actualTrimmed = isString(commandLine) ? commandLine.trim() : undefined;
+			const expectedTrimmed = this._nextCommandId.command.trim();
+			// Assign the command ID if the commands match, or if there's any actual command
+			// (the string comparison can fail due to encoding issues with unicode characters)
+			if (actualTrimmed === expectedTrimmed || actualTrimmed) {
+				if (this._currentCommand.id !== this._nextCommandId.commandId) {
+					this._currentCommand.id = this._nextCommandId.commandId;
+					if (actualTrimmed !== expectedTrimmed) {
+						this._logService.debug(`CommandDetectionCapability#_ensureCurrentCommandId: assigned commandId despite mismatch (encoding issue?), expected="${expectedTrimmed}", actual="${actualTrimmed}", commandId=${this._nextCommandId.commandId}`);
+					}
+				}
+				this._nextCommandId = undefined;
+				return;
 			}
-			this._nextCommandId = undefined;
-			return;
+			// Log when we have a pending command ID but no actual command line
+			this._logService.debug(`CommandDetectionCapability#_ensureCurrentCommandId: no actual command line, commandId=${this._nextCommandId.commandId}`);
 		}
 	}
 
