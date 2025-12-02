@@ -78,6 +78,9 @@ export interface IChatSessionItem {
 		deletions: number;
 	};
 	archived?: boolean;
+	// TODO:@osortega remove once the single-view is default
+	/** @deprecated */
+	history?: boolean;
 }
 
 export type IChatSessionHistoryItem = {
@@ -123,6 +126,7 @@ export interface IChatSession extends IDisposable {
 	requestHandler?: (
 		request: IChatAgentRequest,
 		progress: (progress: IChatProgress[]) => void,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		history: any[], // TODO: Nail down types
 		token: CancellationToken
 	) => Promise<void>;
@@ -134,6 +138,7 @@ export interface IChatSessionItemProvider {
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
 	provideNewChatSessionItem?(options: {
 		request: IChatAgentRequest;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem>;
 }
@@ -157,6 +162,8 @@ export interface IChatSessionsService {
 	readonly onDidChangeAvailability: Event<void>;
 	readonly onDidChangeInProgress: Event<void>;
 
+	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined;
+
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
 	activateChatSessionItemProvider(chatSessionType: string): Promise<IChatSessionItemProvider | undefined>;
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
@@ -174,6 +181,7 @@ export interface IChatSessionsService {
 
 	getNewChatSessionItem(chatSessionType: string, options: {
 		request: IChatAgentRequest;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem>;
 
