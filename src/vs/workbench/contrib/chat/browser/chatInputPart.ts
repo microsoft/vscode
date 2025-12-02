@@ -522,10 +522,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (this._inputEditor) {
 				this._inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}
-
-			if (this.implicitContext && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext')) {
-				this.implicitContext.enabled = this._currentModeObservable.get() !== ChatMode.Agent;
-			}
+			this.setImplicitContextEnablement();
 		}));
 		this._register(this._onDidChangeCurrentLanguageModel.event(() => {
 			if (this._currentLanguageModel?.metadata.name) {
@@ -545,6 +542,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		// Validate the initial mode - if Agent mode is set by default but disabled by policy, switch to Ask
 		this.validateCurrentChatMode();
+	}
+
+	private setImplicitContextEnablement() {
+		if (this.implicitContext && this.configurationService.getValue<boolean>('chat.implicitContext.suggestedContext')) {
+			this.implicitContext.enabled = this._currentModeObservable.get().kind !== ChatMode.Agent.kind;
+		}
 	}
 
 	public setIsWithinEditSession(inInsideDiff: boolean, isFilePartOfEditSession: boolean) {
@@ -1373,15 +1376,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		this.chatInputWidgetsContainer = elements.chatInputWidgetsContainer;
 
-		if (this.options.enableImplicitContext) {
+		if (this.options.enableImplicitContext && !this._implicitContext) {
 			this._implicitContext = this._register(
 				this.instantiationService.createInstance(ChatImplicitContext),
 			);
+			this.setImplicitContextEnablement();
 
 			this._register(this._implicitContext.onDidChangeValue(() => {
 				this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
 				this._handleAttachedContextChange();
 			}));
+		} else if (!this.options.enableImplicitContext && this._implicitContext) {
+			this._implicitContext?.dispose();
+			this._implicitContext = undefined;
 		}
 
 		this._widgetController.value = this.instantiationService.createInstance(ChatInputPartWidgetController, this.chatInputWidgetsContainer);
