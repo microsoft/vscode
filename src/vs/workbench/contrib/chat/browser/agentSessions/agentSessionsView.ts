@@ -28,11 +28,11 @@ import { ButtonWithDropdown } from '../../../../../base/browser/ui/button/button
 import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ICommandService, CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
 import { ACTION_ID_OPEN_CHAT } from '../actions/chatActions.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
-import { DeferredPromise, TimeoutTimer } from '../../../../../base/common/async.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -41,11 +41,6 @@ import { AgentSessionsFilter } from './agentSessionsFilter.js';
 import { AgentSessionsControl } from './agentSessionsControl.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
-import { IExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
-import { IChatSessionRecommendation } from '../../../../../base/common/product.js';
-import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 
 type AgentSessionsViewPaneOpenedClassification = {
 	owner: 'bpasero';
@@ -71,9 +66,6 @@ export class AgentSessionsView extends ViewPane {
 		@IMenuService private readonly menuService: IMenuService,
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IProductService private readonly productService: IProductService,
-		@IWorkbenchExtensionManagementService private readonly extensionManagementService: IWorkbenchExtensionManagementService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.AgentSessionsTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -97,13 +89,6 @@ export class AgentSessionsView extends ViewPane {
 			);
 		}));
 
-		if (this.installRecommendationsEnabled()) {
-			this.refreshInstallableRecommendations();
-			const refreshInstallables = () => this.refreshInstallableRecommendations();
-			this._register(this.extensionManagementService.onProfileAwareDidInstallExtensions(refreshInstallables));
-			this._register(this.extensionManagementService.onProfileAwareDidUninstallExtension(refreshInstallables));
-			this._register(this.extensionManagementService.onDidChangeProfile(refreshInstallables));
-		}
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -123,9 +108,6 @@ export class AgentSessionsView extends ViewPane {
 	//#region New Session Controls
 
 	private newSessionContainer: HTMLElement | undefined;
-	private installableRecommendations: IChatSessionRecommendation[] = [];
-	private installedRecommendationIds = new Set<string>();
-	private installableRecommendationsRequestId = 0;
 
 	private createNewSessionButton(container: HTMLElement): void {
 		this.newSessionContainer = append(container, $('.agent-sessions-new-session-container'));
@@ -204,95 +186,14 @@ export class AgentSessionsView extends ViewPane {
 			}
 		}
 
-		if (this.installRecommendationsEnabled()) {
-			const installableRecommendations = this.installableRecommendations;
-			if (installableRecommendations.length > 0) {
-				actions.push(new Separator());
-				for (const recommendation of installableRecommendations) {
-					actions.push(toAction({
-						id: `installChatSessionRecommendation.${recommendation.extensionId}`,
-						label: localize('agentSessions.installRecommendation', "Install {0}", recommendation.displayName),
-						tooltip: recommendation.description,
-						run: () => this.installChatSessionRecommendation(recommendation)
-					}));
-				}
-			}
+		const installMenuActions = this.menuService.getMenuActions(MenuId.AgentSessionsInstallActions, this.scopedContextKeyService, { shouldForwardArgs: true });
+		const installActionBar = getActionBarActions(installMenuActions, () => true);
+		if (installActionBar.primary.length > 0) {
+			actions.push(new Separator());
+			actions.push(...installActionBar.primary);
 		}
 
 		return actions;
-	}
-
-	private installRecommendationsEnabled(): boolean {
-		return !!this.productService.chatSessionRecommendations?.length && this.extensionGalleryService.isEnabled();
-	}
-
-	private refreshInstallableRecommendations(): void {
-		const recommendations = this.productService.chatSessionRecommendations;
-		if (!this.installRecommendationsEnabled() || !recommendations) {
-			this.installableRecommendations = [];
-			this.installedRecommendationIds.clear();
-			return;
-		}
-
-		const currentRequestId = ++this.installableRecommendationsRequestId;
-		this.extensionManagementService.getInstalled().then(installedExtensions => {
-			if (currentRequestId !== this.installableRecommendationsRequestId) {
-				return;
-			}
-
-			const installedIds = new Set(installedExtensions.map(ext => ExtensionIdentifier.toKey(ext.identifier.id)));
-			this.installedRecommendationIds = installedIds;
-			this.installableRecommendations = recommendations.filter(rec => !installedIds.has(ExtensionIdentifier.toKey(rec.extensionId)));
-		}).catch(() => {
-			if (currentRequestId === this.installableRecommendationsRequestId) {
-				this.installableRecommendations = [];
-				this.installedRecommendationIds.clear();
-			}
-		});
-	}
-
-	private isExtensionAlreadyInstalled(extensionId: string): boolean {
-		return this.installedRecommendationIds.has(ExtensionIdentifier.toKey(extensionId));
-	}
-
-	private installChatSessionRecommendation(recommendation: IChatSessionRecommendation): Promise<unknown> | undefined {
-		if (!this.installRecommendationsEnabled() || this.isExtensionAlreadyInstalled(recommendation.extensionId)) {
-			return;
-		}
-
-		const installPreReleaseVersion = this.productService.quality !== 'stable';
-		return this.commandService.executeCommand('workbench.extensions.installExtension', recommendation.extensionId, {
-			installPreReleaseVersion
-		}).then(() => this.runPostInstallCommand(recommendation.postInstallCommand)).finally(() => this.refreshInstallableRecommendations());
-	}
-
-	private runPostInstallCommand(commandId: string | undefined): Promise<void> {
-		if (!commandId) {
-			return Promise.resolve();
-		}
-
-		return this.waitForCommandRegistration(commandId).then(() => this.commandService.executeCommand(commandId)).then(() => undefined, () => undefined);
-	}
-
-	private waitForCommandRegistration(commandId: string): Promise<void> {
-		if (CommandsRegistry.getCommands().has(commandId)) {
-			return Promise.resolve();
-		}
-
-		return new Promise<void>(resolve => {
-			const timer = new TimeoutTimer();
-			const listener = CommandsRegistry.onDidRegisterCommand(id => {
-				if (id === commandId) {
-					listener?.dispose();
-					timer.dispose();
-					resolve();
-				}
-			});
-			timer.cancelAndSet(() => {
-				listener.dispose();
-				resolve();
-			}, 10_000);
-		});
 	}
 
 	//#endregion
