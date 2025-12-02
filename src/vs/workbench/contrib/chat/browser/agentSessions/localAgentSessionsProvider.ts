@@ -8,8 +8,9 @@ import { coalesce } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { truncate } from '../../../../../base/common/strings.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -31,11 +32,10 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
 	readonly onDidChangeChatSessionItems = this._onDidChangeChatSessionItems.event;
 
-	private readonly modelListeners = this._register(new DisposableMap<string>());
-
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -49,7 +49,10 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		// Listen for models being added or removed
 		this._register(autorun(reader => {
 			const models = this.chatService.chatModels.read(reader);
-			this.registerModelListeners(models);
+			const onProgress = this._chatSessionsService.registerModelProgressListener(Array.from(models), Schemas.vscodeLocalChatSession);
+			this._register(onProgress(() => {
+				this._onDidChangeChatSessionItems.fire();
+			}));
 		}));
 
 		// Listen for global session items changes for our session type
@@ -60,43 +63,6 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		}));
 	}
 
-	private registerModelListeners(models: Iterable<IChatModel>): void {
-		const seenKeys = new Set<string>();
-
-		for (const model of models) {
-			const key = model.sessionResource.toString();
-			seenKeys.add(key);
-
-			if (!this.modelListeners.has(key)) {
-				this.modelListeners.set(key, this.registerSingleModelListeners(model));
-			}
-		}
-
-		// Clean up listeners for models that no longer exist
-		for (const key of this.modelListeners.keys()) {
-			if (!seenKeys.has(key)) {
-				this.modelListeners.deleteAndDispose(key);
-			}
-		}
-
-		this._onDidChange.fire();
-	}
-
-	private registerSingleModelListeners(model: IChatModel): IDisposable {
-		const store = new DisposableStore();
-
-		this.chatSessionsService.registerModelProgressListener(model, () => {
-			this._onDidChangeChatSessionItems.fire();
-		});
-
-		store.add(model.onDidChange(e => {
-			if (!e || e.kind === 'setCustomTitle') {
-				this._onDidChange.fire();
-			}
-		}));
-
-		return store;
-	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
 		if (model.requestInProgress.get()) {

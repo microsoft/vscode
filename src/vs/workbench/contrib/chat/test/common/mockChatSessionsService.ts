@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -221,11 +221,11 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return Array.from(this.contentProviders.keys());
 	}
 
-	registerModelProgressListener(model: IChatModel, callback: () => void): void {
-		// No-op implementation for testing
-	}
-
 	getSessionDescription(chatModel: IChatModel): string | undefined {
 		return undefined;
+	}
+
+	registerModelProgressListener(models: IChatModel[], type: string): Event<void> {
+		throw new Error('Method not implemented.');
 	}
 }

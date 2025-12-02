@@ -19,7 +19,6 @@ import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/chatEditor.js';
 import { ChatEditorInput } from '../../contrib/chat/browser/chatEditorInput.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
-import { IChatModel } from '../../contrib/chat/common/chatModel.js';
 import { IChatContentInlineReference, IChatProgress, IChatService } from '../../contrib/chat/common/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
@@ -327,7 +326,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	private readonly _sessionDisposables = new ResourceMap<IDisposable>();
 
 	private readonly _proxy: ExtHostChatSessionsShape;
-	private readonly _registeredModels = new Set<IChatModel>();
 
 	constructor(
 		private readonly _extHostContext: IExtHostContext,
@@ -372,29 +370,13 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			onDidChangeItems: changeEmitter,
 		});
 
-		this._register(autorun(reader => {
+		disposables.add(autorun(reader => {
 			const models = this._chatService.chatModels.read(reader);
-			// Note that local has it's own way of handling model progress
-			for (const model of models) {
-				if (model.sessionResource.scheme === chatSessionType && !this._registeredModels.has(model)) {
-					this._registeredModels.add(model);
-					const modelDisposables = new DisposableStore();
+			const onProgress = this._chatSessionsService.registerModelProgressListener(Array.from(models), chatSessionType);
+			disposables.add(onProgress(() => {
+				changeEmitter.fire();
+			}));
 
-					modelDisposables.add(autorun(reader => {
-						const lastResponse = model.lastRequestObs.read(reader);
-						if (lastResponse?.response) {
-							changeEmitter.fire();
-						}
-					}));
-
-					modelDisposables.add(model.onDidDispose(() => {
-						this._registeredModels.delete(model);
-						modelDisposables.dispose();
-					}));
-
-					disposables.add(modelDisposables);
-				}
-			}
 		}));
 	}
 

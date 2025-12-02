@@ -32,7 +32,7 @@ import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mai
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { MockChatService } from '../../../contrib/chat/test/common/mockChatService.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -389,11 +389,7 @@ suite('MainThreadChatSessions', function () {
 				};
 			}
 		});
-		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
-			override chatModels = observableValue('chatModels', []);
-			override requestInProgressObs = observableValue('requestInProgressObs', false);
-			override edits2Enabled = false;
-		});
+		instantiationService.stub(IChatService, new MockChatService());
 
 		chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
