@@ -56,10 +56,13 @@
 		min-height: 0;
 		min-width: 0;
 
-		.chat-welcome-view-container {
-
-			/* Show welcome right below sessions control */
-			justify-content: flex-start;
+		/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
+		.chat-welcome-view .chat-welcome-view-icon,
+		.chat-welcome-view .chat-welcome-view-title,
+		.chat-welcome-view .chat-welcome-view-message,
+		.chat-welcome-view .chat-welcome-view-disclaimer,
+		.chat-welcome-view .chat-welcome-view-tips {
+			visibility: hidden;
 		}
 	}
 }

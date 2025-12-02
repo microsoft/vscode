@@ -368,11 +368,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.ChatViewWelcomeEnabled]: {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.welcome.enabled', "Show welcome banner when chat is empty."),
-		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
 			default: true,
