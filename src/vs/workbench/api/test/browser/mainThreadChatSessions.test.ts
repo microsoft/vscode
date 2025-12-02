@@ -18,7 +18,7 @@ import { TestInstantiationService } from '../../../../platform/instantiation/tes
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
 import { IChatAgentRequest } from '../../../contrib/chat/common/chatAgents.js';
-import { IChatProgress, IChatProgressMessage } from '../../../contrib/chat/common/chatService.js';
+import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
@@ -32,6 +32,7 @@ import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mai
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { observableValue } from '../../../../base/common/observable.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -387,6 +388,11 @@ suite('MainThreadChatSessions', function () {
 					dispose: () => { }
 				};
 			}
+		});
+		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
+			override chatModels = observableValue('chatModels', []);
+			override requestInProgressObs = observableValue('requestInProgressObs', false);
+			override edits2Enabled = false;
 		});
 
 		chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
