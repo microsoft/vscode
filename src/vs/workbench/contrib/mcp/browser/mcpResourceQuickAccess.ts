@@ -29,6 +29,7 @@ import { IUriTemplateVariable } from '../common/uriTemplate.js';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
 import { ChatContextPickAttachment } from '../../chat/browser/chatContextPickService.js';
+import { asArray } from '../../../../base/common/arrays.js';
 
 export class McpResourcePickHelper extends Disposable {
 	private _resources = observableValue<{ picks: Map<IMcpServer, (IMcpResourceTemplate | IMcpResource)[]>; isBusy: boolean }>(this, { picks: new Map(), isBusy: false });
@@ -513,7 +514,7 @@ export abstract class AbstractMcpResourceAccessPick {
 					attachment.then(async a => {
 						if (a !== 'noop') {
 							const widget = await openPanelChatAndGetWidget(this._viewsService, this._chatWidgetService);
-							widget?.attachmentModel.addContext(a);
+							widget?.attachmentModel.addContext(...asArray(a));
 						}
 						picker.hide();
 					});

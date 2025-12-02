@@ -128,7 +128,8 @@ export function registerNewChatActions() {
 			const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 			const dialogService = accessor.get(IDialogService);
 
-			if (editingSession && !(await handleCurrentEditingSession(editingSession, undefined, dialogService))) {
+			const model = widget.viewModel?.model;
+			if (model && !(await handleCurrentEditingSession(model, undefined, dialogService))) {
 				return;
 			}
 

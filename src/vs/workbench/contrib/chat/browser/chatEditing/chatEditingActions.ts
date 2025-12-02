@@ -53,12 +53,14 @@ export abstract class EditingSessionAction extends Action2 {
 		return this.runEditingSessionAction(accessor, context.editingSession, context.chatWidget, ...args);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]): any;
 }
 
 /**
  * Resolve view title toolbar context. If none, return context from the lastFocusedWidget.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]): { editingSession?: IChatEditingSession; chatWidget: IChatWidget } | undefined {
 	const arg0 = args.at(0);
 	const context = isChatViewTitleActionContext(arg0) ? arg0 : undefined;
@@ -96,6 +98,7 @@ abstract class WorkingSetAction extends EditingSessionAction {
 		return this.runWorkingSetAction(accessor, editingSession, chatWidget, ...uris);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	abstract runWorkingSetAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget | undefined, ...uris: URI[]): any;
 }
 

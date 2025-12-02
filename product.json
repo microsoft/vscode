@@ -117,16 +117,16 @@
 		"providerUriSetting": "github-enterprise.uri",
 		"providerScopes": [
 			[
-				"user:email"
-			],
-			[
-				"read:user"
-			],
-			[
 				"read:user",
 				"user:email",
 				"repo",
 				"workflow"
+			],
+			[
+				"user:email"
+			],
+			[
+				"read:user"
 			]
 		],
 		"entitlementUrl": "https://api.github.com/copilot_internal/user",

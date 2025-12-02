@@ -11,12 +11,12 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { prefixedUuid } from '../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
-import { StringEdit, StringReplacement } from '../../../../common/core/edits/stringEdit.js';
+import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
-import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, ProviderId, IInlineCompletionHint, Command } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary, ProviderId, IInlineCompletionHint } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
@@ -27,10 +27,11 @@ import { DirectedGraph } from './graph.js';
 import { CachedFunction } from '../../../../../base/common/cache.js';
 import { InlineCompletionViewData, InlineCompletionViewKind } from '../view/inlineEdits/inlineEditsViewInterface.js';
 import { isDefined } from '../../../../../base/common/types.js';
-import { inlineCompletionIsVisible } from './inlineSuggestionItem.js';
+import { inlineCompletionIsVisible } from './inlineCompletionIsVisible.js';
 import { EditDeltaInfo } from '../../../../common/textModelEditSource.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { InlineSuggestionEditKind } from './editKind.js';
+import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction.js';
 
 export type InlineCompletionContextWithoutUuid = Omit<InlineCompletionContext, 'requestUuid'>;
 
@@ -253,6 +254,7 @@ function toInlineSuggestData(
 			insertText,
 			snippetInfo,
 			uri,
+			alternativeAction: undefined,
 		};
 	} else {
 		action = undefined;
@@ -302,6 +304,8 @@ export type RenameInfo = {
 	createdRename: boolean;
 	duration: number;
 	timedOut?: boolean;
+	droppedOtherEdits?: number;
+	droppedRenameEdits?: number;
 };
 
 export type InlineSuggestViewData = {
@@ -310,7 +314,7 @@ export type InlineSuggestViewData = {
 	viewKind?: InlineCompletionViewKind;
 };
 
-export type IInlineSuggestDataAction = IInlineSuggestDataActionEdit | IInlineSuggestDataActionJumpTo | IInlineSuggestDataActionRename;
+export type IInlineSuggestDataAction = IInlineSuggestDataActionEdit | IInlineSuggestDataActionJumpTo;
 
 export interface IInlineSuggestDataActionEdit {
 	kind: 'edit';
@@ -318,20 +322,13 @@ export interface IInlineSuggestDataActionEdit {
 	insertText: string;
 	snippetInfo: SnippetInfo | undefined;
 	uri: URI | undefined;
+	alternativeAction: InlineSuggestAlternativeAction | undefined;
 }
 
 export interface IInlineSuggestDataActionJumpTo {
 	kind: 'jumpTo';
 	position: Position;
 	uri: URI | undefined;
-}
-
-export interface IInlineSuggestDataActionRename {
-	kind: 'rename';
-	textReplacement: TextReplacement;
-	stringEdit: StringEdit;
-	uri: URI | undefined;
-	command: Command;
 }
 
 export class InlineSuggestData {
@@ -352,8 +349,12 @@ export class InlineSuggestData {
 	private _renameInfo: RenameInfo | undefined = undefined;
 	private _editKind: InlineSuggestionEditKind | undefined = undefined;
 
+	get action(): IInlineSuggestDataAction | undefined {
+		return this._action;
+	}
+
 	constructor(
-		public readonly action: IInlineSuggestDataAction | undefined,
+		private _action: IInlineSuggestDataAction | undefined,
 		public readonly hint: IInlineCompletionHint | undefined,
 		public readonly additionalTextEdits: readonly ISingleEditOperation[],
 		public readonly sourceInlineCompletion: InlineCompletion,
@@ -454,11 +455,13 @@ export class InlineSuggestData {
 				renameCreated: this._renameInfo?.createdRename ?? false,
 				renameDuration: this._renameInfo?.duration,
 				renameTimedOut: this._renameInfo?.timedOut ?? false,
+				renameDroppedOtherEdits: this._renameInfo?.droppedOtherEdits,
+				renameDroppedRenameEdits: this._renameInfo?.droppedRenameEdits,
 				typingInterval: this._requestInfo.typingInterval,
 				typingIntervalCharacterCount: this._requestInfo.typingIntervalCharacterCount,
 				sku: this._requestInfo.sku,
 				availableProviders: this._requestInfo.availableProviders.map(p => p.toString()).join(','),
-				...this._viewData.renderData,
+				...this._viewData.renderData?.getData(),
 			};
 			this.source.provider.handleEndOfLifetime(this.source.inlineSuggestions, this.sourceInlineCompletion, reason, summary);
 		}
@@ -523,20 +526,9 @@ export class InlineSuggestData {
 		this._renameInfo = info;
 	}
 
-	public withRename(renameAction: IInlineSuggestDataActionRename): InlineSuggestData {
-		return new InlineSuggestData(
-			renameAction,
-			this.hint,
-			this.additionalTextEdits,
-			this.sourceInlineCompletion,
-			this.source,
-			this.context,
-			this.isInlineEdit,
-			this.supportsRename,
-			this._requestInfo,
-			this._providerRequestInfo,
-			this._correlationId,
-		);
+	public withAction(action: IInlineSuggestDataAction): InlineSuggestData {
+		this._action = action;
+		return this;
 	}
 
 	private performance = new InlineSuggestionsPerformance();
