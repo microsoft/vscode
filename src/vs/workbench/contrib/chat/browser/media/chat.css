@@ -2766,23 +2766,39 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 8px;
 }
 
+/* Dropdown area container for separator + chevron in suggested next actions */
+.chat-welcome-view-suggested-prompt > .chat-suggest-next-dropdown-area {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	height: 100%;
+	padding: 0 4px;
+	margin: 0 -8px 0 0; /* Extend to button edge */
+	cursor: pointer;
+	border-radius: 0 4px 4px 0;
+}
+
+.chat-welcome-view-suggested-prompt > .chat-suggest-next-dropdown-area:hover,
+.chat-welcome-view-suggested-prompt > .chat-suggest-next-dropdown-area:focus {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
 /* Chevron icon in button for dropdown buttons */
 .chat-welcome-view-suggested-prompt .codicon-chevron-down.dropdown-chevron {
 	font-size: 12px;
 	opacity: 0.7;
-	cursor: pointer;
 }
 
 /* Vertical separator between label and chevron in suggested next actions */
-.chat-welcome-view-suggested-prompt > .chat-suggest-next-separator {
+.chat-suggest-next-dropdown-area > .chat-suggest-next-separator {
 	width: 1px;
 	height: 14px;
 	background-color: var(--vscode-input-border, var(--vscode-editorWidget-border));
 	opacity: 0.8;
 }
 
-.chat-welcome-view-suggested-prompt .codicon-chevron-down.dropdown-chevron:hover,
-.chat-welcome-view-suggested-prompt .codicon-chevron-down.dropdown-chevron:focus {
+.chat-suggest-next-dropdown-area:hover .codicon-chevron-down.dropdown-chevron,
+.chat-suggest-next-dropdown-area:focus .codicon-chevron-down.dropdown-chevron {
 	opacity: 1;
 }
 

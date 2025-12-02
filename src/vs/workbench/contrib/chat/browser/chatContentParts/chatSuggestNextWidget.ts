@@ -120,13 +120,17 @@ export class ChatSuggestNextWidget extends Disposable {
 		const availableContributions = contributions.filter(c => c.canDelegate);
 
 		if (showContinueOn && availableContributions.length > 0) {
-			const separator = dom.append(button, dom.$('.chat-suggest-next-separator'));
+			// Create a container for the dropdown area (separator + chevron) that acts as a single clickable target
+			const dropdownArea = dom.append(button, dom.$('.chat-suggest-next-dropdown-area'));
+			dropdownArea.setAttribute('tabindex', '0');
+			dropdownArea.setAttribute('role', 'button');
+			dropdownArea.setAttribute('aria-label', localize('chat.suggestNext.moreOptions', 'More options for {0}', handoff.label));
+			dropdownArea.setAttribute('aria-haspopup', 'true');
+
+			const separator = dom.append(dropdownArea, dom.$('.chat-suggest-next-separator'));
 			separator.setAttribute('aria-hidden', 'true');
-			const chevron = dom.append(button, dom.$('.codicon.codicon-chevron-down.dropdown-chevron'));
-			chevron.setAttribute('tabindex', '0');
-			chevron.setAttribute('role', 'button');
-			chevron.setAttribute('aria-label', localize('chat.suggestNext.moreOptions', 'More options for {0}', handoff.label));
-			chevron.setAttribute('aria-haspopup', 'true');
+			const chevron = dom.append(dropdownArea, dom.$('.codicon.codicon-chevron-down.dropdown-chevron'));
+			chevron.setAttribute('aria-hidden', 'true');
 
 			const showContextMenu = (e: MouseEvent | KeyboardEvent, anchor?: HTMLElement) => {
 				e.preventDefault();
@@ -148,23 +152,24 @@ export class ChatSuggestNextWidget extends Disposable {
 				});
 
 				this.contextMenuService.showContextMenu({
-					getAnchor: () => anchor || button,
+					getAnchor: () => anchor || dropdownArea,
 					getActions: () => actions,
 					autoSelectFirstItem: true,
 				});
 			};
 
-			disposables.add(dom.addDisposableListener(chevron, 'click', (e: MouseEvent) => {
-				showContextMenu(e, chevron);
+			disposables.add(dom.addDisposableListener(dropdownArea, 'click', (e: MouseEvent) => {
+				showContextMenu(e, dropdownArea);
 			}));
 
-			disposables.add(dom.addDisposableListener(chevron, 'keydown', (e) => {
+			disposables.add(dom.addDisposableListener(dropdownArea, 'keydown', (e) => {
 				if (e.key === 'Enter' || e.key === ' ') {
-					showContextMenu(e, chevron);
+					showContextMenu(e, dropdownArea);
 				}
 			}));
 			disposables.add(dom.addDisposableListener(button, 'click', (e: MouseEvent) => {
-				if ((e.target as HTMLElement).classList.contains('dropdown-chevron')) {
+				// If click is within the dropdown area, don't fire the prompt selection
+				if (dropdownArea.contains(e.target as HTMLElement)) {
 					return;
 				}
 				this._onDidSelectPrompt.fire({ handoff });
