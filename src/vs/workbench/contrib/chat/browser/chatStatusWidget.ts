@@ -55,7 +55,7 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		}
 
 
-		this.createWidgetContent(enabledSku);
+		this.createWidgetContent();
 		this.updateContent(enabledSku);
 		this.domNode.style.display = '';
 
@@ -67,10 +67,10 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 	}
 
 	get height(): number {
-		return this.domNode.offsetHeight;
+		return this.domNode.style.display === 'none' ? 0 : this.domNode.offsetHeight;
 	}
 
-	private createWidgetContent(testSku: 'free' | 'anonymous'): void {
+	private createWidgetContent(): void {
 		const contentContainer = $('.chat-status-content');
 		this.messageElement = $('.chat-status-message');
 		contentContainer.appendChild(this.messageElement);
@@ -101,14 +101,18 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		const entitlement = this.chatEntitlementService.entitlement;
 		const isAnonymous = this.chatEntitlementService.anonymous;
 
+		let shouldShow = false;
 		if (enabledSku === 'anonymous' && (isAnonymous || entitlement === ChatEntitlement.Unknown)) {
 			this.messageElement.textContent = localize('chat.anonymousRateLimited.message', "You've reached the limit for chat messages. Try Copilot Pro for free.");
 			this.actionButton.label = localize('chat.anonymousRateLimited.signIn', "Sign In");
+			shouldShow = true;
 		} else if (enabledSku === 'free' && entitlement === ChatEntitlement.Free) {
 			this.messageElement.textContent = localize('chat.freeQuotaExceeded.message', "You've reached the limit for chat messages.");
 			this.actionButton.label = localize('chat.freeQuotaExceeded.upgrade', "Upgrade");
+			shouldShow = true;
 		}
 
+		this.domNode.style.display = shouldShow ? '' : 'none';
 		this._onDidChangeHeight.fire();
 	}
 }

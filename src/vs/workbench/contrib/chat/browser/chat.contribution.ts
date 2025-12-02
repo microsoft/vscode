@@ -543,7 +543,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.statusWidget.sku.free', "Show status widget for free tier users."),
 				nls.localize('chat.statusWidget.sku.anonymous', "Show status widget for anonymous users.")
 			],
-			description: nls.localize('chat.statusWidget.enabled.description', "Show the status widget in new chat sessions when quota is exceeded."),
+			description: nls.localize('chat.statusWidget.enabled.description', "Controls which user type should see the status widget in new chat sessions when quota is exceeded."),
 			default: undefined,
 			tags: ['experimental'],
 			included: false,
