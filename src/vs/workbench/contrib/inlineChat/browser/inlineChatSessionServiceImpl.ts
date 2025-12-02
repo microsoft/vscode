@@ -457,7 +457,6 @@ export class InlineChatEnabler {
 
 		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
 		const notebookAgentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.Notebook));
-		const notebookAgentConfigObs = observableConfigValue(InlineChatConfigKeys.notebookAgent, false, configService);
 
 		this._store.add(autorun(r => {
 			const agent = agentObs.read(r);
@@ -469,8 +468,9 @@ export class InlineChatEnabler {
 		}));
 
 		this._store.add(autorun(r => {
-			this._ctxHasNotebookInline.set(!notebookAgentConfigObs.read(r) && !!agentObs.read(r));
-			this._ctxHasNotebookProvider.set(notebookAgentConfigObs.read(r) && !!notebookAgentObs.read(r));
+			// V1 removed - always use V2 architecture
+			this._ctxHasNotebookInline.set(false);
+			this._ctxHasNotebookProvider.set(!!notebookAgentObs.read(r));
 		}));
 
 		const updateEditor = () => {

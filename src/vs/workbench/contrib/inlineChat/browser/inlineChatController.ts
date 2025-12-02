@@ -67,25 +67,7 @@ import { HunkAction, IEditObserver, IInlineChatMetadata, LiveStrategy, Progressi
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 
-export const enum State {
-	CREATE_SESSION = 'CREATE_SESSION',
-	INIT_UI = 'INIT_UI',
-	WAIT_FOR_INPUT = 'WAIT_FOR_INPUT',
-	SHOW_REQUEST = 'SHOW_REQUEST',
-	PAUSE = 'PAUSE',
-	CANCEL = 'CANCEL',
-	ACCEPT = 'DONE',
-}
-
-const enum Message {
-	NONE = 0,
-	ACCEPT_SESSION = 1 << 0,
-	CANCEL_SESSION = 1 << 1,
-	PAUSE_SESSION = 1 << 2,
-	CANCEL_REQUEST = 1 << 3,
-	CANCEL_INPUT = 1 << 4,
-	ACCEPT_INPUT = 1 << 5,
-}
+// State and Message enums removed - were V1-specific
 
 export abstract class InlineChatRunOptions {
 
@@ -183,13 +165,13 @@ export class InlineChatController1 {
 	unstashLastSession(): void { throw new Error('V1 controller removed'); }
 	run(): void { throw new Error('V1 controller removed'); }
 	arrowOut(_up: boolean): void { throw new Error('V1 controller removed'); }
-	acceptHunk(): void { throw new Error('V1 controller removed'); }
-	discardHunk(): void { throw new Error('V1 controller removed'); }
+	acceptHunk(_hunk?: any): void { throw new Error('V1 controller removed'); }
+	discardHunk(_hunk?: any): void { throw new Error('V1 controller removed'); }
 	get chatWidget(): any { throw new Error('V1 controller removed'); }
 	cancelSession(): void { throw new Error('V1 controller removed'); }
 	moveHunk(_next: boolean): void { throw new Error('V1 controller removed'); }
 	viewInChat(): void { throw new Error('V1 controller removed'); }
-	toggleDiff(): void { throw new Error('V1 controller removed'); }
+	toggleDiff(_hunk?: any): void { throw new Error('V1 controller removed'); }
 }
 
 export class InlineChatController2 implements IEditorContribution {
