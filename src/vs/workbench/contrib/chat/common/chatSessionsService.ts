@@ -162,6 +162,8 @@ export interface IChatSessionsService {
 	readonly onDidChangeAvailability: Event<void>;
 	readonly onDidChangeInProgress: Event<void>;
 
+	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined;
+
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
 	activateChatSessionItemProvider(chatSessionType: string): Promise<IChatSessionItemProvider | undefined>;
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[];

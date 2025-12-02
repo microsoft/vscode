@@ -89,6 +89,7 @@ import './agentSessions/agentSessionsView.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
 import './chatAttachmentModel.js';
+import './chatStatusWidget.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 import { ChatContextPickService, IChatContextPickService } from './chatContextPickService.js';
@@ -367,11 +368,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.ChatViewWelcomeEnabled]: {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.welcome.enabled', "Show welcome banner when chat is empty."),
-		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
 			default: true,
@@ -534,6 +530,21 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.codeBlock.showProgressAnimation.description', "When applying edits, show a progress animation in the code block pill. If disabled, shows the progress percentage instead."),
 			default: true,
 			tags: ['experimental'],
+		},
+		['chat.statusWidget.sku']: {
+			type: 'string',
+			enum: ['free', 'anonymous'],
+			enumDescriptions: [
+				nls.localize('chat.statusWidget.sku.free', "Show status widget for free tier users."),
+				nls.localize('chat.statusWidget.sku.anonymous', "Show status widget for anonymous users.")
+			],
+			description: nls.localize('chat.statusWidget.enabled.description', "Controls which user type should see the status widget in new chat sessions when quota is exceeded."),
+			default: undefined,
+			tags: ['experimental'],
+			included: false,
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
@@ -791,10 +802,10 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		'chat.signInWithAlternateScopes': { // TODO@bpasero remove me eventually
+		[ChatConfiguration.RestoreLastPanelSession]: { // TODO@bpasero review this setting later
 			type: 'boolean',
-			description: nls.localize('chat.signInWithAlternateScopes', "Controls whether sign-in with alternate scopes is used."),
-			default: false,
+			description: nls.localize('chat.restoreLastPanelSession', "Controls whether the last session is restored in panel after restart."),
+			default: true,
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'

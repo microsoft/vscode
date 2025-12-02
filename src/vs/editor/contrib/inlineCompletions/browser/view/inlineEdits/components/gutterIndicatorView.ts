@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { n, trackFocus } from '../../../../../../../base/browser/dom.js';
+import { ModifierKeyEmitter, n, trackFocus } from '../../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
@@ -33,12 +33,14 @@ import { Command, InlineCompletionCommand, IInlineCompletionModelInfo } from '..
 import { InlineSuggestionItem } from '../../../model/inlineSuggestionItem.js';
 import { localize } from '../../../../../../../nls.js';
 import { InlineCompletionsModel } from '../../../model/inlineCompletionsModel.js';
+import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
 
 export class InlineEditsGutterIndicatorData {
 	constructor(
 		readonly gutterMenuData: InlineSuggestionGutterMenuData,
 		readonly originalRange: LineRange,
 		readonly model: SimpleInlineSuggestModel,
+		readonly altAction: InlineSuggestAlternativeAction | undefined,
 	) { }
 }
 
@@ -144,8 +146,17 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	private readonly _isHoveredOverInlineEditDebounced: IObservable<boolean>;
 
+	private readonly _modifierPressed = observableFromEvent(this, ModifierKeyEmitter.getInstance().event, () => ModifierKeyEmitter.getInstance().keyStatus.shiftKey);
 	private readonly _gutterIndicatorStyles = derived(this, reader => {
-		const v = this._tabAction.read(reader);
+		let v = this._tabAction.read(reader);
+
+		// TODO: add source of truth for alt action active and key pressed
+		const altAction = this._data.read(reader)?.altAction;
+		const modifiedPressed = this._modifierPressed.read(reader);
+		if (altAction && modifiedPressed) {
+			v = InlineEditTabAction.Inactive;
+		}
+
 		switch (v) {
 			case InlineEditTabAction.Inactive: return {
 				background: getEditorBlendedColor(inlineEditIndicatorSecondaryBackground, this._themeService).read(reader).toString(),
@@ -509,7 +520,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 				borderRadius: '4px',
 				display: 'flex',
 				justifyContent: 'flex-end',
-				transition: 'background-color 0.2s ease-in-out, width 0.2s ease-in-out',
+				transition: this._modifierPressed.map(m => m ? '' : 'background-color 0.2s ease-in-out, width 0.2s ease-in-out'),
 				...rectToProps(reader => layout.read(reader).pillRect),
 			}
 		}, [

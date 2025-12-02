@@ -30,7 +30,7 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent, ExtensionAgentSourceType } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent, ExtensionAgentSourceType, CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -215,6 +215,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return result;
 		}
 
+		// Activate extensions that might provide custom agents
+		await this.extensionService.activateByEvent(CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT);
+
 		// Collect agents from all providers
 		for (const providerEntry of this.customAgentsProviders) {
 			try {
@@ -224,11 +227,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 
 				for (const agent of agents) {
-					try {
-						await this.filesConfigService.updateReadonly(agent.uri, true);
-					} catch (e) {
-						const msg = e instanceof Error ? e.message : String(e);
-						this.logger.error(`[listCustomAgentsFromProvider] Failed to make agent file readonly: ${agent.uri}`, msg);
+					if (!agent.isEditable) {
+						try {
+							await this.filesConfigService.updateReadonly(agent.uri, true);
+						} catch (e) {
+							const msg = e instanceof Error ? e.message : String(e);
+							this.logger.error(`[listCustomAgentsFromProvider] Failed to make agent file readonly: ${agent.uri}`, msg);
+						}
 					}
 
 					result.push({
