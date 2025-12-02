@@ -21,7 +21,6 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IComposite } from '../../common/composite.js';
 import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D, toggleDropEffect, ICompositeDragAndDropObserverCallbacks } from '../dnd.js';
 import { Gesture, EventType as TouchEventType, GestureEvent } from '../../../base/browser/touch.js';
-import { toDisposable } from '../../../base/common/lifecycle.js';
 
 export interface ICompositeBarItem {
 
@@ -319,10 +318,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		const dndCallback = new CompositeBarDndCallbacks(parent, actionBarDiv, this.model, this.options.dndHandler, this.options.orientation);
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, dndCallback));
 
-		this._register(toDisposable(() => {
-			this.compositeOverflowAction?.dispose();
-			this.compositeOverflowActionViewItem?.dispose();
-		}));
 		return actionBarDiv;
 	}
 
@@ -586,10 +581,14 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		if (totalComposites === compositesToShow.length && this.compositeOverflowAction) {
 			compositeSwitcherBar.pull(compositeSwitcherBar.length() - 1);
 
+			this._store.delete(this.compositeOverflowAction);
 			this.compositeOverflowAction.dispose();
 			this.compositeOverflowAction = undefined;
 
-			this.compositeOverflowActionViewItem?.dispose();
+			if (this.compositeOverflowActionViewItem) {
+				this._store.delete(this.compositeOverflowActionViewItem);
+				this.compositeOverflowActionViewItem.dispose();
+			}
 			this.compositeOverflowActionViewItem = undefined;
 		}
 
@@ -621,10 +620,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		// Add overflow action as needed
 		if (totalComposites > compositesToShow.length && !this.compositeOverflowAction) {
-			this.compositeOverflowAction = this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
+			this.compositeOverflowAction = this._register(this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
 				this.compositeOverflowActionViewItem?.showMenu();
-			});
-			this.compositeOverflowActionViewItem = this.instantiationService.createInstance(
+			}));
+			this.compositeOverflowActionViewItem = this._register(this.instantiationService.createInstance(
 				CompositeOverflowActivityActionViewItem,
 				this.compositeOverflowAction,
 				() => this.getOverflowingComposites(),
@@ -636,7 +635,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				this.options.getOnCompositeClickAction,
 				this.options.colors,
 				this.options.activityHoverOptions
-			);
+			));
 
 			compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
 		}
