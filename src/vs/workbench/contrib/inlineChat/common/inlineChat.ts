@@ -20,7 +20,6 @@ export const enum InlineChatConfigKeys {
 	AccessibleDiffView = 'inlineChat.accessibleDiffView',
 	/** @deprecated do not read on client */
 	EnableV2 = 'inlineChat.enableV2',
-	notebookAgent = 'inlineChat.notebookAgent',
 }
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -54,15 +53,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			tags: ['preview'],
 			experiment: {
 				mode: 'auto'
-			}
-		},
-		[InlineChatConfigKeys.notebookAgent]: {
-			markdownDescription: localize('notebookAgent', "Enable agent-like behavior for inline chat widget in notebooks."),
-			default: false,
-			type: 'boolean',
-			tags: ['experimental'],
-			experiment: {
-				mode: 'startup'
 			}
 		}
 	}
@@ -100,10 +90,8 @@ export const CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF = new RawContextKey<boolean>('inl
 export const CTX_INLINE_CHAT_REQUEST_IN_PROGRESS = new RawContextKey<boolean>('inlineChatRequestInProgress', false, localize('inlineChatRequestInProgress', "Whether an inline chat request is currently in progress"));
 export const CTX_INLINE_CHAT_RESPONSE_TYPE = new RawContextKey<InlineChatResponseType>('inlineChatResponseType', InlineChatResponseType.None, localize('inlineChatResponseTypes', "What type was the responses have been receieved, nothing yet, just messages, or messaged and local edits"));
 
-export const CTX_INLINE_CHAT_V1_ENABLED = ContextKeyExpr.or(
-	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR.negate(), CTX_INLINE_CHAT_HAS_AGENT),
-	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CTX_INLINE_CHAT_HAS_NOTEBOOK_INLINE)
-);
+/** @deprecated V1 removed - all inline chat now uses V2 architecture */
+export const CTX_INLINE_CHAT_V1_ENABLED = ContextKeyExpr.false();
 
 export const CTX_INLINE_CHAT_V2_ENABLED = ContextKeyExpr.or(
 	ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR.negate(), CTX_INLINE_CHAT_HAS_AGENT2),

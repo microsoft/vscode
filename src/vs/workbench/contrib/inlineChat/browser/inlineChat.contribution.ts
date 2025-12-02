@@ -5,9 +5,9 @@
 
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { IMenuItem, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { InlineChatController, InlineChatController1, InlineChatController2 } from './inlineChatController.js';
+import { InlineChatController, InlineChatController2 } from './inlineChatController.js';
 import * as InlineChatActions from './inlineChatActions.js';
-import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_V1_ENABLED, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, INLINE_CHAT_ID, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
+import { CTX_INLINE_CHAT_EDITING, CTX_INLINE_CHAT_REQUEST_IN_PROGRESS, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
@@ -24,7 +24,6 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
 
 registerEditorContribution(InlineChatController2.ID, InlineChatController2, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
-registerEditorContribution(INLINE_CHAT_ID, InlineChatController1, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 registerEditorContribution(InlineChatController.ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
 registerAction2(InlineChatActions.KeepSessionAction2);
@@ -35,39 +34,7 @@ registerAction2(InlineChatActions.UndoAndCloseSessionAction2);
 registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Delayed);
 
 // --- MENU special ---
-
-const editActionMenuItem: IMenuItem = {
-	group: '0_main',
-	order: 0,
-	command: {
-		id: ChatSubmitAction.ID,
-		title: localize('send.edit', "Edit Code"),
-	},
-	when: ContextKeyExpr.and(
-		ChatContextKeys.inputHasText,
-		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
-		CTX_INLINE_CHAT_EDITING,
-		CTX_INLINE_CHAT_V1_ENABLED
-	),
-};
-
-const generateActionMenuItem: IMenuItem = {
-	group: '0_main',
-	order: 0,
-	command: {
-		id: ChatSubmitAction.ID,
-		title: localize('send.generate', "Generate"),
-	},
-	when: ContextKeyExpr.and(
-		ChatContextKeys.inputHasText,
-		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.toNegated(),
-		CTX_INLINE_CHAT_EDITING.toNegated(),
-		CTX_INLINE_CHAT_V1_ENABLED
-	),
-};
-
-MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, editActionMenuItem);
-MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, generateActionMenuItem);
+// V1 menu items removed - V2 uses IChatEditingService for edit handling
 
 const cancelActionMenuItem: IMenuItem = {
 	group: '0_main',
