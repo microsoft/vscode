@@ -27,7 +27,6 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatConfiguration, LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
 import { AGENT_SESSIONS_VIEW_CONTAINER_ID, AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
@@ -236,11 +235,6 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 			return;
 		}
 
-		if (!LocalChatSessionUri.parseLocalSessionId(context.session.resource)) {
-			// We only allow local sessions to be opened in the side bar
-			return;
-		}
-
 		// TODO: this feels strange. Should we prefer moving the editor to the sidebar instead? @osortega
 		await chatWidgetService.openSession(context.session.resource, ChatViewPaneTarget);
 	}
@@ -433,7 +427,6 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'navigation',
 	order: 3,
-	when: ChatContextKeys.sessionType.isEqualTo(localChatSessionType),
 });
 
 // Register the toggle command for the ViewTitle menu

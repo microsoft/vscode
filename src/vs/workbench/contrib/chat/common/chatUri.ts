@@ -62,3 +62,15 @@ export function chatSessionResourceToId(resource: URI): string {
 
 	return resource.toString();
 }
+
+export function getChatSessionType(resource: URI): string {
+	if (resource.scheme === Schemas.vscodeChatEditor) {
+		return localChatSessionType;
+	}
+
+	if (resource.scheme === LocalChatSessionUri.scheme) {
+		return resource.authority || localChatSessionType;
+	}
+
+	return resource.scheme;
+}
