@@ -370,7 +370,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private setupContextMenu(parent: HTMLElement): void {
-		addDisposableListener(parent, EventType.CONTEXT_MENU, e => {
+		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => {
 			EventHelper.stop(e, true);
 
 			this.contextMenuService.showContextMenu({
@@ -378,7 +378,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				contextKeyService: this.contextKeyService,
 				getAnchor: () => new StandardMouseEvent(getWindow(parent), e)
 			});
-		});
+		}));
 	}
 
 	private async applyModel(): Promise<void> {
