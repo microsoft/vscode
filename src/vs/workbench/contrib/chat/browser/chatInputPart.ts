@@ -1474,6 +1474,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		}));
 
+		this._register(this._inputEditor.onDidScrollChange(e => {
+			toolbarsContainer.classList.toggle('scroll-top-decoration', e.scrollTop > 0);
+		}));
+
 		this._register(this._inputEditor.onDidChangeModelContent(() => {
 			const currentHeight = Math.min(this._inputEditor.getContentHeight(), this.inputEditorMaxHeight);
 			if (currentHeight !== this.inputEditorHeight) {
