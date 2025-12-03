@@ -5,18 +5,19 @@
 
 .chat-viewpane {
 
-	.chat-view-secondary-title-container {
+	.chat-view-title-container {
 		display: none;
 		padding: 8px 16px;
 		border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
 		align-items: center;
-	}
 
-	.chat-view-secondary-title-container > .chat-view-secondary-title-text {
-		text-transform: uppercase;
-		font-size: 11px;
-		overflow: hidden;
-		white-space: nowrap;
-		text-overflow: ellipsis;
+		.chat-view-title-label {
+			text-transform: uppercase;
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
 	}
 }

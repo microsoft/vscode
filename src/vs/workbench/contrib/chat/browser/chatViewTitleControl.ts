@@ -5,7 +5,7 @@
 
 import './media/chatViewTitle.css';
 import { h } from '../../../../base/browser/dom.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -20,8 +20,10 @@ export interface IChatViewTitleDelegate {
 
 export class ChatViewTitleControl extends Disposable {
 
+	private static readonly DEFAULT_TITLE = localize('chat', "Chat");
+
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
-	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
+	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private get viewContainerModel(): IViewContainerModel | undefined {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(ChatViewId);
@@ -32,9 +34,10 @@ export class ChatViewTitleControl extends Disposable {
 		return undefined;
 	}
 
-	private primaryTitle = localize('chat', "Chat");
-	private secondaryTitleContainer: HTMLElement | undefined;
-	private secondaryTitle: HTMLElement | undefined;
+	private primaryTitle = ChatViewTitleControl.DEFAULT_TITLE;
+
+	private titleContainer: HTMLElement | undefined;
+	private titleLabel: HTMLElement | undefined;
 
 	private model: IChatModel | undefined;
 	private modelDisposables = this._register(new MutableDisposable());
@@ -58,8 +61,8 @@ export class ChatViewTitleControl extends Disposable {
 
 		// Update when views change in container
 		if (this.viewContainerModel) {
-			this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(() => this.applyUpdate()));
-			this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(() => this.applyUpdate()));
+			this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(() => this.doUpdate()));
+			this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(() => this.doUpdate()));
 		}
 
 		// Update on configuration changes
@@ -68,24 +71,20 @@ export class ChatViewTitleControl extends Disposable {
 				e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) ||
 				e.affectsConfiguration('workbench.secondarySideBar.showLabels')
 			) {
-				this.applyUpdate();
+				this.doUpdate();
 			}
 		}));
 	}
 
-	render(parent: HTMLElement): void {
-		if (this.secondaryTitleContainer) {
-			return;
-		}
-
-		const elements = h('div.chat-view-secondary-title-container', [
-			h('span.chat-view-secondary-title-text@text')
+	private render(parent: HTMLElement): void {
+		const elements = h('div.chat-view-title-container', [
+			h('span.chat-view-title-label@label')
 		]);
 
-		this.secondaryTitleContainer = elements.root;
-		this.secondaryTitle = elements.text;
+		this.titleContainer = elements.root;
+		this.titleLabel = elements.label;
 
-		parent.appendChild(this.secondaryTitleContainer);
+		parent.appendChild(this.titleContainer);
 	}
 
 	update(model: IChatModel | undefined): void {
@@ -93,20 +92,17 @@ export class ChatViewTitleControl extends Disposable {
 
 		this.modelDisposables.value = model?.onDidChange(e => {
 			if (e.kind === 'setCustomTitle' || e.kind === 'addRequest') {
-				this.applyUpdate();
+				this.doUpdate();
 			}
 		});
 
-		this.applyUpdate();
+		this.doUpdate();
 	}
 
-	private applyUpdate(): void {
-		const model = this.model;
-		const hasCustomTitle = model?.hasCustomTitle;
-		const customTitle = hasCustomTitle ? model.title : undefined;
+	private doUpdate(): void {
+		const customTitle = this.model?.hasCustomTitle ? this.model?.title : undefined;
 		const prefixedCustomTitle = customTitle ? this.withChatPrefix(customTitle) : undefined;
-		const chatTitle = localize('chat', "Chat");
-		const primaryTitle = prefixedCustomTitle ?? chatTitle;
+		const primaryTitle = prefixedCustomTitle ?? ChatViewTitleControl.DEFAULT_TITLE;
 		this.primaryTitle = primaryTitle;
 
 		this.delegate.updatePrimaryTitle(primaryTitle);
@@ -124,20 +120,25 @@ export class ChatViewTitleControl extends Disposable {
 		}
 	}
 
+	private withChatPrefix(title: string | undefined): string | undefined {
+		if (!title) {
+			return undefined;
+		}
+
+		const localizedPrefix = localize('chatViewTitle.prefixLabel', "Chat: ");
+		if (title.startsWith(localizedPrefix) || title.startsWith('Chat: ')) {
+			return title;
+		}
+
+		return localize('chatViewTitle.prefixedTitle', "Chat: {0}", title);
+	}
+
 	getSingleViewPaneContainerTitle(descriptorTitle: string | undefined): string | undefined {
 		if (!this.shouldRenderSecondaryTitleBar()) {
 			return this.primaryTitle;
 		}
 
 		return descriptorTitle ?? this.primaryTitle;
-	}
-
-	getHeight(): number {
-		if (!this.secondaryTitleContainer || this.secondaryTitleContainer.style.display === 'none') {
-			return 0;
-		}
-
-		return this.secondaryTitleContainer.offsetHeight;
 	}
 
 	private shouldRenderSecondaryTitleBar(): boolean {
@@ -150,15 +151,15 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private setSecondaryTitle(title: string | undefined): void {
-		if (!this.secondaryTitleContainer || !this.secondaryTitle) {
+		if (!this.titleContainer || !this.titleLabel) {
 			return;
 		}
 
 		if (!this.shouldRenderSecondaryTitleBar() || !title) {
-			this.secondaryTitleContainer.style.display = 'none';
+			this.titleContainer.style.display = 'none';
 		} else {
-			this.secondaryTitle.textContent = title;
-			this.secondaryTitleContainer.style.display = 'flex';
+			this.titleLabel.textContent = title;
+			this.titleContainer.style.display = 'flex';
 		}
 
 		const currentHeight = this.getHeight();
@@ -180,16 +181,11 @@ export class ChatViewTitleControl extends Disposable {
 		return this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
 	}
 
-	private withChatPrefix(title: string | undefined): string | undefined {
-		if (!title) {
-			return undefined;
+	getHeight(): number {
+		if (!this.titleContainer || this.titleContainer.style.display === 'none') {
+			return 0;
 		}
 
-		const localizedPrefix = localize('chatViewTitle.prefixLabel', "Chat: ");
-		if (title.startsWith(localizedPrefix) || title.startsWith('Chat: ')) {
-			return title;
-		}
-
-		return localize('chatViewTitle.prefixedTitle', "Chat: {0}", title);
+		return this.titleContainer.offsetHeight;
 	}
 }
