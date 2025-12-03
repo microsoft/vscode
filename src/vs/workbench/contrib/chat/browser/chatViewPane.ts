@@ -204,11 +204,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.viewState.sessionId = model.sessionId; // remember as model to restore in view state
 		this._widget.setModel(model);
 
-		// Update the toolbar context with new sessionId
-		this.updateActions();
-
 		// Update title control
 		this.titleControl?.update(model);
+
+		// Update the toolbar context with new sessionId
+		this.updateActions();
 
 		return model;
 	}
@@ -430,7 +430,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	async loadSession(sessionId: URI): Promise<IChatModel | undefined> {
-
 		const sessionType = getChatSessionType(sessionId);
 		if (sessionType !== localChatSessionType) {
 			await this.chatSessionsService.canResolveChatSession(sessionId);
