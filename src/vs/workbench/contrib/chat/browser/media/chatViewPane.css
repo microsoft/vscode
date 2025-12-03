@@ -31,7 +31,8 @@
 				display: none;
 
 				.action-label {
-					padding: 0; /* limit padding top/bottom to preserve line-height per row */
+					padding: 0 2px;
+					/* limit padding top/bottom to preserve line-height per row */
 				}
 			}
 		}
