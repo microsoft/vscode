@@ -963,19 +963,19 @@ export class ChatModelsWidget extends Disposable {
 
 		columns.push(
 			{
-				label: localize('capabilities', 'Capabilities'),
-				tooltip: '',
-				weight: 0.25,
-				minimumWidth: 180,
-				templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
-				project(row: TableEntry): TableEntry { return row; }
-			},
-			{
 				label: localize('tokenLimits', 'Context Size'),
 				tooltip: '',
 				weight: 0.1,
 				minimumWidth: 140,
 				templateId: TokenLimitsColumnRenderer.TEMPLATE_ID,
+				project(row: TableEntry): TableEntry { return row; }
+			},
+			{
+				label: localize('capabilities', 'Capabilities'),
+				tooltip: '',
+				weight: 0.25,
+				minimumWidth: 180,
+				templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
 				project(row: TableEntry): TableEntry { return row; }
 			},
 			{
