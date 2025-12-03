@@ -6,7 +6,7 @@
 import './media/chatViewTitle.css';
 import { h, append } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IViewDescriptorService, IViewContainerModel } from '../../../common/views.js';
@@ -29,6 +29,8 @@ export class ChatViewTitleControl extends Disposable {
 	private secondaryTitleContainer: HTMLElement | undefined;
 	private secondaryTitle: HTMLElement | undefined;
 
+	private modelDisposables = this._register(new MutableDisposable());
+
 	private lastKnownHeight = 0;
 
 	constructor(
@@ -42,10 +44,13 @@ export class ChatViewTitleControl extends Disposable {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(this.viewId);
 		if (viewContainer) {
 			this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+
 			this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(() => this.applyUpdate()));
 			this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(() => this.applyUpdate()));
 		}
+
 		this.currentPrimaryTitle = localize('chat', "Chat");
+
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) ||
 				e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
@@ -70,6 +75,12 @@ export class ChatViewTitleControl extends Disposable {
 
 	update(model: IChatModel | undefined): void {
 		this.currentModel = model;
+
+		this.modelDisposables.value = model?.onDidChange(e => {
+			if (e.kind === 'setCustomTitle' || e.kind === 'addRequest') {
+				this.applyUpdate();
+			}
+		});
 
 		this.applyUpdate();
 	}

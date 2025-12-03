@@ -8,7 +8,7 @@ import { $, addDisposableListener, append, EventHelper, EventType, getWindow, se
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { autorun, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -78,10 +78,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsControl: AgentSessionsControl | undefined;
 	private sessionsCount: number = 0;
 
-	private welcomeController: ChatViewWelcomeController | undefined;
-
 	private titleControl: ChatViewTitleControl | undefined;
-	private readonly modelDisposables = this._register(new DisposableStore());
+
+	private welcomeController: ChatViewWelcomeController | undefined;
 
 	private restoringSession: Promise<void> | undefined;
 
@@ -148,11 +147,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 								if (info.inputState && modelRef) {
 									modelRef.object.inputModel.setState(info.inputState);
 								}
-								await this.updateModel(modelRef);
+
+								await this.showModel(modelRef);
 							} finally {
 								this._widget.setVisible(wasVisible);
 							}
 						});
+
 					this.restoringSession.finally(() => this.restoringSession = undefined);
 				}
 			}
@@ -180,7 +181,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		} : undefined;
 	}
 
-	private async updateModel(modelRef?: IChatModelReference | undefined) {
+	private async showModel(modelRef?: IChatModelReference | undefined): Promise<IChatModel | undefined> {
 
 		// Check if we're disposing a model with an active request
 		if (this.modelRef.value?.object.requestInProgress.get()) {
@@ -199,6 +200,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.modelRef.value = ref;
 		const model = ref.object;
 
+		// Update widget lock state based on session type
 		await this.updateWidgetLockState(model.sessionResource);
 
 		this.viewState.sessionId = model.sessionId;
@@ -207,13 +209,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Update the toolbar context with new sessionId
 		this.updateActions();
 
-		if (model) {
-			this.modelDisposables.add(model.onDidChange(e => {
-				if (e.kind === 'setCustomTitle' || e.kind === 'addRequest') {
-					this.titleControl?.update(model);
-				}
-			}));
-		}
+		// Update title control
 		this.titleControl?.update(model);
 
 		return model;
@@ -423,14 +419,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			modelRef.object.inputModel.setState(info.inputState);
 		}
 
-		await this.updateModel(modelRef);
+		await this.showModel(modelRef);
 	}
 
 	private async clear(): Promise<void> {
 
 		// Grab the widget's latest view state because it will be loaded back into the widget
 		this.updateViewState();
-		await this.updateModel(undefined);
+		await this.showModel(undefined);
 
 		// Update the toolbar context with new sessionId
 		this.updateActions();
@@ -444,7 +440,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		const newModelRef = await this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None);
-		return this.updateModel(newModelRef);
+		return this.showModel(newModelRef);
 	}
 
 	focusInput(): void {
