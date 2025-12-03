@@ -468,11 +468,6 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		return `${uri.toString()}::${requestId}`;
 	}
 
-	private _parseBaselineKey(key: string): { uri: URI; requestId: string } {
-		const [uriStr, requestId] = key.split('::');
-		return { uri: URI.parse(uriStr), requestId };
-	}
-
 	private async _findBestBaselineForFile(uri: URI, epoch: number, requestId: string): Promise<IFileBaseline | undefined> {
 		// First, iterate backwards through operations before the target checkpoint
 		// to see if the file was created/re-created more recently than any baseline
@@ -879,14 +874,29 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		});
 	}
 
+	public hasEditsInRequest(requestId: string, reader?: IReader): boolean {
+		for (const value of this._fileBaselines.values()) {
+			if (value.requestId === requestId) {
+				return true;
+			}
+		}
+
+		for (const operation of this._operations.read(reader)) {
+			if (operation.requestId === requestId) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	public getDiffsForFilesInRequest(requestId: string): IObservable<readonly IEditSessionEntryDiff[]> {
 		const boundsObservable = this._getRequestEpochBounds(requestId);
 		const startEpochs = derivedOpts<ResourceMap<number>>({ equalsFn: mapsStrictEqualIgnoreOrder }, reader => {
 			const uris = new ResourceMap<number>();
-			for (const [key, value] of this._fileBaselines.entries()) {
-				const { uri, requestId } = this._parseBaselineKey(key);
+			for (const value of this._fileBaselines.values()) {
 				if (value.requestId === requestId) {
-					uris.set(uri, value.epoch);
+					uris.set(value.uri, value.epoch);
 				}
 			}
 

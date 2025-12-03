@@ -184,6 +184,10 @@ export interface IChatEditingSession extends IDisposable {
 	 */
 	getDiffsForFilesInRequest(requestId: string): IObservable<readonly IEditSessionEntryDiff[]>;
 
+	/**
+	 * Whether there are any edits made in the given request.
+	 */
+	hasEditsInRequest(requestId: string, reader?: IReader): boolean;
 
 	/**
 	 * Gets the aggregated diff stats for all files modified in this session.

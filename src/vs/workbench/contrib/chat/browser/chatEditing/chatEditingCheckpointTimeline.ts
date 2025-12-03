@@ -5,7 +5,7 @@
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, ITransaction } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, ITransaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditSessionDiffStats, IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { IChatRequestDisablement } from '../../common/chatModel.js';
@@ -49,4 +49,5 @@ export interface IChatEditingCheckpointTimeline {
 	getDiffsForFilesInRequest(requestId: string): IObservable<readonly IEditSessionEntryDiff[]>;
 	getDiffsForFilesInSession(): IObservable<readonly IEditSessionEntryDiff[]>;
 	getDiffForSession(): IObservable<IEditSessionDiffStats>;
+	hasEditsInRequest(requestId: string, reader?: IReader): boolean;
 }

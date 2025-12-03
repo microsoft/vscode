@@ -329,6 +329,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._timeline.getDiffsForFilesInRequest(requestId);
 	}
 
+	public hasEditsInRequest(requestId: string, reader?: IReader): boolean {
+		return this._timeline.hasEditsInRequest(requestId, reader);
+	}
+
 	public createSnapshot(requestId: string, undoStop: string | undefined): void {
 		const label = undoStop ? `Request ${requestId} - Stop ${undoStop}` : `Request ${requestId}`;
 		this._timeline.createCheckpoint(requestId, undoStop, label);
