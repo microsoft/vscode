@@ -247,32 +247,32 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private async _init(transferFrom?: IChatEditingSession): Promise<void> {
 		const storage = this._instantiationService.createInstance(ChatEditingSessionStorage, this.chatSessionResource);
-		let restoredSessionState = await storage.restoreState().catch(err => {
-			this._logService.error(`Error restoring chat editing session state for ${this.chatSessionResource}`, err);
-		});
-
-		if (this._store.isDisposed) {
-			return; // disposed while restoring
-		}
-
-		if (!restoredSessionState && transferFrom instanceof ChatEditingSession) {
+		let restoredSessionState: StoredSessionState | undefined;
+		if (transferFrom instanceof ChatEditingSession) {
 			restoredSessionState = transferFrom._getStoredState(this.chatSessionResource);
+		} else {
+			restoredSessionState = await storage.restoreState().catch(err => {
+				this._logService.error(`Error restoring chat editing session state for ${this.chatSessionResource}`, err);
+				return undefined;
+			});
+
+			if (this._store.isDisposed) {
+				return; // disposed while restoring
+			}
 		}
+
 
 		if (restoredSessionState) {
 			for (const [uri, content] of restoredSessionState.initialFileContents) {
 				this._initialFileContents.set(uri, content);
 			}
+			if (restoredSessionState.timeline) {
+				transaction(tx => this._timeline.restoreFromState(restoredSessionState.timeline!, tx));
+			}
 			await this._initEntries(restoredSessionState.recentSnapshot);
-			transaction(tx => {
-				if (restoredSessionState.timeline) {
-					this._timeline.restoreFromState(restoredSessionState.timeline, tx);
-				}
-				this._state.set(ChatEditingSessionState.Idle, tx);
-			});
-		} else {
-			this._state.set(ChatEditingSessionState.Idle, undefined);
 		}
+
+		this._state.set(ChatEditingSessionState.Idle, undefined);
 	}
 
 	private _getEntry(uri: URI): AbstractChatEditingModifiedFileEntry | undefined {
