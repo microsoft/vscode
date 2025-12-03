@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { reverseOrder, compareBy, numberComparator, sumBy } from '../../../../../base/common/arrays.js';
-import { IntervalTimer } from '../../../../../base/common/async.js';
+import { IntervalTimer, TimeoutTimer } from '../../../../../base/common/async.js';
 import { toDisposable, Disposable } from '../../../../../base/common/lifecycle.js';
 import { mapObservableArrayCached, derived, IObservable, observableSignal, runOnChange, autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -121,9 +121,9 @@ class TrackedDocumentInfo extends Disposable {
 			resetSignal.read(reader);
 
 			// Reset after 5 minutes of wall-clock time
-			reader.store.add(new IntervalTimer()).cancelAndSet(() => {
+			reader.store.add(new TimeoutTimer(() => {
 				resetSignal.trigger(undefined);
-			}, 5 * 60 * 1000);
+			}, 5 * 60 * 1000));
 
 			const t = reader.store.add(new DocumentEditSourceTracker(docWithJustReason, undefined));
 			const startFocusTime = this._userAttentionService.totalFocusTimeMs;

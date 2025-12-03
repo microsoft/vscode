@@ -5,37 +5,57 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { autorun } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { TestHostService } from '../../../../test/browser/workbenchTestServices.js';
-import { IHostService } from '../../../host/browser/host.js';
-import { UserAttentionService } from '../../browser/userAttentionBrowser.js';
+import { UserAttentionServiceEnv, UserAttentionService } from '../../browser/userAttentionBrowser.js';
 
 suite('UserAttentionService', () => {
-	let userAttentionService: UserAttentionService2;
+	let userAttentionService: UserAttentionService;
 	let insta: TestInstantiationService;
 	let clock: sinon.SinonFakeTimers;
-	let hostService: TestHostService;
+	let hostAdapterMock: {
+		isVsCodeFocused: IObservable<boolean>;
+		isUserActive: IObservable<boolean>;
+		setFocus(focused: boolean): void;
+		setActive(active: boolean): void;
+		dispose(): void;
+	};
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const ONE_MINUTE = 50_000;
 	const ATTENTION_TIMEOUT = 60_000; // USER_ATTENTION_TIMEOUT_MS is 60 seconds
 
-	class UserAttentionService2 extends UserAttentionService {
-		public markUserActivity(): void {
-			this._markUserActivity();
-		}
-	}
-
 	setup(() => {
 		clock = sinon.useFakeTimers();
 		insta = store.add(new TestInstantiationService());
-		hostService = new TestHostService();
-		insta.stub(IHostService, hostService);
 		insta.stub(ILogService, new NullLogService());
-		userAttentionService = store.add(insta.createInstance(UserAttentionService2));
+
+		const isVsCodeFocused = observableValue('focused', true);
+		const isUserActive = observableValue('active', false);
+
+		hostAdapterMock = {
+			isVsCodeFocused,
+			isUserActive,
+			setFocus: (f) => isVsCodeFocused.set(f, undefined),
+			setActive: (a) => isUserActive.set(a, undefined),
+			dispose: () => { }
+		};
+
+		const originalCreateInstance = insta.createInstance;
+		sinon.stub(insta, 'createInstance').callsFake((ctor: any, ...args: any[]) => {
+			if (ctor === UserAttentionServiceEnv) {
+				return hostAdapterMock;
+			}
+			return originalCreateInstance.call(insta, ctor, ...args);
+		});
+
+		userAttentionService = store.add(insta.createInstance(UserAttentionService));
+
+		// Simulate initial activity
+		hostAdapterMock.setActive(true);
+		hostAdapterMock.setActive(false);
 	});
 
 	teardown(() => {
@@ -45,10 +65,10 @@ suite('UserAttentionService', () => {
 	test('isVsCodeFocused reflects window focus state', () => {
 		assert.strictEqual(userAttentionService.isVsCodeFocused.get(), true);
 
-		hostService.setFocus(false);
+		hostAdapterMock.setFocus(false);
 		assert.strictEqual(userAttentionService.isVsCodeFocused.get(), false);
 
-		hostService.setFocus(true);
+		hostAdapterMock.setFocus(true);
 		assert.strictEqual(userAttentionService.isVsCodeFocused.get(), true);
 	});
 
@@ -69,7 +89,7 @@ suite('UserAttentionService', () => {
 	test('hasUserAttention is false when window loses focus', () => {
 		assert.strictEqual(userAttentionService.hasUserAttention.get(), true);
 
-		hostService.setFocus(false);
+		hostAdapterMock.setFocus(false);
 
 		// Attention is not dependent on focus
 		assert.strictEqual(userAttentionService.hasUserAttention.get(), true);
@@ -81,56 +101,9 @@ suite('UserAttentionService', () => {
 		assert.strictEqual(userAttentionService.hasUserAttention.get(), false);
 
 		// Simulate activity
-		userAttentionService.markUserActivity();
+		hostAdapterMock.setActive(true);
 
 		assert.strictEqual(userAttentionService.hasUserAttention.get(), true);
-	});
-
-	test('userActivityDetected becomes true on markUserActivity and false after 500ms', () => {
-		// Initially false (debounce timeout from constructor has passed or not yet triggered)
-		// Clear any initial activity by advancing past debounce
-		clock.tick(500);
-		assert.strictEqual(userAttentionService.isUserActive.get(), false);
-
-		// Mark activity - should become true
-		userAttentionService.markUserActivity();
-		assert.strictEqual(userAttentionService.isUserActive.get(), true);
-
-		// Should still be true within 500ms
-		clock.tick(400);
-		assert.strictEqual(userAttentionService.isUserActive.get(), true);
-
-		// Should become false after 500ms
-		clock.tick(101);
-		assert.strictEqual(userAttentionService.isUserActive.get(), false);
-	});
-
-	test('userActivityDetected debounces rapid activity', () => {
-		// Clear initial activity
-		clock.tick(500);
-
-		let changeCount = 0;
-		store.add(autorun(reader => {
-			userAttentionService.isUserActive.read(reader);
-			changeCount++;
-		}));
-
-		// Reset after initial autorun setup
-		changeCount = 0;
-
-		// Rapid activity - should only trigger once (true)
-		userAttentionService.markUserActivity();
-		userAttentionService.markUserActivity();
-		userAttentionService.markUserActivity();
-
-		// Only one change to true
-		assert.strictEqual(changeCount, 1);
-		assert.strictEqual(userAttentionService.isUserActive.get(), true);
-
-		// After 500ms, changes to false
-		clock.tick(500);
-		assert.strictEqual(changeCount, 2);
-		assert.strictEqual(userAttentionService.isUserActive.get(), false);
 	});
 
 	test('activity keeps attention alive', () => {
@@ -139,7 +112,8 @@ suite('UserAttentionService', () => {
 
 		// Advance time halfway, then activity
 		clock.tick(ONE_MINUTE / 2);
-		userAttentionService.markUserActivity();
+		hostAdapterMock.setActive(true);
+		hostAdapterMock.setActive(false);
 
 		// Advance another half minute - should still have attention
 		clock.tick(ONE_MINUTE / 2);
@@ -148,31 +122,6 @@ suite('UserAttentionService', () => {
 		// Now let it expire
 		clock.tick(ONE_MINUTE + 1);
 		assert.strictEqual(userAttentionService.hasUserAttention.get(), false);
-	});
-
-	test('DOM events trigger activity when focused', () => {
-		// Wait for attention to expire
-		clock.tick(ATTENTION_TIMEOUT + 1);
-		assert.strictEqual(userAttentionService.hasUserAttention.get(), false);
-
-		// Simulate keydown event
-		document.dispatchEvent(new KeyboardEvent('keydown'));
-
-		assert.strictEqual(userAttentionService.hasUserAttention.get(), true);
-	});
-
-	test('DOM events do not trigger activity when not focused', () => {
-		hostService.setFocus(false);
-
-		// Wait for attention to expire
-		clock.tick(ATTENTION_TIMEOUT + 1);
-		assert.strictEqual(userAttentionService.hasUserAttention.get(), false);
-
-		// Simulate keydown event while not focused
-		document.dispatchEvent(new KeyboardEvent('keydown'));
-
-		// Should still be true because window is not focused
-		assert.strictEqual(userAttentionService.hasUserAttention.get(), true);
 	});
 
 	suite('fireAfterGivenFocusTimePassed', () => {
@@ -184,17 +133,20 @@ suite('UserAttentionService', () => {
 			store.add(disposable);
 
 			// Mark activity to ensure attention is maintained, then advance 1 minute - not yet fired
-			userAttentionService.markUserActivity();
+			hostAdapterMock.setActive(true);
+			hostAdapterMock.setActive(false);
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, false);
 
 			// Mark activity and advance another minute - still not fired
-			userAttentionService.markUserActivity();
+			hostAdapterMock.setActive(true);
+			hostAdapterMock.setActive(false);
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, false);
 
 			// Mark activity and advance 3rd minute - should fire
-			userAttentionService.markUserActivity();
+			hostAdapterMock.setActive(true);
+			hostAdapterMock.setActive(false);
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, true);
 		});
@@ -207,14 +159,16 @@ suite('UserAttentionService', () => {
 			store.add(disposable);
 
 			// Mark activity and accumulate 1 minute
-			userAttentionService.markUserActivity();
+			hostAdapterMock.setActive(true);
+			hostAdapterMock.setActive(false);
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, false);
 
 			// Lose focus - should still accumulate (even with activity)
-			hostService.setFocus(false);
+			hostAdapterMock.setFocus(false);
 			// Mark activity again to ensure attention is maintained
-			userAttentionService.markUserActivity();
+			hostAdapterMock.setActive(true);
+			hostAdapterMock.setActive(false);
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, true);
 		});
@@ -227,7 +181,8 @@ suite('UserAttentionService', () => {
 			store.add(disposable);
 
 			// Mark activity and accumulate 1 minute
-			userAttentionService.markUserActivity();
+			hostAdapterMock.setActive(true);
+			hostAdapterMock.setActive(false);
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, false);
 
@@ -242,7 +197,8 @@ suite('UserAttentionService', () => {
 			assert.strictEqual(callbackFired, false);
 
 			// Restore activity and accumulate 1 more minute
-			userAttentionService.markUserActivity();
+			hostAdapterMock.setActive(true);
+			hostAdapterMock.setActive(false);
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, true);
 		});
@@ -254,7 +210,8 @@ suite('UserAttentionService', () => {
 			});
 
 			// Mark activity and accumulate 1 minute
-			userAttentionService.markUserActivity();
+			hostAdapterMock.setActive(true);
+			hostAdapterMock.setActive(false);
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, false);
 
@@ -262,7 +219,8 @@ suite('UserAttentionService', () => {
 			disposable.dispose();
 
 			// Advance past threshold - should not fire
-			userAttentionService.markUserActivity();
+			hostAdapterMock.setActive(true);
+			hostAdapterMock.setActive(false);
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, false);
 		});
@@ -275,12 +233,14 @@ suite('UserAttentionService', () => {
 			store.add(disposable);
 
 			// Mark activity and advance 1 minute - should fire
-			userAttentionService.markUserActivity();
+			hostAdapterMock.setActive(true);
+			hostAdapterMock.setActive(false);
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callCount, 1);
 
 			// Keep ticking, should not fire again
-			userAttentionService.markUserActivity();
+			hostAdapterMock.setActive(true);
+			hostAdapterMock.setActive(false);
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callCount, 1);
 		});

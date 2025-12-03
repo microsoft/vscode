@@ -98,7 +98,9 @@ export function wasTrueRecently(obs: IObservable<boolean>, timeMs: number, store
 			result.set(true, undefined);
 			if (timeout !== undefined) {
 				clearTimeout(timeout);
+				timeout = undefined;
 			}
+		} else {
 			timeout = setTimeout(() => {
 				result.set(false, undefined);
 				timeout = undefined;
