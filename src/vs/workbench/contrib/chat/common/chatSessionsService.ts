@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
@@ -220,7 +220,7 @@ export interface IChatSessionsService {
 	getEditableData(sessionResource: URI): IEditableData | undefined;
 	isEditable(sessionResource: URI): boolean;
 	// #endregion
-	registerModelProgressListener(models: IChatModel[], type: string): Event<void>;
+	registerModelProgressListener(models: IChatModel[], type: string, emitter: Emitter<void>): IDisposable;
 	getSessionDescription(chatModel: IChatModel): string | undefined;
 }
 

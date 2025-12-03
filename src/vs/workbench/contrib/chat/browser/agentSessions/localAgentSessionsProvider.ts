@@ -49,10 +49,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		// Listen for models being added or removed
 		this._register(autorun(reader => {
 			const models = this.chatService.chatModels.read(reader);
-			const onProgress = this._chatSessionsService.registerModelProgressListener(Array.from(models), Schemas.vscodeLocalChatSession);
-			this._register(onProgress(() => {
-				this._onDidChangeChatSessionItems.fire();
-			}));
+			this._register(this._chatSessionsService.registerModelProgressListener(Array.from(models), Schemas.vscodeLocalChatSession, this._onDidChangeChatSessionItems));
 		}));
 
 		// Listen for global session items changes for our session type

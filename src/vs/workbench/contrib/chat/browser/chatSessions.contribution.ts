@@ -832,34 +832,29 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		};
 	}
 
-	public registerModelProgressListener(models: IChatModel[], type: string): Event<void> {
-		const changeEmitter = this._register(new Emitter<void>());
-		const event = changeEmitter.event;
-		const responseDisposables = this._register(new DisposableStore());
+	public registerModelProgressListener(models: IChatModel[], type: string, emitter: Emitter<void>): IDisposable {
+		const disposables = new DisposableStore();
 
 		for (const model of models) {
 			if (model.sessionResource.scheme === type && !this._registeredModels.has(model)) {
 				this._registeredModels.add(model);
-				const modelDisposables = this._register(new DisposableStore());
-
-				modelDisposables.add(autorun(reader => {
+				disposables.add(autorun(reader => {
 					const lastResponse = model.lastRequestObs.read(reader);
 					if (lastResponse?.response) {
-						responseDisposables.clear();
-						responseDisposables.add(lastResponse.response.onDidChange(() => {
-							changeEmitter.fire();
+						disposables.add(lastResponse.response.onDidChange(() => {
+							emitter.fire();
 						}));
 					}
 				}));
 
-				// Clean up when model is disposed
-				this._register(model.onDidDispose(() => {
+				disposables.add(model.onDidDispose(() => {
 					this._registeredModels.delete(model);
-					modelDisposables.dispose();
+					disposables.dispose();
 				}));
 			}
 		}
-		return event;
+
+		return disposables;
 	}
 
 	public getSessionDescription(chatModel: IChatModel): string | undefined {

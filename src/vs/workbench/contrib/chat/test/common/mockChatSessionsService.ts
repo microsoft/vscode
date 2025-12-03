@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -226,14 +226,16 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return undefined;
 	}
 
-	registerModelProgressListener(models: IChatModel[], type: string): Event<void> {
-		// Create an emitter for testing progress events
-		const emitter = new Emitter<void>();
-
+	registerModelProgressListener(models: IChatModel[], type: string, emitter: Emitter<void>): IDisposable {
 		// Store the emitter so tests can trigger it
 		this._progressEmitter = emitter;
 
-		return emitter.event;
+		// Subscribe the callback to the emitter
+		return {
+			dispose: () => {
+				emitter.dispose();
+			}
+		};
 	}
 
 	// Helper method for tests to trigger progress events
