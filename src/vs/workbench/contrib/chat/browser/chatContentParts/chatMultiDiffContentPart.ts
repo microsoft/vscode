@@ -69,6 +69,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		const headerDomNode = $('.checkpoint-file-changes-summary-header');
 		this.domNode = $('.checkpoint-file-changes-summary', undefined, headerDomNode);
 		this.domNode.tabIndex = 0;
+		this.isCollapsed = content.multiDiffData.collapsed ?? false;
 
 		this._register(this.renderHeader(headerDomNode));
 		this._register(this.renderFilesList(this.domNode));

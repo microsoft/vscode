@@ -167,6 +167,7 @@ export interface IChatMultiDiffData {
 			added?: number;
 			removed?: number;
 		}>;
+		collapsed?: boolean;
 	};
 	kind: 'multiDiffData';
 	readOnly?: boolean;

@@ -701,6 +701,12 @@ export class ChatService extends Disposable implements IChatService {
 			}));
 		} else {
 			if (lastRequest) {
+				this._register(autorun(reader => {
+					const data = model.multiDiffData.read(reader);
+					if (data && data.multiDiffData.resources.length > 0) {
+						lastRequest.response?.updateContent(data);
+					}
+				}));
 				lastRequest.response?.complete();
 			}
 		}
