@@ -32,13 +32,14 @@
 	}
 
 	.monaco-list-row .agent-session-title-toolbar .monaco-toolbar .action-label {
-		padding: 0; /* limit padding top/bottom to preserve line-height per row */
+		padding: 0;
+		/* limit padding top/bottom to preserve line-height per row */
 	}
 
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 8px;
+		padding: 8px 20px;
 
 		.agent-session-main-col,
 		.agent-session-title-row,
@@ -95,7 +96,8 @@
 
 		.agent-session-title,
 		.agent-session-description {
-			flex: 1; /* push other items to the end */
+			flex: 1;
+			/* push other items to the end */
 			text-overflow: ellipsis;
 			overflow: hidden;
 		}
