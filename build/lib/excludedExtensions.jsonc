@@ -7,7 +7,7 @@
 	"ms-vscode.node-debug",
 	"ms-vscode.node-debug2",
 	// ============================================================================
-	// Themes (keep theme-defaults active)
+	// Themes (keep theme-defaults and theme-seti active)
 	// ============================================================================
 	"theme-abyss",
 	"theme-kimbie-dark",
@@ -15,11 +15,11 @@
 	"theme-monokai-dimmed",
 	"theme-quietlight",
 	"theme-red",
-	"theme-seti",
+	// "theme-seti",
 	"theme-solarized-dark",
 	"theme-solarized-light",
 	"theme-tomorrow-night-blue",
-	// "theme-defaults",  // KEEP - Default themes (light/dark)
+	// "theme-defaults",
 	// ============================================================================
 	// Less common languages
 	// ============================================================================
