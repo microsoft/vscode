@@ -8,14 +8,13 @@
     "start": "node ./out/index.js"
   },
   "dependencies": {
-    "@types/tar-stream": "^3.1.4",
     "fflate": "^0.8.2",
     "node-fetch": "^3.3.2",
     "tar-stream": "^3.1.7"
   },
   "devDependencies": {
-    "@types/ncp": "2.0.8",
     "@types/node": "22.x",
-    "@types/node-fetch": "^2.6.13"
+    "@types/node-fetch": "^2.6.13",
+    "@types/tar-stream": "^3.1.4"
   }
 }
