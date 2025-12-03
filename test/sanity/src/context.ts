@@ -31,7 +31,7 @@ interface ITargetMetadata {
  */
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
-	private static readonly authenticodeExclude = /^node.exe|rg.exe$/i;
+	private static readonly authenticodeExclude = /^node.exe|rg.exe|winpty-agent.exe$/i;
 
 	private readonly tempDirs = new Set<string>();
 
