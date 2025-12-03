@@ -137,7 +137,8 @@
 	box-sizing: border-box;
 	overflow: hidden;
 	position: relative;
-	padding: 5px 0px;
+	max-width: 100%;
+	padding: 5px 0px 1px;
 }
 
 .chat-terminal-content-part .chat-terminal-content-title.chat-terminal-content-title-no-bottom-radius {
@@ -162,7 +163,7 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	box-sizing: border-box;
 }
 .chat-terminal-output-body {
-	padding: 4px 0px;
+	padding: 4px 0px 1px;
 	max-width: 100%;
 	box-sizing: border-box;
 	min-height: 0;
