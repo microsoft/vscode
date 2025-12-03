@@ -339,7 +339,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 
 	static readonly ID = 'agentSessions.showAgentSessionsSidebar';
-	static readonly TITLE = localize2('showAllSessions', "Show Agent Sessions Sidebar");
+	static readonly TITLE = localize2('showAgentSessionsSidebar', "Show Agent Sessions Sidebar");
 
 	constructor() {
 		super({
@@ -358,7 +358,7 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 
 	static readonly ID = 'agentSessions.hideAgentSessionsSidebar';
-	static readonly TITLE = localize2('hideAllSessions', "Hide Agent Sessions Sidebar");
+	static readonly TITLE = localize2('hideAgentSessionsSidebar', "Hide Agent Sessions Sidebar");
 
 	constructor() {
 		super({
