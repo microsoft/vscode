@@ -861,6 +861,17 @@ export class ChatModelsWidget extends Disposable {
 				this.searchWidget.focus();
 			}
 		));
+		const collapseAllAction = this._register(new Action(
+			'workbench.models.collapseAll',
+			localize('collapseAll', "Collapse All"),
+			ThemeIcon.asClassName(Codicon.collapseAll),
+			false,
+			() => {
+				this.viewModel.collapseAll();
+			}
+		));
+		collapseAllAction.enabled = this.viewModel.viewModelEntries.some(e => isVendorEntry(e) || isGroupEntry(e));
+		this._register(this.viewModel.onDidChange(() => collapseAllAction.enabled = this.viewModel.viewModelEntries.some(e => isVendorEntry(e) || isGroupEntry(e))));
 
 		this._register(this.searchWidget.onInputDidChange(() => {
 			clearSearchAction.enabled = !!this.searchWidget.getValue();
@@ -868,7 +879,7 @@ export class ChatModelsWidget extends Disposable {
 		}));
 
 		this.searchActionsContainer = DOM.append(searchContainer, $('.models-search-actions'));
-		const actions = [clearSearchAction, filterAction];
+		const actions = [clearSearchAction, collapseAllAction, filterAction];
 		const toolBar = this._register(new ToolBar(this.searchActionsContainer, this.contextMenuService, {
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action.id === filterAction.id) {
@@ -907,7 +918,6 @@ export class ChatModelsWidget extends Disposable {
 		// Create table
 		this.createTable();
 		this._register(this.viewModel.onDidChangeGrouping(() => this.createTable()));
-		return;
 	}
 
 	private createTable(): void {

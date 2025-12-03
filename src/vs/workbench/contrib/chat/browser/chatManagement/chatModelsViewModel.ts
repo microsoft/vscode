@@ -461,6 +461,21 @@ export class ChatModelsViewModel extends Disposable {
 		this.filter(this.searchValue);
 	}
 
+	collapseAll(): void {
+		const allGroupIds = new Set<string>();
+		for (const entry of this.viewModelEntries) {
+			if (isVendorEntry(entry)) {
+				allGroupIds.add(entry.vendorEntry.vendor);
+			} else if (isGroupEntry(entry)) {
+				allGroupIds.add(entry.group);
+			}
+		}
+		for (const id of allGroupIds) {
+			this.collapsedGroups.add(id);
+		}
+		this.filter(this.searchValue);
+	}
+
 	getConfiguredVendors(): IVendorEntry[] {
 		const result: IVendorEntry[] = [];
 		const seenVendors = new Set<string>();
