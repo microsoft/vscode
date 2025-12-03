@@ -62,7 +62,7 @@ type ChatViewPaneOpenedClassification = {
 
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
-	private static readonly SESSIONS_LIMIT = 5;
+	private static readonly SESSIONS_LIMIT = 3;
 	private static readonly SESSIONS_SIDEBAR_WIDTH = 300;
 	private static readonly SESSIONS_SIDEBAR_VIEW_MIN_WIDTH = 300 /* default chat width */ + this.SESSIONS_SIDEBAR_WIDTH;
 
