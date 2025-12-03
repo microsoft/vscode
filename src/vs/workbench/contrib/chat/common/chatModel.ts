@@ -645,7 +645,7 @@ export class Response extends AbstractResponse implements IDisposable {
 				? (Array.isArray(lastResponsePart.value) ? lastResponsePart.value.join('') : (lastResponsePart.value || ''))
 				: '';
 			const currText = Array.isArray(progress.value) ? progress.value.join('') : (progress.value || '');
-			const isEmpty = (s: string) => s.trim().length === 0;
+			const isEmpty = (s: string) => s.length === 0;
 
 			// Do not merge if either the current or last thinking chunk is empty; empty chunks separate thinking
 			if (!lastResponsePart
