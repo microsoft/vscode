@@ -14,7 +14,7 @@ import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../p
 import { IChatMode, IChatModeService } from '../../chatModes.js';
 import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
-import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
+import { ILanguageModelToolsService, SpecedToolAliases } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { GithubPromptHeaderAttributes, IArrayValue, IHeaderAttribute, IStringValue, ParsedPromptFile, PromptHeaderAttributes, Target } from '../promptFileParser.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -520,12 +520,10 @@ export function isNonRecommendedAttribute(attributeName: string): boolean {
 }
 
 // The list of tools known to be used by GitHub Copilot custom agents
-export const knownGithubCopilotTools: Record<string, string> = {
-	'shell': localize('githubCopilotTools.shell', 'Execute shell commands'),
-	'edit': localize('githubCopilotTools.edit', 'Edit files'),
-	'search': localize('githubCopilotTools.search', 'Search in files'),
-	'custom-agent': localize('githubCopilotTools.customAgent', 'Call custom agents')
-};
+export const knownGithubCopilotTools = [
+	SpecedToolAliases.execute, SpecedToolAliases.read, SpecedToolAliases.edit, SpecedToolAliases.search, SpecedToolAliases.agent,
+];
+
 export function isGithubTarget(promptType: PromptsType, target: string | undefined): boolean {
 	return promptType === PromptsType.agent && target === Target.GitHubCopilot;
 }
