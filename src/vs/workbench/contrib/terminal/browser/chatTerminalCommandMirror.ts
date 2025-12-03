@@ -11,9 +11,6 @@ import { DetachedProcessInfo } from './detachedTerminal.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../common/theme.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 
 export async function getCommandOutputSnapshot(
 	xtermTerminal: XtermTerminal,
@@ -98,7 +95,6 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		private readonly _xtermTerminal: XtermTerminal,
 		private readonly _command: ITerminalCommand,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._detachedTerminal = this._createTerminal();
@@ -144,9 +140,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 					if (terminalBackground) {
 						return terminalBackground;
 					}
-					// Use editor background when in chat editor, panel background otherwise
-					const isInEditor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService);
-					return theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
+					return theme.getColor(PANEL_BACKGROUND);
 				},
 			}
 		});

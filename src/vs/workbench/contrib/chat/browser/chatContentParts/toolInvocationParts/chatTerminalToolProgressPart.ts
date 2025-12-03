@@ -50,8 +50,6 @@ import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js'
 import { Color } from '../../../../../../base/common/color.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../../../../terminal/common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../../../common/theme.js';
-import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
-import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 
 const MIN_OUTPUT_ROWS = 1;
 const MAX_OUTPUT_ROWS = 10;
@@ -694,9 +692,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		private readonly _getStoredTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
 	) {
 		super();
 
@@ -723,9 +719,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const resizeObserver = new ResizeObserver(() => this._handleResize());
 		resizeObserver.observe(this.domNode);
 		this._register(toDisposable(() => resizeObserver.disconnect()));
-
-		this._applyBackgroundColor();
-		this._register(this._themeService.onDidColorThemeChange(() => this._applyBackgroundColor()));
 	}
 
 	public async toggle(expanded: boolean): Promise<boolean> {
@@ -1013,15 +1006,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const rowHeight = Math.ceil(charHeight * lineHeight);
 		return Math.max(rowHeight, 1);
 	}
-
-	private _applyBackgroundColor(): void {
-		const theme = this._themeService.getColorTheme();
-		const isInEditor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService);
-		const backgroundColor = theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
-		if (backgroundColor) {
-			this.domNode.style.backgroundColor = backgroundColor.toString();
-		}
-	}
 }
 
 class DetachedTerminalSnapshotMirror extends Disposable {
@@ -1036,7 +1020,6 @@ class DetachedTerminalSnapshotMirror extends Disposable {
 		output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
 		private readonly _getTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._output = output;
@@ -1137,9 +1120,7 @@ class DetachedTerminalSnapshotMirror extends Disposable {
 					if (terminalBackground) {
 						return terminalBackground;
 					}
-					// Use editor background when in chat editor, panel background otherwise
-					const isInEditor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService);
-					return theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
+					return theme.getColor(PANEL_BACKGROUND);
 				}
 			}
 		});
