@@ -70,7 +70,9 @@ export class WriteFileTool implements IToolImpl {
 			}
 
 			// File doesn't exist, safe to create
-			await this.fileService.writeFile(uri, VSBuffer.fromString(args.content));
+			// Use createFile instead of writeFile to ensure FileOperation.CREATE event is fired
+			// This ensures the file explorer updates properly when new files are created
+			await this.fileService.createFile(uri, VSBuffer.fromString(args.content));
 			return {
 				content: [{
 					kind: 'text',
