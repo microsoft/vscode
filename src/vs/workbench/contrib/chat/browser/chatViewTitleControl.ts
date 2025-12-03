@@ -151,12 +151,12 @@ export class ChatViewTitleControl extends Disposable {
 		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewTitleEnabled) === true;
 	}
 
-	getSingleViewPaneContainerTitle(descriptorTitle: string | undefined): string | undefined {
+	getSingleViewPaneContainerTitle(): string | undefined {
 		if (
 			!this.isEnabled() ||	// title disabled
 			this.shouldRender()		// title is rendered in the view, do not repeat
 		) {
-			return descriptorTitle;
+			return undefined;
 		}
 
 		return this.getTitleWithPrefix();

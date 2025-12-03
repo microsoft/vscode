@@ -524,6 +524,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	override get singleViewPaneContainerTitle(): string | undefined {
-		return this.titleControl?.getSingleViewPaneContainerTitle(super.singleViewPaneContainerTitle);
+		if (this.titleControl) {
+			const titleControlTitle = this.titleControl.getSingleViewPaneContainerTitle();
+			if (titleControlTitle) {
+				return titleControlTitle;
+			}
+		}
+
+		return super.singleViewPaneContainerTitle;
 	}
 }
