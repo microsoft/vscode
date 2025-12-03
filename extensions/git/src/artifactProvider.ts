@@ -119,7 +119,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		try {
 			if (group === 'branches') {
 				const refs = await this.repository
-					.getRefs({ pattern: 'refs/heads', includeCommitDetails: true });
+					.getRefs({ pattern: 'refs/heads', includeCommitDetails: true, sort: 'creatordate' });
 
 				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/heads/${r.name}`,
@@ -132,7 +132,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				}));
 			} else if (group === 'tags') {
 				const refs = await this.repository
-					.getRefs({ pattern: 'refs/tags', includeCommitDetails: true });
+					.getRefs({ pattern: 'refs/tags', includeCommitDetails: true, sort: 'creatordate' });
 
 				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/tags/${r.name}`,
