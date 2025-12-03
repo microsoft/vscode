@@ -29,6 +29,8 @@ import { IWorkbenchConfigurationService } from '../../configuration/common/confi
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 export abstract class AbstractWorkspaceEditingService extends Disposable implements IWorkspaceEditingService {
 
@@ -174,7 +176,20 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		if (remoteAuthority) {
 			// https://github.com/microsoft/vscode/issues/94191
-			foldersToAdd = foldersToAdd.filter(folder => folder.uri.scheme !== Schemas.file && (folder.uri.scheme !== Schemas.vscodeRemote || isEqualAuthority(folder.uri.authority, remoteAuthority)));
+			// DSpace: Allow local file system folders when WebFileSystemAccess is supported
+			// This enables local-first behavior where users can add local folders to workspaces
+			// even when a remote authority is present (for extension loading).
+			// This is a DSpace-specific modification - preserve during upstream merges.
+			const allowLocalFiles = WebFileSystemAccess.supported(mainWindow);
+			foldersToAdd = foldersToAdd.filter(folder => {
+				// Always allow local file system if WebFileSystemAccess is supported
+				if (allowLocalFiles && folder.uri.scheme === Schemas.file) {
+					return true;
+				}
+				// Otherwise, filter as before
+				return folder.uri.scheme !== Schemas.file && (folder.uri.scheme !== Schemas.vscodeRemote || isEqualAuthority(folder.uri.authority, remoteAuthority));
+			});
+			// End DSpace modification
 		}
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to

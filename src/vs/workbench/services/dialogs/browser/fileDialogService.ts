@@ -92,7 +92,26 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return super.pickFolderAndOpenSimplified(schema, options);
 		}
 
-		throw new Error(localize('pickFolderAndOpen', "Can't open folders, try adding a folder to the workspace instead."));
+		const activeWindow = getActiveWindow();
+		if (!WebFileSystemAccess.supported(activeWindow)) {
+			return this.showUnsupportedBrowserWarning('open');
+		}
+
+		let directoryHandle: FileSystemHandle | undefined = undefined;
+		const startIn = Iterable.first(this.fileSystemProvider.directories);
+		try {
+			directoryHandle = await activeWindow.showDirectoryPicker({ ...{ startIn } });
+		} catch (error) {
+			return; // `showDirectoryPicker` will throw an error when the user cancels
+		}
+
+		if (!WebFileSystemAccess.isFileSystemDirectoryHandle(directoryHandle)) {
+			return;
+		}
+
+		const uri = await this.fileSystemProvider.registerDirectoryHandle(directoryHandle);
+
+		await this.hostService.openWindow([{ folderUri: uri }], { forceNewWindow: options.forceNewWindow, remoteAuthority: options.remoteAuthority });
 	}
 
 	async pickWorkspaceAndOpen(options: IPickAndOpenOptions): Promise<void> {
@@ -193,24 +212,39 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return this.showUnsupportedBrowserWarning('open');
 		}
 
-		let uri: URI | undefined;
 		const startIn = Iterable.first(this.fileSystemProvider.directories) ?? 'documents';
 
 		try {
 			if (options.canSelectFiles) {
-				const handle = await activeWindow.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
-				if (handle.length === 1 && WebFileSystemAccess.isFileSystemFileHandle(handle[0])) {
-					uri = await this.fileSystemProvider.registerFileHandle(handle[0]);
+				// DSpace: Support multiple file selection when requested
+				// This is a DSpace-specific enhancement - preserve during upstream merges.
+				const multiple = options.canSelectMany ?? false;
+				const handle = await activeWindow.showOpenFilePicker({ multiple, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
+				if (handle.length > 0) {
+					const uris: URI[] = [];
+					for (const fileHandle of handle) {
+						if (WebFileSystemAccess.isFileSystemFileHandle(fileHandle)) {
+							uris.push(await this.fileSystemProvider.registerFileHandle(fileHandle));
+						}
+					}
+					return uris.length > 0 ? uris : undefined;
 				}
+				// End DSpace modification
 			} else {
+				// DSpace: Note - The Web File System Access API's showDirectoryPicker doesn't support multiple selection natively
+				// For canSelectMany with folders, we fall back to single selection due to browser API limitations
+				// Users can add multiple folders by calling "add folder" multiple times
+				// This is a DSpace-specific note - preserve during upstream merges.
 				const handle = await activeWindow.showDirectoryPicker({ ...{ startIn } });
-				uri = await this.fileSystemProvider.registerDirectoryHandle(handle);
+				const uri = await this.fileSystemProvider.registerDirectoryHandle(handle);
+				return uri ? [uri] : undefined;
+				// End DSpace modification
 			}
 		} catch (error) {
 			// ignore - `showOpenFilePicker` / `showDirectoryPicker` will throw an error when the user cancels
 		}
 
-		return uri ? [uri] : undefined;
+		return undefined;
 	}
 
 	private async showUnsupportedBrowserWarning(context: 'save' | 'open'): Promise<undefined> {
