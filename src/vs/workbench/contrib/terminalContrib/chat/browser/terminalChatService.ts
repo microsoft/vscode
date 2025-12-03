@@ -182,10 +182,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				this._focusedProgressPart = undefined;
 			}
 			if (this._mostRecentProgressPart === part) {
-				const fallback = this._getLastActiveProgressPart();
-				if (fallback) {
-					this._mostRecentProgressPart = fallback;
-				}
+				this._mostRecentProgressPart = this._getLastActiveProgressPart();
 			}
 		});
 	}
