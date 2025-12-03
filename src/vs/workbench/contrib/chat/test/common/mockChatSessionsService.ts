@@ -17,6 +17,8 @@ import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessi
 export class MockChatSessionsService implements IChatSessionsService {
 	_serviceBrand: undefined;
 
+	private readonly _onDidChangeSessionOptions = new Emitter<{ readonly resource: URI; readonly updates: ReadonlyArray<{ optionId: string; value: string }> }>();
+	readonly onDidChangeSessionOptions = this._onDidChangeSessionOptions.event;
 	private readonly _onDidChangeItemsProviders = new Emitter<IChatSessionItemProvider>();
 	readonly onDidChangeItemsProviders = this._onDidChangeItemsProviders.event;
 
