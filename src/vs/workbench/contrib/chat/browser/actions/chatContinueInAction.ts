@@ -281,7 +281,7 @@ class CreateRemoteAgentJobAction {
 			const requestData = await chatService.sendRequest(sessionResource, userPrompt, {
 				agentIdSilent: continuationTargetType,
 				attachedContext: attachedContext.asArray(),
-				userSelectedModelId: widget?.input.currentLanguageModel,
+				userSelectedModelId: widget.input.currentLanguageModel,
 				...widget.getModeRequestOptions()
 			});
 
