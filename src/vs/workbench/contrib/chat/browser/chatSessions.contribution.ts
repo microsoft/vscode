@@ -42,6 +42,7 @@ import { IChatService, IChatToolInvocation } from '../common/chatService.js';
 import { autorunSelfDisposable } from '../../../../base/common/observable.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -906,11 +907,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (typeof progress === 'string') {
 			cleaned = progress;
 		} else if (progress) {
-			// Remove file links but keep the link text or filename
-			cleaned = progress.value.replace(/\[(?<linkText>[^\]]*)\]\(file:\/\/\/(?<path>[^)]+)\)/g, (match: string, _p1: string, _p2: string, _offset: number, _string: string, groups?: { linkText?: string; path?: string }) => {
-				const fileName = groups?.path?.split('/').pop() || groups?.path || '';
-				return (groups?.linkText?.trim() || fileName);
-			});
+			cleaned = renderAsPlaintext(progress, { preserveFileLinks: true });
 		}
 		// Remove ticks
 		return cleaned.replace(/`+/g, '');

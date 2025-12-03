@@ -664,6 +664,8 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	/** Controls if the ``` of code blocks should be preserved in the output or not */
 	readonly includeCodeBlocksFences?: boolean;
+	/** Controls if file:// links should be preserved as filenames in the output */
+	readonly preserveFileLinks?: boolean;
 }) {
 	if (typeof str === 'string') {
 		return str;
@@ -675,7 +677,14 @@ export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 		value = `${value.substr(0, 100_000)}…`;
 	}
 
-	const html = marked.parse(value, { async: false, renderer: options?.includeCodeBlocksFences ? plainTextWithCodeBlocksRenderer.value : plainTextRenderer.value });
+	let renderer = plainTextRenderer.value;
+	if (options?.includeCodeBlocksFences) {
+		renderer = plainTextWithCodeBlocksRenderer.value;
+	} else if (options?.preserveFileLinks) {
+		renderer = plainTextWithFileLinksRenderer.value;
+	}
+
+	const html = marked.parse(value, { async: false, renderer });
 	return sanitizeRenderedMarkdown(html, { isTrusted: false }, {})
 		.toString()
 		.replace(/&(#\d+|[a-zA-Z]+);/g, m => unescapeInfo.get(m) ?? m)
@@ -759,6 +768,18 @@ const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
 	const renderer = createPlainTextRenderer();
 	renderer.code = ({ text }: marked.Tokens.Code): string => {
 		return `\n\`\`\`\n${escape(text)}\n\`\`\`\n`;
+	};
+	return renderer;
+});
+
+const plainTextWithFileLinksRenderer = new Lazy<marked.Renderer>(() => {
+	const renderer = createPlainTextRenderer();
+	renderer.link = ({ text, href }: marked.Tokens.Link): string => {
+		if (href && href.startsWith('file://')) {
+			const fileName = href.split('/').pop() || href;
+			return text.trim() || fileName;
+		}
+		return text;
 	};
 	return renderer;
 });
