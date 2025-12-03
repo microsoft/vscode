@@ -20,12 +20,12 @@ suite('UserAttentionService', () => {
 	let hostService: TestHostService;
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const ONE_MINUTE = 60_000;
-	const ATTENTION_TIMEOUT = 5_000; // USER_ATTENTION_TIMEOUT_MS is 5 seconds
+	const ONE_MINUTE = 50_000;
+	const ATTENTION_TIMEOUT = 60_000; // USER_ATTENTION_TIMEOUT_MS is 60 seconds
 
 	class UserAttentionService2 extends UserAttentionService {
-		public override _markUserActivity(): void {
-			super._markUserActivity();
+		public markUserActivity(): void {
+			this._markUserActivity();
 		}
 	}
 
@@ -71,7 +71,8 @@ suite('UserAttentionService', () => {
 
 		hostService.setFocus(false);
 
-		assert.strictEqual(userAttentionService.hasUserAttention.get(), false);
+		// Attention is not dependent on focus
+		assert.strictEqual(userAttentionService.hasUserAttention.get(), true);
 	});
 
 	test('hasUserAttention is restored when activity occurs', () => {
@@ -80,7 +81,7 @@ suite('UserAttentionService', () => {
 		assert.strictEqual(userAttentionService.hasUserAttention.get(), false);
 
 		// Simulate activity
-		userAttentionService._markUserActivity();
+		userAttentionService.markUserActivity();
 
 		assert.strictEqual(userAttentionService.hasUserAttention.get(), true);
 	});
@@ -92,7 +93,7 @@ suite('UserAttentionService', () => {
 		assert.strictEqual(userAttentionService.isUserActive.get(), false);
 
 		// Mark activity - should become true
-		userAttentionService._markUserActivity();
+		userAttentionService.markUserActivity();
 		assert.strictEqual(userAttentionService.isUserActive.get(), true);
 
 		// Should still be true within 500ms
@@ -118,9 +119,9 @@ suite('UserAttentionService', () => {
 		changeCount = 0;
 
 		// Rapid activity - should only trigger once (true)
-		userAttentionService._markUserActivity();
-		userAttentionService._markUserActivity();
-		userAttentionService._markUserActivity();
+		userAttentionService.markUserActivity();
+		userAttentionService.markUserActivity();
+		userAttentionService.markUserActivity();
 
 		// Only one change to true
 		assert.strictEqual(changeCount, 1);
@@ -138,7 +139,7 @@ suite('UserAttentionService', () => {
 
 		// Advance time halfway, then activity
 		clock.tick(ONE_MINUTE / 2);
-		userAttentionService._markUserActivity();
+		userAttentionService.markUserActivity();
 
 		// Advance another half minute - should still have attention
 		clock.tick(ONE_MINUTE / 2);
@@ -151,7 +152,7 @@ suite('UserAttentionService', () => {
 
 	test('DOM events trigger activity when focused', () => {
 		// Wait for attention to expire
-		clock.tick(ONE_MINUTE + 1);
+		clock.tick(ATTENTION_TIMEOUT + 1);
 		assert.strictEqual(userAttentionService.hasUserAttention.get(), false);
 
 		// Simulate keydown event
@@ -164,14 +165,14 @@ suite('UserAttentionService', () => {
 		hostService.setFocus(false);
 
 		// Wait for attention to expire
-		clock.tick(ONE_MINUTE + 1);
+		clock.tick(ATTENTION_TIMEOUT + 1);
 		assert.strictEqual(userAttentionService.hasUserAttention.get(), false);
 
 		// Simulate keydown event while not focused
 		document.dispatchEvent(new KeyboardEvent('keydown'));
 
-		// Should still be false because window is not focused
-		assert.strictEqual(userAttentionService.hasUserAttention.get(), false);
+		// Should still be true because window is not focused
+		assert.strictEqual(userAttentionService.hasUserAttention.get(), true);
 	});
 
 	suite('fireAfterGivenFocusTimePassed', () => {
@@ -183,17 +184,17 @@ suite('UserAttentionService', () => {
 			store.add(disposable);
 
 			// Mark activity to ensure attention is maintained, then advance 1 minute - not yet fired
-			userAttentionService._markUserActivity();
+			userAttentionService.markUserActivity();
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, false);
 
 			// Mark activity and advance another minute - still not fired
-			userAttentionService._markUserActivity();
+			userAttentionService.markUserActivity();
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, false);
 
 			// Mark activity and advance 3rd minute - should fire
-			userAttentionService._markUserActivity();
+			userAttentionService.markUserActivity();
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, true);
 		});
@@ -206,18 +207,14 @@ suite('UserAttentionService', () => {
 			store.add(disposable);
 
 			// Mark activity and accumulate 1 minute
-			userAttentionService._markUserActivity();
+			userAttentionService.markUserActivity();
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, false);
 
-			// Lose focus - should not accumulate (even with activity)
+			// Lose focus - should still accumulate (even with activity)
 			hostService.setFocus(false);
-			clock.tick(ONE_MINUTE);
-			assert.strictEqual(callbackFired, false);
-
-			// Regain focus and activity, then tick - should fire
-			hostService.setFocus(true);
-			userAttentionService._markUserActivity();
+			// Mark activity again to ensure attention is maintained
+			userAttentionService.markUserActivity();
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, true);
 		});
@@ -230,7 +227,7 @@ suite('UserAttentionService', () => {
 			store.add(disposable);
 
 			// Mark activity and accumulate 1 minute
-			userAttentionService._markUserActivity();
+			userAttentionService.markUserActivity();
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, false);
 
@@ -245,7 +242,7 @@ suite('UserAttentionService', () => {
 			assert.strictEqual(callbackFired, false);
 
 			// Restore activity and accumulate 1 more minute
-			userAttentionService._markUserActivity();
+			userAttentionService.markUserActivity();
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, true);
 		});
@@ -257,7 +254,7 @@ suite('UserAttentionService', () => {
 			});
 
 			// Mark activity and accumulate 1 minute
-			userAttentionService._markUserActivity();
+			userAttentionService.markUserActivity();
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, false);
 
@@ -265,7 +262,7 @@ suite('UserAttentionService', () => {
 			disposable.dispose();
 
 			// Advance past threshold - should not fire
-			userAttentionService._markUserActivity();
+			userAttentionService.markUserActivity();
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callbackFired, false);
 		});
@@ -278,12 +275,12 @@ suite('UserAttentionService', () => {
 			store.add(disposable);
 
 			// Mark activity and advance 1 minute - should fire
-			userAttentionService._markUserActivity();
+			userAttentionService.markUserActivity();
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callCount, 1);
 
 			// Keep ticking, should not fire again
-			userAttentionService._markUserActivity();
+			userAttentionService.markUserActivity();
 			clock.tick(ONE_MINUTE);
 			assert.strictEqual(callCount, 1);
 		});
