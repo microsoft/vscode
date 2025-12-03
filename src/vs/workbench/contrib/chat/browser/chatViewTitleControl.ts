@@ -13,6 +13,7 @@ import { IViewDescriptorService, IViewContainerModel } from '../../../common/vie
 import { ActivityBarPosition, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { ChatViewId } from './chat.js';
+import { ChatConfiguration } from '../common/constants.js';
 
 export interface IChatViewTitleDelegate {
 	updateTitle(title: string): void;
@@ -67,7 +68,10 @@ export class ChatViewTitleControl extends Disposable {
 
 		// Update on configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
+			if (
+				e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) ||
+				e.affectsConfiguration(ChatConfiguration.ChatViewTitleEnabled)
+			) {
 				this.doUpdate();
 			}
 		}));
@@ -125,6 +129,10 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private shouldRender(): boolean {
+		if (!this.isEnabled()) {
+			return false; // title hidden via setting
+		}
+
 		if (this.viewContainerModel && this.viewContainerModel.visibleViewDescriptors.length > 1) {
 			return false; // multiple views visible, chat view shows a title already
 		}
@@ -133,9 +141,16 @@ export class ChatViewTitleControl extends Disposable {
 		return location === ActivityBarPosition.DEFAULT; // in non-default locations a view title appears already
 	}
 
+	private isEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewTitleEnabled) === true;
+	}
+
 	getSingleViewPaneContainerTitle(descriptorTitle: string | undefined): string | undefined {
-		if (this.shouldRender()) {
-			return descriptorTitle; // do not repeat the same title twice
+		if (
+			!this.isEnabled() ||	// title disabled
+			this.shouldRender()		// title is rendered in the view, do not repeat
+		) {
+			return descriptorTitle;
 		}
 
 		return this.title;
