@@ -30,7 +30,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { InlineChatConfigKeys } from '../../inlineChat/common/inlineChat.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
-import { chatEditingSessionIsReady } from './chatEditingService.js';
+import { awaitCompleteChatEditingDiff, chatEditingSessionIsReady, editEntriesToMultiDiffData } from './chatEditingService.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { ChatModelStore, IStartSessionProps } from './chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
@@ -700,7 +700,14 @@ export class ChatService extends Disposable implements IChatService {
 				}
 			}));
 		} else {
-			if (lastRequest) {
+			if (lastRequest && model.editingSession) {
+				await chatEditingSessionIsReady(model.editingSession); // wait for timeline to have diffs available
+				const diffs = model.editingSession.getDiffsForFilesInRequest(lastRequest.id);
+				const finalDiff = await awaitCompleteChatEditingDiff(diffs);
+				if (finalDiff && finalDiff.length > 0) {
+					lastRequest.response?.updateContent(editEntriesToMultiDiffData(finalDiff));
+				}
+
 				lastRequest.response?.complete();
 			}
 		}

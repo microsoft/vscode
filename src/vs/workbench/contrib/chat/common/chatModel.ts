@@ -30,7 +30,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { migrateLegacyTerminalToolSpecificData } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from './chatAgents.js';
-import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from './chatEditingService.js';
+import { awaitCompleteChatEditingDiff, editEntriesToMultiDiffData, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatModelReference, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { LocalChatSessionUri } from './chatUri.js';
@@ -1712,9 +1712,17 @@ export class ChatModel extends Disposable implements IChatModel {
 				return;
 			}
 
-			reader.store.add(request.response.onDidChange(ev => {
-				if (ev.reason === 'completedRequest') {
-					this._onDidChange.fire({ kind: 'completedRequest', request });
+			reader.store.add(request.response.onDidChange(async ev => {
+				if (ev.reason === 'completedRequest' && this._editingSession) {
+					if (request === this._requests.at(-1)
+						&& request.session.sessionResource.scheme !== Schemas.vscodeLocalChatSession
+						&& this._editingSession.hasEditsInRequest(request.id)
+					) {
+						const diffs = this._editingSession.getDiffsForFilesInRequest(request.id);
+						const finalDiff = await awaitCompleteChatEditingDiff(diffs);
+						request.response?.updateContent(editEntriesToMultiDiffData(finalDiff), true);
+						this._onDidChange.fire({ kind: 'completedRequest', request });
+					}
 				}
 			}));
 		}));
