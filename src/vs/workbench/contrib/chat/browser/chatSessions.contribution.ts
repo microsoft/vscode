@@ -41,6 +41,8 @@ import { IChatModel, IChatProgressResponseContent, IChatRequestModel } from '../
 import { IChatService, IChatToolInvocation } from '../common/chatService.js';
 import { autorunSelfDisposable } from '../../../../base/common/observable.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -909,7 +911,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		// Get the response parts to find tool invocations and progress messages
 		const responseParts = response.response.value;
-		let description: string = '';
+		let description: string | IMarkdownString | undefined = '';
 
 		for (let i = responseParts.length - 1; i >= 0; i--) {
 			const part = responseParts[i];
@@ -923,36 +925,24 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				if (state.type !== IChatToolInvocation.StateKind.Completed) {
 					const pastTenseMessage = toolInvocation.pastTenseMessage;
 					const invocationMessage = toolInvocation.invocationMessage;
-					const message = pastTenseMessage || invocationMessage;
-					description = typeof message === 'string' ? message : message?.value ?? '';
+					description = pastTenseMessage || invocationMessage;
 
-					if (description) {
-						description = this.extractFileNameFromLink(description);
-					}
 					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 						const message = toolInvocation.confirmationMessages?.title && (typeof toolInvocation.confirmationMessages.title === 'string'
 							? toolInvocation.confirmationMessages.title
 							: toolInvocation.confirmationMessages.title.value);
-						description = message ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", description);
+						description = message ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", typeof description === 'string' ? description : description.value);
 					}
 				}
 			}
 			if (!description && part.kind === 'toolInvocationSerialized') {
-				description = typeof part.invocationMessage === 'string' ? part.invocationMessage : part.invocationMessage?.value || '';
+				description = part.invocationMessage;
 			}
 			if (!description && part.kind === 'progressMessage') {
-				description = part.content.value || '';
+				description = part.content;
 			}
 		}
-
-		return description;
-	}
-
-	private extractFileNameFromLink(filePath: string): string {
-		return filePath.replace(/\[(?<linkText>[^\]]*)\]\(file:\/\/\/(?<path>[^)]+)\)/g, (match: string, _p1: string, _p2: string, _offset: number, _string: string, groups?: { linkText?: string; path?: string }) => {
-			const fileName = groups?.path?.split('/').pop() || groups?.path || '';
-			return (groups?.linkText?.trim() || fileName);
-		});
+		return renderAsPlaintext(description, { useLinkFormatter: true });
 	}
 
 	/**
