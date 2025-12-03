@@ -54,7 +54,7 @@ export class UnarchiveAgentSessionAction extends Action2 {
 		super({
 			id: 'agentSession.unarchive',
 			title: localize2('unarchive', "Unarchive"),
-			icon: Codicon.inbox,
+			icon: Codicon.unarchive,
 			menu: {
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
