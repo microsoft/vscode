@@ -13,14 +13,14 @@ import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneConta
 import { IViewContainersRegistry, ViewContainerLocation, IViewDescriptor, IViewsRegistry, Extensions as ViewExtensions } from '../../../../common/views.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { AGENT_SESSIONS_VIEW_CONTAINER_ID, AGENT_SESSIONS_VIEW_ID } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_CONTAINER_ID, AGENT_SESSIONS_VIEW_ID, SessionsViewerOrientation, SessionsViewerPosition } from './agentSessions.js';
 import { IAgentSessionsService, AgentSessionsService } from './agentSessionsService.js';
 import { AgentSessionsView } from './agentSessionsView.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { LocalAgentsSessionsProvider } from './localAgentSessionsProvider.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ArchiveAgentSessionAction, UnarchiveAgentSessionAction, RefreshAgentSessionsViewAction, FindAgentSessionAction, ShowAgentSessionsSidebar, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, HideAgentSessionsSidebar } from './agentSessionsActions.js';
+import { ArchiveAgentSessionAction, UnarchiveAgentSessionAction, RefreshAgentSessionsViewAction, FindAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar } from './agentSessionsActions.js';
 
 //#region View Container and View Registration
 
@@ -63,14 +63,6 @@ Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([agentSe
 
 //#region Actions and Menus
 
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsTitle, {
-	submenu: MenuId.AgentSessionsFilterSubMenu,
-	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
-	group: 'navigation',
-	order: 100,
-	icon: Codicon.filter
-} satisfies ISubmenuItem);
-
 registerAction2(ArchiveAgentSessionAction);
 registerAction2(UnarchiveAgentSessionAction);
 registerAction2(OpenAgentSessionInNewWindowAction);
@@ -80,6 +72,70 @@ registerAction2(RefreshAgentSessionsViewAction);
 registerAction2(FindAgentSessionAction);
 registerAction2(ShowAgentSessionsSidebar);
 registerAction2(HideAgentSessionsSidebar);
+
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsTitle, {
+	submenu: MenuId.AgentSessionsFilterSubMenu,
+	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
+	group: 'navigation',
+	order: 100,
+	icon: Codicon.filter
+} satisfies ISubmenuItem);
+
+MenuRegistry.appendMenuItem(MenuId.ChatViewSessionsToolbar, {
+	command: {
+		id: ShowAgentSessionsSidebar.ID,
+		title: ShowAgentSessionsSidebar.TITLE,
+		icon: Codicon.layoutSidebarRight,
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.sessionsViewerOrientation.isEqualTo(SessionsViewerOrientation.Stacked),
+		ChatContextKeys.sessionsViewerPosition.isEqualTo(SessionsViewerPosition.Right)
+	)
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatViewSessionsToolbar, {
+	command: {
+		id: ShowAgentSessionsSidebar.ID,
+		title: ShowAgentSessionsSidebar.TITLE,
+		icon: Codicon.layoutSidebarLeft,
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.sessionsViewerOrientation.isEqualTo(SessionsViewerOrientation.Stacked),
+		ChatContextKeys.sessionsViewerPosition.isEqualTo(SessionsViewerPosition.Left)
+	)
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatViewSessionsToolbar, {
+	command: {
+		id: HideAgentSessionsSidebar.ID,
+		title: HideAgentSessionsSidebar.TITLE,
+		icon: Codicon.layoutSidebarRightOff,
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.sessionsViewerOrientation.isEqualTo(SessionsViewerOrientation.SideBySide),
+		ChatContextKeys.sessionsViewerPosition.isEqualTo(SessionsViewerPosition.Right)
+	)
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatViewSessionsToolbar, {
+	command: {
+		id: HideAgentSessionsSidebar.ID,
+		title: HideAgentSessionsSidebar.TITLE,
+		icon: Codicon.layoutSidebarLeftOff,
+	},
+	group: 'navigation',
+	order: 1,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.sessionsViewerOrientation.isEqualTo(SessionsViewerOrientation.SideBySide),
+		ChatContextKeys.sessionsViewerPosition.isEqualTo(SessionsViewerPosition.Left)
+	)
+});
 
 //#endregion
 

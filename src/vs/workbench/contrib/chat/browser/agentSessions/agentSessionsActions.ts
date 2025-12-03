@@ -338,17 +338,13 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 
 export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 
+	static readonly ID = 'agentSessions.showAgentSessionsSidebar';
+	static readonly TITLE = localize2('showAllSessions', "Show Agent Sessions Sidebar");
+
 	constructor() {
 		super({
-			id: 'agentSessions.showAgentSessionsSidebar',
-			title: localize2('showAllSessions', "Show Agent Sessions Sidebar"),
-			icon: Codicon.layoutSidebarRight,
-			menu: {
-				id: MenuId.ChatRecentSessionsToolbar,
-				group: 'navigation',
-				order: 1,
-				when: ChatContextKeys.isSessionsViewSideBySide.negate(),
-			}
+			id: ShowAgentSessionsSidebar.ID,
+			title: ShowAgentSessionsSidebar.TITLE,
 		});
 	}
 
@@ -361,17 +357,14 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 
 export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 
+	static readonly ID = 'agentSessions.hideAgentSessionsSidebar';
+	static readonly TITLE = localize2('hideAllSessions', "Hide Agent Sessions Sidebar");
+
 	constructor() {
 		super({
-			id: 'agentSessions.hideAgentSessionsSidebar',
-			title: localize2('hideAllSessions', "Hide Agent Sessions Sidebar"),
+			id: HideAgentSessionsSidebar.ID,
+			title: HideAgentSessionsSidebar.TITLE,
 			icon: Codicon.layoutSidebarRightOff,
-			menu: {
-				id: MenuId.ChatRecentSessionsToolbar,
-				group: 'navigation',
-				order: 1,
-				when: ChatContextKeys.isSessionsViewSideBySide,
-			}
 		});
 	}
 

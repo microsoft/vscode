@@ -280,7 +280,7 @@ export class MenuId {
 	static readonly ChatMultiDiffContext = new MenuId('ChatMultiDiffContext');
 	static readonly ChatSessionsMenu = new MenuId('ChatSessionsMenu');
 	static readonly ChatSessionsCreateSubMenu = new MenuId('ChatSessionsCreateSubMenu');
-	static readonly ChatRecentSessionsToolbar = new MenuId('ChatRecentSessionsToolbar');
+	static readonly ChatViewSessionsToolbar = new MenuId('ChatViewSessionsToolbar');
 	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
 	static readonly ChatConfirmationMenu = new MenuId('ChatConfirmationMenu');
 	static readonly ChatEditorInlineExecute = new MenuId('ChatEditorInputExecute');

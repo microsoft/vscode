@@ -95,7 +95,8 @@ export namespace ChatContextKeys {
 	export const isArchivedItem = new RawContextKey<boolean>('chatIsArchivedItem', false, { type: 'boolean', description: localize('chatIsArchivedItem', "True when the chat session item is archived.") });
 
 	export const isCombinedSessionViewer = new RawContextKey<boolean>('chatIsCombinedSessionViewer', false, { type: 'boolean', description: localize('chatIsCombinedSessionViewer', "True when the chat session viewer uses the new combined style.") }); // TODO@bpasero eventually retire this context key
-	export const isSessionsViewSideBySide = new RawContextKey<boolean>('chatIsSessionsViewSideBySide', false, { type: 'boolean', description: localize('chatIsSessionsViewSideBySide', "True when the agent sessions view is shown side by side with the chat session.") });
+	export const sessionsViewerOrientation = new RawContextKey<number>('sessionsViewerOrientation', undefined, { type: 'number', description: localize('sessionsViewerOrientation', "Orientation of the sessions view in the chat view.") });
+	export const sessionsViewerPosition = new RawContextKey<number>('sessionsViewerPosition', undefined, { type: 'number', description: localize('sessionsViewerPosition', "Position of the sessions view in the chat view.") });
 
 	export const isActiveSession = new RawContextKey<boolean>('chatIsActiveSession', false, { type: 'boolean', description: localize('chatIsActiveSession', "True when the chat session is currently active (not deletable).") });
 	export const isKatexMathElement = new RawContextKey<boolean>('chatIsKatexMathElement', false, { type: 'boolean', description: localize('chatIsKatexMathElement', "True when focusing a KaTeX math element.") });

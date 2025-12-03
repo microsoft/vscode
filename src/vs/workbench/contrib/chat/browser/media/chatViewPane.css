@@ -4,10 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Sessions control: side by side */
-.chat-viewpane.has-sessions-control.show-sessions-control-sidebyside {
+.chat-viewpane.has-sessions-control.sessions-control-orientation-sidebyside {
 
 	display: flex;
-	flex-direction: row-reverse;
+
+	&.sessions-control-position-left {
+		flex-direction: row;
+	}
+	&:not(.sessions-control-position-left) {
+		flex-direction: row-reverse;
+	}
 
 	/* Chat view title control is hidden */
 	.chat-view-title-container {
@@ -16,7 +22,7 @@
 }
 
 /* Sessions control: compact */
-.chat-viewpane.has-sessions-control:not(.show-sessions-control-sidebyside) {
+.chat-viewpane.has-sessions-control:not(.sessions-control-orientation-sidebyside) {
 
 	display: flex;
 	flex-direction: column;
