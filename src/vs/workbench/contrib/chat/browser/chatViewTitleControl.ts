@@ -34,7 +34,7 @@ export class ChatViewTitleControl extends Disposable {
 		return undefined;
 	}
 
-	private titleValue = ChatViewTitleControl.DEFAULT_TITLE;
+	private title = ChatViewTitleControl.DEFAULT_TITLE;
 
 	private titleContainer: HTMLElement | undefined;
 	private titleLabel: HTMLElement | undefined;
@@ -97,11 +97,11 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private doUpdate(): void {
-		this.titleValue = this.model?.title ?? ChatViewTitleControl.DEFAULT_TITLE;
+		this.title = this.model?.title ?? ChatViewTitleControl.DEFAULT_TITLE;
 
-		this.delegate.updateTitle(this.titleValue);
+		this.delegate.updateTitle(this.title);
 
-		this.updateTitle(this.titleValue);
+		this.updateTitle(this.title);
 	}
 
 	private updateTitle(title: string): void {
@@ -134,11 +134,11 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	getSingleViewPaneContainerTitle(descriptorTitle: string | undefined): string | undefined {
-		if (!this.shouldRender()) {
-			return this.titleValue;
+		if (this.shouldRender()) {
+			return descriptorTitle; // do not repeat the same title twice
 		}
 
-		return descriptorTitle ?? this.titleValue;
+		return this.title;
 	}
 
 	getHeight(): number {
