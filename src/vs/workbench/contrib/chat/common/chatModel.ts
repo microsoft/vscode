@@ -722,14 +722,6 @@ export class Response extends AbstractResponse implements IDisposable {
 			});
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
-			// } else if (progress.kind === 'multiDiffData') {
-			// 	const existingIndex = this._responseParts.findIndex(p => p.kind === 'multiDiffData');
-			// 	if (existingIndex !== -1) {
-			// 		this._responseParts[existingIndex] = progress;
-			// 	} else {
-			// 		this._responseParts.push(progress);
-			// 	}
-			// 	this._updateRepr(quiet);
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);

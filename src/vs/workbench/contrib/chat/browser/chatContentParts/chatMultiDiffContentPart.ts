@@ -203,7 +203,6 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			const item: IChatMultiDiffItem = { uri };
 
 			if (resource.originalUri && resource.modifiedUri) {
-				console.log(resource.modifiedUri);
 				item.diff = {
 					originalURI: resource.originalUri,
 					modifiedURI: resource.modifiedUri,
