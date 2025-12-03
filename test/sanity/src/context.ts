@@ -31,7 +31,6 @@ interface ITargetMetadata {
  */
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
-	private static readonly authenticodeExclude = /^node.exe|rg.exe|shellIntegration.ps1|winpty.dll|winpty-agent.exe$/i;
 
 	private readonly tempDirs = new Set<string>();
 
@@ -204,7 +203,7 @@ export class TestContext {
 			const filePath = path.join(dir, file.name);
 			if (file.isDirectory()) {
 				this.validateAllSignatures(filePath);
-			} else if (TestContext.authenticodeInclude.test(file.name) && !TestContext.authenticodeExclude.test(file.name)) {
+			} else if (TestContext.authenticodeInclude.test(file.name)) {
 				this.validateSignature(filePath);
 			}
 		}
@@ -355,5 +354,22 @@ export class TestContext {
 		this.log(`Installing ${filePath} using Snap package manager`);
 		this.runNoErrors('sudo', 'snap', 'install', filePath, '--classic', '--dangerous');
 		this.log(`Installed ${filePath} successfully`);
+	}
+
+	/**
+	 * Returns the entry point executable for the VS Code CLI installation in the specified directory.
+	 * @param dir The directory of the VS Code installation.
+	 * @returns The path to the entry point executable.
+	 */
+	public getCliEntryPoint(dir: string): string {
+		const suffix = this.quality === 'insider' ? '-insiders' : '';
+		const extension = os.platform() === 'win32' ? '.exe' : '';
+
+		const filePath = path.join(dir, `code${suffix}${extension}`);
+		if (!fs.existsSync(filePath)) {
+			this.error(`CLI entry point does not exist: ${filePath}`);
+		}
+
+		return filePath;
 	}
 }
