@@ -364,10 +364,10 @@ configurationRegistry.registerConfiguration({
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
 		},
-		[ChatConfiguration.ChatViewRecentSessionsEnabled]: { // TODO@bpasero decide on a default
+		[ChatConfiguration.ChatViewAgentSessionsEnabled]: { // TODO@bpasero decide on a default
 			type: 'boolean',
 			default: product.quality !== 'stable',
-			description: nls.localize('chat.sessions.enabled', "Show recent chat agent sessions when chat is empty."),
+			description: nls.localize('chat.sessions.enabled', "Show chat agent sessions in the chat view."),
 			tags: ['preview', 'experimental'],
 			experiment: {
 				mode: 'auto'

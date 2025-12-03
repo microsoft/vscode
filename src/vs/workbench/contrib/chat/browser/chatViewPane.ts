@@ -266,7 +266,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.any(
 			this._widget.onDidChangeEmptyState,
 			Event.fromObservable(this.welcomeController.isShowingWelcome),
-			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewRecentSessionsEnabled))
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewAgentSessionsEnabled))
 		)(() => {
 			this.recentSessionsControl?.clearFocus(); // improve visual appearance when switching visibility by clearing focus
 			this.notifyRecentSessionsControlChanged();
@@ -352,10 +352,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		const newRecentSessionsContainerVisible =
-			this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewRecentSessionsEnabled) &&	// enabled in settings
+			this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewAgentSessionsEnabled) &&	// enabled in settings
 			(!this._widget || this._widget?.isEmpty()) &&													// chat widget empty
 			!this.welcomeController?.isShowingWelcome.get() &&												// welcome not showing
-			this.recentSessionsCount > 0;																			// has sessions
+			this.recentSessionsCount > 0;																	// has sessions
 
 		this.viewPaneContainer.classList.toggle('has-recent-sessions-control', newRecentSessionsContainerVisible);
 
