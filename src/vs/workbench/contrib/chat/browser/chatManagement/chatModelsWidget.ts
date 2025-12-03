@@ -1082,13 +1082,22 @@ export class ChatModelsWidget extends Disposable {
 			const hasPlan = this.chatEntitlementService.entitlement !== ChatEntitlement.Unknown && this.chatEntitlementService.entitlement !== ChatEntitlement.Available;
 			this.addButton.enabled = hasPlan && vendorsWithoutModels.length > 0;
 
-			this.dropdownActions = vendorsWithoutModels.map(vendor => toAction({
-				id: `enable-${vendor.vendor}`,
-				label: vendor.displayName,
-				run: async () => {
-					await this.enableProvider(vendor.vendor);
-				}
-			}));
+			this.dropdownActions = [
+				toAction({
+					id: 'addModelsHeader',
+					label: localize('models.addModelsHeader', "Select a provider to add models"),
+					enabled: false,
+					run: () => { }
+				}),
+				new Separator(),
+				...vendorsWithoutModels.map(vendor => toAction({
+					id: `enable-${vendor.vendor}`,
+					label: vendor.displayName,
+					run: async () => {
+						await this.enableProvider(vendor.vendor);
+					}
+				}))
+			];
 		}));
 
 		this.tableDisposables.add(this.table.onDidOpen(async ({ element, browserEvent }) => {
