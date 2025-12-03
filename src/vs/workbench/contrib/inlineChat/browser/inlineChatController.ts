@@ -1425,6 +1425,13 @@ export class InlineChatController2 implements IEditorContribution {
 			}
 		}));
 
+		const defaultPlaceholderObs = visibleSessionObs.map((session, r) => {
+			return session?.initialSelection.isEmpty()
+				? localize('placeholder', "Generate code")
+				: localize('placeholderWithSelection', "Modify selected code");
+		});
+
+
 		this._store.add(autorun(r => {
 
 			// HIDE/SHOW
@@ -1438,6 +1445,7 @@ export class InlineChatController2 implements IEditorContribution {
 				ctxInlineChatVisible.set(true);
 				this._zone.value.widget.chatWidget.setModel(session.chatModel);
 				if (!this._zone.value.position) {
+					this._zone.value.widget.chatWidget.setInputPlaceholder(defaultPlaceholderObs.read(r));
 					this._zone.value.widget.chatWidget.input.renderAttachedContext(); // TODO - fights layout bug
 					this._zone.value.show(session.initialPosition);
 				}
@@ -1474,6 +1482,7 @@ export class InlineChatController2 implements IEditorContribution {
 			return observableFromEvent(this, response.onDidChange, () => response.response.value.findLast(part => part.kind === 'progressMessage')).read(r);
 		});
 
+
 		this._store.add(autorun(r => {
 			const response = lastResponseObs.read(r);
 
@@ -1489,7 +1498,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 				// no response or not in progress
 				this._zone.value.widget.domNode.classList.toggle('request-in-progress', false);
-				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder', "Edit, refactor, and generate code"));
+				this._zone.value.widget.chatWidget.setInputPlaceholder(defaultPlaceholderObs.read(r));
 
 			} else {
 				this._zone.value.widget.domNode.classList.toggle('request-in-progress', true);

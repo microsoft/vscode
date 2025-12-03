@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../chat/browser/chat.js';
@@ -35,6 +36,7 @@ export interface IInlineChatSessionEndEvent extends IInlineChatSessionEvent {
 
 export interface IInlineChatSession2 {
 	readonly initialPosition: Position;
+	readonly initialSelection: Selection;
 	readonly uri: URI;
 	readonly chatModel: IChatModel;
 	readonly editingSession: IChatEditingSession;

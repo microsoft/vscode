@@ -399,6 +399,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const result: IInlineChatSession2 = {
 			uri,
 			initialPosition: editor.getSelection().getStartPosition().delta(-1), /* one line above selection start */
+			initialSelection: editor.getSelection(),
 			chatModel,
 			editingSession: chatModel.editingSession!,
 			dispose: store.dispose.bind(store)
