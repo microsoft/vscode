@@ -641,4 +641,5 @@ export const codiconsLibrary = {
 	windowActive: register('window-active', 0xec72),
 	forward: register('forward', 0xec73),
 	download: register('download', 0xec74),
+	clockface: register('clockface', 0xec75),
 } as const;
