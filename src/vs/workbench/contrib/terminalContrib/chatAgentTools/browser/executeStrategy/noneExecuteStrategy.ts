@@ -71,6 +71,14 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 			}
 
 			// Execute the command
+			// Check if the terminal is busy with a child process (e.g., interactive program like ncdu, vim, etc.)
+			// to prevent VS Code from crashing when trying to send commands to a busy terminal
+			if (this._instance.hasChildProcesses) {
+				const errorMessage = 'Cannot execute command: terminal is currently busy with a running process. Please wait for the current process to complete or exit it before running new commands.';
+				this._log(errorMessage);
+				throw new Error(errorMessage);
+			}
+
 			// IMPORTANT: This uses `sendText` not `runCommand` since when no shell integration
 			// is used as sending ctrl+c before a shell is initialized (eg. PSReadLine) can result
 			// in failure (https://github.com/microsoft/vscode/issues/258989)
