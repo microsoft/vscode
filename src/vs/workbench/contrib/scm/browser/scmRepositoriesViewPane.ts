@@ -9,7 +9,7 @@ import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPan
 import { append, $ } from '../../../../base/browser/dom.js';
 import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent, ITreeNode, ITreeElementRenderDetails } from '../../../../base/browser/ui/tree/tree.js';
-import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -446,6 +446,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -619,6 +620,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			this.tree.updateOptions({ multipleSelectionSupport: selectionMode === 'multiple' });
 		}));
 
+		this._register(this.tree.onDidOpen(this.onTreeDidOpen, this));
 		this._register(this.tree.onDidChangeSelection(this.onTreeSelectionChange, this));
 		this._register(this.tree.onDidChangeFocus(this.onTreeDidChangeFocus, this));
 		this._register(this.tree.onDidFocus(this.onDidTreeFocus, this));
@@ -661,6 +663,14 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	private async onDidRemoveRepository(repository: ISCMRepository): Promise<void> {
 		await this.updateRepository(repository);
 		this.repositoryDisposables.deleteAndDispose(repository);
+	}
+
+	private onTreeDidOpen(e: IOpenEvent<TreeElement | undefined>): void {
+		if (!e.element || !isSCMArtifactTreeElement(e.element) || !e.element.artifact.command) {
+			return;
+		}
+
+		this.commandService.executeCommand(e.element.artifact.command.id, e.element.repository.provider, e.element.artifact);
 	}
 
 	private onTreeContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {

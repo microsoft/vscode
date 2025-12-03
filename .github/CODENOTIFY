@@ -104,6 +104,9 @@ src/vs/workbench/contrib/chat/browser/chatListRenderer.ts @roblourens
 src/vs/workbench/contrib/chat/browser/chatSetup/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatStatus/** @bpasero
 src/vs/workbench/contrib/chat/browser/chatViewPane.ts @bpasero
+src/vs/workbench/contrib/chat/browser/media/chatViewPane.css @bpasero
+src/vs/workbench/contrib/chat/browser/chatViewTitleControl.ts @bpasero
+src/vs/workbench/contrib/chat/browser/media/chatViewTitleControl.css @bpasero
 src/vs/workbench/contrib/chat/browser/chatManagement/chatUsageWidget.ts @bpasero
 src/vs/workbench/contrib/chat/browser/chatManagement/media/chatUsageWidget.css @bpasero
 src/vs/workbench/contrib/chat/browser/agentSessions/** @bpasero
