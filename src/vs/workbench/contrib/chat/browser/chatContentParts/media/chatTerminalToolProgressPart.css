@@ -132,13 +132,12 @@
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-bottom-left-radius: 4px;
 	border-bottom-right-radius: 4px;
-	background: var(--vscode-panel-background);
 	max-height: 300px;
 	box-sizing: border-box;
 	overflow: hidden;
 	position: relative;
 	max-width: 100%;
-	padding: 5px 0px 1px;
+	padding: 0;
 }
 
 .chat-terminal-content-part .chat-terminal-content-title.chat-terminal-content-title-no-bottom-radius {
@@ -150,6 +149,7 @@
 .chat-terminal-output-container.expanded { display: block; }
 .chat-terminal-output-container > .monaco-scrollable-element {
 	width: 100%;
+	background: inherit;
 }
 .chat-terminal-output-container:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
@@ -161,12 +161,23 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	padding-left: 12px;
 	padding-right: 12px;
 	box-sizing: border-box;
+	background: inherit;
 }
 .chat-terminal-output-body {
-	padding: 4px 0px 1px;
+	padding: 5px 0px 1px;
 	max-width: 100%;
 	box-sizing: border-box;
 	min-height: 0;
+	background: inherit;
+}
+.chat-terminal-output-content {
+	background: inherit;
+}
+.chat-terminal-output-terminal {
+	background: inherit;
+}
+.chat-terminal-output-terminal .xterm-viewport {
+	background: inherit !important;
 }
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
