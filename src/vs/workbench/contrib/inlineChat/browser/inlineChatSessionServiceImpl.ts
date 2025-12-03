@@ -564,7 +564,9 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				} else {
 					logService.trace('InlineChatEscapeToolContribution: rephrase prompt');
-					chatService.removeRequest(session.chatModel.sessionResource, session.chatModel.getRequests().at(-1)!.id);
+					const lastRequest = session.chatModel.getRequests().at(-1)!;
+					chatService.removeRequest(session.chatModel.sessionResource, lastRequest.id);
+					session.chatModel.inputModel.setState({ inputText: lastRequest.message.text });
 				}
 
 				if (result.checkboxChecked) {
