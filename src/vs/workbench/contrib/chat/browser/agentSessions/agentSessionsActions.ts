@@ -15,15 +15,18 @@ import { Action2, MenuId } from '../../../../../platform/actions/common/actions.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, openAgentSessionsView } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
-import { IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 //#region Session Title Actions
 
@@ -309,21 +312,69 @@ export class FindAgentSessionAction extends ViewAction<AgentSessionsView> {
 
 //#region Recent Sessions in Chat View Actions
 
-export class ShowAllAgentSessionsAction extends Action2 {
+abstract class UpdateChatViewWidthAction extends Action2 {
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const viewDescriptorService = accessor.get(IViewDescriptorService);
+
+		const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
+		if (!chatLocation || chatLocation === ViewContainerLocation.Panel) {
+			return; // only applicable for sidebar or auxiliary bar
+		}
+
+		const part = getPartByLocation(chatLocation);
+		const currentSize = layoutService.getSize(part);
+		layoutService.setSize(part, {
+			width: this.getNewWidth(accessor),
+			height: currentSize.height
+		});
+	}
+
+	abstract getNewWidth(accessor: ServicesAccessor): number;
+}
+
+export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
+
 	constructor() {
 		super({
-			id: 'agentSessions.showAll',
-			title: localize2('showAllSessions', "Show All Agent Sessions"),
-			icon: Codicon.history,
+			id: 'agentSessions.showAgentSessionsSidebar',
+			title: localize2('showAllSessions', "Show Agent Sessions Sidebar"),
+			icon: Codicon.layoutSidebarRight,
 			menu: {
 				id: MenuId.ChatRecentSessionsToolbar,
 				group: 'navigation',
 				order: 1,
+				when: ChatContextKeys.isSessionsViewSideBySide.negate(),
 			}
 		});
 	}
-	run(accessor: ServicesAccessor): void {
-		openAgentSessionsView(accessor);
+
+	override getNewWidth(accessor: ServicesAccessor): number {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+
+		return Math.round(layoutService.mainContainerDimension.width / 2);
+	}
+}
+
+export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
+
+	constructor() {
+		super({
+			id: 'agentSessions.hideAgentSessionsSidebar',
+			title: localize2('hideAllSessions', "Hide Agent Sessions Sidebar"),
+			icon: Codicon.layoutSidebarRightOff,
+			menu: {
+				id: MenuId.ChatRecentSessionsToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.isSessionsViewSideBySide,
+			}
+		});
+	}
+
+	override getNewWidth(accessor: ServicesAccessor): number {
+		return 300;
 	}
 }
 

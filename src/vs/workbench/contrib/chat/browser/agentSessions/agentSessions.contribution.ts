@@ -20,7 +20,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { LocalAgentsSessionsProvider } from './localAgentSessionsProvider.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ArchiveAgentSessionAction, UnarchiveAgentSessionAction, RefreshAgentSessionsViewAction, FindAgentSessionAction, ShowAllAgentSessionsAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction } from './agentSessionsActions.js';
+import { ArchiveAgentSessionAction, UnarchiveAgentSessionAction, RefreshAgentSessionsViewAction, FindAgentSessionAction, ShowAgentSessionsSidebar, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, HideAgentSessionsSidebar } from './agentSessionsActions.js';
 
 //#region View Container and View Registration
 
@@ -78,7 +78,8 @@ registerAction2(OpenAgentSessionInEditorGroupAction);
 registerAction2(OpenAgentSessionInNewEditorGroupAction);
 registerAction2(RefreshAgentSessionsViewAction);
 registerAction2(FindAgentSessionAction);
-registerAction2(ShowAllAgentSessionsAction);
+registerAction2(ShowAgentSessionsSidebar);
+registerAction2(HideAgentSessionsSidebar);
 
 //#endregion
 
