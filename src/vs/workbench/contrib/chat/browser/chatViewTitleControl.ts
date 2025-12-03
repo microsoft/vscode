@@ -14,6 +14,9 @@ import { ActivityBarPosition, LayoutSettings } from '../../../services/layout/br
 import { IChatModel } from '../common/chatModel.js';
 import { ChatViewId } from './chat.js';
 import { ChatConfiguration } from '../common/constants.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 
 export interface IChatViewTitleDelegate {
 	updateTitle(title: string): void;
@@ -50,6 +53,7 @@ export class ChatViewTitleControl extends Disposable {
 		private readonly delegate: IChatViewTitleDelegate,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -79,8 +83,11 @@ export class ChatViewTitleControl extends Disposable {
 
 	private render(parent: HTMLElement): void {
 		const elements = h('div.chat-view-title-container', [
-			h('span.chat-view-title-label@label')
+			h('div.chat-view-title-toolbar@toolbar'),
+			h('span.chat-view-title-label@label'),
 		]);
+
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.ChatViewSessionTitleToolbar, {}));
 
 		this.titleContainer = elements.root;
 		this.titleLabel = elements.label;
@@ -113,12 +120,8 @@ export class ChatViewTitleControl extends Disposable {
 			return;
 		}
 
-		if (!this.shouldRender()) {
-			this.titleContainer.style.display = 'none';
-		} else {
-			this.titleLabel.textContent = title;
-			this.titleContainer.style.display = 'flex';
-		}
+		this.titleContainer.classList.toggle('visible', this.shouldRender());
+		this.titleLabel.textContent = title;
 
 		const currentHeight = this.getHeight();
 		if (currentHeight !== this.lastKnownHeight) {
