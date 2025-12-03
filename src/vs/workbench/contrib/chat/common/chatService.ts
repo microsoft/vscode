@@ -42,6 +42,7 @@ export enum ChatErrorLevel {
 }
 
 export interface IChatResponseErrorDetailsConfirmationButton {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	data: any;
 	label: string;
 	isSecondary?: boolean;
@@ -273,6 +274,7 @@ export interface IChatNotebookEdit {
 export interface IChatConfirmation {
 	title: string;
 	message: string | IMarkdownString;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	data: any;
 	/** Indicates whether this came from a current chat session (true/undefined) or a restored historic session (false) */
 	isLive?: boolean;
@@ -319,6 +321,7 @@ export interface IChatThinkingPart {
 	kind: 'thinking';
 	value?: string | string[];
 	id?: string;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: { readonly [key: string]: any };
 	generatedTitle?: string;
 }
@@ -342,6 +345,7 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandOutput?: {
 		text: string;
 		truncated?: boolean;
+		lineCount?: number;
 	};
 	/** Stored theme colors at execution time to style detached output */
 	terminalTheme?: {
@@ -369,6 +373,7 @@ export interface ILegacyChatTerminalToolInvocationData {
 
 export interface IChatToolInputInvocationData {
 	kind: 'input';
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rawInput: any;
 }
 
@@ -402,6 +407,7 @@ export interface IChatToolInvocation {
 	readonly parameters: unknown;
 	readonly fromSubAgent?: boolean;
 	readonly state: IObservable<IChatToolInvocation.State>;
+	generatedTitle?: string;
 
 	kind: 'toolInvocation';
 }
@@ -602,6 +608,7 @@ export interface IChatToolInvocationSerialized {
 	toolId: string;
 	source: ToolDataSource;
 	readonly fromSubAgent?: boolean;
+	generatedTitle?: string;
 	kind: 'toolInvocationSerialized';
 }
 
@@ -853,6 +860,7 @@ export interface IChatDynamicRequest {
 	/**
 	 * Any extra metadata/context that will go to the provider.
 	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	metadata?: any;
 }
 
@@ -891,6 +899,7 @@ export interface IChatSendRequestData extends IChatSendRequestResponseState {
 
 export interface IChatEditorLocationData {
 	type: ChatAgentLocation.EditorInline;
+	id: string;
 	document: URI;
 	selection: ISelection;
 	wholeRange: IRange;
@@ -919,7 +928,9 @@ export interface IChatSendRequestOptions {
 	parserContext?: IChatParserContext;
 	attempt?: number;
 	noCommandDetection?: boolean;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	acceptedConfirmationData?: any[];
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	rejectedConfirmationData?: any[];
 	attachedContext?: IChatRequestVariableEntry[];
 
@@ -953,7 +964,7 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken, options?: IChatSessionStartOptions): IChatModelReference;
+	startSession(location: ChatAgentLocation, options?: IChatSessionStartOptions): IChatModelReference;
 
 	/**
 	 * Get an active session without holding a reference to it.

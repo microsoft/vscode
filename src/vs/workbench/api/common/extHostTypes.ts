@@ -3439,6 +3439,7 @@ export enum ChatResponseClearToPreviousToolInvocationReason {
 
 export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
 	constructor(
+		readonly editor: vscode.TextEditor,
 		readonly document: vscode.TextDocument,
 		readonly selection: vscode.Selection,
 		readonly wholeRange: vscode.Range,
@@ -3490,11 +3491,6 @@ export enum ChatErrorLevel {
 	Info = 0,
 	Warning = 1,
 	Error = 2
-}
-
-export enum CustomAgentTarget {
-	GitHubCopilot = 'github-copilot',
-	VSCode = 'vscode',
 }
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {

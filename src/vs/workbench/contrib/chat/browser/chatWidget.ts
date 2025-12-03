@@ -7,7 +7,7 @@ import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import * as dom from '../../../../base/browser/dom.js';
-import { IMouseWheelEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
@@ -239,7 +239,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
-	private readonly welcomeContextMenuDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 
@@ -274,6 +273,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	};
 	private readonly _lockedToCodingAgentContextKey: IContextKey<boolean>;
 	private readonly _agentSupportsAttachmentsContextKey: IContextKey<boolean>;
+	private readonly _sessionIsEmptyContextKey: IContextKey<boolean>;
 	private _attachmentCapabilities: IChatAgentAttachmentCapabilities = supportsAllAttachments;
 
 	// Cache for prompt file descriptions to avoid async calls during rendering
@@ -382,6 +382,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
 		this._agentSupportsAttachmentsContextKey = ChatContextKeys.agentSupportsAttachments.bindTo(this.contextKeyService);
+		this._sessionIsEmptyContextKey = ChatContextKeys.chatSessionIsEmpty.bindTo(this.contextKeyService);
 
 		this.viewContext = viewContext ?? {};
 
@@ -666,7 +667,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.container.style.setProperty('--vscode-chat-font-family', fontFamily);
 			this.container.style.fontSize = `${fontSize}px`;
 
-			this.tree.rerender();
+			if (this.visible) {
+				this.tree.rerender();
+			}
 		}));
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
@@ -911,17 +914,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						}
 					);
 					dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
-
-					// Add right-click context menu to the entire welcome container
-					this.welcomeContextMenuDisposable.value = dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
-						e.preventDefault();
-						e.stopPropagation();
-						this.contextMenuService.showContextMenu({
-							menuId: MenuId.ChatWelcomeContext,
-							contextKeyService: this.contextKeyService,
-							getAnchor: () => new StandardMouseEvent(dom.getWindow(this.welcomeMessageContainer), e)
-						});
-					});
 				}
 			}
 
@@ -1302,46 +1294,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.input.setValue(`@${agentId} ${promptToUse}`, false);
 			this.input.focus();
 			// Auto-submit for delegated chat sessions
-			this.acceptInput().then(async (response) => {
-				if (!response || !this.viewModel) {
-					return;
-				}
-
-				// Wait for response to complete without any user-pending confirmations
-				const checkForComplete = () => {
-					const items = this.viewModel?.getItems() ?? [];
-					const lastItem = items[items.length - 1];
-					if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
-						return true;
-					}
-					return false;
-				};
-
-				if (checkForComplete()) {
-					await this.clear();
-					return;
-				}
-
-				await new Promise<void>(resolve => {
-					const disposable = this.viewModel!.onDidChange(() => {
-						if (checkForComplete()) {
-							cleanup();
-							resolve();
-						}
-					});
-					const timeout = setTimeout(() => {
-						cleanup();
-						resolve();
-					}, 30000); // 30 second timeout
-					const cleanup = () => {
-						clearTimeout(timeout);
-						disposable.dispose();
-					};
-				});
-
-				// Clear parent editor
-				await this.clear();
-			}).catch(e => this.logService.error('Failed to handle handoff continueOn', e));
+			this.acceptInput().catch(e => this.logService.error('Failed to handle handoff continueOn', e));
 		} else if (handoff.agent) {
 			// Regular handoff to specified agent
 			this._switchToAgentByName(handoff.agent);
@@ -1354,6 +1307,91 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.acceptInput();
 			}
 		}
+	}
+
+	async handleDelegationExitIfNeeded(agent: IChatAgentData | undefined): Promise<void> {
+		if (!this._shouldExitAfterDelegation(agent)) {
+			return;
+		}
+
+		try {
+			await this._handleDelegationExit();
+		} catch (e) {
+			this.logService.error('Failed to handle delegation exit', e);
+		}
+	}
+
+	private _shouldExitAfterDelegation(agent: IChatAgentData | undefined): boolean {
+		if (!this.configurationService.getValue<boolean>(ChatConfiguration.ExitAfterDelegation)) {
+			return false;
+		}
+
+		if (!agent) {
+			return false;
+		}
+
+		if (!isIChatViewViewContext(this.viewContext)) {
+			return false;
+		}
+
+		const contribution = this.chatSessionsService.getChatSessionContribution(agent.id);
+		if (!contribution) {
+			return false;
+		}
+
+		if (contribution.canDelegate !== true) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Handles the exit of the panel chat when a delegation to another session occurs.
+	 * Waits for the response to complete and any pending confirmations to be resolved,
+	 * then clears the widget.
+	 */
+	private async _handleDelegationExit(): Promise<void> {
+		const viewModel = this.viewModel;
+		if (!viewModel) {
+			return;
+		}
+
+		// Check if response is already complete without pending confirmations
+		const checkForComplete = () => {
+			const items = viewModel.getItems();
+			const lastItem = items[items.length - 1];
+			if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
+				return true;
+			}
+			return false;
+		};
+
+		if (checkForComplete()) {
+			await this.clear();
+			return;
+		}
+
+		// Wait for response to complete with a timeout
+		await new Promise<void>(resolve => {
+			const disposable = viewModel.onDidChange(() => {
+				if (checkForComplete()) {
+					cleanup();
+					resolve();
+				}
+			});
+			const timeout = setTimeout(() => {
+				cleanup();
+				resolve();
+			}, 30_000); // 30 second timeout
+			const cleanup = () => {
+				clearTimeout(timeout);
+				disposable.dispose();
+			};
+		});
+
+		// Clear the widget after delegation completes
+		await this.clear();
 	}
 
 	setVisible(visible: boolean): void {
@@ -1970,6 +2008,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		const inputState = model.inputModel.state.get();
 		this.input.initForNewChatModel(inputState, model.getRequests().length === 0);
+		this._sessionIsEmptyContextKey.set(model.getRequests().length === 0);
 
 		this.refreshParsedInput();
 		this.viewModelDisposables.add(model.onDidChange((e) => {
@@ -1980,11 +2019,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 			if (e.kind === 'addRequest') {
 				this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, false);
+				this._sessionIsEmptyContextKey.set(false);
 			}
 			// Hide widget on request removal
 			if (e.kind === 'removeRequest') {
 				this.inputPart.clearTodoListWidget(this.viewModel?.sessionResource, true);
 				this.chatSuggestNextWidget.hide();
+				this._sessionIsEmptyContextKey.set((this.viewModel?.model.getRequests().length ?? 0) === 0);
 			}
 			// Show next steps widget when response completes (not when request starts)
 			if (e.kind === 'completedRequest') {
@@ -2064,7 +2105,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const agent = this.chatAgentService.getAgent(agentId);
 		this._updateAgentCapabilitiesContextKeys(agent);
 		this.renderer.updateOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
-		this.tree.rerender();
+		if (this.visible) {
+			this.tree.rerender();
+		}
 	}
 
 	unlockFromCodingAgent(): void {
@@ -2082,7 +2125,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.inputEditor.updateOptions({ placeholder: undefined });
 		this.renderer.updateOptions({ restorable: true, editable: true, noFooter: false, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
-		this.tree.rerender();
+		if (this.visible) {
+			this.tree.rerender();
+		}
 	}
 
 	get isLockedToCodingAgent(): boolean {
@@ -2260,11 +2305,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 
 		if (!result) {
+			this.chatAccessibilityService.disposeRequest(requestId);
 			return;
 		}
 
 		this.input.acceptInput(isUserQuery);
 		this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
+		this.handleDelegationExitIfNeeded(result.agent);
 		this.currentRequest = result.responseCompletePromise.then(() => {
 			const responses = this.viewModel?.getItems().filter(isResponseVM);
 			const lastResponse = responses?.[responses.length - 1];
@@ -2490,7 +2537,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const agent = this.chatModeService.findModeByName(agentName);
 			if (agent) {
 				if (currentAgent.kind !== agent.kind) {
-					const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentAgent.kind, agent.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model.editingSession);
+					const chatModeCheck = await this.instantiationService.invokeFunction(handleModeSwitch, currentAgent.kind, agent.kind, this.viewModel?.model.getRequests().length ?? 0, this.viewModel?.model);
 					if (!chatModeCheck) {
 						return;
 					}

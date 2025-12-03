@@ -4,6 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-session {
+	display: flex;
+	flex-direction: column;
+	max-width: 950px;
+	height: 100%;
+	margin: auto;
+	position: relative; /* Enable absolute positioning for child elements */
+
 	/* 11px when base font is 13px */
 	--vscode-chat-font-size-body-xs: 0.846em;
 	/* 12px when base font is 13px */
@@ -16,13 +23,6 @@
 	--vscode-chat-font-size-body-xl: 1.231em;
 	/* 20px when base font is 13px */
 	--vscode-chat-font-size-body-xxl: 1.538em;
-}
-
-.interactive-session {
-	max-width: 950px;
-	margin: auto;
-	position: relative;
-	/* For chat dnd */
 }
 
 .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-tl-row > .monaco-tl-twistie {
@@ -759,8 +759,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
-.interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container {
-	/* Remove top border radius when editing session or todo list is present */
+.interactive-input-part:has(.chat-todo-list-widget-container > .chat-todo-list-widget.has-todos) .chat-input-container,
+.interactive-input-part:has(.chat-input-widgets-container > .chat-status-widget:not([style*="display: none"])) .chat-input-container {
+	/* Remove top border radius when editing session, todo list, or status widget is present */
 	border-top-left-radius: 0;
 	border-top-right-radius: 0;
 }
@@ -1086,6 +1087,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions .monaco-button-dropdown.sidebyside-button:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.interactive-session .interactive-input-part > .chat-input-widgets-container {
+	margin-bottom: -4px;
+	width: 100%;
+	position: relative;
 }
 
 /* Chat Todo List Widget Container - mirrors chat-editing-session styling */

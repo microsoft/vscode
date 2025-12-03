@@ -1673,6 +1673,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.view.getOffsetForColumn(lineNumber, column);
 	}
 
+	public getWidthOfLine(lineNumber: number): number {
+		if (!this._modelData || !this._modelData.hasRealView) {
+			return -1;
+		}
+		return this._modelData.view.getLineWidth(lineNumber);
+	}
+
 	public render(forceRedraw: boolean = false): void {
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;

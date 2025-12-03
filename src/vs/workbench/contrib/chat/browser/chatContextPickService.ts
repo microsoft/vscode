@@ -24,7 +24,7 @@ export interface IChatContextPickerPickItem extends Partial<IQuickItem> {
 	asAttachment(): ChatContextPickAttachment | Promise<ChatContextPickAttachment>;
 }
 
-export type ChatContextPickAttachment = IChatRequestVariableEntry | 'noop';
+export type ChatContextPickAttachment = IChatRequestVariableEntry | IChatRequestVariableEntry[] | 'noop';
 
 export function isChatContextPickerPickItem(item: unknown): item is IChatContextPickerPickItem {
 	return isObject(item) && typeof (item as IChatContextPickerPickItem).asAttachment === 'function';

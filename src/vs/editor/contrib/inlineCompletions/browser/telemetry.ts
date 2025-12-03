@@ -43,6 +43,8 @@ export type InlineCompletionEndOfLifeEvent = {
 	renameCreated: boolean;
 	renameDuration: number | undefined;
 	renameTimedOut: boolean;
+	renameDroppedOtherEdits: number | undefined;
+	renameDroppedRenameEdits: number | undefined;
 	performanceMarkers: string | undefined;
 	// rendering
 	viewKind: string | undefined;
@@ -54,6 +56,8 @@ export type InlineCompletionEndOfLifeEvent = {
 	characterCountModified: number | undefined;
 	disjointReplacements: number | undefined;
 	sameShapeReplacements: boolean | undefined;
+	longDistanceHintVisible: boolean | undefined;
+	longDistanceHintDistance: number | undefined;
 	// empty
 	noSuggestionReason: string | undefined;
 	// shape
@@ -90,6 +94,8 @@ type InlineCompletionsEndOfLifeClassification = {
 	renameCreated: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a rename operation was created' };
 	renameDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the rename processor' };
 	renameTimedOut: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the rename prepare operation timed out' };
+	renameDroppedOtherEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of non-rename edits dropped due to rename processing' };
+	renameDroppedRenameEdits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of rename edits dropped due to rename processing' };
 	superseded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was superseded by another one' };
 	editorType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of the editor where the inline completion was shown' };
 	viewKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The kind of the view where the inline completion was shown' };
@@ -101,6 +107,8 @@ type InlineCompletionsEndOfLifeClassification = {
 	characterCountModified: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of characters in the modified text' };
 	disjointReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of inner replacements made by the inline completion' };
 	sameShapeReplacements: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether all inner replacements are the same shape' };
+	longDistanceHintVisible: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a long distance hint was rendered' };
+	longDistanceHintDistance: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The distance in lines between the long distance hint and the inline edit' };
 	noSuggestionReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why no inline completion was provided' };
 	notShownReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason why the inline completion was not shown' };
 	performanceMarkers: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Performance markers for the inline completion lifecycle' };

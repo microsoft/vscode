@@ -2429,13 +2429,8 @@ export class SCMViewPane extends ViewPane {
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				compressionEnabled: compressionEnabled.get(),
 				collapseByDefault: (e: unknown) => {
-					// Repository, Resource Group, Resource Folder (Tree)
-					if (isSCMRepository(e) || isSCMResourceGroup(e) || isSCMResourceNode(e)) {
-						return false;
-					}
-
-					// History Item Group, History Item, or History Item Change
-					return (viewState?.expanded ?? []).indexOf(getSCMResourceId(e as TreeElement)) === -1;
+					// Repository, Resource Group, Resource Folder (Tree) are not collapsed by default
+					return !(isSCMRepository(e) || isSCMResourceGroup(e) || isSCMResourceNode(e));
 				},
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider),
 				twistieAdditionalCssClass: (e: unknown) => {
