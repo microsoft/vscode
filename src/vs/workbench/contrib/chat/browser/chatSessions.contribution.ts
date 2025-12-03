@@ -963,13 +963,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				description = part.content;
 			}
 		}
-		return this.cleanUpProgress(description);
-	}
-
-	private cleanUpProgress(progress: IMarkdownString | string): string {
-		const cleaned = renderAsPlaintext(progress, { useLinkFormatter: true });
-		// Remove ticks
-		return cleaned.replace(/`+/g, '');
+		return renderAsPlaintext(description, { useLinkFormatter: true });
 	}
 
 	/**
