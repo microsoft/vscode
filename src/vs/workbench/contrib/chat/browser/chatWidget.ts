@@ -7,7 +7,7 @@ import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import * as dom from '../../../../base/browser/dom.js';
-import { IMouseWheelEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
@@ -239,7 +239,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
-	private readonly welcomeContextMenuDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 
 	private readonly chatSuggestNextWidget: ChatSuggestNextWidget;
 
@@ -456,16 +455,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
 				this.settingChangeCounter++;
 				this.onDidChangeItems();
-			}
-
-			if (e.affectsConfiguration(ChatConfiguration.ChatViewWelcomeEnabled)) {
-				const showWelcome = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled) !== false;
-				if (this.welcomePart.value) {
-					this.welcomePart.value.setVisible(showWelcome);
-					if (showWelcome) {
-						this.renderWelcomeViewContentIfNeeded();
-					}
-				}
 			}
 		}));
 
@@ -925,18 +914,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 						}
 					);
 					dom.append(this.welcomeMessageContainer, this.welcomePart.value.element);
-
-					// Add right-click context menu to the entire welcome container
-					this.welcomeContextMenuDisposable.value = dom.addDisposableListener(this.welcomeMessageContainer, dom.EventType.CONTEXT_MENU, (e) => {
-						e.preventDefault();
-						e.stopPropagation();
-						this.contextMenuService.showContextMenu({
-							menuId: MenuId.ChatWelcomeContext,
-							contextKeyService: this.contextKeyService,
-							getAnchor: () => new StandardMouseEvent(dom.getWindow(this.welcomeMessageContainer), e)
-						});
-					});
-					this.welcomePart.value.setVisible(this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled) !== false);
 				}
 			}
 
@@ -1345,6 +1322,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private _shouldExitAfterDelegation(agent: IChatAgentData | undefined): boolean {
+		if (!this.configurationService.getValue<boolean>(ChatConfiguration.ExitAfterDelegation)) {
+			return false;
+		}
+
 		if (!agent) {
 			return false;
 		}

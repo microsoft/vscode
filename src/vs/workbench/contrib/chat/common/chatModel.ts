@@ -5,6 +5,7 @@
 
 import { asArray } from '../../../../base/common/arrays.js';
 import { softAssertNever } from '../../../../base/common/assert.js';
+import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -2246,15 +2247,15 @@ export interface IChatAgentEditedFileEvent {
 export namespace ChatResponseResource {
 	export const scheme = 'vscode-chat-response-resource';
 
-	export function createUri(sessionId: string, toolCallId: string, index: number, basename?: string): URI {
+	export function createUri(sessionResource: URI, toolCallId: string, index: number, basename?: string): URI {
 		return URI.from({
 			scheme: ChatResponseResource.scheme,
-			authority: sessionId,
+			authority: encodeHex(VSBuffer.fromString(sessionResource.toString())),
 			path: `/tool/${toolCallId}/${index}` + (basename ? `/${basename}` : ''),
 		});
 	}
 
-	export function parseUri(uri: URI): undefined | { sessionId: string; toolCallId: string; index: number } {
+	export function parseUri(uri: URI): undefined | { sessionResource: URI; toolCallId: string; index: number } {
 		if (uri.scheme !== ChatResponseResource.scheme) {
 			return undefined;
 		}
@@ -2269,8 +2270,19 @@ export namespace ChatResponseResource {
 			return undefined;
 		}
 
+		let sessionResource: URI;
+		try {
+			sessionResource = URI.parse(decodeHex(uri.authority).toString());
+		} catch (e) {
+			if (e instanceof SyntaxError) { // pre-1.108 local session ID
+				sessionResource = LocalChatSessionUri.forSession(uri.authority);
+			} else {
+				throw e;
+			}
+		}
+
 		return {
-			sessionId: uri.authority,
+			sessionResource,
 			toolCallId: toolCallId,
 			index: Number(index),
 		};

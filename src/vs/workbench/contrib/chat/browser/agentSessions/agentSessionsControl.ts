@@ -205,7 +205,7 @@ export class AgentSessionsControl extends Disposable {
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
 		if (e.sideBySide) {
 			target = SIDE_GROUP;
-		} else if (isLocalAgentSessionItem(session) && this.options?.allowOpenSessionsInPanel) { // TODO@bpasero revisit when we support background/remote sessions in panel
+		} else if (this.options?.allowOpenSessionsInPanel) {
 			target = ChatViewPaneTarget;
 		} else {
 			target = ACTIVE_GROUP;
