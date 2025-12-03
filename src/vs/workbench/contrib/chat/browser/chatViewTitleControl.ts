@@ -15,7 +15,7 @@ import { IChatModel } from '../common/chatModel.js';
 import { ChatViewId } from './chat.js';
 
 export interface IChatViewTitleDelegate {
-	updatePrimaryTitle(title: string): void;
+	updateTitle(title: string): void;
 }
 
 export class ChatViewTitleControl extends Disposable {
@@ -34,7 +34,7 @@ export class ChatViewTitleControl extends Disposable {
 		return undefined;
 	}
 
-	private primaryTitle = ChatViewTitleControl.DEFAULT_TITLE;
+	private titleValue = ChatViewTitleControl.DEFAULT_TITLE;
 
 	private titleContainer: HTMLElement | undefined;
 	private titleLabel: HTMLElement | undefined;
@@ -67,10 +67,7 @@ export class ChatViewTitleControl extends Disposable {
 
 		// Update on configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (
-				e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) ||
-				e.affectsConfiguration('workbench.secondarySideBar.showLabels')
-			) {
+			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
 				this.doUpdate();
 			}
 		}));
@@ -100,62 +97,19 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private doUpdate(): void {
-		const customTitle = this.model?.hasCustomTitle ? this.model?.title : undefined;
-		const prefixedCustomTitle = customTitle ? this.withChatPrefix(customTitle) : undefined;
-		const primaryTitle = prefixedCustomTitle ?? ChatViewTitleControl.DEFAULT_TITLE;
-		this.primaryTitle = primaryTitle;
+		this.titleValue = this.model?.title ?? ChatViewTitleControl.DEFAULT_TITLE;
 
-		this.delegate.updatePrimaryTitle(primaryTitle);
+		this.delegate.updateTitle(this.titleValue);
 
-		if (!this.shouldRenderSecondaryTitleBar()) {
-			this.setSecondaryTitle(undefined);
-			return;
-		}
-
-		if (customTitle) {
-			const secondaryTitle = this.shouldOmitChatPrefix() ? customTitle : this.withChatPrefix(customTitle);
-			this.setSecondaryTitle(secondaryTitle);
-		} else {
-			this.setSecondaryTitle(undefined);
-		}
+		this.updateTitle(this.titleValue);
 	}
 
-	private withChatPrefix(title: string | undefined): string | undefined {
-		if (!title) {
-			return undefined;
-		}
-
-		const localizedPrefix = localize('chatViewTitle.prefixLabel', "Chat: ");
-		if (title.startsWith(localizedPrefix) || title.startsWith('Chat: ')) {
-			return title;
-		}
-
-		return localize('chatViewTitle.prefixedTitle', "Chat: {0}", title);
-	}
-
-	getSingleViewPaneContainerTitle(descriptorTitle: string | undefined): string | undefined {
-		if (!this.shouldRenderSecondaryTitleBar()) {
-			return this.primaryTitle;
-		}
-
-		return descriptorTitle ?? this.primaryTitle;
-	}
-
-	private shouldRenderSecondaryTitleBar(): boolean {
-		if (this.viewContainerModel && this.viewContainerModel.visibleViewDescriptors.length > 1) {
-			return false;
-		}
-
-		const location = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		return location !== ActivityBarPosition.TOP && location !== ActivityBarPosition.BOTTOM && location !== ActivityBarPosition.HIDDEN;
-	}
-
-	private setSecondaryTitle(title: string | undefined): void {
+	private updateTitle(title: string): void {
 		if (!this.titleContainer || !this.titleLabel) {
 			return;
 		}
 
-		if (!this.shouldRenderSecondaryTitleBar() || !title) {
+		if (!this.shouldRender()) {
 			this.titleContainer.style.display = 'none';
 		} else {
 			this.titleLabel.textContent = title;
@@ -165,20 +119,26 @@ export class ChatViewTitleControl extends Disposable {
 		const currentHeight = this.getHeight();
 		if (currentHeight !== this.lastKnownHeight) {
 			this.lastKnownHeight = currentHeight;
+
 			this._onDidChangeHeight.fire();
 		}
 	}
 
-	private shouldOmitChatPrefix(): boolean {
-		if (!this.shouldRenderSecondaryTitleBar()) {
-			return false;
+	private shouldRender(): boolean {
+		if (this.viewContainerModel && this.viewContainerModel.visibleViewDescriptors.length > 1) {
+			return false; // multiple views visible, chat view shows a title already
 		}
 
-		if (this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT) {
-			return false;
+		const location = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		return location === ActivityBarPosition.DEFAULT; // in non-default locations a view title appears already
+	}
+
+	getSingleViewPaneContainerTitle(descriptorTitle: string | undefined): string | undefined {
+		if (!this.shouldRender()) {
+			return this.titleValue;
 		}
 
-		return this.configurationService.getValue('workbench.secondarySideBar.showLabels') !== false;
+		return descriptorTitle ?? this.titleValue;
 	}
 
 	getHeight(): number {

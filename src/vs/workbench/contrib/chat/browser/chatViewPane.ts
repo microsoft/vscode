@@ -344,7 +344,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.titleControl = this._register(this.instantiationService.createInstance(ChatViewTitleControl,
 			parent,
 			{
-				updatePrimaryTitle: title => this.updateTitle(title)
+				updateTitle: title => this.updateTitle(title)
 			}
 		));
 
