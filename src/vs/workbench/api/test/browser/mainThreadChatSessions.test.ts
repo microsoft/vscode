@@ -548,4 +548,53 @@ suite('MainThreadChatSessions', function () {
 
 		mainThread.$unregisterChatSessionContentProvider(1);
 	});
+
+	test('$onDidChangeChatSessionOptions refetches and updates session options', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const initialOptions = {
+			models: 'gpt-4',
+			temperature: '0.5'
+		};
+
+		const updatedOptions = {
+			models: 'gpt-4-turbo',
+			temperature: '0.7'
+		};
+
+		const sessionContent = {
+			id: 'test-session',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false,
+			options: initialOptions
+		};
+
+		const resource = URI.parse(`${sessionScheme}:/test-session`);
+
+		// First call returns initial options
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+		const session = await chatSessionsService.getOrCreateChatSession(resource, CancellationToken.None) as ObservableChatSession;
+
+		// Verify initial options are set
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), 'gpt-4');
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'temperature'), '0.5');
+
+		// Update the session content with new options for the next call
+		sessionContent.options = updatedOptions;
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+
+		// Trigger the options change event
+		await mainThread.$onDidChangeChatSessionOptions(1, resource);
+
+		// Verify that $provideChatSessionContent was called again
+		assert.ok((proxy.$provideChatSessionContent as sinon.SinonStub).calledTwice);
+
+		// Verify options were updated in the service
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'models'), 'gpt-4-turbo');
+		assert.strictEqual(chatSessionsService.getSessionOption(resource, 'temperature'), '0.7');
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
 });
