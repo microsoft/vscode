@@ -606,7 +606,7 @@ export class DefaultSettings extends Disposable {
 				const groups = byId.get(property.section.id);
 				if (groups) {
 					const extensionId = property.section.extensionInfo?.id;
-					settingsGroup = groups.find(g => g.extensionInfo?.id === extensionId);
+					settingsGroup = groups.find(g => g.extensionInfo?.id === extensionId && !g.title);
 				}
 				if (settingsGroup && !settingsGroup?.title && property.section.title) {
 					settingsGroup.title = property.section.title;
