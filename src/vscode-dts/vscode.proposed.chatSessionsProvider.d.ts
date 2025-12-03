@@ -196,6 +196,12 @@ declare module 'vscode' {
 		provideChatSessionContent(resource: Uri, token: CancellationToken): Thenable<ChatSession> | ChatSession;
 
 		/**
+		 * Event that the provider can fire to signal that the chat session options have changed for a resource.
+		 * When this event is fired, the UI will re-fetch the session content to get the updated options.
+		 */
+		readonly onDidChangeChatSessionOptions?: Event<Uri>;
+
+		/**
 		 * @param resource Identifier of the chat session being updated.
 		 * @param updates Collection of option identifiers and their new values. Only the options that changed are included.
 		 * @param token A cancellation token that can be used to cancel the notification if the session is disposed.

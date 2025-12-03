@@ -3299,6 +3299,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$handleProgressChunk(handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
 	$handleAnchorResolve(handle: number, sessionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;
 	$handleProgressComplete(handle: number, sessionResource: UriComponents, requestId: string): void;
+	$onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents): void;
 }
 
 export interface ExtHostChatSessionsShape {

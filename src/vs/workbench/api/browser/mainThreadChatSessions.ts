@@ -570,6 +570,34 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		observableSession.handleProgressComplete(requestId);
 	}
 
+	async $onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents): Promise<void> {
+		const resource = URI.revive(sessionResource);
+		this._logService.trace(`$onDidChangeChatSessionOptions: handle(${handle}), sessionResource(${resource})`);
+
+		// Get the existing session
+		const session = this._activeSessions.get(resource);
+		if (!session) {
+			this._logService.warn(`No active session found for resource ${resource} when options changed`);
+			return;
+		}
+
+		try {
+			// Re-initialize the session to fetch the new options
+			await session.initialize(CancellationToken.None);
+
+			// Update the options in the chat sessions service
+			if (session.options) {
+				for (const [optionId, value] of Object.entries(session.options)) {
+					this._chatSessionsService.setSessionOption(resource, optionId, value);
+				}
+			}
+
+			this._logService.trace(`Successfully updated session options for resource ${resource}`);
+		} catch (error) {
+			this._logService.error(`Error updating session options for handle ${handle} and resource ${resource}:`, error);
+		}
+	}
+
 	$handleAnchorResolve(handle: number, sesssionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void {
 		// throw new Error('Method not implemented.');
 	}
