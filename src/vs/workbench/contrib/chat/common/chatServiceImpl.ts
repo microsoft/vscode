@@ -30,7 +30,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { InlineChatConfigKeys } from '../../inlineChat/common/inlineChat.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
-import { chatEditingSessionIsReady } from './chatEditingService.js';
+import { awaitCompleteChatEditingDiff, chatEditingSessionIsReady, editEntriesToMultiDiffData } from './chatEditingService.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { ChatModelStore, IStartSessionProps } from './chatModelStore.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
@@ -701,16 +701,14 @@ export class ChatService extends Disposable implements IChatService {
 			}));
 		} else {
 			if (lastRequest) {
-				// const data = model.multiDiffData.get();
-				// const data2 = model.multiDiffData.read(undefined);
-				// console.log(data, data2);
-				// const disposable = autorun(reader => {
-				// 	const data = model.multiDiffData.read(reader);
-				// 	if (data && data.multiDiffData.resources.length > 0) {
-				// 		lastRequest.response?.updateContent(data);
-				// 		disposable.dispose();
-				// 	}
-				// });
+				const diffs = model.editingSession?.getDiffsForFilesInRequest(lastRequest.id);
+				if (diffs) {
+					const finalDiff = await awaitCompleteChatEditingDiff(diffs);
+					if (finalDiff && finalDiff.length > 0) {
+						lastRequest.response?.updateContent(editEntriesToMultiDiffData(finalDiff));
+					}
+				}
+
 				lastRequest.response?.complete();
 			}
 		}
