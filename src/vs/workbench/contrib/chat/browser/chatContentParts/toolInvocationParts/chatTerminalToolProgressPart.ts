@@ -10,7 +10,7 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
-import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
+import { IChatCodeBlockInfo, IChatWidgetService, isIChatViewViewContext } from '../../chat.js';
 import { ChatQueryTitlePart } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, type IChatMarkdownContentPartOptions } from '../chatMarkdownContentPart.js';
@@ -49,6 +49,7 @@ import { isNumber } from '../../../../../../base/common/types.js';
 import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
 import { Color } from '../../../../../../base/common/color.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../../../../terminal/common/terminalColorRegistry.js';
+import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../../../common/theme.js';
 
 const MIN_OUTPUT_ROWS = 1;
@@ -1120,7 +1121,10 @@ class DetachedTerminalSnapshotMirror extends Disposable {
 					if (terminalBackground) {
 						return terminalBackground;
 					}
-					return theme.getColor(PANEL_BACKGROUND);
+					// Use editor background when chat is in editor, panel background otherwise
+					const widget = this._chatWidgetService.getWidgetBySessionResource(this._sessionResource);
+					const isInEditor = widget && !isIChatViewViewContext(widget.viewContext);
+					return theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
 				}
 			}
 		});
