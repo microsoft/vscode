@@ -170,6 +170,7 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 }
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
+	padding-left: 12px;
 }
 .chat-terminal-output {
 	margin: 0;

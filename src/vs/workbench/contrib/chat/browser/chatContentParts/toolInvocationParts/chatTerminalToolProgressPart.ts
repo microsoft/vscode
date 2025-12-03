@@ -858,7 +858,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		await this._mirror.attach(this._terminalContainer);
 		const result = await this._mirror.renderCommand();
 		if (!result) {
-			this._showEmptyMessage(localize('chat.terminalOutputPending', 'Command output will appear here once available.'));
+			this._showEmptyMessage(localize('chat.terminalOutputPending', 'No output was produced by the command.'));
 			return true;
 		}
 
