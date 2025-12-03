@@ -498,22 +498,29 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let heightReduction = 0;
 		let widthReduction = 0;
 
-		if (!this.sessionsContainer || !this.sessionsControlContainer || !this.sessionsControl) {
+		if (!this.sessionsContainer || !this.sessionsControlContainer || !this.sessionsControl || !this.viewPaneContainer) {
 			return { heightReduction, widthReduction };
 		}
 
-		// Update visibility as that impacts our layout
+		// Update orientation based on available width
+		if (width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH) {
+			this.sessionsControlOrientation = SessionsControlOrientation.SideBySide;
+			this.viewPaneContainer.classList.add('show-sessions-control-sidebyside');
+			this.isSessionsViewSideBySideContext.set(true);
+		} else {
+			this.sessionsControlOrientation = SessionsControlOrientation.Stacked;
+			this.viewPaneContainer.classList.remove('show-sessions-control-sidebyside');
+			this.isSessionsViewSideBySideContext.set(false);
+		}
+
+		// ensure visibility is in sync before we layout
 		this.updateSessionsControlVisibility();
 
 		// Show as sidebar
-		if (width >= ChatViewPane.SESSIONS_SIDEBAR_VIEW_MIN_WIDTH) {
-			this.viewPaneContainer?.classList.add('show-sessions-control-sidebyside');
-			this.sessionsControlOrientation = SessionsControlOrientation.SideBySide;
-			this.isSessionsViewSideBySideContext.set(true);
-
-			const sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
-			this.sessionsControlContainer.style.width = `${ChatViewPane.SESSIONS_SIDEBAR_WIDTH}px`;
+		const sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
+		if (this.sessionsControlOrientation === SessionsControlOrientation.SideBySide) {
 			this.sessionsControlContainer.style.height = ``;
+			this.sessionsControlContainer.style.width = `${ChatViewPane.SESSIONS_SIDEBAR_WIDTH}px`;
 			this.sessionsControl.layout(sessionsHeight, ChatViewPane.SESSIONS_SIDEBAR_WIDTH);
 
 			heightReduction = 0; // side by side to chat widget
@@ -522,11 +529,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Show compact (grows with the number of items displayed)
 		else {
-			this.viewPaneContainer?.classList.remove('show-sessions-control-sidebyside');
-			this.sessionsControlOrientation = SessionsControlOrientation.Stacked;
-			this.isSessionsViewSideBySideContext.set(false);
-
-			const sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
 			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = ``;
 			this.sessionsControl.layout(sessionsHeight, width);

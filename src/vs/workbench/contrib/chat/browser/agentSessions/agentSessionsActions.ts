@@ -334,6 +334,8 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 	abstract getNewWidth(accessor: ServicesAccessor): number;
 }
 
+// TODO@bpasero these need to be revisited to work in all layouts
+
 export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 
 	constructor() {
@@ -353,7 +355,7 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 	override getNewWidth(accessor: ServicesAccessor): number {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-		return Math.round(layoutService.mainContainerDimension.width / 2);
+		return Math.max(610, Math.round(layoutService.mainContainerDimension.width / 2));
 	}
 }
 
