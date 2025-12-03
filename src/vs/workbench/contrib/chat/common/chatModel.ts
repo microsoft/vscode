@@ -1714,7 +1714,10 @@ export class ChatModel extends Disposable implements IChatModel {
 
 			reader.store.add(request.response.onDidChange(async ev => {
 				if (ev.reason === 'completedRequest' && this._editingSession) {
-					if (request === this._requests.at(-1) && this._editingSession.hasEditsInRequest(request.id)) {
+					if (request === this._requests.at(-1)
+						&& request.session.sessionResource.scheme !== Schemas.vscodeLocalChatSession
+						&& this._editingSession.hasEditsInRequest(request.id)
+					) {
 						const diffs = this._editingSession.getDiffsForFilesInRequest(request.id);
 						const finalDiff = await awaitCompleteChatEditingDiff(diffs);
 						request.response?.updateContent(editEntriesToMultiDiffData(finalDiff), true);
