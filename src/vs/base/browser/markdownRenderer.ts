@@ -13,6 +13,7 @@ import * as marked from '../common/marked/marked.js';
 import { parse } from '../common/marshalling.js';
 import { FileAccess, Schemas } from '../common/network.js';
 import { cloneAndChange } from '../common/objects.js';
+import { basename as pathBasename } from '../common/path.js';
 import { basename, dirname, resolvePath } from '../common/resources.js';
 import { escape } from '../common/strings.js';
 import { URI, UriComponents } from '../common/uri.js';
@@ -650,7 +651,7 @@ function getDomSanitizerConfig(mdStrConfig: MdStrConfig, options: MarkdownSaniti
 export function renderAsPlaintext(str: IMarkdownString | string, options?: {
 	/** Controls if the ``` of code blocks should be preserved in the output or not */
 	readonly includeCodeBlocksFences?: boolean;
-	/** Controls if we want to format links from "Link [text](file)" to "Link text" */
+	/** Controls if we want to format empty links from "Link [](file)" to "Link file" */
 	readonly useLinkFormatter?: boolean;
 }) {
 	if (typeof str === 'string') {
@@ -755,9 +756,13 @@ const codeBlockFences = ({ text }: marked.Tokens.Code): string => {
 };
 
 const linkFormatter = ({ text, href }: marked.Tokens.Link): string => {
-	if (href) {
-		const uri = URI.parse(href);
-		return text.trim() || basename(uri);
+	try {
+		if (href) {
+			const uri = URI.parse(href);
+			return text.trim() || basename(uri);
+		}
+	} catch (e) {
+		return text.trim() || pathBasename(href);
 	}
 	return text;
 };
