@@ -12,6 +12,7 @@ import { ISelection } from '../../../../../../editor/common/core/selection.js';
 import { IChatAgentRequest, IChatAgentHistoryEntry } from '../../../common/chatAgents.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
 import { IChatEditorLocationData } from '../../../common/chatService.js';
+import { isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../../common/chatVariableEntries.js';
 
 export interface MessageBuilderResult {
 	messages: Array<{ role: string; content: string }>;
@@ -102,6 +103,26 @@ function extractSelectedText(fileContent: string, range: IRange): string {
 		}
 	}
 	return selectedLines.join('\n');
+}
+
+/**
+ * Process an instruction file variable
+ */
+async function processInstructionFile(
+	fileUri: URI,
+	fileService: IFileService,
+	logService: ILogService
+): Promise<string | null> {
+	try {
+		const content = await fileService.readFile(fileUri);
+		const fileName = basename(fileUri);
+		const fileContent = content.value.toString();
+		logService.info(`[DSpaceAgent] Read instruction file: ${fileName} (${content.value.byteLength} bytes)`);
+		return fileContent;
+	} catch (error) {
+		logService.error('[DSpaceAgent] Failed to read instruction file:', error);
+		return null;
+	}
 }
 
 /**
@@ -286,10 +307,26 @@ export async function buildMessages(
 
 		const contextParts: string[] = [];
 		const selectedTextParts: string[] = [];
+		const instructionParts: string[] = [];
 
 		for (const variable of request.variables.variables) {
+			// Handle instruction files (promptFile kind) - these should be added as system instructions
+			if (isPromptFileVariableEntry(variable)) {
+				const instructionContent = await processInstructionFile(variable.value, fileService, logService);
+				if (instructionContent) {
+					// Instructions should be added prominently, not as regular file attachments
+					const fileName = basename(variable.value);
+					instructionParts.push(`\n\n--- Instructions from ${fileName} ---\n${instructionContent}\n--- End of ${fileName} ---`);
+					logService.info(`[DSpaceAgent] Added instruction file: ${fileName}`);
+				}
+			}
+			// Handle prompt text instructions (inline instructions)
+			else if (isPromptTextVariableEntry(variable)) {
+				instructionParts.push(`\n\n--- Instructions ---\n${variable.value}\n--- End of Instructions ---`);
+				logService.info(`[DSpaceAgent] Added inline instructions`);
+			}
 			// Handle file attachments
-			if (variable.kind === 'file') {
+			else if (variable.kind === 'file') {
 				const result = await processFileAttachment(variable.value, fileService, logService);
 				if (result) {
 					contextParts.push(result.contextPart);
@@ -311,14 +348,19 @@ export async function buildMessages(
 		}
 
 		// Append additional context to existing message (don't overwrite locationData context)
-		if (selectedTextParts.length > 0 || contextParts.length > 0) {
+		// Instructions should be added first, then selected text, then files
+		if (instructionParts.length > 0 || selectedTextParts.length > 0 || contextParts.length > 0) {
+			const instructionsSection =
+				instructionParts.length > 0
+					? `\n\n**PROJECT INSTRUCTIONS (follow these guidelines):**${instructionParts.join('')}`
+					: '';
 			const contextSection =
 				selectedTextParts.length > 0
 					? `\n\n**ADDITIONAL SELECTED TEXT CONTEXT:**${selectedTextParts.join('')}`
 					: '';
 			const filesSection =
 				contextParts.length > 0 ? `\n\n**Additional attached files:**${contextParts.join('')}` : '';
-			currentMessage = `${currentMessage}${contextSection}${filesSection}`;
+			currentMessage = `${currentMessage}${instructionsSection}${contextSection}${filesSection}`;
 		}
 	}
 

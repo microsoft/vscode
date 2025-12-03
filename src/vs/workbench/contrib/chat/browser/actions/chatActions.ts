@@ -1515,25 +1515,26 @@ export function registerChatActions() {
 			const commandService = accessor.get(ICommandService);
 
 			// Use chat command to open and send the query
-			const query = `Analyze this codebase to generate or update \`.github/copilot-instructions.md\` for guiding AI coding agents.
+			const query = `Analyze this LaTeX project to generate or update \`.instructions.md\` for guiding AI agents working with LaTeX documents.
 
-Focus on discovering the essential knowledge that would help an AI agents be immediately productive in this codebase. Consider aspects like:
-- The "big picture" architecture that requires reading multiple files to understand - major components, service boundaries, data flows, and the "why" behind structural decisions
-- Critical developer workflows (builds, tests, debugging) especially commands that aren't obvious from file inspection alone
-- Project-specific conventions and patterns that differ from common practices
-- Integration points, external dependencies, and cross-component communication patterns
+Focus on discovering the essential knowledge that would help an AI agent be immediately productive with this LaTeX project. Consider aspects like:
+- Document structure and organization - main .tex files, chapter organization, how the project is structured across multiple files
+- Compilation workflow - build commands, required LaTeX engines (pdflatex, xelatex, lualatex), BibTeX/Biber usage, and compilation order
+- Bibliography management - .bib file structure, citation styles used, how references are organized and maintained
+- Project-specific LaTeX conventions - custom commands, packages used, document class preferences, and formatting patterns
+- Common LaTeX patterns in this project - how equations, figures, tables, and cross-references are handled
+- Dependencies and requirements - required LaTeX packages, external tools, or special setup needed
 
-Source existing AI conventions from \`**/{.github/copilot-instructions.md,AGENT.md,AGENTS.md,CLAUDE.md,.cursorrules,.windsurfrules,.clinerules,.cursor/rules/**,.windsurf/rules/**,.clinerules/**,README.md}\` (do one glob search).
-
-Guidelines (read more at https://aka.ms/vscode-instructions-docs):
-- If \`.github/copilot-instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
+Guidelines for creating effective instructions:
+- If \`.instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
 - Write concise, actionable instructions (~20-50 lines) using markdown structure
-- Include specific examples from the codebase when describing patterns
-- Avoid generic advice ("write tests", "handle errors") - focus on THIS project's specific approaches
-- Document only discoverable patterns, not aspirational practices
-- Reference key files/directories that exemplify important patterns
+- Include specific examples from the LaTeX project when describing patterns (e.g., "Use \\input{} for chapters as shown in main.tex")
+- Avoid generic LaTeX advice - focus on THIS project's specific approaches and conventions
+- Document only discoverable patterns from the actual files, not aspirational practices
+- Reference key LaTeX files (main .tex, .bib, style files) that exemplify important patterns
+- Include compilation commands and workflow specific to this project
 
-Update \`.github/copilot-instructions.md\` for the user, then ask for feedback on any unclear or incomplete sections to iterate.`;
+Update \`.instructions.md\` for the user, then ask for feedback on any unclear or incomplete sections to iterate.`;
 
 			await commandService.executeCommand('workbench.action.chat.open', {
 				mode: 'agent',

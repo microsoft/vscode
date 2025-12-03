@@ -949,7 +949,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const generateInstructionsCommand = 'workbench.action.chat.generateInstructions';
 			return new MarkdownString(localize(
 				'chatWidget.instructions',
-				"[Generate Agent Instructions]({0}) to onboard AI onto your codebase.",
+				"[Generate Chat Instructions]({0}) to help AI understand and work with your LaTeX project.",
 				`command:${generateInstructionsCommand}`
 			), { isTrusted: { enabledCommands: [generateInstructionsCommand] } });
 		}
@@ -959,7 +959,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	/**
-	 * Checks if any agent instruction files (.github/copilot-instructions.md or AGENTS.md) exist in the workspace.
+	 * Checks if any agent instruction files (.instructions.md or AGENTS.md) exist in the workspace.
 	 * Used to determine whether to show the "Generate Agent Instructions" hint.
 	 *
 	 * @returns true if instruction files exist OR if instruction features are disabled (to hide the hint)
@@ -1033,27 +1033,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (isEmpty) {
 				return [
 					{
-						icon: Codicon.vscode,
-						label: localize('chatWidget.suggestedPrompts.gettingStarted', "Ask @vscode"),
-						prompt: localize('chatWidget.suggestedPrompts.gettingStartedPrompt', "@vscode How do I change the theme to light mode?"),
+						icon: Codicon.newFile,
+						label: localize('chatWidget.suggestedPrompts.createLatexProject', "Create LaTeX Project"),
+						prompt: localize('chatWidget.suggestedPrompts.createLatexProjectPrompt', "Create a new LaTeX project with a main .tex file and a .bib bibliography file"),
 					},
 					{
-						icon: Codicon.newFolder,
-						label: localize('chatWidget.suggestedPrompts.newProject', "Create Project"),
-						prompt: localize('chatWidget.suggestedPrompts.newProjectPrompt', "Create a #new Hello World project in TypeScript"),
+						icon: Codicon.book,
+						label: localize('chatWidget.suggestedPrompts.gettingStartedLatex', "Getting Started with LaTeX"),
+						prompt: localize('chatWidget.suggestedPrompts.gettingStartedLatexPrompt', "How do I get started with LaTeX? Show me the basics of creating a document with sections, equations, and citations"),
 					}
 				];
 			} else {
 				return [
 					{
-						icon: Codicon.debugAlt,
-						label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build Workspace"),
-						prompt: localize('chatWidget.suggestedPrompts.buildWorkspacePrompt', "How do I build this workspace?"),
+						icon: Codicon.error,
+						label: localize('chatWidget.suggestedPrompts.checkLatexErrors', "Check LaTeX Errors"),
+						prompt: localize('chatWidget.suggestedPrompts.checkLatexErrorsPrompt', "Review this LaTeX project for compilation errors and suggest fixes"),
 					},
 					{
-						icon: Codicon.gear,
-						label: localize('chatWidget.suggestedPrompts.findConfig', "Show Config"),
-						prompt: localize('chatWidget.suggestedPrompts.findConfigPrompt', "Where is the configuration for this project defined?"),
+						icon: Codicon.references,
+						label: localize('chatWidget.suggestedPrompts.checkCitations', "Check Citations & Bibliography"),
+						prompt: localize('chatWidget.suggestedPrompts.checkCitationsPrompt', "Review the citations in this LaTeX project. Check if all citations are properly referenced in the .bib file and if there are any missing or unused bibliography entries"),
 					}
 				];
 			}

@@ -11,7 +11,7 @@ import { getPromptFileLocationsConfigKey, PromptsConfig } from '../config/config
 import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { PromptsType } from '../promptTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -287,9 +287,11 @@ export class PromptFilesLocator {
 		const result: URI[] = [];
 		const { folders } = this.workspaceService.getWorkspace();
 		for (const folder of folders) {
-			const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
-			if (await this.fileService.exists(file)) {
-				result.push(file);
+			// Check for .instructions.md in the root
+			const rootInstructionsFile = joinPath(folder.uri, `.instructions.md`);
+			const exists = await this.fileService.exists(rootInstructionsFile);
+			if (exists) {
+				result.push(rootInstructionsFile);
 			}
 		}
 		return result;
