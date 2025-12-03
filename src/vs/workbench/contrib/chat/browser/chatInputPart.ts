@@ -826,7 +826,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private checkModelSupported(): void {
-		if (this._currentLanguageModel && !this.modelSupportedForDefaultAgent(this._currentLanguageModel)) {
+		if (this._currentLanguageModel && (!this.modelSupportedForDefaultAgent(this._currentLanguageModel) || !this.modelSupportedForInlineChat(this._currentLanguageModel))) {
 			this.setCurrentLanguageModelToDefault();
 		}
 	}
@@ -1472,6 +1472,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 			}
+		}));
+
+		this._register(this._inputEditor.onDidScrollChange(e => {
+			toolbarsContainer.classList.toggle('scroll-top-decoration', e.scrollTop > 0);
 		}));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {

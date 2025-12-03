@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable } from 'vscode';
+import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable, Command } from 'vscode';
 import { dispose, filterEvent, IDisposable } from './util';
 import { Repository } from './repository';
 import { Ref, RefType } from './api/git';
@@ -119,7 +119,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		try {
 			if (group === 'branches') {
 				const refs = await this.repository
-					.getRefs({ pattern: 'refs/heads', includeCommitDetails: true });
+					.getRefs({ pattern: 'refs/heads', includeCommitDetails: true, sort: 'creatordate' });
 
 				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/heads/${r.name}`,
@@ -132,7 +132,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				}));
 			} else if (group === 'tags') {
 				const refs = await this.repository
-					.getRefs({ pattern: 'refs/tags', includeCommitDetails: true });
+					.getRefs({ pattern: 'refs/tags', includeCommitDetails: true, sort: 'creatordate' });
 
 				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/tags/${r.name}`,
@@ -151,7 +151,11 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 					name: s.description,
 					description: s.branchName,
 					icon: new ThemeIcon('git-stash'),
-					timestamp: s.commitDate?.getTime()
+					timestamp: s.commitDate?.getTime(),
+					command: {
+						title: l10n.t('View Stash'),
+						command: 'git.repositories.stashView'
+					} satisfies Command
 				}));
 			}
 		} catch (err) {
