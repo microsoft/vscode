@@ -806,6 +806,8 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	private readonly _onDidChangeSelection = new Emitter<boolean>();
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
 
+	private readonly _artifactCommandsDisposables = new DisposableMap<string /* artifact group */, DisposableStore>();
+
 	readonly handle: number = ExtHostSourceControl._handlePool++;
 
 	constructor(
@@ -910,12 +912,28 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this._onDidChangeSelection.fire(selected);
 	}
 
+	async provideArtifacts(group: string, token: CancellationToken): Promise<SCMArtifactDto[] | undefined> {
+		const commandsDisposables = new DisposableStore();
+		const artifacts = await this.artifactProvider?.provideArtifacts(group, token);
+		const artifactsDto = artifacts?.map(artifact => ({
+			...artifact,
+			icon: getHistoryItemIconDto(artifact.icon),
+			command: artifact.command ? this._commands.converter.toInternal(artifact.command, commandsDisposables) : undefined
+		}));
+
+		this._artifactCommandsDisposables.get(group)?.dispose();
+		this._artifactCommandsDisposables.set(group, commandsDisposables);
+
+		return artifactsDto;
+	}
+
 	dispose(): void {
 		this._acceptInputDisposables.dispose();
 		this._actionButtonDisposables.dispose();
 		this._statusBarDisposables.dispose();
 		this._historyProviderDisposable.dispose();
 		this._artifactProviderDisposable.dispose();
+		this._artifactCommandsDisposables.dispose();
 
 		this._groups.forEach(group => group.dispose());
 		this.#proxy.$unregisterSourceControl(this.handle);
@@ -931,7 +949,6 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	private readonly _telemetry: MainThreadTelemetryShape;
 	private _sourceControls: Map<ProviderHandle, ExtHostSourceControl> = new Map<ProviderHandle, ExtHostSourceControl>();
 	private _sourceControlsByExtension: ExtensionIdentifierMap<ExtHostSourceControl[]> = new ExtensionIdentifierMap<ExtHostSourceControl[]>();
-	private readonly _sourceControlArtifactCommandsDisposables = new Map<ProviderHandle, DisposableMap<string /* group */, DisposableStore>>();
 
 	private readonly _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
@@ -1006,8 +1023,6 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
 		sourceControls.push(sourceControl);
 		this._sourceControlsByExtension.set(extension.identifier, sourceControls);
-
-		this._sourceControlArtifactCommandsDisposables.set(sourceControl.handle, new DisposableMap<string, DisposableStore>());
 
 		return sourceControl;
 	}
@@ -1231,20 +1246,8 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 	async $provideArtifacts(sourceControlHandle: number, group: string, token: CancellationToken): Promise<SCMArtifactDto[] | undefined> {
 		try {
-			const artifactProvider = this._sourceControls.get(sourceControlHandle)?.artifactProvider;
-
-			const commandsDisposables = new DisposableStore();
-			const artifacts = await artifactProvider?.provideArtifacts(group, token);
-			const artifactsDto = artifacts?.map(artifact => ({
-				...artifact,
-				icon: getHistoryItemIconDto(artifact.icon),
-				command: artifact.command ? this._commands.converter.toInternal(artifact.command, commandsDisposables) : undefined
-			}));
-
-			this._sourceControlArtifactCommandsDisposables.get(sourceControlHandle)?.get(group)?.dispose();
-			this._sourceControlArtifactCommandsDisposables.get(sourceControlHandle)?.set(group, commandsDisposables);
-
-			return artifactsDto;
+			const sourceControl = this._sourceControls.get(sourceControlHandle);
+			return sourceControl?.provideArtifacts(group, token);
 		}
 		catch (err) {
 			this.logService.error('ExtHostSCM#$provideArtifacts', err);
