@@ -180,9 +180,38 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Event fired when chat session options change.
+	 */
+	export interface ChatSessionOptionChangeEvent {
+		/**
+		 * Identifier of the chat session being updated.
+		 */
+		readonly resource: Uri;
+		/**
+		 * Collection of option identifiers and their new values. Only the options that changed are included.
+		 */
+		readonly updates: ReadonlyArray<{
+			/**
+			 * Identifier of the option that changed (for example `model`).
+			 */
+			readonly optionId: string;
+
+			/**
+			 * The new value assigned to the option. When `undefined`, the option is cleared.
+			 */
+			readonly value: string;
+		}>;
+	}
+
+	/**
 	 * Provides the content for a chat session rendered using the native chat UI.
 	 */
 	export interface ChatSessionContentProvider {
+		/**
+		 * Event that the provider can fire to signal that the options for a chat session have changed.
+		 */
+		readonly onDidChangeChatSessionOptions?: Event<ChatSessionOptionChangeEvent>;
+
 		/**
 		 * Provides the chat session content for a given uri.
 		 *
