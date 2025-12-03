@@ -21,7 +21,7 @@ export interface IChatViewTitleDelegate {
 
 export class ChatViewTitleControl extends Disposable {
 
-	private static readonly DEFAULT_TITLE = localize('chat', "Chat");
+	private static readonly DEFAULT_TITLE = localize('chat', "Chat Session");
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -35,7 +35,7 @@ export class ChatViewTitleControl extends Disposable {
 		return undefined;
 	}
 
-	private title = ChatViewTitleControl.DEFAULT_TITLE;
+	private title: string | undefined = undefined;
 
 	private titleContainer: HTMLElement | undefined;
 	private titleLabel: HTMLElement | undefined;
@@ -101,11 +101,11 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private doUpdate(): void {
-		this.title = this.model?.title ?? ChatViewTitleControl.DEFAULT_TITLE;
+		this.title = this.model?.title;
 
-		this.delegate.updateTitle(this.title);
+		this.delegate.updateTitle(this.getTitleWithPrefix());
 
-		this.updateTitle(this.title);
+		this.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
 	}
 
 	private updateTitle(title: string): void {
@@ -153,7 +153,15 @@ export class ChatViewTitleControl extends Disposable {
 			return descriptorTitle;
 		}
 
-		return this.title;
+		return this.getTitleWithPrefix();
+	}
+
+	private getTitleWithPrefix(): string {
+		if (this.title) {
+			return localize('chatTitleWithPrefixCustom', "Chat: {0}", this.title);
+		}
+
+		return ChatViewTitleControl.DEFAULT_TITLE;
 	}
 
 	getHeight(): number {
