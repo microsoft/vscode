@@ -194,7 +194,7 @@ export class TestContext {
 	/**
 	 * Downloads and unpacks the specified VS Code release target.
 	 * @param target The target platform (e.g., 'cli-linux-x64').
-	 * @returns The path to the unpacked directory or downloaded file.
+	 * @returns The path to the unpacked directory.
 	 */
 	public async downloadAndUnpack(target: string): Promise<string> {
 		const filePath = await this.downloadTarget(target);
