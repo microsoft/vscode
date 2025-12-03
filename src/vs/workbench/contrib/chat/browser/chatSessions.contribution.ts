@@ -966,13 +966,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this.cleanUpProgress(description);
 	}
 
-	private cleanUpProgress(progress: IMarkdownString | string | undefined): string {
-		let cleaned = '';
-		if (typeof progress === 'string') {
-			cleaned = progress;
-		} else if (progress) {
-			cleaned = renderAsPlaintext(progress, { preserveFileLinks: true });
-		}
+	private cleanUpProgress(progress: IMarkdownString | string): string {
+		const cleaned = renderAsPlaintext(progress, { useLinkFormatter: true });
 		// Remove ticks
 		return cleaned.replace(/`+/g, '');
 	}
