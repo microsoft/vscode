@@ -30,7 +30,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { migrateLegacyTerminalToolSpecificData } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from './chatAgents.js';
-import { IChatEditingService, IChatEditingSession, IEditSessionEntryDiff, ModifiedFileEntryState } from './chatEditingService.js';
+import { awaitCompleteChatEditingDiff, IChatEditingService, IChatEditingSession, IEditSessionEntryDiff, ModifiedFileEntryState } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatModelReference, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { LocalChatSessionUri } from './chatUri.js';
@@ -1666,11 +1666,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		return !this._disableBackgroundKeepAlive;
 	}
 
-	private _multiDiffData = observableValue<IChatMultiDiffData | undefined>(this, undefined);
-	get multiDiffData(): IObservable<IChatMultiDiffData | undefined> {
-		return this._multiDiffData;
-	}
-
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
 		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
@@ -1725,15 +1720,15 @@ export class ChatModel extends Disposable implements IChatModel {
 				return;
 			}
 
-			const multiDiffData = this._multiDiffData.read(reader);
-			reader.store.add(request.response.onDidChange(ev => {
-				if (ev.reason === 'completedRequest') {
+			reader.store.add(request.response.onDidChange(async ev => {
+				if (ev.reason === 'completedRequest' && this._editingSession) {
 					if (request === this._requests.at(-1)) {
-						if (multiDiffData && multiDiffData.multiDiffData.resources.length > 0) {
-							request.response?.updateContent(multiDiffData, true);
-						}
+						// todo: make the multi diff part take an Observable and avoid a maybe racey promise here
+						const diffs = this._editingSession.getDiffsForFilesInRequest(request.id);
+						const finalDiff = await awaitCompleteChatEditingDiff(diffs);
+						request.response?.updateContent(this.editEntriesToMultiDiffData(finalDiff), true);
+						this._onDidChange.fire({ kind: 'completedRequest', request });
 					}
-					this._onDidChange.fire({ kind: 'completedRequest', request });
 				}
 			}));
 		}));
@@ -1761,17 +1756,6 @@ export class ChatModel extends Disposable implements IChatModel {
 				}
 			}));
 		}
-	}
-
-	private subscribeModelToDiffUpdates(editingSession: IChatEditingSession): IDisposable {
-		const diff = editingSession.getDiffsForFilesInSession();
-		return autorun(reader => {
-			const entries = diff.read(reader);
-			if (!entries.length) {
-				return;
-			}
-			this._multiDiffData.set(this.editEntriesToMultiDiffData(entries), undefined);
-		});
 	}
 
 	private editEntriesToMultiDiffData(entries: readonly IEditSessionEntryDiff[]): IChatMultiDiffData {
@@ -1818,9 +1802,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._register(autorun(reader => {
 			this._setDisabledRequests(session.requestDisablement.read(reader));
 		}));
-
-		this._multiDiffData.set(this.editEntriesToMultiDiffData(session.getDiffsForFilesInSession().read(undefined)), undefined);
-		this._register(this.subscribeModelToDiffUpdates(this._editingSession));
 	}
 
 	private currentEditedFileEvents = new ResourceMap<IChatAgentEditedFileEvent>();

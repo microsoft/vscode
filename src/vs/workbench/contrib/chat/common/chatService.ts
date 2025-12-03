@@ -157,16 +157,18 @@ export interface IChatTreeData {
 	treeData: IChatResponseProgressFileTreeData;
 	kind: 'treeData';
 }
+export interface IMultiDiffResource {
+	originalUri?: URI;
+	modifiedUri?: URI;
+	goToFileUri?: URI;
+	added?: number;
+	removed?: number;
+}
+
 export interface IChatMultiDiffData {
 	multiDiffData: {
 		title: string;
-		resources: Array<{
-			originalUri?: URI;
-			modifiedUri?: URI;
-			goToFileUri?: URI;
-			added?: number;
-			removed?: number;
-		}>;
+		resources: IMultiDiffResource[];
 		collapsed?: boolean;
 	};
 	kind: 'multiDiffData';

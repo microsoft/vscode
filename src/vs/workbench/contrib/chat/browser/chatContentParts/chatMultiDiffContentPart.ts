@@ -211,7 +211,8 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 					quitEarly: false,
 					identical: false,
 					added: resource.added || 0,
-					removed: resource.removed || 0
+					removed: resource.removed || 0,
+					isBusy: false,
 				};
 			}
 			items.push(item);

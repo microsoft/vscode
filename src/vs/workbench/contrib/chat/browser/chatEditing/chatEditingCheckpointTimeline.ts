@@ -46,6 +46,7 @@ export interface IChatEditingCheckpointTimeline {
 	// Diffing
 	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
 	getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined>;
+	getDiffsForFilesInRequest(requestId: string): IObservable<readonly IEditSessionEntryDiff[]>;
 	getDiffsForFilesInSession(): IObservable<readonly IEditSessionEntryDiff[]>;
 	getDiffForSession(): IObservable<IEditSessionDiffStats>;
 }

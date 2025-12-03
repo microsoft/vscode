@@ -5,6 +5,7 @@
 
 import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { autorunSelfDisposable, IObservable, IReader } from '../../../../base/common/observable.js';
@@ -179,6 +180,12 @@ export interface IChatEditingSession extends IDisposable {
 	getDiffsForFilesInSession(): IObservable<readonly IEditSessionEntryDiff[]>;
 
 	/**
+	 * Gets the diff of each file modified in the request.
+	 */
+	getDiffsForFilesInRequest(requestId: string): IObservable<readonly IEditSessionEntryDiff[]>;
+
+
+	/**
 	 * Gets the aggregated diff stats for all files modified in this session.
 	 */
 	getDiffForSession(): IObservable<IEditSessionDiffStats>;
@@ -196,6 +203,36 @@ export function chatEditingSessionIsReady(session: IChatEditingSession): Promise
 			if (state !== ChatEditingSessionState.Initial) {
 				reader.dispose();
 				resolve();
+			}
+		});
+	});
+}
+
+export function awaitCompleteChatEditingDiff(diff: IObservable<IEditSessionEntryDiff>, token?: CancellationToken): Promise<IEditSessionEntryDiff>;
+export function awaitCompleteChatEditingDiff(diff: IObservable<readonly IEditSessionEntryDiff[]>, token?: CancellationToken): Promise<readonly IEditSessionEntryDiff[]>;
+export function awaitCompleteChatEditingDiff(diff: IObservable<readonly IEditSessionEntryDiff[] | IEditSessionEntryDiff>, token?: CancellationToken): Promise<readonly IEditSessionEntryDiff[] | IEditSessionEntryDiff> {
+	return new Promise<readonly IEditSessionEntryDiff[] | IEditSessionEntryDiff>((resolve, reject) => {
+		autorunSelfDisposable(reader => {
+			if (token) {
+				if (token.isCancellationRequested) {
+					reader.dispose();
+					return reject(new CancellationError());
+				}
+				reader.store.add(token.onCancellationRequested(() => {
+					reader.dispose();
+					reject(new CancellationError());
+				}));
+			}
+
+			const current = diff.read(reader);
+			if (current instanceof Array) {
+				if (!current.some(c => c.isBusy)) {
+					reader.dispose();
+					resolve(current);
+				}
+			} else if (!current.isBusy) {
+				reader.dispose();
+				resolve(current);
 			}
 		});
 	});
@@ -219,6 +256,22 @@ export interface IEditSessionEntryDiff extends IEditSessionDiffStats {
 
 	/** True if nothing else will be added to this diff. */
 	isFinal: boolean;
+
+	/** True if the diff is currently being computed or updated. */
+	isBusy: boolean;
+}
+
+export function busySessionEntryDiff(originalURI: URI, modifiedURI: URI): IEditSessionEntryDiff {
+	return {
+		originalURI,
+		modifiedURI,
+		added: 0,
+		removed: 0,
+		quitEarly: false,
+		identical: false,
+		isFinal: false,
+		isBusy: true,
+	};
 }
 
 export const enum ModifiedFileEntryState {
