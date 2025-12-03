@@ -74,6 +74,15 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 				this._log.bind(this)
 			);
 
+			// Check if terminal has child processes (is busy/interactive) and cancel them first
+			if (this._instance.hasChildProcesses) {
+				this._log('Terminal has active child processes, sending SIGINT to cancel them');
+				// Send SIGINT (Ctrl+C) to cancel any running interactive programs
+				await this._instance.sendText('\x03', false);
+				// Give the process time to handle SIGINT
+				await new Promise(resolve => setTimeout(resolve, 200));
+			}
+
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
 			this._instance.runCommand(commandLine, true, commandId);

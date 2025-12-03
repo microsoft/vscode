@@ -105,6 +105,15 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 				this._log.bind(this)
 			);
 
+			// Check if terminal has child processes (is busy/interactive) and cancel them first
+			if (this._instance.hasChildProcesses) {
+				this._log('Terminal has active child processes, sending SIGINT to cancel them');
+				// Send SIGINT (Ctrl+C) to cancel any running interactive programs
+				await this._instance.sendText('\x03', false);
+				// Wait for the process to be cancelled and terminal to become idle
+				await waitForIdle(this._instance.onData, 500);
+			}
+
 			if (this._hasReceivedUserInput()) {
 				this._log('Command timed out, sending SIGINT and retrying');
 				// Send SIGINT (Ctrl+C)
