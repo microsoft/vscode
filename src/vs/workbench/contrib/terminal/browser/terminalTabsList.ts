@@ -148,19 +148,21 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		}));
 
 		this.disposables.add(this.onMouseDblClick(async e => {
-			const focus = this.getFocus();
-			if (focus.length === 0) {
+			if (!e.element) {
+				e.browserEvent.preventDefault();
+				e.browserEvent.stopPropagation();
 				const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
 				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
+				return;
 			}
 
-			if (this._terminalEditingService.getEditingTerminal()?.instanceId === e.element?.instanceId) {
+			if (this._terminalEditingService.getEditingTerminal()?.instanceId === e.element.instanceId) {
 				return;
 			}
 
 			if (this._getFocusMode() === 'doubleClick' && this.getFocus().length === 1) {
-				e.element?.focus(true);
+				e.element.focus(true);
 			}
 		}));
 
