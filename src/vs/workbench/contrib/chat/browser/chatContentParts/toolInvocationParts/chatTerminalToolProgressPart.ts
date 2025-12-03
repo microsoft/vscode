@@ -299,6 +299,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			() => this._terminalData.terminalCommandOutput,
 			() => this._commandText,
 			() => this._terminalData.terminalTheme,
+			this._sessionResource,
 		));
 		elements.container.append(this._outputView.domNode);
 		this._register(this._outputView.onDidFocus(() => this._handleOutputFocus()));
@@ -691,6 +692,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		private readonly _getTerminalCommandOutput: () => IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
 		private readonly _getCommandText: () => string,
 		private readonly _getStoredTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
+		private readonly _sessionResource: URI,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
@@ -878,7 +880,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 			return;
 		}
 		dom.clearNode(this._terminalContainer);
-		this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme));
+		this._snapshotMirror = this._register(this._instantiationService.createInstance(DetachedTerminalSnapshotMirror, snapshot, this._getStoredTheme, this._sessionResource));
 		await this._snapshotMirror.attach(this._terminalContainer);
 		this._snapshotMirror.setOutput(snapshot);
 		const result = await this._snapshotMirror.render();
@@ -1020,7 +1022,9 @@ class DetachedTerminalSnapshotMirror extends Disposable {
 	constructor(
 		output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
 		private readonly _getTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
+		private readonly _sessionResource: URI,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 		this._output = output;
