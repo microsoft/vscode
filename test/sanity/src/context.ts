@@ -30,7 +30,10 @@ interface ITargetMetadata {
  * Provides context and utilities for VS Code sanity tests.
  */
 export class TestContext {
-	private readonly _tempDirs = new Set<string>();
+	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
+	private static readonly authenticodeExclude = /^node.exe|rg.exe$/i;
+
+	private readonly tempDirs = new Set<string>();
 
 	public constructor(
 		public readonly quality: 'stable' | 'insider',
@@ -59,7 +62,7 @@ export class TestContext {
 		const osTempDir = fs.realpathSync(os.tmpdir());
 		const tempDir = fs.mkdtempSync(path.join(osTempDir, 'vscode-sanity'));
 		this.log(`Created temp directory: ${tempDir}`);
-		this._tempDirs.add(tempDir);
+		this.tempDirs.add(tempDir);
 		return tempDir;
 	}
 
@@ -77,7 +80,7 @@ export class TestContext {
 	 * Cleans up all temporary directories created during the test run.
 	 */
 	public cleanup() {
-		for (const dir of this._tempDirs) {
+		for (const dir of this.tempDirs) {
 			this.log(`Deleting temp directory: ${dir}`);
 			try {
 				fs.rmSync(dir, { recursive: true, force: true });
@@ -86,7 +89,7 @@ export class TestContext {
 				this.log(`Failed to delete temp directory: ${dir}: ${error}`);
 			}
 		}
-		this._tempDirs.clear();
+		this.tempDirs.clear();
 	}
 
 	/**
@@ -150,7 +153,7 @@ export class TestContext {
 		this.log(`Downloaded ${url} to ${filePath}`);
 		this.validateSha256Hash(filePath, sha256hash);
 
-		if (/^.+\.exe$/i.test(filePath) && os.platform() === 'win32') {
+		if (TestContext.authenticodeInclude.test(filePath) && os.platform() === 'win32') {
 			this.validateSignature(filePath);
 		}
 
@@ -188,6 +191,22 @@ export class TestContext {
 		const status = result.stdout.trim();
 		if (status !== 'Valid') {
 			this.error(`Authenticode signature is not valid for ${filePath}: ${status}`);
+		}
+	}
+
+	/**
+	 * Validates signatures for all executable files in the specified directory.
+	 * @param dir The directory to scan for executable files.
+	 */
+	public validateAllSignatures(dir: string) {
+		const files = fs.readdirSync(dir, { withFileTypes: true });
+		for (const file of files) {
+			const filePath = path.join(dir, file.name);
+			if (file.isDirectory()) {
+				this.validateAllSignatures(filePath);
+			} else if (TestContext.authenticodeInclude.test(file.name) && !TestContext.authenticodeExclude.test(file.name)) {
+				this.validateSignature(filePath);
+			}
 		}
 	}
 
@@ -247,23 +266,16 @@ export class TestContext {
 		const extract = tar.extract();
 
 		return new Promise((resolve, reject) => {
-			extract.on('entry', (header, stream, next) => {
-				const filePath = path.join(dir, header.name);
-				if (filePath.includes('..')) {
+			extract.on('entry', ({ name, type, mode }, stream, next) => {
+				if (name.includes('..') || type !== 'file') {
 					stream.resume();
 					next();
-				} else if (header.type === 'directory') {
-					stream.resume();
-					next();
-				} else if (header.type === 'file') {
-					this.ensureDirExists(filePath);
-					const writeStream = fs.createWriteStream(filePath, { mode: header.mode });
-					stream.pipe(writeStream);
-					writeStream.on('finish', next);
-					writeStream.on('error', reject);
 				} else {
-					stream.resume();
-					next();
+					const filePath = path.join(dir, name);
+					this.ensureDirExists(filePath);
+					stream.pipe(fs.createWriteStream(filePath, { mode })
+						.on('finish', next)
+						.on('error', reject));
 				}
 			});
 
@@ -341,7 +353,7 @@ export class TestContext {
 	 */
 	public installSnap(filePath: string) {
 		this.log(`Installing ${filePath} using Snap package manager`);
-		this.runNoErrors('sudo', 'snap', 'install', filePath, '--dangerous');
+		this.runNoErrors('sudo', 'snap', 'install', filePath, '--classic', '--dangerous');
 		this.log(`Installed ${filePath} successfully`);
 	}
 }

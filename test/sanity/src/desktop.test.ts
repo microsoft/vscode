@@ -64,7 +64,8 @@ export function setup(context: TestContext) {
 		});
 
 		it('win32-arm64-archive', async () => {
-			await context.downloadAndUnpack('win32-arm64-archive');
+			const dir = await context.downloadAndUnpack('win32-arm64-archive');
+			context.validateAllSignatures(dir);
 		});
 
 		it('win32-arm64-user', async () => {
@@ -76,7 +77,8 @@ export function setup(context: TestContext) {
 		});
 
 		it('win32-x64-archive', async () => {
-			await context.downloadAndUnpack('win32-x64-archive');
+			const dir = await context.downloadAndUnpack('win32-x64-archive');
+			context.validateAllSignatures(dir);
 		});
 
 		it('win32-x64-user', async () => {

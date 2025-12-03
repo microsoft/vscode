@@ -36,11 +36,13 @@ export function setup(context: TestContext) {
 		});
 
 		it('cli-win32-arm64', async () => {
-			await context.downloadAndUnpack('cli-win32-arm64');
+			const dir = await context.downloadAndUnpack('cli-win32-arm64');
+			context.validateAllSignatures(dir);
 		});
 
 		it('cli-win32-x64', async () => {
-			await context.downloadAndUnpack('cli-win32-x64');
+			const dir = await context.downloadAndUnpack('cli-win32-x64');
+			context.validateAllSignatures(dir);
 		});
 	});
 }

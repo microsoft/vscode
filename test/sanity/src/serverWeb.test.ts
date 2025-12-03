@@ -36,11 +36,13 @@ export function setup(context: TestContext) {
 		});
 
 		it('server-win32-arm64-web', async () => {
-			await context.downloadAndUnpack('server-win32-arm64-web');
+			const dir = await context.downloadAndUnpack('server-win32-arm64-web');
+			context.validateAllSignatures(dir);
 		});
 
 		it('server-win32-x64-web', async () => {
-			await context.downloadAndUnpack('server-win32-x64-web');
+			const dir = await context.downloadAndUnpack('server-win32-x64-web');
+			context.validateAllSignatures(dir);
 		});
 	});
 }
