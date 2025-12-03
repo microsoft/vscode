@@ -11,6 +11,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ISelection } from '../../../../editor/common/core/selection.js';
@@ -165,14 +166,49 @@ export interface IMultiDiffResource {
 	removed?: number;
 }
 
+export interface IChatMultiDiffInnerData {
+	title: string;
+	resources: IMultiDiffResource[];
+}
+
 export interface IChatMultiDiffData {
-	multiDiffData: {
-		title: string;
-		resources: IMultiDiffResource[];
-		collapsed?: boolean;
-	};
+	multiDiffData: IChatMultiDiffInnerData | IObservable<IChatMultiDiffInnerData>;
 	kind: 'multiDiffData';
+	collapsed?: boolean;
 	readOnly?: boolean;
+}
+
+export interface IChatMultiDiffDataSerialized {
+	multiDiffData: IChatMultiDiffInnerData;
+	kind: 'multiDiffData';
+	collapsed?: boolean;
+	readOnly?: boolean;
+}
+
+export class ChatMultiDiffData implements IChatMultiDiffData {
+	public readonly kind = 'multiDiffData';
+	public readonly collapsed?: boolean | undefined;
+	public readonly readOnly?: boolean | undefined;
+	public readonly multiDiffData: IChatMultiDiffData['multiDiffData'];
+
+	constructor(opts: {
+		multiDiffData: IChatMultiDiffInnerData | IObservable<IChatMultiDiffInnerData>;
+		collapsed?: boolean;
+		readOnly?: boolean;
+	}) {
+		this.readOnly = opts.readOnly;
+		this.collapsed = opts.collapsed;
+		this.multiDiffData = opts.multiDiffData;
+	}
+
+	toJSON(): IChatMultiDiffDataSerialized {
+		return {
+			kind: this.kind,
+			multiDiffData: hasKey(this.multiDiffData, { title: true }) ? this.multiDiffData : this.multiDiffData.get(),
+			collapsed: this.collapsed,
+			readOnly: this.readOnly,
+		};
+	}
 }
 
 export interface IChatProgressMessage {
