@@ -133,7 +133,7 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	getLiveSessionItems(): IChatDetail[] {
+	async getLiveSessionItems(): Promise<IChatDetail[]> {
 		throw new Error('Method not implemented.');
 	}
 	getHistorySessionItems(): Promise<IChatDetail[]> {

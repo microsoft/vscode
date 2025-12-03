@@ -909,11 +909,18 @@ export interface IChatCompleteResponse {
 	followups?: IChatFollowup[];
 }
 
+export interface IChatSessionStats {
+	fileCount: number;
+	added: number;
+	removed: number;
+}
+
 export interface IChatDetail {
 	sessionResource: URI;
 	title: string;
 	lastMessageDate: number;
 	isActive: boolean;
+	stats?: IChatSessionStats;
 }
 
 export interface IChatProviderInfo {
@@ -1044,7 +1051,7 @@ export interface IChatService {
 	removeHistoryEntry(sessionResource: URI): Promise<void>;
 	getChatStorageFolder(): URI;
 	logChatIndex(): void;
-	getLiveSessionItems(): IChatDetail[];
+	getLiveSessionItems(): Promise<IChatDetail[]>;
 	getHistorySessionItems(): Promise<IChatDetail[]>;
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;

@@ -166,7 +166,7 @@ class MockChatService implements IChatService {
 		return undefined;
 	}
 
-	getLiveSessionItems(): IChatDetail[] {
+	async getLiveSessionItems(): Promise<IChatDetail[]> {
 		return this.liveSessionItems;
 	}
 

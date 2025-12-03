@@ -29,6 +29,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { InlineChatConfigKeys } from '../../inlineChat/common/inlineChat.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
+import { awaitStatsForSession } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { chatEditingSessionIsReady, editEntriesToMultiDiffData } from './chatEditingService.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
@@ -358,9 +359,11 @@ export class ChatService extends Disposable implements IChatService {
 	 * Returns an array of chat details for all persisted chat sessions that have at least one request.
 	 * Chat sessions that have already been loaded into the chat view are excluded from the result.
 	 * Imported chat sessions are also excluded from the result.
+	 * TODO this is only used by the old "show chats" command which can be removed when the pre-agents view
+	 * options are removed.
 	 */
 	async getLocalSessionHistory(): Promise<IChatDetail[]> {
-		const liveSessionItems = this.getLiveSessionItems();
+		const liveSessionItems = await this.getLiveSessionItems();
 		const historySessionItems = await this.getHistorySessionItems();
 
 		return [...liveSessionItems, ...historySessionItems];
@@ -369,18 +372,19 @@ export class ChatService extends Disposable implements IChatService {
 	/**
 	 * Returns an array of chat details for all local live chat sessions.
 	 */
-	getLiveSessionItems(): IChatDetail[] {
-		return Array.from(this._sessionModels.values())
+	async getLiveSessionItems(): Promise<IChatDetail[]> {
+		return await Promise.all(Array.from(this._sessionModels.values())
 			.filter(session => this.shouldBeInHistory(session))
-			.map((session): IChatDetail => {
+			.map(async (session): Promise<IChatDetail> => {
 				const title = session.title || localize('newChat', "New Chat");
 				return {
 					sessionResource: session.sessionResource,
 					title,
 					lastMessageDate: session.lastMessageDate,
 					isActive: true,
+					stats: await awaitStatsForSession(session),
 				};
-			});
+			}));
 	}
 
 	/**
@@ -395,6 +399,7 @@ export class ChatService extends Disposable implements IChatService {
 				return ({
 					...entry,
 					sessionResource,
+					stats: entry.stats,
 					isActive: this._sessionModels.has(sessionResource),
 				});
 			});
