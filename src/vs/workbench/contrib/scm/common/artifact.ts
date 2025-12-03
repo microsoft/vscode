@@ -26,6 +26,7 @@ export interface ISCMArtifact {
 	readonly name: string;
 	readonly description?: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	readonly timestamp?: number;
 }
 
 export interface SCMArtifactGroupTreeElement {
@@ -38,5 +39,6 @@ export interface SCMArtifactTreeElement {
 	readonly repository: ISCMRepository;
 	readonly group: ISCMArtifactGroup;
 	readonly artifact: ISCMArtifact;
+	readonly hideTimestamp: boolean;
 	readonly type: 'artifact';
 }
