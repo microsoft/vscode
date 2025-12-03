@@ -700,13 +700,12 @@ export class ChatService extends Disposable implements IChatService {
 				}
 			}));
 		} else {
-			if (lastRequest) {
-				const diffs = model.editingSession?.getDiffsForFilesInRequest(lastRequest.id);
-				if (diffs) {
-					const finalDiff = await awaitCompleteChatEditingDiff(diffs);
-					if (finalDiff && finalDiff.length > 0) {
-						lastRequest.response?.updateContent(editEntriesToMultiDiffData(finalDiff));
-					}
+			if (lastRequest && model.editingSession) {
+				await chatEditingSessionIsReady(model.editingSession); // wait for timeline to have diffs available
+				const diffs = model.editingSession.getDiffsForFilesInRequest(lastRequest.id);
+				const finalDiff = await awaitCompleteChatEditingDiff(diffs);
+				if (finalDiff && finalDiff.length > 0) {
+					lastRequest.response?.updateContent(editEntriesToMultiDiffData(finalDiff));
 				}
 
 				lastRequest.response?.complete();
