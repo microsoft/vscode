@@ -722,14 +722,14 @@ export class Response extends AbstractResponse implements IDisposable {
 			});
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
-		} else if (progress.kind === 'multiDiffData') {
-			const existingIndex = this._responseParts.findIndex(p => p.kind === 'multiDiffData');
-			if (existingIndex !== -1) {
-				this._responseParts[existingIndex] = progress;
-			} else {
-				this._responseParts.push(progress);
-			}
-			this._updateRepr(quiet);
+			// } else if (progress.kind === 'multiDiffData') {
+			// 	const existingIndex = this._responseParts.findIndex(p => p.kind === 'multiDiffData');
+			// 	if (existingIndex !== -1) {
+			// 		this._responseParts[existingIndex] = progress;
+			// 	} else {
+			// 		this._responseParts.push(progress);
+			// 	}
+			// 	this._updateRepr(quiet);
 		} else {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
@@ -1671,7 +1671,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._multiDiffData;
 	}
 
-
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
 		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
@@ -1729,8 +1728,10 @@ export class ChatModel extends Disposable implements IChatModel {
 			const multiDiffData = this._multiDiffData.read(reader);
 			reader.store.add(request.response.onDidChange(ev => {
 				if (ev.reason === 'completedRequest') {
-					if (multiDiffData && multiDiffData.multiDiffData.resources.length > 0) {
-						request.response?.updateContent(multiDiffData, true);
+					if (request === this._requests.at(-1)) {
+						if (multiDiffData && multiDiffData.multiDiffData.resources.length > 0) {
+							request.response?.updateContent(multiDiffData, true);
+						}
 					}
 					this._onDidChange.fire({ kind: 'completedRequest', request });
 				}
