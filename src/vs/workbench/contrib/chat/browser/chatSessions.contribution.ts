@@ -41,8 +41,11 @@ import { IChatModel, IChatProgressResponseContent, IChatRequestModel } from '../
 import { IChatService, IChatToolInvocation } from '../common/chatService.js';
 import { autorunSelfDisposable } from '../../../../base/common/observable.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
-import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ChatViewId } from './chat.js';
+import { ChatViewPane } from './chatViewPane.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -558,6 +561,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					}
 				}
 			}),
+			// Creates a chat editor
 			registerAction2(class OpenNewChatSessionEditorAction extends Action2 {
 				constructor() {
 					super({
@@ -565,12 +569,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						title: localize2('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
 						category: CHAT_CATEGORY,
 						icon: Codicon.plus,
-						f1: true, // Show in command palette
+						f1: true,
 						precondition: ChatContextKeys.enabled,
-						menu: {
-							id: MenuId.ChatNewMenu,
-							group: '3_new_special',
-						}
 					});
 				}
 
@@ -598,6 +598,46 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						}
 					} catch (e) {
 						logService.error(`Failed to open new '${type}' chat session editor`, e);
+					}
+				}
+			}),
+			// New chat in sidebar chat (+ button)
+			registerAction2(class OpenNewChatSessionSidebarAction extends Action2 {
+				constructor() {
+					super({
+						id: `workbench.action.chat.openNewSessionSidebar.${contribution.type}`,
+						title: localize2('interactiveSession.openNewSessionSidebar', "New {0}", contribution.displayName),
+						category: CHAT_CATEGORY,
+						icon: Codicon.plus,
+						f1: false, // Hide from Command Palette
+						precondition: ChatContextKeys.enabled,
+						menu: {
+							id: MenuId.ChatNewMenu,
+							group: '3_new_special',
+						}
+					});
+				}
+
+				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
+					const viewsService = accessor.get(IViewsService);
+					const logService = accessor.get(ILogService);
+					const chatService = accessor.get(IChatService);
+					const { type } = contribution;
+
+					try {
+						const resource = URI.from({
+							scheme: type,
+							path: `/untitled-${generateUuid()}`,
+						});
+
+						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+						await view.loadSession(resource);
+						if (chatOptions?.prompt) {
+							await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
+						}
+						view.focus();
+					} catch (e) {
+						logService.error(`Failed to open new '${type}' chat session in sidebar`, e);
 					}
 				}
 			})
