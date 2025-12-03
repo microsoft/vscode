@@ -8,7 +8,7 @@
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import { debounce } from '../../../base/common/decorators.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { asPromise } from '../../../base/common/async.js';
 import { ExtHostCommands } from './extHostCommands.js';
 import { MainContext, MainThreadSCMShape, SCMRawResource, SCMRawResourceSplice, SCMRawResourceSplices, IMainContext, ExtHostSCMShape, ICommandDto, MainThreadTelemetryShape, SCMGroupFeatures, SCMHistoryItemDto, SCMHistoryItemChangeDto, SCMHistoryItemRefDto, SCMActionButtonDto, SCMArtifactGroupDto, SCMArtifactDto } from './extHost.protocol.js';
@@ -931,6 +931,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	private readonly _telemetry: MainThreadTelemetryShape;
 	private _sourceControls: Map<ProviderHandle, ExtHostSourceControl> = new Map<ProviderHandle, ExtHostSourceControl>();
 	private _sourceControlsByExtension: ExtensionIdentifierMap<ExtHostSourceControl[]> = new ExtensionIdentifierMap<ExtHostSourceControl[]>();
+	private readonly _sourceControlArtifactCommandsDisposables = new Map<ProviderHandle, DisposableMap<string /* group */, DisposableStore>>();
 
 	private readonly _onDidChangeActiveProvider = new Emitter<vscode.SourceControl>();
 	get onDidChangeActiveProvider(): Event<vscode.SourceControl> { return this._onDidChangeActiveProvider.event; }
@@ -1005,6 +1006,8 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
 		sourceControls.push(sourceControl);
 		this._sourceControlsByExtension.set(extension.identifier, sourceControls);
+
+		this._sourceControlArtifactCommandsDisposables.set(sourceControl.handle, new DisposableMap<string, DisposableStore>());
 
 		return sourceControl;
 	}
@@ -1229,12 +1232,19 @@ export class ExtHostSCM implements ExtHostSCMShape {
 	async $provideArtifacts(sourceControlHandle: number, group: string, token: CancellationToken): Promise<SCMArtifactDto[] | undefined> {
 		try {
 			const artifactProvider = this._sourceControls.get(sourceControlHandle)?.artifactProvider;
-			const artifacts = await artifactProvider?.provideArtifacts(group, token);
 
-			return artifacts?.map(artifact => ({
+			const commandsDisposables = new DisposableStore();
+			const artifacts = await artifactProvider?.provideArtifacts(group, token);
+			const artifactsDto = artifacts?.map(artifact => ({
 				...artifact,
-				icon: getHistoryItemIconDto(artifact.icon)
+				icon: getHistoryItemIconDto(artifact.icon),
+				command: artifact.command ? this._commands.converter.toInternal(artifact.command, commandsDisposables) : undefined
 			}));
+
+			this._sourceControlArtifactCommandsDisposables.get(sourceControlHandle)?.get(group)?.dispose();
+			this._sourceControlArtifactCommandsDisposables.get(sourceControlHandle)?.set(group, commandsDisposables);
+
+			return artifactsDto;
 		}
 		catch (err) {
 			this.logService.error('ExtHostSCM#$provideArtifacts', err);
