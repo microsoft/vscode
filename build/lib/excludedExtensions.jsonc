@@ -9,16 +9,16 @@
 	// ============================================================================
 	// Themes (keep theme-defaults and theme-seti active)
 	// ============================================================================
-	"theme-abyss",
-	"theme-kimbie-dark",
-	"theme-monokai",
-	"theme-monokai-dimmed",
-	"theme-quietlight",
-	"theme-red",
+	// "theme-abyss",
+	// "theme-kimbie-dark",
+	// "theme-monokai",
+	// "theme-monokai-dimmed",
+	// "theme-quietlight",
+	// "theme-red",
 	// "theme-seti",
-	"theme-solarized-dark",
-	"theme-solarized-light",
-	"theme-tomorrow-night-blue",
+	// "theme-solarized-dark",
+	// "theme-solarized-light",
+	// "theme-tomorrow-night-blue",
 	// "theme-defaults",
 	// ============================================================================
 	// Less common languages
@@ -54,10 +54,10 @@
 	// ============================================================================
 	"ipynb", // Jupyter notebooks
 	"notebook-renderers", // Notebook renderers
-	"mermaid-chat-features", // Mermaid diagrams in chat
+	// "mermaid-chat-features", // Mermaid diagrams in chat
 	"tunnel-forwarding", // Port forwarding/tunneling
 	"simple-browser", // Simple web browser
-	"media-preview", // Media preview (images, videos)
+	// "media-preview", // Media preview (images, videos)
 	// ============================================================================
 	// Language Server Features (CRITICAL)
 	// ============================================================================
