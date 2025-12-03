@@ -51,7 +51,6 @@ import { Color } from '../../../../../../base/common/color.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../../../../terminal/common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../../../common/theme.js';
 
-
 const MIN_OUTPUT_ROWS = 1;
 const MAX_OUTPUT_ROWS = 10;
 
@@ -677,6 +676,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _contentContainer: HTMLElement;
 	private readonly _terminalContainer: HTMLElement;
 	private readonly _emptyElement: HTMLElement;
+	private _lastRenderedLineCount: number | undefined;
 
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	public get onDidFocus() { return this._onDidFocusEmitter.event; }
@@ -715,6 +715,10 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, event => this._onDidBlurEmitter.fire(event)));
+
+		const resizeObserver = new ResizeObserver(() => this._handleResize());
+		resizeObserver.observe(this.domNode);
+		this._register(toDisposable(() => resizeObserver.disconnect()));
 	}
 
 	public async toggle(expanded: boolean): Promise<boolean> {
@@ -815,10 +819,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}));
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
 		scrollableDomNode.tabIndex = 0;
-		const rowHeight = this._computeRowHeightPx();
-		const padding = this._getOutputPadding();
-		const maxHeight = rowHeight * MAX_OUTPUT_ROWS + padding;
-		scrollableDomNode.style.maxHeight = `${maxHeight}px`;
 		this.domNode.appendChild(scrollableDomNode);
 		this.updateAriaLabel();
 	}
@@ -867,13 +867,13 @@ class ChatTerminalToolOutputSection extends Disposable {
 		} else {
 			this._hideEmptyMessage();
 		}
-		this._layoutOutput(result.lineCount);
+		this._layoutOutput(result.lineCount ?? 0);
 		return true;
 	}
 
 	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
 		if (this._snapshotMirror) {
-			this._layoutOutput(snapshot.lineCount);
+			this._layoutOutput(snapshot.lineCount ?? 0);
 			return;
 		}
 		dom.clearNode(this._terminalContainer);
@@ -887,14 +887,13 @@ class ChatTerminalToolOutputSection extends Disposable {
 		} else {
 			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
 		}
-		const lineCount = result?.lineCount ?? snapshot.lineCount;
-		if (lineCount) {
-			this._layoutOutput(lineCount);
-		}
+		const lineCount = result?.lineCount ?? snapshot.lineCount ?? 0;
+		this._layoutOutput(lineCount);
 	}
 
 	private _renderUnavailableMessage(liveTerminalInstance: ITerminalInstance | undefined): void {
 		dom.clearNode(this._terminalContainer);
+		this._lastRenderedLineCount = undefined;
 		if (!liveTerminalInstance) {
 			this._showEmptyMessage(localize('chat.terminalOutputTerminalMissing', 'Terminal is no longer available.'));
 		} else {
@@ -931,8 +930,31 @@ class ChatTerminalToolOutputSection extends Disposable {
 		});
 	}
 
+	private _handleResize(): void {
+		if (!this._scrollableContainer) {
+			return;
+		}
+		if (this.isExpanded) {
+			this._layoutOutput();
+			this._scrollOutputToBottom();
+		} else {
+			this._scrollableContainer.scanDomNode();
+		}
+	}
+
 	private _layoutOutput(lineCount?: number): void {
-		if (!this._scrollableContainer || !this.isExpanded || !lineCount) {
+		if (!this._scrollableContainer) {
+			return;
+		}
+
+		if (lineCount !== undefined) {
+			this._lastRenderedLineCount = lineCount;
+		} else {
+			lineCount = this._lastRenderedLineCount;
+		}
+
+		this._scrollableContainer.scanDomNode();
+		if (!this.isExpanded || lineCount === undefined) {
 			return;
 		}
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
@@ -944,8 +966,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const clampedHeight = Math.min(contentHeight, maxHeight);
 		const measuredBodyHeight = Math.max(this._outputBody.clientHeight, minHeight);
 		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
-		scrollableDomNode.style.maxHeight = `${maxHeight}px`;
-		scrollableDomNode.style.height = `${appliedHeight}px`;
+		scrollableDomNode.style.height = appliedHeight < maxHeight ? `${appliedHeight}px` : '';
 		this._scrollableContainer.scanDomNode();
 		if (this._renderedOutputHeight !== appliedHeight) {
 			this._renderedOutputHeight = appliedHeight;

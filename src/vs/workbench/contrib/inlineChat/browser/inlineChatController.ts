@@ -101,6 +101,7 @@ export abstract class InlineChatRunOptions {
 	existingSession?: Session;
 	position?: IPosition;
 	modelSelector?: ILanguageModelChatSelector;
+	blockOnResponse?: boolean;
 
 	static isInlineChatRunOptions(options: unknown): options is InlineChatRunOptions {
 
@@ -108,7 +109,7 @@ export abstract class InlineChatRunOptions {
 			return false;
 		}
 
-		const { initialSelection, initialRange, message, autoSend, position, existingSession, attachments, modelSelector } = <InlineChatRunOptions>options;
+		const { initialSelection, initialRange, message, autoSend, position, existingSession, attachments, modelSelector, blockOnResponse } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
@@ -118,6 +119,7 @@ export abstract class InlineChatRunOptions {
 			|| typeof existingSession !== 'undefined' && !(existingSession instanceof Session)
 			|| typeof attachments !== 'undefined' && (!Array.isArray(attachments) || !attachments.every(item => item instanceof URI))
 			|| typeof modelSelector !== 'undefined' && !isILanguageModelChatSelector(modelSelector)
+			|| typeof blockOnResponse !== 'undefined' && typeof blockOnResponse !== 'boolean'
 		) {
 			return false;
 		}
