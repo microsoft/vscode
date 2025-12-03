@@ -8,7 +8,7 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { MutableDisposable, combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as resources from '../../../../base/common/resources.js';
@@ -633,8 +633,31 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const disposableStore = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposableStore);
 
-		disposableStore.add(this._registerAgent(contribution, ext));
-		disposableStore.add(this._registerCommands(contribution));
+		const providerDependentDisposables = new MutableDisposable<IDisposable>();
+		disposableStore.add(providerDependentDisposables);
+
+		// NOTE: Only those extensions that register as 'content providers' should have agents and commands auto-registered
+		//       This relationship may change in the future as the API grows.
+		const reconcileProviderRegistrations = () => {
+			if (this._contentProviders.has(contribution.type)) {
+				if (!providerDependentDisposables.value) {
+					providerDependentDisposables.value = combinedDisposable(
+						this._registerAgent(contribution, ext),
+						this._registerCommands(contribution)
+					);
+				}
+			} else {
+				providerDependentDisposables.clear();
+			}
+		};
+
+		reconcileProviderRegistrations();
+		disposableStore.add(this.onDidChangeContentProviderSchemes(({ added, removed }) => {
+			if (added.includes(contribution.type) || removed.includes(contribution.type)) {
+				reconcileProviderRegistrations();
+			}
+		}));
+
 		disposableStore.add(this._registerMenuItems(contribution, ext));
 	}
 

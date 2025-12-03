@@ -471,6 +471,12 @@ class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColu
 
 	readonly templateId: string = MultiplierColumnRenderer.TEMPLATE_ID;
 
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService
+	) {
+		super();
+	}
+
 	renderTemplate(container: HTMLElement): IMultiplierColumnTemplateData {
 		const disposables = new DisposableStore();
 		const elementDisposables = new DisposableStore();
@@ -492,7 +498,18 @@ class MultiplierColumnRenderer extends ModelsTableColumnRenderer<IMultiplierColu
 	}
 
 	override renderModelElement(entry: IModelItemEntry, index: number, templateData: IMultiplierColumnTemplateData): void {
-		templateData.multiplierElement.textContent = (entry.modelEntry.metadata.detail && entry.modelEntry.metadata.detail.trim().toLowerCase() !== entry.modelEntry.vendor.trim().toLowerCase()) ? entry.modelEntry.metadata.detail : '-';
+		const multiplierText = (entry.modelEntry.metadata.detail && entry.modelEntry.metadata.detail.trim().toLowerCase() !== entry.modelEntry.vendor.trim().toLowerCase()) ? entry.modelEntry.metadata.detail : '-';
+		templateData.multiplierElement.textContent = multiplierText;
+
+		if (multiplierText !== '-') {
+			templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container, () => ({
+				content: localize('multiplier.tooltip', "Every chat message counts {0} towards your premium model request quota", multiplierText),
+				appearance: {
+					compact: true,
+					skipFadeInAnimation: true
+				}
+			})));
+		}
 	}
 }
 
@@ -844,6 +861,17 @@ export class ChatModelsWidget extends Disposable {
 				this.searchWidget.focus();
 			}
 		));
+		const collapseAllAction = this._register(new Action(
+			'workbench.models.collapseAll',
+			localize('collapseAll', "Collapse All"),
+			ThemeIcon.asClassName(Codicon.collapseAll),
+			false,
+			() => {
+				this.viewModel.collapseAll();
+			}
+		));
+		collapseAllAction.enabled = this.viewModel.viewModelEntries.some(e => isVendorEntry(e) || isGroupEntry(e));
+		this._register(this.viewModel.onDidChange(() => collapseAllAction.enabled = this.viewModel.viewModelEntries.some(e => isVendorEntry(e) || isGroupEntry(e))));
 
 		this._register(this.searchWidget.onInputDidChange(() => {
 			clearSearchAction.enabled = !!this.searchWidget.getValue();
@@ -851,7 +879,7 @@ export class ChatModelsWidget extends Disposable {
 		}));
 
 		this.searchActionsContainer = DOM.append(searchContainer, $('.models-search-actions'));
-		const actions = [clearSearchAction, filterAction];
+		const actions = [clearSearchAction, collapseAllAction, filterAction];
 		const toolBar = this._register(new ToolBar(this.searchActionsContainer, this.contextMenuService, {
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 				if (action.id === filterAction.id) {
@@ -890,7 +918,6 @@ export class ChatModelsWidget extends Disposable {
 		// Create table
 		this.createTable();
 		this._register(this.viewModel.onDidChangeGrouping(() => this.createTable()));
-		return;
 	}
 
 	private createTable(): void {
@@ -946,19 +973,19 @@ export class ChatModelsWidget extends Disposable {
 
 		columns.push(
 			{
-				label: localize('capabilities', 'Capabilities'),
-				tooltip: '',
-				weight: 0.25,
-				minimumWidth: 180,
-				templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
-				project(row: TableEntry): TableEntry { return row; }
-			},
-			{
 				label: localize('tokenLimits', 'Context Size'),
 				tooltip: '',
 				weight: 0.1,
 				minimumWidth: 140,
 				templateId: TokenLimitsColumnRenderer.TEMPLATE_ID,
+				project(row: TableEntry): TableEntry { return row; }
+			},
+			{
+				label: localize('capabilities', 'Capabilities'),
+				tooltip: '',
+				weight: 0.25,
+				minimumWidth: 180,
+				templateId: CapabilitiesColumnRenderer.TEMPLATE_ID,
 				project(row: TableEntry): TableEntry { return row; }
 			},
 			{
