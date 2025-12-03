@@ -1337,8 +1337,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return false;
 		}
 
-
-
 		if (!isIChatViewViewContext(this.viewContext)) {
 			return false;
 		}
@@ -1358,7 +1356,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/**
 	 * Handles the exit of the panel chat when a delegation to another session occurs.
 	 * Waits for the response to complete and any pending confirmations to be resolved,
-	 * then clears the widget.
+	 * then clears the widget unless the final message is an error.
 	 */
 	private async _handleDelegationExit(): Promise<void> {
 		const viewModel = this.viewModel;
@@ -1366,32 +1364,33 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		// Check if response is already complete without pending confirmations
-		const checkForComplete = () => {
+		// Check if response is complete, not pending confirmation, and has no error
+		const checkIfShouldClear = (): boolean => {
 			const items = viewModel.getItems();
 			const lastItem = items[items.length - 1];
 			if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
-				return true;
+				const hasError = Boolean(lastItem.result?.errorDetails);
+				return !hasError;
 			}
 			return false;
 		};
 
-		if (checkForComplete()) {
+		if (checkIfShouldClear()) {
 			await this.clear();
 			return;
 		}
 
-		// Wait for response to complete with a timeout
-		await new Promise<void>(resolve => {
+		const shouldClear = await new Promise<boolean>(resolve => {
 			const disposable = viewModel.onDidChange(() => {
-				if (checkForComplete()) {
+				const result = checkIfShouldClear();
+				if (result) {
 					cleanup();
-					resolve();
+					resolve(true);
 				}
 			});
 			const timeout = setTimeout(() => {
 				cleanup();
-				resolve();
+				resolve(false);
 			}, 30_000); // 30 second timeout
 			const cleanup = () => {
 				clearTimeout(timeout);
@@ -1399,8 +1398,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 		});
 
-		// Clear the widget after delegation completes
-		await this.clear();
+		if (shouldClear) {
+			await this.clear();
+		}
 	}
 
 	setVisible(visible: boolean): void {
