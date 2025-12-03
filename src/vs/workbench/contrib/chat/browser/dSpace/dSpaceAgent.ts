@@ -214,7 +214,7 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 			const tools = this.getAvailableTools();
 
 			// Call backend API with streaming
-			await this.callBackend(messages, tools, progress, token, request.requestId, request.sessionId, request.sessionResource);
+			await this.callBackend(messages, tools, progress, token, request.requestId, request.sessionResource);
 
 			const totalElapsed = Date.now() - startTime;
 			this.logService.info(`[DSpaceAgent] Request completed in ${totalElapsed}ms`);
@@ -288,7 +288,6 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 		progress: (parts: IChatProgress[]) => void,
 		token: CancellationToken,
 		requestId: string,
-		sessionId: string,
 		sessionResource: URI
 	): Promise<void> {
 		// Only send messages, tools, and tool_choice
@@ -418,7 +417,6 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 								progress,
 								token,
 								requestId,
-								sessionId,
 								sessionResource
 							);
 						} catch (error) {
@@ -437,7 +435,6 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 								progress,
 								token,
 								requestId,
-								sessionId,
 								sessionResource
 							);
 						} catch (error) {
@@ -473,7 +470,6 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 		progress: (parts: IChatProgress[]) => void,
 		token: CancellationToken,
 		requestId: string,
-		sessionId: string,
 		sessionResource: URI
 	): Promise<void> {
 		this.logService.info(`[DSpaceAgent] Executing ${this.toolCallsBuffer.size} tool call(s)`);
@@ -515,7 +511,7 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 			]);
 
 			// Execute the tool using VS Code's tool service
-			const result = await this.executeToolCall(toolCall.name, toolCall.arguments, requestId, sessionId, sessionResource, token);
+			const result = await this.executeToolCall(toolCall.name, toolCall.arguments, requestId, sessionResource, token);
 
 			toolResults.push({
 				role: 'tool',
@@ -541,7 +537,7 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 
 		// Make another request with tool results
 		this.logService.info('[DSpaceAgent] Continuing conversation with tool results');
-		await this.callBackend(continuationMessages, tools, progress, token, requestId, sessionId, sessionResource);
+		await this.callBackend(continuationMessages, tools, progress, token, requestId, sessionResource);
 	}
 
 	/**
@@ -551,7 +547,6 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 		toolId: string,
 		argumentsJson: string,
 		requestId: string,
-		sessionId: string,
 		sessionResource: URI,
 		token: CancellationToken
 	): Promise<string> {
@@ -590,8 +585,8 @@ export class DSpaceAgent extends Disposable implements IChatAgentImplementation 
 			// Create tool invocation context with selection info
 			// Extend context with fileRange if available (using intersection type)
 			const context: IToolInvocationContext & { fileRange?: IRange } = {
-				sessionId: sessionId,
 				sessionResource: sessionResource,
+				sessionId: sessionResource.toString(),
 			};
 			if (fileRange) {
 				context.fileRange = fileRange;
