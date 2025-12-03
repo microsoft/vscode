@@ -1337,8 +1337,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return false;
 		}
 
-
-
 		if (!isIChatViewViewContext(this.viewContext)) {
 			return false;
 		}
