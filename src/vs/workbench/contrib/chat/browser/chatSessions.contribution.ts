@@ -1025,11 +1025,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean {
 		const session = this._sessions.get(sessionResource);
-		const didSet = !!session?.setOption(optionId, value);
-		if (session) {
-			this._onDidChangeSessionOptions?.fire({ resource: sessionResource, updates: [{ optionId, value: typeof value === 'string' ? value : value.id }] });
-		}
-		return didSet;
+		return !!session?.setOption(optionId, value);
 	}
 
 	// Implementation of editable session methods

@@ -379,9 +379,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	$onDidChangeChatSessionOptions(handle: number, sessionResourceComponents: UriComponents, updates: ReadonlyArray<{ optionId: string; value: string }>): void {
 		const sessionResource = URI.revive(sessionResourceComponents);
 
-		for (const update of updates) {
-			this._chatSessionsService.setSessionOption(sessionResource, update.optionId, update.value);
-		}
+		this._chatSessionsService.notifySessionOptionsChange(sessionResource, updates);
 	}
 
 	async $onDidCommitChatSessionItem(handle: number, originalComponents: UriComponents, modifiedCompoennts: UriComponents): Promise<void> {
