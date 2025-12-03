@@ -15,7 +15,7 @@
 		flex-direction: column;
 		margin: 12px 16px 32px 16px;
 		border-radius: 4px;
-		background-color: var(--vscode-editorWidget-background);
+		background-color: var(--vscode-chat-agentSessionsBackground);
 
 		.agent-sessions-title-container {
 			display: flex;

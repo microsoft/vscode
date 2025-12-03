@@ -73,3 +73,9 @@ export const chatLinesRemovedForeground = registerColor(
 	'chat.linesRemovedForeground',
 	{ dark: '#FC6A6A', light: '#BC2F32', hcDark: '#F48771', hcLight: '#B5200D' },
 	localize('chat.linesRemovedForeground', 'Foreground color of lines removed in chat code block pill.'), true);
+
+export const chatAgentSessionsBackground = registerColor(
+	'chat.agentSessionsBackground',
+	{ dark: editorWidgetBackground, light: editorWidgetBackground, hcDark: editorWidgetBackground, hcLight: editorWidgetBackground },
+	localize('chat.agentSessionsBackground', 'The background color of the recent sessions in the chat view.')
+);

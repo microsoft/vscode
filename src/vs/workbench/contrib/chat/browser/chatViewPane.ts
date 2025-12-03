@@ -26,7 +26,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { editorBackground, editorWidgetBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../common/memento.js';
@@ -36,6 +36,7 @@ import { ILifecycleService, StartupKind } from '../../../services/lifecycle/comm
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { chatAgentSessionsBackground } from '../common/chatColors.js';
 import { IChatModel, IChatModelInputState } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatModelReference, IChatService } from '../common/chatService.js';
@@ -288,7 +289,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				}
 			},
 			overrideStyles: {
-				listBackground: editorWidgetBackground
+				listBackground: chatAgentSessionsBackground
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));
