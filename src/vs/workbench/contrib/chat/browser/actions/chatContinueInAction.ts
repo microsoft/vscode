@@ -284,7 +284,7 @@ class CreateRemoteAgentJobAction {
 			});
 
 			if (requestData) {
-				await widget.handleDelegationExitIfNeeded(requestData.agent);
+				await widget.handleDelegationExitIfNeeded(defaultAgent, requestData.agent);
 			}
 		} catch (e) {
 			console.error('Error creating remote coding agent job', e);

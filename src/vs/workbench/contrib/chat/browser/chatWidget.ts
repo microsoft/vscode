@@ -1309,8 +1309,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	async handleDelegationExitIfNeeded(agent: IChatAgentData | undefined): Promise<void> {
-		if (!this._shouldExitAfterDelegation(agent)) {
+	async handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void> {
+		if (!this._shouldExitAfterDelegation(sourceAgent, targetAgent)) {
 			return;
 		}
 
@@ -1321,12 +1321,23 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private _shouldExitAfterDelegation(agent: IChatAgentData | undefined): boolean {
+	private _shouldExitAfterDelegation(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): boolean {
+		if (!targetAgent) {
+			// Undefined behavior
+			return false;
+		}
+
 		if (!this.configurationService.getValue<boolean>(ChatConfiguration.ExitAfterDelegation)) {
 			return false;
 		}
 
-		if (!agent) {
+		// Never exit if the source and target are the same (that means that you're providing a follow up, etc.)
+		// NOTE: sourceAgent would be the chatWidget's 'lockedAgent'
+		if (sourceAgent && sourceAgent.id === targetAgent.id) {
+			return false;
+		}
+
+		if (!targetAgent) {
 			return false;
 		}
 
@@ -1334,7 +1345,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return false;
 		}
 
-		const contribution = this.chatSessionsService.getChatSessionContribution(agent.id);
+		const contribution = this.chatSessionsService.getChatSessionContribution(targetAgent.id);
 		if (!contribution) {
 			return false;
 		}
@@ -2311,7 +2322,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.input.acceptInput(isUserQuery);
 		this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
-		this.handleDelegationExitIfNeeded(result.agent);
+		this.handleDelegationExitIfNeeded(this._lockedAgent, result.agent);
 		this.currentRequest = result.responseCompletePromise.then(() => {
 			const responses = this.viewModel?.getItems().filter(isResponseVM);
 			const lastResponse = responses?.[responses.length - 1];
