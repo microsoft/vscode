@@ -12,6 +12,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IViewDescriptorService, IViewContainerModel } from '../../../common/views.js';
 import { ActivityBarPosition, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IChatModel } from '../common/chatModel.js';
+import { ChatViewId } from './chat.js';
 
 export interface IChatViewTitleDelegate {
 	updatePrimaryTitle(title: string): void;
@@ -34,14 +35,14 @@ export class ChatViewTitleControl extends Disposable {
 	private lastKnownHeight = 0;
 
 	constructor(
-		private readonly viewId: string,
+		private readonly container: HTMLElement,
 		private readonly delegate: IChatViewTitleDelegate,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 
-		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(this.viewId);
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(ChatViewId);
 		if (viewContainer) {
 			this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 
@@ -57,6 +58,8 @@ export class ChatViewTitleControl extends Disposable {
 				this.applyUpdate();
 			}
 		}));
+
+		this.render(this.container);
 	}
 
 	render(parent: HTMLElement): void {

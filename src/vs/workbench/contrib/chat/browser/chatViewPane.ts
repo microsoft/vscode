@@ -201,7 +201,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Update widget lock state based on session type
 		await this.updateWidgetLockState(model.sessionResource);
 
-		this.viewState.sessionId = model.sessionId;
+		this.viewState.sessionId = model.sessionId; // remember as model to restore in view state
 		this._widget.setModel(model);
 
 		// Update the toolbar context with new sessionId
@@ -233,6 +233,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.viewPaneContainer.classList.add('chat-viewpane');
 
 		this.createControls(parent);
+
 		this.setupContextMenu(parent);
 
 		this.applyModel();
@@ -341,10 +342,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private createTitleControl(parent: HTMLElement): void {
 		this.titleControl = this._register(this.instantiationService.createInstance(ChatViewTitleControl,
-			this.id,
+			parent,
 			{
 				updatePrimaryTitle: title => this.updateTitle(title)
-			},
+			}
 		));
 
 		this._register(this.titleControl.onDidChangeHeight(() => {
@@ -352,8 +353,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 			}
 		}));
-
-		this.titleControl.render(parent);
 	}
 
 	private createChatWidget(parent: HTMLElement): void {
