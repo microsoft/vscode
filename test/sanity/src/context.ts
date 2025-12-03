@@ -249,11 +249,11 @@ export class TestContext {
 		return new Promise((resolve, reject) => {
 			extract.on('entry', (header, stream, next) => {
 				const filePath = path.join(dir, header.name);
-				this.ensureDirExists(filePath);
 				if (header.type === 'directory') {
 					stream.resume();
 					next();
 				} else if (header.type === 'file') {
+					this.ensureDirExists(filePath);
 					const writeStream = fs.createWriteStream(filePath, { mode: header.mode });
 					stream.pipe(writeStream);
 					writeStream.on('finish', next);
