@@ -11,7 +11,7 @@ See [Sanity Check wiki page](https://github.com/microsoft/vscode/wiki/Sanity-Che
 ## Usage
 
 Many tests will use the underlying platform to install and verify basic VS Code functionality.
-Such tests will need to be ran on the corresponding target OS/virtual machine and will fail if ran outside.
+Such tests will need to be run on the corresponding target OS/virtual machine and will fail if ran outside.
 Use -g or -f command-line options to filter tests to match the host platform.
 
 ### Command-Line Options
