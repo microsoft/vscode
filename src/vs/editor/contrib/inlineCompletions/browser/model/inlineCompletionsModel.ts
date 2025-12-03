@@ -39,7 +39,7 @@ import { computeGhostText } from './computeGhostText.js';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from './ghostText.js';
 import { InlineCompletionsSource } from './inlineCompletionsSource.js';
 import { InlineCompletionItem, InlineEditItem, InlineSuggestionItem } from './inlineSuggestionItem.js';
-import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType, InlineSuggestRequestInfo } from './provideInlineCompletions.js';
+import { InlineCompletionContextWithoutUuid, InlineCompletionEditorType, InlineSuggestRequestInfo, InlineSuggestSku } from './provideInlineCompletions.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
 import { SuggestItemInfo } from './suggestWidgetAdapter.js';
 import { TextModelEditSource, EditSources } from '../../../../common/textModelEditSource.js';
@@ -51,6 +51,7 @@ import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -66,7 +67,7 @@ export class InlineCompletionsModel extends Disposable {
 	public readonly primaryPosition = derived(this, reader => this._positions.read(reader)[0] ?? new Position(1, 1));
 	public readonly allPositions = derived(this, reader => this._positions.read(reader));
 
-	private readonly sku = observableValue<string | undefined>(this, undefined);
+	private readonly sku = observableValue<InlineSuggestSku | undefined>(this, undefined);
 
 	private _isAcceptingPartially = false;
 	private readonly _appearedInsideViewport = derived<boolean>(this, reader => {
@@ -142,8 +143,8 @@ export class InlineCompletionsModel extends Disposable {
 		const snippetController = SnippetController2.get(this._editor);
 		this._isInSnippetMode = snippetController?.isInSnippetObservable ?? constObservable(false);
 
-		defaultAccountService.getDefaultAccount().then(account => this.sku.set(account?.access_type_sku, undefined));
-		this._register(defaultAccountService.onDidChangeDefaultAccount(account => this.sku.set(account?.access_type_sku, undefined)));
+		defaultAccountService.getDefaultAccount().then(account => this.sku.set(skuFromAccount(account), undefined));
+		this._register(defaultAccountService.onDidChangeDefaultAccount(account => this.sku.set(skuFromAccount(account), undefined)));
 
 		this._typing = this._register(new TypingInterval(this.textModel));
 
@@ -881,11 +882,13 @@ export class InlineCompletionsModel extends Disposable {
 				providerId: completion.source.provider.providerId,
 				languageId,
 				type,
+				correlationId: completion.getSourceCompletion().correlationId,
 			});
 		} else {
 			return EditSources.inlineCompletionAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
+				correlationId: completion.getSourceCompletion().correlationId,
 				providerId: completion.source.provider.providerId,
 				languageId
 			});
@@ -1262,4 +1265,11 @@ export function isSuggestionInViewport(editor: ICodeEditor, suggestion: InlineSu
 		visibleRanges[visibleRanges.length - 1].endColumn
 	);
 	return viewportRange.containsRange(targetRange);
+}
+
+function skuFromAccount(account: IDefaultAccount | null): InlineSuggestSku | undefined {
+	if (account?.access_type_sku && account?.copilot_plan) {
+		return { type: account.access_type_sku, plan: account.copilot_plan };
+	}
+	return undefined;
 }

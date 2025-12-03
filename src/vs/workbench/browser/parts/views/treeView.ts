@@ -1494,10 +1494,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			templateData.actionBar.actionRunner = this._actionRunner;
 		}
 		this.setAlignment(templateData.container, node);
-		if (node.collapsibleState === TreeItemCollapsibleState.None) {
-			templateData.container.classList.add('no-twisty');
-		} else {
-			templateData.container.classList.remove('no-twisty');
+		if (node.parent instanceof Root) {
+			if (node.collapsibleState === TreeItemCollapsibleState.None) {
+				templateData.container.classList.add('no-twisty');
+			} else {
+				templateData.container.classList.remove('no-twisty');
+			}
 		}
 
 		// remember rendered element, an element can be rendered multiple times

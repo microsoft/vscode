@@ -28,11 +28,7 @@
 			padding: 8px;
 
 			.agent-sessions-toolbar {
-				display: none;
-
-				.action-label {
-					padding: 0; /* limit padding top/bottom to preserve line-height per row */
-				}
+				visibility: hidden;
 			}
 		}
 
@@ -46,7 +42,7 @@
 	}
 
 	.agent-sessions-container:hover .agent-sessions-title-container .agent-sessions-toolbar {
-		display: block;
+		visibility: visible;
 	}
 
 	.interactive-session {

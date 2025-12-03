@@ -36,6 +36,7 @@ const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountS
 
 interface IChatEntitlementsResponse {
 	readonly access_type_sku: string;
+	readonly copilot_plan: string;
 	readonly assigned_date: string;
 	readonly can_signup_for_limited: boolean;
 	readonly chat_enabled: boolean;
