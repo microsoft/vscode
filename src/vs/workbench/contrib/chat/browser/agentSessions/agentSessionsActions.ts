@@ -316,7 +316,7 @@ export class ShowAllAgentSessionsAction extends Action2 {
 			title: localize2('showAllSessions', "Show All Agent Sessions"),
 			icon: Codicon.history,
 			menu: {
-				id: MenuId.ChatRecentSessionsToolbar,
+				id: MenuId.ChatViewRecentSessionsToolbar,
 				group: 'navigation',
 				order: 1,
 			}

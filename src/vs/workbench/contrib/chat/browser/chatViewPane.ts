@@ -49,6 +49,7 @@ import { AgentSessionsListDelegate } from './agentSessions/agentSessionsViewer.j
 import { ChatWidget } from './chatWidget.js';
 import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
+import { AgentSessionsFilter } from './agentSessions/agentSessionsFilter.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -75,6 +76,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private recentSessionsControlContainer: HTMLElement | undefined;
 	private recentSessionsControl: AgentSessionsControl | undefined;
 	private recentSessionsCount: number = 0;
+
+	private allSessionsContainer: HTMLElement | undefined;
+	private allSessionsControlContainer: HTMLElement | undefined;
+	private allSessionsControl: AgentSessionsControl | undefined;
 
 	private titleControl: ChatViewTitleControl | undefined;
 
@@ -241,7 +246,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private createControls(parent: HTMLElement): void {
 
-		// Recent Sessions Control
+		// Sessions Controls (recent & all)
+		this.createAllSessionsControl(parent);
 		this.createRecentSessionsControl(parent);
 
 		// Title Control
@@ -268,6 +274,28 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateRecentSessionsControlVisibility();
 	}
 
+	private createAllSessionsControl(parent: HTMLElement): void {
+		const allSessionsContainer = this.allSessionsContainer = parent.appendChild($('.all-agent-sessions-container'));
+
+		// All Sessions Title
+		const titleContainer = append(allSessionsContainer, $('.all-agent-sessions-title-container'));
+		const title = append(titleContainer, $('span.all-agent-sessions-title'));
+		title.textContent = localize('allSessions', "Agent Sessions");
+
+		// All Sessions Toolbar
+		const toolbarContainer = append(titleContainer, $('.all-agent-sessions-toolbar'));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, MenuId.ChatViewAllSessionsToolbar, {}));
+
+		// All Sessions Control
+		const agentSessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, { filterMenuId: MenuId.ChatViewAllSessionsToolbar }));
+		this.allSessionsControlContainer = append(allSessionsContainer, $('.all-agent-sessions-control-container'));
+		this.allSessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.allSessionsControlContainer, {
+			allowOpenSessionsInPanel: true,
+			filter: agentSessionsFilter
+		}));
+		this._register(this.onDidChangeBodyVisibility(visible => this.allSessionsControl?.setVisible(visible)));
+	}
+
 	private createRecentSessionsControl(parent: HTMLElement): void {
 		const that = this;
 		const recentSessionsContainer = this.recentSessionsContainer = parent.appendChild($('.recent-agent-sessions-container'));
@@ -279,7 +307,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Recent Sessions Toolbar
 		const toolbarContainer = append(titleContainer, $('.recent-agent-sessions-toolbar'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, MenuId.ChatRecentSessionsToolbar, {}));
+		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, MenuId.ChatViewRecentSessionsToolbar, {}));
 
 		// Recent Sessions Control
 		this.recentSessionsControlContainer = append(recentSessionsContainer, $('.recent-agent-sessions-control-container'));
