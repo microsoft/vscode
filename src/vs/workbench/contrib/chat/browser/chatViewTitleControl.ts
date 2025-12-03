@@ -3,20 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatViewTitleControl.css';
 import { h } from '../../../../base/browser/dom.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { localize } from '../../../../nls.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IViewDescriptorService, IViewContainerModel } from '../../../common/views.js';
-import { ActivityBarPosition, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
-import { IChatModel } from '../common/chatModel.js';
-import { ChatViewId } from './chat.js';
-import { ChatConfiguration } from '../common/constants.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IViewContainerModel, IViewDescriptorService } from '../../../common/views.js';
+import { ActivityBarPosition, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
+import { IChatViewTitleActionContext } from '../common/chatActions.js';
+import { IChatModel } from '../common/chatModel.js';
+import { ChatConfiguration } from '../common/constants.js';
+import { ChatViewId } from './chat.js';
+import './media/chatViewTitleControl.css';
 
 export interface IChatViewTitleDelegate {
 	updateTitle(title: string): void;
@@ -45,6 +47,8 @@ export class ChatViewTitleControl extends Disposable {
 
 	private model: IChatModel | undefined;
 	private modelDisposables = this._register(new MutableDisposable());
+
+	private toolbar?: MenuWorkbenchToolBar;
 
 	private lastKnownHeight = 0;
 
@@ -87,7 +91,7 @@ export class ChatViewTitleControl extends Disposable {
 			h('span.chat-view-title-label@label'),
 		]);
 
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.ChatViewSessionTitleToolbar, {}));
+		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.ChatViewSessionTitleToolbar, { menuOptions: { shouldForwardArgs: true } }));
 
 		this.titleContainer = elements.root;
 		this.titleLabel = elements.label;
@@ -113,6 +117,13 @@ export class ChatViewTitleControl extends Disposable {
 		this.delegate.updateTitle(this.getTitleWithPrefix());
 
 		this.updateTitle(this.title ?? ChatViewTitleControl.DEFAULT_TITLE);
+
+		if (this.toolbar) {
+			this.toolbar.context = this.model && {
+				$mid: MarshalledId.ChatViewContext,
+				sessionResource: this.model.sessionResource
+			} satisfies IChatViewTitleActionContext;
+		}
 	}
 
 	private updateTitle(title: string): void {
