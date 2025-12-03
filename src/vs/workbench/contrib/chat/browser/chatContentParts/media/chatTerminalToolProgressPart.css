@@ -137,7 +137,6 @@
 	box-sizing: border-box;
 	overflow: hidden;
 	position: relative;
-	max-width: 100%;
 	padding: 5px 0px;
 }
 
@@ -156,7 +155,11 @@
 	outline-offset: 2px;
 }
 div.chat-terminal-content-part.progress-step > div.chat-terminal-output-container.expanded > div > div.chat-terminal-output-body > div > div.chat-terminal-output-terminal > div > div.xterm-scrollable-element {
+	margin-left: -12px;
+	margin-right: -12px;
 	padding-left: 12px;
+	padding-right: 12px;
+	box-sizing: border-box;
 }
 .chat-terminal-output-body {
 	padding: 4px 0px;

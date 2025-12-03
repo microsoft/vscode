@@ -345,6 +345,7 @@ export interface IChatTerminalToolInvocationData {
 	terminalCommandOutput?: {
 		text: string;
 		truncated?: boolean;
+		lineCount?: number;
 	};
 	/** Stored theme colors at execution time to style detached output */
 	terminalTheme?: {
@@ -406,6 +407,7 @@ export interface IChatToolInvocation {
 	readonly parameters: unknown;
 	readonly fromSubAgent?: boolean;
 	readonly state: IObservable<IChatToolInvocation.State>;
+	generatedTitle?: string;
 
 	kind: 'toolInvocation';
 }
@@ -606,6 +608,7 @@ export interface IChatToolInvocationSerialized {
 	toolId: string;
 	source: ToolDataSource;
 	readonly fromSubAgent?: boolean;
+	generatedTitle?: string;
 	kind: 'toolInvocationSerialized';
 }
 

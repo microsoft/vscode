@@ -3050,19 +3050,7 @@ class LayoutStateModel extends Disposable {
 	}
 
 	private loadKeyFromStorage<T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>): T | undefined {
-		let value = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, key.scope);
-
-		// TODO@bpasero remove this code in 1y when "pre-AI" workspaces have migrated
-		// Refs: https://github.com/microsoft/vscode-internalbacklog/issues/6168
-		if (
-			key.scope === StorageScope.WORKSPACE &&
-			key.name === LayoutStateKeys.AUXILIARYBAR_HIDDEN.name &&
-			this.configurationService.getValue('workbench.secondarySideBar.enableDefaultVisibilityInOldWorkspace') === true &&
-			this.storageService.get('workbench.panel.chat.numberOfVisibleViews', StorageScope.WORKSPACE) === undefined
-		) {
-			value = undefined;
-		}
-
+		const value = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, key.scope);
 		if (value !== undefined) {
 			this.isNew[key.scope] = false; // remember that we had previous state for this scope
 

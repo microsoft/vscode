@@ -12,7 +12,6 @@ import { createFileSystemProviderError, FileSystemProviderCapabilities, FileSyst
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatResponseResource } from './chatModel.js';
 import { IChatService, IChatToolInvocation, IChatToolInvocationSerialized } from './chatService.js';
-import { LocalChatSessionUri } from './chatUri.js';
 import { isToolResultInputOutputDetails } from './languageModelToolsService.js';
 
 export class ChatResponseResourceFileSystemProvider extends Disposable implements
@@ -90,8 +89,8 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		if (!parsed) {
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
-		const { sessionId, toolCallId, index } = parsed;
-		const session = this.chatService.getSession(LocalChatSessionUri.forSession(sessionId));
+		const { sessionResource, toolCallId, index } = parsed;
+		const session = this.chatService.getSession(sessionResource);
 		if (!session) {
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
