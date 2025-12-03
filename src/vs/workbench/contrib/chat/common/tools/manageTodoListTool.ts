@@ -298,7 +298,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			return {
 				content: [{
 					kind: 'text',
-					value: 'Error: todoList is required for write operation'
+					value: 'Error: todoList parameter is required for write operation.\n\nThis tool manages the internal todo list for tracking tasks in the chat session. It is NOT for editing todo.md files or other markdown files. To edit files, use appropriate file editing capabilities instead.'
 				}]
 			};
 		}
