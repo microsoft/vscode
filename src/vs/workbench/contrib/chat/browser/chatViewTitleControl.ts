@@ -45,7 +45,6 @@ export class ChatViewTitleControl extends Disposable {
 	private title: string | undefined = undefined;
 
 	private titleContainer: HTMLElement | undefined;
-	private titleLabel: HTMLElement | undefined;
 
 	private model: IChatModel | undefined;
 	private modelDisposables = this._register(new MutableDisposable());
@@ -89,8 +88,7 @@ export class ChatViewTitleControl extends Disposable {
 
 	private render(parent: HTMLElement): void {
 		const elements = h('div.chat-view-title-container', [
-			h('div.chat-view-title-toolbar@toolbar'),
-			h('span.chat-view-title-label@label'),
+			h('div.chat-view-title-toolbar@toolbar')
 		]);
 
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.ChatViewSessionTitleToolbar, {
@@ -134,12 +132,12 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private updateTitle(title: string): void {
-		if (!this.titleContainer || !this.titleLabel) {
+		if (!this.titleContainer || !this.agentPickerActionViewItem) {
 			return;
 		}
 
+		this.agentPickerActionViewItem.updateTitle(title);
 		this.titleContainer.classList.toggle('visible', this.shouldRender());
-		this.titleLabel.textContent = title;
 
 		const currentHeight = this.getHeight();
 		if (currentHeight !== this.lastKnownHeight) {
@@ -194,5 +192,60 @@ export class ChatViewTitleControl extends Disposable {
 		}
 
 		return this.titleContainer.offsetHeight;
+	}
+}
+
+class ChatViewTitleAgentPickerActionViewItem extends ActionViewItem {
+	private _title: string | undefined;
+
+	constructor(action: IAction, options?: IActionViewItemOptions) {
+		super(null, action, { ...options, icon: false, label: true });
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this.label?.classList.add('chat-view-title-label');
+	}
+
+	protected override updateLabel(): void {
+		if (this.options.label && this.label && this._title) {
+			this.label.textContent = this._title;
+		}
+	}
+
+	updateTitle(title: string): void {
+		this._title = title;
+		this.updateLabel();
+	}
+}
+
+export class ChatViewTitleAgentPicker {
+	private readonly sorter = new AgentSessionsSorter();
+
+	constructor(
+		private readonly anchor: HTMLElement | undefined,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
+	) { }
+
+	async pickAgentSession(): Promise<URI | undefined> {
+		const picks = this.agentSessionsService.model.sessions
+			.filter(session => !session.isArchived())
+			.sort(this.sorter.compare.bind(this.sorter))
+			.map(session => ({
+				label: session.label,
+				description: typeof session.description === 'string'
+					? session.description
+					: undefined,
+				iconClass: ThemeIcon.asClassName(session.icon),
+				session
+			} satisfies IQuickPickItem & { session: IAgentSession }));
+
+		const session = await this.quickInputService.pick(picks, {
+			anchor: this.anchor,
+			placeHolder: localize('chatAgentPickerPlaceholder', "Select the agent session to view, type to filter all sessions")
+		});
+
+		return session?.session.resource;
 	}
 }
