@@ -125,12 +125,12 @@ export class InlineAnchorWidget extends Disposable {
 		} else {
 			location = this.data;
 
-			const label = labelService.getUriBasenameLabel(location.uri);
+			const filePathLabel = labelService.getUriBasenameLabel(location.uri);
 			iconText = location.range && this.data.kind !== 'symbol' ?
-				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
+				`${filePathLabel}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
 				location.uri.scheme === 'vscode-notebook-cell' && this.data.kind !== 'symbol' ?
-					`${label} • cell${this.getCellIndex(location.uri)}` :
-					label;
+					`${filePathLabel} • cell${this.getCellIndex(location.uri)}` :
+					filePathLabel;
 
 			let fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined);
@@ -182,6 +182,15 @@ export class InlineAnchorWidget extends Disposable {
 					},
 				});
 			}));
+
+			// Add line range label for screen readers
+			if (location.range) {
+				if (location.range.startLineNumber === location.range.endLineNumber) {
+					element.setAttribute('aria-label', nls.localize('chat.inlineAnchor.ariaLabel.line', "{0} line {1}", filePathLabel, location.range.startLineNumber));
+				} else {
+					element.setAttribute('aria-label', nls.localize('chat.inlineAnchor.ariaLabel.range', "{0} lines {1} to {2}", filePathLabel, location.range.startLineNumber, location.range.endLineNumber));
+				}
+			}
 		}
 
 		const resourceContextKey = this._register(new ResourceContextKey(contextKeyService, fileService, languageService, modelService));
