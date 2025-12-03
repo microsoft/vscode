@@ -88,6 +88,7 @@ export class AgentSessionsView extends ViewPane {
 				() => didResolve.p
 			);
 		}));
+
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -185,13 +186,12 @@ export class AgentSessionsView extends ViewPane {
 			}
 		}
 
-		// Install more
-		actions.push(new Separator());
-		actions.push(toAction({
-			id: 'install-extensions',
-			label: localize('chatSessions.installExtensions', "Install Agents..."),
-			run: () => this.commandService.executeCommand('chat.sessions.gettingStarted')
-		}));
+		const installMenuActions = this.menuService.getMenuActions(MenuId.AgentSessionsInstallActions, this.scopedContextKeyService, { shouldForwardArgs: true });
+		const installActionBar = getActionBarActions(installMenuActions, () => true);
+		if (installActionBar.primary.length > 0) {
+			actions.push(new Separator());
+			actions.push(...installActionBar.primary);
+		}
 
 		return actions;
 	}
@@ -213,6 +213,7 @@ export class AgentSessionsView extends ViewPane {
 				filter: sessionsFilter,
 				allowNewSessionFromEmptySpace: true,
 				allowFiltering: true,
+				trackActiveEditor: true,
 			}
 		));
 		this.sessionsControl.setVisible(this.isBodyVisible());

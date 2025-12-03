@@ -31,6 +31,7 @@ class TestRenameInferenceEngine extends RenameInferenceEngine {
 
 suite('renameSymbolProcessor', () => {
 
+	// This got copied from the TypeScript language configuration.
 	const wordPattern = /(-?\d*\.\d\w*)|([^\`\@\~\!\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>/\?\s]+)/;
 
 	let disposables: DisposableStore;

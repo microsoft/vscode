@@ -99,7 +99,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		}
 	}
 
-	private deserializeCachedModes(cachedCustomModes: any): void {
+	private deserializeCachedModes(cachedCustomModes: unknown): void {
 		if (!Array.isArray(cachedCustomModes)) {
 			this.logService.error('Invalid cached custom modes data: expected array');
 			return;

@@ -857,6 +857,8 @@ export interface InlineCompletion {
 	readonly correlationId?: string | undefined;
 
 	readonly jumpToPosition?: IPosition;
+
+	readonly doNotLog?: boolean;
 }
 
 export interface InlineCompletionWarning {
@@ -1050,6 +1052,7 @@ export type LifetimeSummary = {
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilActuallyShown: number | undefined;
 	timeUntilProviderRequest: number;
 	timeUntilProviderResponse: number;
 	notShownReason: string | undefined;
@@ -1073,9 +1076,13 @@ export type LifetimeSummary = {
 	availableProviders: string;
 	sku: string | undefined;
 	renameCreated: boolean;
-	renameDuration?: number;
+	renameDuration: number | undefined;
 	renameTimedOut: boolean;
+	renameDroppedOtherEdits: number | undefined;
+	renameDroppedRenameEdits: number | undefined;
 	editKind: string | undefined;
+	longDistanceHintVisible?: boolean;
+	longDistanceHintDistance?: number;
 };
 
 export interface CodeAction {

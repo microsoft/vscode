@@ -41,7 +41,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	public readonly codeblocksPartId: undefined;
 
 	private id: string | undefined;
-	private readonly content: IChatThinkingPart;
+	private content: IChatThinkingPart;
 	private currentThinkingValue: string;
 	private currentTitle: string;
 	private defaultTitle = localize('chat.thinking.header', 'Thinking...');
@@ -54,6 +54,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private toolInvocationCount: number = 0;
 	private streamingCompleted: boolean = false;
 	private isActive: boolean = true;
+	private currentToolCallLabel: string | undefined;
+	private toolInvocations: (IChatToolInvocation | IChatToolInvocationSerialized)[] = [];
 
 	constructor(
 		content: IChatThinkingPart,
@@ -99,7 +101,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this.fixedScrollingMode) {
 			node.classList.add('chat-thinking-fixed-mode');
 			this.currentTitle = this.defaultTitle;
-			if (this._collapseButton) {
+			if (this._collapseButton && !this.context.element.isComplete) {
 				this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 			}
 		}
@@ -108,7 +110,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this._register(autorun(r => {
 			this.expanded.read(r);
 			if (this._collapseButton && this.wrapper) {
-				if (this.wrapper.classList.contains('chat-thinking-streaming')) {
+				if (this.wrapper.classList.contains('chat-thinking-streaming') && !this.context.element.isComplete) {
 					this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 				} else {
 					this._collapseButton.icon = Codicon.check;
@@ -116,7 +118,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}));
 
-		if (this._collapseButton && !this.streamingCompleted) {
+		if (this._collapseButton && !this.streamingCompleted && !this.context.element.isComplete) {
 			this._collapseButton.icon = ThemeIcon.modify(Codicon.loading, 'spin');
 		}
 
@@ -238,6 +240,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (this._store.isDisposed) {
 			return;
 		}
+		this.content = content;
 		const raw = extractTextFromPart(content);
 		const next = raw;
 		if (next === this.currentThinkingValue) {
@@ -292,9 +295,24 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		if (this.content.generatedTitle) {
 			this.currentTitle = this.content.generatedTitle;
-			if (this._collapseButton) {
-				this._collapseButton.label = this.content.generatedTitle;
-			}
+			super.setTitle(this.content.generatedTitle);
+			return;
+		}
+
+		const existingToolTitle = this.toolInvocations.find(t => t.generatedTitle)?.generatedTitle;
+		if (existingToolTitle) {
+			this.currentTitle = existingToolTitle;
+			this.content.generatedTitle = existingToolTitle;
+			super.setTitle(existingToolTitle);
+			return;
+		}
+
+		// case where we only have one dropdown in the thinking container
+		if (this.toolInvocationCount === 1 && this.extractedTitles.length === 1 && this.currentToolCallLabel) {
+			const title = this.currentToolCallLabel;
+			this.currentTitle = title;
+			this.content.generatedTitle = title;
+			this.setTitleWithWidgets(new MarkdownString(title), this.instantiationService, this.chatMarkdownAnchorService, this.chatContentMarkdownRenderer);
 			return;
 		}
 
@@ -303,13 +321,17 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const title = this.extractedTitles[0];
 			this.currentTitle = title;
 			this.content.generatedTitle = title;
-			if (this._collapseButton) {
-				this._collapseButton.label = title;
-			}
+			super.setTitle(title);
 			return;
 		}
 
 		this.generateTitleViaLLM();
+	}
+
+	private setGeneratedTitleOnToolInvocations(title: string): void {
+		for (const toolInvocation of this.toolInvocations) {
+			toolInvocation.generatedTitle = title;
+		}
 	}
 
 	private async generateTitleViaLLM(): Promise<void> {
@@ -330,7 +352,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				context = this.currentThinkingValue.substring(0, 1000);
 			}
 
-			const prompt = `Generate a very concise header for thinking that contains the following thoughts: ${context}. Respond with only the header text, no quotes or punctuation.`;
+			const prompt = `Summarize the following in 6-7 words: ${context}. Respond with only the summary, no quotes or punctuation. Make sure to use past tense.`;
 
 			const response = await this.languageModelsService.sendChatRequest(
 				models[0],
@@ -362,6 +384,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 					this._collapseButton.label = generatedTitle;
 				}
 				this.content.generatedTitle = generatedTitle;
+				this.setGeneratedTitleOnToolInvocations(generatedTitle);
 				return;
 			}
 		} catch (error) {
@@ -401,6 +424,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				toolCallLabel = `Invoked \`${toolInvocationId}\``;
 			}
 
+			if (toolInvocation?.pastTenseMessage) {
+				this.currentToolCallLabel = typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value;
+			}
+
+			if (toolInvocation) {
+				this.toolInvocations.push(toolInvocation);
+			}
+
 			// Add tool call to extracted titles for LLM title generation
 			if (!this.extractedTitles.includes(toolCallLabel)) {
 				this.extractedTitles.push(toolCallLabel);
@@ -432,7 +463,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	protected override setTitle(title: string, omitPrefix?: boolean): void {
-		if (!title) {
+		if (!title || this.context.element.isComplete) {
 			return;
 		}
 
