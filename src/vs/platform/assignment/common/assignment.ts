@@ -159,7 +159,7 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 			return '';
 		}
 		// Remove separators and milliseconds: YYYY-MM-DDTHH:MM:SS.sssZ -> YYYYMMDDHH
-		// Trimmed to 10 digits to fit within int32 bounds (max 2,147,483,647)
+		// Trimmed to 10 digits to fit within int32 bounds (ExP requirement)
 		const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2})/.exec(iso);
 		if (!match) {
 			return '';
