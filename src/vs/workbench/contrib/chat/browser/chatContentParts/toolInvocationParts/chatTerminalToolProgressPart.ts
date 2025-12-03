@@ -857,17 +857,12 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm!, command));
 		await this._mirror.attach(this._terminalContainer);
 		const result = await this._mirror.renderCommand();
-		if (!result) {
-			this._showEmptyMessage(localize('chat.terminalOutputPending', 'Command output will appear here once available.'));
-			return true;
-		}
-
-		if (result.lineCount === 0) {
+		if (!result || result.lineCount === 0) {
 			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
 		} else {
 			this._hideEmptyMessage();
 		}
-		this._layoutOutput(result.lineCount ?? 0);
+		this._layoutOutput(result?.lineCount ?? 0);
 		return true;
 	}
 
