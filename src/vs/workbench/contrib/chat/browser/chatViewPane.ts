@@ -61,7 +61,7 @@ type ChatViewPaneOpenedClassification = {
 
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
-	private static readonly SESSIONS_LIMIT = 3;
+	private static readonly RECENT_SESSIONS_LIMIT = 3;
 
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
@@ -71,10 +71,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private viewPaneContainer: HTMLElement | undefined;
 
-	private sessionsContainer: HTMLElement | undefined;
-	private sessionsControlContainer: HTMLElement | undefined;
-	private sessionsControl: AgentSessionsControl | undefined;
-	private sessionsCount: number = 0;
+	private recentSessionsContainer: HTMLElement | undefined;
+	private recentSessionsControlContainer: HTMLElement | undefined;
+	private recentSessionsControl: AgentSessionsControl | undefined;
+	private recentSessionsCount: number = 0;
 
 	private titleControl: ChatViewTitleControl | undefined;
 
@@ -241,8 +241,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private createControls(parent: HTMLElement): void {
 
-		// Sessions Control
-		this.createSessionsControl(parent);
+		// Recent Sessions Control
+		this.createRecentSessionsControl(parent);
 
 		// Title Control
 		this.createTitleControl(parent);
@@ -253,7 +253,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Chat Widget
 		this.createChatWidget(parent);
 
-		// Sessions control visibility is impacted by multiple things:
+		// Recent sessions control visibility is impacted by multiple things:
 		// - chat widget being in empty state or showing a chat
 		// - extensions provided welcome view showing or not
 		// - configuration setting
@@ -262,31 +262,31 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			Event.fromObservable(this.welcomeController.isShowingWelcome),
 			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewRecentSessionsEnabled))
 		)(() => {
-			this.sessionsControl?.clearFocus(); // improve visual appearance when switching visibility by clearing focus
-			this.notifySessionsControlChanged();
+			this.recentSessionsControl?.clearFocus(); // improve visual appearance when switching visibility by clearing focus
+			this.notifyRecentSessionsControlChanged();
 		}));
-		this.updateSessionsControlVisibility();
+		this.updateRecentSessionsControlVisibility();
 	}
 
-	private createSessionsControl(parent: HTMLElement): void {
+	private createRecentSessionsControl(parent: HTMLElement): void {
 		const that = this;
-		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
+		const recentSessionsContainer = this.recentSessionsContainer = parent.appendChild($('.recent-agent-sessions-container'));
 
-		// Sessions Title
-		const titleContainer = append(sessionsContainer, $('.agent-sessions-title-container'));
-		const title = append(titleContainer, $('span.agent-sessions-title'));
+		// Recent Sessions Title
+		const titleContainer = append(recentSessionsContainer, $('.recent-agent-sessions-title-container'));
+		const title = append(titleContainer, $('span.recent-agent-sessions-title'));
 		title.textContent = localize('recentSessions', "Recent Sessions");
 
-		// Sessions Toolbar
-		const toolbarContainer = append(titleContainer, $('.agent-sessions-toolbar'));
+		// Recent Sessions Toolbar
+		const toolbarContainer = append(titleContainer, $('.recent-agent-sessions-toolbar'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, MenuId.ChatRecentSessionsToolbar, {}));
 
-		// Sessions Control
-		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
-		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
+		// Recent Sessions Control
+		this.recentSessionsControlContainer = append(recentSessionsContainer, $('.recent-agent-sessions-control-container'));
+		this.recentSessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.recentSessionsControlContainer, {
 			allowOpenSessionsInPanel: true,
 			filter: {
-				limitResults: ChatViewPane.SESSIONS_LIMIT,
+				limitResults: ChatViewPane.RECENT_SESSIONS_LIMIT,
 				exclude(session) {
 					if (session.isArchived()) {
 						return true; // exclude archived sessions
@@ -295,21 +295,21 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					return false;
 				},
 				notifyResults(count: number) {
-					that.notifySessionsControlChanged(count);
+					that.notifyRecentSessionsControlChanged(count);
 				}
 			},
 			overrideStyles: {
 				listBackground: editorWidgetBackground
 			}
 		}));
-		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));
+		this._register(this.onDidChangeBodyVisibility(visible => this.recentSessionsControl?.setVisible(visible)));
 	}
 
-	private notifySessionsControlChanged(newSessionsCount?: number): void {
-		const countChanged = typeof newSessionsCount === 'number' && newSessionsCount !== this.sessionsCount;
-		this.sessionsCount = newSessionsCount ?? this.sessionsCount;
+	private notifyRecentSessionsControlChanged(newSessionsCount?: number): void {
+		const countChanged = typeof newSessionsCount === 'number' && newSessionsCount !== this.recentSessionsCount;
+		this.recentSessionsCount = newSessionsCount ?? this.recentSessionsCount;
 
-		const { changed: visibilityChanged, visible } = this.updateSessionsControlVisibility();
+		const { changed: visibilityChanged, visible } = this.updateRecentSessionsControlVisibility();
 
 		if (visibilityChanged || (countChanged && visible)) {
 			if (this.lastDimensions) {
@@ -318,25 +318,25 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
-	private updateSessionsControlVisibility(): { changed: boolean; visible: boolean } {
-		if (!this.sessionsContainer || !this.viewPaneContainer) {
+	private updateRecentSessionsControlVisibility(): { changed: boolean; visible: boolean } {
+		if (!this.recentSessionsContainer || !this.viewPaneContainer) {
 			return { changed: false, visible: false };
 		}
 
-		const newSessionsContainerVisible =
+		const newRecentSessionsContainerVisible =
 			this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewRecentSessionsEnabled) &&	// enabled in settings
 			(!this._widget || this._widget?.isEmpty()) &&													// chat widget empty
 			!this.welcomeController?.isShowingWelcome.get() &&												// welcome not showing
-			this.sessionsCount > 0;																			// has sessions
+			this.recentSessionsCount > 0;																			// has sessions
 
-		this.viewPaneContainer.classList.toggle('has-sessions-control', newSessionsContainerVisible);
+		this.viewPaneContainer.classList.toggle('has-recent-sessions-control', newRecentSessionsContainerVisible);
 
-		const sessionsContainerVisible = this.sessionsContainer.style.display !== 'none';
-		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
+		const recentSessionsContainerVisible = this.recentSessionsContainer.style.display !== 'none';
+		setVisibility(newRecentSessionsContainerVisible, this.recentSessionsContainer);
 
 		return {
-			changed: sessionsContainerVisible !== newSessionsContainerVisible,
-			visible: newSessionsContainerVisible
+			changed: recentSessionsContainerVisible !== newRecentSessionsContainerVisible,
+			visible: newRecentSessionsContainerVisible
 		};
 	}
 
@@ -456,13 +456,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		let remainingHeight = height;
 
-		// Sessions Control (grows with the number of items displayed)
-		if (this.sessionsContainer && this.sessionsControlContainer && this.sessionsControl) {
-			const sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
-			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
-			this.sessionsControl.layout(sessionsHeight, width);
+		// Recent sessions control (grows with the number of items displayed)
+		if (this.recentSessionsContainer && this.recentSessionsControlContainer && this.recentSessionsControl) {
+			const recentSessionsHeight = this.recentSessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
+			this.recentSessionsControlContainer.style.height = `${recentSessionsHeight}px`;
+			this.recentSessionsControl.layout(recentSessionsHeight, width);
 
-			remainingHeight -= this.sessionsContainer.offsetHeight;
+			remainingHeight -= this.recentSessionsContainer.offsetHeight;
 		}
 
 		// Title Control

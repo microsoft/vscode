@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Special styles when sessions control is visible */
-.chat-viewpane.has-sessions-control {
+/* Special styles when recent sessions control is visible */
+.chat-viewpane.has-recent-sessions-control {
 
 	/* Align sessions and welcome/input vertically */
 	display: flex;
 	flex-direction: column;
 
-	.agent-sessions-container {
+	.recent-agent-sessions-container {
 		display: flex;
 		flex-direction: column;
 		margin: 12px 16px 32px 16px;
 		border-radius: 4px;
 		background-color: var(--vscode-editorWidget-background);
 
-		.agent-sessions-title-container {
+		.recent-agent-sessions-title-container {
 			display: flex;
 			align-items: center;
 			justify-content: space-between;
@@ -27,7 +27,7 @@
 			color: var(--vscode-descriptionForeground);
 			padding: 8px;
 
-			.agent-sessions-toolbar {
+			.recent-agent-sessions-toolbar {
 				visibility: hidden;
 			}
 		}
@@ -41,7 +41,7 @@
 		}
 	}
 
-	.agent-sessions-container:hover .agent-sessions-title-container .agent-sessions-toolbar {
+	.recent-agent-sessions-container:hover .recent-agent-sessions-title-container .recent-agent-sessions-toolbar {
 		visibility: visible;
 	}
 
