@@ -35,7 +35,7 @@ export class InlineSuggestionsView extends Disposable {
 	private readonly _editorObs;
 	private readonly _ghostTextWidgets;
 
-	private readonly _inlineEdit = derived(this, reader => this._model.read(reader)?.inlineEditState.read(reader)?.inlineEdit);
+	private readonly _inlineEdit = derived(this, reader => this._model.read(reader)?.inlineEditState.read(reader)?.inlineSuggestion);
 	private readonly _everHadInlineEdit = derivedObservableWithCache<boolean>(this,
 		(reader, last) => last || !!this._inlineEdit.read(reader)
 			|| !!this._model.read(reader)?.inlineCompletionState.read(reader)?.inlineSuggestion?.showInlineEditMenu
@@ -53,7 +53,7 @@ export class InlineSuggestionsView extends Disposable {
 		if (!this._everHadInlineEdit.read(reader)) {
 			return undefined;
 		}
-		return this._instantiationService.createInstance(InlineEditsViewAndDiffProducer, this._editor, this._inlineEdit, this._model, this._showInlineEditCollapsed);
+		return this._instantiationService.createInstance(InlineEditsViewAndDiffProducer, this._editor, this._model, this._showInlineEditCollapsed);
 	});
 
 	private readonly _fontFamily;
@@ -101,6 +101,7 @@ export class InlineSuggestionsView extends Disposable {
 					InlineSuggestionGutterMenuData.fromInlineSuggestion(s.inlineSuggestion),
 					s.displayRange,
 					SimpleInlineSuggestModel.fromInlineCompletionModel(s.model),
+					s.inlineSuggestion.action?.kind === 'edit' ? s.inlineSuggestion.action.alternativeAction : undefined,
 				);
 			}),
 			this._gutterIndicatorState.map((s, reader) => s?.tabAction.read(reader) ?? InlineEditTabAction.Inactive),
@@ -134,7 +135,7 @@ export class InlineSuggestionsView extends Disposable {
 				}
 				return {
 					ghostText: ghostText.read(reader),
-					handleInlineCompletionShown: (viewData) => model.handleInlineSuggestionShown(inlineCompletion, InlineCompletionViewKind.GhostText, viewData),
+					handleInlineCompletionShown: (viewData) => model.handleInlineSuggestionShown(inlineCompletion, InlineCompletionViewKind.GhostText, viewData, Date.now()),
 					warning: GhostTextWidgetWarning.from(model?.warning.read(reader)),
 				} satisfies IGhostTextWidgetData;
 			}),

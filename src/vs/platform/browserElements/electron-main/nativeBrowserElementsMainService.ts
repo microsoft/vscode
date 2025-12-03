@@ -39,7 +39,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 
 	get windowId(): never { throw new Error('Not implemented in electron-main'); }
 
-	async findWebviewTarget(debuggers: any, windowId: number, browserType: BrowserType): Promise<string | undefined> {
+	async findWebviewTarget(debuggers: Electron.Debugger, windowId: number, browserType: BrowserType): Promise<string | undefined> {
 		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
 		let target: typeof targetInfos[number] | undefined = undefined;
 		const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
@@ -104,7 +104,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		return target.targetId;
 	}
 
-	async waitForWebviewTargets(debuggers: any, windowId: number, browserType: BrowserType): Promise<any> {
+	async waitForWebviewTargets(debuggers: Electron.Debugger, windowId: number, browserType: BrowserType): Promise<string | undefined> {
 		const start = Date.now();
 		const timeout = 10000;
 
@@ -172,7 +172,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		});
 	}
 
-	async finishOverlay(debuggers: any, sessionId: string | undefined): Promise<void> {
+	async finishOverlay(debuggers: Electron.Debugger, sessionId: string | undefined): Promise<void> {
 		if (debuggers.isAttached() && sessionId) {
 			await debuggers.sendCommand('Overlay.setInspectMode', {
 				mode: 'none',
@@ -340,9 +340,9 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		return { outerHTML: nodeData.outerHTML, computedStyle: nodeData.computedStyle, bounds: scaledBounds };
 	}
 
-	async getNodeData(sessionId: string, debuggers: any, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
+	async getNodeData(sessionId: string, debuggers: Electron.Debugger, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
 		return new Promise((resolve, reject) => {
-			const onMessage = async (event: any, method: string, params: { backendNodeId: number }) => {
+			const onMessage = async (event: Electron.Event, method: string, params: { backendNodeId: number }) => {
 				if (method === 'Overlay.inspectNodeRequested') {
 					debuggers.off('message', onMessage);
 					await debuggers.sendCommand('Runtime.evaluate', {
@@ -416,7 +416,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		});
 	}
 
-	formatMatchedStyles(matched: any): string {
+	formatMatchedStyles(matched: { inlineStyle?: { cssProperties?: Array<{ name: string; value: string }> }; matchedCSSRules?: Array<{ rule: { selectorList: { selectors: Array<{ text: string }> }; origin: string; style: { cssProperties: Array<{ name: string; value: string }> } } }>; inherited?: Array<{ matchedCSSRules?: Array<{ rule: { selectorList: { selectors: Array<{ text: string }> }; origin: string; style: { cssProperties: Array<{ name: string; value: string }> } } }> }> }): string {
 		const lines: string[] = [];
 
 		// inline
@@ -435,7 +435,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 		if (matched.matchedCSSRules?.length) {
 			for (const ruleEntry of matched.matchedCSSRules) {
 				const rule = ruleEntry.rule;
-				const selectors = rule.selectorList.selectors.map((s: any) => s.text).join(', ');
+				const selectors = rule.selectorList.selectors.map(s => s.text).join(', ');
 				lines.push(`/* Matched Rule from ${rule.origin} */`);
 				lines.push(`${selectors} {`);
 				for (const prop of rule.style.cssProperties) {
@@ -454,7 +454,7 @@ export class NativeBrowserElementsMainService extends Disposable implements INat
 				const rules = inherited.matchedCSSRules || [];
 				for (const ruleEntry of rules) {
 					const rule = ruleEntry.rule;
-					const selectors = rule.selectorList.selectors.map((s: any) => s.text).join(', ');
+					const selectors = rule.selectorList.selectors.map(s => s.text).join(', ');
 					lines.push(`/* Inherited from ancestor level ${level} (${rule.origin}) */`);
 					lines.push(`${selectors} {`);
 					for (const prop of rule.style.cssProperties) {

@@ -111,8 +111,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private readonly _onDidChangeSessions = this._register(new Emitter<void>());
 	readonly onDidChangeSessions = this._onDidChangeSessions.event;
 
-	private _sessions: IInternalAgentSession[] = [];
-	get sessions(): IAgentSession[] { return this._sessions; }
+	private _sessions: ResourceMap<IInternalAgentSession>;
+	get sessions(): IAgentSession[] { return Array.from(this._sessions.values()); }
 
 	private readonly resolver = this._register(new ThrottledDelayer<void>(100));
 	private readonly providersToResolve = new Set<string | undefined>();
@@ -135,8 +135,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	) {
 		super();
 
+		this._sessions = new ResourceMap<IInternalAgentSession>();
+
 		this.cache = this.instantiationService.createInstance(AgentSessionsCache);
-		this._sessions = this.cache.loadCachedSessions().map(data => this.toAgentSession(data));
+		for (const data of this.cache.loadCachedSessions()) {
+			const session = this.toAgentSession(data);
+			this._sessions.set(session.resource, session);
+		}
 		this.sessionStates = this.cache.loadSessionStates();
 
 		this.registerListeners();
@@ -147,7 +152,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
 		this._register(this.chatSessionsService.onDidChangeSessionItems(provider => this.resolve(provider)));
 		this._register(this.storageService.onWillSaveState(() => {
-			this.cache.saveCachedSessions(this._sessions);
+			this.cache.saveCachedSessions(Array.from(this._sessions.values()));
 			this.cache.saveSessionStates(this.sessionStates);
 		}));
 	}
@@ -242,7 +247,8 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 				// No previous state, just add it
 				if (!state) {
 					this.mapSessionToState.set(session.resource, {
-						status
+						status,
+						inProgressTime: status === ChatSessionStatus.InProgress ? Date.now() : undefined, // this is not accurate but best effort
 					});
 				}
 
@@ -263,7 +269,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					providerLabel,
 					resource: session.resource,
 					label: session.label,
-					description: session.description,
+					description: session.description ?? this._sessions.get(session.resource)?.description,
 					icon,
 					tooltip: session.tooltip,
 					status,
@@ -279,14 +285,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			}
 		}
 
-		for (const session of this._sessions) {
+		for (const [, session] of this._sessions) {
 			if (!resolvedProviders.has(session.providerType)) {
 				sessions.set(session.resource, session); // fill in existing sessions for providers that did not resolve
 			}
 		}
 
-		this._sessions.length = 0;
-		this._sessions.push(...sessions.values());
+		this._sessions = sessions;
 
 		for (const [resource] of this.mapSessionToState) {
 			if (!sessions.has(resource)) {
