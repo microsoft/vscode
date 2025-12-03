@@ -497,6 +497,8 @@ export class InlineCompletionsSource extends Disposable {
 			renameCreated: false,
 			renameDuration: undefined,
 			renameTimedOut: false,
+			renameDroppedOtherEdits: undefined,
+			renameDroppedRenameEdits: undefined,
 			performanceMarkers: undefined,
 			editKind: undefined,
 		};

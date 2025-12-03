@@ -652,6 +652,15 @@ export class View extends ViewEventHandler {
 		return visibleRange.left;
 	}
 
+	public getLineWidth(modelLineNumber: number): number {
+		const model = this._context.viewModel.model;
+		const viewLine = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelLineNumber, model.getLineMaxColumn(modelLineNumber))).lineNumber;
+		this._flushAccumulatedAndRenderNow();
+		const width = this._viewLines.getLineWidth(viewLine);
+
+		return width;
+	}
+
 	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
 		const mouseTarget = this._pointerHandler.getTargetAtClientPoint(clientX, clientY);
 		if (!mouseTarget) {

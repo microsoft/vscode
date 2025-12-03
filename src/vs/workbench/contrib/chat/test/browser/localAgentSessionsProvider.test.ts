@@ -17,7 +17,7 @@ import { workbenchInstantiationService } from '../../../../test/browser/workbenc
 import { LocalAgentsSessionsProvider } from '../../browser/agentSessions/localAgentSessionsProvider.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../common/chatModel.js';
-import { IChatDetail, IChatService } from '../../common/chatService.js';
+import { IChatDetail, IChatService, IChatSessionStartOptions } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatAgentLocation } from '../../common/constants.js';
@@ -76,7 +76,7 @@ class MockChatService implements IChatService {
 		return [];
 	}
 
-	startSession(_location: ChatAgentLocation, _token: CancellationToken): any {
+	startSession(_location: ChatAgentLocation, _options?: IChatSessionStartOptions): any {
 		throw new Error('Method not implemented.');
 	}
 

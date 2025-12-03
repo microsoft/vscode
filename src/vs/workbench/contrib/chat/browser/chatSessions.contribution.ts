@@ -8,12 +8,12 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { MutableDisposable, combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as resources from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, IMenuService, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -186,9 +186,9 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					}
 				},
 				canDelegate: {
-					description: localize('chatSessionsExtPoint.canDelegate', 'Whether delegation is supported. Defaults to true.'),
+					description: localize('chatSessionsExtPoint.canDelegate', 'Whether delegation is supported. Default is false. Note that enabling this is experimental and may not be respected at all times.'),
 					type: 'boolean',
-					default: true
+					default: false
 				}
 			},
 			required: ['type', 'name', 'displayName', 'description'],
@@ -529,45 +529,75 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	}
 
 	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
-		return registerAction2(class OpenNewChatSessionEditorAction extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
-					title: localize2('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
-					category: CHAT_CATEGORY,
-					icon: Codicon.plus,
-					f1: true, // Show in command palette
-					precondition: ChatContextKeys.enabled
-				});
-			}
-
-			async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
-				const editorService = accessor.get(IEditorService);
-				const logService = accessor.get(ILogService);
-				const chatService = accessor.get(IChatService);
-				const { type } = contribution;
-
-				try {
-					const options: IChatEditorOptions = {
-						override: ChatEditorInput.EditorID,
-						pinned: true,
-						title: {
-							fallback: localize('chatEditorContributionName', "{0}", contribution.displayName),
-						}
-					};
-					const resource = URI.from({
-						scheme: type,
-						path: `/untitled-${generateUuid()}`,
+		return combinedDisposable(
+			registerAction2(class OpenChatSessionAction extends Action2 {
+				constructor() {
+					super({
+						id: `workbench.action.chat.openSessionWithPrompt.${contribution.type}`,
+						title: localize2('interactiveSession.openSessionWithPrompt', "New {0} with Prompt", contribution.displayName),
+						category: CHAT_CATEGORY,
+						icon: Codicon.plus,
+						f1: false,
+						precondition: ChatContextKeys.enabled
 					});
-					await editorService.openEditor({ resource, options });
-					if (chatOptions?.prompt) {
-						await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
-					}
-				} catch (e) {
-					logService.error(`Failed to open new '${type}' chat session editor`, e);
 				}
-			}
-		});
+
+				async run(accessor: ServicesAccessor, chatOptions?: { resource: UriComponents; prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
+					const chatService = accessor.get(IChatService);
+					const { type } = contribution;
+
+					if (chatOptions) {
+						const resource = URI.revive(chatOptions.resource);
+						const ref = await chatService.loadSessionForResource(resource, ChatAgentLocation.Chat, CancellationToken.None);
+						await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
+						ref?.dispose();
+					}
+				}
+			}),
+			registerAction2(class OpenNewChatSessionEditorAction extends Action2 {
+				constructor() {
+					super({
+						id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
+						title: localize2('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
+						category: CHAT_CATEGORY,
+						icon: Codicon.plus,
+						f1: true, // Show in command palette
+						precondition: ChatContextKeys.enabled,
+						menu: {
+							id: MenuId.ChatNewMenu,
+							group: '3_new_special',
+						}
+					});
+				}
+
+				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
+					const editorService = accessor.get(IEditorService);
+					const logService = accessor.get(ILogService);
+					const chatService = accessor.get(IChatService);
+					const { type } = contribution;
+
+					try {
+						const options: IChatEditorOptions = {
+							override: ChatEditorInput.EditorID,
+							pinned: true,
+							title: {
+								fallback: localize('chatEditorContributionName', "{0}", contribution.displayName),
+							}
+						};
+						const resource = URI.from({
+							scheme: type,
+							path: `/untitled-${generateUuid()}`,
+						});
+						await editorService.openEditor({ resource, options });
+						if (chatOptions?.prompt) {
+							await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
+						}
+					} catch (e) {
+						logService.error(`Failed to open new '${type}' chat session editor`, e);
+					}
+				}
+			})
+		);
 	}
 
 	private _evaluateAvailability(): void {
@@ -603,8 +633,31 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const disposableStore = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposableStore);
 
-		disposableStore.add(this._registerAgent(contribution, ext));
-		disposableStore.add(this._registerCommands(contribution));
+		const providerDependentDisposables = new MutableDisposable<IDisposable>();
+		disposableStore.add(providerDependentDisposables);
+
+		// NOTE: Only those extensions that register as 'content providers' should have agents and commands auto-registered
+		//       This relationship may change in the future as the API grows.
+		const reconcileProviderRegistrations = () => {
+			if (this._contentProviders.has(contribution.type)) {
+				if (!providerDependentDisposables.value) {
+					providerDependentDisposables.value = combinedDisposable(
+						this._registerAgent(contribution, ext),
+						this._registerCommands(contribution)
+					);
+				}
+			} else {
+				providerDependentDisposables.clear();
+			}
+		};
+
+		reconcileProviderRegistrations();
+		disposableStore.add(this.onDidChangeContentProviderSchemes(({ added, removed }) => {
+			if (added.includes(contribution.type) || removed.includes(contribution.type)) {
+				reconcileProviderRegistrations();
+			}
+		}));
+
 		disposableStore.add(this._registerMenuItems(contribution, ext));
 	}
 
@@ -667,6 +720,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[] {
 		return Array.from(this._contributions.values(), x => x.contribution)
 			.filter(contribution => this._isContributionAvailable(contribution));
+	}
+
+	getChatSessionContribution(chatSessionType: string): IChatSessionsExtensionPoint | undefined {
+		const contribution = this._contributions.get(chatSessionType)?.contribution;
+		if (!contribution) {
+			return undefined;
+		}
+
+		return this._isContributionAvailable(contribution) ? contribution : undefined;
 	}
 
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[] {
@@ -872,6 +934,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		for (let i = responseParts.length - 1; i >= 0; i--) {
 			const part = responseParts[i];
+			if (!description && part.kind === 'confirmation' && typeof part.message === 'string') {
+				description = part.message;
+			}
 			if (!description && part.kind === 'toolInvocation') {
 				const toolInvocation = part as IChatToolInvocation;
 				const state = toolInvocation.state.get();
@@ -901,7 +966,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 
-		return description || localize('chat.sessions.description.working', "Working...");
+		return description;
 	}
 
 	private extractFileNameFromLink(filePath: string): string {
@@ -920,6 +985,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	 */
 	public async getNewChatSessionItem(chatSessionType: string, options: {
 		request: IChatAgentRequest;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem> {
 		if (!(await this.activateChatSessionItemProvider(chatSessionType))) {

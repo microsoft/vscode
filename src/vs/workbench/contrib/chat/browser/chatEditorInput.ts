@@ -21,7 +21,7 @@ import { IChatEditingSession, ModifiedFileEntryState } from '../common/chatEditi
 import { IChatModel } from '../common/chatModel.js';
 import { IChatModelReference, IChatService } from '../common/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../common/chatUri.js';
+import { LocalChatSessionUri, getChatSessionType } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatEditorTitleMaxLength } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import { showCloseActiveChatNotification } from './actions/chatCloseNotification.js';
@@ -146,7 +146,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 		const titleOverride = nls.localize('chatEditorConfirmTitle', "Close Chat Editor");
 		const messageOverride = nls.localize('chat.startEditing.confirmation.pending.message.default', "Closing the chat editor will end your current edit session.");
-		const result = await showClearEditingSessionConfirmation(this.model.editingSession, this.dialogService, { titleOverride, messageOverride });
+		const result = await showClearEditingSessionConfirmation(this.model, this.dialogService, { titleOverride, messageOverride });
 		return result ? ConfirmResult.SAVE : ConfirmResult.CANCEL;
 	}
 
@@ -252,11 +252,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	 * Returns chat session type from a URI, or {@linkcode localChatSessionType} if not specified or cannot be determined.
 	 */
 	public getSessionType(): string {
-		if (this.resource.scheme === Schemas.vscodeChatEditor || this.resource.scheme === Schemas.vscodeLocalChatSession) {
-			return localChatSessionType;
-		}
-
-		return this.resource.scheme;
+		return getChatSessionType(this.resource);
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
@@ -269,10 +265,10 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 			// For local session only, if we find no existing session, create a new one
 			if (!this.model && LocalChatSessionUri.parseLocalSessionId(this._sessionResource)) {
-				this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, { canUseTools: true });
+				this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, { canUseTools: true });
 			}
 		} else if (!this.options.target) {
-			this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, { canUseTools: !inputType });
+			this.modelRef.value = this.chatService.startSession(ChatAgentLocation.Chat, { canUseTools: !inputType });
 		} else if (this.options.target.data) {
 			this.modelRef.value = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
@@ -428,7 +424,12 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 	}
 }
 
-export async function showClearEditingSessionConfirmation(editingSession: IChatEditingSession, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
+export async function showClearEditingSessionConfirmation(model: IChatModel, dialogService: IDialogService, options?: IClearEditingSessionConfirmationOptions): Promise<boolean> {
+	if (!model.editingSession || model.willKeepAlive) {
+		return true; // safe to dispose without confirmation
+	}
+
+	const editingSession = model.editingSession;
 	const defaultPhrase = nls.localize('chat.startEditing.confirmation.pending.message.default1', "Starting a new chat will end your current edit session.");
 	const defaultTitle = nls.localize('chat.startEditing.confirmation.title', "Start new chat?");
 	const phrase = options?.messageOverride ?? defaultPhrase;
@@ -436,6 +437,9 @@ export async function showClearEditingSessionConfirmation(editingSession: IChatE
 
 	const currentEdits = editingSession.entries.get();
 	const undecidedEdits = currentEdits.filter((edit) => edit.state.get() === ModifiedFileEntryState.Modified);
+	if (!undecidedEdits.length) {
+		return true; // No pending edits, can just continue
+	}
 
 	const { result } = await dialogService.prompt({
 		title,

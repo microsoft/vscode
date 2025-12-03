@@ -46,7 +46,7 @@ export interface IChatConfirmationWidgetOptions<T> {
 	message: string | IMarkdownString;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
-	toolbarData?: { arg: any; partType: string; partSource?: string };
+	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 	silent?: boolean;
 }
 
@@ -330,7 +330,7 @@ export interface IChatConfirmationWidget2Options<T> {
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
 	buttons: IChatConfirmationButton<T>[];
-	toolbarData?: { arg: any; partType: string; partSource?: string };
+	toolbarData?: { arg: unknown; partType: string; partSource?: string };
 }
 
 abstract class BaseChatConfirmationWidget<T> extends Disposable {

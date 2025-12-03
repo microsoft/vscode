@@ -86,6 +86,7 @@ export interface IGettingStartedItem {
 	label: string;
 	commandId: string;
 	icon?: ThemeIcon;
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	args?: any[];
 }
 

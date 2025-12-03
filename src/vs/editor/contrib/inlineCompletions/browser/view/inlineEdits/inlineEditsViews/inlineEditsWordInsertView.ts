@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { n } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable } from '../../../../../../../base/common/observable.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
@@ -21,8 +20,7 @@ import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 
 export class InlineEditsWordInsertView extends Disposable implements IInlineEditsView {
 
-	private readonly _onDidClick;
-	readonly onDidClick;
+	readonly onDidClick = Event.None;
 
 	private readonly _start;
 
@@ -39,8 +37,6 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 		private readonly _tabAction: IObservable<InlineEditTabAction>
 	) {
 		super();
-		this._onDidClick = this._register(new Emitter<IMouseEvent>());
-		this.onDidClick = this._onDidClick.event;
 		this._start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
 		this._layout = derived(this, reader => {
 			const start = this._start.read(reader);

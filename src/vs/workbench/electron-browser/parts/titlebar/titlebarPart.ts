@@ -11,7 +11,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from '../../../../pl
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
-import { isMacintosh, isWindows, isLinux, isBigSurOrNewer } from '../../../../base/common/platform.js';
+import { isMacintosh, isWindows, isLinux, isTahoeOrNewer } from '../../../../base/common/platform.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { BrowserTitlebarPart, BrowserTitleService, IAuxiliaryTitlebarPart } from '../../../browser/parts/titlebar/titlebarPart.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -42,13 +42,13 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	}
 	override get maximumHeight(): number { return this.minimumHeight; }
 
-	private bigSurOrNewer: boolean;
+	private tahoeOrNewer: boolean;
 	private get macTitlebarSize() {
-		if (this.bigSurOrNewer) {
-			return 28; // macOS Big Sur increases title bar height
+		if (this.tahoeOrNewer) {
+			return 32;
 		}
 
-		return 22;
+		return 28;
 	}
 
 	//#endregion
@@ -80,7 +80,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	) {
 		super(id, targetWindow, editorGroupsContainer, contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, editorService, menuService, keybindingService);
 
-		this.bigSurOrNewer = isBigSurOrNewer(environmentService.os.release);
+		this.tahoeOrNewer = isTahoeOrNewer(environmentService.os.release);
 
 		this.handleWindowsAlwaysOnTop(targetWindow.vscodeWindowId);
 	}
@@ -272,13 +272,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 		super.layout(width, height);
 
 		if (useWindowControlsOverlay(this.configurationService)) {
-
-			// When the user goes into full screen mode, the height of the title bar becomes 0.
-			// Instead, set it back to the default titlebar height for Catalina users
-			// so that they can have the traffic lights rendered at the proper offset.
-			// Ref https://github.com/microsoft/vscode/issues/159862
-
-			const newHeight = (height > 0 || this.bigSurOrNewer) ? Math.round(height * getZoomFactor(getWindow(this.element))) : this.macTitlebarSize;
+			const newHeight = Math.round(height * getZoomFactor(getWindow(this.element)));
 			if (newHeight !== this.cachedWindowControlHeight) {
 				this.cachedWindowControlHeight = newHeight;
 				this.nativeHostService.updateWindowControls({

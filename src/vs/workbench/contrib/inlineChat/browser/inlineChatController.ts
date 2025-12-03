@@ -30,7 +30,7 @@ import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ISelection, Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { TextEdit, VersionedExtensionId } from '../../../../editor/common/languages.js';
-import { IValidEditOperation } from '../../../../editor/common/model.js';
+import { ITextModel, IValidEditOperation } from '../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../editor/common/services/editorWorker.js';
 import { IMarkerDecorationsService } from '../../../../editor/common/services/markerDecorations.js';
 import { DefaultModelSHA1Computer } from '../../../../editor/common/services/modelService.js';
@@ -58,6 +58,7 @@ import { IChatService } from '../../chat/common/chatService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/chatVariableEntries.js';
 import { isResponseVM } from '../../chat/common/chatViewModel.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { ILanguageModelChatSelector, ILanguageModelsService, isILanguageModelChatSelector } from '../../chat/common/languageModels.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
@@ -91,6 +92,7 @@ const enum Message {
 }
 
 export abstract class InlineChatRunOptions {
+
 	initialSelection?: ISelection;
 	initialRange?: IRange;
 	message?: string;
@@ -98,9 +100,15 @@ export abstract class InlineChatRunOptions {
 	autoSend?: boolean;
 	existingSession?: Session;
 	position?: IPosition;
+	modelSelector?: ILanguageModelChatSelector;
 
-	static isInlineChatRunOptions(options: any): options is InlineChatRunOptions {
-		const { initialSelection, initialRange, message, autoSend, position, existingSession, attachments: attachments } = <InlineChatRunOptions>options;
+	static isInlineChatRunOptions(options: unknown): options is InlineChatRunOptions {
+
+		if (typeof options !== 'object' || options === null) {
+			return false;
+		}
+
+		const { initialSelection, initialRange, message, autoSend, position, existingSession, attachments, modelSelector } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
@@ -109,9 +117,11 @@ export abstract class InlineChatRunOptions {
 			|| typeof position !== 'undefined' && !Position.isIPosition(position)
 			|| typeof existingSession !== 'undefined' && !(existingSession instanceof Session)
 			|| typeof attachments !== 'undefined' && (!Array.isArray(attachments) || !attachments.every(item => item instanceof URI))
+			|| typeof modelSelector !== 'undefined' && !isILanguageModelChatSelector(modelSelector)
 		) {
 			return false;
 		}
+
 		return true;
 	}
 }
@@ -170,6 +180,11 @@ export class InlineChatController implements IEditorContribution {
 	acceptSession() {
 		return this._delegate.get().acceptSession();
 	}
+}
+
+// TODO@jrieken THIS should be shared with the code in MainThreadEditors
+function getEditorId(editor: ICodeEditor, model: ITextModel): string {
+	return `${editor.getId()},${model.id}`;
 }
 
 /**
@@ -240,6 +255,7 @@ export class InlineChatController1 implements IEditorContribution {
 					assertType(this._session);
 					return {
 						type: ChatAgentLocation.EditorInline,
+						id: getEditorId(this._editor, this._session.textModelN),
 						selection: this._editor.getSelection(),
 						document: this._session.textModelN.uri,
 						wholeRange: this._session?.wholeRange.trackedInitialRange,
@@ -1262,7 +1278,7 @@ export class InlineChatController2 implements IEditorContribution {
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
-		@IInlineChatSessionService private readonly _inlineChatSessions: IInlineChatSessionService,
+		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ISharedWebContentExtractorService private readonly _webContentExtractorService: ISharedWebContentExtractorService,
@@ -1270,6 +1286,7 @@ export class InlineChatController2 implements IEditorContribution {
 		@IChatAttachmentResolveService private readonly _chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
+		@ILanguageModelsService private readonly _languageModelService: ILanguageModelsService,
 		@IChatService chatService: IChatService,
 	) {
 
@@ -1287,6 +1304,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 					return {
 						type: ChatAgentLocation.EditorInline,
+						id: getEditorId(this._editor, this._editor.getModel()),
 						selection: this._editor.getSelection(),
 						document,
 						wholeRange,
@@ -1349,22 +1367,35 @@ export class InlineChatController2 implements IEditorContribution {
 
 		const editorObs = observableCodeEditor(_editor);
 
-		const sessionsSignal = observableSignalFromEvent(this, _inlineChatSessions.onDidChangeSessions);
+		const sessionsSignal = observableSignalFromEvent(this, _inlineChatSessionService.onDidChangeSessions);
 
 		this._currentSession = derived(r => {
 			sessionsSignal.read(r);
 			const model = editorObs.model.read(r);
-			const value = model && _inlineChatSessions.getSession2(model.uri);
-			return value ?? undefined;
+			const session = model && _inlineChatSessionService.getSession2(model.uri);
+			return session ?? undefined;
 		});
 
+
+		let lastSession: IInlineChatSession2 | undefined = undefined;
 
 		this._store.add(autorun(r => {
 			const session = this._currentSession.read(r);
 			if (!session) {
 				this._isActiveController.set(false, undefined);
+
+				if (lastSession && !lastSession.chatModel.hasRequests) {
+					const state = lastSession.chatModel.inputModel.state.read(undefined);
+					if (!state || (!state.inputText && state.attachments.length === 0)) {
+						lastSession.dispose();
+						lastSession = undefined;
+					}
+				}
 				return;
 			}
+
+			lastSession = session;
+
 			let foundOne = false;
 			for (const editor of codeEditorService.listCodeEditors()) {
 				if (Boolean(InlineChatController2.get(editor)?._isActiveController.read(undefined))) {
@@ -1398,11 +1429,12 @@ export class InlineChatController2 implements IEditorContribution {
 			const session = visibleSessionObs.read(r);
 			if (!session) {
 				this._zone.rawValue?.hide();
+				this._zone.value.widget.chatWidget.setModel(undefined);
 				_editor.focus();
 				ctxInlineChatVisible.reset();
 			} else {
 				ctxInlineChatVisible.set(true);
-				this._zone.value.widget.setChatModel(session.chatModel);
+				this._zone.value.widget.chatWidget.setModel(session.chatModel);
 				if (!this._zone.value.position) {
 					this._zone.value.widget.chatWidget.input.renderAttachedContext(); // TODO - fights layout bug
 					this._zone.value.show(session.initialPosition);
@@ -1520,25 +1552,21 @@ export class InlineChatController2 implements IEditorContribution {
 		this._zone.rawValue?.widget.focus();
 	}
 
-	markActiveController() {
-		this._isActiveController.set(true, undefined);
-	}
-
 	async run(arg?: InlineChatRunOptions): Promise<boolean> {
 		assertType(this._editor.hasModel());
 
 
 		const uri = this._editor.getModel().uri;
 
-		const existingSession = this._inlineChatSessions.getSession2(uri);
+		const existingSession = this._inlineChatSessionService.getSession2(uri);
 		if (existingSession) {
 			await existingSession.editingSession.accept();
 			existingSession.dispose();
 		}
 
-		this.markActiveController();
+		this._isActiveController.set(true, undefined);
 
-		const session = await this._inlineChatSessions.createSession2(this._editor, uri, CancellationToken.None);
+		const session = await this._inlineChatSessionService.createSession2(this._editor, uri, CancellationToken.None);
 
 		// ADD diagnostics
 		const entries: IChatRequestVariableEntry[] = [];
@@ -1571,6 +1599,17 @@ export class InlineChatController2 implements IEditorContribution {
 					await this._zone.value.widget.chatWidget.attachmentModel.addFile(attachment);
 				}));
 				delete arg.attachments;
+			}
+			if (arg.modelSelector) {
+				const id = (await this._languageModelService.selectLanguageModels(arg.modelSelector, false)).sort().at(0);
+				if (!id) {
+					throw new Error(`No language models found matching selector: ${JSON.stringify(arg.modelSelector)}.`);
+				}
+				const model = this._languageModelService.lookupLanguageModel(id);
+				if (!model) {
+					throw new Error(`Language model not loaded: ${id}.`);
+				}
+				this._zone.value.widget.chatWidget.input.setCurrentLanguageModel({ metadata: model, identifier: id });
 			}
 			if (arg.message) {
 				this._zone.value.widget.chatWidget.setInput(arg.message);
@@ -1630,7 +1669,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 
 	const chatService = accessor.get(IChatService);
 	const uri = editor.getModel().uri;
-	const chatModelRef = chatService.startSession(ChatAgentLocation.EditorInline, token);
+	const chatModelRef = chatService.startSession(ChatAgentLocation.EditorInline);
 	const chatModel = chatModelRef.object as ChatModel;
 
 	chatModel.startEditingSession(true);
@@ -1682,7 +1721,7 @@ export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, 
 	const chatService = accessor.get(IChatService);
 	const notebookService = accessor.get(INotebookService);
 	const isNotebook = notebookService.hasSupportedNotebooks(uri);
-	const chatModelRef = chatService.startSession(ChatAgentLocation.EditorInline, token);
+	const chatModelRef = chatService.startSession(ChatAgentLocation.EditorInline);
 	const chatModel = chatModelRef.object as ChatModel;
 
 	chatModel.startEditingSession(true);

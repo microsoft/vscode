@@ -122,7 +122,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const store = new DisposableStore();
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${agent.extensionId}`);
 
-		const chatModelRef = options.session ? undefined : this._chatService.startSession(ChatAgentLocation.EditorInline, token);
+		const chatModelRef = options.session ? undefined : this._chatService.startSession(ChatAgentLocation.EditorInline);
 		const chatModel = options.session?.chatModel ?? chatModelRef?.object;
 		if (!chatModel) {
 			this._logService.trace('[IE] NO chatModel found');
@@ -343,7 +343,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		this._onWillStartSession.fire(editor as IActiveCodeEditor);
 
-		const chatModelRef = this._chatService.startSession(ChatAgentLocation.EditorInline, token, { canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */ });
+		const chatModelRef = this._chatService.startSession(ChatAgentLocation.EditorInline, { canUseTools: false /* SEE https://github.com/microsoft/vscode/issues/279946 */ });
 		const chatModel = chatModelRef.object;
 		chatModel.startEditingSession(false);
 
@@ -408,26 +408,25 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		return result;
 	}
 
-	getSession2(uriOrSessionId: URI | string): IInlineChatSession2 | undefined {
-		if (URI.isUri(uriOrSessionId)) {
-
-			let result = this._sessions2.get(uriOrSessionId);
-			if (!result) {
-				// no direct session, try to find an editing session which has a file entry for the uri
-				for (const [_, candidate] of this._sessions2) {
-					const entry = candidate.editingSession.getEntry(uriOrSessionId);
-					if (entry) {
-						result = candidate;
-						break;
-					}
+	getSession2(uri: URI): IInlineChatSession2 | undefined {
+		let result = this._sessions2.get(uri);
+		if (!result) {
+			// no direct session, try to find an editing session which has a file entry for the uri
+			for (const [_, candidate] of this._sessions2) {
+				const entry = candidate.editingSession.getEntry(uri);
+				if (entry) {
+					result = candidate;
+					break;
 				}
 			}
-			return result;
-		} else {
-			for (const session of this._sessions2.values()) {
-				if (session.chatModel.sessionId === uriOrSessionId) {
-					return session;
-				}
+		}
+		return result;
+	}
+
+	getSessionBySessionUri(sessionResource: URI): IInlineChatSession2 | undefined {
+		for (const session of this._sessions2.values()) {
+			if (isEqual(session.chatModel.sessionResource, sessionResource)) {
+				return session;
 			}
 		}
 		return undefined;
@@ -523,17 +522,17 @@ export class InlineChatEscapeToolContribution extends Disposable {
 		this._store.add(lmTools.registerTool(InlineChatEscapeToolContribution._data, {
 			invoke: async (invocation, _tokenCountFn, _progress, _token) => {
 
-				const sessionId = invocation.context?.sessionId;
+				const sessionResource = invocation.context?.sessionResource;
 
-				if (!sessionId) {
+				if (!sessionResource) {
 					logService.warn('InlineChatEscapeToolContribution: no sessionId in tool invocation context');
 					return { content: [{ kind: 'text', value: 'Cancel' }] };
 				}
 
-				const session = inlineChatSessionService.getSession2(sessionId);
+				const session = inlineChatSessionService.getSessionBySessionUri(sessionResource);
 
 				if (!session) {
-					logService.warn(`InlineChatEscapeToolContribution: no session found for id ${sessionId}`);
+					logService.warn(`InlineChatEscapeToolContribution: no session found for id ${sessionResource}`);
 					return { content: [{ kind: 'text', value: 'Cancel' }] };
 				}
 
@@ -559,7 +558,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 
 				if (!editor || result.confirmed) {
 					logService.trace('InlineChatEscapeToolContribution: moving session to panel chat');
-					await instaService.invokeFunction(askInPanelChat, session.chatModel.getRequests().at(-1)!);
+					await instaService.invokeFunction(askInPanelChat, session.chatModel.getRequests().at(-1)!, session.chatModel.inputModel.state.get());
 					session.dispose();
 
 				} else {
