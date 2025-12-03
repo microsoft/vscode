@@ -249,7 +249,10 @@ export class TestContext {
 		return new Promise((resolve, reject) => {
 			extract.on('entry', (header, stream, next) => {
 				const filePath = path.join(dir, header.name);
-				if (header.type === 'directory') {
+				if (filePath.includes('..')) {
+					stream.resume();
+					next();
+				} else if (header.type === 'directory') {
 					stream.resume();
 					next();
 				} else if (header.type === 'file') {
