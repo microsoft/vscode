@@ -80,7 +80,8 @@ import { registerMoveActions } from './actions/chatMoveActions.js';
 import { registerNewChatActions } from './actions/chatNewActions.js';
 import { registerChatPromptNavigationActions } from './actions/chatPromptNavigationActions.js';
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
-import { ChatSessionsGettingStartedAction, DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInNewWindowAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleAgentSessionsViewLocationAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
+import { ChatAgentRecommendation } from './actions/chatAgentRecommendationActions.js';
+import { DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInNewWindowAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleAgentSessionsViewLocationAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatElicitationActions } from './actions/chatElicitationActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
@@ -817,6 +818,12 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.ExitAfterDelegation]: {
+			type: 'boolean',
+			description: nls.localize('chat.exitAfterDelegation', "Controls whether the chat panel automatically exits after delegating a request to another session."),
+			default: true,
+			tags: ['preview'],
+		},
 		'chat.extensionUnification.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.extensionUnification.enabled', "Enables the unification of GitHub Copilot extensions. When enabled, all GitHub Copilot functionality is served from the GitHub Copilot Chat extension. When disabled, the GitHub Copilot and GitHub Copilot Chat extensions operate independently."),
@@ -984,19 +991,30 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 		this._register(this.chatModeService.onDidChangeChatModes(() => {
 			const { custom } = this.chatModeService.getModes();
 			const currentModeIds = new Set<string>();
+			const currentModeNames = new Map<string, string>();
 
-			// Register new modes
 			for (const mode of custom) {
-				currentModeIds.add(mode.id);
-				if (!this._modeActionDisposables.has(mode.id)) {
-					this._registerModeAction(mode);
+				const modeName = mode.name.get();
+				if (currentModeNames.has(modeName)) {
+					// If there is a name collision, the later one in the list wins
+					currentModeIds.delete(currentModeNames.get(modeName)!);
 				}
+
+				currentModeNames.set(modeName, mode.id);
+				currentModeIds.add(mode.id);
 			}
 
-			// Remove modes that no longer exist
+			// Remove modes that no longer exist and those replaced by modes later in the list with same name
 			for (const modeId of this._modeActionDisposables.keys()) {
 				if (!currentModeIds.has(modeId)) {
 					this._modeActionDisposables.deleteAndDispose(modeId);
+				}
+			}
+
+			// Register new modes
+			for (const mode of custom) {
+				if (currentModeIds.has(mode.id) && !this._modeActionDisposables.has(mode.id)) {
+					this._registerModeAction(mode);
 				}
 			}
 		}));
@@ -1156,6 +1174,7 @@ registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribu
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatAgentActionsContribution.ID, ChatAgentActionsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ToolReferenceNamesContribution.ID, ToolReferenceNamesContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatAgentRecommendation.ID, ChatAgentRecommendation, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatEditingEditorAccessibility.ID, ChatEditingEditorAccessibility, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SimpleBrowserOverlay.ID, SimpleBrowserOverlay, WorkbenchPhase.AfterRestored);
@@ -1230,7 +1249,6 @@ registerAction2(OpenChatSessionInNewWindowAction);
 registerAction2(OpenChatSessionInNewEditorGroupAction);
 registerAction2(OpenChatSessionInSidebarAction);
 registerAction2(ToggleChatSessionsDescriptionDisplayAction);
-registerAction2(ChatSessionsGettingStartedAction);
 registerAction2(ToggleAgentSessionsViewLocationAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
