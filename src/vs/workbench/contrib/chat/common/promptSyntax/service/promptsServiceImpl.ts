@@ -534,7 +534,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]> {
-		const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
+		const useCopilotInstructionsFiles = this.configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES) ?? true; // Default to true for .instructions.md files
 		if (!useCopilotInstructionsFiles) {
 			return [];
 		}

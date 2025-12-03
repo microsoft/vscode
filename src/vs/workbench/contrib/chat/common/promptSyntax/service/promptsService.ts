@@ -295,7 +295,7 @@ export interface IPromptsService extends IDisposable {
 	listAgentMDs(token: CancellationToken, includeNested: boolean): Promise<URI[]>;
 
 	/**
-	 * Gets list of .github/copilot-instructions.md files.
+	 * Gets list of .instructions.md files in workspace roots.
 	 */
 	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]>;
 
