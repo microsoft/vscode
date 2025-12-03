@@ -5,7 +5,7 @@
 
 import { asArray } from '../../../../base/common/arrays.js';
 import { softAssertNever } from '../../../../base/common/assert.js';
-import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
+import { VSBuffer, decodeHex, encodeHex } from '../../../../base/common/buffer.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -30,9 +30,9 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { migrateLegacyTerminalToolSpecificData } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, UserSelectedTools, reviveSerializedAgent } from './chatAgents.js';
-import { awaitCompleteChatEditingDiff, editEntriesToMultiDiffData, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from './chatEditingService.js';
+import { IChatEditingService, IChatEditingSession, ModifiedFileEntryState, editEntriesToMultiDiffData } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatModelReference, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, ElicitationState, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMcpServersStarting, IChatModelReference, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatService, IChatSessionContext, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
 import { LocalChatSessionUri } from './chatUri.js';
 import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
@@ -125,7 +125,7 @@ export type IChatProgressHistoryResponseContent =
 	| IChatAgentMarkdownContentWithVulnerability
 	| IChatResponseCodeblockUriPart
 	| IChatTreeData
-	| IChatMultiDiffData
+	| IChatMultiDiffDataSerialized
 	| IChatContentInlineReference
 	| IChatProgressMessage
 	| IChatCommandButton
@@ -146,6 +146,7 @@ export type IChatProgressResponseContent =
 	| IChatProgressHistoryResponseContent
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized
+	| IChatMultiDiffData
 	| IChatUndoStop
 	| IChatPrepareToolInvocationPart
 	| IChatElicitationRequest
@@ -1719,8 +1720,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						&& this._editingSession.hasEditsInRequest(request.id)
 					) {
 						const diffs = this._editingSession.getDiffsForFilesInRequest(request.id);
-						const finalDiff = await awaitCompleteChatEditingDiff(diffs);
-						request.response?.updateContent(editEntriesToMultiDiffData(finalDiff), true);
+						request.response?.updateContent(editEntriesToMultiDiffData(diffs), true);
 						this._onDidChange.fire({ kind: 'completedRequest', request });
 					}
 				}
