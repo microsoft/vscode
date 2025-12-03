@@ -276,4 +276,4 @@ fi
 
 wait_for_async_execs
 
-exec "$@"
+exec "$@" --ozone-platform=x11
