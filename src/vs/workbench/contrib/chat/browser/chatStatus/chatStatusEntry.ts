@@ -114,6 +114,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
+			const premiumChatQuotaExceeded = this.chatEntitlementService.quotas.premiumChat?.percentRemaining === 0;
 			const chatSessionsInProgressCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
 
 			// Disabled
@@ -141,12 +142,14 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				kind = 'prominent';
 			}
 
-			// Free Quota Exceeded
-			else if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (chatQuotaExceeded || completionsQuotaExceeded)) {
+			// Quota Exceeded (Free, Pro, ProPlus, Business, Enterprise)
+			else if (chatQuotaExceeded || completionsQuotaExceeded || premiumChatQuotaExceeded) {
 				let quotaWarning: string;
-				if (chatQuotaExceeded && !completionsQuotaExceeded) {
+				if (premiumChatQuotaExceeded && !chatQuotaExceeded && !completionsQuotaExceeded) {
+					quotaWarning = localize('premiumChatQuotaExceededStatus', "Premium chat quota reached");
+				} else if (chatQuotaExceeded && !completionsQuotaExceeded && !premiumChatQuotaExceeded) {
 					quotaWarning = localize('chatQuotaExceededStatus', "Chat quota reached");
-				} else if (completionsQuotaExceeded && !chatQuotaExceeded) {
+				} else if (completionsQuotaExceeded && !chatQuotaExceeded && !premiumChatQuotaExceeded) {
 					quotaWarning = localize('completionsQuotaExceededStatus', "Inline suggestions quota reached");
 				} else {
 					quotaWarning = localize('chatAndCompletionsQuotaExceededStatus', "Quota reached");

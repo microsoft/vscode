@@ -71,7 +71,7 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		// Get contents from web URIs
-		const webContents = webUris.size > 0 ? await this._readerModeService.extract([...webUris.values()]) : [];
+		const webContents = webUris.size > 0 ? await this._readerModeService.extract([...webUris.values()], { followRedirects: true }) : [];
 
 		// Get contents from file URIs
 		const fileContents: (string | { type: 'tooldata'; value: IToolResultDataPart } | undefined)[] = [];
