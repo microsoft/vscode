@@ -206,6 +206,11 @@ export interface IChatSessionsService {
 	setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean;
 
 	/**
+	 * Fired when options for a chat session change.
+	 */
+	onDidChangeSessionOptions: Event<{ readonly resource: URI; readonly updates: ReadonlyArray<{ optionId: string; value: string }> }>;
+
+	/**
 	 * Get the capabilities for a specific session type
 	 */
 	getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined;

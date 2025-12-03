@@ -441,6 +441,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.refreshChatSessionPickers();
 		}));
 
+		// React to chat session option changes for the active session
+		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (!sessionResource) {
+				return;
+			}
+			const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
+			if (!ctx) {
+				return;
+			}
+			if (isEqual(ctx.chatSessionResource, e.resource)) {
+				this.refreshChatSessionPickers();
+			}
+		}));
+
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 		this._register(this._attachmentModel.onDidChange(() => this._syncInputStateToModel()));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs));

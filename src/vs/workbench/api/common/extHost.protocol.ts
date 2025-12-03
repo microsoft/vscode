@@ -3276,6 +3276,12 @@ export interface ChatSessionOptionUpdateDto {
 	readonly optionId: string;
 	readonly value: string | undefined;
 }
+
+export interface ChatSessionOptionUpdateDto2 {
+	readonly optionId: string;
+	readonly value: string;
+}
+
 export interface ChatSessionDto {
 	id: string;
 	resource: UriComponents;
@@ -3297,6 +3303,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$onDidCommitChatSessionItem(handle: number, original: UriComponents, modified: UriComponents): void;
 	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
+	$onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto2>): void;
 
 	$handleProgressChunk(handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
 	$handleAnchorResolve(handle: number, sessionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;

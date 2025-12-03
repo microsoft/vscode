@@ -376,6 +376,12 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._itemProvidersRegistrations.get(handle)?.onDidChangeItems.fire();
 	}
 
+	$onDidChangeChatSessionOptions(handle: number, sessionResourceComponents: UriComponents, updates: ReadonlyArray<{ optionId: string; value: string }>): void {
+		const sessionResource = URI.revive(sessionResourceComponents);
+
+		this._chatSessionsService.notifySessionOptionsChange(sessionResource, updates);
+	}
+
 	async $onDidCommitChatSessionItem(handle: number, originalComponents: UriComponents, modifiedCompoennts: UriComponents): Promise<void> {
 		const originalResource = URI.revive(originalComponents);
 		const modifiedResource = URI.revive(modifiedCompoennts);
