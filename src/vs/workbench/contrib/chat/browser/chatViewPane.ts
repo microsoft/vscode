@@ -287,7 +287,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, MenuId.ChatViewAllSessionsToolbar, {}));
 
 		// All Sessions Control
-		const agentSessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, { filterMenuId: MenuId.ChatViewAllSessionsToolbar }));
+		const agentSessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, { filterMenuId: MenuId.ChatViewAllSessionsFilterSubMenu }));
 		this.allSessionsControlContainer = append(allSessionsContainer, $('.all-agent-sessions-control-container'));
 		this.allSessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.allSessionsControlContainer, {
 			allowOpenSessionsInPanel: true,
@@ -355,6 +355,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewAgentSessionsEnabled) &&	// enabled in settings
 			(!this._widget || this._widget?.isEmpty()) &&													// chat widget empty
 			!this.welcomeController?.isShowingWelcome.get() &&												// welcome not showing
+			this.lastDimensions?.width! < 300 &&																// enough space
 			this.recentSessionsCount > 0;																	// has sessions
 
 		this.viewPaneContainer.classList.toggle('has-recent-sessions-control', newRecentSessionsContainerVisible);
@@ -483,6 +484,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.lastDimensions = { height, width };
 
 		let remainingHeight = height;
+		let remainingWidth = width;
 
 		// Recent sessions control (grows with the number of items displayed)
 		if (this.recentSessionsContainer && this.recentSessionsControlContainer && this.recentSessionsControl) {
@@ -493,11 +495,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			remainingHeight -= this.recentSessionsContainer.offsetHeight;
 		}
 
+		// All sessions control
+		if (this.allSessionsContainer && this.allSessionsControlContainer && this.allSessionsControl) {
+			this.allSessionsControlContainer.style.height = `${height}px`;
+			this.allSessionsControl.layout(height, width);
+
+			remainingWidth -= this.allSessionsContainer.offsetWidth;
+		}
+
 		// Title Control
 		remainingHeight -= this.titleControl?.getHeight() ?? 0;
 
 		// Chat Widget
-		this._widget.layout(remainingHeight, width);
+		this._widget.layout(remainingHeight, remainingWidth);
 	}
 
 	override saveState(): void {

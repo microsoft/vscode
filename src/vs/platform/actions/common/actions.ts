@@ -282,6 +282,7 @@ export class MenuId {
 	static readonly ChatSessionsCreateSubMenu = new MenuId('ChatSessionsCreateSubMenu');
 	static readonly ChatViewRecentSessionsToolbar = new MenuId('ChatViewRecentSessionsToolbar');
 	static readonly ChatViewAllSessionsToolbar = new MenuId('ChatViewAllSessionsToolbar');
+	static readonly ChatViewAllSessionsFilterSubMenu = new MenuId('ChatViewAllSessionsFilterSubMenu');
 	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
 	static readonly ChatConfirmationMenu = new MenuId('ChatConfirmationMenu');
 	static readonly ChatEditorInlineExecute = new MenuId('ChatEditorInputExecute');

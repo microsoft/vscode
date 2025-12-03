@@ -3,8 +3,54 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Special styles when all sessions control is visible */
+.chat-viewpane
+
+/*.has-all-sessions-control*/
+	{
+	display: flex;
+	flex-direction: row-reverse;
+
+	.all-agent-sessions-container {
+		display: flex;
+		flex-direction: column;
+		flex-shrink: 0;
+		height: 100%;
+		width: 300px;
+	}
+
+	.all-agent-sessions-container {
+		display: flex;
+		flex-direction: column;
+		border-left: 1px solid var(--vscode-sideBarSectionHeader-border);
+
+		.all-agent-sessions-title-container {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			font-size: 11px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			color: var(--vscode-descriptionForeground);
+			padding: 8px;
+
+			.recent-agent-sessions-toolbar {
+				visibility: hidden;
+			}
+		}
+	}
+
+	.interactive-session {
+
+		/* needed so that the chat welcome and chat input does not overflow and input grows over welcome */
+		width: 100%;
+		min-height: 0;
+		min-width: 0;
+	}
+}
+
 /* Special styles when recent sessions control is visible */
-.chat-viewpane.has-recent-sessions-control {
+.chat-viewpane.has-recent-sessions-control2 {
 
 	/* Align sessions and welcome/input vertically */
 	display: flex;

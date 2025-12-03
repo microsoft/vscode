@@ -71,6 +71,14 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsTitle, {
 	icon: Codicon.filter
 } satisfies ISubmenuItem);
 
+MenuRegistry.appendMenuItem(MenuId.ChatViewAllSessionsToolbar, {
+	submenu: MenuId.ChatViewAllSessionsFilterSubMenu,
+	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
+	group: 'navigation',
+	order: 100,
+	icon: Codicon.filter
+} satisfies ISubmenuItem);
+
 registerAction2(ArchiveAgentSessionAction);
 registerAction2(UnarchiveAgentSessionAction);
 registerAction2(OpenAgentSessionInNewWindowAction);
