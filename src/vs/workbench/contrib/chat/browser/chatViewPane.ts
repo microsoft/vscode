@@ -144,7 +144,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (viewLocation === ViewContainerLocation.AuxiliaryBar) {
 			sideSessionsOnRightPosition = sideBarPosition === Position.LEFT;
 		} else if (viewLocation === ViewContainerLocation.Sidebar) {
-			sideSessionsOnRightPosition = sideBarPosition === Position.LEFT;
+			sideSessionsOnRightPosition = sideBarPosition === Position.RIGHT;
 		} else {
 			sideSessionsOnRightPosition = true;
 		}

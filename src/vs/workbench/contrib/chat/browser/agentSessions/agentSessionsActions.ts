@@ -319,7 +319,7 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const viewDescriptorService = accessor.get(IViewDescriptorService);
 
 		const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
-		if (!chatLocation || chatLocation === ViewContainerLocation.Panel) {
+		if (typeof chatLocation !== 'number' || chatLocation === ViewContainerLocation.Panel) {
 			return; // only applicable for sidebar or auxiliary bar
 		}
 
