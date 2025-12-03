@@ -69,6 +69,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	private readonly _currentEpoch = observableValue<number>(this, 0);
 	private readonly _operations = observableValueOpts<FileOperation[]>({ equalsFn: () => false }, []); // mutable
 	private readonly _fileBaselines = new Map<string, IFileBaseline>(); // key: `${uri}::${requestId}`
+	private readonly _refCountedDiffs = new Map<string, IObservable<IEditSessionEntryDiff | undefined>>();
 
 	/** Gets the checkpoint, if any, we can 'undo' to. */
 	private readonly _willUndoToCheckpoint = derived(reader => {
@@ -740,7 +741,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			return { start: checkpoints[startIndex], end: checkpoints[startIndex + 1] };
 		});
 
-		return this._getEntryDiffBetweenEpochs(uri, epochs);
+		return this._getEntryDiffBetweenEpochs(uri, `s\0${requestId}\0${stopId}`, epochs);
 	}
 
 	/** Gets the epoch bounds of the request. If stopRequestId is undefined, gets ONLY the single request's bounds */
@@ -764,10 +765,30 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 	}
 
 	public getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
-		return this._getEntryDiffBetweenEpochs(uri, this._getRequestEpochBounds(startRequestId, stopRequestId));
+		return this._getEntryDiffBetweenEpochs(uri, `r\0${startRequestId}\0${stopRequestId}`, this._getRequestEpochBounds(startRequestId, stopRequestId));
 	}
 
-	private _getEntryDiffBetweenEpochs(uri: URI, epochs: IObservable<{ start: ICheckpoint | undefined; end: ICheckpoint | undefined }>): IObservable<IEditSessionEntryDiff | undefined> {
+	private _getEntryDiffBetweenEpochs(uri: URI, cacheKey: string, epochs: IObservable<{ start: ICheckpoint | undefined; end: ICheckpoint | undefined }>): IObservable<IEditSessionEntryDiff | undefined> {
+		const key = `${uri.toString()}\0${cacheKey}`;
+		let obs = this._refCountedDiffs.get(key);
+
+		if (!obs) {
+			obs = this._getEntryDiffBetweenEpochsInner(
+				uri,
+				epochs,
+				() => this._refCountedDiffs.delete(key),
+			);
+			this._refCountedDiffs.set(key, obs);
+		}
+
+		return obs;
+	}
+
+	private _getEntryDiffBetweenEpochsInner(
+		uri: URI,
+		epochs: IObservable<{ start: ICheckpoint | undefined; end: ICheckpoint | undefined }>,
+		onLastObserverRemoved: () => void,
+	): IObservable<IEditSessionEntryDiff | undefined> {
 		const modelRefsPromise = derived(this, (reader) => {
 			const { start, end } = epochs.read(reader);
 			if (!start) { return undefined; }
@@ -832,7 +853,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			return { originalURI, modifiedURI, promise };
 		});
 
-		return derived(reader => {
+		return derivedOpts({ onLastObserverRemoved }, reader => {
 			const result = diff.read(reader);
 			if (!result) {
 				return undefined;
@@ -934,18 +955,18 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 				return [];
 			}
 
-			const endEpoch = endCheckpointObs.read(reader);
-			if (endEpoch !== prevEndCheckpoint) {
+			const endCheckpoint = endCheckpointObs.read(reader);
+			if (endCheckpoint !== prevEndCheckpoint) {
 				prevDiffs.clear();
-				prevEndCheckpoint = endEpoch;
+				prevEndCheckpoint = endCheckpoint;
 			}
 
 			const uris = startEpochs.read(reader);
 			const diffs: IObservable<IEditSessionEntryDiff | undefined>[] = [];
 
 			for (const [uri, epoch] of uris) {
-				const obs = prevDiffs.get(uri) ?? this._getEntryDiffBetweenEpochs(uri,
-					constObservable({ start: checkpoints.findLast(cp => cp.epoch <= epoch) || firstCheckpoint, end: endEpoch }));
+				const obs = prevDiffs.get(uri) ?? this._getEntryDiffBetweenEpochs(uri, `e\0${epoch}\0${endCheckpoint?.epoch}`,
+					constObservable({ start: checkpoints.findLast(cp => cp.epoch <= epoch) || firstCheckpoint, end: endCheckpoint }));
 				prevDiffs.set(uri, obs);
 				diffs.push(obs);
 			}
