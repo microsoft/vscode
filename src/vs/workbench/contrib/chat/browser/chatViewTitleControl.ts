@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewTitle.css';
-import { h, append } from '../../../../base/browser/dom.js';
+import { h } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
@@ -20,16 +20,23 @@ export interface IChatViewTitleDelegate {
 
 export class ChatViewTitleControl extends Disposable {
 
-	private readonly viewContainerModel: IViewContainerModel | undefined;
-
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
-	private currentPrimaryTitle: string;
-	private currentModel: IChatModel | undefined;
+	private get viewContainerModel(): IViewContainerModel | undefined {
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(ChatViewId);
+		if (viewContainer) {
+			return this.viewDescriptorService.getViewContainerModel(viewContainer);
+		}
+
+		return undefined;
+	}
+
+	private primaryTitle = localize('chat', "Chat");
 	private secondaryTitleContainer: HTMLElement | undefined;
 	private secondaryTitle: HTMLElement | undefined;
 
+	private model: IChatModel | undefined;
 	private modelDisposables = this._register(new MutableDisposable());
 
 	private lastKnownHeight = 0;
@@ -42,24 +49,28 @@ export class ChatViewTitleControl extends Disposable {
 	) {
 		super();
 
-		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(ChatViewId);
-		if (viewContainer) {
-			this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+		this.render(this.container);
 
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// Update when views change in container
+		if (this.viewContainerModel) {
 			this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(() => this.applyUpdate()));
 			this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(() => this.applyUpdate()));
 		}
 
-		this.currentPrimaryTitle = localize('chat', "Chat");
-
+		// Update on configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) ||
-				e.affectsConfiguration('workbench.secondarySideBar.showLabels')) {
+			if (
+				e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) ||
+				e.affectsConfiguration('workbench.secondarySideBar.showLabels')
+			) {
 				this.applyUpdate();
 			}
 		}));
-
-		this.render(this.container);
 	}
 
 	render(parent: HTMLElement): void {
@@ -73,11 +84,12 @@ export class ChatViewTitleControl extends Disposable {
 
 		this.secondaryTitleContainer = elements.root;
 		this.secondaryTitle = elements.text;
-		append(parent, this.secondaryTitleContainer);
+
+		parent.appendChild(this.secondaryTitleContainer);
 	}
 
 	update(model: IChatModel | undefined): void {
-		this.currentModel = model;
+		this.model = model;
 
 		this.modelDisposables.value = model?.onDidChange(e => {
 			if (e.kind === 'setCustomTitle' || e.kind === 'addRequest') {
@@ -89,15 +101,16 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private applyUpdate(): void {
-		const model = this.currentModel;
-		const hasCustomTitle = !!(model && model.hasCustomTitle);
-		const customTitle = hasCustomTitle ? model!.title : undefined;
+		const model = this.model;
+		const hasCustomTitle = model?.hasCustomTitle;
+		const customTitle = hasCustomTitle ? model.title : undefined;
 		const prefixedCustomTitle = customTitle ? this.withChatPrefix(customTitle) : undefined;
 		const chatTitle = localize('chat', "Chat");
 		const primaryTitle = prefixedCustomTitle ?? chatTitle;
-		this.currentPrimaryTitle = primaryTitle;
+		this.primaryTitle = primaryTitle;
 
 		this.delegate.updatePrimaryTitle(primaryTitle);
+
 		if (!this.shouldRenderSecondaryTitleBar()) {
 			this.setSecondaryTitle(undefined);
 			return;
@@ -113,10 +126,10 @@ export class ChatViewTitleControl extends Disposable {
 
 	getSingleViewPaneContainerTitle(descriptorTitle: string | undefined): string | undefined {
 		if (!this.shouldRenderSecondaryTitleBar()) {
-			return this.currentPrimaryTitle;
+			return this.primaryTitle;
 		}
 
-		return descriptorTitle ?? this.currentPrimaryTitle;
+		return descriptorTitle ?? this.primaryTitle;
 	}
 
 	getHeight(): number {
