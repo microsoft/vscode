@@ -140,8 +140,11 @@ export class ChatViewTitleControl extends Disposable {
 			return false; // multiple views visible, chat view shows a title already
 		}
 
-		const location = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		return location === ActivityBarPosition.DEFAULT; // in non-default locations a view title appears already
+		if (this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT) {
+			return false; // activity bar not in default location, view title shown already
+		}
+
+		return !!this.model?.title;
 	}
 
 	private isEnabled(): boolean {
