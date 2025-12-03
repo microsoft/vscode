@@ -101,6 +101,7 @@ export abstract class InlineChatRunOptions {
 	existingSession?: Session;
 	position?: IPosition;
 	modelSelector?: ILanguageModelChatSelector;
+	blockOnResponse?: boolean;
 
 	static isInlineChatRunOptions(options: unknown): options is InlineChatRunOptions {
 
@@ -108,7 +109,7 @@ export abstract class InlineChatRunOptions {
 			return false;
 		}
 
-		const { initialSelection, initialRange, message, autoSend, position, existingSession, attachments, modelSelector } = <InlineChatRunOptions>options;
+		const { initialSelection, initialRange, message, autoSend, position, existingSession, attachments, modelSelector, blockOnResponse } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
 			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
@@ -118,6 +119,7 @@ export abstract class InlineChatRunOptions {
 			|| typeof existingSession !== 'undefined' && !(existingSession instanceof Session)
 			|| typeof attachments !== 'undefined' && (!Array.isArray(attachments) || !attachments.every(item => item instanceof URI))
 			|| typeof modelSelector !== 'undefined' && !isILanguageModelChatSelector(modelSelector)
+			|| typeof blockOnResponse !== 'undefined' && typeof blockOnResponse !== 'boolean'
 		) {
 			return false;
 		}
@@ -1423,6 +1425,13 @@ export class InlineChatController2 implements IEditorContribution {
 			}
 		}));
 
+		const defaultPlaceholderObs = visibleSessionObs.map((session, r) => {
+			return session?.initialSelection.isEmpty()
+				? localize('placeholder', "Generate code")
+				: localize('placeholderWithSelection', "Modify selected code");
+		});
+
+
 		this._store.add(autorun(r => {
 
 			// HIDE/SHOW
@@ -1436,6 +1445,7 @@ export class InlineChatController2 implements IEditorContribution {
 				ctxInlineChatVisible.set(true);
 				this._zone.value.widget.chatWidget.setModel(session.chatModel);
 				if (!this._zone.value.position) {
+					this._zone.value.widget.chatWidget.setInputPlaceholder(defaultPlaceholderObs.read(r));
 					this._zone.value.widget.chatWidget.input.renderAttachedContext(); // TODO - fights layout bug
 					this._zone.value.show(session.initialPosition);
 				}
@@ -1472,6 +1482,7 @@ export class InlineChatController2 implements IEditorContribution {
 			return observableFromEvent(this, response.onDidChange, () => response.response.value.findLast(part => part.kind === 'progressMessage')).read(r);
 		});
 
+
 		this._store.add(autorun(r => {
 			const response = lastResponseObs.read(r);
 
@@ -1487,7 +1498,7 @@ export class InlineChatController2 implements IEditorContribution {
 
 				// no response or not in progress
 				this._zone.value.widget.domNode.classList.toggle('request-in-progress', false);
-				this._zone.value.widget.chatWidget.setInputPlaceholder(localize('placeholder', "Edit, refactor, and generate code"));
+				this._zone.value.widget.chatWidget.setInputPlaceholder(defaultPlaceholderObs.read(r));
 
 			} else {
 				this._zone.value.widget.domNode.classList.toggle('request-in-progress', true);

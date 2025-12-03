@@ -98,7 +98,10 @@ export class ToolTerminalCreator {
 				const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 				if (commandDetection?.promptInputModel.state === PromptInputState.Unknown) {
 					this._logService.info(`ToolTerminalCreator#createTerminal: Waiting up to 2s for PromptInputModel state to change`);
-					await raceTimeout(Event.toPromise(commandDetection.onCommandStarted), 2000);
+					const didStart = await raceTimeout(Event.toPromise(commandDetection.onCommandStarted), 2000);
+					if (!didStart) {
+						this._logService.info(`ToolTerminalCreator#createTerminal: PromptInputModel state did not change within timeout`);
+					}
 				}
 			}
 

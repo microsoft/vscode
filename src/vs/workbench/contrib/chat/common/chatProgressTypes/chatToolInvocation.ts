@@ -22,6 +22,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly source: ToolDataSource;
 	public readonly fromSubAgent: boolean | undefined;
 	public readonly parameters: unknown;
+	public generatedTitle?: string;
 
 	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 
@@ -129,6 +130,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,
 			fromSubAgent: this.fromSubAgent,
+			generatedTitle: this.generatedTitle,
 		};
 	}
 }
