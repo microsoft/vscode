@@ -370,6 +370,7 @@ export class RenameSymbolProcessor extends Disposable {
 			requestUuid: suggestItem.requestUuid,
 			providerId: suggestItem.source.provider.providerId,
 			languageId: textModel.getLanguageId(),
+			correlationId: suggestItem.getSourceCompletion().correlationId,
 		});
 		const command: Command = {
 			id: renameSymbolCommandId,

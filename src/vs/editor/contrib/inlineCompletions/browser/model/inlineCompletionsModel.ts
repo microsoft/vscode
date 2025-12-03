@@ -882,11 +882,13 @@ export class InlineCompletionsModel extends Disposable {
 				providerId: completion.source.provider.providerId,
 				languageId,
 				type,
+				correlationId: completion.getSourceCompletion().correlationId,
 			});
 		} else {
 			return EditSources.inlineCompletionAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
+				correlationId: completion.getSourceCompletion().correlationId,
 				providerId: completion.source.provider.providerId,
 				languageId
 			});
