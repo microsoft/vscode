@@ -382,13 +382,9 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			});
 		}));
 
-		disposables.add({
-			dispose: () => {
-				if (progressDisposable) {
-					progressDisposable.dispose();
-				}
-			}
-		});
+		if (progressDisposable) {
+			disposables.add(progressDisposable);
+		}
 	}
 
 
