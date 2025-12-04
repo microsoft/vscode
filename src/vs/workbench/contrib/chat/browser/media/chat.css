@@ -755,7 +755,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border-radius: 4px;
 	padding: 0 6px 6px 6px;
 	/* top padding is inside the editor widget */
-	max-width: 100%;
+	width: 100%;
 }
 
 .interactive-input-part:has(.chat-editing-session > .chat-editing-session-container) .chat-input-container,
