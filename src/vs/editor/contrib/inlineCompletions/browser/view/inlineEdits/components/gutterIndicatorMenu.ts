@@ -71,7 +71,7 @@ export class GutterIndicatorMenuContent {
 			id: 'gotoAndAccept',
 			title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
 			icon: Codicon.check,
-			commandId: inlineSuggestCommitId
+			commandId: inlineSuggestCommitId,
 		}));
 
 		const reject = option(createOptionArgs({
