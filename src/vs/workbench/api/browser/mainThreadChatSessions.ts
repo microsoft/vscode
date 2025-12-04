@@ -631,11 +631,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	 */
 	async notifyOptionsChange(handle: number, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem | undefined }>): Promise<void> {
 		try {
-			const updatesToSend = updates.map(update => ({
-				optionId: update.optionId,
-				value: update.value === undefined ? undefined : (typeof update.value === 'string' ? update.value : update.value.id),
-			}));
-			await this._proxy.$provideHandleOptionsChange(handle, sessionResource, updatesToSend, CancellationToken.None);
+			await this._proxy.$provideHandleOptionsChange(handle, sessionResource, updates, CancellationToken.None);
 		} catch (error) {
 			this._logService.error(`Error notifying extension about options change for handle ${handle}, sessionResource ${sessionResource}:`, error);
 		}

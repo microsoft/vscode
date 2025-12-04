@@ -3275,7 +3275,7 @@ export type IChatSessionHistoryItemDto = {
 
 export interface ChatSessionOptionUpdateDto {
 	readonly optionId: string;
-	readonly value: string | undefined;
+	readonly value: string | IChatSessionProviderOptionItem | undefined;
 }
 
 export interface ChatSessionOptionUpdateDto2 {
