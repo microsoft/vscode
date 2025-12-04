@@ -450,7 +450,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			},
 		).toDisposableLiveElement());
 
-		const focusTracker = disposableStore.add(trackFocus(content.element));
+		const focusTracker = disposableStore.add(trackFocus(content.element)); // TODO@benibenj should this be removed?
 		disposableStore.add(focusTracker.onDidBlur(() => this._focusIsInMenu.set(false, undefined)));
 		disposableStore.add(focusTracker.onDidFocus(() => this._focusIsInMenu.set(true, undefined)));
 		disposableStore.add(toDisposable(() => this._focusIsInMenu.set(false, undefined)));
@@ -487,7 +487,6 @@ export class InlineEditsGutterIndicator extends Disposable {
 				data.model.jump();
 			}
 		},
-		tabIndex: 0,
 		style: {
 			position: 'absolute',
 			overflow: 'visible',
