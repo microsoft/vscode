@@ -514,7 +514,12 @@ suite('LocalAgentsSessionsProvider', () => {
 					sessionResource,
 					title: 'Stats Session',
 					lastMessageDate: Date.now(),
-					isActive: true
+					isActive: true,
+					stats: {
+						added: 30,
+						removed: 8,
+						fileCount: 2
+					}
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
