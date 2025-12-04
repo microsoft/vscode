@@ -259,6 +259,6 @@ export class ChatViewTitleControl extends Disposable {
 
 export const sessionListBackground = registerColor(
 	'sessionList.background',
-	opaque(transparent(inputBackground, 0.4), PANEL_BACKGROUND),
+	opaque(transparent(inputBackground, 0.5), PANEL_BACKGROUND),
 	localize('sessionList.background', "Background color of the agent session list in the Chat view.")
 );
