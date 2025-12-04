@@ -48,6 +48,7 @@ suite('StorageMainService', function () {
 		promptsHome: joinPath(inMemoryProfileRoot, 'promptsHome'),
 		extensionsResource: joinPath(inMemoryProfileRoot, 'extensionsResource'),
 		cacheHome: joinPath(inMemoryProfileRoot, 'cache'),
+		sandboxSettingsResource: joinPath(inMemoryProfileRoot, 'sandbox-settings.json')
 	};
 
 	class TestStorageMainService extends StorageMainService {
