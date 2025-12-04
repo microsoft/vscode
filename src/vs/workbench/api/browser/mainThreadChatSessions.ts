@@ -370,10 +370,11 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			onDidChangeItems: changeEmitter,
 		});
 
-		disposables.add(autorun(reader => {
-			const models = this._chatService.chatModels.read(reader);
-			disposables.add(this._chatSessionsService.registerModelProgressListener(Array.from(models), chatSessionType, changeEmitter));
-		}));
+		disposables.add(this._chatSessionsService.registerChatModelChangeListeners(
+			this._chatService,
+			chatSessionType,
+			() => changeEmitter.fire()
+		));
 	}
 
 

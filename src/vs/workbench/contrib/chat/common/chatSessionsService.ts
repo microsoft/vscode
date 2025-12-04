@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Event } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
@@ -15,7 +15,7 @@ import { IEditableData } from '../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
 import { IChatEditingSession } from './chatEditingService.js';
 import { IChatModel, IChatRequestVariableData } from './chatModel.js';
-import { IChatProgress } from './chatService.js';
+import { IChatProgress, IChatService } from './chatService.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -220,7 +220,7 @@ export interface IChatSessionsService {
 	getEditableData(sessionResource: URI): IEditableData | undefined;
 	isEditable(sessionResource: URI): boolean;
 	// #endregion
-	registerModelProgressListener(models: IChatModel[], type: string, emitter: Emitter<void>): IDisposable;
+	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
 	getSessionDescription(chatModel: IChatModel): string | undefined;
 }
 

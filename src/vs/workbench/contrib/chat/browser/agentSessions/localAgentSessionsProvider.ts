@@ -11,7 +11,6 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun } from '../../../../../base/common/observable.js';
 import { truncate } from '../../../../../base/common/strings.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
@@ -35,7 +34,6 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 	constructor(
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -46,11 +44,11 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 
 	private registerListeners(): void {
 
-		// Listen for models being added or removed
-		this._register(autorun(reader => {
-			const models = this.chatService.chatModels.read(reader);
-			this._register(this._chatSessionsService.registerModelProgressListener(Array.from(models), Schemas.vscodeLocalChatSession, this._onDidChangeChatSessionItems));
-		}));
+		this._register(this.chatSessionsService.registerChatModelChangeListeners(
+			this.chatService,
+			Schemas.vscodeLocalChatSession,
+			() => this._onDidChangeChatSessionItems.fire()
+		));
 
 		// Listen for global session items changes for our session type
 		this._register(this.chatSessionsService.onDidChangeSessionItems(sessionType => {

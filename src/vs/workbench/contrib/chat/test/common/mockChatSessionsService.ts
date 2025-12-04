@@ -12,6 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IEditableData } from '../../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from '../../common/chatAgents.js';
 import { IChatModel } from '../../common/chatModel.js';
+import { IChatService } from '../../common/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionsExtensionPoint, IChatSessionsService, SessionOptionsChangedCallback } from '../../common/chatSessionsService.js';
 
 export class MockChatSessionsService implements IChatSessionsService {
@@ -39,7 +40,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 	private sessionOptions = new ResourceMap<Map<string, string>>();
 	private editableData = new ResourceMap<IEditableData>();
 	private inProgress = new Map<string, number>();
-	private _progressEmitter?: Emitter<void>;
+	private onChange = () => { };
 
 	// For testing: allow triggering events
 	fireDidChangeItemsProviders(provider: IChatSessionItemProvider): void {
@@ -226,22 +227,19 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return undefined;
 	}
 
-	registerModelProgressListener(models: IChatModel[], type: string, emitter: Emitter<void>): IDisposable {
+	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable {
 		// Store the emitter so tests can trigger it
-		this._progressEmitter = emitter;
-
-		// Subscribe the callback to the emitter
+		this.onChange = onChange;
 		return {
 			dispose: () => {
-				emitter.dispose();
 			}
 		};
 	}
 
 	// Helper method for tests to trigger progress events
 	triggerProgressEvent(): void {
-		if (this._progressEmitter) {
-			this._progressEmitter.fire();
+		if (this.onChange) {
+			this.onChange();
 		}
 	}
 }

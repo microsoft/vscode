@@ -8,7 +8,7 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as resources from '../../../../base/common/resources.js';
@@ -39,7 +39,7 @@ import { IChatEditorOptions } from './chatEditor.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../common/chatService.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, autorunIterableDelta } from '../../../../base/common/observable.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
@@ -271,7 +271,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
 	private readonly _editableSessions = new ResourceMap<IEditableData>();
-	private readonly _registeredModels = new Set<IChatModel>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -832,30 +831,42 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		};
 	}
 
-	public registerModelProgressListener(models: IChatModel[], type: string, emitter: Emitter<void>): IDisposable {
-		const disposables = new DisposableStore();
+	public registerChatModelChangeListeners(
+		chatService: IChatService,
+		chatSessionType: string,
+		onChange: () => void
+	): IDisposable {
+		const chatModelsICareAbout = chatService.chatModels.map(models =>
+			Array.from(models).filter((model: IChatModel) => model.sessionResource.scheme === chatSessionType)
+		);
 
-		for (const model of models) {
-			if (model.sessionResource.scheme === type && !this._registeredModels.has(model)) {
-				this._registeredModels.add(model);
-				disposables.add(autorun(reader => {
-					const lastResponse = model.lastRequestObs.read(reader);
-					if (lastResponse?.response) {
-						disposables.add(lastResponse.response.onDidChange(() => {
-							emitter.fire();
-						}));
+		const listeners = new ResourceMap<IDisposable>();
+
+		return autorunIterableDelta(
+			reader => chatModelsICareAbout.read(reader),
+			({ addedValues, removedValues }) => {
+				removedValues.forEach((removed) => {
+					const listener = listeners.get(removed.sessionResource);
+					if (listener) {
+						listeners.delete(removed.sessionResource);
+						listener.dispose();
 					}
-				}));
-
-				disposables.add(model.onDidDispose(() => {
-					this._registeredModels.delete(model);
-					disposables.dispose();
-				}));
+				});
+				addedValues.forEach((added) => {
+					const lastResponseListener = new MutableDisposable();
+					listeners.set(added.sessionResource, autorun(reader => {
+						const lastResponse = added.lastRequestObs.read(reader);
+						if (lastResponse?.response) {
+							lastResponseListener.value = lastResponse.response.onDidChange(() => {
+								onChange();
+							});
+						}
+					}));
+				});
 			}
-		}
-
-		return disposables;
+		);
 	}
+
 
 	public getSessionDescription(chatModel: IChatModel): string | undefined {
 		const requests = chatModel.getRequests();
