@@ -24,6 +24,9 @@ export class MockChatService implements IChatService {
 
 	private sessions = new ResourceMap<IChatModel>();
 
+	setSaveModelsEnabled(enabled: boolean): void {
+
+	}
 	isEnabled(location: ChatAgentLocation): boolean {
 		throw new Error('Method not implemented.');
 	}
@@ -133,7 +136,7 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 
-	getLiveSessionItems(): IChatDetail[] {
+	async getLiveSessionItems(): Promise<IChatDetail[]> {
 		throw new Error('Method not implemented.');
 	}
 	getHistorySessionItems(): Promise<IChatDetail[]> {

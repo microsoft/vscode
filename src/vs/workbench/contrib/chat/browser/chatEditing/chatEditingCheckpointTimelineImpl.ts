@@ -17,6 +17,7 @@ import { isDefined, Mutable } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -26,7 +27,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { CellEditType, CellUri, INotebookTextModel } from '../../../notebook/common/notebookCommon.js';
 import { INotebookEditorModelResolverService } from '../../../notebook/common/notebookEditorModelResolverService.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
-import { busySessionEntryDiff, IEditSessionDiffStats, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
+import { emptySessionEntryDiff, IEditSessionDiffStats, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo } from '../../common/chatEditingService.js';
 import { IChatRequestDisablement } from '../../common/chatModel.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
 import { FileOperation, FileOperationType, IChatEditingTimelineState, ICheckpoint, IFileBaseline, IReconstructedFileExistsState, IReconstructedFileNotExistsState, IReconstructedFileState } from './chatEditingOperations.js';
@@ -789,6 +790,8 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		epochs: IObservable<{ start: ICheckpoint | undefined; end: ICheckpoint | undefined }>,
 		onLastObserverRemoved: () => void,
 	): IObservable<IEditSessionEntryDiff | undefined> {
+		type ModelRefsValue = { refs: { model: ITextModel; onChange: IObservable<void> }[]; isFinal: boolean; error?: unknown };
+
 		const modelRefsPromise = derived(this, (reader) => {
 			const { start, end } = epochs.read(reader);
 			if (!start) { return undefined; }
@@ -797,7 +800,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			const originalURI = this.getContentURIAtStop(start.requestId || START_REQUEST_EPOCH, uri, STOP_ID_EPOCH_PREFIX + start.epoch);
 			const modifiedURI = this.getContentURIAtStop(end?.requestId || start.requestId || START_REQUEST_EPOCH, uri, STOP_ID_EPOCH_PREFIX + (end?.epoch || Number.MAX_SAFE_INTEGER));
 
-			const promise = Promise.all([
+			const promise: Promise<ModelRefsValue> = Promise.all([
 				this._textModelService.createModelReference(originalURI),
 				this._textModelService.createModelReference(modifiedURI),
 			]).then(refs => {
@@ -807,7 +810,15 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 					refs.forEach(r => store.add(r));
 				}
 
-				return { refs, isFinal: !!end };
+				return {
+					refs: refs.map(r => ({
+						model: r.object.textEditorModel,
+						onChange: observableSignalFromEvent(this, r.object.textEditorModel.onDidChangeContent.bind(r.object.textEditorModel)),
+					})),
+					isFinal: !!end,
+				};
+			}).catch((error): ModelRefsValue => {
+				return { refs: [], isFinal: true, error };
 			});
 
 			return {
@@ -817,40 +828,26 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			};
 		});
 
-		const resolvedModels = derived(reader => {
-			const mrp = modelRefsPromise.read(reader);
-			if (!mrp) {
-				return undefined;
-			}
-
-			const { originalURI, modifiedURI, promise } = mrp;
-			const refs2 = promise.promiseResult.read(reader);
-			return {
-				originalURI,
-				modifiedURI,
-				isFinal: !!refs2?.error || refs2?.data?.isFinal,
-				refs: refs2?.data?.refs.map(r => ({
-					model: r.object.textEditorModel,
-					onChange: observableSignalFromEvent(this, r.object.textEditorModel.onDidChangeContent.bind(r.object.textEditorModel)),
-				})),
-			};
-		});
-
 		const diff = derived(reader => {
-			const modelsData = resolvedModels.read(reader);
+			const modelsData = modelRefsPromise.read(reader);
 			if (!modelsData) {
 				return;
 			}
 
-			const { refs, isFinal, originalURI, modifiedURI } = modelsData;
-			if (!refs) {
+			const { originalURI, modifiedURI, promise } = modelsData;
+			const promiseData = promise?.promiseResult.read(reader);
+			if (!promiseData?.data) {
 				return { originalURI, modifiedURI, promise: undefined };
+			}
+
+			const { refs, isFinal, error } = promiseData.data;
+			if (error) {
+				return { originalURI, modifiedURI, promise: new ObservablePromise(Promise.resolve(emptySessionEntryDiff(originalURI, modifiedURI))) };
 			}
 
 			refs.forEach(m => m.onChange.read(reader)); // re-read when contents change
 
-			const promise = new ObservablePromise(this._computeDiff(originalURI, modifiedURI, !!isFinal));
-			return { originalURI, modifiedURI, promise };
+			return { originalURI, modifiedURI, promise: new ObservablePromise(this._computeDiff(originalURI, modifiedURI, !!isFinal)) };
 		});
 
 		return derivedOpts({ onLastObserverRemoved }, reader => {
@@ -864,7 +861,11 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 				return promised.data;
 			}
 
-			return busySessionEntryDiff(result.originalURI, result.modifiedURI);
+			if (promised?.error) {
+				return emptySessionEntryDiff(result.originalURI, result.modifiedURI);
+			}
+
+			return { ...emptySessionEntryDiff(result.originalURI, result.modifiedURI), isBusy: true };
 		});
 	}
 

@@ -44,6 +44,10 @@ class MockChatService implements IChatService {
 		this._onDidDisposeSession.fire({ sessionResource, reason: 'cleared' });
 	}
 
+	setSaveModelsEnabled(enabled: boolean): void {
+
+	}
+
 	setLiveSessionItems(items: IChatDetail[]): void {
 		this.liveSessionItems = items;
 	}
@@ -166,7 +170,7 @@ class MockChatService implements IChatService {
 		return undefined;
 	}
 
-	getLiveSessionItems(): IChatDetail[] {
+	async getLiveSessionItems(): Promise<IChatDetail[]> {
 		return this.liveSessionItems;
 	}
 
@@ -514,7 +518,12 @@ suite('LocalAgentsSessionsProvider', () => {
 					sessionResource,
 					title: 'Stats Session',
 					lastMessageDate: Date.now(),
-					isActive: true
+					isActive: true,
+					stats: {
+						added: 30,
+						removed: 8,
+						fileCount: 2
+					}
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
