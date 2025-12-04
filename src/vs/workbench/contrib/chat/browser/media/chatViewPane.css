@@ -26,7 +26,6 @@
 	.agent-sessions-container {
 		display: flex;
 		flex-direction: column;
-		background-color: transparent;
 		background-color: var(--vscode-sessionList-background);
 
 		.agent-sessions-viewer .monaco-list-rows {
