@@ -371,11 +371,13 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 	public static create(
 		data: InlineSuggestData,
 		textModel: ITextModel,
+
 	): InlineEditItem {
 		let action: InlineSuggestionAction | undefined;
 		let edits: SingleUpdatedNextEdit[] = [];
 		if (data.action?.kind === 'edit') {
-			const offsetEdit = getStringEdit(textModel, data.action.range, data.action.insertText); // TODO compute async
+			const shouldDiffEdit = data.action.alternativeAction === undefined; // TODO@benibenj alternative actions should not go through create twice
+			const offsetEdit = shouldDiffEdit ? getDiffedStringEdit(textModel, data.action.range, data.action.insertText) : getStringEdit(textModel, data.action.range, data.action.insertText); // TODO compute async
 			const text = new TextModelText(textModel);
 			const textEdit = TextEdit.fromStringEdit(offsetEdit, text);
 			const singleTextEdit = offsetEdit.isEmpty() ? new TextReplacement(new Range(1, 1, 1, 1), '') : textEdit.toReplacement(text); // FIXME: .toReplacement() can throw because offsetEdit is empty because we get an empty diff in getStringEdit after diffing
@@ -549,7 +551,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 	}
 }
 
-function getStringEdit(textModel: ITextModel, editRange: Range, replaceText: string): StringEdit {
+function getDiffedStringEdit(textModel: ITextModel, editRange: Range, replaceText: string): StringEdit {
 	const eol = textModel.getEOL();
 	const editOriginalText = textModel.getValueInRange(editRange);
 	const editReplaceText = replaceText.replace(/\r\n|\r|\n/g, eol);
@@ -589,6 +591,13 @@ function getStringEdit(textModel: ITextModel, editRange: Range, replaceText: str
 	);
 
 	return offsetEdit;
+}
+
+function getStringEdit(textModel: ITextModel, editRange: Range, replaceText: string): StringEdit {
+	return new StringEdit([new StringReplacement(
+		getPositionOffsetTransformerFromTextModel(textModel).getOffsetRange(editRange),
+		replaceText
+	)]);
 }
 
 class SingleUpdatedNextEdit {
