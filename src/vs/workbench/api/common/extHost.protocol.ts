@@ -3280,7 +3280,7 @@ export interface ChatSessionOptionUpdateDto {
 
 export interface ChatSessionOptionUpdateDto2 {
 	readonly optionId: string;
-	readonly value: string;
+	readonly value: string | IChatSessionProviderOptionItem;
 }
 
 export interface ChatSessionDto {

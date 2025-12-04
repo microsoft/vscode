@@ -444,7 +444,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// React to chat session option changes for the active session
 		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {
 			const sessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (sessionResource && isEqual(sessionResource, e.resource)) {
+			if (sessionResource && isEqual(sessionResource, e)) {
 				// Options changed for our current session - refresh pickers
 				this.refreshChatSessionPickers();
 			}
@@ -710,7 +710,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this.getOrCreateOptionEmitter(optionGroup.id).fire(option);
 					this.chatSessionsService.notifySessionOptionsChange(
 						ctx.chatSessionResource,
-						[{ optionId: optionGroup.id, value: option.id }]
+						[{ optionId: optionGroup.id, value: option }]
 					).catch(err => this.logService.error(`Failed to notify extension of ${optionGroup.id} change:`, err));
 				},
 				getAllOptions: () => {
@@ -1270,9 +1270,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (currentOption) {
 				const optionGroup = optionGroups.find(g => g.id === optionGroupId);
 				if (optionGroup) {
-					const item = optionGroup.items.find(m => m.id === currentOption);
+					const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
+					const item = optionGroup.items.find(m => m.id === currentOptionId);
 					if (item) {
-						this.getOrCreateOptionEmitter(optionGroupId).fire(item);
+						// If we have a new option, use that.
+						if (typeof currentOption === 'string') {
+							this.getOrCreateOptionEmitter(optionGroupId).fire(item);
+						} else {
+							this.getOrCreateOptionEmitter(optionGroupId).fire(currentOption);
+						}
 					}
 				}
 			}
