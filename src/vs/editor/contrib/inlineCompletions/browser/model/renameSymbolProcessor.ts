@@ -25,6 +25,7 @@ import { renameSymbolCommandId } from '../controller/commandIds.js';
 import { InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { IInlineSuggestDataActionEdit } from './provideInlineCompletions.js';
 import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 enum RenameKind {
 	no = 'no',
@@ -365,7 +366,7 @@ export class RenameSymbolProcessor extends Disposable {
 
 		// Check asynchronously if a rename is possible
 		let timedOut = false;
-		const check = await raceTimeout<RenameKind>(this.checkRenamePrecondition(suggestItem, textModel, position, oldName, newName), 1000, () => { timedOut = true; });
+		const check = await raceTimeout<RenameKind>(this.checkRenamePrecondition(suggestItem, textModel, position, oldName, newName), 100, () => { timedOut = true; });
 		const renamePossible = check === RenameKind.yes || check === RenameKind.maybe;
 
 		suggestItem.setRenameProcessingInfo({
@@ -404,7 +405,7 @@ export class RenameSymbolProcessor extends Disposable {
 		};
 		const alternativeAction: InlineSuggestAlternativeAction = {
 			label: localize('rename', "Rename"),
-			//icon: Codicon.replaceAll,
+			icon: Codicon.replaceAll,
 			command,
 			count: runnable.getCount(),
 		};

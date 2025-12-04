@@ -46,10 +46,12 @@ export class InlineEditsGutterIndicatorData {
 
 export class InlineSuggestionGutterMenuData {
 	public static fromInlineSuggestion(suggestion: InlineSuggestionItem): InlineSuggestionGutterMenuData {
+		const alternativeAction = suggestion.action?.kind === 'edit' ? suggestion.action.alternativeAction : undefined;
 		return new InlineSuggestionGutterMenuData(
 			suggestion.gutterMenuLinkAction,
 			suggestion.source.provider.displayName ?? localize('inlineSuggestion', "Inline Suggestion"),
 			suggestion.source.inlineSuggestions.commands ?? [],
+			alternativeAction,
 			suggestion.source.provider.modelInfo,
 			suggestion.source.provider.setModelId?.bind(suggestion.source.provider),
 		);
@@ -59,6 +61,7 @@ export class InlineSuggestionGutterMenuData {
 		readonly action: Command | undefined,
 		readonly displayName: string,
 		readonly extensionCommands: InlineCompletionCommand[],
+		readonly alternativeAction: InlineSuggestAlternativeAction | undefined,
 		readonly modelInfo: IInlineCompletionModelInfo | undefined,
 		readonly setModelId: ((modelId: string) => Promise<void>) | undefined,
 	) { }

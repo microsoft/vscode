@@ -122,10 +122,15 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 				const label = this._viewData.alternativeAction.label;
 				const count = altCount.read(reader);
 				const active = altModifierActive.read(reader);
+				const occurrencesLabel = count !== undefined ? count === 1 ?
+					localize('labelOccurence', "{0} 1 occurrence", label) :
+					localize('labelOccurences', "{0} {1} occurrences", label, count)
+					: label;
+				const keybindingTooltip = localize('shiftToSeeOccurences', "{0} show occurrences", '[shift]');
 				alternativeAction = {
-					label: count !== undefined ? (active ? localize('labelOccurances', "{0} {1} occurrences", label, count) : label) : label,
-					tooltip: count !== undefined ? localize('labelOccurances', "{0} {1} occurrences", label, count) : label,
-					icon: this._viewData.alternativeAction.icon,
+					label: count !== undefined ? (active ? occurrencesLabel : label) : label,
+					tooltip: occurrencesLabel ? `${occurrencesLabel}\n${keybindingTooltip}` : undefined,
+					icon: undefined, //this._viewData.alternativeAction.icon, Do not render icon fo the moment
 					count,
 					keybinding: this._keybindingService.lookupKeybinding(inlineSuggestCommitAlternativeActionId),
 					active: altModifierActive,
@@ -290,7 +295,9 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 										this._secondaryElement.set(elem, undefined);
 									},
 									ref: (elem) => {
-										reader.store.add(this._hoverService.setupDelayedHoverAtMouse(elem, { content: altAction.tooltip, appearance: { compact: true } }));
+										if (altAction.tooltip) {
+											reader.store.add(this._hoverService.setupDelayedHoverAtMouse(elem, { content: altAction.tooltip, appearance: { compact: true } }));
+										}
 									}
 								}, [
 									keybinding,
