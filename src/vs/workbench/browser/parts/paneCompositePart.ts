@@ -5,6 +5,7 @@
 
 import './media/paneCompositePart.css';
 import { Event } from '../../../base/common/event.js';
+import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { Extensions, PaneComposite, PaneCompositeDescriptor, PaneCompositeRegistry } from '../panecomposite.js';
@@ -12,7 +13,7 @@ import { IPaneComposite } from '../../common/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../common/views.js';
 import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IView } from '../../../base/browser/ui/grid/grid.js';
-import { IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
 import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from '../../../base/browser/dom.js';
@@ -39,6 +40,33 @@ import { getActionBarActions } from '../../../platform/actions/browser/menuEntry
 import { IHoverService } from '../../../platform/hover/browser/hover.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
 import { DeferredPromise } from '../../../base/common/async.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { URI } from '../../../base/common/uri.js';
+
+/**
+ * Context for chat view title actions.
+ * Defined locally to avoid layering violations with contrib layer.
+ */
+interface IChatViewTitleActionContext {
+	$mid: MarshalledId.ChatViewContext;
+	sessionResource: URI;
+}
+
+/**
+ * Internal interface for accessing chat view widget properties.
+ * Defined locally because these are internal implementation details not exposed via public interfaces,
+ * and importing from contrib layer would violate layering rules.
+ */
+interface IChatViewWithWidget {
+	widget?: {
+		viewModel?: {
+			model?: {
+				sessionResource?: URI;
+				getRequests?: () => unknown[];
+			};
+		};
+	};
+}
 
 export enum CompositeBarPosition {
 	TOP,
@@ -107,6 +135,8 @@ export interface IPaneCompositePart extends IView {
 export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart {
 
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
+	private static readonly CHAT_VIEW_CONTAINER_ID = 'workbench.panel.chat';
+	private static readonly CHAT_VIEW_ID = 'workbench.panel.chat.view.copilot';
 
 	get snap(): boolean {
 		// Always allow snapping closed
@@ -128,6 +158,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private readonly globalActionsMenuId: MenuId;
 	private globalToolBar: MenuWorkbenchToolBar | undefined;
+
+	private chatTitleToolbar: MenuWorkbenchToolBar | undefined;
+	private chatTitleToolbarContainer: HTMLElement | undefined;
 
 	private blockOpening: DeferredPromise<PaneComposite | undefined> | undefined = undefined;
 	protected contentDimension: Dimension | undefined;
@@ -154,6 +187,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IMenuService protected readonly menuService: IMenuService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 	) {
 		let location = ViewContainerLocation.Sidebar;
 		let registryId = Extensions.Viewlets;
@@ -374,6 +408,20 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	protected override createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
 		this.titleContainer = parent;
 
+		// Create toolbar container for chat back button (shown to the left of title)
+		this.chatTitleToolbarContainer = prepend(parent, $('.chat-title-toolbar'));
+		this.chatTitleToolbarContainer.style.display = 'none';
+
+		this.chatTitleToolbar = this._register(this.instantiationService.createInstance(
+			MenuWorkbenchToolBar,
+			this.chatTitleToolbarContainer,
+			MenuId.ChatViewSessionTitleToolbar,
+			{
+				menuOptions: { shouldForwardArgs: true },
+				hiddenItemStrategy: HiddenItemStrategy.NoHide
+			}
+		));
+
 		const titleLabel = super.createTitleLabel(parent);
 		this.titleLabelElement!.draggable = true;
 		const draggedItemProvider = (): { type: 'view' | 'composite'; id: string } => {
@@ -492,8 +540,76 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		return this.instantiationService.createInstance(PaneCompositeBar, this.getCompositeBarOptions(), this.partId, this);
 	}
 
+	private updateChatTitleToolbar(compositeId: string): void {
+		if (!this.chatTitleToolbar || !this.chatTitleToolbarContainer) {
+			return;
+		}
+
+		if (!this.shouldShowChatTitleToolbar(compositeId)) {
+			this.setChatTitleToolbarVisibility(false);
+			return;
+		}
+
+		const context = this.getChatSessionContext();
+		if (context) {
+			this.chatTitleToolbar.context = context;
+			this.setChatTitleToolbarVisibility(true);
+		} else {
+			this.setChatTitleToolbarVisibility(false);
+		}
+	}
+
+	private shouldShowChatTitleToolbar(compositeId: string): boolean {
+		const isChatViewContainer = compositeId === AbstractPaneCompositePart.CHAT_VIEW_CONTAINER_ID;
+		if (!isChatViewContainer) {
+			return false;
+		}
+
+		const activityBarPosition = this.configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		return activityBarPosition !== ActivityBarPosition.DEFAULT;
+	}
+
+	private getChatSessionContext(): IChatViewTitleActionContext | undefined {
+		const activePaneComposite = this.getActivePaneComposite();
+		if (!activePaneComposite) {
+			return undefined;
+		}
+
+		const viewPaneContainer = activePaneComposite.getViewPaneContainer();
+		const chatView = viewPaneContainer?.views.find(view => view.id === AbstractPaneCompositePart.CHAT_VIEW_ID);
+		if (!chatView) {
+			return undefined;
+		}
+
+		const chatViewWithWidget = chatView as unknown as IChatViewWithWidget;
+		const model = chatViewWithWidget.widget?.viewModel?.model;
+		const sessionResource = model?.sessionResource;
+		const hasMessages = (model?.getRequests?.() || []).length > 0;
+
+		if (sessionResource !== undefined && hasMessages) {
+			return {
+				$mid: MarshalledId.ChatViewContext,
+				sessionResource
+			} satisfies IChatViewTitleActionContext;
+		}
+
+		return undefined;
+	}
+
+	private setChatTitleToolbarVisibility(visible: boolean): void {
+		if (!this.chatTitleToolbarContainer) {
+			return;
+		}
+
+		this.chatTitleToolbarContainer.style.display = visible ? 'flex' : 'none';
+		this.titleLabelElement?.classList.toggle('has-chat-toolbar', visible);
+	}
+
 	protected override onTitleAreaUpdate(compositeId: string): void {
 		super.onTitleAreaUpdate(compositeId);
+
+		// Update chat title toolbar visibility and context
+		this.updateChatTitleToolbar(compositeId);
 
 		// If title actions change, relayout the composite bar
 		this.layoutCompositeBar();
