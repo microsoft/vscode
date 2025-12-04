@@ -32,6 +32,7 @@ export interface IChatSessionCommandContribution {
 export interface IChatSessionProviderOptionItem {
 	id: string;
 	name: string;
+	description?: string;
 	locked?: boolean;
 	icon?: ThemeIcon;
 	// [key: string]: any;
