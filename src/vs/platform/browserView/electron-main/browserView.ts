@@ -177,6 +177,16 @@ export class BrowserView extends Disposable {
 		});
 		webContents.on('did-finish-load', () => fireLoadingEvent(false));
 
+		webContents.on('render-process-gone', (_event, details) => {
+			this._lastError = {
+				url: webContents.getURL(),
+				errorCode: details.exitCode,
+				errorDescription: `Render process gone: ${details.reason}`
+			};
+
+			fireLoadingEvent(false);
+		});
+
 		// Navigation events (when URL actually changes)
 		webContents.on('did-navigate', fireNavigationEvent);
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
