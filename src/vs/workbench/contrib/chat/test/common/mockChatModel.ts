@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
 import { IChatChangeEvent, IChatModel, IChatRequestModel, IExportableChatData, IInputModel, ISerializableChatData } from '../../common/chatModel.js';
@@ -32,9 +32,12 @@ export class MockChatModel extends Disposable implements IChatModel {
 	};
 	readonly contributedChatSession = undefined;
 	isDisposed = false;
+	lastRequestObs: IObservable<IChatRequestModel | undefined>;
 
 	constructor(readonly sessionResource: URI) {
 		super();
+		this.lastRequest = undefined;
+		this.lastRequestObs = observableValue('lastRequest', undefined);
 	}
 
 	readonly hasRequests = false;

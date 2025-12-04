@@ -80,15 +80,17 @@ import { registerMoveActions } from './actions/chatMoveActions.js';
 import { registerNewChatActions } from './actions/chatNewActions.js';
 import { registerChatPromptNavigationActions } from './actions/chatPromptNavigationActions.js';
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
-import { ChatSessionsGettingStartedAction, DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInNewWindowAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleAgentSessionsViewLocationAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
+import { ChatAgentRecommendation } from './actions/chatAgentRecommendationActions.js';
+import { DeleteChatSessionAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleAgentSessionsViewLocationAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatElicitationActions } from './actions/chatElicitationActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
-import './agentSessions/agentSessionsView.js';
+import './agentSessions/agentSessions.contribution.js';
 import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatWidgetService, IQuickChatService } from './chat.js';
 import { ChatAccessibilityService } from './chatAccessibilityService.js';
 import './chatAttachmentModel.js';
+import './chatStatusWidget.js';
 import { ChatAttachmentResolveService, IChatAttachmentResolveService } from './chatAttachmentResolveService.js';
 import { ChatMarkdownAnchorService, IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 import { ChatContextPickService, IChatContextPickService } from './chatContextPickService.js';
@@ -111,7 +113,6 @@ import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
 import { ChatTerminalOutputAccessibleView } from './chatTerminalOutputAccessibleView.js';
-import { LocalAgentsSessionsProvider } from './agentSessions/localAgentSessionsProvider.js';
 import { ChatSessionsView, ChatSessionsViewContrib } from './chatSessions/view/chatSessionsView.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup/chatSetupContributions.js';
 import { ChatStatusBarEntry } from './chatStatus/chatStatusEntry.js';
@@ -132,7 +133,6 @@ import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { ChatWidgetService } from './chatWidgetService.js';
-import { AgentSessionsService, IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 
 const toolReferenceNameEnumValues: string[] = [];
 const toolReferenceNameEnumDescriptions: string[] = [];
@@ -329,6 +329,12 @@ configurationRegistry.registerConfiguration({
 				},
 			}
 		},
+		[ChatConfiguration.SuspendThrottling]: { // TODO@deepak1556 remove this once https://github.com/microsoft/vscode/issues/263554 is resolved.
+			type: 'boolean',
+			description: nls.localize('chat.suspendThrottling', "Controls whether background throttling is suspended when a chat request is in progress, allowing the chat session to continue even when the window is not in focus."),
+			default: true,
+			tags: ['preview']
+		},
 		'chat.sendElementsToChat.enabled': {
 			default: true,
 			description: nls.localize('chat.sendElementsToChat.enabled', "Controls whether elements can be sent to chat from the Simple Browser."),
@@ -358,19 +364,28 @@ configurationRegistry.registerConfiguration({
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
 		},
-		[ChatConfiguration.ChatViewRecentSessionsEnabled]: { // TODO@bpasero decide on a default
+		[ChatConfiguration.ChatViewWelcomeEnabled]: {
 			type: 'boolean',
-			default: product.quality !== 'stable',
-			description: nls.localize('chat.sessions.enabled', "Show recent chat agent sessions when chat is empty."),
+			default: true,
+			description: nls.localize('chat.welcome.enabled', "Show welcome banner when chat is empty."),
+		},
+		[ChatConfiguration.ChatViewRecentSessionsEnabled]: { // TODO@bpasero move off preview
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.sessions.enabled', "Show recent chat agent sessions when chat is empty or to the side when chat view is wide enough."),
 			tags: ['preview', 'experimental'],
 			experiment: {
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.ChatViewWelcomeEnabled]: {
+		[ChatConfiguration.ChatViewTitleEnabled]: { // TODO@bpasero move off preview
 			type: 'boolean',
 			default: true,
-			description: nls.localize('chat.welcome.enabled', "Show welcome banner when chat is empty."),
+			description: nls.localize('chat.viewTitle.enabled', "Show the title of the chat above the chat in the chat view."),
+			tags: ['preview', 'experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[ChatConfiguration.NotifyWindowOnResponseReceived]: {
 			type: 'boolean',
@@ -535,12 +550,27 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			tags: ['experimental'],
 		},
+		['chat.statusWidget.sku']: {
+			type: 'string',
+			enum: ['free', 'anonymous'],
+			enumDescriptions: [
+				nls.localize('chat.statusWidget.sku.free', "Show status widget for free tier users."),
+				nls.localize('chat.statusWidget.sku.anonymous', "Show status widget for anonymous users.")
+			],
+			description: nls.localize('chat.statusWidget.enabled.description', "Controls which user type should see the status widget in new chat sessions when quota is exceeded."),
+			default: undefined,
+			tags: ['experimental'],
+			included: false,
+			experiment: {
+				mode: 'auto'
+			}
+		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
 			enum: ['disabled', 'view', 'single-view'], // TODO@bpasero remove this setting eventually
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
-			default: product.quality === 'stable' ? 'view' : 'single-view',
-			tags: ['experimental'],
+			default: 'disabled',
+			tags: ['preview', 'experimental'],
 			experiment: {
 				mode: 'auto'
 			}
@@ -759,9 +789,15 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered."),
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.ThinkingGenerateTitles]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.agent.thinking.generateTitles', "Controls whether to use an LLM to generate summary titles for thinking sections."),
+			tags: ['experimental'],
+		},
 		'chat.agent.thinking.collapsedTools': {
 			type: 'string',
-			default: product.quality !== 'stable' ? 'always' : 'withThinking',
+			default: 'always',
 			enum: ['off', 'withThinking', 'always'],
 			enumDescriptions: [
 				nls.localize('chat.agent.thinking.collapsedTools.off', "Tool calls are shown separately, not collapsed into thinking."),
@@ -799,6 +835,12 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'auto'
 			}
+		},
+		[ChatConfiguration.ExitAfterDelegation]: {
+			type: 'boolean',
+			description: nls.localize('chat.exitAfterDelegation', "Controls whether the chat panel automatically exits after delegating a request to another session."),
+			default: true,
+			tags: ['preview'],
 		},
 		'chat.extensionUnification.enabled': {
 			type: 'boolean',
@@ -967,19 +1009,30 @@ class ChatAgentActionsContribution extends Disposable implements IWorkbenchContr
 		this._register(this.chatModeService.onDidChangeChatModes(() => {
 			const { custom } = this.chatModeService.getModes();
 			const currentModeIds = new Set<string>();
+			const currentModeNames = new Map<string, string>();
 
-			// Register new modes
 			for (const mode of custom) {
-				currentModeIds.add(mode.id);
-				if (!this._modeActionDisposables.has(mode.id)) {
-					this._registerModeAction(mode);
+				const modeName = mode.name.get();
+				if (currentModeNames.has(modeName)) {
+					// If there is a name collision, the later one in the list wins
+					currentModeIds.delete(currentModeNames.get(modeName)!);
 				}
+
+				currentModeNames.set(modeName, mode.id);
+				currentModeIds.add(mode.id);
 			}
 
-			// Remove modes that no longer exist
+			// Remove modes that no longer exist and those replaced by modes later in the list with same name
 			for (const modeId of this._modeActionDisposables.keys()) {
 				if (!currentModeIds.has(modeId)) {
 					this._modeActionDisposables.deleteAndDispose(modeId);
+				}
+			}
+
+			// Register new modes
+			for (const mode of custom) {
+				if (currentModeIds.has(mode.id) && !this._modeActionDisposables.has(mode.id)) {
+					this._registerModeAction(mode);
 				}
 			}
 		}));
@@ -1139,6 +1192,7 @@ registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribu
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatAgentActionsContribution.ID, ChatAgentActionsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ToolReferenceNamesContribution.ID, ToolReferenceNamesContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatAgentRecommendation.ID, ChatAgentRecommendation, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatEditingEditorAccessibility.ID, ChatEditingEditorAccessibility, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatEditingEditorOverlay.ID, ChatEditingEditorOverlay, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(SimpleBrowserOverlay.ID, SimpleBrowserOverlay, WorkbenchPhase.AfterRestored);
@@ -1147,7 +1201,6 @@ registerWorkbenchContribution2(ChatTransferContribution.ID, ChatTransferContribu
 registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContributions, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(LocalAgentsSessionsProvider.ID, LocalAgentsSessionsProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatSessionsViewContrib.ID, ChatSessionsViewContrib, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
@@ -1204,16 +1257,12 @@ registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, I
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
-registerSingleton(IAgentSessionsService, AgentSessionsService, InstantiationType.Delayed);
 
 registerAction2(ConfigureToolSets);
 registerAction2(RenameChatSessionAction);
 registerAction2(DeleteChatSessionAction);
-registerAction2(OpenChatSessionInNewWindowAction);
-registerAction2(OpenChatSessionInNewEditorGroupAction);
 registerAction2(OpenChatSessionInSidebarAction);
 registerAction2(ToggleChatSessionsDescriptionDisplayAction);
-registerAction2(ChatSessionsGettingStartedAction);
 registerAction2(ToggleAgentSessionsViewLocationAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

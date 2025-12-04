@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
 import { getMarks, mark } from '../../../base/common/performance.js';
-import { isBigSurOrNewer, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { isTahoeOrNewer, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { release } from 'os';
@@ -184,7 +184,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		// Sheet Offsets
 		const useCustomTitleStyle = !hasNativeTitlebar(this.configurationService, options?.titleBarStyle === 'hidden' ? TitlebarStyle.CUSTOM : undefined /* unknown */);
 		if (isMacintosh && useCustomTitleStyle) {
-			win.setSheetOffset(isBigSurOrNewer(release()) ? 28 : 22); // offset dialogs by the height of the custom title bar if we have any
+			win.setSheetOffset(isTahoeOrNewer(release()) ? 32 : 28); // offset dialogs by the height of the custom title bar if we have any
 		}
 
 		// Update the window controls immediately based on cached or default values

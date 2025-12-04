@@ -12,6 +12,7 @@ import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/glo
 import { localize } from '../../../../nls.js';
 import { registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -27,9 +28,9 @@ import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/c
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 import { IChatWidgetService } from '../browser/chat.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatUrlFetchingConfirmationContribution } from '../common/chatUrlFetchingConfirmation.js';
-import { ChatModeKind } from '../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../common/tools/tools.js';
@@ -126,9 +127,14 @@ class ChatSuspendThrottlingHandler extends Disposable {
 
 	constructor(
 		@INativeHostService nativeHostService: INativeHostService,
-		@IChatService chatService: IChatService
+		@IChatService chatService: IChatService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
+
+		if (!configurationService.getValue<boolean>(ChatConfiguration.SuspendThrottling)) {
+			return;
+		}
 
 		this._register(autorun(reader => {
 			const running = chatService.requestInProgressObs.read(reader);
