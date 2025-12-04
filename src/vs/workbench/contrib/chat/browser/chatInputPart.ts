@@ -444,14 +444,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// React to chat session option changes for the active session
 		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {
 			const sessionResource = this._widget?.viewModel?.model.sessionResource;
-			if (!sessionResource) {
-				return;
-			}
-			const ctx = this.chatService.getChatSessionFromInternalUri(sessionResource);
-			if (!ctx) {
-				return;
-			}
-			if (isEqual(ctx.chatSessionResource, e.resource)) {
+			if (sessionResource && isEqual(sessionResource, e.resource)) {
+				// Options changed for our current session - refresh pickers
 				this.refreshChatSessionPickers();
 			}
 		}));
@@ -1332,6 +1326,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this._widget = widget;
+
+		this._register(widget.onDidChangeViewModel(() => {
+			this.refreshChatSessionPickers();
+		}));
 
 		let elements;
 		if (this.options.renderStyle === 'compact') {
