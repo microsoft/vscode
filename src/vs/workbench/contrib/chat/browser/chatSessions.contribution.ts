@@ -489,23 +489,25 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			ContextKeyExpr.equals('view', `${LEGACY_AGENT_SESSIONS_VIEW_ID}.${contribution.type}`)
 		);
 
+		const disposables = new DisposableStore();
+
 		// If there's exactly one action, inline it
 		if (menuActions.length === 1) {
 			const first = menuActions[0];
 			if (first instanceof MenuItemAction) {
-				return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+				disposables.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 					group: 'navigation',
 					title: first.label,
 					icon: Codicon.plus,
 					order: 1,
 					when: whenClause,
 					command: first.item,
-				});
+				}));
 			}
 		}
 
 		if (menuActions.length) {
-			return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+			disposables.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 				group: 'navigation',
 				title: localize('interactiveSession.chatSessionSubMenuTitle', "Create chat session"),
 				icon: Codicon.plus,
@@ -513,10 +515,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				when: whenClause,
 				submenu: MenuId.ChatSessionsCreateSubMenu,
 				isSplitButton: menuActions.length > 1
-			});
+			}));
 		} else {
 			// We control creation instead
-			return MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+			disposables.add(MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 				command: {
 					id: `${NEW_CHAT_SESSION_ACTION_ID}.${contribution.type}`,
 					title: localize('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
@@ -529,8 +531,21 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				group: 'navigation',
 				order: 1,
 				when: whenClause,
-			});
+			}));
 		}
+
+		// Also mirror all create submenu actions into the global Chat New menu
+		for (const action of menuActions) {
+			if (action instanceof MenuItemAction) {
+				disposables.add(MenuRegistry.appendMenuItem(MenuId.ChatNewMenu, {
+					command: action.item,
+					group: '4_externally_contributed',
+				}));
+			}
+		}
+		return {
+			dispose: () => disposables.dispose()
+		};
 	}
 
 	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
@@ -674,9 +689,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	private _enableContribution(contribution: IChatSessionsExtensionPoint, ext: IRelaxedExtensionDescription): void {
 		const disposableStore = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposableStore);
-
-		disposableStore.add(this._registerAgent(contribution, ext));
-		disposableStore.add(this._registerCommands(contribution));
+		if (contribution.canDelegate) {
+			disposableStore.add(this._registerAgent(contribution, ext));
+			disposableStore.add(this._registerCommands(contribution));
+		}
 		disposableStore.add(this._registerMenuItems(contribution, ext));
 	}
 

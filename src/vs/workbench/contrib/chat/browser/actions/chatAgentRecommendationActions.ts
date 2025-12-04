@@ -59,7 +59,7 @@ export class ChatAgentRecommendation extends Disposable implements IWorkbenchCon
 		const availabilityContext = new RawContextKey<boolean>(availabilityContextId, false).bindTo(this.contextKeyService);
 		this.availabilityContextKeys.set(extensionKey, availabilityContext);
 
-		const title = localize2('chat.installRecommendation', "Install {0}", recommendation.displayName);
+		const title = localize2('chat.installRecommendation', "New {0}", recommendation.displayName);
 
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -80,6 +80,11 @@ export class ChatAgentRecommendation extends Disposable implements IWorkbenchCon
 						{
 							id: MenuId.AgentSessionsTitle,
 							group: 'navigation@98',
+							when: ContextKeyExpr.equals(availabilityContextId, true)
+						},
+						{
+							id: MenuId.ChatNewMenu,
+							group: '4_recommendations',
 							when: ContextKeyExpr.equals(availabilityContextId, true)
 						}
 					]
