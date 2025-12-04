@@ -13,6 +13,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession } from '../../common/chatEditingService.js';
@@ -21,7 +22,8 @@ import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { EditingSessionAction, getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { ACTION_ID_NEW_CHAT, ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_PICK_AGENT_SESSION, CHAT_CATEGORY, handleCurrentEditingSession } from './chatActions.js';
 import { clearChatEditor } from './chatClear.js';
 
 export interface INewEditSessionActionContext {
@@ -166,7 +168,28 @@ export function registerNewChatActions() {
 			title: localize2('chat.goBack', "Go Back"),
 			icon: Codicon.arrowLeft,
 		},
-		group: 'navigation'
+		group: 'navigation',
+		order: 1
+	});
+
+	registerAction2(class extends ViewAction<ChatViewPane> {
+		constructor() {
+			super({
+				id: ACTION_ID_PICK_AGENT_SESSION,
+				title: localize2('chat.pickAgentSession', "Pick Agent Session"),
+				viewId: ChatViewId,
+				f1: false,
+				menu: [{
+					id: MenuId.ChatViewSessionTitleToolbar,
+					group: 'navigation',
+					order: 2
+				}]
+			});
+		}
+
+		override async runInView(_accessor: ServicesAccessor, view: ChatViewPane) {
+			await view.pickSession();
+		}
 	});
 
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {

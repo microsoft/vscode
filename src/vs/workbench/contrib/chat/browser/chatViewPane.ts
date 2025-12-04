@@ -489,6 +489,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateActions();
 	}
 
+	async pickSession(): Promise<void> {
+		const sessionId = await this.titleControl?.pickSession();
+		if (sessionId) {
+			await this.loadSession(sessionId);
+		}
+	}
+
 	async loadSession(sessionId: URI): Promise<IChatModel | undefined> {
 		const sessionType = getChatSessionType(sessionId);
 		if (sessionType !== localChatSessionType) {
