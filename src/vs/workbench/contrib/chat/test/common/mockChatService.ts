@@ -146,4 +146,7 @@ export class MockChatService implements IChatService {
 	waitForModelDisposals(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
+	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
+		throw new Error('Method not implemented.');
+	}
 }
