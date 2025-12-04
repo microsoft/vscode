@@ -34,11 +34,12 @@ export namespace InlineSuggestionItem {
 	export function create(
 		data: InlineSuggestData,
 		textModel: ITextModel,
+		shouldDiffEdit: boolean = true, // TODO@benibenj it should only be created once and hence not meeded to be passed here
 	): InlineSuggestionItem {
 		if (!data.isInlineEdit && !data.action?.uri && data.action?.kind === 'edit') {
 			return InlineCompletionItem.create(data, textModel, data.action);
 		} else {
-			return InlineEditItem.create(data, textModel);
+			return InlineEditItem.create(data, textModel, shouldDiffEdit);
 		}
 	}
 }
@@ -371,11 +372,11 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 	public static create(
 		data: InlineSuggestData,
 		textModel: ITextModel,
+		shouldDiffEdit: boolean = true,
 	): InlineEditItem {
 		let action: InlineSuggestionAction | undefined;
 		let edits: SingleUpdatedNextEdit[] = [];
 		if (data.action?.kind === 'edit') {
-			const shouldDiffEdit = data.action.alternativeAction === undefined; // TODO@benibenj alternative actions should not go through create twice
 			const offsetEdit = shouldDiffEdit ? getDiffedStringEdit(textModel, data.action.range, data.action.insertText) : getStringEdit(textModel, data.action.range, data.action.insertText); // TODO compute async
 			const text = new TextModelText(textModel);
 			const textEdit = TextEdit.fromStringEdit(offsetEdit, text);
