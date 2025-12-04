@@ -166,10 +166,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			if (this._chatAgentService.getAgentsByName(id).length) {
 				// Likely some extension authors will not adopt the new ID, so give a hint if they register a
 				// participant by name instead of ID.
-				throw new Error(`chatParticipant must be declared with an ID in package.json. The "id" property may be missing! "${id}"`);
+				this._logService.trace(`[MainThreadChatAgents2] chatParticipant must be declared with an ID in package.json. The "id" property may be missing! "${id}"`);
+			} else {
+				this._logService.trace(`[MainThreadChatAgents2] chatParticipant must be declared in package.json: ${id}`);
 			}
-
-			throw new Error(`chatParticipant must be declared in package.json: ${id}`);
+			return;
 		}
 
 		const impl: IChatAgentImplementation = {
