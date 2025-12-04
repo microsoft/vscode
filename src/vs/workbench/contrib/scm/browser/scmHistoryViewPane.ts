@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/scm.css';
-import { $, append, EventLike, h, reset } from '../../../../base/browser/dom.js';
+import { $, append, h, reset } from '../../../../base/browser/dom.js';
 import { HoverStyle, IDelayedHoverOptions, IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
 import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';

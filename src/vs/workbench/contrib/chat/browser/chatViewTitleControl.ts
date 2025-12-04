@@ -5,20 +5,30 @@
 
 import { h } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { IAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IViewContainerModel, IViewDescriptorService } from '../../../common/views.js';
 import { ActivityBarPosition, LayoutSettings } from '../../../services/layout/browser/layoutService.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatModel } from '../common/chatModel.js';
 import { ChatConfiguration } from '../common/constants.js';
+import { ACTION_ID_PICK_AGENT_SESSION } from './actions/chatActions.js';
+import { IAgentSession } from './agentSessions/agentSessionsModel.js';
+import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
+import { AgentSessionsSorter } from './agentSessions/agentSessionsViewer.js';
 import { ChatViewId } from './chat.js';
 import './media/chatViewTitleControl.css';
 
@@ -50,6 +60,7 @@ export class ChatViewTitleControl extends Disposable {
 	private modelDisposables = this._register(new MutableDisposable());
 
 	private toolbar?: MenuWorkbenchToolBar;
+	private agentPickerActionViewItem?: ChatViewTitleAgentPickerActionViewItem;
 
 	private lastKnownHeight = 0;
 
@@ -92,13 +103,19 @@ export class ChatViewTitleControl extends Disposable {
 		]);
 
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.ChatViewSessionTitleToolbar, {
-			menuOptions: { shouldForwardArgs: true },
-			hiddenItemStrategy: HiddenItemStrategy.NoHide
+			actionViewItemProvider: (action: IAction) => {
+				if (action.id === ACTION_ID_PICK_AGENT_SESSION) {
+					this.agentPickerActionViewItem = this._register(new ChatViewTitleAgentPickerActionViewItem(action));
+					return this.agentPickerActionViewItem;
+				}
+
+				return createActionViewItem(this.instantiationService, action, undefined);
+			},
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			menuOptions: { shouldForwardArgs: true }
 		}));
 
 		this.titleContainer = elements.root;
-
-		this.titleLabel = elements.label;
 
 		parent.appendChild(this.titleContainer);
 	}
@@ -136,7 +153,7 @@ export class ChatViewTitleControl extends Disposable {
 			return;
 		}
 
-		this.agentPickerActionViewItem.updateTitle(title);
+		this.agentPickerActionViewItem?.updateTitle(title);
 		this.titleContainer.classList.toggle('visible', this.shouldRender());
 
 		const currentHeight = this.getHeight();
@@ -192,6 +209,12 @@ export class ChatViewTitleControl extends Disposable {
 		}
 
 		return this.titleContainer.offsetHeight;
+	}
+
+	async pickSession(): Promise<URI | undefined> {
+		const anchor = this.agentPickerActionViewItem?.element;
+		const picker = this.instantiationService.createInstance(ChatViewTitleAgentPicker, anchor);
+		return await picker.pickAgentSession();
 	}
 }
 

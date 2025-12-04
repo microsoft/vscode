@@ -46,7 +46,7 @@ import { showCloseActiveChatNotification } from './actions/chatCloseNotification
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
 import { AgentSessionsListDelegate } from './agentSessions/agentSessionsViewer.js';
 import { ChatWidget } from './chatWidget.js';
-import { ChatViewTitleAgentPicker, ChatViewTitleControl } from './chatViewTitleControl.js';
+import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions/agentSessions.js';
@@ -487,10 +487,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	async pickSession(): Promise<void> {
-		const anchor = this.titleControl?.agentPickerActionViewItemElement;
-		const picker = this.instantiationService.createInstance(ChatViewTitleAgentPicker, anchor);
-
-		const sessionId = await picker.pickAgentSession();
+		const sessionId = await this.titleControl?.pickSession();
 		if (sessionId) {
 			await this.loadSession(sessionId);
 		}
