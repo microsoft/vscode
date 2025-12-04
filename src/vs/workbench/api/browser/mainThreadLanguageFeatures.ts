@@ -1485,7 +1485,10 @@ function extractEngineFromCorrelationId(correlationId: string | undefined): stri
 	}
 	try {
 		const parsed = JSON.parse(correlationId);
-		return parsed.engine;
+		if (typeof parsed === 'object' && parsed !== null && typeof parsed.engine === 'string') {
+			return parsed.engine;
+		}
+		return undefined;
 	} catch {
 		return undefined;
 	}
