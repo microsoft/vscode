@@ -568,6 +568,7 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected updateTitle(title: string): void {
+		console.log(`ViewPane#updateTitle: ${title}`);
 		const calculatedTitle = this.calculateTitle(title);
 		if (this.titleContainer) {
 			this.titleContainer.textContent = calculatedTitle;
