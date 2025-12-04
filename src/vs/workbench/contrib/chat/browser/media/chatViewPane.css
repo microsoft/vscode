@@ -28,10 +28,6 @@
 		flex-direction: column;
 		background-color: var(--vscode-sessionList-background);
 
-		.agent-sessions-viewer .monaco-list-rows {
-			background-color: transparent;
-		}
-
 		.agent-sessions-title-container {
 			display: flex;
 			align-items: center;

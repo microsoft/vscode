@@ -26,7 +26,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { editorBackground, editorWidgetBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { ChatViewTitleControl, sessionListBackground } from './chatViewTitleControl.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../common/memento.js';
@@ -46,7 +47,6 @@ import { showCloseActiveChatNotification } from './actions/chatCloseNotification
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
 import { AgentSessionsListDelegate } from './agentSessions/agentSessionsViewer.js';
 import { ChatWidget } from './chatWidget.js';
-import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions/agentSessions.js';
@@ -353,7 +353,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				}
 			},
 			overrideStyles: {
-				listBackground: editorWidgetBackground
+				listBackground: sessionListBackground
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));
