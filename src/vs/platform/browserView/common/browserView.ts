@@ -23,6 +23,7 @@ export interface IBrowserViewState {
 	lastScreenshot: string | undefined;
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
+	storageScope: BrowserViewStorageScope;
 }
 
 export interface IBrowserViewNavigationEvent {
@@ -182,4 +183,15 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	focus(id: string): Promise<void>;
+
+	/**
+	 * Clear all storage data for the global browser session
+	 */
+	clearGlobalStorage(): Promise<void>;
+
+	/**
+	 * Clear all storage data for a specific workspace browser session
+	 * @param workspaceId The workspace identifier
+	 */
+	clearWorkspaceStorage(workspaceId: string): Promise<void>;
 }

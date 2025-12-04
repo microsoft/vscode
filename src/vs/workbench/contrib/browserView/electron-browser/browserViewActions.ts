@@ -11,19 +11,22 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_FOCUSED } from './browserEditor.js';
-import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_STORAGE_SCOPE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
+import { IBrowserViewWorkbenchService } from '../common/browserView.js';
+import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditor.ID);
+
+const BrowserCategory = localize2('browserCategory', "Browser");
 
 class OpenIntegratedBrowserAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.browser.open',
 			title: localize2('browser.openAction', "Open Integrated Browser"),
-			category: Categories.View,
+			category: BrowserCategory,
 			f1: true
 		});
 	}
@@ -43,8 +46,9 @@ class GoBackAction extends Action2 {
 		super({
 			id: GoBackAction.ID,
 			title: localize2('browser.goBackAction', 'Go Back'),
+			category: BrowserCategory,
 			icon: Codicon.arrowLeft,
-			f1: true,
+			f1: false,
 			menu: {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
@@ -77,8 +81,9 @@ class GoForwardAction extends Action2 {
 		super({
 			id: GoForwardAction.ID,
 			title: localize2('browser.goForwardAction', 'Go Forward'),
+			category: BrowserCategory,
 			icon: Codicon.arrowRight,
-			f1: true,
+			f1: false,
 			menu: {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
@@ -112,8 +117,9 @@ class ReloadAction extends Action2 {
 		super({
 			id: ReloadAction.ID,
 			title: localize2('browser.reloadAction', 'Reload'),
+			category: BrowserCategory,
 			icon: Codicon.refresh,
-			f1: true,
+			f1: false,
 			menu: {
 				id: MenuId.BrowserNavigationToolbar,
 				group: 'navigation',
@@ -139,8 +145,60 @@ class ReloadAction extends Action2 {
 	}
 }
 
+class ClearGlobalBrowserStorageAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.clearGlobalStorage';
+
+	constructor() {
+		super({
+			id: ClearGlobalBrowserStorageAction.ID,
+			title: localize2('browser.clearGlobalStorageAction', 'Clear Storage (Global)'),
+			category: BrowserCategory,
+			icon: Codicon.clearAll,
+			f1: true,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: 'storage',
+				order: 1,
+				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Global)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
+		await browserViewWorkbenchService.clearGlobalStorage();
+	}
+}
+
+class ClearWorkspaceBrowserStorageAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.clearWorkspaceStorage';
+
+	constructor() {
+		super({
+			id: ClearWorkspaceBrowserStorageAction.ID,
+			title: localize2('browser.clearWorkspaceStorageAction', 'Clear Storage (Workspace)'),
+			category: BrowserCategory,
+			icon: Codicon.clearAll,
+			f1: true,
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: 'storage',
+				order: 2,
+				when: ContextKeyExpr.equals(CONTEXT_BROWSER_STORAGE_SCOPE.key, BrowserViewStorageScope.Workspace)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const browserViewWorkbenchService = accessor.get(IBrowserViewWorkbenchService);
+		await browserViewWorkbenchService.clearWorkspaceStorage();
+	}
+}
+
 // Register actions
 registerAction2(OpenIntegratedBrowserAction);
 registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
+registerAction2(ClearGlobalBrowserStorageAction);
+registerAction2(ClearWorkspaceBrowserStorageAction);

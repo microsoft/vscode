@@ -52,6 +52,16 @@ export interface IBrowserViewWorkbenchService {
 	 * @returns A browser view model that proxies to the main process
 	 */
 	getOrCreateBrowserViewModel(id: string): Promise<IBrowserViewModel>;
+
+	/**
+	 * Clear all storage data for the global browser session
+	 */
+	clearGlobalStorage(): Promise<void>;
+
+	/**
+	 * Clear all storage data for the current workspace browser session
+	 */
+	clearWorkspaceStorage(): Promise<void>;
 }
 
 
@@ -69,6 +79,8 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly canGoBack: boolean;
 	readonly canGoForward: boolean;
 	readonly error: IBrowserViewLoadError | undefined;
+
+	readonly storageScope: BrowserViewStorageScope;
 
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent>;
 	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent>;
@@ -101,6 +113,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _canGoBack: boolean = false;
 	private _canGoForward: boolean = false;
 	private _error: IBrowserViewLoadError | undefined = undefined;
+	private _storageScope: BrowserViewStorageScope = BrowserViewStorageScope.Ephemeral;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
@@ -124,6 +137,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get canGoForward(): boolean { return this._canGoForward; }
 	get screenshot(): string | undefined { return this._screenshot; }
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
+	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
 
 	get onDidNavigate(): Event<IBrowserViewNavigationEvent> {
 		return this.browserViewService.onDynamicDidNavigate(this.id);
@@ -160,6 +174,9 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		const dataStorageSetting = this.configurationService.getValue<BrowserViewStorageScope>(
 			'workbench.browser.dataStorage'
 		) ?? BrowserViewStorageScope.Global;
+
+		// Wait for trust initialization before determining storage scope
+		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		const isWorkspaceUntrusted =
 			this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY &&
 			!this.workspaceTrustManagementService.isWorkspaceTrusted();
@@ -178,6 +195,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._screenshot = state.lastScreenshot;
 		this._favicon = state.lastFavicon;
 		this._error = state.lastError;
+		this._storageScope = state.storageScope;
 
 		// Set up state synchronization
 		this._register(this.onDidNavigate(e => {

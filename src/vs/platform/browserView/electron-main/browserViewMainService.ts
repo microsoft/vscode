@@ -10,6 +10,7 @@ import { joinPath } from '../../../base/common/resources.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { BrowserView } from './browserView.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 
 export const IBrowserViewMainService = createDecorator<IBrowserViewMainService>('browserViewMainService');
 
@@ -48,19 +49,22 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 	/**
 	 * Get the session for a browser view based on data storage setting and workspace
 	 */
-	private getSession(viewId: string, scope: BrowserViewStorageScope, workspaceId?: string): Electron.Session {
-		switch (scope) {
+	private getSession(requestedScope: BrowserViewStorageScope, viewId?: string, workspaceId?: string): {
+		session: Electron.Session;
+		resolvedScope: BrowserViewStorageScope;
+	} {
+		switch (requestedScope) {
 			case 'global':
-				return session.fromPartition('persist:vscode-browser');
+				return { session: session.fromPartition('persist:vscode-browser'), resolvedScope: BrowserViewStorageScope.Global };
 			case 'workspace':
 				if (workspaceId) {
 					const storage = joinPath(this.environmentMainService.workspaceStorageHome, workspaceId, 'browserStorage');
-					return session.fromPath(storage.fsPath);
+					return { session: session.fromPath(storage.fsPath), resolvedScope: BrowserViewStorageScope.Workspace };
 				}
 			// fallthrough
 			case 'ephemeral':
 			default:
-				return session.fromPartition(`vscode-browser-${viewId}`);
+				return { session: session.fromPartition(`vscode-browser-${viewId ?? generateUuid()}`), resolvedScope: BrowserViewStorageScope.Ephemeral };
 		}
 	}
 
@@ -81,11 +85,11 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			return view.getState();
 		}
 
-		const viewSession = this.getSession(id, scope, workspaceId);
-		this.configureSession(viewSession);
-		BrowserViewMainService.knownSessions.add(viewSession);
+		const { session, resolvedScope } = this.getSession(scope, id, workspaceId);
+		this.configureSession(session);
+		BrowserViewMainService.knownSessions.add(session);
 
-		const view = this.instantiationService.createInstance(BrowserView, viewSession);
+		const view = this.instantiationService.createInstance(BrowserView, session, resolvedScope);
 		this.browserViews.set(id, view);
 
 		return view.getState();
@@ -185,6 +189,22 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async focus(id: string): Promise<void> {
 		return this._getBrowserView(id).focus();
+	}
+
+	async clearGlobalStorage(): Promise<void> {
+		const { session, resolvedScope } = this.getSession(BrowserViewStorageScope.Global);
+		if (resolvedScope !== BrowserViewStorageScope.Global) {
+			throw new Error('Failed to resolve global storage session');
+		}
+		await session.clearData();
+	}
+
+	async clearWorkspaceStorage(workspaceId: string): Promise<void> {
+		const { session, resolvedScope } = this.getSession(BrowserViewStorageScope.Workspace, undefined, workspaceId);
+		if (resolvedScope !== BrowserViewStorageScope.Workspace) {
+			throw new Error('Failed to resolve workspace storage session');
+		}
+		await session.clearData();
 	}
 
 	override dispose(): void {

@@ -37,6 +37,7 @@ import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolb
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', false, localize('browser.editorFocused', "Whether the browser editor is focused"));
+export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _onDidNavigate = this._register(new Emitter<string>());
@@ -71,7 +72,9 @@ class BrowserNavigationBar extends Disposable {
 			navContainer,
 			MenuId.BrowserNavigationToolbar,
 			{
-				hoverDelegate
+				hoverDelegate,
+				// Render all actions inline regardless of group
+				toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 			}
 		));
 
@@ -87,7 +90,8 @@ class BrowserNavigationBar extends Disposable {
 			actionsContainer,
 			MenuId.BrowserActionsToolbar,
 			{
-				hoverDelegate
+				hoverDelegate,
+				toolbarOptions: { primaryGroup: 'actions' }
 			}
 		));
 
@@ -141,6 +145,7 @@ export class BrowserEditor extends EditorPane {
 	private _canGoBackContext!: IContextKey<boolean>;
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _browserEditorFocusedContext!: IContextKey<boolean>;
+	private _storageScopeContext!: IContextKey<string>;
 
 	private _model: IBrowserViewModel | undefined;
 	private readonly _inputDisposables = this._register(new DisposableStore());
@@ -168,6 +173,7 @@ export class BrowserEditor extends EditorPane {
 		this._canGoBackContext = CONTEXT_BROWSER_CAN_GO_BACK.bindTo(contextKeyService);
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
 		this._browserEditorFocusedContext = CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
+		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
 		this._browserEditorFocusedContext.set(true);
@@ -227,6 +233,8 @@ export class BrowserEditor extends EditorPane {
 		if (token.isCancellationRequested) {
 			return;
 		}
+
+		this._storageScopeContext.set(this._model.storageScope);
 
 		// Clean up on input disposal
 		input.onWillDispose(() => {
@@ -491,6 +499,11 @@ export class BrowserEditor extends EditorPane {
 
 		void this._model?.setVisible(false);
 		this._model = undefined;
+
+		this._canGoBackContext.reset();
+		this._canGoForwardContext.reset();
+		this._browserEditorFocusedContext.reset();
+		this._storageScopeContext.reset();
 
 		this._navigationBar.clear();
 		this._browserContainer.style.backgroundImage = '';

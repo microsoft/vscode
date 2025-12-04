@@ -8,6 +8,7 @@ import { IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel } fro
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Event } from '../../../../base/common/event.js';
 
 export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
@@ -18,7 +19,8 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		const channel = mainProcessService.getChannel(ipcBrowserViewChannelName);
 		this._browserViewService = ProxyChannel.toService<IBrowserViewService>(channel);
@@ -42,5 +44,14 @@ export class BrowserViewWorkbenchService implements IBrowserViewWorkbenchService
 		});
 
 		return model;
+	}
+
+	async clearGlobalStorage(): Promise<void> {
+		return this._browserViewService.clearGlobalStorage();
+	}
+
+	async clearWorkspaceStorage(): Promise<void> {
+		const workspaceId = this.workspaceContextService.getWorkspace().id;
+		return this._browserViewService.clearWorkspaceStorage(workspaceId);
 	}
 }

@@ -6,7 +6,7 @@
 import { WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IBrowserViewBounds, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -54,6 +54,7 @@ export class BrowserView extends Disposable {
 
 	constructor(
 		viewSession: Electron.Session,
+		private readonly storageScope: BrowserViewStorageScope,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
@@ -236,7 +237,8 @@ export class BrowserView extends Disposable {
 			loading: webContents.isLoading(),
 			lastScreenshot: this._lastScreenshot,
 			lastFavicon: this._lastFavicon,
-			lastError: this._lastError
+			lastError: this._lastError,
+			storageScope: this.storageScope
 		};
 	}
 
