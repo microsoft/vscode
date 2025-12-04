@@ -138,6 +138,42 @@ declare module 'vscode' {
 			 */
 			deletions: number;
 		};
+
+		/**
+		 * File changes in the session.
+		 */
+		changes?: {
+			/**
+			 * File changes from the session.
+			 */
+			files: readonly ChatSessionChangedFile[];
+
+			/**
+			 * Accepts the session's file changes.
+			 */
+			accept(token: CancellationToken): Thenable<void>;
+		};
+	}
+
+	export class ChatSessionChangedFile {
+		/**
+		 * Original URI of the file. If the file was newly created, this may be undefined.
+		 * This URI should be accessible by the editor as it will be used to display a diff.
+		 */
+		originalUri?: Uri;
+		/**
+		 * Modified URI of the file. If the file was deleted, this may be undefined.
+		 * This URI should be accessible by the editor as it will be used to display a diff.
+		 */
+		modifiedUri?: Uri;
+
+		/**
+		 * The URI the file was moved from, if any. Unlike {@link originalUri}, this
+		 * URI may no longer exist on disk and will be used only for display purposes.
+		 */
+		movedFromUri?: Uri;
+
+		constructor(originalUri?: Uri, modifiedUri?: Uri, movedFromUri?: Uri);
 	}
 
 	export interface ChatSession {
