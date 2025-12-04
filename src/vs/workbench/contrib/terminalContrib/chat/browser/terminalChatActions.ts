@@ -411,6 +411,7 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 		qp.matchOnDescription = true;
 		qp.matchOnDetail = true;
 		const qpDisposables = new DisposableStore();
+		qpDisposables.add(qp);
 		qpDisposables.add(qp.onDidAccept(async () => {
 			const sel = qp.selectedItems[0];
 			if (sel) {
