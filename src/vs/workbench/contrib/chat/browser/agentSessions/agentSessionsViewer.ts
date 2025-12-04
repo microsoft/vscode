@@ -154,11 +154,13 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Title Actions - Update context keys
 		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
+		const diff = session.element.statistics;
+		const hasChanges = session.element.status !== ChatSessionStatus.InProgress && !!diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0);
+		ChatContextKeys.agentSessionHasChanges.bindTo(template.contextKeyService).set(hasChanges);
 		template.titleToolbar.context = session.element;
 
 		// Details Actions
-		const { statistics: diff } = session.element;
-		if (session.element.status !== ChatSessionStatus.InProgress && diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
+		if (hasChanges) {
 			const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
 			template.detailsToolbar.push([diffAction], { icon: false, label: true });
 		}
@@ -311,8 +313,10 @@ export class AgentSessionsListDelegate implements IListVirtualDelegate<IAgentSes
 
 export class AgentSessionsAccessibilityProvider implements IListAccessibilityProvider<IAgentSession> {
 
+	constructor(private readonly ariaLabel: string = localize('agentSessions', "Agent Sessions")) { }
+
 	getWidgetAriaLabel(): string {
-		return localize('agentSessions', "Agent Sessions");
+		return this.ariaLabel;
 	}
 
 	getAriaLabel(element: IAgentSession): string | null {

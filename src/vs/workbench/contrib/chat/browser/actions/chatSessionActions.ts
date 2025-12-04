@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import Severity from '../../../../../base/common/severity.js';
 import * as nls from '../../../../../nls.js';
@@ -22,7 +22,9 @@ import { IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatConfiguration, LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
 import { AGENT_SESSIONS_VIEW_CONTAINER_ID, AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
-import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
+import { AgentSessionShowDiffAction } from '../agentSessions/agentSessionsActions.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
+import { ChatViewPane } from '../chatViewPane.js';
 import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 
 export interface IMarshalledChatSessionContext {
@@ -245,6 +247,38 @@ export class ToggleAgentSessionsViewLocationAction extends Action2 {
 	}
 }
 
+
+export class FocusRecentSessionsAction extends Action2 {
+	static readonly id = 'workbench.action.chat.focusRecentSessionsView';
+	constructor() {
+		super({
+			id: FocusRecentSessionsAction.id,
+			title: {
+				value: nls.localize('chat.focusRecentSessionsView.label', "Focus Recent Sessions"),
+				original: 'Focus Recent Sessions'
+			},
+			category: { value: nls.localize('chatSessions', 'Chat Sessions'), original: 'Chat Sessions' },
+			f1: true,
+			precondition: ChatContextKeys.recentSessionsVisible,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: ChatContextKeys.recentSessionsVisible,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyR,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyR
+				}
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = await viewsService.openView<ChatViewPane>(ChatViewId, true);
+		view?.focusRecentSessions();
+	}
+}
+
+
 // Register the menu item - show for all local chat sessions (including history items)
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 	command: {
@@ -258,6 +292,35 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 		ChatContextKeys.agentSessionType.isEqualTo(localChatSessionType),
 		ChatContextKeys.isCombinedAgentSessionsViewer.negate()
 	)
+});
+
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
+	command: {
+		id: AgentSessionShowDiffAction.ID,
+		title: localize('chat.session.openChanges', 'Open Changes'),
+		icon: Codicon.diff
+	},
+	group: 'inline',
+	order: 2,
+	when: ChatContextKeys.agentSessionHasChanges
+});
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
+	command: {
+		id: 'list.select',
+		title: localize('chat.session.openInPanel', 'Open in Panel'),
+		icon: Codicon.layoutPanel
+	},
+	group: 'inline',
+	order: 3
+});
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
+	command: {
+		id: DeleteChatSessionAction.id,
+		title: localize('chat.session.archive', 'Archive'),
+		icon: Codicon.archive
+	},
+	group: 'inline',
+	order: 4
 });
 
 // Register delete menu item - only show for non-active sessions (history items)

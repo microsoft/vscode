@@ -22,6 +22,7 @@ import { IMenuService, MenuId, MenuItemAction } from '../../../../../../platform
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -37,7 +38,6 @@ import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/v
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../common/chatService.js';
-import { IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { IMarshalledChatSessionContext } from '../../actions/chatSessionActions.js';
@@ -64,7 +64,16 @@ class SessionsAccessibilityProvider {
 	}
 
 	getAriaLabel(element: ChatSessionItemWithProvider | ArchivedSessionItems): string | null {
-		return element.label;
+		if (element instanceof ArchivedSessionItems) {
+			return element.label;
+		}
+		const finished = element.status === ChatSessionStatus.Completed || element.archived;
+		const createdDate = element.timing?.startTime ? new Date(element.timing.startTime).toLocaleString() : '';
+		return nls.localize('chatSessionItemAriaLabel', "Chat session {0}{1}{2}",
+			element.label,
+			finished ? nls.localize('chatSessionFinished', ' (finished)') : '',
+			createdDate ? nls.localize('chatSessionCreated', ', created {0}', createdDate) : ''
+		);
 	}
 }
 

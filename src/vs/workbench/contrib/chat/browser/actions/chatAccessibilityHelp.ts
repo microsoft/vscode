@@ -18,6 +18,7 @@ import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKe
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../chatEditing/chatEditingActions.js';
+import { FocusRecentSessionsAction } from './chatSessionActions.js';
 
 export class PanelChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 107;
@@ -86,6 +87,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'age
 		content.push(localize('chat.focusMostRecentTerminalOutput', 'To focus the output from the last chat terminal tool, invoke the Focus Most Recent Chat Terminal Output command{0}.', `<keybinding:${TerminalContribCommandId.FocusMostRecentChatTerminalOutput}>`));
 		if (type === 'panelChat') {
 			content.push(localize('workbench.action.chat.newChat', 'To create a new chat session, invoke the New Chat command{0}.', '<keybinding:workbench.action.chat.new>'));
+			content.push(localize('workbench.action.chat.focusRecentSessionsView', 'If the chat is empty, you can focus the recent sessions list by invoking the Focus Recent Sessions command{0}.', `<keybinding:${FocusRecentSessionsAction.id}>`));
 		}
 	}
 	if (type === 'editsView' || type === 'agentView') {

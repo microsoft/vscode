@@ -81,7 +81,7 @@ import { registerNewChatActions } from './actions/chatNewActions.js';
 import { registerChatPromptNavigationActions } from './actions/chatPromptNavigationActions.js';
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
 import { ChatAgentRecommendation } from './actions/chatAgentRecommendationActions.js';
-import { DeleteChatSessionAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleAgentSessionsViewLocationAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
+import { DeleteChatSessionAction, FocusRecentSessionsAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleAgentSessionsViewLocationAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatElicitationActions } from './actions/chatElicitationActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
@@ -1264,5 +1264,6 @@ registerAction2(DeleteChatSessionAction);
 registerAction2(OpenChatSessionInSidebarAction);
 registerAction2(ToggleChatSessionsDescriptionDisplayAction);
 registerAction2(ToggleAgentSessionsViewLocationAction);
+registerAction2(FocusRecentSessionsAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
