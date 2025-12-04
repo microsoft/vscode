@@ -470,14 +470,14 @@ const apiMenus: IAPIMenu[] = [
 	{
 		// TODO: rename this to something like: `chatSessions/item/inline`
 		key: 'chat/chatSessions',
-		id: MenuId.ChatSessionsMenu,
+		id: MenuId.AgentSessionsContext,
 		description: localize('menus.chatSessions', "The Chat Sessions menu."),
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider'
 	},
 	{
 		key: 'chatSessions/newSession',
-		id: MenuId.ChatSessionsCreateSubMenu,
+		id: MenuId.AgentSessionsCreateSubMenu,
 		description: localize('menus.chatSessionsNewSession', "Menu for new chat sessions."),
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider'

@@ -1344,7 +1344,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				for (const templateData of this.templateDataByRequestId.values()) {
 					if (templateData.renderedParts) {
 						const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-						if (lastThinking?.getIsActive()) {
+						if (content.kind !== 'textEditGroup' && lastThinking?.getIsActive()) {
 							this.finalizeCurrentThinkingPart(context, templateData);
 						}
 					}

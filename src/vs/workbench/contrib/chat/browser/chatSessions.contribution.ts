@@ -265,7 +265,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _onDidChangeContentProviderSchemes = this._register(new Emitter<{ readonly added: string[]; readonly removed: string[] }>());
 	public get onDidChangeContentProviderSchemes() { return this._onDidChangeContentProviderSchemes.event; }
-	private readonly _onDidChangeSessionOptions = this._register(new Emitter<{ readonly resource: URI; readonly updates: ReadonlyArray<{ optionId: string; value: string }> }>());
+	private readonly _onDidChangeSessionOptions = this._register(new Emitter<URI>());
 	public get onDidChangeSessionOptions() { return this._onDidChangeSessionOptions.event; }
 
 	private readonly inProgressMap: Map<string, number> = new Map();
@@ -482,7 +482,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			['chatSessionType', contribution.type]
 		]);
 
-		const rawMenuActions = this._menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, contextKeyService);
+		const rawMenuActions = this._menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, contextKeyService);
 		const menuActions = rawMenuActions.map(value => value[1]).flat();
 
 		const whenClause = ContextKeyExpr.and(
@@ -513,7 +513,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				icon: Codicon.plus,
 				order: 1,
 				when: whenClause,
-				submenu: MenuId.ChatSessionsCreateSubMenu,
+				submenu: MenuId.AgentSessionsCreateSubMenu,
 				isSplitButton: menuActions.length > 1
 			}));
 		} else {
@@ -1078,7 +1078,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	/**
 	 * Notify extension about option changes for a session
 	 */
-	public async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
+	public async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void> {
 		if (!updates.length) {
 			return;
 		}
@@ -1088,7 +1088,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		for (const u of updates) {
 			this.setSessionOption(sessionResource, u.optionId, u.value);
 		}
-		this._onDidChangeSessionOptions.fire({ resource: sessionResource, updates });
+		this._onDidChangeSessionOptions.fire(sessionResource);
 	}
 
 	/**

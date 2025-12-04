@@ -40,7 +40,7 @@ export class ArchiveAgentSessionAction extends Action2 {
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ChatContextKeys.isArchivedItem.negate(),
+				when: ChatContextKeys.isArchivedAgentSession.negate(),
 			}
 		});
 	}
@@ -59,7 +59,7 @@ export class UnarchiveAgentSessionAction extends Action2 {
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ChatContextKeys.isArchivedItem,
+				when: ChatContextKeys.isArchivedAgentSession,
 			}
 		});
 	}
@@ -201,7 +201,7 @@ export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAct
 			id: OpenAgentSessionInEditorGroupAction.id,
 			title: localize('chat.openSessionInEditorGroup.label', "Open as Editor"),
 			menu: {
-				id: MenuId.ChatSessionsMenu,
+				id: MenuId.AgentSessionsContext,
 				order: 1
 			}
 		});
@@ -225,7 +225,7 @@ export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSession
 			id: OpenAgentSessionInNewEditorGroupAction.id,
 			title: localize('chat.openSessionInNewEditorGroup.label', "Open to the Side"),
 			menu: {
-				id: MenuId.ChatSessionsMenu,
+				id: MenuId.AgentSessionsContext,
 				order: 2
 			}
 		});
@@ -249,7 +249,7 @@ export class OpenAgentSessionInNewWindowAction extends BaseOpenAgentSessionActio
 			id: OpenAgentSessionInNewWindowAction.id,
 			title: localize('chat.openSessionInNewWindow.label', "Open in New Window"),
 			menu: {
-				id: MenuId.ChatSessionsMenu,
+				id: MenuId.AgentSessionsContext,
 				order: 3
 			}
 		});
@@ -277,7 +277,7 @@ export class RefreshAgentSessionsViewAction extends ViewAction<AgentSessionsView
 			title: localize2('refresh', "Refresh Agent Sessions"),
 			icon: Codicon.refresh,
 			menu: {
-				id: MenuId.AgentSessionsTitle,
+				id: MenuId.AgentSessionsViewTitle,
 				group: 'navigation',
 				order: 1
 			},
@@ -296,7 +296,7 @@ export class FindAgentSessionAction extends ViewAction<AgentSessionsView> {
 			title: localize2('find', "Find Agent Session"),
 			icon: Codicon.search,
 			menu: {
-				id: MenuId.AgentSessionsTitle,
+				id: MenuId.AgentSessionsViewTitle,
 				group: 'navigation',
 				order: 2
 			},

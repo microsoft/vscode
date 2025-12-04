@@ -86,11 +86,17 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		this.actionButton.element.classList.add('chat-status-button');
 
 		if (enabledSku === 'anonymous') {
-			this.messageElement.textContent = localize('chat.anonymousRateLimited.message', "You've reached the limit for chat messages. Try Copilot Pro for free.");
-			this.actionButton.label = localize('chat.anonymousRateLimited.signIn', "Sign In");
+			const message = localize('chat.anonymousRateLimited.message', "You've reached the limit for chat messages. Try Copilot Pro for free.");
+			const buttonLabel = localize('chat.anonymousRateLimited.signIn', "Sign In");
+			this.messageElement.textContent = message;
+			this.actionButton.label = buttonLabel;
+			this.actionButton.element.ariaLabel = localize('chat.anonymousRateLimited.signIn.ariaLabel', "{0} {1}", message, buttonLabel);
 		} else {
-			this.messageElement.textContent = localize('chat.freeQuotaExceeded.message', "You've reached the limit for chat messages.");
-			this.actionButton.label = localize('chat.freeQuotaExceeded.upgrade', "Upgrade");
+			const message = localize('chat.freeQuotaExceeded.message', "You've reached the limit for chat messages.");
+			const buttonLabel = localize('chat.freeQuotaExceeded.upgrade', "Upgrade");
+			this.messageElement.textContent = message;
+			this.actionButton.label = buttonLabel;
+			this.actionButton.element.ariaLabel = localize('chat.freeQuotaExceeded.upgrade.ariaLabel', "{0} {1}", message, buttonLabel);
 		}
 
 		this._register(this.actionButton.onDidClick(async () => {

@@ -1053,6 +1053,7 @@ export interface IChatService {
 	logChatIndex(): void;
 	getLiveSessionItems(): Promise<IChatDetail[]>;
 	getHistorySessionItems(): Promise<IChatDetail[]>;
+	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined>;
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;

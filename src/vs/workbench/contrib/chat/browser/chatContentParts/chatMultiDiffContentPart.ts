@@ -148,7 +148,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			let contextKeyService: IContextKeyService = this.contextKeyService;
 			if (this.editorService.activeEditor instanceof ChatEditorInput) {
 				contextKeyService = this.contextKeyService.createOverlay([
-					[ChatContextKeys.sessionType.key, this.editorService.activeEditor.getSessionType()]
+					[ChatContextKeys.agentSessionType.key, this.editorService.activeEditor.getSessionType()]
 				]);
 
 				marshalledUri = {
