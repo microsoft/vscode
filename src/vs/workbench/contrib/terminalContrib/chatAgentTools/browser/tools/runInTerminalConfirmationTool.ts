@@ -63,7 +63,7 @@ export class ConfirmTerminalCommandTool extends RunInTerminalTool {
 		// then convert it to the session id understood by chat service
 		try {
 			const sessionUri = context.chatSessionId ? URI.parse(context.chatSessionId) : undefined;
-			const sessionId = (sessionUri ? this._chatService.getSession(sessionUri)?.sessionId : undefined);
+			const sessionId = sessionUri ? this._chatService.getSession(sessionUri)?.sessionId : undefined;
 			if (sessionId) {
 				context.chatSessionId = sessionId;
 			}
