@@ -20,6 +20,11 @@
 			white-space: nowrap;
 			text-overflow: ellipsis;
 		}
+
+		.chat-view-title-icon {
+			margin-left: auto;
+			color: var(--vscode-descriptionForeground);
+		}
 	}
 
 	.chat-view-title-container.visible {
