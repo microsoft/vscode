@@ -305,7 +305,7 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 }
 registerAction2(ChatEditingShowChangesAction);
 
-class ViewAllSessionChangesAction extends Action2 {
+export class ViewAllSessionChangesAction extends Action2 {
 	static readonly ID = 'chatEditing.viewAllSessionChanges';
 
 	constructor() {

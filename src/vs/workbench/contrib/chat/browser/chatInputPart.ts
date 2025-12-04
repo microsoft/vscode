@@ -102,7 +102,7 @@ import { CollapsibleListPool, IChatCollapsibleListItem } from './chatContentPart
 import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
 import { IChatContextService } from './chatContextService.js';
 import { ChatDragAndDrop } from './chatDragAndDrop.js';
-import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
+import { ChatEditingShowChangesAction, ViewAllSessionChangesAction, ViewPreviousEditsAction } from './chatEditing/chatEditingActions.js';
 import { ChatFollowups } from './chatFollowups.js';
 import { ChatInputPartWidgetController } from './chatInputPartWidgets.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
@@ -2037,7 +2037,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		store: DisposableStore,
 		chatEditingSession: IChatEditingSession | null,
 		modifiedEntries: IObservable<IModifiedFileEntry[]>,
-		sessionFileChanges: IObservable<IChatSessionFileChange[] | undefined>,
+		sessionFileChanges: IObservable<readonly IChatSessionFileChange[] | undefined>,
 		editSessionEntries: IObservable<IChatCollapsibleListItem[]>,
 		sessionEntries: IObservable<IChatCollapsibleListItem[]>,
 	) {
@@ -2068,21 +2068,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const scopedInstantiationService = this._chatEditsActionsDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
-		this._chatEditsActionsDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, MenuId.ChatEditingWidgetToolbar, {
-			telemetrySource: this.options.menus.telemetrySource,
-			menuOptions: {
-				arg: chatEditingSession ? {
-					$mid: MarshalledId.ChatViewContext,
-					sessionResource: chatEditingSession.chatSessionResource,
-				} satisfies IChatViewTitleActionContext : undefined,
-			},
-			buttonConfigProvider: (action) => {
-				if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id) {
-					return { showIcon: true, showLabel: false, isSecondary: true };
-				}
-				return undefined;
-			}
-		}));
 
 		// Working set
 		// eslint-disable-next-line no-restricted-syntax
@@ -2094,7 +2079,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			ariaLabel: localize('chatEditingSession.toggleWorkingSet', 'Toggle changed files.'),
 		}));
 
-		store.add(autorun(reader => {
+		const topLevelStats = derived(reader => {
 			let added = 0;
 			let removed = 0;
 			const entries = modifiedEntries.read(reader);
@@ -2107,6 +2092,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			let baseLabel = entries.length === 1 ? localize('chatEditingSession.oneFile.1', '1 file changed') : localize('chatEditingSession.manyFiles.1', '{0} files changed', entries.length);
 			let shouldShowEditingSession = added > 0 || removed > 0;
+			let topLevelIsSessionMenu = false;
 
 			if (added === 0 && removed === 0) {
 				const sessionValue = sessionFileChanges.read(reader) || [];
@@ -2117,10 +2103,38 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 				shouldShowEditingSession = sessionValue.length > 0;
 				baseLabel = sessionValue.length === 1 ? localize('chatEditingSession.oneFile.2', '1 file ready to merge') : localize('chatEditingSession.manyFiles.2', '{0} files ready to merge', sessionValue.length);
+				topLevelIsSessionMenu = true;
 			}
 
 			button.label = baseLabel;
 
+			return { added, removed, shouldShowEditingSession, baseLabel, topLevelIsSessionMenu };
+		});
+
+		const topLevelIsSessionMenu = topLevelStats.map(t => t.topLevelIsSessionMenu);
+		store.add(autorun(reader => {
+			const isSessionMenu = topLevelIsSessionMenu.read(reader);
+			reader.store.add(scopedInstantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar, {
+				telemetrySource: this.options.menus.telemetrySource,
+				menuOptions: {
+					arg: chatEditingSession ? {
+						$mid: MarshalledId.ChatViewContext,
+						sessionResource: chatEditingSession.chatSessionResource,
+					} satisfies IChatViewTitleActionContext : undefined,
+				},
+				buttonConfigProvider: (action) => {
+					if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id || action.id === ViewAllSessionChangesAction.ID) {
+						return { showIcon: true, showLabel: false, isSecondary: true };
+					}
+					return undefined;
+				}
+			}));
+		}));
+
+		store.add(autorun(reader => {
+			const { added, removed, shouldShowEditingSession, baseLabel } = topLevelStats.read(reader);
+
+			button.label = baseLabel;
 			this._workingSetLinesAddedSpan.value.textContent = `+${added}`;
 			this._workingSetLinesRemovedSpan.value.textContent = `-${removed}`;
 			button.element.setAttribute('aria-label', localize('chatEditingSession.ariaLabelWithCounts', '{0}, {1} lines added, {2} lines removed', baseLabel, added, removed));
