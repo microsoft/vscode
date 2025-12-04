@@ -428,13 +428,10 @@ registerAction2(class ShowChatTerminalsAction extends Action2 {
 				qp.hide();
 			}
 		}));
-		let hideDisposable: IDisposable | undefined;
-		hideDisposable = qp.onDidHide(() => {
+		qpDisposables.add(qp.onDidHide(() => {
 			qpDisposables.dispose();
-			hideDisposable?.dispose();
-			hideDisposable = undefined;
 			qp.dispose();
-		});
+		}));
 		qp.show();
 	}
 });
