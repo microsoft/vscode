@@ -395,6 +395,7 @@ export class McpServer extends Disposable implements IMcpServer {
 	private readonly _loggerId: string;
 	private readonly _logger: ILogger;
 	private _lastModeDebugged = false;
+	private _lastAutoUpdatedNonce: string | undefined;
 	/** Count of running tool calls, used to detect if sampling is during an LM call */
 	public runningToolCalls = new Set<IMcpToolCallContext>();
 
@@ -466,6 +467,26 @@ export class McpServer extends Disposable implements IMcpServer {
 				this._populateLiveData(handler, cnx?.definition.cacheNonce, reader.store);
 			} else if (this._tools) {
 				this.resetLiveData();
+			}
+		}));
+
+		this._register(autorun(reader => {
+			const cacheState = this.cacheState.read(reader);
+			if (cacheState !== McpServerCacheState.Outdated) {
+				return;
+			}
+
+			const def = this._fullDefinitions.read(reader).server;
+			if (!def || def.cacheNonce === this._lastAutoUpdatedNonce) {
+				return;
+			}
+
+			this._lastAutoUpdatedNonce = def.cacheNonce;
+			const connection = this._connection.read(reader);
+			if (connection && !McpConnectionState.canBeStarted(connection.state.read(reader).state)) {
+				this.stop().then(() => this.start({ promptType: 'never', errorOnUserInteraction: true })).catch(() => { });
+			} else {
+				this.start({ promptType: 'never', errorOnUserInteraction: true }).catch(() => { });
 			}
 		}));
 
