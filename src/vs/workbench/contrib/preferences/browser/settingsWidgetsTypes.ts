@@ -55,23 +55,6 @@ export interface ISettingListResetEvent<TDataItem extends object> {
 
 export type SettingListEvent<TDataItem extends object> = ISettingListChangeEvent<TDataItem> | ISettingListAddEvent<TDataItem> | ISettingListMoveEvent<TDataItem> | ISettingListRemoveEvent<TDataItem> | ISettingListResetEvent<TDataItem>;
 
-export interface IListSetValueOptions {
-	showAddButton?: boolean;
-	keySuggester?: IObjectKeySuggester;
-	isReadOnly?: boolean;
-}
-
-export interface IListDataItem {
-	value: ObjectKey;
-	sibling?: string;
-}
-
-export interface ListSettingWidgetDragDetails<TListDataItem extends IListDataItem> {
-	element: HTMLElement;
-	item: TListDataItem;
-	itemIndex: number;
-}
-
 export interface IObjectStringData {
 	type: 'string';
 	data: string;
@@ -119,6 +102,23 @@ export interface IObjectValueSuggester {
 
 export interface IObjectKeySuggester {
 	(existingKeys: string[], idx?: number): IObjectEnumData | undefined;
+}
+
+export interface IListSetValueOptions {
+	showAddButton?: boolean;
+	keySuggester?: IObjectKeySuggester;
+	isReadOnly?: boolean;
+}
+
+export interface IListDataItem {
+	value: ObjectKey;
+	sibling?: string;
+}
+
+export interface ListSettingWidgetDragDetails<TListDataItem extends IListDataItem> {
+	element: HTMLElement;
+	item: TListDataItem;
+	itemIndex: number;
 }
 
 export interface IObjectSetValueOptions {
