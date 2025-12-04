@@ -136,7 +136,7 @@ export class ChatSessionStore extends Disposable {
 			await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
 
 			// Write succeeded, update index
-			index.entries[session.sessionId] = getSessionMetadata(session);
+			index.entries[session.sessionId] = await getSessionMetadata(session);
 		} catch (e) {
 			this.reportError('sessionWrite', 'Error writing chat session', e);
 		}
@@ -384,12 +384,19 @@ export class ChatSessionStore extends Disposable {
 	}
 }
 
+export interface IChatSessionEntryMetadataStats {
+	fileCount: number;
+	added: number;
+	removed: number;
+}
+
 export interface IChatSessionEntryMetadata {
 	sessionId: string;
 	title: string;
 	lastMessageDate: number;
 	initialLocation?: ChatAgentLocation;
 	hasPendingEdits?: boolean;
+	stats?: IChatSessionEntryMetadataStats;
 
 	/**
 	 * This only exists because the migrated data from the storage service had empty sessions persisted, and it's impossible to know which ones are
@@ -441,8 +448,21 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 	return true;
 }
 
-function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSessionEntryMetadata {
+async function getSessionMetadata(session: ChatModel | ISerializableChatData): Promise<IChatSessionEntryMetadata> {
 	const title = session.customTitle || (session instanceof ChatModel ? session.title : undefined);
+
+	let stats: IChatSessionEntryMetadataStats | undefined;
+	if (session instanceof ChatModel) {
+		// await something
+		const diffStats = session.editingSession?.getDiffForSession().get();
+		if (diffStats) {
+			stats = {
+				added: diffStats.added,
+				removed: diffStats.removed,
+				fileCount: 15 // get this somehow
+			};
+		}
+	}
 
 	return {
 		sessionId: session.sessionId,
@@ -450,7 +470,8 @@ function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSe
 		lastMessageDate: session.lastMessageDate,
 		initialLocation: session.initialLocation,
 		hasPendingEdits: session instanceof ChatModel ? (session.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)) : false,
-		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0
+		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0,
+		stats
 	};
 }
 
