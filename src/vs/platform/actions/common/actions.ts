@@ -224,10 +224,6 @@ export class MenuId {
 	static readonly TimelineTitle = new MenuId('TimelineTitle');
 	static readonly TimelineTitleContext = new MenuId('TimelineTitleContext');
 	static readonly TimelineFilterSubMenu = new MenuId('TimelineFilterSubMenu');
-	static readonly AgentSessionsTitle = new MenuId('AgentSessionsTitle');
-	static readonly AgentSessionsFilterSubMenu = new MenuId('AgentSessionsFilterSubMenu');
-	static readonly AgentSessionsInstallActions = new MenuId('AgentSessionsInstallActions');
-	static readonly AgentSessionItemToolbar = new MenuId('AgentSessionItemToolbar');
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly SidebarTitle = new MenuId('SidebarTitle');
 	static readonly PanelTitle = new MenuId('PanelTitle');
@@ -278,10 +274,6 @@ export class MenuId {
 	static readonly ChatTextEditorMenu = new MenuId('ChatTextEditorMenu');
 	static readonly ChatToolOutputResourceContext = new MenuId('ChatToolOutputResourceContext');
 	static readonly ChatMultiDiffContext = new MenuId('ChatMultiDiffContext');
-	static readonly ChatSessionsMenu = new MenuId('ChatSessionsMenu');
-	static readonly ChatSessionsCreateSubMenu = new MenuId('ChatSessionsCreateSubMenu');
-	static readonly ChatViewSessionsToolbar = new MenuId('ChatViewSessionsToolbar');
-	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
 	static readonly ChatConfirmationMenu = new MenuId('ChatConfirmationMenu');
 	static readonly ChatEditorInlineExecute = new MenuId('ChatEditorInputExecute');
 	static readonly ChatEditorInlineInputSide = new MenuId('ChatEditorInputSide');
@@ -289,7 +281,18 @@ export class MenuId {
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
 	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');
 	static readonly DiffEditorSelectionToolbar = new MenuId('DiffEditorSelectionToolbar');
+	static readonly AgentSessionsFilterSubMenu = new MenuId('AgentSessionsFilterSubMenu');
+	static readonly AgentSessionsInstallMenu = new MenuId('AgentSessionsInstallMenu');
+	static readonly AgentSessionsContext = new MenuId('AgentSessionsContext');
+	static readonly AgentSessionsCreateSubMenu = new MenuId('AgentSessionsCreateSubMenu');
+	static readonly AgentSessionsToolbar = new MenuId('AgentSessionsToolbar');
+	static readonly AgentSessionItemToolbar = new MenuId('AgentSessionItemToolbar');
 
+	/**
+	 * @deprecated TODO@bpasero remove both
+	*/
+	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
+	static readonly AgentSessionsViewTitle = new MenuId('AgentSessionsViewTitle');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
