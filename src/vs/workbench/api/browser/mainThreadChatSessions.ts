@@ -633,7 +633,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		try {
 			const updatesToSend = updates.map(update => ({
 				optionId: update.optionId,
-				value: typeof update.value === 'string' ? update.value : update.value?.id,
+				value: update.value === undefined ? undefined : (typeof update.value === 'string' ? update.value : update.value.id),
 			}));
 			await this._proxy.$provideHandleOptionsChange(handle, sessionResource, updatesToSend, CancellationToken.None);
 		} catch (error) {

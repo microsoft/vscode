@@ -1273,7 +1273,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
 					const item = optionGroup.items.find(m => m.id === currentOptionId);
 					if (item) {
-						// If we have a new option, use that.
+						// If currentOption is an object (not a string ID), it represents a complete option item and should be used directly.
+						// Otherwise, if it's a string ID, look up the corresponding item and use that.
 						if (typeof currentOption === 'string') {
 							this.getOrCreateOptionEmitter(optionGroupId).fire(item);
 						} else {
