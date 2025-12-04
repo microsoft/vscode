@@ -77,11 +77,19 @@ export interface IChatSessionItem {
 		files: number;
 		insertions: number;
 		deletions: number;
+		details: readonly IChatSessionFileChange[];
 	};
 	archived?: boolean;
 	// TODO:@osortega remove once the single-view is default
 	/** @deprecated */
 	history?: boolean;
+}
+
+export interface IChatSessionFileChange {
+	uri: URI;
+	compareUri?: URI;
+	insertions: number;
+	deletions: number;
 }
 
 export type IChatSessionHistoryItem = {

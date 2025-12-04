@@ -23,10 +23,10 @@ import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { autorun, derived, derivedOpts, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, ISettableObservable, observableFromEvent, ObservablePromise, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
@@ -81,7 +81,7 @@ import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from 
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup, IChatService } from '../common/chatService.js';
-import { IChatSessionProviderOptionItem, IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionFileChange, IChatSessionProviderOptionItem, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatHistoryNavigator } from '../common/chatWidgetHistoryService.js';
@@ -109,6 +109,8 @@ import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
+import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
+import { getChatSessionType } from '../common/chatUri.js';
 
 const $ = dom.$;
 
@@ -428,6 +430,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatService private readonly chatService: IChatService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IChatContextService private readonly chatContextService: IChatContextService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 	) {
 		super();
 
@@ -1954,7 +1958,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return chatEditingSession?.entries.read(r).filter(entry => entry.state.read(r) === ModifiedFileEntryState.Modified) || [];
 		});
 
-		const listEntries = derived((reader): IChatCollapsibleListItem[] => {
+		const editSessionEntries = derived((reader): IChatCollapsibleListItem[] => {
 			const seenEntries = new ResourceSet();
 			const entries: IChatCollapsibleListItem[] = [];
 			for (const entry of modifiedEntries.read(reader)) {
@@ -1991,15 +1995,34 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return entries;
 		});
 
-		const shouldRender = listEntries.map(r => r.length > 0);
+		const sessionFileChanges = observableFromEvent(
+			this,
+			this.agentSessionsService.model.onDidChangeSessions,
+			() => this.agentSessionsService.model.sessions.find(s => isEqual(s.resource, this._widget?.viewModel?.model.sessionResource))?.statistics?.details,
+		);
+
+		const sessionFiles = derived(reader =>
+			sessionFileChanges.read(reader)?.map((entry): IChatCollapsibleListItem => ({
+				reference: entry.uri,
+				state: ModifiedFileEntryState.Modified,
+				kind: 'reference',
+				options: {
+					status: undefined,
+					diffMeta: { added: entry.insertions, removed: entry.deletions }
+				}
+			}))
+		);
+
+		const shouldRender = derived(reader => editSessionEntries.read(reader).length > 0 || !!sessionFiles.read(reader)?.length);
 
 		this._renderingChatEdits.value = autorun(reader => {
 			if (this.options.renderWorkingSet && shouldRender.read(reader)) {
 				this.renderChatEditingSessionWithEntries(
 					reader.store,
-					chatEditingSession!,
+					chatEditingSession,
 					modifiedEntries,
-					listEntries,
+					editSessionEntries,
+					sessionFiles,
 				);
 			} else {
 				dom.clearNode(this.chatEditingSessionWidgetContainer);
@@ -2008,12 +2031,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 		});
 	}
-
 	private renderChatEditingSessionWithEntries(
 		store: DisposableStore,
-		chatEditingSession: IChatEditingSession,
+		chatEditingSession: IChatEditingSession | null,
 		modifiedEntries: IObservable<IModifiedFileEntry[]>,
 		listEntries: IObservable<IChatCollapsibleListItem[]>,
+		sessionEntries: IObservable<IChatCollapsibleListItem[]>,
 	) {
 		// Summary of number of files changed
 		// eslint-disable-next-line no-restricted-syntax
@@ -2031,13 +2054,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// eslint-disable-next-line no-restricted-syntax
 		const actionsContainer = overviewRegion.querySelector('.chat-editing-session-actions') as HTMLElement ?? dom.append(overviewRegion, $('.chat-editing-session-actions'));
 
+		const sessionResource = chatEditingSession?.chatSessionResource || this._widget?.viewModel?.model.sessionResource;
+
+		const scopedContextKeyService = this._chatEditsActionsDisposables.add(this.contextKeyService.createScoped(actionsContainer));
+		if (sessionResource) {
+			scopedContextKeyService.createKey(ChatContextKeys.agentSessionType.key, getChatSessionType(sessionResource));
+		}
+
 		this._chatEditsActionsDisposables.add(this.instantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, MenuId.ChatEditingWidgetToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
 			menuOptions: {
-				arg: {
+				arg: chatEditingSession ? {
 					$mid: MarshalledId.ChatViewContext,
 					sessionResource: chatEditingSession.chatSessionResource,
-				} satisfies IChatViewTitleActionContext,
+				} satisfies IChatViewTitleActionContext : undefined,
 			},
 			buttonConfigProvider: (action) => {
 				if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id) {
@@ -2046,10 +2076,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				return undefined;
 			}
 		}));
-
-		if (!chatEditingSession) {
-			return;
-		}
 
 		// Working set
 		// eslint-disable-next-line no-restricted-syntax
@@ -2060,8 +2086,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			secondary: true,
 			ariaLabel: localize('chatEditingSession.toggleWorkingSet', 'Toggle changed files.'),
 		}));
-
-
 
 		store.add(autorun(reader => {
 			let added = 0;

@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -60,6 +60,7 @@ interface IAgentSessionData {
 		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
+		readonly details: readonly IChatSessionFileChange[];
 	};
 }
 
@@ -365,6 +366,7 @@ interface ISerializedAgentSession {
 		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
+		readonly details: readonly IChatSessionFileChange[];
 	};
 }
 

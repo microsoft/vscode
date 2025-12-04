@@ -189,7 +189,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			statistics: sessionContent.statistics ? {
 				files: sessionContent.statistics?.files ?? 0,
 				insertions: sessionContent.statistics?.insertions ?? 0,
-				deletions: sessionContent.statistics?.deletions ?? 0
+				deletions: sessionContent.statistics?.deletions ?? 0,
+				details: sessionContent.statistics?.details ?? [],
 			} : undefined
 		};
 	}

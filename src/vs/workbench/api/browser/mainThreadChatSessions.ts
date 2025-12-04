@@ -448,6 +448,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				}
 				return {
 					...session,
+					statistics: revive(session.statistics),
 					resource: uri,
 					iconPath: session.iconPath,
 					tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined,
@@ -468,6 +469,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			}
 			return {
 				...chatSessionItem,
+				statistics: revive(chatSessionItem.statistics),
 				resource: URI.revive(chatSessionItem.resource),
 				iconPath: chatSessionItem.iconPath,
 				tooltip: chatSessionItem.tooltip ? this._reviveTooltip(chatSessionItem.tooltip) : undefined,

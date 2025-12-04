@@ -154,7 +154,8 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			statistics: chat.stats ? {
 				insertions: chat.stats.added,
 				deletions: chat.stats.removed,
-				files: chat.stats.fileCount
+				files: chat.stats.fileCount,
+				details: [],
 			} : undefined
 		};
 	}
