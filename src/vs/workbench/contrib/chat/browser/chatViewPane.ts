@@ -51,6 +51,9 @@ import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions/agentSessions.js';
 import { Link } from '../../../../platform/opener/browser/link.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
+import { ChatViewId } from './chat.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -116,6 +119,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -237,7 +241,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		} : undefined;
 	}
 
-	private async showModel(modelRef?: IChatModelReference | undefined): Promise<IChatModel | undefined> {
+	private async showModel(modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
 
 		// Check if we're disposing a model with an active request
 		if (this.modelRef.value?.object.requestInProgress.get()) {
@@ -247,19 +251,26 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.modelRef.value = undefined;
 
-		const ref = modelRef ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === ChatAgentLocation.Chat
-			? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(this.chatService.transferredSessionData.sessionId))
-			: this.chatService.startSession(ChatAgentLocation.Chat));
-		if (!ref) {
-			throw new Error('Could not start chat session');
+		let ref: IChatModelReference | undefined;
+		if (startNewSession) {
+			ref = modelRef ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === ChatAgentLocation.Chat
+				? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(this.chatService.transferredSessionData.sessionId))
+				: this.chatService.startSession(ChatAgentLocation.Chat));
+			if (!ref) {
+				throw new Error('Could not start chat session');
+			}
 		}
+
 		this.modelRef.value = ref;
-		const model = ref.object;
+		const model = ref?.object;
 
-		// Update widget lock state based on session type
-		await this.updateWidgetLockState(model.sessionResource);
+		if (model) {
+			// Update widget lock state based on session type
+			await this.updateWidgetLockState(model.sessionResource);
 
-		this.viewState.sessionId = model.sessionId; // remember as model to restore in view state
+			this.viewState.sessionId = model.sessionId; // remember as model to restore in view state
+		}
+
 		this._widget.setModel(model);
 
 		// Update title control
@@ -533,14 +544,26 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateActions();
 	}
 
-	async loadSession(sessionId: URI): Promise<IChatModel | undefined> {
-		const sessionType = getChatSessionType(sessionId);
-		if (sessionType !== localChatSessionType) {
-			await this.chatSessionsService.canResolveChatSession(sessionId);
-		}
+	async loadSession(sessionResource: URI): Promise<IChatModel | undefined> {
+		return this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
+			let queue: Promise<void> = Promise.resolve();
 
-		const newModelRef = await this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None);
-		return this.showModel(newModelRef);
+			// A delay here to avoid blinking because only Cloud sessions are slow, most others are fast
+			const clearWidget = disposableTimeout(() => {
+				// clear current model without starting a new one
+				queue = this.showModel(undefined, false).then(() => { });
+			}, 100);
+
+			const sessionType = getChatSessionType(sessionResource);
+			if (sessionType !== localChatSessionType) {
+				await this.chatSessionsService.canResolveChatSession(sessionResource);
+			}
+
+			const newModelRef = await this.chatService.loadSessionForResource(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+			clearWidget.dispose();
+			await queue;
+			return this.showModel(newModelRef);
+		});
 	}
 
 	focusInput(): void {
