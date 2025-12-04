@@ -289,7 +289,7 @@ export class MenuId {
 	static readonly AgentSessionItemToolbar = new MenuId('AgentSessionItemToolbar');
 
 	/**
-	 * @deprecated
+	 * @deprecated TODO@bpasero remove both
 	*/
 	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
 	static readonly AgentSessionsViewTitle = new MenuId('AgentSessionsViewTitle');
