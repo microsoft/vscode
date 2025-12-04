@@ -364,18 +364,18 @@ configurationRegistry.registerConfiguration({
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
 		},
-		[ChatConfiguration.ChatViewRecentSessionsEnabled]: { // TODO@bpasero decide on a default
+		[ChatConfiguration.ChatViewRecentSessionsEnabled]: { // TODO@bpasero move off preview
 			type: 'boolean',
-			default: product.quality !== 'stable',
-			description: nls.localize('chat.sessions.enabled', "Show recent chat agent sessions when chat is empty."),
+			default: true,
+			description: nls.localize('chat.sessions.enabled', "Show recent chat agent sessions when chat is empty or to the side when chat view is wide enough."),
 			tags: ['preview', 'experimental'],
 			experiment: {
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.ChatViewTitleEnabled]: { // TODO@bpasero decide on a default
+		[ChatConfiguration.ChatViewTitleEnabled]: { // TODO@bpasero move off preview
 			type: 'boolean',
-			default: product.quality !== 'stable',
+			default: true,
 			description: nls.localize('chat.viewTitle.enabled', "Show the title of the chat above the chat in the chat view."),
 			tags: ['preview', 'experimental'],
 			experiment: {
@@ -564,8 +564,8 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			enum: ['disabled', 'view', 'single-view'], // TODO@bpasero remove this setting eventually
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
-			default: product.quality === 'stable' ? 'view' : 'disabled',
-			tags: ['experimental'],
+			default: 'disabled',
+			tags: ['preview', 'experimental'],
 			experiment: {
 				mode: 'auto'
 			}
