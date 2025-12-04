@@ -510,7 +510,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					}
 				}
 			}
-
 			return session;
 		} catch (error) {
 			session.dispose();

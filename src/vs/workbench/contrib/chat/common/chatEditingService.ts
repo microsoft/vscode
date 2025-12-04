@@ -282,7 +282,7 @@ export interface IEditSessionEntryDiff extends IEditSessionDiffStats {
 	isBusy: boolean;
 }
 
-export function busySessionEntryDiff(originalURI: URI, modifiedURI: URI): IEditSessionEntryDiff {
+export function emptySessionEntryDiff(originalURI: URI, modifiedURI: URI): IEditSessionEntryDiff {
 	return {
 		originalURI,
 		modifiedURI,
@@ -291,7 +291,7 @@ export function busySessionEntryDiff(originalURI: URI, modifiedURI: URI): IEditS
 		quitEarly: false,
 		identical: false,
 		isFinal: false,
-		isBusy: true,
+		isBusy: false,
 	};
 }
 

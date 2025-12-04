@@ -32,6 +32,7 @@ export interface IChatSessionCommandContribution {
 export interface IChatSessionProviderOptionItem {
 	id: string;
 	name: string;
+	description?: string;
 	locked?: boolean;
 	icon?: ThemeIcon;
 	// [key: string]: any;
@@ -178,12 +179,6 @@ export interface IChatSessionsService {
 	 * Get the list of chat session items grouped by session type.
 	 */
 	getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>>;
-
-	getNewChatSessionItem(chatSessionType: string, options: {
-		request: IChatAgentRequest;
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		metadata?: any;
-	}, token: CancellationToken): Promise<IChatSessionItem>;
 
 	reportInProgress(chatSessionType: string, count: number): void;
 	getInProgress(): { displayName: string; count: number }[];

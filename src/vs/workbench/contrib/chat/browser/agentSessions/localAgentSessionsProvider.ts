@@ -11,7 +11,6 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
@@ -85,7 +84,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		const sessions: ChatSessionItemWithProvider[] = [];
 		const sessionsByResource = new ResourceSet();
 
-		for (const sessionDetail of this.chatService.getLiveSessionItems()) {
+		for (const sessionDetail of await this.chatService.getLiveSessionItems()) {
 			const editorSession = this.toChatSessionItem(sessionDetail);
 			if (!editorSession) {
 				continue;
@@ -152,33 +151,11 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 				startTime,
 				endTime
 			},
-			statistics: model ? this.getSessionStatistics(model) : undefined
-		};
-	}
-
-	private getSessionStatistics(chatModel: IChatModel) {
-		let linesAdded = 0;
-		let linesRemoved = 0;
-		const files = new ResourceSet();
-
-		const currentEdits = chatModel.editingSession?.entries.get();
-		if (currentEdits) {
-			const uncommittedEdits = currentEdits.filter(edit => edit.state.get() === ModifiedFileEntryState.Modified);
-			for (const edit of uncommittedEdits) {
-				linesAdded += edit.linesAdded?.get() ?? 0;
-				linesRemoved += edit.linesRemoved?.get() ?? 0;
-				files.add(edit.modifiedURI);
-			}
-		}
-
-		if (files.size === 0) {
-			return undefined;
-		}
-
-		return {
-			files: files.size,
-			insertions: linesAdded,
-			deletions: linesRemoved,
+			statistics: chat.stats ? {
+				insertions: chat.stats.added,
+				deletions: chat.stats.removed,
+				files: chat.stats.fileCount
+			} : undefined
 		};
 	}
 }

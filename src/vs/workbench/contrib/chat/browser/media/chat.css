@@ -1339,6 +1339,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-input-toolbars > .chat-input-toolbar {
+	overflow: hidden;
 	min-width: 0px;
 
 	.chat-modelPicker-item {
@@ -1391,6 +1392,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-input-toolbars .chat-sessionPicker-container {
 	display: flex;
+	max-width: 100%;
 }
 
 .interactive-session .chat-input-toolbars .codicon-debug-stop {

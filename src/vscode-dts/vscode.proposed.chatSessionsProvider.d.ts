@@ -305,6 +305,11 @@ declare module 'vscode' {
 		readonly name: string;
 
 		/**
+		 * Optional description shown in tooltips.
+		 */
+		readonly description?: string;
+
+		/**
 		 * When true, this option is locked and cannot be changed by the user.
 		 * The option will still be visible in the UI but will be disabled.
 		 * Use this when an option is set but cannot be hot-swapped (e.g., model already initialized).
