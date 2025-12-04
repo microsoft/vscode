@@ -26,17 +26,12 @@
 	.agent-sessions-container {
 		display: flex;
 		flex-direction: column;
-		background-color: var(--vscode-editorWidget-background);
+		background-color: transparent;
+		background-color: var(--vscode-sessionList-background);
 
 		.agent-sessions-viewer .monaco-list-rows {
-			background-color: var(--vscode-sessionList-background);
+			background-color: transparent;
 		}
-
-		/* comment this out to make transparent */
-		.agent-sessions-container .agent-sessions-title-container {
-			background: var(--vscode-sessionList-background);
-		}
-
 
 		.agent-sessions-title-container {
 			display: flex;
