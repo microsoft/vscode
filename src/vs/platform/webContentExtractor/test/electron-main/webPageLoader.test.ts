@@ -188,6 +188,38 @@ suite('WebPageLoader', () => {
 		}
 	});
 
+	test('ERR_ABORTED is ignored and content extraction continues', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const axNodes = createMockAXNodes();
+
+		const loader = createWebPageLoader(uri);
+
+		window.webContents.debugger.sendCommand.callsFake((command: string) => {
+			switch (command) {
+				case 'Network.enable':
+					return Promise.resolve();
+				case 'Accessibility.getFullAXTree':
+					return Promise.resolve({ nodes: axNodes });
+				default:
+					assert.fail(`Unexpected command: ${command}`);
+			}
+		});
+
+		const loadPromise = loader.load();
+
+		// Simulate ERR_ABORTED (-3) which should be ignored
+		const mockEvent: MockElectronEvent = {};
+		window.webContents.emit('did-fail-load', mockEvent, -3, 'ERR_ABORTED');
+
+		const result = await loadPromise;
+
+		// ERR_ABORTED should not cause an error status, content should be extracted
+		assert.strictEqual(result.status, 'ok');
+		if (result.status === 'ok') {
+			assert.ok(result.result.includes('Test content from page'));
+		}
+	}));
+
 	//#endregion
 
 	//#region Redirect Tests
