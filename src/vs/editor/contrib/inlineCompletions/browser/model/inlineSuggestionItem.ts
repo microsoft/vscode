@@ -371,7 +371,6 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 	public static create(
 		data: InlineSuggestData,
 		textModel: ITextModel,
-
 	): InlineEditItem {
 		let action: InlineSuggestionAction | undefined;
 		let edits: SingleUpdatedNextEdit[] = [];
