@@ -784,9 +784,15 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered."),
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.ThinkingGenerateTitles]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.agent.thinking.generateTitles', "Controls whether to use an LLM to generate summary titles for thinking sections."),
+			tags: ['experimental'],
+		},
 		'chat.agent.thinking.collapsedTools': {
 			type: 'string',
-			default: product.quality !== 'stable' ? 'always' : 'withThinking',
+			default: 'always',
 			enum: ['off', 'withThinking', 'always'],
 			enumDescriptions: [
 				nls.localize('chat.agent.thinking.collapsedTools.off', "Tool calls are shown separately, not collapsed into thinking."),
