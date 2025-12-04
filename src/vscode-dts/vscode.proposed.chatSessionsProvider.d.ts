@@ -137,43 +137,36 @@ declare module 'vscode' {
 			 * Number of deletions made during the session.
 			 */
 			deletions: number;
-		};
 
-		/**
-		 * File changes in the session.
-		 */
-		changes?: {
 			/**
 			 * File changes from the session.
 			 */
-			files: readonly ChatSessionChangedFile[];
-
-			/**
-			 * Accepts the session's file changes.
-			 */
-			accept(token: CancellationToken): Thenable<void>;
+			details: readonly ChatSessionChangedFile[];
 		};
 	}
 
 	export class ChatSessionChangedFile {
 		/**
-		 * Original URI of the file. If the file was newly created, this may be undefined.
-		 * This URI should be accessible by the editor as it will be used to display a diff.
+		 * URI of the file.
 		 */
-		originalUri?: Uri;
-		/**
-		 * Modified URI of the file. If the file was deleted, this may be undefined.
-		 * This URI should be accessible by the editor as it will be used to display a diff.
-		 */
-		modifiedUri?: Uri;
+		uri: Uri;
 
 		/**
-		 * The URI the file was moved from, if any. Unlike {@link originalUri}, this
-		 * URI may no longer exist on disk and will be used only for display purposes.
+		 * File opened when the user takes the 'compare' action.
 		 */
-		movedFromUri?: Uri;
+		compareUri?: Uri;
 
-		constructor(originalUri?: Uri, modifiedUri?: Uri, movedFromUri?: Uri);
+		/**
+		 * Number of insertions made during the session.
+		 */
+		insertions: number;
+
+		/**
+		 * Number of deletions made during the session.
+		 */
+		deletions: number;
+
+		constructor(uri: Uri, insertions: number, deletions: number, compareUri?: Uri);
 	}
 
 	export interface ChatSession {
