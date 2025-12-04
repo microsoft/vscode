@@ -10,7 +10,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { localize } from '../../../../nls.js';
-import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -93,7 +93,10 @@ export class ChatViewTitleControl extends Disposable {
 			h('span.chat-view-title-label@label'),
 		]);
 
-		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.ChatViewSessionTitleToolbar, { menuOptions: { shouldForwardArgs: true } }));
+		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.ChatViewSessionTitleToolbar, {
+			menuOptions: { shouldForwardArgs: true },
+			hiddenItemStrategy: HiddenItemStrategy.NoHide
+		}));
 
 		this.titleContainer = elements.root;
 

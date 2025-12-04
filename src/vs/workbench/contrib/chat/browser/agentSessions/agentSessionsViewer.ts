@@ -153,7 +153,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.title.setLabel(renderAsPlaintext(markdownTitle), undefined, { matches: createMatches(session.filterData) });
 
 		// Title Actions - Update context keys
-		ChatContextKeys.isArchivedItem.bindTo(template.contextKeyService).set(session.element.isArchived());
+		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
 		template.titleToolbar.context = session.element;
 
 		// Details Actions
