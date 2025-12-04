@@ -327,7 +327,7 @@ export interface IAgentSessionsFilter {
 	/**
 	 * Optional limit on the number of sessions to show.
 	 */
-	readonly limitResults?: number;
+	readonly limitResults?: () => number | undefined;
 
 	/**
 	 * A callback to notify the filter about the number of
@@ -358,9 +358,10 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		let filteredSessions = element.sessions.filter(session => !this.filter?.exclude?.(session));
 
 		// Apply limiter if configured (requires sorting)
-		if (this.filter?.limitResults !== undefined) {
+		const limitResultsCount = this.filter?.limitResults?.();
+		if (typeof limitResultsCount === 'number') {
 			filteredSessions.sort(this.sorter.compare.bind(this.sorter));
-			filteredSessions = filteredSessions.slice(0, this.filter.limitResults);
+			filteredSessions = filteredSessions.slice(0, limitResultsCount);
 		}
 
 		// Callback results count
