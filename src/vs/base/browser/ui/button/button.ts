@@ -35,6 +35,7 @@ export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly supportIcons?: boolean;
 	readonly supportShortLabel?: boolean;
 	readonly secondary?: boolean;
+	readonly small?: boolean;
 	readonly hoverDelegate?: IHoverDelegate;
 	readonly disabled?: boolean;
 }
@@ -116,6 +117,7 @@ export class Button extends Disposable implements IButton {
 		this._element.setAttribute('role', 'button');
 
 		this._element.classList.toggle('secondary', !!options.secondary);
+		this._element.classList.toggle('small', !!options.small);
 		const background = options.secondary ? options.buttonSecondaryBackground : options.buttonBackground;
 		const foreground = options.secondary ? options.buttonSecondaryForeground : options.buttonForeground;
 

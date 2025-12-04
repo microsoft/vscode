@@ -749,10 +749,17 @@ class DiffHunkWidget implements IOverlayWidget, IModifiedFileEntryChangeHunk {
 				arg: this,
 			},
 			actionViewItemProvider: (action, options) => {
+				const isPrimary = action.id === 'chatEditor.action.acceptHunk';
 				if (!action.class) {
 					return new class extends ActionViewItem {
 						constructor() {
 							super(undefined, action, { ...options, keybindingNotRenderedWithLabel: true /* hide keybinding for actions without icon */, icon: false, label: true });
+						}
+						override render(container: HTMLElement): void {
+							super.render(container);
+							if (isPrimary) {
+								this.element?.classList.add('primary');
+							}
 						}
 					};
 				}

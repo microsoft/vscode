@@ -2033,6 +2033,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._chatEditsActionsDisposables.add(this.instantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, MenuId.ChatEditingWidgetToolbar, {
 			telemetrySource: this.options.menus.telemetrySource,
+			small: true,
 			menuOptions: {
 				arg: {
 					$mid: MarshalledId.ChatViewContext,

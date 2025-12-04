@@ -226,7 +226,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 
 		// Create buttons
 		buttons.forEach(buttonData => {
-			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
+			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, small: true, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
 			let button: IButton;
 			if (buttonData.moreActions) {
@@ -441,7 +441,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			this._buttonsDomNode.children[0].remove();
 		}
 		for (const buttonData of buttons) {
-			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
+			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, small: true, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
 			let button: IButton;
 			if (buttonData.moreActions) {
