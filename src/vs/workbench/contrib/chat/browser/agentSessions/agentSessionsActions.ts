@@ -11,19 +11,26 @@ import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/brow
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { EventHelper, h, hide, show } from '../../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
-import { Action2, ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, openAgentSessionsView } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
+import { IChatEditorOptions } from '../chatEditor.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
-//#region Item Title Actions
+//#region Session Title Actions
 
-registerAction2(class extends Action2 {
+export class ArchiveAgentSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'agentSession.archive',
@@ -33,37 +40,37 @@ registerAction2(class extends Action2 {
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ChatContextKeys.isArchivedItem.negate(),
+				when: ChatContextKeys.isArchivedAgentSession.negate(),
 			}
 		});
 	}
 	run(accessor: ServicesAccessor, session: IAgentSession): void {
 		session.setArchived(true);
 	}
-});
+}
 
-registerAction2(class extends Action2 {
+export class UnarchiveAgentSessionAction extends Action2 {
 	constructor() {
 		super({
 			id: 'agentSession.unarchive',
 			title: localize2('unarchive', "Unarchive"),
-			icon: Codicon.inbox,
+			icon: Codicon.unarchive,
 			menu: {
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ChatContextKeys.isArchivedItem,
+				when: ChatContextKeys.isArchivedAgentSession,
 			}
 		});
 	}
 	run(accessor: ServicesAccessor, session: IAgentSession): void {
 		session.setArchived(false);
 	}
-});
+}
 
 //#endregion
 
-//#region Item Detail Actions
+//#region Session Detail Actions
 
 export class AgentSessionShowDiffAction extends Action {
 
@@ -161,16 +168,116 @@ CommandsRegistry.registerCommand(`agentSession.${AgentSessionProviders.Local}.op
 
 //#endregion
 
+//#region Session Context Actions
+
+abstract class BaseOpenAgentSessionAction extends Action2 {
+
+	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
+		if (!context) {
+			return;
+		}
+
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const uri = context.session.resource;
+
+		await chatWidgetService.openSession(uri, this.getTargetGroup(), {
+			...this.getOptions(),
+			ignoreInView: true,
+			pinned: true
+		});
+	}
+
+	protected abstract getTargetGroup(): PreferredGroup;
+
+	protected abstract getOptions(): IChatEditorOptions;
+}
+
+export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAction {
+
+	static readonly id = 'workbench.action.chat.openSessionInEditorGroup';
+
+	constructor() {
+		super({
+			id: OpenAgentSessionInEditorGroupAction.id,
+			title: localize('chat.openSessionInEditorGroup.label', "Open as Editor"),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				order: 1
+			}
+		});
+	}
+
+	protected getTargetGroup(): PreferredGroup {
+		return ACTIVE_GROUP;
+	}
+
+	protected getOptions(): IChatEditorOptions {
+		return {};
+	}
+}
+
+export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSessionAction {
+
+	static readonly id = 'workbench.action.chat.openSessionInNewEditorGroup';
+
+	constructor() {
+		super({
+			id: OpenAgentSessionInNewEditorGroupAction.id,
+			title: localize('chat.openSessionInNewEditorGroup.label', "Open to the Side"),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				order: 2
+			}
+		});
+	}
+
+	protected getTargetGroup(): PreferredGroup {
+		return SIDE_GROUP;
+	}
+
+	protected getOptions(): IChatEditorOptions {
+		return {};
+	}
+}
+
+export class OpenAgentSessionInNewWindowAction extends BaseOpenAgentSessionAction {
+
+	static readonly id = 'workbench.action.chat.openSessionInNewWindow';
+
+	constructor() {
+		super({
+			id: OpenAgentSessionInNewWindowAction.id,
+			title: localize('chat.openSessionInNewWindow.label', "Open in New Window"),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				order: 3
+			}
+		});
+	}
+
+	protected getTargetGroup(): PreferredGroup {
+		return AUX_WINDOW_GROUP;
+	}
+
+	protected getOptions(): IChatEditorOptions {
+		return {
+			auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
+		};
+	}
+}
+
+//#endregion
+
 //#region View Actions
 
-registerAction2(class extends ViewAction<AgentSessionsView> {
+export class RefreshAgentSessionsViewAction extends ViewAction<AgentSessionsView> {
 	constructor() {
 		super({
 			id: 'agentSessionsView.refresh',
 			title: localize2('refresh', "Refresh Agent Sessions"),
 			icon: Codicon.refresh,
 			menu: {
-				id: MenuId.AgentSessionsTitle,
+				id: MenuId.AgentSessionsViewTitle,
 				group: 'navigation',
 				order: 1
 			},
@@ -180,16 +287,16 @@ registerAction2(class extends ViewAction<AgentSessionsView> {
 	runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
 		view.refresh();
 	}
-});
+}
 
-registerAction2(class extends ViewAction<AgentSessionsView> {
+export class FindAgentSessionAction extends ViewAction<AgentSessionsView> {
 	constructor() {
 		super({
 			id: 'agentSessionsView.find',
 			title: localize2('find', "Find Agent Session"),
 			icon: Codicon.search,
 			menu: {
-				id: MenuId.AgentSessionsTitle,
+				id: MenuId.AgentSessionsViewTitle,
 				group: 'navigation',
 				order: 2
 			},
@@ -199,36 +306,71 @@ registerAction2(class extends ViewAction<AgentSessionsView> {
 	runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
 		view.openFind();
 	}
-});
-
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsTitle, {
-	submenu: MenuId.AgentSessionsFilterSubMenu,
-	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
-	group: 'navigation',
-	order: 100,
-	icon: Codicon.filter
-} satisfies ISubmenuItem);
+}
 
 //#endregion
 
 //#region Recent Sessions in Chat View Actions
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'agentSessions.showAll',
-			title: localize2('showAllSessions', "Show All Agent Sessions"),
-			icon: Codicon.history,
-			menu: {
-				id: MenuId.ChatRecentSessionsToolbar,
-				group: 'navigation',
-				order: 1,
-			}
+abstract class UpdateChatViewWidthAction extends Action2 {
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const viewDescriptorService = accessor.get(IViewDescriptorService);
+
+		const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
+		if (typeof chatLocation !== 'number' || chatLocation === ViewContainerLocation.Panel) {
+			return; // only applicable for sidebar or auxiliary bar
+		}
+
+		const part = getPartByLocation(chatLocation);
+		const currentSize = layoutService.getSize(part);
+		layoutService.setSize(part, {
+			width: this.getNewWidth(accessor),
+			height: currentSize.height
 		});
 	}
-	run(accessor: ServicesAccessor): void {
-		openAgentSessionsView(accessor);
+
+	abstract getNewWidth(accessor: ServicesAccessor): number;
+}
+
+// TODO@bpasero these need to be revisited to work in all layouts
+
+export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
+
+	static readonly ID = 'agentSessions.showAgentSessionsSidebar';
+	static readonly TITLE = localize2('showAgentSessionsSidebar', "Show Agent Sessions Sidebar");
+
+	constructor() {
+		super({
+			id: ShowAgentSessionsSidebar.ID,
+			title: ShowAgentSessionsSidebar.TITLE,
+		});
 	}
-});
+
+	override getNewWidth(accessor: ServicesAccessor): number {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+
+		return Math.max(610, Math.round(layoutService.mainContainerDimension.width / 2));
+	}
+}
+
+export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
+
+	static readonly ID = 'agentSessions.hideAgentSessionsSidebar';
+	static readonly TITLE = localize2('hideAgentSessionsSidebar', "Hide Agent Sessions Sidebar");
+
+	constructor() {
+		super({
+			id: HideAgentSessionsSidebar.ID,
+			title: HideAgentSessionsSidebar.TITLE,
+			icon: Codicon.layoutSidebarRightOff,
+		});
+	}
+
+	override getNewWidth(accessor: ServicesAccessor): number {
+		return 300;
+	}
+}
 
 //#endregion

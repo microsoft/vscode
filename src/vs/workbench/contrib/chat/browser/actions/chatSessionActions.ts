@@ -16,7 +16,6 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
@@ -24,7 +23,6 @@ import { IChatSessionItem, IChatSessionsService, localChatSessionType } from '..
 import { ChatConfiguration, LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
 import { AGENT_SESSIONS_VIEW_CONTAINER_ID, AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
-import { IChatEditorOptions } from '../chatEditor.js';
 import { ACTION_ID_OPEN_CHAT, CHAT_CATEGORY } from './chatActions.js';
 
 export interface IMarshalledChatSessionContext {
@@ -146,66 +144,6 @@ export class DeleteChatSessionAction extends Action2 {
 	}
 }
 
-/**
- * Action to open a chat session in a new window
- */
-export class OpenChatSessionInNewWindowAction extends Action2 {
-	static readonly id = 'workbench.action.chat.openSessionInNewWindow';
-
-	constructor() {
-		super({
-			id: OpenChatSessionInNewWindowAction.id,
-			title: localize('chat.openSessionInNewWindow.label', "Move Chat into New Window"),
-			category: CHAT_CATEGORY,
-			f1: false,
-		});
-	}
-
-	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
-		if (!context) {
-			return;
-		}
-
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const uri = context.session.resource;
-
-		const options: IChatEditorOptions = {
-			ignoreInView: true,
-			auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
-		};
-		await chatWidgetService.openSession(uri, AUX_WINDOW_GROUP, options);
-	}
-}
-
-/**
- * Action to open a chat session in a new editor group to the side
- */
-export class OpenChatSessionInNewEditorGroupAction extends Action2 {
-	static readonly id = 'workbench.action.chat.openSessionInNewEditorGroup';
-
-	constructor() {
-		super({
-			id: OpenChatSessionInNewEditorGroupAction.id,
-			title: localize('chat.openSessionInNewEditorGroup.label', "Move Chat to the Side"),
-			category: CHAT_CATEGORY,
-			f1: false,
-		});
-	}
-
-	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
-		if (!context) {
-			return;
-		}
-
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const uri = context.session.resource;
-
-		const options: IChatEditorOptions = {
-			ignoreInView: true,
-		};
-		await chatWidgetService.openSession(uri, SIDE_GROUP, options);
-	}
-}
 
 /**
  * Action to open a chat session in the sidebar (chat widget)
@@ -308,7 +246,7 @@ export class ToggleAgentSessionsViewLocationAction extends Action2 {
 }
 
 // Register the menu item - show for all local chat sessions (including history items)
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 	command: {
 		id: RenameChatSessionAction.id,
 		title: localize('renameSession', "Rename"),
@@ -317,13 +255,13 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	group: 'inline',
 	order: 1,
 	when: ContextKeyExpr.and(
-		ChatContextKeys.sessionType.isEqualTo(localChatSessionType),
-		ChatContextKeys.isCombinedSessionViewer.negate()
+		ChatContextKeys.agentSessionType.isEqualTo(localChatSessionType),
+		ChatContextKeys.isCombinedAgentSessionsViewer.negate()
 	)
 });
 
 // Register delete menu item - only show for non-active sessions (history items)
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 	command: {
 		id: DeleteChatSessionAction.id,
 		title: localize('deleteSession', "Delete"),
@@ -332,36 +270,19 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	group: 'inline',
 	order: 2,
 	when: ContextKeyExpr.and(
-		ChatContextKeys.isArchivedItem.isEqualTo(true),
-		ChatContextKeys.isActiveSession.isEqualTo(false)
+		ChatContextKeys.isArchivedAgentSession.isEqualTo(true),
+		ChatContextKeys.isActiveAgentSession.isEqualTo(false)
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
-	command: {
-		id: OpenChatSessionInNewWindowAction.id,
-		title: localize('openSessionInNewWindow', "Open in New Window")
-	},
-	group: 'navigation',
-	order: 1,
-});
-
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
-	command: {
-		id: OpenChatSessionInNewEditorGroupAction.id,
-		title: localize('openToSide', "Open to the Side")
-	},
-	group: 'navigation',
-	order: 2,
-});
-
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 	command: {
 		id: OpenChatSessionInSidebarAction.id,
 		title: localize('openSessionInSidebar', "Open in Sidebar")
 	},
 	group: 'navigation',
 	order: 3,
+	when: ChatContextKeys.isCombinedAgentSessionsViewer.negate()
 });
 
 // Register the toggle command for the ViewTitle menu

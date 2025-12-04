@@ -2017,11 +2017,6 @@
         },
         {
           "command": "git.repositories.stashView",
-          "group": "inline@2",
-          "when": "scmProvider == git && scmArtifactGroupId == stashes"
-        },
-        {
-          "command": "git.repositories.stashView",
           "group": "1_view@1",
           "when": "scmProvider == git && scmArtifactGroupId == stashes"
         },
@@ -2671,7 +2666,7 @@
         {
           "command": "git.openMergeEditor",
           "group": "navigation@-10",
-          "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && git.activeResourceHasMergeConflicts"
+          "when": "config.git.enabled && !git.missing && !isInDiffEditor && !isMergeEditor && resource in git.mergeChanges && git.activeResourceHasMergeConflicts"
         }
       ],
       "multiDiffEditor/resource/title": [

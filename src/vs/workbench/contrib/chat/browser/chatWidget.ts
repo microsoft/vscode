@@ -65,7 +65,7 @@ import { IChatLocationData, IChatSendRequestOptions, IChatService } from '../com
 import { IChatSessionsService } from '../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { IChatTodoListService } from '../common/chatTodoListService.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
@@ -1309,8 +1309,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	async handleDelegationExitIfNeeded(agent: IChatAgentData | undefined): Promise<void> {
-		if (!this._shouldExitAfterDelegation(agent)) {
+	async handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void> {
+		if (!this._shouldExitAfterDelegation(sourceAgent, targetAgent)) {
 			return;
 		}
 
@@ -1321,12 +1321,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private _shouldExitAfterDelegation(agent: IChatAgentData | undefined): boolean {
+	private _shouldExitAfterDelegation(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): boolean {
+		if (!targetAgent) {
+			// Undefined behavior
+			return false;
+		}
+
 		if (!this.configurationService.getValue<boolean>(ChatConfiguration.ExitAfterDelegation)) {
 			return false;
 		}
 
-		if (!agent) {
+		// Never exit if the source and target are the same (that means that you're providing a follow up, etc.)
+		// NOTE: sourceAgent would be the chatWidget's 'lockedAgent'
+		if (sourceAgent && sourceAgent.id === targetAgent.id) {
 			return false;
 		}
 
@@ -1334,7 +1341,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return false;
 		}
 
-		const contribution = this.chatSessionsService.getChatSessionContribution(agent.id);
+		const contribution = this.chatSessionsService.getChatSessionContribution(targetAgent.id);
 		if (!contribution) {
 			return false;
 		}
@@ -1349,7 +1356,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	/**
 	 * Handles the exit of the panel chat when a delegation to another session occurs.
 	 * Waits for the response to complete and any pending confirmations to be resolved,
-	 * then clears the widget.
+	 * then clears the widget unless the final message is an error.
 	 */
 	private async _handleDelegationExit(): Promise<void> {
 		const viewModel = this.viewModel;
@@ -1357,32 +1364,33 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		// Check if response is already complete without pending confirmations
-		const checkForComplete = () => {
+		// Check if response is complete, not pending confirmation, and has no error
+		const checkIfShouldClear = (): boolean => {
 			const items = viewModel.getItems();
 			const lastItem = items[items.length - 1];
 			if (lastItem && isResponseVM(lastItem) && lastItem.model && lastItem.isComplete && !lastItem.model.isPendingConfirmation.get()) {
-				return true;
+				const hasError = Boolean(lastItem.result?.errorDetails);
+				return !hasError;
 			}
 			return false;
 		};
 
-		if (checkForComplete()) {
+		if (checkIfShouldClear()) {
 			await this.clear();
 			return;
 		}
 
-		// Wait for response to complete with a timeout
-		await new Promise<void>(resolve => {
+		const shouldClear = await new Promise<boolean>(resolve => {
 			const disposable = viewModel.onDidChange(() => {
-				if (checkForComplete()) {
+				const result = checkIfShouldClear();
+				if (result) {
 					cleanup();
-					resolve();
+					resolve(true);
 				}
 			});
 			const timeout = setTimeout(() => {
 				cleanup();
-				resolve();
+				resolve(false);
 			}, 30_000); // 30 second timeout
 			const cleanup = () => {
 				clearTimeout(timeout);
@@ -1390,8 +1398,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 		});
 
-		// Clear the widget after delegation completes
-		await this.clear();
+		if (shouldClear) {
+			await this.clear();
+		}
 	}
 
 	setVisible(visible: boolean): void {
@@ -1584,7 +1593,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (request.id === currentElement.id) {
 					request.shouldBeBlocked = false; // unblocking just this request.
 					if (request.attachedContext) {
-						const context = request.attachedContext.filter(entry => !(isPromptFileVariableEntry(entry) || isPromptTextVariableEntry(entry)) || !entry.automaticallyAdded);
+						const context = request.attachedContext.filter(entry => !isWorkspaceVariableEntry(entry) && (!(isPromptFileVariableEntry(entry) || isPromptTextVariableEntry(entry)) || !entry.automaticallyAdded));
 						currentContext.push(...context);
 					}
 				}
@@ -1945,6 +1954,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (!model) {
 			this.viewModel = undefined;
+			this.onDidChangeItems();
 			return;
 		}
 
@@ -2311,7 +2321,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.input.acceptInput(isUserQuery);
 		this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
-		this.handleDelegationExitIfNeeded(result.agent);
+		this.handleDelegationExitIfNeeded(this._lockedAgent, result.agent);
 		this.currentRequest = result.responseCompletePromise.then(() => {
 			const responses = this.viewModel?.getItems().filter(isResponseVM);
 			const lastResponse = responses?.[responses.length - 1];

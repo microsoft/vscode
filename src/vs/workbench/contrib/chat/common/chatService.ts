@@ -11,6 +11,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { autorun, autorunSelfDisposable, IObservable, IReader } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { ISelection } from '../../../../editor/common/core/selection.js';
@@ -157,19 +158,57 @@ export interface IChatTreeData {
 	treeData: IChatResponseProgressFileTreeData;
 	kind: 'treeData';
 }
+export interface IMultiDiffResource {
+	originalUri?: URI;
+	modifiedUri?: URI;
+	goToFileUri?: URI;
+	added?: number;
+	removed?: number;
+}
+
+export interface IChatMultiDiffInnerData {
+	title: string;
+	resources: IMultiDiffResource[];
+}
+
 export interface IChatMultiDiffData {
-	multiDiffData: {
-		title: string;
-		resources: Array<{
-			originalUri?: URI;
-			modifiedUri?: URI;
-			goToFileUri?: URI;
-			added?: number;
-			removed?: number;
-		}>;
-	};
+	multiDiffData: IChatMultiDiffInnerData | IObservable<IChatMultiDiffInnerData>;
 	kind: 'multiDiffData';
+	collapsed?: boolean;
 	readOnly?: boolean;
+}
+
+export interface IChatMultiDiffDataSerialized {
+	multiDiffData: IChatMultiDiffInnerData;
+	kind: 'multiDiffData';
+	collapsed?: boolean;
+	readOnly?: boolean;
+}
+
+export class ChatMultiDiffData implements IChatMultiDiffData {
+	public readonly kind = 'multiDiffData';
+	public readonly collapsed?: boolean | undefined;
+	public readonly readOnly?: boolean | undefined;
+	public readonly multiDiffData: IChatMultiDiffData['multiDiffData'];
+
+	constructor(opts: {
+		multiDiffData: IChatMultiDiffInnerData | IObservable<IChatMultiDiffInnerData>;
+		collapsed?: boolean;
+		readOnly?: boolean;
+	}) {
+		this.readOnly = opts.readOnly;
+		this.collapsed = opts.collapsed;
+		this.multiDiffData = opts.multiDiffData;
+	}
+
+	toJSON(): IChatMultiDiffDataSerialized {
+		return {
+			kind: this.kind,
+			multiDiffData: hasKey(this.multiDiffData, { title: true }) ? this.multiDiffData : this.multiDiffData.get(),
+			collapsed: this.collapsed,
+			readOnly: this.readOnly,
+		};
+	}
 }
 
 export interface IChatProgressMessage {
@@ -870,11 +909,18 @@ export interface IChatCompleteResponse {
 	followups?: IChatFollowup[];
 }
 
+export interface IChatSessionStats {
+	fileCount: number;
+	added: number;
+	removed: number;
+}
+
 export interface IChatDetail {
 	sessionResource: URI;
 	title: string;
 	lastMessageDate: number;
 	isActive: boolean;
+	stats?: IChatSessionStats;
 }
 
 export interface IChatProviderInfo {
@@ -1005,8 +1051,9 @@ export interface IChatService {
 	removeHistoryEntry(sessionResource: URI): Promise<void>;
 	getChatStorageFolder(): URI;
 	logChatIndex(): void;
-	getLiveSessionItems(): IChatDetail[];
+	getLiveSessionItems(): Promise<IChatDetail[]>;
 	getHistorySessionItems(): Promise<IChatDetail[]>;
+	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined>;
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
@@ -1019,6 +1066,11 @@ export interface IChatService {
 	readonly edits2Enabled: boolean;
 
 	readonly requestInProgressObs: IObservable<boolean>;
+
+	/**
+	 * For tests only!
+	 */
+	setSaveModelsEnabled(enabled: boolean): void;
 
 	/**
 	 * For tests only!

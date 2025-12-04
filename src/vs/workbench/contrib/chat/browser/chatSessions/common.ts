@@ -114,11 +114,11 @@ export function getSessionItemContextOverlay(
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const overlay: [string, any][] = [];
 	if (provider) {
-		overlay.push([ChatContextKeys.sessionType.key, provider.chatSessionType]);
+		overlay.push([ChatContextKeys.agentSessionType.key, provider.chatSessionType]);
 	}
 
 	// Mark history items
-	overlay.push([ChatContextKeys.isArchivedItem.key, session.archived]);
+	overlay.push([ChatContextKeys.isArchivedAgentSession.key, session.archived]);
 
 	// Mark active sessions - check if session is currently open in editor or widget
 	let isActiveSession = false;
@@ -130,7 +130,7 @@ export function getSessionItemContextOverlay(
 		isActiveSession = !!chatService.getSession(session.resource);
 	}
 
-	overlay.push([ChatContextKeys.isActiveSession.key, isActiveSession]);
+	overlay.push([ChatContextKeys.isActiveAgentSession.key, isActiveSession]);
 
 	return overlay;
 }

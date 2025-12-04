@@ -28,7 +28,6 @@ import { ChatContextKeyExprs } from '../../../common/chatContextKeys.js';
 import { IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
-import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { SessionsViewPane } from './sessionsViewPane.js';
 
 export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
@@ -53,19 +52,14 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 
 export class ChatSessionsViewContrib extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatSessions';
-
-	private readonly sessionTracker: ChatSessionTracker;
 	private readonly registeredViewDescriptors: Map<string, IViewDescriptor> = new Map();
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 	) {
 		super();
-
-		this.sessionTracker = this._register(this.instantiationService.createInstance(ChatSessionTracker));
 
 		// Initial check
 		void this.updateViewRegistration();
@@ -184,7 +178,7 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 							value: displayName,
 							original: displayName,
 						},
-						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker, viewId]),
+						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, viewId]),
 						canToggleVisibility: true,
 						canMoveView: true,
 						order: baseOrder, // Use computed order based on priority and alphabetical sorting
@@ -212,7 +206,7 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 						value: nls.localize('chat.sessions.gettingStarted', "Getting Started"),
 						original: 'Getting Started',
 					},
-					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker, gettingStartedViewId]),
+					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, gettingStartedViewId]),
 					canToggleVisibility: true,
 					canMoveView: true,
 					order: 1000,

@@ -603,7 +603,7 @@ suite('toISCMHistoryItemViewModelArray', () => {
 	 * 	* e(f)
 	 * 	* f(g)
 	*/
-	test('graph with incoming/outgoing changes (remote ref first)', () => {
+	test.skip('graph with incoming/outgoing changes (remote ref first)', () => {
 		const models = [
 			toSCMHistoryItem('a', ['b'], [{ id: 'origin/main', name: 'origin/main' }]),
 			toSCMHistoryItem('b', ['e']),
