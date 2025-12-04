@@ -29,6 +29,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { InlineChatConfigKeys } from '../../inlineChat/common/inlineChat.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
+import { awaitStatsForSession } from './chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { chatEditingSessionIsReady } from './chatEditingService.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
@@ -79,6 +80,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionModels: ChatModelStore;
 	private readonly _pendingRequests = this._register(new DisposableResourceMap<CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
+	private _saveModelsEnabled = true;
 
 	private _transferredSessionData: IChatTransferredSessionData | undefined;
 	public get transferredSessionData(): IChatTransferredSessionData | undefined {
@@ -101,6 +103,13 @@ export class ChatService extends Disposable implements IChatService {
 	readonly requestInProgressObs: IObservable<boolean>;
 
 	readonly chatModels: IObservable<Iterable<IChatModel>>;
+
+	/**
+	 * For test use only
+	 */
+	setSaveModelsEnabled(enabled: boolean): void {
+		this._saveModelsEnabled = enabled;
+	}
 
 	/**
 	 * For test use only
@@ -141,7 +150,7 @@ export class ChatService extends Disposable implements IChatService {
 					// Always preserve sessions that have custom titles, even if empty
 					if (model.getRequests().length === 0 && !model.customTitle) {
 						await this._chatSessionStore.deleteSession(localSessionId);
-					} else {
+					} else if (this._saveModelsEnabled) {
 						await this._chatSessionStore.storeSessions([model]);
 					}
 				}
@@ -187,7 +196,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
 
-		this.chatModels = derived(this, reader => this._sessionModels.observable.read(reader).values());
+		this.chatModels = derived(this, reader => [...this._sessionModels.observable.read(reader).values()]);
 
 		this.requestInProgressObs = derived(reader => {
 			const models = this._sessionModels.observable.read(reader).values();
@@ -204,6 +213,10 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private saveState(): void {
+		if (!this._saveModelsEnabled) {
+			return;
+		}
+
 		const liveChats = Array.from(this._sessionModels.values())
 			.filter(session => this.shouldStoreSession(session));
 
@@ -358,9 +371,11 @@ export class ChatService extends Disposable implements IChatService {
 	 * Returns an array of chat details for all persisted chat sessions that have at least one request.
 	 * Chat sessions that have already been loaded into the chat view are excluded from the result.
 	 * Imported chat sessions are also excluded from the result.
+	 * TODO this is only used by the old "show chats" command which can be removed when the pre-agents view
+	 * options are removed.
 	 */
 	async getLocalSessionHistory(): Promise<IChatDetail[]> {
-		const liveSessionItems = this.getLiveSessionItems();
+		const liveSessionItems = await this.getLiveSessionItems();
 		const historySessionItems = await this.getHistorySessionItems();
 
 		return [...liveSessionItems, ...historySessionItems];
@@ -369,18 +384,19 @@ export class ChatService extends Disposable implements IChatService {
 	/**
 	 * Returns an array of chat details for all local live chat sessions.
 	 */
-	getLiveSessionItems(): IChatDetail[] {
-		return Array.from(this._sessionModels.values())
+	async getLiveSessionItems(): Promise<IChatDetail[]> {
+		return await Promise.all(Array.from(this._sessionModels.values())
 			.filter(session => this.shouldBeInHistory(session))
-			.map((session): IChatDetail => {
+			.map(async (session): Promise<IChatDetail> => {
 				const title = session.title || localize('newChat', "New Chat");
 				return {
 					sessionResource: session.sessionResource,
 					title,
 					lastMessageDate: session.lastMessageDate,
 					isActive: true,
+					stats: await awaitStatsForSession(session),
 				};
-			});
+			}));
 	}
 
 	/**
@@ -395,6 +411,7 @@ export class ChatService extends Disposable implements IChatService {
 				return ({
 					...entry,
 					sessionResource,
+					stats: entry.stats,
 					isActive: this._sessionModels.has(sessionResource),
 				});
 			});
@@ -700,7 +717,9 @@ export class ChatService extends Disposable implements IChatService {
 				}
 			}));
 		} else {
-			if (lastRequest) {
+			if (lastRequest && model.editingSession) {
+				// wait for timeline to load so that a 'changes' part is added when the response completes
+				await chatEditingSessionIsReady(model.editingSession);
 				lastRequest.response?.complete();
 			}
 		}

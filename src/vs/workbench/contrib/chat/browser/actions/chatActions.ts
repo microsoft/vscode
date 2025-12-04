@@ -746,7 +746,7 @@ export function registerChatActions() {
 							for (const { chatSessionType, items } of providerNSessions) {
 								for (const session of items) {
 									const ckey = contextKeyService.createKey('chatSessionType', chatSessionType);
-									const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
+									const actions = menuService.getMenuActions(MenuId.AgentSessionsContext, contextKeyService);
 									const { primary } = getContextMenuActions(actions, 'inline');
 									ckey.reset();
 
@@ -1874,5 +1874,31 @@ registerAction2(class ToggleChatViewTitleAction extends Action2 {
 
 		const chatViewTitleEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewTitleEnabled);
 		await configurationService.updateValue(ChatConfiguration.ChatViewTitleEnabled, !chatViewTitleEnabled);
+	}
+});
+
+
+registerAction2(class ToggleChatViewWelcomeAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleChatViewWelcome',
+			title: localize2('chat.toggleChatViewWelcome.label', "Show Welcome"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeEnabled}`, true),
+			menu: {
+				id: MenuId.ChatWelcomeContext,
+				group: '1_modify',
+				order: 3,
+				when: ChatContextKeys.inChatEditor.negate()
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const chatViewWelcomeEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeEnabled, !chatViewWelcomeEnabled);
 	}
 });

@@ -441,6 +441,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.refreshChatSessionPickers();
 		}));
 
+		// React to chat session option changes for the active session
+		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource && isEqual(sessionResource, e.resource)) {
+				// Options changed for our current session - refresh pickers
+				this.refreshChatSessionPickers();
+			}
+		}));
+
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 		this._register(this._attachmentModel.onDidChange(() => this._syncInputStateToModel()));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs));
@@ -1317,6 +1326,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this._widget = widget;
+
+		this._register(widget.onDidChangeViewModel(() => {
+			this.refreshChatSessionPickers();
+		}));
 
 		let elements;
 		if (this.options.renderStyle === 'compact') {

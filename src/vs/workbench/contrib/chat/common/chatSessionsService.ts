@@ -15,7 +15,7 @@ import { IEditableData } from '../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
 import { IChatEditingSession } from './chatEditingService.js';
 import { IChatModel, IChatRequestVariableData } from './chatModel.js';
-import { IChatProgress } from './chatService.js';
+import { IChatProgress, IChatService } from './chatService.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -32,6 +32,7 @@ export interface IChatSessionCommandContribution {
 export interface IChatSessionProviderOptionItem {
 	id: string;
 	name: string;
+	description?: string;
 	locked?: boolean;
 	icon?: ThemeIcon;
 	// [key: string]: any;
@@ -179,12 +180,6 @@ export interface IChatSessionsService {
 	 */
 	getAllChatSessionItems(token: CancellationToken): Promise<Array<{ readonly chatSessionType: string; readonly items: IChatSessionItem[] }>>;
 
-	getNewChatSessionItem(chatSessionType: string, options: {
-		request: IChatAgentRequest;
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		metadata?: any;
-	}, token: CancellationToken): Promise<IChatSessionItem>;
-
 	reportInProgress(chatSessionType: string, count: number): void;
 	getInProgress(): { displayName: string; count: number }[];
 
@@ -206,6 +201,11 @@ export interface IChatSessionsService {
 	setSessionOption(sessionResource: URI, optionId: string, value: string | IChatSessionProviderOptionItem): boolean;
 
 	/**
+	 * Fired when options for a chat session change.
+	 */
+	onDidChangeSessionOptions: Event<{ readonly resource: URI; readonly updates: ReadonlyArray<{ optionId: string; value: string }> }>;
+
+	/**
 	 * Get the capabilities for a specific session type
 	 */
 	getCapabilitiesForSessionType(chatSessionType: string): IChatAgentAttachmentCapabilities | undefined;
@@ -220,7 +220,7 @@ export interface IChatSessionsService {
 	getEditableData(sessionResource: URI): IEditableData | undefined;
 	isEditable(sessionResource: URI): boolean;
 	// #endregion
-	registerModelProgressListener(model: IChatModel, callback: () => void): void;
+	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
 	getSessionDescription(chatModel: IChatModel): string | undefined;
 }
 

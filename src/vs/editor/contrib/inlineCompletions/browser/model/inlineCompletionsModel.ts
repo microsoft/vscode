@@ -882,11 +882,13 @@ export class InlineCompletionsModel extends Disposable {
 				providerId: completion.source.provider.providerId,
 				languageId,
 				type,
+				correlationId: completion.getSourceCompletion().correlationId,
 			});
 		} else {
 			return EditSources.inlineCompletionAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
+				correlationId: completion.getSourceCompletion().correlationId,
 				providerId: completion.source.provider.providerId,
 				languageId
 			});
@@ -917,12 +919,14 @@ export class InlineCompletionsModel extends Disposable {
 		completion.addRef();
 
 		try {
+			let followUpTrigger = false;
 			editor.pushUndoStop();
 			if (isNextEditUri) {
 				// Do nothing
 			} else if (completion.action?.kind === 'edit') {
 				const action = completion.action;
-				if (action.alternativeAction && alternativeAction) {
+				if (alternativeAction && action.alternativeAction) {
+					followUpTrigger = true;
 					const altCommand = action.alternativeAction.command;
 					await this._commandService
 						.executeCommand(altCommand.id, ...(altCommand.arguments || []))
@@ -975,6 +979,11 @@ export class InlineCompletionsModel extends Disposable {
 				await this._commandService
 					.executeCommand(completion.command.id, ...(completion.command.arguments || []))
 					.then(undefined, onUnexpectedExternalError);
+			}
+
+			// TODO: how can we make alternative actions to retrigger?
+			if (followUpTrigger) {
+				this.trigger(undefined);
 			}
 
 			completion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted });

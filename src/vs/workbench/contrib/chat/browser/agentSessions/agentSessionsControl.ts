@@ -41,7 +41,7 @@ export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly filter?: IAgentSessionsFilter;
 	readonly allowNewSessionFromEmptySpace?: boolean;
-	readonly allowOpenSessionsInPanel?: boolean;
+	readonly allowOpenSessionsInPanel?: boolean; // TODO@bpasero retire this option eventually
 	readonly allowFiltering?: boolean;
 	readonly trackActiveEditor?: boolean;
 }
@@ -198,13 +198,14 @@ export class AgentSessionsControl extends Disposable {
 		const options: IChatEditorOptions = {
 			...sessionOptions,
 			...e.editorOptions,
+			revealIfOpened: this.options?.allowOpenSessionsInPanel // always try to reveal if already opened
 		};
 
 		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
 		if (e.sideBySide) {
-			target = SIDE_GROUP;
+			target = this.options?.allowOpenSessionsInPanel ? ACTIVE_GROUP : SIDE_GROUP;
 		} else if (this.options?.allowOpenSessionsInPanel) {
 			target = ChatViewPaneTarget;
 		} else {
@@ -221,8 +222,8 @@ export class AgentSessionsControl extends Disposable {
 
 		const provider = await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
 		const contextOverlay = getSessionItemContextOverlay(session, provider, this.chatService, this.editorGroupsService);
-		contextOverlay.push([ChatContextKeys.isCombinedSessionViewer.key, true]);
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(contextOverlay));
+		contextOverlay.push([ChatContextKeys.isCombinedAgentSessionsViewer.key, true]);
+		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
 		const marshalledSession: IMarshalledChatSessionContext = { session, $mid: MarshalledId.ChatSessionContext };
 		this.contextMenuService.showContextMenu({
@@ -238,8 +239,12 @@ export class AgentSessionsControl extends Disposable {
 		this.sessionsList?.openFind();
 	}
 
-	refresh(): void {
-		this.agentSessionsService.model.resolve(undefined);
+	refresh(): Promise<void> {
+		return this.agentSessionsService.model.resolve(undefined);
+	}
+
+	update(): void {
+		this.sessionsList?.updateChildren();
 	}
 
 	setVisible(visible: boolean): void {
@@ -255,9 +260,7 @@ export class AgentSessionsControl extends Disposable {
 	}
 
 	focus(): void {
-		if (this.sessionsList?.getFocus().length) {
-			this.sessionsList.domFocus();
-		}
+		this.sessionsList?.domFocus();
 	}
 
 	clearFocus(): void {

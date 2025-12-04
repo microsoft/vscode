@@ -15,7 +15,7 @@ import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { IMenu, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { TerminalLocation, TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalSettingId } from '../../../../platform/terminal/common/terminal.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
 import { openContextMenu } from './terminalContextMenu.js';
@@ -95,12 +95,6 @@ export class TerminalTabbedView extends Disposable {
 		this._tabListElement = $('.tabs-list');
 		tabListContainer.appendChild(this._tabListElement);
 		this._tabContainer.appendChild(tabListContainer);
-
-		this._register(dom.addDisposableListener(this._tabContainer, dom.EventType.DBLCLICK, async () => {
-			const instance = await this._terminalService.createTerminal({ location: TerminalLocation.Panel });
-			this._terminalGroupService.setActiveInstance(instance);
-			await instance.focusWhenReady();
-		}));
 
 		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 		this._tabsListMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, contextKeyService));

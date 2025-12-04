@@ -65,6 +65,7 @@ export class ChatEditingModifiedNotebookDiff {
 			isFinal: true,
 			modifiedURI: this.modified.snapshotUri,
 			originalURI: this.original.snapshotUri,
+			isBusy: false,
 		};
 	}
 }
