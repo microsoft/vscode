@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from '../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { localize } from '../../../../nls.js';
@@ -94,6 +96,7 @@ export class ChatViewTitleControl extends Disposable {
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.ChatViewSessionTitleToolbar, { menuOptions: { shouldForwardArgs: true } }));
 
 		this.titleContainer = elements.root;
+
 		this.titleLabel = elements.label;
 
 		parent.appendChild(this.titleContainer);
@@ -112,7 +115,8 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private doUpdate(): void {
-		this.title = this.model?.title;
+		const markdownTitle = new MarkdownString(this.model?.title ?? '');
+		this.title = renderAsPlaintext(markdownTitle);
 
 		this.delegate.updateTitle(this.getTitleWithPrefix());
 
