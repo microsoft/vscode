@@ -3,7 +3,7 @@
 agent: Engineering
 model: Claude Sonnet 4.5 (copilot)
 argument-hint: Describe your issue. Include relevant keywords or phrases.
-description: Search for an existing vscode GitHub issue
+description: Search for an existing VS Code GitHub issue
 tools:
   - github/*
   - agent/runSubagent
