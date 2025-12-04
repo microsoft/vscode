@@ -27,7 +27,7 @@ import { ChatViewId } from './chat.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions/agentSessions.js';
 import { opaque, registerColor, transparent } from '../../../../platform/theme/common/colorUtils.js';
 import { inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
-import { PANEL_BACKGROUND } from '../../../common/theme.js';
+import { SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 
 export interface IChatViewTitleDelegate {
 	updateTitle(title: string): void;
@@ -259,6 +259,6 @@ export class ChatViewTitleControl extends Disposable {
 
 export const sessionListBackground = registerColor(
 	'sessionList.background',
-	opaque(transparent(inputBackground, 0.5), PANEL_BACKGROUND),
+	opaque(transparent(inputBackground, 0.5), SIDE_BAR_BACKGROUND),
 	localize('sessionList.background', "Background color of the agent session list in the Chat view.")
 );
