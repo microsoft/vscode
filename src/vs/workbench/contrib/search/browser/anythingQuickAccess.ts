@@ -57,6 +57,7 @@ import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQui
 import { IQuickChatService } from '../../chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
+import { UseExcludesAndIgnoreFilesToggle } from './useExcludesAndIgnoreFilesToggle.js';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -92,7 +93,6 @@ interface IAnythingPickState extends IDisposable {
 	set(picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }>): void;
 }
 
-
 export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnythingQuickPickItem> {
 
 	static PREFIX = '';
@@ -108,6 +108,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	private static SYMBOL_PICKS_MERGE_DELAY = 200; // allow some time to merge fast and slow picks to reduce flickering
 
 	private readonly pickState: IAnythingPickState;
+
+	private excludeToggle?: UseExcludesAndIgnoreFilesToggle;
 
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
 		if (this.configuration.preserveInput) {
@@ -222,6 +224,19 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Update the pick state for this run
 		this.pickState.set(picker);
+
+		// Each picker instance needs its own toggle instance to ensure
+		// that onChange listeners are properly scoped to the lifecycle of that picker.
+		// Reusing the same toggle instance across multiple pickers causes event listeners
+		// to not fire properly.
+		this.excludeToggle = disposables.add(this.instantiationService.createInstance(UseExcludesAndIgnoreFilesToggle));
+		picker.toggles = [this.excludeToggle];
+
+		// Handle exclude toggle state changes
+		disposables.add(this.excludeToggle.onChange(_ => {
+			// Reload the picker to reflect the query parameter change
+			picker.reload();
+		}));
 
 		// Add editor decorations for active editor symbol picks
 		const editorDecorationsDisposable = disposables.add(new MutableDisposable());
@@ -713,13 +728,16 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private getFileQueryOptions(input: { filePattern?: string; cacheKey?: string; maxResults?: number }): IFileQueryBuilderOptions {
+		const disregardExcludes = this.excludeToggle ? (!this.excludeToggle.checked) : false;
 		return {
 			_reason: 'openFileHandler', // used for telemetry - do not change
 			extraFileResources: this.instantiationService.invokeFunction(getOutOfWorkspaceEditorResources),
 			filePattern: input.filePattern || '',
-			cacheKey: input.cacheKey,
+			cacheKey: input.cacheKey ? `useExcludesAndIgnoreFiles:${!disregardExcludes}:${input.cacheKey}` : undefined,
 			maxResults: input.maxResults || 0,
-			sortByScore: true
+			sortByScore: true,
+			disregardIgnoreFiles: disregardExcludes,
+			disregardExcludeSettings: disregardExcludes
 		};
 	}
 
