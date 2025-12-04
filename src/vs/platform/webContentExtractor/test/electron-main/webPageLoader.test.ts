@@ -21,6 +21,7 @@ class MockWebContents {
 	public readonly debugger: MockDebugger;
 	public loadURL = sinon.stub().resolves();
 	public getTitle = sinon.stub().returns('Test Page Title');
+	public executeJavaScript = sinon.stub().resolves(undefined);
 
 	public session = {
 		webRequest: {
@@ -192,6 +193,38 @@ suite('WebPageLoader', () => {
 			assert.strictEqual(result.error, 'ERR_CONNECTION_REFUSED');
 		}
 	});
+
+	test('ERR_ABORTED is ignored and content extraction continues', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		const axNodes = createMockAXNodes();
+
+		const loader = createWebPageLoader(uri);
+
+		window.webContents.debugger.sendCommand.callsFake((command: string) => {
+			switch (command) {
+				case 'Network.enable':
+					return Promise.resolve();
+				case 'Accessibility.getFullAXTree':
+					return Promise.resolve({ nodes: axNodes });
+				default:
+					assert.fail(`Unexpected command: ${command}`);
+			}
+		});
+
+		const loadPromise = loader.load();
+
+		// Simulate ERR_ABORTED (-3) which should be ignored
+		const mockEvent: MockElectronEvent = {};
+		window.webContents.emit('did-fail-load', mockEvent, -3, 'ERR_ABORTED');
+
+		const result = await loadPromise;
+
+		// ERR_ABORTED should not cause an error status, content should be extracted
+		assert.strictEqual(result.status, 'ok');
+		if (result.status === 'ok') {
+			assert.ok(result.result.includes('Test content from page'));
+		}
+	}));
 
 	//#endregion
 
@@ -554,8 +587,17 @@ suite('WebPageLoader', () => {
 		}
 	}));
 
-	test('handles empty accessibility tree', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const uri = URI.parse('https://example.com/empty');
+	test('falls back to DOM extraction when accessibility tree yields insufficient content', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/page');
+		// Create AX tree with very short content (less than MIN_CONTENT_LENGTH)
+		const shortAXNodes: AXNode[] = [
+			{
+				nodeId: 'node1',
+				ignored: false,
+				role: { type: 'role', value: 'StaticText' },
+				name: { type: 'string', value: 'Short' }
+			}
+		];
 
 		const loader = createWebPageLoader(uri);
 
@@ -564,11 +606,15 @@ suite('WebPageLoader', () => {
 				case 'Network.enable':
 					return Promise.resolve();
 				case 'Accessibility.getFullAXTree':
-					return Promise.resolve({ nodes: [] });
+					return Promise.resolve({ nodes: shortAXNodes });
 				default:
 					assert.fail(`Unexpected command: ${command}`);
 			}
 		});
+
+		// Mock DOM extraction returning longer content
+		const domContent = 'This is much longer content extracted from the DOM that exceeds the minimum content length requirement and should be used instead of the short accessibility tree content.';
+		window.webContents.executeJavaScript.resolves(domContent);
 
 		const loadPromise = loader.load();
 
@@ -579,12 +625,14 @@ suite('WebPageLoader', () => {
 
 		assert.strictEqual(result.status, 'ok');
 		if (result.status === 'ok') {
-			assert.strictEqual(result.result, '');
+			assert.strictEqual(result.result, domContent);
 		}
+		// Verify executeJavaScript was called for DOM extraction
+		assert.ok(window.webContents.executeJavaScript.called);
 	}));
 
-	test('handles accessibility extraction failure', async () => {
-		const uri = URI.parse('https://example.com/page');
+	test('returns error when both accessibility tree and DOM extraction yield no content', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const uri = URI.parse('https://example.com/empty-page');
 
 		const loader = createWebPageLoader(uri);
 
@@ -593,11 +641,15 @@ suite('WebPageLoader', () => {
 				case 'Network.enable':
 					return Promise.resolve();
 				case 'Accessibility.getFullAXTree':
-					return Promise.reject(new Error('Debugger detached'));
+					// Return empty accessibility tree
+					return Promise.resolve({ nodes: [] });
 				default:
 					assert.fail(`Unexpected command: ${command}`);
 			}
 		});
+
+		// Mock DOM extraction returning undefined (no content)
+		window.webContents.executeJavaScript.resolves(undefined);
 
 		const loadPromise = loader.load();
 
@@ -608,9 +660,11 @@ suite('WebPageLoader', () => {
 
 		assert.strictEqual(result.status, 'error');
 		if (result.status === 'error') {
-			assert.ok(result.error.includes('Debugger detached'));
+			assert.ok(result.error.includes('Failed to extract meaningful content'));
 		}
-	});
+		// Verify both extraction methods were attempted
+		assert.ok(window.webContents.executeJavaScript.called);
+	}));
 
 	//#endregion
 
