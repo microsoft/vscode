@@ -173,8 +173,8 @@ export class RenameInferenceEngine {
 			const originalStartColumn = change.originalStart + 1;
 			const isInsertion = change.originalLength === 0 && change.modifiedLength > 0;
 			let tokenInfo: { type: StandardTokenType; range: Range };
-			// word info is left aligned where as token info is right aligned for insertions.
-			// We prefer a suffix insertion for renames so we take the work range for the token info.
+			// Word info is left aligned whereas token info is right aligned for insertions.
+			// We prefer a suffix insertion for renames so we take the word range for the token info.
 			if (isInsertion && originalStartColumn === wordRange.endColumn && wordRange.endColumn > wordRange.startColumn) {
 				tokenInfo = this.getTokenAtPosition(textModel, new Position(startPos.lineNumber, wordRange.startColumn));
 			} else {
