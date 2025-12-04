@@ -72,14 +72,8 @@ export class WebPageLoader extends Disposable {
 			.once('did-finish-load', this.onFinishLoad.bind(this))
 			.once('did-fail-load', this.onFailLoad.bind(this))
 			.once('will-navigate', this.onRedirect.bind(this))
-			.once('will-redirect', this.onRedirect.bind(this));
-
-		// Disable any UI interactions that could interfere with content loading.
-		this._window.webContents
-			.on('login', (event) => event.preventDefault())
-			.on('select-client-certificate', (event) => event.preventDefault())
-			.on('certificate-error', (event) => event.preventDefault());
-
+			.once('will-redirect', this.onRedirect.bind(this))
+			.on('select-client-certificate', (event) => event.preventDefault());
 	}
 
 	private trace(message: string) {
