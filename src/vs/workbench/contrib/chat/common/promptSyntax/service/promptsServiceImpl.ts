@@ -30,7 +30,7 @@ import { getCleanPromptName } from '../config/promptFileLocations.js';
 import { PROMPT_LANGUAGE_ID, PromptsType, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgent, ExtensionAgentSourceType, CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
+import { IAgentInstructions, IAgentSource, IChatPromptSlashCommand, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPromptPath, IPromptsService, IClaudeSkill, IUserPromptPath, PromptsStorage, ICustomAgentQueryOptions, IExternalCustomAgentResource, ExtensionAgentSourceType, CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT, IInstructionQueryOptions, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 
@@ -166,7 +166,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly customAgentsProviders: Array<{
 		extension: IExtensionDescription;
 		onDidChangeCustomAgents?: Event<void>;
-		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
+	}> = [];
+
+	/**
+	 * Registry of InstructionsProvider instances. Extensions can register providers via the proposed API.
+	 */
+	private readonly instructionsProviders: Array<{
+		extension: IExtensionDescription;
+		onDidChangeInstructions?: Event<void>;
+		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
 	}> = [];
 
 	/**
@@ -175,7 +184,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	public registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
 		onDidChangeCustomAgents?: Event<void>;
-		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
 	}): IDisposable {
 		const providerEntry = { extension, ...provider };
 		this.customAgentsProviders.push(providerEntry);
@@ -201,6 +210,40 @@ export class PromptsService extends Disposable implements IPromptsService {
 					this.customAgentsProviders.splice(index, 1);
 					this.cachedFileLocations[PromptsType.agent] = undefined;
 					this.cachedCustomAgents.refresh();
+				}
+			}
+		});
+
+		return disposables;
+	}
+
+	/**
+	 * Registers an InstructionsProvider. This will be called by the extension host bridge when
+	 * an extension registers a provider via vscode.chat.registerInstructionsProvider().
+	 */
+	public registerInstructionsProvider(extension: IExtensionDescription, provider: {
+		onDidChangeInstructions?: Event<void>;
+		provideInstructions: (options: IInstructionQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgentResource[] | undefined>;
+	}): IDisposable {
+		const providerEntry = { extension, ...provider };
+		this.instructionsProviders.push(providerEntry);
+
+		const disposables = new DisposableStore();
+
+		// Listen to provider change events
+		if (provider.onDidChangeInstructions) {
+			disposables.add(provider.onDidChangeInstructions(() => {
+				// Invalidate instruction cache when providers change
+				this.cachedFileLocations[PromptsType.instructions] = undefined;
+			}));
+		}
+
+		disposables.add({
+			dispose: () => {
+				const index = this.instructionsProviders.findIndex((p) => p === providerEntry);
+				if (index >= 0) {
+					this.instructionsProviders.splice(index, 1);
+					this.cachedFileLocations[PromptsType.instructions] = undefined;
 				}
 			}
 		});
@@ -254,6 +297,52 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return result;
 	}
 
+	private async listInstructionsFromProvider(token: CancellationToken): Promise<IPromptPath[]> {
+		const result: IPromptPath[] = [];
+
+		if (this.instructionsProviders.length === 0) {
+			return result;
+		}
+
+		// Activate extensions that might provide instructions
+		await this.extensionService.activateByEvent(INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT);
+
+		// Collect instructions from all providers
+		for (const providerEntry of this.instructionsProviders) {
+			try {
+				const instructions = await providerEntry.provideInstructions({}, token);
+				if (!instructions || token.isCancellationRequested) {
+					continue;
+				}
+
+				for (const instruction of instructions) {
+					if (!instruction.isEditable) {
+						try {
+							await this.filesConfigService.updateReadonly(instruction.uri, true);
+						} catch (e) {
+							const msg = e instanceof Error ? e.message : String(e);
+							this.logger.error(`[listInstructionsFromProvider] Failed to make instruction file readonly: ${instruction.uri}`, msg);
+						}
+					}
+
+					result.push({
+						uri: instruction.uri,
+						name: instruction.name,
+						description: instruction.description,
+						storage: PromptsStorage.extension,
+						type: PromptsType.instructions,
+						extension: providerEntry.extension,
+						source: ExtensionAgentSourceType.provider
+					} satisfies IExtensionPromptPath);
+				}
+			} catch (e) {
+				this.logger.error(`[listInstructionsFromProvider] Failed to get instructions from provider`, e instanceof Error ? e.message : String(e));
+			}
+		}
+
+		return result;
+	}
+
 
 
 	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
@@ -275,6 +364,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (type === PromptsType.agent) {
 			const providerAgents = await this.listCustomAgentsFromProvider(token);
 			return [...contributedFiles, ...providerAgents];
+		}
+		if (type === PromptsType.instructions) {
+			const providerInstructions = await this.listInstructionsFromProvider(token);
+			return [...contributedFiles, ...providerInstructions];
 		}
 		return contributedFiles;
 	}
