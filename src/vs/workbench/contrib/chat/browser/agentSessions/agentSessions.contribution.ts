@@ -73,7 +73,7 @@ registerAction2(FindAgentSessionAction);
 registerAction2(ShowAgentSessionsSidebar);
 registerAction2(HideAgentSessionsSidebar);
 
-MenuRegistry.appendMenuItem(MenuId.AgentSessionsTitle, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsViewTitle, {
 	submenu: MenuId.AgentSessionsFilterSubMenu,
 	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
 	group: 'navigation',
@@ -81,7 +81,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsTitle, {
 	icon: Codicon.filter
 } satisfies ISubmenuItem);
 
-MenuRegistry.appendMenuItem(MenuId.ChatViewSessionsToolbar, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	command: {
 		id: ShowAgentSessionsSidebar.ID,
 		title: ShowAgentSessionsSidebar.TITLE,
@@ -95,7 +95,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatViewSessionsToolbar, {
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.ChatViewSessionsToolbar, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	command: {
 		id: ShowAgentSessionsSidebar.ID,
 		title: ShowAgentSessionsSidebar.TITLE,
@@ -109,7 +109,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatViewSessionsToolbar, {
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.ChatViewSessionsToolbar, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	command: {
 		id: HideAgentSessionsSidebar.ID,
 		title: HideAgentSessionsSidebar.TITLE,
@@ -123,7 +123,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatViewSessionsToolbar, {
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.ChatViewSessionsToolbar, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	command: {
 		id: HideAgentSessionsSidebar.ID,
 		title: HideAgentSessionsSidebar.TITLE,

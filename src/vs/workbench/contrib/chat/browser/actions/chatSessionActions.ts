@@ -246,7 +246,7 @@ export class ToggleAgentSessionsViewLocationAction extends Action2 {
 }
 
 // Register the menu item - show for all local chat sessions (including history items)
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 	command: {
 		id: RenameChatSessionAction.id,
 		title: localize('renameSession', "Rename"),
@@ -261,7 +261,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 });
 
 // Register delete menu item - only show for non-active sessions (history items)
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 	command: {
 		id: DeleteChatSessionAction.id,
 		title: localize('deleteSession', "Delete"),
@@ -275,7 +275,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 	command: {
 		id: OpenChatSessionInSidebarAction.id,
 		title: localize('openSessionInSidebar', "Open in Sidebar")

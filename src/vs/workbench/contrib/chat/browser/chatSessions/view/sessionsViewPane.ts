@@ -139,7 +139,7 @@ export class SessionsViewPane extends ViewPane {
 			icon: Codicon.plus,
 		}, undefined, undefined, undefined, undefined);
 
-		const actions = this.menuService.getMenuActions(MenuId.ChatSessionsMenu, this.scopedContextKeyService, { shouldForwardArgs: true });
+		const actions = this.menuService.getMenuActions(MenuId.AgentSessionsContext, this.scopedContextKeyService, { shouldForwardArgs: true });
 		const primaryActions = getActionBarActions(
 			actions,
 			'submenu',
@@ -494,7 +494,7 @@ export class SessionsViewPane extends ViewPane {
 		};
 
 		// Create menu for this session item to get actions
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, contextKeyService);
+		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, contextKeyService);
 
 		// Get actions and filter for context menu (all actions that are NOT inline)
 		const actions = menu.getActions({ arg: marshalledSession, shouldForwardArgs: true });

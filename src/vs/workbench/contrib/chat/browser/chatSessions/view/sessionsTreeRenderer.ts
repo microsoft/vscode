@@ -365,7 +365,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 		// Create menu for this session item
 		const menu = templateData.elementDisposable.add(
-			this.menuService.createMenu(MenuId.ChatSessionsMenu, contextKeyService)
+			this.menuService.createMenu(MenuId.AgentSessionsContext, contextKeyService)
 		);
 
 		// Setup action bar with contributed actions

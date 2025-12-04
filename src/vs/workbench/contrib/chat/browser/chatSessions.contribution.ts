@@ -482,7 +482,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			['chatSessionType', contribution.type]
 		]);
 
-		const rawMenuActions = this._menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, contextKeyService);
+		const rawMenuActions = this._menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, contextKeyService);
 		const menuActions = rawMenuActions.map(value => value[1]).flat();
 
 		const whenClause = ContextKeyExpr.and(
@@ -513,7 +513,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				icon: Codicon.plus,
 				order: 1,
 				when: whenClause,
-				submenu: MenuId.ChatSessionsCreateSubMenu,
+				submenu: MenuId.AgentSessionsCreateSubMenu,
 				isSplitButton: menuActions.length > 1
 			}));
 		} else {
