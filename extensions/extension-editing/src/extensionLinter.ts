@@ -33,7 +33,7 @@ const dataUrlsNotValid = l10n.t("Data URLs are not a valid image source.");
 const relativeUrlRequiresHttpsRepository = l10n.t("Relative image URLs require a repository with HTTPS protocol to be specified in the package.json.");
 const relativeBadgeUrlRequiresHttpsRepository = l10n.t("Relative badge URLs require a repository with HTTPS protocol to be specified in this package.json.");
 const apiProposalNotListed = l10n.t("This proposal cannot be used because for this extension the product defines a fixed set of API proposals. You can test your extension but before publishing you MUST reach out to the VS Code team.");
-const bumpEngineForImplicitActivationEvents = l10n.t("This activation event can be removed for extensions targeting engine version ^1.75.0 as VS Code will generate these automatically from your package.json contribution declarations.");
+
 const starActivation = l10n.t("Using '*' activation is usually a bad idea as it impacts performance.");
 const parsingErrorHeader = l10n.t("Error parsing the when-clause:");
 
@@ -162,13 +162,12 @@ export class ExtensionLinter {
 				if (activationEventsNode?.type === 'array' && activationEventsNode.children) {
 					for (const activationEventNode of activationEventsNode.children) {
 						const activationEvent = getNodeValue(activationEventNode);
-						const isImplicitActivationSupported = info.engineVersion && info.engineVersion?.majorBase >= 1 && info.engineVersion?.minorBase >= 75;
+						const isImplicitActivationSupported = info.engineVersion && (info.engineVersion.majorBase > 1 || (info.engineVersion.majorBase === 1 && info.engineVersion.minorBase >= 75));
 						// Redundant Implicit Activation
-						if (info.implicitActivationEvents?.has(activationEvent) && redundantImplicitActivationEventPrefixes.some((prefix) => activationEvent.startsWith(prefix))) {
+						if (isImplicitActivationSupported && info.implicitActivationEvents?.has(activationEvent) && redundantImplicitActivationEventPrefixes.some((prefix) => activationEvent.startsWith(prefix))) {
 							const start = document.positionAt(activationEventNode.offset);
 							const end = document.positionAt(activationEventNode.offset + activationEventNode.length);
-							const message = isImplicitActivationSupported ? redundantImplicitActivationEvent : bumpEngineForImplicitActivationEvents;
-							diagnostics.push(new Diagnostic(new Range(start, end), message, isImplicitActivationSupported ? DiagnosticSeverity.Warning : DiagnosticSeverity.Information));
+							diagnostics.push(new Diagnostic(new Range(start, end), redundantImplicitActivationEvent, DiagnosticSeverity.Warning));
 						}
 
 						// Reserved Implicit Activation
