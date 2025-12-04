@@ -41,7 +41,7 @@ import { EditorPool } from '../chatContentCodePools.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { DetachedTerminalCommandMirror } from '../../../../terminal/browser/chatTerminalCommandMirror.js';
 import { DetachedProcessInfo } from '../../../../terminal/browser/detachedTerminal.js';
-import { ITerminalLogService, TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation } from '../../../../../../platform/terminal/common/terminal.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { TerminalContribCommandId } from '../../../../terminal/terminalContribExports.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -50,7 +50,8 @@ import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js'
 import { Color } from '../../../../../../base/common/color.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../../../../terminal/common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../../../common/theme.js';
-
+import { editorBackground } from '../../../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 
 const MIN_OUTPUT_ROWS = 1;
 const MAX_OUTPUT_ROWS = 10;
@@ -215,7 +216,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _isSerializedInvocation: boolean;
 	private _terminalInstance: ITerminalInstance | undefined;
 	private readonly _decoration: TerminalCommandDecoration;
-	private _loggedIdMismatch = false;
 
 	private markdownPart: ChatMarkdownContentPart | undefined;
 	public get codeblocks(): IChatCodeBlockInfo[] {
@@ -245,7 +245,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITerminalLogService private readonly _terminalLogService: ITerminalLogService,
 	) {
 		super(toolInvocation);
 
@@ -451,10 +450,6 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const hasSnapshot = !!this._terminalData.terminalCommandOutput;
 		if (!resolvedCommand && !hasSnapshot) {
 			return;
-		}
-		if (resolvedCommand && resolvedCommand.id !== this._terminalData.terminalCommandId && !this._loggedIdMismatch) {
-			this._loggedIdMismatch = true;
-			this._terminalLogService.debug(`ChatTerminalToolProgressPart: Resolved command id mismatch. expected=${this._terminalData.terminalCommandId ?? 'none'}, actual=${resolvedCommand.id ?? 'none'}, session=${this._terminalData.terminalToolSessionId ?? 'none'}`);
 		}
 		let showOutputAction = this._showOutputAction.value;
 		if (!showOutputAction) {
@@ -683,6 +678,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _contentContainer: HTMLElement;
 	private readonly _terminalContainer: HTMLElement;
 	private readonly _emptyElement: HTMLElement;
+	private _lastRenderedLineCount: number | undefined;
 
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	public get onDidFocus() { return this._onDidFocusEmitter.event; }
@@ -698,7 +694,9 @@ class ChatTerminalToolOutputSection extends Disposable {
 		private readonly _getStoredTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -721,6 +719,13 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_IN, () => this._onDidFocusEmitter.fire()));
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, event => this._onDidBlurEmitter.fire(event)));
+
+		const resizeObserver = new ResizeObserver(() => this._handleResize());
+		resizeObserver.observe(this.domNode);
+		this._register(toDisposable(() => resizeObserver.disconnect()));
+
+		this._applyBackgroundColor();
+		this._register(this._themeService.onDidColorThemeChange(() => this._applyBackgroundColor()));
 	}
 
 	public async toggle(expanded: boolean): Promise<boolean> {
@@ -821,10 +826,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		}));
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
 		scrollableDomNode.tabIndex = 0;
-		const rowHeight = this._computeRowHeightPx();
-		const padding = this._getOutputPadding();
-		const maxHeight = rowHeight * MAX_OUTPUT_ROWS + padding;
-		scrollableDomNode.style.maxHeight = `${maxHeight}px`;
 		this.domNode.appendChild(scrollableDomNode);
 		this.updateAriaLabel();
 	}
@@ -863,23 +864,18 @@ class ChatTerminalToolOutputSection extends Disposable {
 		this._mirror = this._register(this._instantiationService.createInstance(DetachedTerminalCommandMirror, liveTerminalInstance.xterm!, command));
 		await this._mirror.attach(this._terminalContainer);
 		const result = await this._mirror.renderCommand();
-		if (!result) {
-			this._showEmptyMessage(localize('chat.terminalOutputPending', 'Command output will appear here once available.'));
-			return true;
-		}
-
-		if (result.lineCount === 0) {
+		if (!result || result.lineCount === 0) {
 			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
 		} else {
 			this._hideEmptyMessage();
 		}
-		this._layoutOutput(result.lineCount);
+		this._layoutOutput(result?.lineCount ?? 0);
 		return true;
 	}
 
 	private async _renderSnapshotOutput(snapshot: NonNullable<IChatTerminalToolInvocationData['terminalCommandOutput']>): Promise<void> {
 		if (this._snapshotMirror) {
-			this._layoutOutput(snapshot.lineCount);
+			this._layoutOutput(snapshot.lineCount ?? 0);
 			return;
 		}
 		dom.clearNode(this._terminalContainer);
@@ -893,14 +889,13 @@ class ChatTerminalToolOutputSection extends Disposable {
 		} else {
 			this._showEmptyMessage(localize('chat.terminalOutputEmpty', 'No output was produced by the command.'));
 		}
-		const lineCount = result?.lineCount ?? snapshot.lineCount;
-		if (lineCount) {
-			this._layoutOutput(lineCount);
-		}
+		const lineCount = result?.lineCount ?? snapshot.lineCount ?? 0;
+		this._layoutOutput(lineCount);
 	}
 
 	private _renderUnavailableMessage(liveTerminalInstance: ITerminalInstance | undefined): void {
 		dom.clearNode(this._terminalContainer);
+		this._lastRenderedLineCount = undefined;
 		if (!liveTerminalInstance) {
 			this._showEmptyMessage(localize('chat.terminalOutputTerminalMissing', 'Terminal is no longer available.'));
 		} else {
@@ -937,8 +932,31 @@ class ChatTerminalToolOutputSection extends Disposable {
 		});
 	}
 
+	private _handleResize(): void {
+		if (!this._scrollableContainer) {
+			return;
+		}
+		if (this.isExpanded) {
+			this._layoutOutput();
+			this._scrollOutputToBottom();
+		} else {
+			this._scrollableContainer.scanDomNode();
+		}
+	}
+
 	private _layoutOutput(lineCount?: number): void {
-		if (!this._scrollableContainer || !this.isExpanded || !lineCount) {
+		if (!this._scrollableContainer) {
+			return;
+		}
+
+		if (lineCount !== undefined) {
+			this._lastRenderedLineCount = lineCount;
+		} else {
+			lineCount = this._lastRenderedLineCount;
+		}
+
+		this._scrollableContainer.scanDomNode();
+		if (!this.isExpanded || lineCount === undefined) {
 			return;
 		}
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
@@ -950,7 +968,6 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const clampedHeight = Math.min(contentHeight, maxHeight);
 		const measuredBodyHeight = Math.max(this._outputBody.clientHeight, minHeight);
 		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
-		scrollableDomNode.style.maxHeight = `${maxHeight}px`;
 		scrollableDomNode.style.height = appliedHeight < maxHeight ? `${appliedHeight}px` : '';
 		this._scrollableContainer.scanDomNode();
 		if (this._renderedOutputHeight !== appliedHeight) {
@@ -991,6 +1008,15 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const rowHeight = Math.ceil(charHeight * lineHeight);
 		return Math.max(rowHeight, 1);
 	}
+
+	private _applyBackgroundColor(): void {
+		const theme = this._themeService.getColorTheme();
+		const isInEditor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService);
+		const backgroundColor = theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
+		if (backgroundColor) {
+			this.domNode.style.backgroundColor = backgroundColor.toString();
+		}
+	}
 }
 
 class DetachedTerminalSnapshotMirror extends Disposable {
@@ -1005,6 +1031,7 @@ class DetachedTerminalSnapshotMirror extends Disposable {
 		output: IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined,
 		private readonly _getTheme: () => IChatTerminalToolInvocationData['terminalTheme'] | undefined,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._output = output;
@@ -1105,7 +1132,9 @@ class DetachedTerminalSnapshotMirror extends Disposable {
 					if (terminalBackground) {
 						return terminalBackground;
 					}
-					return theme.getColor(PANEL_BACKGROUND);
+					// Use editor background when in chat editor, panel background otherwise
+					const isInEditor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService);
+					return theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
 				}
 			}
 		});

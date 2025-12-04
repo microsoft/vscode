@@ -66,6 +66,7 @@ export class RenameInferenceEngine {
 			insertText +
 			textModel.getValueInRange(new Range(extendedRange.endLineNumber, extendedRange.endColumn - endDiff, extendedRange.endLineNumber, extendedRange.endColumn));
 
+		// console.log(`Original: ${originalText} \nmodified: ${modifiedText}`);
 		const others: TextReplacement[] = [];
 		const renames: TextReplacement[] = [];
 		let oldName: string | undefined = undefined;
@@ -115,45 +116,61 @@ export class RenameInferenceEngine {
 		let tokenDiff: number = 0;
 		for (const change of changes) {
 			const originalTextSegment = originalText.substring(change.originalStart, change.originalStart + change.originalLength);
+			const insertedTextSegment = modifiedText.substring(change.modifiedStart, change.modifiedStart + change.modifiedLength);
+
+			const startOffset = nesOffset + change.originalStart;
+			const startPos = textModel.getPositionAt(startOffset);
+
+			const endOffset = startOffset + change.originalLength;
+			const endPos = textModel.getPositionAt(endOffset);
+
+			const range = Range.fromPositions(startPos, endPos);
+
+			const diff = insertedTextSegment.length - change.originalLength;
+
 			// If the original text segment contains a whitespace character we don't consider this a rename since
 			// identifiers in programming languages can't contain whitespace characters usually
 			if (/\s/.test(originalTextSegment)) {
-				return undefined;
+				others.push(new TextReplacement(range, insertedTextSegment));
+				tokenDiff += diff;
+				continue;
 			}
 			if (originalTextSegment.length > 0) {
 				wordDefinition.lastIndex = 0;
 				const match = wordDefinition.exec(originalTextSegment);
 				if (match === null || match.index !== 0 || match[0].length !== originalTextSegment.length) {
-					return undefined;
+					others.push(new TextReplacement(range, insertedTextSegment));
+					tokenDiff += diff;
+					continue;
 				}
 			}
-			const insertedTextSegment = modifiedText.substring(change.modifiedStart, change.modifiedStart + change.modifiedLength);
 			// If the inserted text contains a whitespace character we don't consider this a rename since identifiers in
 			// programming languages can't contain whitespace characters usually
 			if (/\s/.test(insertedTextSegment)) {
-				return undefined;
+				others.push(new TextReplacement(range, insertedTextSegment));
+				tokenDiff += diff;
+				continue;
 			}
 			if (insertedTextSegment.length > 0) {
 				wordDefinition.lastIndex = 0;
 				const match = wordDefinition.exec(insertedTextSegment);
 				if (match === null || match.index !== 0 || match[0].length !== insertedTextSegment.length) {
-					return undefined;
+					others.push(new TextReplacement(range, insertedTextSegment));
+					tokenDiff += diff;
+					continue;
 				}
 			}
 
-			const startOffset = nesOffset + change.originalStart;
-			const startPos = textModel.getPositionAt(startOffset);
 			const wordRange = textModel.getWordAtPosition(startPos);
 			// If we don't have a word range at the start position of the current document then we
 			// don't treat it as a rename assuming that the rename refactoring will fail as well since
 			// there can't be an identifier at that position.
 			if (wordRange === null) {
-				return undefined;
+				others.push(new TextReplacement(range, insertedTextSegment));
+				tokenDiff += diff;
+				continue;
 			}
 
-			const endOffset = startOffset + change.originalLength;
-			const endPos = textModel.getPositionAt(endOffset);
-			const range = Range.fromPositions(startPos, endPos);
 
 			const tokenInfo = this.getTokenAtPosition(textModel, startPos);
 			if (tokenInfo.type === StandardTokenType.Other) {
@@ -162,18 +179,21 @@ export class RenameInferenceEngine {
 				if (oldName === undefined) {
 					oldName = identifier;
 				} else if (oldName !== identifier) {
-					return undefined;
+					others.push(new TextReplacement(range, insertedTextSegment));
+					tokenDiff += diff;
+					continue;
 				}
 
 				// We assume that the new name starts at the same position as the old name from a token range perspective.
-				const diff = insertedTextSegment.length - change.originalLength;
 				const tokenStartPos = textModel.getOffsetAt(tokenInfo.range.getStartPosition()) - nesOffset + tokenDiff;
 				const tokenEndPos = textModel.getOffsetAt(tokenInfo.range.getEndPosition()) - nesOffset + tokenDiff;
 				identifier = modifiedText.substring(tokenStartPos, tokenEndPos + diff);
 				if (newName === undefined) {
 					newName = identifier;
 				} else if (newName !== identifier) {
-					return undefined;
+					others.push(new TextReplacement(range, insertedTextSegment));
+					tokenDiff += diff;
+					continue;
 				}
 
 				if (position === undefined) {
@@ -297,6 +317,7 @@ export class RenameSymbolProcessor extends Disposable {
 	}
 
 	public async proposeRenameRefactoring(textModel: ITextModel, suggestItem: InlineSuggestionItem): Promise<InlineSuggestionItem> {
+		//console.log('Propose rename refactoring for inline suggestion');
 		if (!suggestItem.supportsRename || suggestItem.action?.kind !== 'edit') {
 			return suggestItem;
 		}
@@ -349,6 +370,7 @@ export class RenameSymbolProcessor extends Disposable {
 			requestUuid: suggestItem.requestUuid,
 			providerId: suggestItem.source.provider.providerId,
 			languageId: textModel.getLanguageId(),
+			correlationId: suggestItem.getSourceCompletion().correlationId,
 		});
 		const command: Command = {
 			id: renameSymbolCommandId,

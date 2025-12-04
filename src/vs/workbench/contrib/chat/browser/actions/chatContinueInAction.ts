@@ -281,10 +281,12 @@ class CreateRemoteAgentJobAction {
 			const requestData = await chatService.sendRequest(sessionResource, userPrompt, {
 				agentIdSilent: continuationTargetType,
 				attachedContext: attachedContext.asArray(),
+				userSelectedModelId: widget.input.currentLanguageModel,
+				...widget.getModeRequestOptions()
 			});
 
 			if (requestData) {
-				await widget.handleDelegationExitIfNeeded(requestData.agent);
+				await widget.handleDelegationExitIfNeeded(defaultAgent, requestData.agent);
 			}
 		} catch (e) {
 			console.error('Error creating remote coding agent job', e);

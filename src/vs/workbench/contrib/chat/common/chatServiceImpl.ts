@@ -700,7 +700,9 @@ export class ChatService extends Disposable implements IChatService {
 				}
 			}));
 		} else {
-			if (lastRequest) {
+			if (lastRequest && model.editingSession) {
+				// wait for timeline to load so that a 'changes' part is added when the response completes
+				await chatEditingSessionIsReady(model.editingSession);
 				lastRequest.response?.complete();
 			}
 		}

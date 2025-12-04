@@ -19,7 +19,8 @@ export type InlineCompletionEndOfLifeEvent = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
-	sku: string | undefined;
+	skuPlan: string | undefined;
+	skuType: string | undefined;
 	// response
 	correlationId: string | undefined;
 	extensionId: string;
@@ -73,7 +74,8 @@ type InlineCompletionsEndOfLifeClassification = {
 	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that contributed the inline completion' };
 	groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The group ID of the extension that contributed the inline completion' };
 	availableProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The list of available inline completion providers at the time of the request' };
-	sku: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The SKU of the product where the inline completion was shown' };
+	skuPlan: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The the plan the user is subscribed to' };
+	skuType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The sku type of the user' };
 	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
 	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
 	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };

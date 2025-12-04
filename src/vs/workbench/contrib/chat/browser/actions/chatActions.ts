@@ -1836,8 +1836,6 @@ registerAction2(class ToggleChatViewRecentSessionsAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.toggleChatViewRecentSessions',
 			title: localize2('chat.toggleChatViewRecentSessions.label', "Show Recent Sessions"),
-			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.enabled,
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, true),
 			menu: {
 				id: MenuId.ChatWelcomeContext,
@@ -1853,5 +1851,28 @@ registerAction2(class ToggleChatViewRecentSessionsAction extends Action2 {
 
 		const chatViewRecentSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewRecentSessionsEnabled);
 		await configurationService.updateValue(ChatConfiguration.ChatViewRecentSessionsEnabled, !chatViewRecentSessionsEnabled);
+	}
+});
+
+registerAction2(class ToggleChatViewTitleAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleChatViewTitle',
+			title: localize2('chat.toggleChatViewTitle.label', "Show Chat Title"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewTitleEnabled}`, true),
+			menu: {
+				id: MenuId.ChatWelcomeContext,
+				group: '1_modify',
+				order: 2,
+				when: ChatContextKeys.inChatEditor.negate()
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const chatViewTitleEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewTitleEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewTitleEnabled, !chatViewTitleEnabled);
 	}
 });

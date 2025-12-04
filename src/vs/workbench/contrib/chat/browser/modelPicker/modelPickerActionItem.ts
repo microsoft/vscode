@@ -47,7 +47,21 @@ type ChatModelChangeEvent = {
 function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate, telemetryService: ITelemetryService): IActionWidgetDropdownActionProvider {
 	return {
 		getActions: () => {
-			return delegate.getModels().map(model => {
+			const models = delegate.getModels();
+			if (models.length === 0) {
+				// Show a fake "Auto" entry when no models are available
+				return [{
+					id: 'auto',
+					enabled: true,
+					checked: true,
+					category: DEFAULT_MODEL_PICKER_CATEGORY,
+					class: undefined,
+					tooltip: localize('chat.modelPicker.auto', "Auto"),
+					label: localize('chat.modelPicker.auto', "Auto"),
+					run: () => { }
+				} satisfies IActionWidgetDropdownAction];
+			}
+			return models.map(model => {
 				return {
 					id: model.metadata.id,
 					enabled: true,
@@ -140,7 +154,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
 			...action,
-			label: currentModel?.metadata.name ?? localize('chat.modelPicker.label', "Pick Model"),
+			label: currentModel?.metadata.name ?? localize('chat.modelPicker.auto', "Auto"),
 			tooltip: localize('chat.modelPicker.label', "Pick Model"),
 			run: () => { }
 		};
@@ -166,7 +180,7 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		if (this.currentModel?.metadata.statusIcon) {
 			domChildren.push(...renderLabelWithIcons(`\$(${this.currentModel.metadata.statusIcon.id})`));
 		}
-		domChildren.push(dom.$('span.chat-model-label', undefined, this.currentModel?.metadata.name ?? localize('chat.modelPicker.label', "Pick Model")));
+		domChildren.push(dom.$('span.chat-model-label', undefined, this.currentModel?.metadata.name ?? localize('chat.modelPicker.auto', "Auto")));
 		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
 
 		dom.reset(element, ...domChildren);

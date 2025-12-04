@@ -3,17 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable } from 'vscode';
-import { dispose, filterEvent, fromNow, getStashDescription, IDisposable } from './util';
+import { LogOutputChannel, SourceControlArtifactProvider, SourceControlArtifactGroup, SourceControlArtifact, Event, EventEmitter, ThemeIcon, l10n, workspace, Uri, Disposable, Command } from 'vscode';
+import { dispose, filterEvent, IDisposable } from './util';
 import { Repository } from './repository';
 import { Ref, RefType } from './api/git';
 import { OperationKind } from './operation';
 
 function getArtifactDescription(ref: Ref, shortCommitLength: number): string {
 	const segments: string[] = [];
-	if (ref.commitDetails?.commitDate) {
-		segments.push(fromNow(ref.commitDetails.commitDate));
-	}
 	if (ref.commit) {
 		segments.push(ref.commit.substring(0, shortCommitLength));
 	}
@@ -122,7 +119,7 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 		try {
 			if (group === 'branches') {
 				const refs = await this.repository
-					.getRefs({ pattern: 'refs/heads', includeCommitDetails: true });
+					.getRefs({ pattern: 'refs/heads', includeCommitDetails: true, sort: 'creatordate' });
 
 				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/heads/${r.name}`,
@@ -130,11 +127,12 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 					description: getArtifactDescription(r, shortCommitLength),
 					icon: this.repository.HEAD?.type === RefType.Head && r.name === this.repository.HEAD?.name
 						? new ThemeIcon('target')
-						: new ThemeIcon('git-branch')
+						: new ThemeIcon('git-branch'),
+					timestamp: r.commitDetails?.commitDate?.getTime()
 				}));
 			} else if (group === 'tags') {
 				const refs = await this.repository
-					.getRefs({ pattern: 'refs/tags', includeCommitDetails: true });
+					.getRefs({ pattern: 'refs/tags', includeCommitDetails: true, sort: 'creatordate' });
 
 				return refs.sort(sortRefByName).map(r => ({
 					id: `refs/tags/${r.name}`,
@@ -142,7 +140,8 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 					description: getArtifactDescription(r, shortCommitLength),
 					icon: this.repository.HEAD?.type === RefType.Tag && r.name === this.repository.HEAD?.name
 						? new ThemeIcon('target')
-						: new ThemeIcon('tag')
+						: new ThemeIcon('tag'),
+					timestamp: r.commitDetails?.commitDate?.getTime()
 				}));
 			} else if (group === 'stashes') {
 				const stashes = await this.repository.getStashes();
@@ -150,8 +149,13 @@ export class GitArtifactProvider implements SourceControlArtifactProvider, IDisp
 				return stashes.map(s => ({
 					id: `stash@{${s.index}}`,
 					name: s.description,
-					description: getStashDescription(s),
-					icon: new ThemeIcon('git-stash')
+					description: s.branchName,
+					icon: new ThemeIcon('git-stash'),
+					timestamp: s.commitDate?.getTime(),
+					command: {
+						title: l10n.t('View Stash'),
+						command: 'git.repositories.stashView'
+					} satisfies Command
 				}));
 			}
 		} catch (err) {

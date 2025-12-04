@@ -842,10 +842,23 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	private _createAndRegisterTreeNode(element: T, extTreeItem: vscode.TreeItem, parentNode: TreeNode | Root): TreeNode {
-		const node = this._createTreeNode(element, extTreeItem, parentNode);
-		if (extTreeItem.id && this._elements.has(node.item.handle)) {
-			throw new Error(localize('treeView.duplicateElement', 'Element with id {0} is already registered', extTreeItem.id));
+		const duplicateHandle = extTreeItem.id ? `${ExtHostTreeView.ID_HANDLE_PREFIX}/${extTreeItem.id}` : undefined;
+		if (duplicateHandle) {
+			const existingElement = this._elements.get(duplicateHandle);
+			if (existingElement) {
+				if (existingElement !== element) {
+					throw new Error(localize('treeView.duplicateElement', 'Element with id {0} is already registered', extTreeItem.id));
+				}
+				const existingNode = this._nodes.get(existingElement);
+				if (existingNode) {
+					const newNode = this._createTreeNode(element, extTreeItem, parentNode);
+					this._updateNodeCache(element, newNode, existingNode, parentNode);
+					existingNode.dispose();
+					return newNode;
+				}
+			}
 		}
+		const node = this._createTreeNode(element, extTreeItem, parentNode);
 		this._addNodeToCache(element, node);
 		this._addNodeToParentCache(node, parentNode);
 		return node;

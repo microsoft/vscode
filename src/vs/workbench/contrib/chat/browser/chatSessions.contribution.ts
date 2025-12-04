@@ -41,6 +41,11 @@ import { IChatModel } from '../common/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../common/chatService.js';
 import { autorun, autorunIterableDelta } from '../../../../base/common/observable.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ChatViewId } from './chat.js';
+import { ChatViewPane } from './chatViewPane.js';
 
 const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsExtensionPoint[]>({
 	extensionPoint: 'chatSessions',
@@ -260,6 +265,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _onDidChangeContentProviderSchemes = this._register(new Emitter<{ readonly added: string[]; readonly removed: string[] }>());
 	public get onDidChangeContentProviderSchemes() { return this._onDidChangeContentProviderSchemes.event; }
+	private readonly _onDidChangeSessionOptions = this._register(new Emitter<{ readonly resource: URI; readonly updates: ReadonlyArray<{ optionId: string; value: string }> }>());
+	public get onDidChangeSessionOptions() { return this._onDidChangeSessionOptions.event; }
 
 	private readonly inProgressMap: Map<string, number> = new Map();
 	private readonly _sessionTypeOptions: Map<string, IChatSessionProviderOptionGroup[]> = new Map();
@@ -552,6 +559,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					}
 				}
 			}),
+			// Creates a chat editor
 			registerAction2(class OpenNewChatSessionEditorAction extends Action2 {
 				constructor() {
 					super({
@@ -559,12 +567,8 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						title: localize2('interactiveSession.openNewSessionEditor', "New {0}", contribution.displayName),
 						category: CHAT_CATEGORY,
 						icon: Codicon.plus,
-						f1: true, // Show in command palette
+						f1: true,
 						precondition: ChatContextKeys.enabled,
-						menu: {
-							id: MenuId.ChatNewMenu,
-							group: '3_new_special',
-						}
 					});
 				}
 
@@ -592,6 +596,46 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						}
 					} catch (e) {
 						logService.error(`Failed to open new '${type}' chat session editor`, e);
+					}
+				}
+			}),
+			// New chat in sidebar chat (+ button)
+			registerAction2(class OpenNewChatSessionSidebarAction extends Action2 {
+				constructor() {
+					super({
+						id: `workbench.action.chat.openNewSessionSidebar.${contribution.type}`,
+						title: localize2('interactiveSession.openNewSessionSidebar', "New {0}", contribution.displayName),
+						category: CHAT_CATEGORY,
+						icon: Codicon.plus,
+						f1: false, // Hide from Command Palette
+						precondition: ChatContextKeys.enabled,
+						menu: {
+							id: MenuId.ChatNewMenu,
+							group: '3_new_special',
+						}
+					});
+				}
+
+				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
+					const viewsService = accessor.get(IViewsService);
+					const logService = accessor.get(ILogService);
+					const chatService = accessor.get(IChatService);
+					const { type } = contribution;
+
+					try {
+						const resource = URI.from({
+							scheme: type,
+							path: `/untitled-${generateUuid()}`,
+						});
+
+						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
+						await view.loadSession(resource);
+						if (chatOptions?.prompt) {
+							await chatService.sendRequest(resource, chatOptions.prompt, { agentIdSilent: type, attachedContext: chatOptions.attachedContext });
+						}
+						view.focus();
+					} catch (e) {
+						logService.error(`Failed to open new '${type}' chat session in sidebar`, e);
 					}
 				}
 			})
@@ -888,7 +932,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		// Get the response parts to find tool invocations and progress messages
 		const responseParts = response.response.value;
-		let description: string = '';
+		let description: string | IMarkdownString | undefined = '';
 
 		for (let i = responseParts.length - 1; i >= 0; i--) {
 			const part = responseParts[i];
@@ -902,36 +946,24 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				if (state.type !== IChatToolInvocation.StateKind.Completed) {
 					const pastTenseMessage = toolInvocation.pastTenseMessage;
 					const invocationMessage = toolInvocation.invocationMessage;
-					const message = pastTenseMessage || invocationMessage;
-					description = typeof message === 'string' ? message : message?.value ?? '';
+					description = pastTenseMessage || invocationMessage;
 
-					if (description) {
-						description = this.extractFileNameFromLink(description);
-					}
 					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
 						const message = toolInvocation.confirmationMessages?.title && (typeof toolInvocation.confirmationMessages.title === 'string'
 							? toolInvocation.confirmationMessages.title
 							: toolInvocation.confirmationMessages.title.value);
-						description = message ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", description);
+						description = message ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", typeof description === 'string' ? description : description.value);
 					}
 				}
 			}
 			if (!description && part.kind === 'toolInvocationSerialized') {
-				description = typeof part.invocationMessage === 'string' ? part.invocationMessage : part.invocationMessage?.value || '';
+				description = part.invocationMessage;
 			}
 			if (!description && part.kind === 'progressMessage') {
-				description = part.content.value || '';
+				description = part.content;
 			}
 		}
-
-		return description;
-	}
-
-	private extractFileNameFromLink(filePath: string): string {
-		return filePath.replace(/\[(?<linkText>[^\]]*)\]\(file:\/\/\/(?<path>[^)]+)\)/g, (match: string, _p1: string, _p2: string, _offset: number, _string: string, groups?: { linkText?: string; path?: string }) => {
-			const fileName = groups?.path?.split('/').pop() || groups?.path || '';
-			return (groups?.linkText?.trim() || fileName);
-		});
+		return renderAsPlaintext(description, { useLinkFormatter: true });
 	}
 
 	/**
@@ -1070,6 +1102,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		for (const u of updates) {
 			this.setSessionOption(sessionResource, u.optionId, u.value);
 		}
+		this._onDidChangeSessionOptions.fire({ resource: sessionResource, updates });
 	}
 
 	/**
