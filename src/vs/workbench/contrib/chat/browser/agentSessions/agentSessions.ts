@@ -53,3 +53,13 @@ export function openAgentSessionsView(accessor: ServicesAccessor): void {
 		viewService.openViewContainer(LEGACY_AGENT_SESSIONS_VIEW_ID, true);
 	}
 }
+
+export enum SessionsViewerOrientation {
+	Stacked = 1,
+	SideBySide,
+}
+
+export enum SessionsViewerPosition {
+	Left = 1,
+	Right,
+}

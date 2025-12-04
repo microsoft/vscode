@@ -24,6 +24,7 @@ import { hasProvider, rawRename } from '../../../rename/browser/rename.js';
 import { renameSymbolCommandId } from '../controller/commandIds.js';
 import { InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { IInlineSuggestDataActionEdit } from './provideInlineCompletions.js';
+import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction.js';
 
 enum RenameKind {
 	no = 'no',
@@ -65,6 +66,7 @@ export class RenameInferenceEngine {
 			insertText +
 			textModel.getValueInRange(new Range(extendedRange.endLineNumber, extendedRange.endColumn - endDiff, extendedRange.endLineNumber, extendedRange.endColumn));
 
+		// console.log(`Original: ${originalText} \nmodified: ${modifiedText}`);
 		const others: TextReplacement[] = [];
 		const renames: TextReplacement[] = [];
 		let oldName: string | undefined = undefined;
@@ -114,45 +116,61 @@ export class RenameInferenceEngine {
 		let tokenDiff: number = 0;
 		for (const change of changes) {
 			const originalTextSegment = originalText.substring(change.originalStart, change.originalStart + change.originalLength);
+			const insertedTextSegment = modifiedText.substring(change.modifiedStart, change.modifiedStart + change.modifiedLength);
+
+			const startOffset = nesOffset + change.originalStart;
+			const startPos = textModel.getPositionAt(startOffset);
+
+			const endOffset = startOffset + change.originalLength;
+			const endPos = textModel.getPositionAt(endOffset);
+
+			const range = Range.fromPositions(startPos, endPos);
+
+			const diff = insertedTextSegment.length - change.originalLength;
+
 			// If the original text segment contains a whitespace character we don't consider this a rename since
 			// identifiers in programming languages can't contain whitespace characters usually
 			if (/\s/.test(originalTextSegment)) {
-				return undefined;
+				others.push(new TextReplacement(range, insertedTextSegment));
+				tokenDiff += diff;
+				continue;
 			}
 			if (originalTextSegment.length > 0) {
 				wordDefinition.lastIndex = 0;
 				const match = wordDefinition.exec(originalTextSegment);
 				if (match === null || match.index !== 0 || match[0].length !== originalTextSegment.length) {
-					return undefined;
+					others.push(new TextReplacement(range, insertedTextSegment));
+					tokenDiff += diff;
+					continue;
 				}
 			}
-			const insertedTextSegment = modifiedText.substring(change.modifiedStart, change.modifiedStart + change.modifiedLength);
 			// If the inserted text contains a whitespace character we don't consider this a rename since identifiers in
 			// programming languages can't contain whitespace characters usually
 			if (/\s/.test(insertedTextSegment)) {
-				return undefined;
+				others.push(new TextReplacement(range, insertedTextSegment));
+				tokenDiff += diff;
+				continue;
 			}
 			if (insertedTextSegment.length > 0) {
 				wordDefinition.lastIndex = 0;
 				const match = wordDefinition.exec(insertedTextSegment);
 				if (match === null || match.index !== 0 || match[0].length !== insertedTextSegment.length) {
-					return undefined;
+					others.push(new TextReplacement(range, insertedTextSegment));
+					tokenDiff += diff;
+					continue;
 				}
 			}
 
-			const startOffset = nesOffset + change.originalStart;
-			const startPos = textModel.getPositionAt(startOffset);
 			const wordRange = textModel.getWordAtPosition(startPos);
 			// If we don't have a word range at the start position of the current document then we
 			// don't treat it as a rename assuming that the rename refactoring will fail as well since
 			// there can't be an identifier at that position.
 			if (wordRange === null) {
-				return undefined;
+				others.push(new TextReplacement(range, insertedTextSegment));
+				tokenDiff += diff;
+				continue;
 			}
 
-			const endOffset = startOffset + change.originalLength;
-			const endPos = textModel.getPositionAt(endOffset);
-			const range = Range.fromPositions(startPos, endPos);
 
 			const tokenInfo = this.getTokenAtPosition(textModel, startPos);
 			if (tokenInfo.type === StandardTokenType.Other) {
@@ -161,18 +179,21 @@ export class RenameInferenceEngine {
 				if (oldName === undefined) {
 					oldName = identifier;
 				} else if (oldName !== identifier) {
-					return undefined;
+					others.push(new TextReplacement(range, insertedTextSegment));
+					tokenDiff += diff;
+					continue;
 				}
 
 				// We assume that the new name starts at the same position as the old name from a token range perspective.
-				const diff = insertedTextSegment.length - change.originalLength;
 				const tokenStartPos = textModel.getOffsetAt(tokenInfo.range.getStartPosition()) - nesOffset + tokenDiff;
 				const tokenEndPos = textModel.getOffsetAt(tokenInfo.range.getEndPosition()) - nesOffset + tokenDiff;
 				identifier = modifiedText.substring(tokenStartPos, tokenEndPos + diff);
 				if (newName === undefined) {
 					newName = identifier;
 				} else if (newName !== identifier) {
-					return undefined;
+					others.push(new TextReplacement(range, insertedTextSegment));
+					tokenDiff += diff;
+					continue;
 				}
 
 				if (position === undefined) {
@@ -227,7 +248,7 @@ class RenameSymbolRunnable {
 	private readonly _promise: Promise<WorkspaceEdit & Rejection>;
 	private _result: WorkspaceEdit & Rejection | undefined = undefined;
 
-	constructor(languageFeaturesService: ILanguageFeaturesService, textModel: ITextModel, position: Position, newName: string, source: TextModelEditSource) {
+	constructor(languageFeaturesService: ILanguageFeaturesService, textModel: ITextModel, position: Position, newName: string) {
 		this._cancellationTokenSource = new CancellationTokenSource();
 		this._promise = rawRename(languageFeaturesService.renameProvider, textModel, position, newName, this._cancellationTokenSource.token);
 	}
@@ -282,7 +303,7 @@ export class RenameSymbolProcessor extends Disposable {
 			if (self._renameRunnable.id !== id) {
 				self._renameRunnable.runnable.cancel();
 				self._renameRunnable = undefined;
-				const runnable = new RenameSymbolRunnable(self._languageFeaturesService, textModel, position, newName, source);
+				const runnable = new RenameSymbolRunnable(self._languageFeaturesService, textModel, position, newName);
 				workspaceEdit = await runnable.getWorkspaceEdit();
 			} else {
 				workspaceEdit = await self._renameRunnable.runnable.getWorkspaceEdit();
@@ -296,6 +317,7 @@ export class RenameSymbolProcessor extends Disposable {
 	}
 
 	public async proposeRenameRefactoring(textModel: ITextModel, suggestItem: InlineSuggestionItem): Promise<InlineSuggestionItem> {
+		//console.log('Propose rename refactoring for inline suggestion');
 		if (!suggestItem.supportsRename || suggestItem.action?.kind !== 'edit') {
 			return suggestItem;
 		}
@@ -304,12 +326,11 @@ export class RenameSymbolProcessor extends Disposable {
 			return suggestItem;
 		}
 
-		const edit = suggestItem.action.textReplacement;
-
 		const start = Date.now();
-
+		const edit = suggestItem.action.textReplacement;
 		const languageConfiguration = this._languageConfigurationService.getLanguageConfiguration(textModel.getLanguageId());
 
+		// Check synchronously if a rename is possible
 		const edits = this._renameInferenceEngine.inferRename(textModel, edit.range, edit.text, languageConfiguration.wordDefinition);
 		if (edits === undefined || edits.renames.edits.length === 0) {
 			return suggestItem;
@@ -317,6 +338,7 @@ export class RenameSymbolProcessor extends Disposable {
 
 		const { oldName, newName, position, edits: renameEdits } = edits.renames;
 
+		// Check asynchronously if a rename is possible
 		let timedOut = false;
 		const check = await raceTimeout<RenameKind>(this.checkRenamePrecondition(suggestItem, textModel, position, oldName, newName), 1000, () => { timedOut = true; });
 		const renamePossible = check === RenameKind.yes || check === RenameKind.maybe;
@@ -333,34 +355,42 @@ export class RenameSymbolProcessor extends Disposable {
 			return suggestItem;
 		}
 
+		// Prepare the rename edits
 		const id = suggestItem.identity.id;
+		if (this._renameRunnable !== undefined) {
+			this._renameRunnable.runnable.cancel();
+			this._renameRunnable = undefined;
+		}
+		const runnable = new RenameSymbolRunnable(this._languageFeaturesService, textModel, position, newName);
+		this._renameRunnable = { id, runnable };
+
+		// Create alternative action
 		const source = EditSources.inlineCompletionAccept({
 			nes: suggestItem.isInlineEdit,
 			requestUuid: suggestItem.requestUuid,
 			providerId: suggestItem.source.provider.providerId,
 			languageId: textModel.getLanguageId(),
+			correlationId: suggestItem.getSourceCompletion().correlationId,
 		});
 		const command: Command = {
 			id: renameSymbolCommandId,
 			title: localize('rename', "Rename"),
 			arguments: [textModel, position, newName, source, id],
 		};
-		const textReplacement = renameEdits[0];
+		const alternativeAction: InlineSuggestAlternativeAction = {
+			label: localize('rename', "Rename"),
+			//icon: Codicon.replaceAll,
+			command,
+			count: runnable.getCount(),
+		};
 		const renameAction: IInlineSuggestDataActionEdit = {
 			kind: 'edit',
-			range: textReplacement.range,
-			insertText: textReplacement.text,
+			range: renameEdits[0].range,
+			insertText: renameEdits[0].text,
 			snippetInfo: suggestItem.snippetInfo,
-			alternativeAction: command,
+			alternativeAction,
 			uri: textModel.uri
 		};
-
-		if (this._renameRunnable !== undefined) {
-			this._renameRunnable.runnable.cancel();
-			this._renameRunnable = undefined;
-		}
-		const runnable = new RenameSymbolRunnable(this._languageFeaturesService, textModel, position, newName, source);
-		this._renameRunnable = { id, runnable };
 
 		return InlineSuggestionItem.create(suggestItem.withAction(renameAction), textModel);
 	}

@@ -202,6 +202,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	getMostRecentProgressPart(): IChatTerminalToolProgressPart | undefined {
+		if (!this._mostRecentProgressPart || !this._activeProgressParts.has(this._mostRecentProgressPart)) {
+			this._mostRecentProgressPart = this._getLastActiveProgressPart();
+		}
 		return this._mostRecentProgressPart;
 	}
 

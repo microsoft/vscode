@@ -116,6 +116,7 @@ export class LongDistancePreviewEditor extends Disposable {
 					props.inlineSuggestInfo,
 					LineRange.ofLength(state.visibleLineRange.startLineNumber, 1),
 					props.model,
+					undefined,
 				);
 			}),
 			this._tabAction,

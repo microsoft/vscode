@@ -86,6 +86,8 @@ import { IInlineChatSessionService } from '../../browser/inlineChatSessionServic
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestWorkerService } from './testWorkerService.js';
+import { MockChatSessionsService } from '../../../chat/test/common/mockChatSessionsService.js';
+import { IChatSessionsService } from '../../../chat/common/chatSessionsService.js';
 
 suite('InlineChatController', function () {
 
@@ -233,6 +235,7 @@ suite('InlineChatController', function () {
 				override setTodos(sessionResource: URI, todos: IChatTodo[]): void { }
 			}],
 			[IChatEntitlementService, new SyncDescriptor(TestChatEntitlementService)],
+			[IChatSessionsService, new SyncDescriptor(MockChatSessionsService)],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));

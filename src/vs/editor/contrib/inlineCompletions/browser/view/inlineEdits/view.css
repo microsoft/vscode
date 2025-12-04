@@ -248,7 +248,7 @@
 	padding: 2px 3px;
 }
 
-.inline-edit-alternative-action-label .monaco-keybinding-key:last-child {
-	margin-right: 3px;
+.inline-edit-alternative-action-label .inline-edit-alternative-action-label-separator {
+	width: 4px;
 }
 

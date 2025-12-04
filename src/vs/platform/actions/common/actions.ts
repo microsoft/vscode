@@ -226,6 +226,7 @@ export class MenuId {
 	static readonly TimelineFilterSubMenu = new MenuId('TimelineFilterSubMenu');
 	static readonly AgentSessionsTitle = new MenuId('AgentSessionsTitle');
 	static readonly AgentSessionsFilterSubMenu = new MenuId('AgentSessionsFilterSubMenu');
+	static readonly AgentSessionsInstallActions = new MenuId('AgentSessionsInstallActions');
 	static readonly AgentSessionItemToolbar = new MenuId('AgentSessionItemToolbar');
 	static readonly AccountsContext = new MenuId('AccountsContext');
 	static readonly SidebarTitle = new MenuId('SidebarTitle');
@@ -279,7 +280,8 @@ export class MenuId {
 	static readonly ChatMultiDiffContext = new MenuId('ChatMultiDiffContext');
 	static readonly ChatSessionsMenu = new MenuId('ChatSessionsMenu');
 	static readonly ChatSessionsCreateSubMenu = new MenuId('ChatSessionsCreateSubMenu');
-	static readonly ChatRecentSessionsToolbar = new MenuId('ChatRecentSessionsToolbar');
+	static readonly ChatViewSessionsToolbar = new MenuId('ChatViewSessionsToolbar');
+	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
 	static readonly ChatConfirmationMenu = new MenuId('ChatConfirmationMenu');
 	static readonly ChatEditorInlineExecute = new MenuId('ChatEditorInputExecute');
 	static readonly ChatEditorInlineInputSide = new MenuId('ChatEditorInputSide');

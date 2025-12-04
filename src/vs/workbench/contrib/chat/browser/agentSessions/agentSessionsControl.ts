@@ -41,7 +41,7 @@ export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly filter?: IAgentSessionsFilter;
 	readonly allowNewSessionFromEmptySpace?: boolean;
-	readonly allowOpenSessionsInPanel?: boolean;
+	readonly allowOpenSessionsInPanel?: boolean; // TODO@bpasero retire this option eventually
 	readonly allowFiltering?: boolean;
 	readonly trackActiveEditor?: boolean;
 }
@@ -198,14 +198,15 @@ export class AgentSessionsControl extends Disposable {
 		const options: IChatEditorOptions = {
 			...sessionOptions,
 			...e.editorOptions,
+			revealIfOpened: this.options?.allowOpenSessionsInPanel // always try to reveal if already opened
 		};
 
 		await this.chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
 		if (e.sideBySide) {
-			target = SIDE_GROUP;
-		} else if (isLocalAgentSessionItem(session) && this.options?.allowOpenSessionsInPanel) { // TODO@bpasero revisit when we support background/remote sessions in panel
+			target = this.options?.allowOpenSessionsInPanel ? ACTIVE_GROUP : SIDE_GROUP;
+		} else if (this.options?.allowOpenSessionsInPanel) {
 			target = ChatViewPaneTarget;
 		} else {
 			target = ACTIVE_GROUP;
