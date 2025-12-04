@@ -81,7 +81,8 @@ import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from 
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup, IChatService } from '../common/chatService.js';
-import { IChatSessionProviderOptionItem, IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem, IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
+import { getChatSessionType } from '../common/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatHistoryNavigator } from '../common/chatWidgetHistoryService.js';
@@ -1331,11 +1332,35 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	}
 
+	/**
+	 * Updates the widget controller based on session type.
+	 */
+	private tryUpdateWidgetController(): void {
+		const sessionResource = this._widget?.viewModel?.model.sessionResource;
+		if (!sessionResource) {
+			return;
+		}
+
+		const sessionType = getChatSessionType(sessionResource);
+		const isLocalSession = sessionType === localChatSessionType;
+
+		if (!isLocalSession) {
+			this._widgetController.clear();
+			return;
+		}
+
+		if (!this._widgetController.value) {
+			this._widgetController.value = this.instantiationService.createInstance(ChatInputPartWidgetController, this.chatInputWidgetsContainer);
+			this._register(this._widgetController.value.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		}
+	}
+
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this._widget = widget;
 
 		this._register(widget.onDidChangeViewModel(() => {
 			this.refreshChatSessionPickers();
+			this.tryUpdateWidgetController();
 		}));
 
 		let elements;
@@ -1411,8 +1436,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._implicitContext = undefined;
 		}
 
-		this._widgetController.value = this.instantiationService.createInstance(ChatInputPartWidgetController, this.chatInputWidgetsContainer);
-		this._register(this._widgetController.value.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this.tryUpdateWidgetController();
 
 		this.renderAttachedContext();
 		this._register(this._attachmentModel.onDidChange((e) => {
