@@ -5,7 +5,7 @@
 
 import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
@@ -16,9 +16,10 @@ import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
+import { ChatViewPaneTarget, IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/chatEditor.js';
 import { ChatEditorInput } from '../../contrib/chat/browser/chatEditorInput.js';
-import { ChatViewPaneTarget, IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
+import { awaitStatsForSession } from '../../contrib/chat/common/chat.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress, IChatService } from '../../contrib/chat/common/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
@@ -360,7 +361,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		const changeEmitter = disposables.add(new Emitter<void>());
 		const provider: IChatSessionItemProvider = {
 			chatSessionType,
-			onDidChangeChatSessionItems: changeEmitter.event,
+			onDidChangeChatSessionItems: Event.debounce(changeEmitter.event, (_, e) => e, 200),
 			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token),
 			provideNewChatSessionItem: (options, token) => this._provideNewChatSessionItem(handle, options, token)
 		};
@@ -448,21 +449,35 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		try {
 			// Get all results as an array from the RPC call
 			const sessions = await this._proxy.$provideChatSessionItems(handle, token);
-			return sessions.map(session => {
+			return Promise.all(sessions.map(async session => {
 				const uri = URI.revive(session.resource);
 				const model = this._chatService.getSession(uri);
 				let description: string | undefined;
+				let statistics: IChatSessionItem['statistics'];
 				if (model) {
 					description = this._chatSessionsService.getSessionDescription(model);
 				}
+
+				const modelStats = model ?
+					await awaitStatsForSession(model) :
+					(await this._chatService.getMetadataForSession(uri))?.stats;
+				if (modelStats) {
+					statistics = {
+						files: modelStats.fileCount,
+						insertions: modelStats.added,
+						deletions: modelStats.removed
+					};
+				}
+
 				return {
 					...session,
 					resource: uri,
 					iconPath: session.iconPath,
 					tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined,
-					description: description || session.description
-				};
-			});
+					description: description || session.description,
+					statistics
+				} satisfies IChatSessionItem;
+			}));
 		} catch (error) {
 			this._logService.error('Error providing chat sessions:', error);
 		}
