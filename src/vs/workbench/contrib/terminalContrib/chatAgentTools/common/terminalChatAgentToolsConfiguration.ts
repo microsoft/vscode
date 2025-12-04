@@ -72,25 +72,25 @@ export const terminalSandboxPropertySchema: IJSONSchema = {
 			type: 'boolean',
 			description: localize('terminalSandbox.enabled', "Controls whether to run commands in a sandboxed terminal for the run in terminal tool."),
 		},
-		fileSystem: {
+		filesystem: {
 			type: 'object',
-			description: localize('terminalSandbox.fileSystem', "Controls file system access in the terminal sandbox."),
+			description: localize('terminalSandbox.filesystem', "Controls file system access in the terminal sandbox."),
 			properties: {
 				denyRead: {
 					type: 'array',
-					description: localize('terminalSandbox.fileSystem.denyRead', "List of denied file system paths for reading."),
+					description: localize('terminalSandbox.filesystem.denyRead', "List of denied file system paths for reading."),
 					items: { type: 'string' },
 					default: []
 				},
 				allowWrite: {
 					type: 'array',
-					description: localize('terminalSandbox.fileSystem.allowWrite', "List of allowed file system paths for writing."),
+					description: localize('terminalSandbox.filesystem.allowWrite', "List of allowed file system paths for writing."),
 					items: { type: 'string' },
 					default: []
 				},
 				denyWrite: {
 					type: 'array',
-					description: localize('terminalSandbox.fileSystem.denyWrite', "List of denied file system paths for writing."),
+					description: localize('terminalSandbox.filesystem.denyWrite', "List of denied file system paths for writing."),
 					items: { type: 'string' },
 					default: []
 				}

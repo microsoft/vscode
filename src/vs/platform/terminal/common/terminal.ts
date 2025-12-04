@@ -683,12 +683,6 @@ export interface IShellLaunchConfig {
 	 * This allows extensions to control shell integration for terminals they create.
 	 */
 	shellIntegrationNonce?: string;
-
-	/** Whether to launch the terminal in a sandboxed environment. */
-	sandboxed?: boolean;
-
-	/** Sandbox settings to use when launching the terminal process in a sandboxed environment. */
-	sandboxSettings?: ISandboxRuntimeConfig;
 }
 
 export interface ISandboxTerminalSettings {
