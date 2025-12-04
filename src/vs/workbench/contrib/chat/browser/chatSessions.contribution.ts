@@ -8,7 +8,7 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as resources from '../../../../base/common/resources.js';
@@ -39,7 +39,7 @@ import { IChatEditorOptions } from './chatEditor.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../common/chatService.js';
-import { autorun, autorunIterableDelta } from '../../../../base/common/observable.js';
+import { autorun, autorunIterableDelta, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -896,13 +896,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		chatSessionType: string,
 		onChange: () => void
 	): IDisposable {
+		const disposableStore = new DisposableStore();
 		const chatModelsICareAbout = chatService.chatModels.map(models =>
 			Array.from(models).filter((model: IChatModel) => model.sessionResource.scheme === chatSessionType)
 		);
 
 		const listeners = new ResourceMap<IDisposable>();
-
-		return autorunIterableDelta(
+		const autoRunDisposable = autorunIterableDelta(
 			reader => chatModelsICareAbout.read(reader),
 			({ addedValues, removedValues }) => {
 				removedValues.forEach((removed) => {
@@ -913,18 +913,19 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					}
 				});
 				addedValues.forEach((added) => {
-					const lastResponseListener = new MutableDisposable();
+					const changedSignal = added.lastRequestObs.map(last => last?.response && observableSignalFromEvent('chatSessions.modelChangeListener', last.response.onDidChange));
 					listeners.set(added.sessionResource, autorun(reader => {
-						const lastResponse = added.lastRequestObs.read(reader);
-						if (lastResponse?.response) {
-							lastResponseListener.value = lastResponse.response.onDidChange(() => {
-								onChange();
-							});
-						}
+						changedSignal.read(reader)?.read(reader);
+						onChange();
 					}));
 				});
 			}
 		);
+		disposableStore.add(toDisposable(() => {
+			for (const listener of listeners.values()) { listener.dispose(); }
+		}));
+		disposableStore.add(autoRunDisposable);
+		return disposableStore;
 	}
 
 
