@@ -30,7 +30,7 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IExtensionService, isProposedApiEnabled } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
-import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentRequest, IChatAgentService } from '../common/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatSessionStatus, IChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType, SessionOptionsChangedCallback } from '../common/chatSessionsService.js';
 import { LEGACY_AGENT_SESSIONS_VIEW_ID, ChatAgentLocation, ChatModeKind } from '../common/constants.js';
@@ -999,37 +999,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			}
 		}
 		return renderAsPlaintext(description, { useLinkFormatter: true });
-	}
-
-	/**
-	 * Creates a new chat session by delegating to the appropriate provider
-	 * @param chatSessionType The type of chat session provider to use
-	 * @param options Options for the new session including the request
-	 * @param token A cancellation token
-	 * @returns A session ID for the newly created session
-	 */
-	public async getNewChatSessionItem(chatSessionType: string, options: {
-		request: IChatAgentRequest;
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		metadata?: any;
-	}, token: CancellationToken): Promise<IChatSessionItem> {
-		if (!(await this.activateChatSessionItemProvider(chatSessionType))) {
-			throw Error(`Cannot find provider for ${chatSessionType}`);
-		}
-
-		const resolvedType = this._resolveToPrimaryType(chatSessionType);
-		if (resolvedType) {
-			chatSessionType = resolvedType;
-		}
-
-
-		const provider = this._itemsProviders.get(chatSessionType);
-		if (!provider?.provideNewChatSessionItem) {
-			throw Error(`Provider for ${chatSessionType} does not support creating sessions`);
-		}
-		const chatSessionItem = await provider.provideNewChatSessionItem(options, token);
-		this._onDidChangeSessionItems.fire(chatSessionType);
-		return chatSessionItem;
 	}
 
 	public async getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
