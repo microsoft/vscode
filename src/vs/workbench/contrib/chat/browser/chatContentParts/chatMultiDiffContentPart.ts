@@ -29,6 +29,7 @@ import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffS
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { IChatMultiDiffData, IChatMultiDiffInnerData } from '../../common/chatService.js';
+import { getChatSessionType } from '../../common/chatUri.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
@@ -142,15 +143,15 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		}));
 		const setupActionBar = () => {
 			actionBar.clear();
-			const resource = this._element.sessionResource;
+			const type = getChatSessionType(this._element.sessionResource);
 			let marshalledUri: unknown | undefined = undefined;
 			let contextKeyService: IContextKeyService = this.contextKeyService;
 
 			contextKeyService = this.contextKeyService.createOverlay([
-				[ChatContextKeys.sessionType.key, resource.scheme]
+				[ChatContextKeys.sessionType.key, type]
 			]);
 			marshalledUri = {
-				...resource,
+				...this._element.sessionResource,
 				$mid: MarshalledId.Uri
 			};
 
