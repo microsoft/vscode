@@ -50,6 +50,7 @@ import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions/agentSessions.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -76,9 +77,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private chatViewLocationContext: IContextKey<ViewContainerLocation>;
 
 	private sessionsContainer: HTMLElement | undefined;
+	private sessionsTitleContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
-	private sessionsCount: number = 0;
+	private sessionsLinkContainer: HTMLElement | undefined;
+	private sessionsCount = 0;
+	private sessionsViewerLimited = true;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationContext: IContextKey<AgentSessionsViewerOrientation>;
 	private sessionsViewerPosition = AgentSessionsViewerPosition.Right;
@@ -327,12 +331,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 
 		// Sessions Title
-		const titleContainer = append(sessionsContainer, $('.agent-sessions-title-container'));
-		const title = append(titleContainer, $('span.agent-sessions-title'));
+		const sessionsTitleContainer = this.sessionsTitleContainer = append(sessionsContainer, $('.agent-sessions-title-container'));
+		const title = append(sessionsTitleContainer, $('span.agent-sessions-title'));
 		title.textContent = localize('recentSessions', "Recent Sessions");
 
 		// Sessions Toolbar
-		const toolbarContainer = append(titleContainer, $('.agent-sessions-toolbar'));
+		const toolbarContainer = append(sessionsTitleContainer, $('.agent-sessions-toolbar'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, MenuId.AgentSessionsToolbar, {}));
 
 		// Sessions Control
@@ -340,10 +344,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
 			allowOpenSessionsInPanel: true,
 			filter: {
-				limitResults: ChatViewPane.SESSIONS_LIMIT,
+				limitResults: () => {
+					return that.sessionsViewerLimited ? ChatViewPane.SESSIONS_LIMIT : undefined;
+				},
 				exclude(session) {
-					if (session.isArchived()) {
-						return true; // exclude archived sessions
+					if (that.sessionsViewerLimited && session.isArchived()) {
+						return true; // exclude archived sessions when limited
 					}
 
 					return false;
@@ -357,6 +363,30 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));
+
+		// Link to Sessions View
+		this.sessionsLinkContainer = append(sessionsContainer, $('.agent-sessions-link-container'));
+		const linkControl = this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, {
+			label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Limit to Recent Sessions"),
+			href: '',
+		}, {
+			opener: () => {
+				this.sessionsViewerLimited = !this.sessionsViewerLimited;
+
+				linkControl.link = {
+					label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Limit to Recent Sessions"),
+					href: ''
+				};
+
+				this.sessionsControl?.update();
+
+				if (this.lastDimensions) {
+					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+				}
+
+				this.sessionsControl?.focus();
+			}
+		}));
 	}
 
 	private notifySessionsControlChanged(newSessionsCount?: number): void {
@@ -547,7 +577,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let heightReduction = 0;
 		let widthReduction = 0;
 
-		if (!this.sessionsContainer || !this.sessionsControlContainer || !this.sessionsControl || !this.viewPaneContainer) {
+		if (!this.sessionsContainer || !this.sessionsControlContainer || !this.sessionsControl || !this.viewPaneContainer || !this.sessionsTitleContainer || !this.sessionsLinkContainer) {
 			return { heightReduction, widthReduction };
 		}
 
@@ -568,9 +598,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateSessionsControlVisibility();
 
 		// Show as sidebar
-		const sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-			this.sessionsControlContainer.style.height = ``;
+			let sessionsHeight: number;
+			if (this.sessionsViewerLimited) {
+				sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
+			} else {
+				sessionsHeight = height - this.sessionsTitleContainer.offsetHeight - this.sessionsLinkContainer.offsetHeight;
+			}
+
+			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = `${ChatViewPane.SESSIONS_SIDEBAR_WIDTH}px`;
 			this.sessionsControl.layout(sessionsHeight, ChatViewPane.SESSIONS_SIDEBAR_WIDTH);
 
@@ -580,6 +616,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Show compact (grows with the number of items displayed)
 		else {
+			let sessionsHeight: number;
+			if (this.sessionsViewerLimited) {
+				sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
+			} else {
+				sessionsHeight = (ChatViewPane.SESSIONS_LIMIT + 2 /* TODO@bpasero revisit this hardcoded expansion */) * AgentSessionsListDelegate.ITEM_HEIGHT;
+			}
+
 			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = ``;
 			this.sessionsControl.layout(sessionsHeight, width);
