@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { h } from '../../../../base/browser/dom.js';
+import './media/chatViewTitleControl.css';
+import { addDisposableListener, EventType, h } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -20,10 +22,10 @@ import { IChatViewTitleActionContext } from '../common/chatActions.js';
 import { IChatModel } from '../common/chatModel.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ChatViewId } from './chat.js';
-import './media/chatViewTitleControl.css';
 
 export interface IChatViewTitleDelegate {
 	updateTitle(title: string): void;
+	focusChat(): void;
 }
 
 export class ChatViewTitleControl extends Disposable {
@@ -93,14 +95,23 @@ export class ChatViewTitleControl extends Disposable {
 			h('span.chat-view-title-label@label'),
 		]);
 
+		// Toolbar on the left
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, elements.toolbar, MenuId.ChatViewSessionTitleToolbar, {
 			menuOptions: { shouldForwardArgs: true },
 			hiddenItemStrategy: HiddenItemStrategy.NoHide
 		}));
 
+		// Title controls
 		this.titleContainer = elements.root;
-
 		this.titleLabel = elements.label;
+
+		// Click to focus chat
+		this._register(Gesture.addTarget(this.titleContainer));
+		for (const eventType of [TouchEventType.Tap, EventType.CLICK]) {
+			this._register(addDisposableListener(this.titleContainer, eventType, () => {
+				this.delegate.focusChat();
+			}));
+		}
 
 		parent.appendChild(this.titleContainer);
 	}
