@@ -279,6 +279,7 @@ export class MenuId {
 	static readonly ChatEditorInlineInputSide = new MenuId('ChatEditorInputSide');
 	static readonly AccessibleView = new MenuId('AccessibleView');
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
+	static readonly MultiDiffEditorContent = new MenuId('MultiDiffEditorContent');
 	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');
 	static readonly DiffEditorSelectionToolbar = new MenuId('DiffEditorSelectionToolbar');
 	static readonly AgentSessionsFilterSubMenu = new MenuId('AgentSessionsFilterSubMenu');

@@ -444,6 +444,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribMultiDiffEditorMenus'
 	},
 	{
+		key: 'multiDiffEditor/content',
+		id: MenuId.MultiDiffEditorContent,
+		description: localize('menus.multiDiffEditorContent', "A prominent button overlaying multi diff editor content"),
+		proposed: 'contribMultiDiffEditorMenus'
+	},
+	{
 		key: 'diffEditor/gutter/hunk',
 		id: MenuId.DiffEditorHunkToolbar,
 		description: localize('menus.diffEditorGutterToolBarMenus', "The gutter toolbar in the diff editor"),
