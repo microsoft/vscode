@@ -746,7 +746,7 @@ export function registerChatActions() {
 							for (const { chatSessionType, items } of providerNSessions) {
 								for (const session of items) {
 									const ckey = contextKeyService.createKey('chatSessionType', chatSessionType);
-									const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
+									const actions = menuService.getMenuActions(MenuId.AgentSessionsContext, contextKeyService);
 									const { primary } = getContextMenuActions(actions, 'inline');
 									ckey.reset();
 
