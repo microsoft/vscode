@@ -43,6 +43,8 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { Event } from '../../../../../base/common/event.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 interface IAgentSessionItemTemplate {
 	readonly element: HTMLElement;
@@ -147,10 +149,11 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}`;
 
 		// Title
-		template.title.setLabel(session.element.label, undefined, { matches: createMatches(session.filterData) });
+		const markdownTitle = new MarkdownString(session.element.label);
+		template.title.setLabel(renderAsPlaintext(markdownTitle), undefined, { matches: createMatches(session.filterData) });
 
 		// Title Actions - Update context keys
-		ChatContextKeys.isArchivedItem.bindTo(template.contextKeyService).set(session.element.isArchived());
+		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
 		template.titleToolbar.context = session.element;
 
 		// Details Actions
@@ -324,7 +327,7 @@ export interface IAgentSessionsFilter {
 	/**
 	 * Optional limit on the number of sessions to show.
 	 */
-	readonly limitResults?: number;
+	readonly limitResults?: () => number | undefined;
 
 	/**
 	 * A callback to notify the filter about the number of
@@ -355,9 +358,10 @@ export class AgentSessionsDataSource implements IAsyncDataSource<IAgentSessionsM
 		let filteredSessions = element.sessions.filter(session => !this.filter?.exclude?.(session));
 
 		// Apply limiter if configured (requires sorting)
-		if (this.filter?.limitResults !== undefined) {
+		const limitResultsCount = this.filter?.limitResults?.();
+		if (typeof limitResultsCount === 'number') {
 			filteredSessions.sort(this.sorter.compare.bind(this.sorter));
-			filteredSessions = filteredSessions.slice(0, this.filter.limitResults);
+			filteredSessions = filteredSessions.slice(0, limitResultsCount);
 		}
 
 		// Callback results count

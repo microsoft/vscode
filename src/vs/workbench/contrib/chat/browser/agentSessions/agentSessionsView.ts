@@ -61,7 +61,7 @@ export class AgentSessionsView extends ViewPane {
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
-		super({ ...options, titleMenuId: MenuId.AgentSessionsTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		super({ ...options, titleMenuId: MenuId.AgentSessionsViewTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this.registerListeners();
 	}
@@ -158,8 +158,8 @@ export class AgentSessionsView extends ViewPane {
 				addedSeparator = true;
 			}
 
-			const menuActions = this.menuService.getMenuActions(MenuId.ChatSessionsCreateSubMenu, this.scopedContextKeyService.createOverlay([
-				[ChatContextKeys.sessionType.key, provider.type]
+			const menuActions = this.menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, this.scopedContextKeyService.createOverlay([
+				[ChatContextKeys.agentSessionType.key, provider.type]
 			]));
 
 			const primaryActions = getActionBarActions(menuActions, () => true).primary;
@@ -180,7 +180,7 @@ export class AgentSessionsView extends ViewPane {
 		}
 
 		// Install more
-		const installMenuActions = this.menuService.getMenuActions(MenuId.AgentSessionsInstallActions, this.scopedContextKeyService, { shouldForwardArgs: true });
+		const installMenuActions = this.menuService.getMenuActions(MenuId.AgentSessionsInstallMenu, this.scopedContextKeyService, { shouldForwardArgs: true });
 		const installActionBar = getActionBarActions(installMenuActions, () => true);
 		if (installActionBar.primary.length > 0) {
 			actions.push(new Separator());

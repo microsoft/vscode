@@ -18,6 +18,7 @@ import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IChatEditorOptions } from '../../contrib/chat/browser/chatEditor.js';
 import { ChatEditorInput } from '../../contrib/chat/browser/chatEditorInput.js';
+import { ChatViewPaneTarget, IChatWidgetService, isIChatViewViewContext } from '../../contrib/chat/browser/chat.js';
 import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress, IChatService } from '../../contrib/chat/common/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
@@ -331,6 +332,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		private readonly _extHostContext: IExtHostContext,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IChatService private readonly _chatService: IChatService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -340,7 +342,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 
-		this._chatSessionsService.setOptionsChangeCallback(async (sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => {
+		this._chatSessionsService.setOptionsChangeCallback(async (sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>) => {
 			const handle = this._getHandleForSessionType(sessionResource.scheme);
 			if (handle !== undefined) {
 				await this.notifyOptionsChange(handle, sessionResource, updates);
@@ -356,7 +358,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		// Register the provider handle - this tracks that a provider exists
 		const disposables = new DisposableStore();
 		const changeEmitter = disposables.add(new Emitter<void>());
-
 		const provider: IChatSessionItemProvider = {
 			chatSessionType,
 			onDidChangeChatSessionItems: changeEmitter.event,
@@ -370,7 +371,14 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			provider,
 			onDidChangeItems: changeEmitter,
 		});
+
+		disposables.add(this._chatSessionsService.registerChatModelChangeListeners(
+			this._chatService,
+			chatSessionType,
+			() => changeEmitter.fire()
+		));
 	}
+
 
 	$onDidChangeChatSessionItems(handle: number): void {
 		this._itemProvidersRegistrations.get(handle)?.onDidChangeItems.fire();
@@ -426,6 +434,13 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					options,
 				},
 			}], originalGroup);
+			return;
+		}
+
+		const chatViewWidget = this._chatWidgetService.getWidgetBySessionResource(originalResource);
+		if (chatViewWidget && isIChatViewViewContext(chatViewWidget.viewContext)) {
+			await this._chatSessionsService.getOrCreateChatSession(modifiedResource, CancellationToken.None);
+			await this._chatWidgetService.openSession(modifiedResource, ChatViewPaneTarget, { preserveFocus: true });
 		}
 	}
 
@@ -504,7 +519,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					}
 				}
 			}
-
 			return session;
 		} catch (error) {
 			session.dispose();
@@ -615,7 +629,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	/**
 	 * Notify the extension about option changes for a session
 	 */
-	async notifyOptionsChange(handle: number, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>): Promise<void> {
+	async notifyOptionsChange(handle: number, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem | undefined }>): Promise<void> {
 		try {
 			await this._proxy.$provideHandleOptionsChange(handle, sessionResource, updates, CancellationToken.None);
 		} catch (error) {

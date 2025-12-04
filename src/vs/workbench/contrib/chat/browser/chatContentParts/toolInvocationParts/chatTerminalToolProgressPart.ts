@@ -911,11 +911,13 @@ class ChatTerminalToolOutputSection extends Disposable {
 	private _showEmptyMessage(message: string): void {
 		this._emptyElement.textContent = message;
 		this._terminalContainer.classList.add('chat-terminal-output-terminal-no-output');
+		this.domNode.classList.add('chat-terminal-output-container-no-output');
 	}
 
 	private _hideEmptyMessage(): void {
 		this._emptyElement.textContent = '';
 		this._terminalContainer.classList.remove('chat-terminal-output-terminal-no-output');
+		this.domNode.classList.remove('chat-terminal-output-container-no-output');
 	}
 
 	private _disposeLiveMirror(): void {

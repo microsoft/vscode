@@ -222,8 +222,8 @@ export class AgentSessionsControl extends Disposable {
 
 		const provider = await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
 		const contextOverlay = getSessionItemContextOverlay(session, provider, this.chatService, this.editorGroupsService);
-		contextOverlay.push([ChatContextKeys.isCombinedSessionViewer.key, true]);
-		const menu = this.menuService.createMenu(MenuId.ChatSessionsMenu, this.contextKeyService.createOverlay(contextOverlay));
+		contextOverlay.push([ChatContextKeys.isCombinedAgentSessionsViewer.key, true]);
+		const menu = this.menuService.createMenu(MenuId.AgentSessionsContext, this.contextKeyService.createOverlay(contextOverlay));
 
 		const marshalledSession: IMarshalledChatSessionContext = { session, $mid: MarshalledId.ChatSessionContext };
 		this.contextMenuService.showContextMenu({
@@ -239,8 +239,12 @@ export class AgentSessionsControl extends Disposable {
 		this.sessionsList?.openFind();
 	}
 
-	refresh(): void {
-		this.agentSessionsService.model.resolve(undefined);
+	refresh(): Promise<void> {
+		return this.agentSessionsService.model.resolve(undefined);
+	}
+
+	update(): void {
+		this.sessionsList?.updateChildren();
 	}
 
 	setVisible(visible: boolean): void {
@@ -256,9 +260,7 @@ export class AgentSessionsControl extends Disposable {
 	}
 
 	focus(): void {
-		if (this.sessionsList?.getFocus().length) {
-			this.sessionsList.domFocus();
-		}
+		this.sessionsList?.domFocus();
 	}
 
 	clearFocus(): void {
