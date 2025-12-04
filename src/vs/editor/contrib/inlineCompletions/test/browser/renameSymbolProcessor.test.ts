@@ -196,4 +196,16 @@ suite('renameSymbolProcessor', () => {
 		const result = renameInferenceEngine.inferRename(model, new Range(1, 1, 1, 18), 'const faz baz = 1;', wordPattern);
 		assert.ok(result === undefined);
 	});
+
+	test('Suffix insertion', () => {
+		const model = createTextModel([
+			'const w = 1;',
+		].join('\n'), 'typescript', {});
+		disposables.add(model);
+		const renameInferenceEngine = new TestRenameInferenceEngine([{ type: StandardTokenType.Other, range: new Range(1, 7, 1, 8) }, { type: StandardTokenType.Other, range: new Range(1, 8, 1, 9) }]);
+		const result = renameInferenceEngine.inferRename(model, new Range(1, 8, 1, 8), 'idth', wordPattern);
+		assert.strictEqual(result?.renames.edits.length, 1);
+		assert.strictEqual(result?.renames.oldName, 'w');
+		assert.strictEqual(result?.renames.newName, 'width');
+	});
 });

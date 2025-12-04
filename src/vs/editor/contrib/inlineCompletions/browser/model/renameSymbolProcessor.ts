@@ -170,12 +170,29 @@ export class RenameInferenceEngine {
 				tokenDiff += diff;
 				continue;
 			}
-
-
-			const tokenInfo = this.getTokenAtPosition(textModel, startPos);
+			const originalStartColumn = change.originalStart + 1;
+			const isInsertion = change.originalLength === 0 && change.modifiedLength > 0;
+			let tokenInfo: { type: StandardTokenType; range: Range };
+			// word info is left aligned where as token info is right aligned for insertions.
+			// We prefer a suffix insertion for renames so we take the work range for the token info.
+			if (isInsertion && originalStartColumn === wordRange.endColumn && wordRange.endColumn > wordRange.startColumn) {
+				tokenInfo = this.getTokenAtPosition(textModel, new Position(startPos.lineNumber, wordRange.startColumn));
+			} else {
+				tokenInfo = this.getTokenAtPosition(textModel, startPos);
+			}
+			if (wordRange.startColumn !== tokenInfo.range.startColumn || wordRange.endColumn !== tokenInfo.range.endColumn) {
+				others.push(new TextReplacement(range, insertedTextSegment));
+				tokenDiff += diff;
+				continue;
+			}
 			if (tokenInfo.type === StandardTokenType.Other) {
 
 				let identifier = textModel.getValueInRange(tokenInfo.range);
+				if (identifier.length === 0) {
+					others.push(new TextReplacement(range, insertedTextSegment));
+					tokenDiff += diff;
+					continue;
+				}
 				if (oldName === undefined) {
 					oldName = identifier;
 				} else if (oldName !== identifier) {
@@ -188,6 +205,11 @@ export class RenameInferenceEngine {
 				const tokenStartPos = textModel.getOffsetAt(tokenInfo.range.getStartPosition()) - nesOffset + tokenDiff;
 				const tokenEndPos = textModel.getOffsetAt(tokenInfo.range.getEndPosition()) - nesOffset + tokenDiff;
 				identifier = modifiedText.substring(tokenStartPos, tokenEndPos + diff);
+				if (identifier.length === 0) {
+					others.push(new TextReplacement(range, insertedTextSegment));
+					tokenDiff += diff;
+					continue;
+				}
 				if (newName === undefined) {
 					newName = identifier;
 				} else if (newName !== identifier) {
@@ -200,7 +222,11 @@ export class RenameInferenceEngine {
 					position = tokenInfo.range.getStartPosition();
 				}
 
-				renames.push(new TextReplacement(range, insertedTextSegment));
+				if (oldName !== undefined && newName !== undefined && oldName.length > 0 && newName.length > 0 && oldName !== newName) {
+					renames.push(new TextReplacement(tokenInfo.range, newName));
+				} else {
+					renames.push(new TextReplacement(range, insertedTextSegment));
+				}
 				tokenDiff += diff;
 			} else {
 				others.push(new TextReplacement(range, insertedTextSegment));
@@ -317,7 +343,6 @@ export class RenameSymbolProcessor extends Disposable {
 	}
 
 	public async proposeRenameRefactoring(textModel: ITextModel, suggestItem: InlineSuggestionItem): Promise<InlineSuggestionItem> {
-		//console.log('Propose rename refactoring for inline suggestion');
 		if (!suggestItem.supportsRename || suggestItem.action?.kind !== 'edit') {
 			return suggestItem;
 		}
