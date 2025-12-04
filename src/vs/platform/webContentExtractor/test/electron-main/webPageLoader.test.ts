@@ -614,6 +614,41 @@ suite('WebPageLoader', () => {
 
 	//#endregion
 
+	//#region Header Modification Tests
+
+	test('onBeforeSendHeaders adds browser headers for navigation', () => {
+		createWebPageLoader(URI.parse('https://example.com/page'));
+
+		// Get the callback passed to onBeforeSendHeaders
+		assert.ok(window.webContents.session.webRequest.onBeforeSendHeaders.called);
+		const callback = window.webContents.session.webRequest.onBeforeSendHeaders.getCall(0).args[0];
+
+		// Mock callback function
+		let modifiedHeaders: Record<string, string> | undefined;
+		const mockCallback = (details: { requestHeaders: Record<string, string> }) => {
+			modifiedHeaders = details.requestHeaders;
+		};
+
+		// Simulate a request to the same domain
+		callback(
+			{
+				url: 'https://example.com/page',
+				requestHeaders: {
+					'TestHeader': 'TestValue'
+				}
+			},
+			mockCallback
+		);
+
+		// Verify headers were added
+		assert.ok(modifiedHeaders);
+		assert.strictEqual(modifiedHeaders['DNT'], '1');
+		assert.strictEqual(modifiedHeaders['Sec-GPC'], '1');
+		assert.strictEqual(modifiedHeaders['TestHeader'], 'TestValue');
+	});
+
+	//#endregion
+
 	//#region Disposal Tests
 
 	test('disposes resources after load completes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

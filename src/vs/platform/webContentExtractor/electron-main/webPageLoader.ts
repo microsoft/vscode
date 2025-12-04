@@ -139,10 +139,6 @@ export class WebPageLoader extends Disposable {
 	 * Updates HTTP headers for each web request.
 	 */
 	private onBeforeSendHeaders(details: OnBeforeSendHeadersListenerDetails, callback: (beforeSendResponse: BeforeSendResponse) => void) {
-		if (this._store.isDisposed) {
-			return;
-		}
-
 		const headers = { ...details.requestHeaders };
 
 		// Request privacy for web-sites that respect these.
