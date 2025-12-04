@@ -297,7 +297,9 @@ export class WebPageLoader extends Disposable {
 				result = domContent.length > result.length ? domContent : result;
 			}
 
-			if (errorResult !== undefined) {
+			if (result.length === 0) {
+				this._onResult({ status: 'error', error: 'Failed to extract meaningful content from the web page' });
+			} else if (errorResult !== undefined) {
 				this._onResult({ ...errorResult, result, title });
 			} else {
 				this._onResult({ status: 'ok', result, title });
@@ -316,6 +318,7 @@ export class WebPageLoader extends Disposable {
 
 	/**
 	 * Extracts content from the Accessibility tree of the loaded web page.
+	 * @return The extracted content, or undefined if extraction fails.
 	 */
 	private async extractAccessibilityTreeContent(): Promise<string | undefined> {
 		this.trace(`Extracting content using Accessibility domain`);
@@ -329,7 +332,9 @@ export class WebPageLoader extends Disposable {
 	}
 
 	/**
-	 * Extracts content from main DOM elements as a fallback method.
+	 * Fallback method for extracting web page content when Accessibility tree extraction yields insufficient content.
+	 * Attempts to extract meaningful text content from the main DOM elements of the loaded web page.
+	 * @returns The extracted text content, or undefined if extraction fails.
 	 */
 	private async extractMainDomElementContent(): Promise<string | undefined> {
 		try {
@@ -338,9 +343,9 @@ export class WebPageLoader extends Disposable {
 				(() => {
 					const selectors = ['main','article','[role="main"]','.main-content','#main-content','.article-body','.post-content','.entry-content','.content','body'];
 					for (const selector of selectors) {
-						const content = document.querySelector(selector)?.textContent?.trim();
+						const content = document.querySelector(selector)?.textContent?.replace(/[ \\t]+/g, ' ').replace(/\\s{2,}/gm, '\\n').trim();
 						if (content && content.length > ${WebPageLoader.MIN_CONTENT_LENGTH}) {
-							return content.replace(/\\s+/g, ' ');
+							return content;
 						}
 					}
 					return undefined;
