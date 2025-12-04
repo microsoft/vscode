@@ -417,7 +417,7 @@ export class RenameSymbolProcessor extends Disposable {
 			uri: textModel.uri
 		};
 
-		return InlineSuggestionItem.create(suggestItem.withAction(renameAction), textModel);
+		return InlineSuggestionItem.create(suggestItem.withAction(renameAction), textModel, false);
 	}
 
 	private async checkRenamePrecondition(suggestItem: InlineSuggestionItem, textModel: ITextModel, position: Position, oldName: string, newName: string): Promise<RenameKind> {
