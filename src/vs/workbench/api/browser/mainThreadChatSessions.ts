@@ -356,7 +356,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		// Register the provider handle - this tracks that a provider exists
 		const disposables = new DisposableStore();
 		const changeEmitter = disposables.add(new Emitter<void>());
-
 		const provider: IChatSessionItemProvider = {
 			chatSessionType,
 			onDidChangeChatSessionItems: changeEmitter.event,
@@ -370,7 +369,14 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			provider,
 			onDidChangeItems: changeEmitter,
 		});
+
+		disposables.add(this._chatSessionsService.registerChatModelChangeListeners(
+			this._chatService,
+			chatSessionType,
+			() => changeEmitter.fire()
+		));
 	}
+
 
 	$onDidChangeChatSessionItems(handle: number): void {
 		this._itemProvidersRegistrations.get(handle)?.onDidChangeItems.fire();

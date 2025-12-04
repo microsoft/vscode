@@ -15,7 +15,7 @@ import { IEditableData } from '../../../common/views.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentRequest } from './chatAgents.js';
 import { IChatEditingSession } from './chatEditingService.js';
 import { IChatModel, IChatRequestVariableData } from './chatModel.js';
-import { IChatProgress } from './chatService.js';
+import { IChatProgress, IChatService } from './chatService.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -220,7 +220,7 @@ export interface IChatSessionsService {
 	getEditableData(sessionResource: URI): IEditableData | undefined;
 	isEditable(sessionResource: URI): boolean;
 	// #endregion
-	registerModelProgressListener(model: IChatModel, callback: () => void): void;
+	registerChatModelChangeListeners(chatService: IChatService, chatSessionType: string, onChange: () => void): IDisposable;
 	getSessionDescription(chatModel: IChatModel): string | undefined;
 }
 

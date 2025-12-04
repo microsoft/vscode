@@ -18,7 +18,7 @@ import { TestInstantiationService } from '../../../../platform/instantiation/tes
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
 import { IChatAgentRequest } from '../../../contrib/chat/common/chatAgents.js';
-import { IChatProgress, IChatProgressMessage } from '../../../contrib/chat/common/chatService.js';
+import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
@@ -31,6 +31,7 @@ import { mock, TestExtensionService } from '../../../test/common/workbenchTestSe
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionProviderOptions } from '../../common/extHost.protocol.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { MockChatService } from '../../../contrib/chat/test/common/mockChatService.js';
 
 suite('ObservableChatSession', function () {
 	let disposables: DisposableStore;
@@ -387,6 +388,7 @@ suite('MainThreadChatSessions', function () {
 				};
 			}
 		});
+		instantiationService.stub(IChatService, new MockChatService());
 
 		chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
 		instantiationService.stub(IChatSessionsService, chatSessionsService);

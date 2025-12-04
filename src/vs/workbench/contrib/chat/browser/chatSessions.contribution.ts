@@ -8,7 +8,7 @@ import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import * as resources from '../../../../base/common/resources.js';
@@ -37,9 +37,9 @@ import { LEGACY_AGENT_SESSIONS_VIEW_ID, ChatAgentLocation, ChatModeKind } from '
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from './chatSessions/common.js';
-import { IChatModel, IChatProgressResponseContent, IChatRequestModel } from '../common/chatModel.js';
+import { IChatModel } from '../common/chatModel.js';
 import { IChatService, IChatToolInvocation } from '../common/chatService.js';
-import { autorunSelfDisposable } from '../../../../base/common/observable.js';
+import { autorun, autorunIterableDelta, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -278,8 +278,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _sessions = new ResourceMap<ContributedChatSessionData>();
 	private readonly _editableSessions = new ResourceMap<IEditableData>();
-	private readonly _registeredRequestIds = new Set<string>();
-	private readonly _registeredModels = new Set<IChatModel>();
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -893,59 +891,43 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		};
 	}
 
-	public registerModelProgressListener(model: IChatModel, callback: () => void): void {
-		// Prevent duplicate registrations for the same model
-		if (this._registeredModels.has(model)) {
-			return;
-		}
-		this._registeredModels.add(model);
+	public registerChatModelChangeListeners(
+		chatService: IChatService,
+		chatSessionType: string,
+		onChange: () => void
+	): IDisposable {
+		const disposableStore = new DisposableStore();
+		const chatModelsICareAbout = chatService.chatModels.map(models =>
+			Array.from(models).filter((model: IChatModel) => model.sessionResource.scheme === chatSessionType)
+		);
 
-		// Helper function to register listeners for a request
-		const registerRequestListeners = (request: IChatRequestModel) => {
-			if (!request.response || this._registeredRequestIds.has(request.id)) {
-				return;
-			}
-
-			this._registeredRequestIds.add(request.id);
-
-			this._register(request.response.onDidChange(() => {
-				callback();
-			}));
-
-			// Track tool invocation state changes
-			const responseParts = request.response.response.value;
-			responseParts.forEach((part: IChatProgressResponseContent) => {
-				if (part.kind === 'toolInvocation') {
-					const toolInvocation = part as IChatToolInvocation;
-					// Use autorun to listen for state changes
-					this._register(autorunSelfDisposable(reader => {
-						const state = toolInvocation.state.read(reader);
-
-						// Also track progress changes when executing
-						if (state.type === IChatToolInvocation.StateKind.Executing) {
-							state.progress.read(reader);
-						}
-
-						callback();
+		const listeners = new ResourceMap<IDisposable>();
+		const autoRunDisposable = autorunIterableDelta(
+			reader => chatModelsICareAbout.read(reader),
+			({ addedValues, removedValues }) => {
+				removedValues.forEach((removed) => {
+					const listener = listeners.get(removed.sessionResource);
+					if (listener) {
+						listeners.delete(removed.sessionResource);
+						listener.dispose();
+					}
+				});
+				addedValues.forEach((added) => {
+					const changedSignal = added.lastRequestObs.map(last => last?.response && observableSignalFromEvent('chatSessions.modelChangeListener', last.response.onDidChange));
+					listeners.set(added.sessionResource, autorun(reader => {
+						changedSignal.read(reader)?.read(reader);
+						onChange();
 					}));
-				}
-			});
-		};
-		// Listen for response changes on all existing requests
-		const requests = model.getRequests();
-		requests.forEach(registerRequestListeners);
-
-		// Listen for new requests being added
-		this._register(model.onDidChange(() => {
-			const currentRequests = model.getRequests();
-			currentRequests.forEach(registerRequestListeners);
+				});
+			}
+		);
+		disposableStore.add(toDisposable(() => {
+			for (const listener of listeners.values()) { listener.dispose(); }
 		}));
-
-		// Clean up when model is disposed
-		this._register(model.onDidDispose(() => {
-			this._registeredModels.delete(model);
-		}));
+		disposableStore.add(autoRunDisposable);
+		return disposableStore;
 	}
+
 
 	public getSessionDescription(chatModel: IChatModel): string | undefined {
 		const requests = chatModel.getRequests();
