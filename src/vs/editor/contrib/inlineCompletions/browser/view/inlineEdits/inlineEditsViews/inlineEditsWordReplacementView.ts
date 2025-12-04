@@ -200,7 +200,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 				const primaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? primaryActiveStyles : primaryActiveStyles);
 				const secondaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? secondaryActiveStyles : passiveStyles);
-
+				// TODO@benibenj clicking the arrow does not accept suggestion anymore
 				return [
 					n.div({
 						style: {
@@ -214,7 +214,6 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).lowerBackground.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH, BORDER_WIDTH, 0)),
-								width: undefined,
 								background: asCssVariable(editorBackground),
 							},
 							onmousedown: e => {
