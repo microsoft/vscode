@@ -307,11 +307,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		// case where we only have one dropdown in the thinking container
-		if (this.toolInvocationCount === 1 && this.extractedTitles.length === 1 && this.currentToolCallLabel) {
+		// case where we only have one dropdown in the thinking container and no thinking parts
+		if (this.toolInvocationCount === 1 && this.extractedTitles.length === 1 && this.currentToolCallLabel && this.currentThinkingValue.trim() === '') {
 			const title = this.currentToolCallLabel;
 			this.currentTitle = title;
-			this.content.generatedTitle = title;
 			this.setTitleWithWidgets(new MarkdownString(title), this.instantiationService, this.chatMarkdownAnchorService, this.chatContentMarkdownRenderer);
 			return;
 		}
