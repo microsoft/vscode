@@ -10,7 +10,7 @@ import { IDisposable, deltaHistoryItemRefs, dispose, filterEvent, subject, trunc
 import { toMultiFileDiffEditorUris } from './uri';
 import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
-import { Commit } from './git';
+import { Commit, Stash } from './git';
 import { OperationKind, OperationResult } from './operation';
 import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { throttle } from './decorators';
@@ -24,6 +24,8 @@ function compareSourceControlHistoryItemRef(ref1: SourceControlHistoryItemRef, r
 			return 2;
 		} else if (ref.id.startsWith('refs/tags/')) {
 			return 3;
+		} else if (ref.id.startsWith('refs/stash')) {
+			return 4;
 		}
 
 		return 99;
@@ -60,6 +62,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	private _HEAD: Branch | undefined;
 	private _historyItemRefs: SourceControlHistoryItemRef[] = [];
+	private _stashRefsByHash = new Map<string, SourceControlHistoryItemRef>();
 
 	private commitShortHashLength = 7;
 	private historyItemDecorations = new Map<string, FileDecoration>();
@@ -222,12 +225,12 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	async provideHistoryItemRefs(historyItemRefs: string[] | undefined): Promise<SourceControlHistoryItemRef[]> {
-		const refs = await this.repository.getRefs({ pattern: historyItemRefs });
-
 		const branches: SourceControlHistoryItemRef[] = [];
 		const remoteBranches: SourceControlHistoryItemRef[] = [];
 		const tags: SourceControlHistoryItemRef[] = [];
+		const stashes: SourceControlHistoryItemRef[] = [];
 
+		const refs = await this.repository.getRefs({ pattern: historyItemRefs });
 		for (const ref of refs) {
 			switch (ref.type) {
 				case RefType.RemoteHead:
@@ -242,7 +245,19 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			}
 		}
 
-		return [...branches, ...remoteBranches, ...tags];
+		try {
+			const gitStashes = await this.repository.getStashes();
+			this._stashRefsByHash.clear();
+			for (const stash of gitStashes) {
+				const stashRef = this.stashToSourceControlHistoryItemRef(stash);
+				this._stashRefsByHash.set(stash.hash, stashRef);
+				stashes.push(stashRef);
+			}
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][provideHistoryItemRefs] Failed to get stashes: ${err}`);
+		}
+
+		return [...branches, ...remoteBranches, ...tags, ...stashes];
 	}
 
 	async provideHistoryItems(options: SourceControlHistoryOptions, token: CancellationToken): Promise<SourceControlHistoryItem[]> {
@@ -534,6 +549,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			}
 		}
 
+		const stashRef = this._stashRefsByHash.get(commit.hash);
+		if (stashRef) {
+			references.push(stashRef);
+		}
+
 		return references.sort(compareSourceControlHistoryItemRef);
 	}
 
@@ -603,6 +623,17 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 					category: l10n.t('branches')
 				};
 		}
+	}
+
+	private stashToSourceControlHistoryItemRef(stash: Stash): SourceControlHistoryItemRef {
+		return {
+			id: `refs/stash@{${stash.index}}`,
+			name: `stash@{${stash.index}}`,
+			description: stash.description,
+			revision: stash.hash,
+			icon: new ThemeIcon('git-stash'),
+			category: l10n.t('stashes')
+		};
 	}
 
 	dispose(): void {
