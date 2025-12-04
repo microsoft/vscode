@@ -34,6 +34,14 @@ class MockWebContents {
 		return this;
 	}
 
+	on(event: string, listener: (...args: unknown[]) => void): this {
+		if (!this._listeners.has(event)) {
+			this._listeners.set(event, []);
+		}
+		this._listeners.get(event)!.push(listener);
+		return this;
+	}
+
 	emit(event: string, ...args: unknown[]): void {
 		const listeners = this._listeners.get(event) || [];
 		for (const listener of listeners) {
