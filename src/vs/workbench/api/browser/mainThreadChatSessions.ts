@@ -342,7 +342,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		this._proxy = this._extHostContext.getProxy(ExtHostContext.ExtHostChatSessions);
 
-		this._chatSessionsService.setOptionsChangeCallback(async (sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>) => {
+		this._chatSessionsService.setOptionsChangeCallback(async (sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>) => {
 			const handle = this._getHandleForSessionType(sessionResource.scheme);
 			if (handle !== undefined) {
 				await this.notifyOptionsChange(handle, sessionResource, updates);
@@ -629,7 +629,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	/**
 	 * Notify the extension about option changes for a session
 	 */
-	async notifyOptionsChange(handle: number, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | undefined }>): Promise<void> {
+	async notifyOptionsChange(handle: number, sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem | undefined }>): Promise<void> {
 		try {
 			await this._proxy.$provideHandleOptionsChange(handle, sessionResource, updates, CancellationToken.None);
 		} catch (error) {
