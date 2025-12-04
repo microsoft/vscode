@@ -40,7 +40,7 @@ import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } f
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { CountTokensCallback, createToolSchemaUri, SpecedToolAliases, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -310,7 +310,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const request = model.getRequests().at(-1)!;
 				requestId = request.id;
 				dto.modelId = request.modelId;
-				dto.userSelectedTools = request.userSelectedTools;
+				dto.userSelectedTools = request.userSelectedTools && { ...request.userSelectedTools };
 
 				// Replace the token with a new token that we can cancel when cancelToolCallsForRequest is called
 				if (!this._callsByRequestId.has(requestId)) {
