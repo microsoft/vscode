@@ -17,12 +17,14 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
 import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions.contribution.js';
+import { ChatViewPaneTarget, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from '../../../contrib/chat/browser/chat.js';
 import { IChatAgentRequest } from '../../../contrib/chat/common/chatAgents.js';
 import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { LocalChatSessionUri } from '../../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -389,6 +391,8 @@ suite('MainThreadChatSessions', function () {
 			}
 		});
 		instantiationService.stub(IChatService, new MockChatService());
+		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { });
 
 		chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
@@ -514,6 +518,67 @@ suite('MainThreadChatSessions', function () {
 
 		// Session should be complete since it has no active capabilities
 		assert.strictEqual(session.isCompleteObs.get(), true);
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+	});
+
+	test('$onDidCommitChatSessionItem opens session in sidebar when chat view widget exists', async function () {
+		const sessionScheme = 'test-session-type';
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+		mainThread.$registerChatSessionItemProvider(1, sessionScheme);
+
+		const sessionContent = {
+			id: 'sidebar-session',
+			history: [],
+			hasActiveResponseCallback: false,
+			hasRequestHandler: false
+		};
+
+		(proxy.$provideChatSessionContent as sinon.SinonStub).resolves(sessionContent);
+
+		const originalResource = URI.parse(`${sessionScheme}:/sidebar-session`);
+		const modifiedResource = URI.parse(`${sessionScheme}:/new-sidebar-session`);
+
+		// Create a mock widget with a viewId (indicating it's a sidebar chat view)
+		const mockWidget: Partial<IChatWidget> = {
+			viewContext: { viewId: 'workbench.panel.chat.view' } as IChatWidgetViewContext
+		};
+
+		// Create spies for the methods we want to verify
+		const getWidgetBySessionResourceStub = sinon.stub().returns(mockWidget);
+		const openSessionStub = sinon.stub().resolves(mockWidget);
+
+		// Re-stub IChatWidgetService with the new methods
+		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() {
+			override getWidgetBySessionResource = getWidgetBySessionResourceStub;
+			override openSession = openSessionStub;
+		});
+
+		// Recreate mainThread with the updated stubs
+		mainThread.dispose();
+		const extHostContext = new class implements IExtHostContext {
+			remoteAuthority = '';
+			extensionHostKind = ExtensionHostKind.LocalProcess;
+			dispose() { }
+			assertRegistered() { }
+			set(v: any): any { return null; }
+			getProxy(): any { return proxy; }
+			drain(): any { return null; }
+		};
+		mainThread = disposables.add(instantiationService.createInstance(MainThreadChatSessions, extHostContext));
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+		mainThread.$registerChatSessionItemProvider(1, sessionScheme);
+
+		// Call $onDidCommitChatSessionItem - this should trigger the sidebar path
+		await mainThread.$onDidCommitChatSessionItem(1, originalResource, modifiedResource);
+
+		// Verify getWidgetBySessionResource was called with the original resource
+		assert.ok(getWidgetBySessionResourceStub.calledOnce);
+		assert.ok(getWidgetBySessionResourceStub.calledWith(originalResource));
+
+		// Verify openSession was called with the modified resource and ChatViewPaneTarget
+		assert.ok(openSessionStub.calledOnce);
+		assert.ok(openSessionStub.calledWith(modifiedResource, ChatViewPaneTarget, { preserveFocus: true }));
 
 		mainThread.$unregisterChatSessionContentProvider(1);
 	});
