@@ -5,7 +5,7 @@
 
 import { raceCancellationError } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
@@ -360,7 +360,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		const changeEmitter = disposables.add(new Emitter<void>());
 		const provider: IChatSessionItemProvider = {
 			chatSessionType,
-			onDidChangeChatSessionItems: changeEmitter.event,
+			onDidChangeChatSessionItems: Event.debounce(changeEmitter.event, (_, e) => e, 200),
 			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token),
 			provideNewChatSessionItem: (options, token) => this._provideNewChatSessionItem(handle, options, token)
 		};
