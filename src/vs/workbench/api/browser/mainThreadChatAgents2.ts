@@ -161,7 +161,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	async $registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): Promise<void> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		const staticAgentRegistration = this._chatAgentService.getAgent(id, true);
-		const chatSessionRegistration = this._chatSessionService.getAllChatSessionContributions().find(c => c.type === id || c.alternativeIds?.includes(id));
+		const chatSessionRegistration = this._chatSessionService.hasChatSessionRegistration(id);
 		if (!staticAgentRegistration && !chatSessionRegistration && !dynamicProps) {
 			if (this._chatAgentService.getAgentsByName(id).length) {
 				// Likely some extension authors will not adopt the new ID, so give a hint if they register a

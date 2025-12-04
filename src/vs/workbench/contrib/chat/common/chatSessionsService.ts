@@ -170,6 +170,11 @@ export interface IChatSessionsService {
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
 
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
+	/**
+	 * Check if a chat session type (or alternative ID) is registered, regardless of availability.
+	 * This is used for validation purposes to check if an extension has declared the participant.
+	 */
+	hasChatSessionRegistration(chatSessionType: string): boolean;
 	getIconForSessionType(chatSessionType: string): ThemeIcon | URI | undefined;
 	getWelcomeTitleForSessionType(chatSessionType: string): string | undefined;
 	getWelcomeMessageForSessionType(chatSessionType: string): string | undefined;
