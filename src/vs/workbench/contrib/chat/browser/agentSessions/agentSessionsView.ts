@@ -159,7 +159,7 @@ export class AgentSessionsView extends ViewPane {
 			}
 
 			const menuActions = this.menuService.getMenuActions(MenuId.AgentSessionsCreateSubMenu, this.scopedContextKeyService.createOverlay([
-				[ChatContextKeys.sessionType.key, provider.type]
+				[ChatContextKeys.agentSessionType.key, provider.type]
 			]));
 
 			const primaryActions = getActionBarActions(menuActions, () => true).primary;

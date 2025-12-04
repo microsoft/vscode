@@ -58,12 +58,12 @@ export function openAgentSessionsView(accessor: ServicesAccessor): void {
 	}
 }
 
-export enum SessionsViewerOrientation {
+export enum AgentSessionsViewerOrientation {
 	Stacked = 1,
 	SideBySide,
 }
 
-export enum SessionsViewerPosition {
+export enum AgentSessionsViewerPosition {
 	Left = 1,
 	Right,
 }

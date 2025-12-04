@@ -40,7 +40,7 @@ export class ArchiveAgentSessionAction extends Action2 {
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ChatContextKeys.isArchivedItem.negate(),
+				when: ChatContextKeys.isArchivedAgentSession.negate(),
 			}
 		});
 	}
@@ -59,7 +59,7 @@ export class UnarchiveAgentSessionAction extends Action2 {
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ChatContextKeys.isArchivedItem,
+				when: ChatContextKeys.isArchivedAgentSession,
 			}
 		});
 	}
