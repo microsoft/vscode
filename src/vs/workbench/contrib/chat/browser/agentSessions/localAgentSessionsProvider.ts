@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -11,7 +10,6 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { truncate } from '../../../../../base/common/strings.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatModel } from '../../common/chatModel.js';
@@ -133,14 +131,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			}
 
 			const lastResponse = model.getRequests().at(-1)?.response;
-
 			description = this.chatSessionsService.getSessionDescription(model);
-			if (!description) {
-				const responseValue = lastResponse?.response.toString();
-				if (responseValue) {
-					description = truncate(renderAsPlaintext({ value: responseValue }).replace(/\r?\n/g, ' '), 100); // ensure to strip any markdown
-				}
-			}
 
 			startTime = model.timestamp;
 			if (lastResponse) {
