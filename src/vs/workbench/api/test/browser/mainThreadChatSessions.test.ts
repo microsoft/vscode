@@ -373,7 +373,9 @@ suite('MainThreadChatSessions', function () {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IContextKeyService, disposables.add(instantiationService.createInstance(ContextKeyService)));
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() { });
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override editors = [];
+		});
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() {
 			override async openView() { return null; }
@@ -392,7 +394,9 @@ suite('MainThreadChatSessions', function () {
 		});
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatWidgetService, new class extends mock<IChatWidgetService>() { });
-		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { });
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override groups = [];
+		});
 
 		chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
 		instantiationService.stub(IChatSessionsService, chatSessionsService);
