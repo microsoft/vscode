@@ -544,10 +544,14 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, ChatSessionItemWithProvider | ArchivedSessionItems> {
 	// For now call it History until we support archive on all providers
 	private archivedItems = new ArchivedSessionItems(nls.localize('chat.sessions.archivedSessions', 'History'));
+	private cachedSessions: ChatSessionItemWithProvider[] | undefined;
+
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
 		private readonly sessionTracker: ChatSessionTracker,
+		cachedSessions?: ChatSessionItemWithProvider[],
 	) {
+		this.cachedSessions = cachedSessions;
 	}
 
 	hasChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider | ArchivedSessionItems): boolean {
@@ -565,6 +569,13 @@ export class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProv
 
 	async getChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider | ArchivedSessionItems): Promise<(ChatSessionItemWithProvider | ArchivedSessionItems)[]> {
 		if (element === this.provider) {
+			// If we have cached sessions, use them first and then clear the cache
+			if (this.cachedSessions) {
+				const cached = this.cachedSessions;
+				this.cachedSessions = undefined; // Only use cache once
+				return cached;
+			}
+
 			try {
 				const items = await this.provider.provideChatSessionItems(CancellationToken.None);
 				// Clear archived items from previous calls

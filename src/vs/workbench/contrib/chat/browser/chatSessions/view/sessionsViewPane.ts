@@ -14,7 +14,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { FuzzyScore } from '../../../../../../base/common/filters.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { truncate } from '../../../../../../base/common/strings.js';
-import { URI } from '../../../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import * as nls from '../../../../../../nls.js';
 import { DropdownWithPrimaryActionViewItem } from '../../../../../../platform/actions/browser/dropdownWithPrimaryActionViewItem.js';
 import { getActionBarActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -30,6 +30,7 @@ import { WorkbenchAsyncDataTree, WorkbenchList } from '../../../../../../platfor
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../../../browser/dnd.js';
 import { ResourceLabels } from '../../../../../browser/labels.js';
@@ -37,7 +38,7 @@ import { IViewPaneOptions, ViewPane } from '../../../../../browser/parts/views/v
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../common/chatService.js';
-import { IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration, ChatEditorTitleMaxLength } from '../../../common/constants.js';
 import { ACTION_ID_OPEN_CHAT } from '../../actions/chatActions.js';
 import { IMarshalledChatSessionContext } from '../../actions/chatSessionActions.js';
@@ -47,6 +48,9 @@ import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ChatSessionItemWithProvider, getSessionItemContextOverlay, NEW_CHAT_SESSION_ACTION_ID } from '../common.js';
 import { LocalAgentsSessionsProvider } from '../../agentSessions/localAgentSessionsProvider.js';
 import { ArchivedSessionItems, GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
+import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 
 // Identity provider for session items
 class SessionsIdentityProvider {
@@ -77,6 +81,7 @@ export class SessionsViewPane extends ViewPane {
 	private treeContainer: HTMLElement | undefined;
 	private messageElement?: HTMLElement;
 	private _isEmpty: boolean = true;
+	private cache: ChatSessionsCache | undefined;
 
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
@@ -100,9 +105,15 @@ export class SessionsViewPane extends ViewPane {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.minimumBodySize = 44;
+
+		// Initialize cache for providers that support caching
+		if (provider && this.shouldCacheProvider(provider.chatSessionType)) {
+			this.cache = this._register(new ChatSessionsCache(provider.chatSessionType, this.storageService));
+		}
 
 		// Listen for changes in the provider if it's a LocalChatSessionsProvider
 		if (provider instanceof LocalAgentsSessionsProvider) {
@@ -128,8 +139,51 @@ export class SessionsViewPane extends ViewPane {
 			}
 		}));
 
+		// Save cache before storage is persisted
+		this._register(this.storageService.onWillSaveState(() => {
+			if (this.cache && this.tree) {
+				this.saveCachedSessions();
+			}
+		}));
+
 		if (provider) { // TODO: Why can this be undefined?
 			this.scopedContextKeyService.createKey('chatSessionType', provider.chatSessionType);
+		}
+	}
+
+	/**
+	 * Determines if a provider type should have its sessions cached.
+	 * Only cache local sessions to avoid caching sessions from external providers.
+	 */
+	private shouldCacheProvider(providerType: string): boolean {
+		return providerType === localChatSessionType;
+	}
+
+	/**
+	 * Saves current tree sessions to the cache.
+	 */
+	private saveCachedSessions(): void {
+		if (!this.cache || !this.tree || !this.tree.hasNode(this.provider)) {
+			return;
+		}
+
+		try {
+			const providerNode = this.tree.getNode(this.provider);
+			const sessions: ChatSessionItemWithProvider[] = [];
+
+			// Collect all sessions from the tree
+			if (providerNode.children) {
+				for (const childNode of providerNode.children) {
+					const element = childNode.element;
+					if (element && !(element instanceof ArchivedSessionItems) && element !== this.provider) {
+						sessions.push(element as ChatSessionItemWithProvider);
+					}
+				}
+			}
+
+			this.cache.saveCachedSessions(sessions);
+		} catch (error) {
+			this.logService.error('Error saving cached sessions:', error);
 		}
 	}
 
@@ -292,8 +346,12 @@ export class SessionsViewPane extends ViewPane {
 		// Create message element for empty state
 		this.messageElement = append(container, $('.chat-sessions-message'));
 		this.messageElement.style.display = 'none';
+
+		// Load cached sessions if available
+		const cachedSessions = this.cache ? this.cache.loadCachedSessions(this.provider) : undefined;
+
 		// Create the tree components
-		const dataSource = new SessionsDataSource(this.provider, this.sessionTracker);
+		const dataSource = new SessionsDataSource(this.provider, this.sessionTracker, cachedSessions);
 		const delegate = new SessionsDelegate(this.configurationService);
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();
@@ -521,3 +579,82 @@ export class SessionsViewPane extends ViewPane {
 		menu.dispose();
 	}
 }
+
+//#region Sessions Cache
+
+interface ISerializedChatSessionItem {
+	readonly resource: UriComponents;
+	readonly label: string;
+	readonly description?: string | IMarkdownString;
+	readonly tooltip?: string | IMarkdownString;
+	readonly status?: ChatSessionStatus;
+	readonly archived?: boolean;
+	readonly iconPath?: string;
+	readonly timing?: {
+		readonly startTime: number;
+		readonly endTime?: number;
+	};
+	readonly statistics?: {
+		readonly files: number;
+		readonly insertions: number;
+		readonly deletions: number;
+	};
+}
+
+class ChatSessionsCache extends Disposable {
+	private readonly storageKey: string;
+
+	constructor(
+		providerType: string,
+		private readonly storageService: IStorageService
+	) {
+		super();
+		this.storageKey = `chatSessions.cache.${providerType}`;
+	}
+
+	saveCachedSessions(sessions: ChatSessionItemWithProvider[]): void {
+		const serialized: ISerializedChatSessionItem[] = sessions.map(session => ({
+			resource: session.resource.toJSON(),
+			label: session.label,
+			description: session.description,
+			tooltip: session.tooltip,
+			status: session.status,
+			archived: session.archived,
+			iconPath: session.iconPath && ThemeIcon.isThemeIcon(session.iconPath) ? session.iconPath.id : undefined,
+			timing: session.timing ? {
+				startTime: session.timing.startTime,
+				endTime: session.timing.endTime,
+			} : undefined,
+			statistics: session.statistics,
+		}));
+
+		this.storageService.store(this.storageKey, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	loadCachedSessions(provider: IChatSessionItemProvider): ChatSessionItemWithProvider[] {
+		const sessionsCache = this.storageService.get(this.storageKey, StorageScope.WORKSPACE);
+		if (!sessionsCache) {
+			return [];
+		}
+
+		try {
+			const cached = JSON.parse(sessionsCache) as ISerializedChatSessionItem[];
+			return cached.map(session => ({
+				resource: URI.revive(session.resource),
+				label: session.label,
+				description: session.description,
+				tooltip: session.tooltip,
+				status: session.status,
+				archived: session.archived,
+				iconPath: session.iconPath ? ThemeIcon.fromId(session.iconPath) : undefined,
+				timing: session.timing || { startTime: Date.now() },
+				statistics: session.statistics,
+				provider,
+			}));
+		} catch {
+			return []; // invalid data in storage, fallback to empty sessions list
+		}
+	}
+}
+
+//#endregion
