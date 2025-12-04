@@ -838,7 +838,7 @@ export class QuickInputController extends Disposable {
 				const container = this.layoutService.getContainer(dom.getActiveWindow()).getBoundingClientRect();
 				const anchor = getAnchorRect(this.controller.anchor);
 				width = 380;
-				listHeight = Math.min((this.dimension && this.dimension?.height * 0.2) ?? 200, 200);
+				listHeight = this.dimension ? Math.min(this.dimension.height * 0.2, 200) : 200;
 
 				// Beware:
 				// We need to add some extra pixels to the height to account for the input and padding.
