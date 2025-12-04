@@ -29,6 +29,7 @@ export class WebPageLoader extends Disposable {
 	private static readonly POST_LOAD_TIMEOUT = 5000; // 5 seconds - increased for dynamic content
 	private static readonly FRAME_TIMEOUT = 500; // 0.5 seconds
 	private static readonly IDLE_DEBOUNCE_TIME = 500; // 0.5 seconds - wait after last network request
+	private static readonly MIN_CONTENT_LENGTH = 100; // Minimum content length to consider extraction successful
 
 	private readonly _window: BrowserWindow;
 	private readonly _debugger: Electron.Debugger;
@@ -287,10 +288,14 @@ export class WebPageLoader extends Disposable {
 		}
 
 		try {
-			this.trace(`Extracting content using Accessibility domain`);
 			const title = this._window.webContents.getTitle();
-			const { nodes } = await this._debugger.sendCommand('Accessibility.getFullAXTree') as { nodes: AXNode[] };
-			const result = convertAXTreeToMarkdown(this._uri, nodes);
+
+			let result = await this.extractAccessibilityTreeContent() ?? '';
+			if (result.length < WebPageLoader.MIN_CONTENT_LENGTH) {
+				this.trace(`Accessibility tree extraction yielded insufficient content, trying main DOM element extraction`);
+				const domContent = await this.extractMainDomElementContent() ?? '';
+				result = domContent.length > result.length ? domContent : result;
+			}
 
 			if (errorResult !== undefined) {
 				this._onResult({ ...errorResult, result, title });
@@ -306,6 +311,44 @@ export class WebPageLoader extends Disposable {
 					error: e instanceof Error ? e.message : String(e)
 				});
 			}
+		}
+	}
+
+	/**
+	 * Extracts content from the Accessibility tree of the loaded web page.
+	 */
+	private async extractAccessibilityTreeContent(): Promise<string | undefined> {
+		this.trace(`Extracting content using Accessibility domain`);
+		try {
+			const { nodes } = await this._debugger.sendCommand('Accessibility.getFullAXTree') as { nodes: AXNode[] };
+			return convertAXTreeToMarkdown(this._uri, nodes);
+		} catch (error) {
+			this.trace(`Accessibility tree extraction failed: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
+		}
+	}
+
+	/**
+	 * Extracts content from main DOM elements as a fallback method.
+	 */
+	private async extractMainDomElementContent(): Promise<string | undefined> {
+		try {
+			this.trace(`Extracting content from main DOM element`);
+			return await this._window.webContents.executeJavaScript(`
+				(() => {
+					const selectors = ['main','article','[role="main"]','.main-content','#main-content','.article-body','.post-content','.entry-content','.content','body'];
+					for (const selector of selectors) {
+						const content = document.querySelector(selector)?.textContent?.trim();
+						if (content && content.length > ${WebPageLoader.MIN_CONTENT_LENGTH}) {
+							return content.replace(/\\s+/g, ' ');
+						}
+					}
+					return undefined;
+				})();
+			`);
+		} catch (error) {
+			this.trace(`DOM extraction failed: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
 		}
 	}
 }
