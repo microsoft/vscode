@@ -69,7 +69,7 @@ export class ConfirmTerminalCommandTool extends RunInTerminalTool {
 			}
 		}
 		catch {
-			//
+			// Ignore parse errors or session lookup failures; fallback to using the original chatSessionId.
 		}
 		const preparedInvocation = await super.prepareToolInvocation(context, token);
 		if (preparedInvocation) {
