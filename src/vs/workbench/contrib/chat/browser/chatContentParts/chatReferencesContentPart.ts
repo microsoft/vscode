@@ -22,7 +22,7 @@ import { getFlatContextMenuActions } from '../../../../../platform/actions/brows
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyValue, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -56,7 +56,14 @@ export interface IChatReferenceListItem extends IChatContentReference {
 	excluded?: boolean;
 }
 
-export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage;
+export interface IChatListDividerItem {
+	kind: 'divider';
+	label: string;
+	menuId?: MenuId;
+	contextKeys?: [key: string, value: ContextKeyValue][];
+}
+
+export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage | IChatListDividerItem;
 
 export class ChatCollapsibleListContentPart extends ChatCollapsibleContentPart {
 
@@ -205,7 +212,7 @@ export class CollapsibleListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new CollapsibleListDelegate(),
-			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId)],
+			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId), this.instantiationService.createInstance(DividerRenderer)],
 			{
 				...this.listOptions,
 				alwaysConsumeMouseWheel: false,
@@ -213,6 +220,9 @@ export class CollapsibleListPool extends Disposable {
 					getAriaLabel: (element: IChatCollapsibleListItem) => {
 						if (element.kind === 'warning') {
 							return element.content.value;
+						}
+						if (element.kind === 'divider') {
+							return element.label;
 						}
 						const reference = element.reference;
 						if (typeof reference === 'string') {
@@ -278,6 +288,9 @@ class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleLi
 	}
 
 	getTemplateId(element: IChatCollapsibleListItem): string {
+		if (element.kind === 'divider') {
+			return DividerRenderer.TEMPLATE_ID;
+		}
 		return CollapsibleListRenderer.TEMPLATE_ID;
 	}
 }
@@ -348,6 +361,11 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			return;
 		}
 
+		if (data.kind === 'divider') {
+			// Dividers are handled by DividerRenderer
+			return;
+		}
+
 		const reference = data.reference;
 		const icon = this.getReferenceIcon(data);
 		templateData.label.element.style.display = 'flex';
@@ -414,23 +432,17 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 
 		if (data.state !== undefined) {
 			if (templateData.actionBarContainer) {
-				if (data.state === ModifiedFileEntryState.Modified && !templateData.actionBarContainer.classList.contains('modified')) {
-					const diffMeta = data?.options?.diffMeta;
-					if (diffMeta) {
-						if (!templateData.fileDiffsContainer || !templateData.addedSpan || !templateData.removedSpan) {
-							return;
-						}
-						templateData.addedSpan.textContent = `+${diffMeta.added}`;
-						templateData.removedSpan.textContent = `-${diffMeta.removed}`;
-						templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added, diffMeta.removed));
+				const diffMeta = data?.options?.diffMeta;
+				if (diffMeta) {
+					if (!templateData.fileDiffsContainer || !templateData.addedSpan || !templateData.removedSpan) {
+						return;
 					}
-					// eslint-disable-next-line no-restricted-syntax
-					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
-				} else if (data.state !== ModifiedFileEntryState.Modified) {
-					templateData.actionBarContainer.classList.remove('modified');
-					// eslint-disable-next-line no-restricted-syntax
-					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
+					templateData.addedSpan.textContent = `+${diffMeta.added}`;
+					templateData.removedSpan.textContent = `-${diffMeta.removed}`;
+					templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added, diffMeta.removed));
 				}
+				// eslint-disable-next-line no-restricted-syntax
+				templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
 			}
 			if (templateData.toolbar) {
 				templateData.toolbar.context = arg;
@@ -444,6 +456,61 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 	}
 
 	disposeTemplate(templateData: ICollapsibleListTemplate): void {
+		templateData.templateDisposables.dispose();
+	}
+}
+
+interface IDividerTemplate {
+	readonly container: HTMLElement;
+	readonly label: HTMLElement;
+	readonly line: HTMLElement;
+	readonly toolbarContainer: HTMLElement;
+	readonly templateDisposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
+	toolbar: MenuWorkbenchToolBar | undefined;
+}
+
+class DividerRenderer implements IListRenderer<IChatListDividerItem, IDividerTemplate> {
+	static TEMPLATE_ID = 'chatListDividerRenderer';
+	readonly templateId: string = DividerRenderer.TEMPLATE_ID;
+
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+	) { }
+
+	renderTemplate(container: HTMLElement): IDividerTemplate {
+		const templateDisposables = new DisposableStore();
+		const elementDisposables = templateDisposables.add(new DisposableStore());
+		container.classList.add('chat-list-divider');
+		const label = dom.append(container, dom.$('span.chat-list-divider-label'));
+		const line = dom.append(container, dom.$('div.chat-list-divider-line'));
+		const toolbarContainer = dom.append(container, dom.$('.chat-list-divider-toolbar'));
+
+		return { container, label, line, toolbarContainer, templateDisposables, elementDisposables, toolbar: undefined };
+	}
+
+	renderElement(data: IChatListDividerItem, index: number, templateData: IDividerTemplate): void {
+		templateData.label.textContent = data.label;
+
+		// Clear element-specific disposables from previous render
+		templateData.elementDisposables.clear();
+		templateData.toolbar = undefined;
+		dom.clearNode(templateData.toolbarContainer);
+
+		if (data.menuId) {
+			const contextKeyService = templateData.elementDisposables.add(this.contextKeyService.createScoped(templateData.toolbarContainer));
+			if (data.contextKeys) {
+				for (const [key, value] of data.contextKeys) {
+					contextKeyService.createKey(key, value);
+				}
+			}
+			const scopedInstantiationService = templateData.elementDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
+			templateData.toolbar = templateData.elementDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, templateData.toolbarContainer, data.menuId, { menuOptions: { shouldForwardArgs: true } }));
+		}
+	}
+
+	disposeTemplate(templateData: IDividerTemplate): void {
 		templateData.templateDisposables.dispose();
 	}
 }
@@ -492,7 +559,7 @@ function getLineRangeFromGithubUri(uri: URI): IRange | undefined {
 }
 
 function getResourceForElement(element: IChatCollapsibleListItem): URI | null {
-	if (element.kind === 'warning') {
+	if (element.kind === 'warning' || element.kind === 'divider') {
 		return null;
 	}
 	const { reference } = element;
