@@ -44,6 +44,10 @@ class MockChatService implements IChatService {
 		this._onDidDisposeSession.fire({ sessionResource, reason: 'cleared' });
 	}
 
+	setSaveModelsEnabled(enabled: boolean): void {
+
+	}
+
 	setLiveSessionItems(items: IChatDetail[]): void {
 		this.liveSessionItems = items;
 	}

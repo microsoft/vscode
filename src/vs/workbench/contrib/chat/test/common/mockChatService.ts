@@ -24,6 +24,9 @@ export class MockChatService implements IChatService {
 
 	private sessions = new ResourceMap<IChatModel>();
 
+	setSaveModelsEnabled(enabled: boolean): void {
+
+	}
 	isEnabled(location: ChatAgentLocation): boolean {
 		throw new Error('Method not implemented.');
 	}
