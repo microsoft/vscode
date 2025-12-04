@@ -160,6 +160,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
+	private updateViewPaneClasses(fromEvent: boolean): void {
+		const welcomeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled) !== false;
+		this.viewPaneContainer?.classList.toggle('chat-view-welcome-enabled', welcomeEnabled);
+
+		if (fromEvent && this.lastDimensions) {
+			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+		}
+	}
+
 	private registerListeners(): void {
 
 		// Agent changes
@@ -200,6 +209,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Layout changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sideBar.location'))(() => this.updateContextKeys(true)));
 		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))(() => this.updateContextKeys(true)));
+
+		// Settings changes
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewWelcomeEnabled))(() => this.updateViewPaneClasses(true)));
 	}
 
 	private getTransferredOrPersistedSessionInfo(): { sessionId?: string; inputState?: IChatModelInputState; mode?: ChatModeKind } {
@@ -273,6 +285,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.viewPaneContainer = parent;
 		this.viewPaneContainer.classList.add('chat-viewpane');
+		this.updateViewPaneClasses(false);
 
 		this.createControls(parent);
 
