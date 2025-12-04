@@ -1434,7 +1434,7 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 			selectedSuggestionInfo: lifetimeSummary.selectedSuggestionInfo,
 			extensionId: this.providerId.extensionId!,
 			extensionVersion: this.providerId.extensionVersion!,
-			groupId: this.groupId,
+			groupId: extractEngineFromCorrelationId(lifetimeSummary.correlationId) ?? this.groupId,
 			skuPlan: lifetimeSummary.skuPlan,
 			skuType: lifetimeSummary.skuType,
 			performanceMarkers: lifetimeSummary.performanceMarkers,
@@ -1476,5 +1476,17 @@ class ExtensionBackedInlineCompletionsProvider extends Disposable implements lan
 
 	override toString() {
 		return `InlineCompletionsProvider(${this.providerId.toString()})`;
+	}
+}
+
+function extractEngineFromCorrelationId(correlationId: string | undefined): string | undefined {
+	if (!correlationId) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(correlationId);
+		return parsed.engine;
+	} catch {
+		return undefined;
 	}
 }
