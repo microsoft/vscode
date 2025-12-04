@@ -440,7 +440,13 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 
 		const chatViewWidget = this._chatWidgetService.getWidgetBySessionResource(originalResource);
 		if (chatViewWidget && isIChatViewViewContext(chatViewWidget.viewContext)) {
-			await this._chatSessionsService.getOrCreateChatSession(modifiedResource, CancellationToken.None);
+			const newSession = await this._chatSessionsService.getOrCreateChatSession(modifiedResource, CancellationToken.None);
+			// If chat editor is in the side panel, then those are not listed as editors.
+			// In that case we need to transfer editing session using the original model.
+			const originalModel = this._chatService.getSession(originalResource);
+			if (originalModel) {
+				newSession.initialEditingSession = originalModel.editingSession;
+			}
 			await this._chatWidgetService.openSession(modifiedResource, ChatViewPaneTarget, { preserveFocus: true });
 		}
 	}
