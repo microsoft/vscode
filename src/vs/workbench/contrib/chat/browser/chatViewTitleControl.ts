@@ -115,7 +115,7 @@ export class ChatViewTitleControl extends Disposable {
 	}
 
 	private doUpdate(): void {
-		const markdownTitle = new MarkdownString(this.model?.title);
+		const markdownTitle = new MarkdownString(this.model?.title ?? '');
 		this.title = renderAsPlaintext(markdownTitle);
 
 		this.delegate.updateTitle(this.getTitleWithPrefix());
