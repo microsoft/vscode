@@ -25,6 +25,8 @@ import { IChatModel } from '../common/chatModel.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ChatViewId } from './chat.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions/agentSessions.js';
+import { registerColor, transparent } from '../../../../platform/theme/common/colorUtils.js';
+import { inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
 
 export interface IChatViewTitleDelegate {
 	updateTitle(title: string): void;
@@ -253,3 +255,6 @@ export class ChatViewTitleControl extends Disposable {
 		return this.titleContainer.offsetHeight;
 	}
 }
+
+export const sessionListBackground = registerColor('sessionList.background', transparent(inputBackground, 0.5), localize('sessionList.background', "Background color of the agent session list in the Chat view."));
+
