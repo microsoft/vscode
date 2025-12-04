@@ -62,6 +62,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	private _HEAD: Branch | undefined;
 	private _historyItemRefs: SourceControlHistoryItemRef[] = [];
+	private _historyStashRefs: SourceControlHistoryItemRef[] = [];
 	private _stashRefsByHash = new Map<string, SourceControlHistoryItemRef>();
 
 	private commitShortHashLength = 7;
@@ -106,9 +107,20 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const historyItemRefs = this.repository.refs
 			.map(ref => this.toSourceControlHistoryItemRef(ref))
 			.sort((a, b) => a.id.localeCompare(b.id));
-
-		const delta = deltaHistoryItemRefs(this._historyItemRefs, historyItemRefs);
+		const refDelta = deltaHistoryItemRefs(this._historyItemRefs, historyItemRefs);
 		this._historyItemRefs = historyItemRefs;
+
+		const historyStashRefs = (await this.repository.getStashes())
+			.map(stash => this.stashToSourceControlHistoryItemRef(stash))
+			.sort((a, b) => a.id.localeCompare(b.id));
+		const stashDelta = deltaHistoryItemRefs(this._historyStashRefs, historyStashRefs);
+		this._historyStashRefs = historyStashRefs;
+
+		const delta = {
+			added: refDelta.added.concat(stashDelta.added),
+			modified: refDelta.modified.concat(stashDelta.modified),
+			removed: refDelta.removed.concat(stashDelta.removed)
+		};
 
 		let historyItemRefId = '';
 		let historyItemRefName = '';
