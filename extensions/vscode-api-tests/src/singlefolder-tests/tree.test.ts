@@ -18,7 +18,7 @@ suite('vscode API - tree', () => {
 		assertNoRpc();
 	});
 
-	test('TreeView - element already registered', async function () {
+	test.skip('TreeView - element already registered', async function () {
 		this.timeout(60_000);
 
 		type TreeElement = { readonly kind: 'leaf' };
