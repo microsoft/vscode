@@ -472,9 +472,10 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 
 		// enableSashes(north, east, south, west)
 		// For NORTH placement: enable north sash (resize upward from top), disable south (can't resize into the anchor)
+		// Also enable west sash for horizontal resizing, consistent with SOUTH placement
 		// For SOUTH placement and EAST/WEST placements: use existing logic based on alignAtTop
 		if (placement === northPlacement) {
-			this._resizable.enableSashes(true, false, false, false);
+			this._resizable.enableSashes(true, false, false, true);
 		} else {
 			this._resizable.enableSashes(!alignAtTop, placement === eastPlacement, alignAtTop, placement !== eastPlacement);
 		}
