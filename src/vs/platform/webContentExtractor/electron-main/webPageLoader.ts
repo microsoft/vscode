@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { BrowserWindow, BrowserWindowConstructorOptions, Event } from 'electron';
+import type { BeforeSendResponse, BrowserWindow, BrowserWindowConstructorOptions, Event, OnBeforeSendHeadersListenerDetails } from 'electron';
 import { Queue, raceTimeout, TimeoutTimer } from '../../../base/common/async.js';
 import { createSingleCallFunction } from '../../../base/common/functional.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -79,6 +79,8 @@ export class WebPageLoader extends Disposable {
 			.on('select-client-certificate', (event) => event.preventDefault())
 			.on('certificate-error', (event) => event.preventDefault());
 
+		this._window.webContents.session.webRequest.onBeforeSendHeaders(
+			this.onBeforeSendHeaders.bind(this));
 	}
 
 	private trace(message: string) {
@@ -131,6 +133,23 @@ export class WebPageLoader extends Disposable {
 			this.trace(`Page load timeout reached`);
 			void this._queue.queue(() => this.extractContent());
 		}, time);
+	}
+
+	/**
+	 * Updates HTTP headers for each web request.
+	 */
+	private onBeforeSendHeaders(details: OnBeforeSendHeadersListenerDetails, callback: (beforeSendResponse: BeforeSendResponse) => void) {
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		const headers = { ...details.requestHeaders };
+
+		// Request privacy for web-sites that respect these.
+		headers['DNT'] = '1';
+		headers['Sec-GPC'] = '1';
+
+		callback({ requestHeaders: headers });
 	}
 
 	/**

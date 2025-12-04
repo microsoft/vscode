@@ -22,6 +22,12 @@ class MockWebContents {
 	public loadURL = sinon.stub().resolves();
 	public getTitle = sinon.stub().returns('Test Page Title');
 
+	public session = {
+		webRequest: {
+			onBeforeSendHeaders: sinon.stub()
+		}
+	};
+
 	constructor() {
 		this.debugger = new MockDebugger();
 	}
