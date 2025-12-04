@@ -12,10 +12,59 @@
 	}
 }
 
-/* Sessions control: side by side */
-.chat-viewpane.has-sessions-control.sessions-control-orientation-sidebyside {
+/* Sessions control: either sidebar or compact */
+.chat-viewpane.has-sessions-control {
 
 	display: flex;
+
+	.chat-controls-container {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+	}
+
+	.agent-sessions-container {
+		display: flex;
+		flex-direction: column;
+		background-color: var(--vscode-editorWidget-background);
+
+		.agent-sessions-title-container {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			font-size: 11px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			color: var(--vscode-descriptionForeground);
+			padding: 8px;
+
+			.agent-sessions-title {
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
+
+			.agent-sessions-toolbar {
+				visibility: hidden;
+			}
+		}
+	}
+
+	.agent-sessions-container:hover .agent-sessions-title-container .agent-sessions-toolbar {
+		visibility: visible;
+	}
+
+	.interactive-session {
+
+		/* needed so that the chat welcome and chat input does not overflow and input grows over welcome */
+		width: 100%;
+		min-height: 0;
+		min-width: 0;
+	}
+}
+
+/* Sessions control: side by side */
+.chat-viewpane.has-sessions-control.sessions-control-orientation-sidebyside {
 
 	&.sessions-control-position-left {
 		flex-direction: row;
@@ -28,7 +77,6 @@
 /* Sessions control: compact */
 .chat-viewpane.has-sessions-control:not(.sessions-control-orientation-sidebyside) {
 
-	display: flex;
 	flex-direction: column;
 
 	.agent-sessions-container {
@@ -55,48 +103,5 @@
 		.chat-welcome-view .chat-welcome-view-tips {
 			visibility: hidden;
 		}
-	}
-}
-
-/* Sessions control: either sidebar or compact */
-.chat-viewpane.has-sessions-control {
-
-	.chat-controls-container {
-		display: flex;
-		flex-direction: column;
-		flex: 1;
-	}
-
-	.agent-sessions-container {
-		display: flex;
-		flex-direction: column;
-		background-color: var(--vscode-editorWidget-background);
-
-		.agent-sessions-title-container {
-			display: flex;
-			align-items: center;
-			justify-content: space-between;
-			font-size: 11px;
-			text-transform: uppercase;
-			letter-spacing: 0.5px;
-			color: var(--vscode-descriptionForeground);
-			padding: 8px;
-
-			.agent-sessions-toolbar {
-				visibility: hidden;
-			}
-		}
-	}
-
-	.agent-sessions-container:hover .agent-sessions-title-container .agent-sessions-toolbar {
-		visibility: visible;
-	}
-
-	.interactive-session {
-
-		/* needed so that the chat welcome and chat input does not overflow and input grows over welcome */
-		width: 100%;
-		min-height: 0;
-		min-width: 0;
 	}
 }

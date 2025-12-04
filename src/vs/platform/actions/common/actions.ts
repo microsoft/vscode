@@ -287,11 +287,11 @@ export class MenuId {
 	static readonly AgentSessionsCreateSubMenu = new MenuId('AgentSessionsCreateSubMenu');
 	static readonly AgentSessionsToolbar = new MenuId('AgentSessionsToolbar');
 	static readonly AgentSessionItemToolbar = new MenuId('AgentSessionItemToolbar');
+	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
 
 	/**
-	 * @deprecated TODO@bpasero remove both
+	 * @deprecated TODO@bpasero remove
 	*/
-	static readonly ChatViewSessionTitleToolbar = new MenuId('ChatViewSessionTitleToolbar');
 	static readonly AgentSessionsViewTitle = new MenuId('AgentSessionsViewTitle');
 
 	/**
