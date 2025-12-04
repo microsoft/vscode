@@ -181,7 +181,7 @@ export class ChatContinueInSessionActionItem extends ActionWidgetDropdownActionV
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		if (this.location === ActionLocation.Editor) {
 			const view = h('span.action-widget-delegate-label', [
-				h('span', { className: ThemeIcon.asClassName(Codicon.forward) }),
+				h('span', { className: 'codicon codicon-forward' }),
 				h('span', [localize('continueInEllipsis', "Continue in...")])
 			]);
 			element.appendChild(view.root);
