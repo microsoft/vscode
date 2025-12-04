@@ -80,6 +80,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _sessionModels: ChatModelStore;
 	private readonly _pendingRequests = this._register(new DisposableResourceMap<CancellableRequest>());
 	private _persistedSessions: ISerializableChatsData;
+	private _saveModelsEnabled = true;
 
 	private _transferredSessionData: IChatTransferredSessionData | undefined;
 	public get transferredSessionData(): IChatTransferredSessionData | undefined {
@@ -102,6 +103,13 @@ export class ChatService extends Disposable implements IChatService {
 	readonly requestInProgressObs: IObservable<boolean>;
 
 	readonly chatModels: IObservable<Iterable<IChatModel>>;
+
+	/**
+	 * For test use only
+	 */
+	setSaveModelsEnabled(enabled: boolean): void {
+		this._saveModelsEnabled = enabled;
+	}
 
 	/**
 	 * For test use only
@@ -142,7 +150,7 @@ export class ChatService extends Disposable implements IChatService {
 					// Always preserve sessions that have custom titles, even if empty
 					if (model.getRequests().length === 0 && !model.customTitle) {
 						await this._chatSessionStore.deleteSession(localSessionId);
-					} else {
+					} else if (this._saveModelsEnabled) {
 						await this._chatSessionStore.storeSessions([model]);
 					}
 				}
@@ -205,6 +213,10 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private saveState(): void {
+		if (!this._saveModelsEnabled) {
+			return;
+		}
+
 		const liveChats = Array.from(this._sessionModels.values())
 			.filter(session => this.shouldStoreSession(session));
 

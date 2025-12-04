@@ -1069,6 +1069,11 @@ export interface IChatService {
 	/**
 	 * For tests only!
 	 */
+	setSaveModelsEnabled(enabled: boolean): void;
+
+	/**
+	 * For tests only!
+	 */
 	waitForModelDisposals(): Promise<void>;
 }
 
