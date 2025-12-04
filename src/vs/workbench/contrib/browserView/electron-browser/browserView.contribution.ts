@@ -107,10 +107,16 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				BrowserViewStorageScope.Workspace,
 				BrowserViewStorageScope.Ephemeral
 			],
-			default: BrowserViewStorageScope.Workspace,
+			markdownEnumDescriptions: [
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.dataStorage.global' }, 'All browser views share a single persistent session across all workspaces.'),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.dataStorage.workspace' }, 'Browser views within the same workspace share a persistent session.'),
+				localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.dataStorage.ephemeral' }, 'Each browser view has its own session that is cleaned up when closed.')
+			],
+			restricted: true,
+			default: BrowserViewStorageScope.Global,
 			markdownDescription: localize(
-				'browser.dataStorage',
-				'Controls how browser data (cookies, cache, storage) is shared between browser views.\n\n- `global`: All browser views share a single persistent session across all workspaces.\n- `workspace`: Browser views within the same workspace share a persistent session.\n- `ephemeral`: Each browser view has its own session that is cleaned up when closed.'
+				{ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'browser.dataStorage' },
+				'Controls how browser data (cookies, cache, storage) is shared between browser views.\n\n**Note**: In untrusted workspaces, this setting is ignored and `ephemeral` storage is always used.'
 			),
 			scope: ConfigurationScope.WINDOW,
 			order: 100

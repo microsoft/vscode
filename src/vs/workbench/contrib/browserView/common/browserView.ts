@@ -19,10 +19,11 @@ import {
 	IBrowserViewService,
 	BrowserViewStorageScope
 } from '../../../../platform/browserView/common/browserView.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { isLocalhost } from '../../../../platform/tunnel/common/tunnel.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 type IntegratedBrowserNavigationEvent = {
 	navigationType: 'urlInput' | 'goBack' | 'goForward' | 'reload';
@@ -108,6 +109,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		public readonly id: string,
 		private readonly browserViewService: IBrowserViewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
@@ -157,10 +159,16 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	async initialize(): Promise<void> {
 		const dataStorageSetting = this.configurationService.getValue<BrowserViewStorageScope>(
 			'workbench.browser.dataStorage'
-		) ?? BrowserViewStorageScope.Workspace;
+		) ?? BrowserViewStorageScope.Global;
+		const isWorkspaceUntrusted =
+			this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY &&
+			!this.workspaceTrustManagementService.isWorkspaceTrusted();
+
+		// Always use ephemeral sessions for untrusted workspaces
+		const dataStorage = isWorkspaceUntrusted ? BrowserViewStorageScope.Ephemeral : dataStorageSetting;
 
 		const workspaceId = this.workspaceContextService.getWorkspace().id;
-		const state = await this.browserViewService.getOrCreateBrowserView(this.id, dataStorageSetting, workspaceId);
+		const state = await this.browserViewService.getOrCreateBrowserView(this.id, dataStorage, workspaceId);
 
 		this._url = state.url;
 		this._title = state.title;

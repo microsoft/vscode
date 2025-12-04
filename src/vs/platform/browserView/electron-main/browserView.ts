@@ -214,6 +214,13 @@ export class BrowserView extends Disposable {
 				}
 			}
 		});
+
+		// For now, always prevent sites from blocking unload.
+		// In the future we may want to show a dialog to ask the user,
+		// with heavy restrictions regarding interaction and repeated prompts.
+		webContents.on('will-prevent-unload', (e) => {
+			e.preventDefault();
+		});
 	}
 
 	/**
@@ -389,7 +396,7 @@ export class BrowserView extends Disposable {
 
 		// Clean up the view and all its event listeners
 		// Note: webContents.close() automatically removes all event listeners
-		this._view.webContents.close();
+		this._view.webContents.close({ waitForBeforeUnload: false });
 
 		super.dispose();
 	}

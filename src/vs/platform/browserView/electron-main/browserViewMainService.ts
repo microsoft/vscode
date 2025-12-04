@@ -17,6 +17,14 @@ export interface IBrowserViewMainService extends IBrowserViewService {
 	// Additional electron-specific methods can be added here if needed in the future
 }
 
+// Same as webviews
+const allowedPermissions = new Set([
+	'pointerLock',
+	'notifications',
+	'clipboard-read',
+	'clipboard-sanitized-write'
+]);
+
 export class BrowserViewMainService extends Disposable implements IBrowserViewMainService {
 	declare readonly _serviceBrand: undefined;
 
@@ -56,6 +64,15 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 	}
 
+	private configureSession(viewSession: Electron.Session): void {
+		viewSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+			return callback(allowedPermissions.has(permission));
+		});
+		viewSession.setPermissionCheckHandler((_webContents, permission, _origin) => {
+			return allowedPermissions.has(permission);
+		});
+	}
+
 	async getOrCreateBrowserView(id: string, scope: BrowserViewStorageScope, workspaceId?: string): Promise<IBrowserViewState> {
 		if (this.browserViews.has(id)) {
 			// Note: scope will be ignored if the view already exists.
@@ -65,6 +82,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		}
 
 		const viewSession = this.getSession(id, scope, workspaceId);
+		this.configureSession(viewSession);
 		BrowserViewMainService.knownSessions.add(viewSession);
 
 		const view = this.instantiationService.createInstance(BrowserView, viewSession);
