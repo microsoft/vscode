@@ -38,6 +38,12 @@
 			color: var(--vscode-descriptionForeground);
 			padding: 8px;
 
+			.agent-sessions-title {
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
+
 			.agent-sessions-toolbar {
 				visibility: hidden;
 			}
