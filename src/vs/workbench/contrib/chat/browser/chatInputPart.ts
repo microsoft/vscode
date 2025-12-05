@@ -2029,7 +2029,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this,
 			this.agentSessionsService.model.onDidChangeSessions,
 			() => {
-				const model = this.agentSessionsService.model.sessions.find(s => isEqual(s.resource, this._widget?.viewModel?.model.sessionResource));
+				const sessionResource = this._widget?.viewModel?.model?.sessionResource;
+				if (!sessionResource) {
+					return Iterable.empty();
+				}
+				const model = this.agentSessionsService.model.sessions.find(s => isEqual(s.resource, sessionResource));
 				return model?.changes instanceof Array ? model.changes : Iterable.empty();
 			},
 		);

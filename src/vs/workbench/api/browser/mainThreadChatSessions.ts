@@ -459,7 +459,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				const uri = URI.revive(session.resource);
 				const model = this._chatService.getSession(uri);
 				let description: string | undefined;
-				let statistics: IChatSessionItem['statistics'];
+				let changes: IChatSessionItem['changes'];
 				if (model) {
 					description = this._chatSessionsService.getSessionDescription(model);
 				}
@@ -468,21 +468,22 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					await awaitStatsForSession(model) :
 					(await this._chatService.getMetadataForSession(uri))?.stats;
 				if (modelStats) {
-					statistics = {
+					changes = {
 						files: modelStats.fileCount,
 						insertions: modelStats.added,
 						deletions: modelStats.removed
 					};
+				} else {
+					changes = session.changes instanceof Array ? revive(session.changes) : session.changes;
 				}
 
 				return {
 					...session,
-					changes: session.changes instanceof Array ? revive(session.changes) : session.changes,
+					changes,
 					resource: uri,
 					iconPath: session.iconPath,
 					tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined,
-					description: description || session.description,
-					statistics
+					description: description || session.description
 				} satisfies IChatSessionItem;
 			}));
 		} catch (error) {

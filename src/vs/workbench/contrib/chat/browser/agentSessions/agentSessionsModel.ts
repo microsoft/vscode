@@ -283,6 +283,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					});
 				}
 
+				const changes = session.changes;
+				const normalizedChanges = changes && !(changes instanceof Array)
+					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
+					: changes;
+
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: provider.chatSessionType,
 					providerLabel,
@@ -299,7 +304,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 						inProgressTime,
 						finishedOrFailedTime
 					},
-					changes: session.changes,
+					changes: normalizedChanges,
 				}));
 			}
 		}
@@ -466,7 +471,7 @@ class AgentSessionsCache {
 					endTime: session.timing.endTime,
 				},
 
-				statistics: session.statistics,
+				changes: session.statistics,
 			}));
 		} catch {
 			return []; // invalid data in storage, fallback to empty sessions list
