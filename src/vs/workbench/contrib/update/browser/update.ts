@@ -205,6 +205,40 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.registerGlobalActivityActions();
 	}
 
+	private getTimeRemainingText(progress: { bytesDownloaded: number; totalBytes: number; startTime: number }): string {
+		const { bytesDownloaded, totalBytes, startTime } = progress;
+
+		if (bytesDownloaded === 0 || totalBytes === 0) {
+			return '';
+		}
+
+		const percentage = Math.floor((bytesDownloaded / totalBytes) * 100);
+
+		const elapsedMs = Date.now() - startTime;
+		
+		// Need at least 1 second of data to make a reasonable estimate
+		if (elapsedMs < 1000) {
+			return nls.localize('downloadingWithPercentage', " ({0}%)", percentage);
+		}
+
+		const bytesPerMs = bytesDownloaded / elapsedMs;
+		const remainingBytes = totalBytes - bytesDownloaded;
+		const remainingMs = remainingBytes / bytesPerMs;
+		const remainingSeconds = Math.ceil(remainingMs / 1000);
+
+		// Sanity check for unreasonable values
+		if (!isFinite(remainingSeconds) || remainingSeconds < 0 || remainingSeconds > 86400) {
+			return nls.localize('downloadingWithPercentage', " ({0}%)", percentage);
+		}
+
+		if (remainingSeconds < 60) {
+			return nls.localize('downloadingWithPercentageAndSeconds', " ({0}% - {1}s remaining)", percentage, remainingSeconds);
+		} else {
+			const remainingMinutes = Math.ceil(remainingSeconds / 60);
+			return nls.localize('downloadingWithPercentageAndMinutes', " ({0}% - {1}m remaining)", percentage, remainingMinutes);
+		}
+	}
+
 	private async onUpdateStateChange(state: UpdateState): Promise<void> {
 		this.updateStateContextKey.set(state.type);
 
@@ -263,7 +297,8 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		} else if (state.type === StateType.CheckingForUpdates) {
 			badge = new ProgressBadge(() => nls.localize('checkingForUpdates', "Checking for {0} updates...", this.productService.nameShort));
 		} else if (state.type === StateType.Downloading) {
-			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading {0} update...", this.productService.nameShort));
+			const timeRemainingText = state.progress ? this.getTimeRemainingText(state.progress) : '';
+			badge = new ProgressBadge(() => nls.localize('downloading', "Downloading {0} update...", this.productService.nameShort) + timeRemainingText);
 		} else if (state.type === StateType.Updating) {
 			badge = new ProgressBadge(() => nls.localize('updating', "Updating {0}...", this.productService.nameShort));
 		}
