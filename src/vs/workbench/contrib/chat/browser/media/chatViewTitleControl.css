@@ -7,7 +7,8 @@
 
 	.chat-view-title-container {
 		display: none;
-		padding: 8px 8px 8px 16px; /* try to align with the sessions view title */
+		/* try to align with the sessions view title */
+		padding: 8px 8px 8px 16px;
 		border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
 		align-items: center;
 		cursor: pointer;
@@ -19,6 +20,7 @@
 			overflow: hidden;
 			white-space: nowrap;
 			text-overflow: ellipsis;
+			min-width: 0;
 		}
 
 		.chat-view-title-icon {

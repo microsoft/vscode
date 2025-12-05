@@ -1413,7 +1413,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (sessionResource.scheme !== Schemas.vscodeLocalChatSession) {
 			return;
 		}
-		const session = this.agentSessionsService.model.sessions.find(candidate => isEqual(candidate.resource, sessionResource));
+		const session = this.agentSessionsService.getSession(sessionResource);
 		session?.setArchived(true);
 	}
 
