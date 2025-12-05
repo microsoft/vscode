@@ -26,7 +26,7 @@
 	.agent-sessions-container {
 		display: flex;
 		flex-direction: column;
-		background-color: var(--vscode-editorWidget-background);
+		background-color: var(--vscode-agentSessionsList-background);
 
 		.agent-sessions-title-container {
 			display: flex;

@@ -192,6 +192,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
 		const description = session.element.description;
 		if (description) {
+
 			// Support description as string
 			if (typeof description === 'string') {
 				template.description.textContent = description;
