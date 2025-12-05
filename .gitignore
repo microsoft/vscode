@@ -6,6 +6,7 @@ node_modules/
 .build/
 .vscode/extensions/**/out/
 extensions/**/dist/
+.vscode/**/.env
 /out*/
 /extensions/**/out/
 build/node_modules

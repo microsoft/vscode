@@ -1,0 +1,15 @@
+{
+	"configurations": [
+		{
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}"
+			],
+			"name": "Launch Extension",
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js"
+			],
+			"request": "launch",
+			"type": "extensionHost"
+		}
+	]
+}

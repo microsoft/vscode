@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>VS Code Slack OAuth Redirect</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 48px;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            max-width: 420px;
+            width: 100%;
+        }
+
+        .logo-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .logo-row svg {
+            width: 40px;
+            height: 40px;
+        }
+
+        h1 {
+            color: #1e293b;
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+
+        .description {
+            color: #64748b;
+            font-size: 15px;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 16px;
+            background: #f0fdf4;
+            border-radius: 12px;
+            color: #166534;
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #22c55e;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .error {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .manual-link {
+            display: none;
+            margin-top: 16px;
+        }
+
+        .manual-link a {
+            color: #0078d4;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .manual-link a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo-row">
+            <svg viewBox="0 0 127 127" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path
+                    d="M27.2 80c0 7.3-5.9 13.2-13.2 13.2S.8 87.3.8 80s5.9-13.2 13.2-13.2h13.2V80zm6.6 0c0-7.3 5.9-13.2 13.2-13.2s13.2 5.9 13.2 13.2v33c0 7.3-5.9 13.2-13.2 13.2s-13.2-5.9-13.2-13.2V80z"
+                    fill="#E01E5A" />
+                <path
+                    d="M47 27c-7.3 0-13.2-5.9-13.2-13.2S39.7.6 47 .6s13.2 5.9 13.2 13.2V27H47zm0 6.7c7.3 0 13.2 5.9 13.2 13.2s-5.9 13.2-13.2 13.2H13.9C6.6 60.1.7 54.2.7 46.9s5.9-13.2 13.2-13.2H47z"
+                    fill="#36C5F0" />
+                <path
+                    d="M99.9 46.9c0-7.3 5.9-13.2 13.2-13.2s13.2 5.9 13.2 13.2-5.9 13.2-13.2 13.2H99.9V46.9zm-6.6 0c0 7.3-5.9 13.2-13.2 13.2s-13.2-5.9-13.2-13.2V13.8C66.9 6.5 72.8.6 80.1.6s13.2 5.9 13.2 13.2v33.1z"
+                    fill="#2EB67D" />
+                <path
+                    d="M80.1 99.8c7.3 0 13.2 5.9 13.2 13.2s-5.9 13.2-13.2 13.2-13.2-5.9-13.2-13.2V99.8h13.2zm0-6.6c-7.3 0-13.2-5.9-13.2-13.2s5.9-13.2 13.2-13.2h33.1c7.3 0 13.2 5.9 13.2 13.2s-5.9 13.2-13.2 13.2H80.1z"
+                    fill="#ECB22E" />
+            </svg>
+            <span style="font-size: 24px; color: #94a3b8;">→</span>
+            <svg viewBox="0 0 24 24" fill="#0078d4">
+                <path
+                    d="M17.583 2.206L11.29 7.794 5.706 3.994 4 4.619v14.762l1.706.625 5.584-3.8 6.293 5.588L22 20.169V3.831l-4.417-1.625zM6 8.412l3.62 3.588L6 15.588V8.412zm12 7.176l-4.708-4.176L18 7.176v8.412z" />
+            </svg>
+        </div>
+        <h1>Redirecting to VS Code Insiders...</h1>
+        <p class="description">Completing your Slack authentication</p>
+        <div class="status" id="status">
+            <div class="spinner"></div>
+            <span id="statusText">Opening VS Code Insiders...</span>
+        </div>
+        <div class="error" id="error"></div>
+        <div class="manual-link" id="manualLink">
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 8px;">If VS Code Insiders didn't open
+                automatically:</p>
+            <a href="#" id="vscodeLink">Click here to open VS Code Insiders</a>
+        </div>
+    </div>
+    <script>
+        // Get the query parameters from the URL
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+        const error = params.get('error');
+
+        if (error) {
+            document.getElementById('status').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = 'Authentication failed: ' + error;
+        } else if (code) {
+            // Build the VS Code Insiders URI
+            // The extension ID should match your package.json publisher.name format
+            const vscodeUri = `vscode-insiders://vs-code-codereview.vs-code-codereview/callback?code=${encodeURIComponent(code)}${state ? '&state=' + encodeURIComponent(state) : ''}`;
+
+            // Set the manual link
+            document.getElementById('vscodeLink').href = vscodeUri;
+
+            // Try to open VS Code Insiders
+            window.location.href = vscodeUri;
+
+            // Show manual link after a delay (in case auto-redirect didn't work)
+            setTimeout(() => {
+                document.getElementById('statusText').textContent = 'Waiting for VS Code Insiders...';
+                document.getElementById('manualLink').style.display = 'block';
+            }, 2000);
+        } else {
+            document.getElementById('status').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = 'No authorization code received';
+        }
+    </script>
+</body>
+
+</html>

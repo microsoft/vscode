@@ -1,0 +1,131 @@
+{
+  "name": "vs-code-codereview",
+  "displayName": "VS Code Codereview",
+  "description": "View your Slack code review channel messages directly in VS Code",
+  "version": "0.0.1",
+  "publisher": "vs-code-codereview",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/vs-code-codereview"
+  },
+  "icon": "icon.png",
+  "engines": {
+    "vscode": "^1.106.1"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onUri"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "vs-code-codereview.helloWorld",
+        "title": "Hello World"
+      },
+      {
+        "command": "vs-code-codereview.refreshMessages",
+        "title": "Refresh Messages",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "vs-code-codereview.signIn",
+        "title": "Sign in to Slack",
+        "icon": "$(sign-in)"
+      },
+      {
+        "command": "vs-code-codereview.signOut",
+        "title": "Sign out from Slack",
+        "icon": "$(sign-out)"
+      },
+      {
+        "command": "vs-code-codereview.openPrLocally",
+        "title": "Open PR Locally",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "vs-code-codereview.openPrInBrowser",
+        "title": "Open PR in Browser",
+        "icon": "$(globe)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "codereview-sidebar",
+          "title": "Code Review",
+          "icon": "$(check-all)"
+        }
+      ]
+    },
+    "views": {
+      "codereview-sidebar": [
+        {
+          "id": "codereview-slack-messages",
+          "name": "Slack Messages",
+          "icon": "$(comment-discussion)",
+          "contextualTitle": "Code Review Channel"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "vs-code-codereview.refreshMessages",
+          "when": "view == codereview-slack-messages",
+          "group": "navigation"
+        },
+        {
+          "command": "vs-code-codereview.signOut",
+          "when": "view == codereview-slack-messages",
+          "group": "overflow"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "vs-code-codereview.openPrLocally",
+          "when": "view == codereview-slack-messages && viewItem == slackMessageWithPr",
+          "group": "inline@1"
+        },
+        {
+          "command": "vs-code-codereview.openPrInBrowser",
+          "when": "view == codereview-slack-messages && viewItem == slackMessageWithPr",
+          "group": "inline@2"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@types/vscode": "^1.106.1",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2",
+    "dotenv": "^17.2.3",
+    "esbuild": "^0.27.0",
+    "eslint": "^9.39.1",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.3"
+  },
+  "dependencies": {
+    "@slack/web-api": "^7.13.0"
+  }
+}
