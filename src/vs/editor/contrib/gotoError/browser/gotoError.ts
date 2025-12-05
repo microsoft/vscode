@@ -148,7 +148,9 @@ export class MarkerController implements IEditorContribution {
 
 		const textModel = this._editor.getModel();
 		const model = this._getOrCreateModel(multiFile ? undefined : textModel.uri);
-		model.move(next, textModel, this._editor.getPosition());
+        const previousPosition = this._editor.getPosition();
+
+        model.move(next, textModel, previousPosition);
 		if (!model.selected) {
 			return;
 		}
