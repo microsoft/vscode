@@ -962,23 +962,21 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			} else if (part.kind === 'toolInvocation') {
 				const toolInvocation = part as IChatToolInvocation;
 				const state = toolInvocation.state.get();
-
-				if (state.type !== IChatToolInvocation.StateKind.Completed) {
-					description = toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
-
-					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-						const confirmationTitle = toolInvocation.confirmationMessages?.title;
-						const titleMessage = confirmationTitle && (typeof confirmationTitle === 'string'
-							? confirmationTitle
-							: confirmationTitle.value);
-						const descriptionValue = typeof description === 'string' ? description : description.value;
-						description = titleMessage ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", descriptionValue);
-					}
+				description = toolInvocation.generatedTitle || toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
+				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+					const confirmationTitle = toolInvocation.confirmationMessages?.title;
+					const titleMessage = confirmationTitle && (typeof confirmationTitle === 'string'
+						? confirmationTitle
+						: confirmationTitle.value);
+					const descriptionValue = typeof description === 'string' ? description : description.value;
+					description = titleMessage ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", descriptionValue);
 				}
 			} else if (part.kind === 'toolInvocationSerialized') {
 				description = part.invocationMessage;
 			} else if (part.kind === 'progressMessage') {
 				description = part.content;
+			} else if (part.kind === 'thinking') {
+				description = 'Thinking...';
 			}
 		}
 

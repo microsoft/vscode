@@ -298,7 +298,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					providerLabel,
 					resource: session.resource,
 					label: session.label,
-					description: session.description ?? this._sessions.get(session.resource)?.description,
+					description: session.description,
 					icon,
 					tooltip: session.tooltip,
 					status,
