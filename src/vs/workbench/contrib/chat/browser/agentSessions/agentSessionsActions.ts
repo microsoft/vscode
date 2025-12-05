@@ -15,7 +15,7 @@ import { Action2, MenuId } from '../../../../../platform/actions/common/actions.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, IAgentSessionsControl } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatService } from '../../common/chatService.js';
@@ -202,7 +202,8 @@ export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAct
 			title: localize('chat.openSessionInEditorGroup.label', "Open as Editor"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				order: 1
+				order: 1,
+				group: 'navigation'
 			}
 		});
 	}
@@ -226,7 +227,8 @@ export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSession
 			title: localize('chat.openSessionInNewEditorGroup.label', "Open to the Side"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				order: 2
+				order: 2,
+				group: 'navigation'
 			}
 		});
 	}
@@ -250,7 +252,8 @@ export class OpenAgentSessionInNewWindowAction extends BaseOpenAgentSessionActio
 			title: localize('chat.openSessionInNewWindow.label', "Open in New Window"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				order: 3
+				order: 3,
+				group: 'navigation'
 			}
 		});
 	}
@@ -310,7 +313,49 @@ export class FindAgentSessionAction extends ViewAction<AgentSessionsView> {
 
 //#endregion
 
-//#region Recent Sessions in Chat View Actions
+//#region Sessions Control Toolbar
+
+export class RefreshAgentSessionsViewerAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionsViewer.refresh',
+			title: localize2('refresh', "Refresh Agent Sessions"),
+			icon: Codicon.refresh,
+			menu: {
+				id: MenuId.AgentSessionsToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.agentSessionsViewerExpanded
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor, agentSessionsControl: IAgentSessionsControl) {
+		agentSessionsControl.refresh();
+	}
+}
+
+export class FindAgentSessionInViewerAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionsViewer.find',
+			title: localize2('find', "Find Agent Session"),
+			icon: Codicon.search,
+			menu: {
+				id: MenuId.AgentSessionsToolbar,
+				group: 'navigation',
+				order: 2,
+				when: ChatContextKeys.agentSessionsViewerExpanded
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor, agentSessionsControl: IAgentSessionsControl) {
+		return agentSessionsControl.openFind();
+	}
+}
 
 abstract class UpdateChatViewWidthAction extends Action2 {
 
@@ -321,6 +366,10 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 		const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
 		if (typeof chatLocation !== 'number' || chatLocation === ViewContainerLocation.Panel) {
 			return; // only applicable for sidebar or auxiliary bar
+		}
+
+		if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
+			layoutService.setAuxiliaryBarMaximized(false); // Leave maximized state if applicable
 		}
 
 		const part = getPartByLocation(chatLocation);
@@ -351,7 +400,7 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 	override getNewWidth(accessor: ServicesAccessor): number {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-		return Math.max(610, Math.round(layoutService.mainContainerDimension.width / 2));
+		return Math.max(600 + 1 /* account for possible theme border */, Math.round(layoutService.mainContainerDimension.width / 2));
 	}
 }
 
@@ -369,7 +418,7 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 	}
 
 	override getNewWidth(accessor: ServicesAccessor): number {
-		return 300;
+		return 300 + 1 /* account for possible theme border */;
 	}
 }
 
