@@ -23,6 +23,7 @@ export interface SlackMessage {
 }
 
 export class SlackMessageItem extends vscode.TreeItem {
+    
     constructor(
         public readonly message: SlackMessage,
         collapsibleState: vscode.TreeItemCollapsibleState,

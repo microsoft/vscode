@@ -16,27 +16,30 @@ export class SlackSessionManager extends vscode.Disposable {
 	) {
 		super(() => this.dispose());
 		this._onDidChangeSessions = vscode.authentication.onDidChangeSessions(async (e) => this._onDidChangeSession(e));
-		this._createNewSession();
+		this._updateSession();
 	}
 
 	private async _onDidChangeSession(e: vscode.AuthenticationSessionsChangeEvent): Promise<void> {
 		if (e.provider.id !== 'slack') {
 			return;
 		}
+		this._updateSession();
+	}
+
+	private async _updateSession() {
+		const isAuthenticated = await this.slackService.isAuthenticated();
+		if (!isAuthenticated) {
+			this._autoRefresh?.dispose();
+			this.slackService.onSignOut();
+			return;
+		}
 		this._createNewSession();
 	}
 
-	private _createNewSession() {
-		(async () => {
-			const isAuthenticated = await this.slackService.isAuthenticated();
-			if (!isAuthenticated) {
-				this._autoRefresh?.dispose();
-				return;
-			}
-			this.slackTreeDataProvider.refresh();
-			this._autoRefresh = this._triggerAutoRefresh();
-			await this.slackTreeDataProvider.fetchMessages();
-		})();
+	private async _createNewSession() {
+		this.slackTreeDataProvider.refresh();
+		await this.slackTreeDataProvider.fetchMessages();
+		this._autoRefresh = this._triggerAutoRefresh();
 	}
 
 	private _triggerAutoRefresh(): vscode.Disposable {

@@ -10,10 +10,10 @@ export class SlackView extends vscode.Disposable {
 	constructor(slackTreeDataProvider: SlackTreeDataProvider) {
 		super(() => this.dispose());
 		this._treeView = vscode.window.createTreeView(this.SLACK_CODE_REVIEW_VIEW_ID, { treeDataProvider: slackTreeDataProvider });
-		slackTreeDataProvider.setOnMessageCountChanged((count) => this._onPRCountChanged(count));
+		slackTreeDataProvider.setOnMessageCountChanged((count) => this._onMessageCountChanged(count));
 	}
 
-	private _onPRCountChanged(count: number) {
+	private _onMessageCountChanged(count: number) {
 		this._treeView.badge = count > 0 ? { value: count, tooltip: `${count} code review message${count !== 1 ? 's' : ''}` } : undefined;
 	}
 

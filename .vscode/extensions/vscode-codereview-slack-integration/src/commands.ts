@@ -9,7 +9,6 @@ export class SlackCommandsRegistry extends vscode.Disposable {
 	constructor(slackService: SlackService, slackTreeDataProvider: SlackTreeDataProvider) {
 		super(() => this.dispose());
 		this._disposables.push(this._registerCommand(new SignIntoSlackCommand(slackService, slackTreeDataProvider)));
-		this._disposables.push(this._registerCommand(new SignOutSlackCommand(slackService, slackTreeDataProvider)));
 		this._disposables.push(this._registerCommand(new RefreshPRsCommand(slackService, slackTreeDataProvider)));
 		this._disposables.push(this._registerCommand(new OpenPRViewCommand(slackService, slackTreeDataProvider)));
 		this._disposables.push(this._registerCommand(new OpenPRInBrowser(slackService, slackTreeDataProvider)));
@@ -47,20 +46,6 @@ class SignIntoSlackCommand extends Command {
 		if (!success) {
 			return;
 		}
-		this.slackTreeDataProvider.refresh();
-	}
-}
-
-class SignOutSlackCommand extends Command {
-
-	public readonly ID = 'vs-code-codereview.signOut';
-
-	constructor(public readonly slackService: SlackService, public readonly slackTreeDataProvider: SlackTreeDataProvider) {
-		super();
-	}
-
-	async execute(): Promise<void> {
-		await this.slackService.signOut();
 		this.slackTreeDataProvider.refresh();
 	}
 }
