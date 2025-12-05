@@ -364,6 +364,11 @@ configurationRegistry.registerConfiguration({
 			enum: ['inline', 'hover', 'input', 'none'],
 			default: 'inline',
 		},
+		[ChatConfiguration.ChatViewWelcomeEnabled]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.welcome.enabled', "Show welcome banner when chat is empty."),
+		},
 		[ChatConfiguration.ChatViewRecentSessionsEnabled]: { // TODO@bpasero move off preview
 			type: 'boolean',
 			default: true,

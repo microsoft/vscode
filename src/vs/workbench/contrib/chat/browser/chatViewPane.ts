@@ -50,6 +50,10 @@ import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions/agentSessions.js';
+import { Link } from '../../../../platform/opener/browser/link.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
+import { ChatViewId } from './chat.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -76,9 +80,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private chatViewLocationContext: IContextKey<ViewContainerLocation>;
 
 	private sessionsContainer: HTMLElement | undefined;
+	private sessionsTitleContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
-	private sessionsCount: number = 0;
+	private sessionsLinkContainer: HTMLElement | undefined;
+	private sessionsCount = 0;
+	private sessionsViewerLimited = true;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationContext: IContextKey<AgentSessionsViewerOrientation>;
 	private sessionsViewerPosition = AgentSessionsViewerPosition.Right;
@@ -112,6 +119,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IProgressService private readonly progressService: IProgressService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -160,6 +168,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
+	private updateViewPaneClasses(fromEvent: boolean): void {
+		const welcomeEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled) !== false;
+		this.viewPaneContainer?.classList.toggle('chat-view-welcome-enabled', welcomeEnabled);
+
+		if (fromEvent && this.lastDimensions) {
+			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+		}
+	}
+
 	private registerListeners(): void {
 
 		// Agent changes
@@ -200,6 +217,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Layout changes
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sideBar.location'))(() => this.updateContextKeys(true)));
 		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainerLocation, e => e.viewContainer === this.viewDescriptorService.getViewContainerByViewId(this.id))(() => this.updateContextKeys(true)));
+
+		// Settings changes
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewWelcomeEnabled))(() => this.updateViewPaneClasses(true)));
 	}
 
 	private getTransferredOrPersistedSessionInfo(): { sessionId?: string; inputState?: IChatModelInputState; mode?: ChatModeKind } {
@@ -221,7 +241,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		} : undefined;
 	}
 
-	private async showModel(modelRef?: IChatModelReference | undefined): Promise<IChatModel | undefined> {
+	private async showModel(modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
 
 		// Check if we're disposing a model with an active request
 		if (this.modelRef.value?.object.requestInProgress.get()) {
@@ -231,19 +251,26 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.modelRef.value = undefined;
 
-		const ref = modelRef ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === ChatAgentLocation.Chat
-			? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(this.chatService.transferredSessionData.sessionId))
-			: this.chatService.startSession(ChatAgentLocation.Chat));
-		if (!ref) {
-			throw new Error('Could not start chat session');
+		let ref: IChatModelReference | undefined;
+		if (startNewSession) {
+			ref = modelRef ?? (this.chatService.transferredSessionData?.sessionId && this.chatService.transferredSessionData?.location === ChatAgentLocation.Chat
+				? await this.chatService.getOrRestoreSession(LocalChatSessionUri.forSession(this.chatService.transferredSessionData.sessionId))
+				: this.chatService.startSession(ChatAgentLocation.Chat));
+			if (!ref) {
+				throw new Error('Could not start chat session');
+			}
 		}
+
 		this.modelRef.value = ref;
-		const model = ref.object;
+		const model = ref?.object;
 
-		// Update widget lock state based on session type
-		await this.updateWidgetLockState(model.sessionResource);
+		if (model) {
+			// Update widget lock state based on session type
+			await this.updateWidgetLockState(model.sessionResource);
 
-		this.viewState.sessionId = model.sessionId; // remember as model to restore in view state
+			this.viewState.sessionId = model.sessionId; // remember as model to restore in view state
+		}
+
 		this._widget.setModel(model);
 
 		// Update title control
@@ -273,6 +300,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.viewPaneContainer = parent;
 		this.viewPaneContainer.classList.add('chat-viewpane');
+		this.updateViewPaneClasses(false);
 
 		this.createControls(parent);
 
@@ -314,12 +342,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
 
 		// Sessions Title
-		const titleContainer = append(sessionsContainer, $('.agent-sessions-title-container'));
-		const title = append(titleContainer, $('span.agent-sessions-title'));
+		const sessionsTitleContainer = this.sessionsTitleContainer = append(sessionsContainer, $('.agent-sessions-title-container'));
+		const title = append(sessionsTitleContainer, $('span.agent-sessions-title'));
 		title.textContent = localize('recentSessions', "Recent Sessions");
 
 		// Sessions Toolbar
-		const toolbarContainer = append(titleContainer, $('.agent-sessions-toolbar'));
+		const toolbarContainer = append(sessionsTitleContainer, $('.agent-sessions-toolbar'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, MenuId.AgentSessionsToolbar, {}));
 
 		// Sessions Control
@@ -327,10 +355,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
 			allowOpenSessionsInPanel: true,
 			filter: {
-				limitResults: ChatViewPane.SESSIONS_LIMIT,
+				limitResults: () => {
+					return that.sessionsViewerLimited ? ChatViewPane.SESSIONS_LIMIT : undefined;
+				},
 				exclude(session) {
-					if (session.isArchived()) {
-						return true; // exclude archived sessions
+					if (that.sessionsViewerLimited && session.isArchived()) {
+						return true; // exclude archived sessions when limited
 					}
 
 					return false;
@@ -344,6 +374,30 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));
+
+		// Link to Sessions View
+		this.sessionsLinkContainer = append(sessionsContainer, $('.agent-sessions-link-container'));
+		const linkControl = this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, {
+			label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Limit to Recent Sessions"),
+			href: '',
+		}, {
+			opener: () => {
+				this.sessionsViewerLimited = !this.sessionsViewerLimited;
+
+				linkControl.link = {
+					label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Limit to Recent Sessions"),
+					href: ''
+				};
+
+				this.sessionsControl?.update();
+
+				if (this.lastDimensions) {
+					this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
+				}
+
+				this.sessionsControl?.focus();
+			}
+		}));
 	}
 
 	private notifySessionsControlChanged(newSessionsCount?: number): void {
@@ -490,14 +544,26 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateActions();
 	}
 
-	async loadSession(sessionId: URI): Promise<IChatModel | undefined> {
-		const sessionType = getChatSessionType(sessionId);
-		if (sessionType !== localChatSessionType) {
-			await this.chatSessionsService.canResolveChatSession(sessionId);
-		}
+	async loadSession(sessionResource: URI): Promise<IChatModel | undefined> {
+		return this.progressService.withProgress({ location: ChatViewId, delay: 200 }, async () => {
+			let queue: Promise<void> = Promise.resolve();
 
-		const newModelRef = await this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None);
-		return this.showModel(newModelRef);
+			// A delay here to avoid blinking because only Cloud sessions are slow, most others are fast
+			const clearWidget = disposableTimeout(() => {
+				// clear current model without starting a new one
+				queue = this.showModel(undefined, false).then(() => { });
+			}, 100);
+
+			const sessionType = getChatSessionType(sessionResource);
+			if (sessionType !== localChatSessionType) {
+				await this.chatSessionsService.canResolveChatSession(sessionResource);
+			}
+
+			const newModelRef = await this.chatService.loadSessionForResource(sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+			clearWidget.dispose();
+			await queue;
+			return this.showModel(newModelRef);
+		});
 	}
 
 	focusInput(): void {
@@ -534,7 +600,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let heightReduction = 0;
 		let widthReduction = 0;
 
-		if (!this.sessionsContainer || !this.sessionsControlContainer || !this.sessionsControl || !this.viewPaneContainer) {
+		if (!this.sessionsContainer || !this.sessionsControlContainer || !this.sessionsControl || !this.viewPaneContainer || !this.sessionsTitleContainer || !this.sessionsLinkContainer) {
 			return { heightReduction, widthReduction };
 		}
 
@@ -555,9 +621,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateSessionsControlVisibility();
 
 		// Show as sidebar
-		const sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-			this.sessionsControlContainer.style.height = ``;
+			let sessionsHeight: number;
+			if (this.sessionsViewerLimited) {
+				sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
+			} else {
+				sessionsHeight = height - this.sessionsTitleContainer.offsetHeight - this.sessionsLinkContainer.offsetHeight;
+			}
+
+			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = `${ChatViewPane.SESSIONS_SIDEBAR_WIDTH}px`;
 			this.sessionsControl.layout(sessionsHeight, ChatViewPane.SESSIONS_SIDEBAR_WIDTH);
 
@@ -567,6 +639,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Show compact (grows with the number of items displayed)
 		else {
+			let sessionsHeight: number;
+			if (this.sessionsViewerLimited) {
+				sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
+			} else {
+				sessionsHeight = (ChatViewPane.SESSIONS_LIMIT + 2 /* TODO@bpasero revisit this hardcoded expansion */) * AgentSessionsListDelegate.ITEM_HEIGHT;
+			}
+
 			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = ``;
 			this.sessionsControl.layout(sessionsHeight, width);

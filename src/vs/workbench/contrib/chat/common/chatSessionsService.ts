@@ -73,15 +73,22 @@ export interface IChatSessionItem {
 		startTime: number;
 		endTime?: number;
 	};
-	statistics?: {
+	changes?: {
 		files: number;
 		insertions: number;
 		deletions: number;
-	};
+	} | readonly IChatSessionFileChange[];
 	archived?: boolean;
 	// TODO:@osortega remove once the single-view is default
 	/** @deprecated */
 	history?: boolean;
+}
+
+export interface IChatSessionFileChange {
+	modifiedUri: URI;
+	originalUri?: URI;
+	insertions: number;
+	deletions: number;
 }
 
 export type IChatSessionHistoryItem = {
@@ -150,7 +157,7 @@ export interface IChatSessionContentProvider {
 
 export type SessionOptionsChangedCallback = (sessionResource: URI, updates: ReadonlyArray<{
 	optionId: string;
-	value: string;
+	value: string | IChatSessionProviderOptionItem;
 }>) => Promise<void>;
 
 export interface IChatSessionsService {
@@ -203,7 +210,7 @@ export interface IChatSessionsService {
 	/**
 	 * Fired when options for a chat session change.
 	 */
-	onDidChangeSessionOptions: Event<{ readonly resource: URI; readonly updates: ReadonlyArray<{ optionId: string; value: string }> }>;
+	onDidChangeSessionOptions: Event<URI>;
 
 	/**
 	 * Get the capabilities for a specific session type
@@ -213,7 +220,7 @@ export interface IChatSessionsService {
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
 	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
 	setOptionsChangeCallback(callback: SessionOptionsChangedCallback): void;
-	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void>;
+	notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void>;
 
 	// Editable session support
 	setEditableSession(sessionResource: URI, data: IEditableData | null): Promise<void>;

@@ -95,6 +95,7 @@ export namespace ChatContextKeys {
 	export const agentSessionsViewerOrientation = new RawContextKey<number>('agentSessionsViewerOrientation', undefined, { type: 'number', description: localize('agentSessionsViewerOrientation', "Orientation of the agent sessions view in the chat view.") });
 	export const agentSessionsViewerPosition = new RawContextKey<number>('agentSessionsViewerPosition', undefined, { type: 'number', description: localize('agentSessionsViewerPosition', "Position of the agent sessions view in the chat view.") });
 	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
+	export const hasAgentSessionChanges = new RawContextKey<boolean>('chatSessionHasAgentChanges', false, { type: 'boolean', description: localize('chatSessionHasAgentChanges', "True when the current agent session item has changes.") });
 	export const isArchivedAgentSession = new RawContextKey<boolean>('agentIsArchived', false, { type: 'boolean', description: localize('agentIsArchived', "True when the agent session item is archived.") });
 	export const isActiveAgentSession = new RawContextKey<boolean>('agentIsActive', false, { type: 'boolean', description: localize('agentIsActive', "True when the agent session is currently active (not deletable).") });
 
