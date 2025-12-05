@@ -456,7 +456,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 }
 
-
 function highlightRange(targetEditor: ICodeEditor, range: IRange) {
 	const modelNow = targetEditor.getModel();
 	const decorations = targetEditor.createDecorationsCollection([{ range, options: { description: 'symbol-navigate-action-highlight', className: 'symbolHighlight' } }]);
