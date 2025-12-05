@@ -160,6 +160,15 @@ export function registerNewChatActions() {
 	});
 	CommandsRegistry.registerCommandAlias(ACTION_ID_NEW_EDIT_SESSION, ACTION_ID_NEW_CHAT);
 
+	MenuRegistry.appendMenuItem(MenuId.ChatViewSessionTitleToolbar, {
+		command: {
+			id: ACTION_ID_NEW_CHAT,
+			title: localize2('chat.goBack', "Go Back"),
+			icon: Codicon.arrowLeft,
+		},
+		group: 'navigation'
+	});
+
 	registerAction2(class UndoChatEditInteractionAction extends EditingSessionAction {
 		constructor() {
 			super({

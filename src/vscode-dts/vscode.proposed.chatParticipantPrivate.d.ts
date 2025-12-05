@@ -340,25 +340,17 @@ declare module 'vscode' {
 		 * The URI to the agent or prompt resource file.
 		 */
 		readonly uri: Uri;
-	}
 
-	/**
-	 * Target environment for custom agents.
-	 */
-	export enum CustomAgentTarget {
-		GitHubCopilot = 'github-copilot',
-		VSCode = 'vscode',
+		/**
+		 * Indicates whether the custom agent resource is editable. Defaults to false.
+		 */
+		readonly isEditable?: boolean;
 	}
 
 	/**
 	 * Options for querying custom agents.
 	 */
-	export interface CustomAgentQueryOptions {
-		/**
-		 * Filter agents by target environment.
-		 */
-		readonly target?: CustomAgentTarget;
-	}
+	export interface CustomAgentQueryOptions { }
 
 	/**
 	 * A provider that supplies custom agent resources (from .agent.md and .prompt.md files) for repositories.
@@ -367,7 +359,7 @@ declare module 'vscode' {
 		/**
 		 * An optional event to signal that custom agents have changed.
 		 */
-		onDidChangeCustomAgents?: Event<void>;
+		readonly onDidChangeCustomAgents?: Event<void>;
 
 		/**
 		 * Provide the list of custom agent resources available for a given repository.

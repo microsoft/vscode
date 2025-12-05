@@ -93,7 +93,8 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	async openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
-		if (options?.revealIfOpened) {
+		// Reveal if already open unless instructed otherwise
+		if (typeof target === 'undefined' || options?.revealIfOpened) {
 			const alreadyOpenWidget = await this.revealSessionIfAlreadyOpen(sessionResource, options);
 			if (alreadyOpenWidget) {
 				return alreadyOpenWidget;
@@ -115,7 +116,13 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		}
 
 		// Open in chat editor
-		const pane = await this.editorService.openEditor({ resource: sessionResource, options: options }, target);
+		const pane = await this.editorService.openEditor({
+			resource: sessionResource,
+			options: {
+				...options,
+				revealIfOpened: options?.revealIfOpened ?? true // always try to reveal if already opened unless explicitly told not to
+			}
+		}, target);
 		return pane instanceof ChatEditor ? pane.widget : undefined;
 	}
 
@@ -179,7 +186,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 			if (existingEditor) {
 				// widget.clear() on an editor leaves behind an empty chat editor
-				await this.editorService.closeEditor(existingEditor);
+				await this.editorService.closeEditor(existingEditor, { preserveFocus: true });
 			} else {
 				await existingWidget.clear();
 			}

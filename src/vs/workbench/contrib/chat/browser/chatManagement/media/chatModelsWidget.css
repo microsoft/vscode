@@ -163,6 +163,7 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
+	min-width: 48px;
 }
 
 .models-widget .models-table-container .monaco-table-td .model-token-limits .codicon {

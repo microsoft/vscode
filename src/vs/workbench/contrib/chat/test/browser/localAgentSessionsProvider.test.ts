@@ -44,6 +44,10 @@ class MockChatService implements IChatService {
 		this._onDidDisposeSession.fire({ sessionResource, reason: 'cleared' });
 	}
 
+	setSaveModelsEnabled(enabled: boolean): void {
+
+	}
+
 	setLiveSessionItems(items: IChatDetail[]): void {
 		this.liveSessionItems = items;
 	}
@@ -166,7 +170,7 @@ class MockChatService implements IChatService {
 		return undefined;
 	}
 
-	getLiveSessionItems(): IChatDetail[] {
+	async getLiveSessionItems(): Promise<IChatDetail[]> {
 		return this.liveSessionItems;
 	}
 
@@ -176,6 +180,10 @@ class MockChatService implements IChatService {
 
 	waitForModelDisposals(): Promise<void> {
 		return Promise.resolve();
+	}
+
+	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
+		throw new Error('Method not implemented.');
 	}
 }
 
@@ -514,15 +522,21 @@ suite('LocalAgentsSessionsProvider', () => {
 					sessionResource,
 					title: 'Stats Session',
 					lastMessageDate: Date.now(),
-					isActive: true
+					isActive: true,
+					stats: {
+						added: 30,
+						removed: 8,
+						fileCount: 2
+					}
 				}]);
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.ok(sessions[0].statistics);
-				assert.strictEqual(sessions[0].statistics?.files, 2);
-				assert.strictEqual(sessions[0].statistics?.insertions, 30);
-				assert.strictEqual(sessions[0].statistics?.deletions, 8);
+				assert.ok(sessions[0].changes);
+				const changes = sessions[0].changes as { files: number; insertions: number; deletions: number };
+				assert.strictEqual(changes.files, 2);
+				assert.strictEqual(changes.insertions, 30);
+				assert.strictEqual(changes.deletions, 8);
 			});
 		});
 
@@ -556,7 +570,7 @@ suite('LocalAgentsSessionsProvider', () => {
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].statistics, undefined);
+				assert.strictEqual(sessions[0].changes, undefined);
 			});
 		});
 	});
@@ -664,48 +678,53 @@ suite('LocalAgentsSessionsProvider', () => {
 	});
 
 	suite('Events', () => {
-		test('should fire onDidChange when a model is added via chatModels observable', async () => {
+		test('should fire onDidChangeChatSessionItems when model progress changes', async () => {
 			return runWithFakedTimers({}, async () => {
 				const provider = createProvider();
 
-				let changeEventCount = 0;
-				disposables.add(provider.onDidChange(() => {
-					changeEventCount++;
-				}));
-
-				const sessionResource = LocalChatSessionUri.forSession('new-session');
+				const sessionResource = LocalChatSessionUri.forSession('progress-session');
 				const mockModel = createMockChatModel({
 					sessionResource,
-					hasRequests: true
-				});
-
-				// Adding a session should trigger the autorun to fire onDidChange
-				mockChatService.addSession(sessionResource, mockModel);
-
-				assert.strictEqual(changeEventCount, 1);
-			});
-		});
-
-		test('should fire onDidChange when a model is removed via chatModels observable', async () => {
-			return runWithFakedTimers({}, async () => {
-				const provider = createProvider();
-
-				const sessionResource = LocalChatSessionUri.forSession('removed-session');
-				const mockModel = createMockChatModel({
-					sessionResource,
-					hasRequests: true
+					hasRequests: true,
+					requestInProgress: true
 				});
 
 				// Add the session first
 				mockChatService.addSession(sessionResource, mockModel);
 
 				let changeEventCount = 0;
-				disposables.add(provider.onDidChange(() => {
+				disposables.add(provider.onDidChangeChatSessionItems(() => {
 					changeEventCount++;
 				}));
 
-				// Now remove the session - the observable should trigger onDidChange
-				mockChatService.removeSession(sessionResource);
+				// Simulate progress change by triggering the progress listener
+				mockChatSessionsService.triggerProgressEvent();
+
+				assert.strictEqual(changeEventCount, 1);
+			});
+		});
+
+		test('should fire onDidChangeChatSessionItems when model request status changes', async () => {
+			return runWithFakedTimers({}, async () => {
+				const provider = createProvider();
+
+				const sessionResource = LocalChatSessionUri.forSession('status-change-session');
+				const mockModel = createMockChatModel({
+					sessionResource,
+					hasRequests: true,
+					requestInProgress: false
+				});
+
+				// Add the session first
+				mockChatService.addSession(sessionResource, mockModel);
+
+				let changeEventCount = 0;
+				disposables.add(provider.onDidChangeChatSessionItems(() => {
+					changeEventCount++;
+				}));
+
+				// Simulate progress change by triggering the progress listener
+				mockChatSessionsService.triggerProgressEvent();
 
 				assert.strictEqual(changeEventCount, 1);
 			});
@@ -728,16 +747,16 @@ suite('LocalAgentsSessionsProvider', () => {
 				mockChatService.removeSession(sessionResource);
 
 				// Verify the listener was cleaned up by triggering a title change
-				// The onDidChange from registerModelListeners cleanup should fire once
-				// but after that, title changes should NOT fire onDidChange
+				// The onDidChangeChatSessionItems from registerModelListeners cleanup should fire once
+				// but after that, title changes should NOT fire onDidChangeChatSessionItems
 				let changeEventCount = 0;
-				disposables.add(provider.onDidChange(() => {
+				disposables.add(provider.onDidChangeChatSessionItems(() => {
 					changeEventCount++;
 				}));
 
 				(mockModel as unknown as { setCustomTitle: (title: string) => void }).setCustomTitle('New Title');
 
-				assert.strictEqual(changeEventCount, 0, 'onDidChange should NOT fire after model is removed');
+				assert.strictEqual(changeEventCount, 0, 'onDidChangeChatSessionItems should NOT fire after model is removed');
 			});
 		});
 

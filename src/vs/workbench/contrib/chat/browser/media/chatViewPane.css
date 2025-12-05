@@ -3,18 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Special styles when sessions control is visible */
+/* Overall styles */
+.chat-viewpane {
+
+	.chat-controls-container {
+		height: 100%;
+		min-height: 0;
+	}
+}
+
+/* Sessions control: either sidebar or compact */
 .chat-viewpane.has-sessions-control {
 
-	/* Align sessions and welcome/input vertically */
 	display: flex;
-	flex-direction: column;
+
+	.chat-controls-container {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+	}
 
 	.agent-sessions-container {
 		display: flex;
 		flex-direction: column;
-		margin: 12px 16px 32px 16px;
-		border-radius: 4px;
 		background-color: var(--vscode-editorWidget-background);
 
 		.agent-sessions-title-container {
@@ -27,26 +38,36 @@
 			color: var(--vscode-descriptionForeground);
 			padding: 8px;
 
-			.agent-sessions-toolbar {
-				display: none;
+			.agent-sessions-title {
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
 
-				.action-label {
-					padding: 0; /* limit padding top/bottom to preserve line-height per row */
-				}
+			.agent-sessions-toolbar {
+				visibility: hidden;
 			}
 		}
 
-		.agent-sessions-viewer .monaco-list:not(.element-focused):focus:before,
-		.agent-sessions-viewer .monaco-list-rows,
-		.agent-sessions-viewer .monaco-list-row:last-of-type {
-			/* Ensure the sessions list finishes with round borders at the bottom */
-			border-bottom-left-radius: 4px;
-			border-bottom-right-radius: 4px;
+		.agent-sessions-link-container {
+			padding: 8px 0;
+			font-size: 12px;
+			text-align: center;
+		}
+
+		.agent-sessions-link-container a {
+			color: var(--vscode-descriptionForeground);
+		}
+
+		.agent-sessions-link-container a:hover,
+		.agent-sessions-link-container a:active {
+			text-decoration: none;
+			color: var(--vscode-textLink-foreground);
 		}
 	}
 
 	.agent-sessions-container:hover .agent-sessions-title-container .agent-sessions-toolbar {
-		display: block;
+		visibility: visible;
 	}
 
 	.interactive-session {
@@ -55,11 +76,38 @@
 		width: 100%;
 		min-height: 0;
 		min-width: 0;
+	}
+}
 
-		.chat-welcome-view-container {
+/* Sessions control: side by side */
+.chat-viewpane.has-sessions-control.sessions-control-orientation-sidebyside {
 
-			/* Show welcome right below sessions control */
-			justify-content: flex-start;
+	&.sessions-control-position-left {
+		flex-direction: row;
+	}
+	&:not(.sessions-control-position-left) {
+		flex-direction: row-reverse;
+	}
+}
+
+/* Sessions control: compact */
+.chat-viewpane.has-sessions-control:not(.sessions-control-orientation-sidebyside) {
+
+	flex-direction: column;
+}
+
+/* Welcome disabled */
+.chat-viewpane:not(.chat-view-welcome-enabled) {
+
+	.interactive-session {
+
+		/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
+		.chat-welcome-view .chat-welcome-view-icon,
+		.chat-welcome-view .chat-welcome-view-title,
+		.chat-welcome-view .chat-welcome-view-message,
+		.chat-welcome-view .chat-welcome-view-disclaimer,
+		.chat-welcome-view .chat-welcome-view-tips {
+			visibility: hidden;
 		}
 	}
 }

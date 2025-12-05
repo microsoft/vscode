@@ -68,16 +68,20 @@ export class LongDistancePreviewEditor extends Disposable {
 			return (state?.mode === 'original' ? decorations?.originalDecorations : decorations?.modifiedDecorations) ?? [];
 		})));
 
-		this._register(this._instantiationService.createInstance(JumpToView, this._previewEditorObs, { style: 'cursor' }, derived(reader => {
-			const p = this._properties.read(reader);
-			if (!p || !p.nextCursorPosition) {
-				return undefined;
-			}
-			return {
-				jumpToPosition: p.nextCursorPosition,
+		const showJumpToDecoration = false;
 
-			};
-		})));
+		if (showJumpToDecoration) {
+			this._register(this._instantiationService.createInstance(JumpToView, this._previewEditorObs, { style: 'cursor' }, derived(reader => {
+				const p = this._properties.read(reader);
+				if (!p || !p.nextCursorPosition) {
+					return undefined;
+				}
+				return {
+					jumpToPosition: p.nextCursorPosition,
+
+				};
+			})));
+		}
 
 		// Mirror the cursor position. Allows the gutter arrow to point in the correct direction.
 		this._register(autorun((reader) => {
@@ -112,6 +116,7 @@ export class LongDistancePreviewEditor extends Disposable {
 					props.inlineSuggestInfo,
 					LineRange.ofLength(state.visibleLineRange.startLineNumber, 1),
 					props.model,
+					undefined,
 				);
 			}),
 			this._tabAction,
@@ -258,7 +263,7 @@ export class LongDistancePreviewEditor extends Disposable {
 		// find the horizontal range we want to show.
 		const preferredRange = growUntilVariableBoundaries(editor.getModel()!, firstCharacterChange, 5);
 		const left = this._previewEditorObs.getLeftOfPosition(preferredRange.getStartPosition(), reader);
-		const right = trueContentWidth; //this._previewEditorObs.getLeftOfPosition(preferredRange.getEndPosition(), reader);
+		const right = Math.min(left, trueContentWidth); //this._previewEditorObs.getLeftOfPosition(preferredRange.getEndPosition(), reader);
 
 		const indentCol = editor.getModel()!.getLineFirstNonWhitespaceColumn(preferredRange.startLineNumber);
 		const indentationEnd = this._previewEditorObs.getLeftOfPosition(new Position(preferredRange.startLineNumber, indentCol), reader);

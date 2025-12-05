@@ -3425,6 +3425,10 @@ export enum ChatSessionStatus {
 	InProgress = 2
 }
 
+export class ChatSessionChangedFile {
+	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
+}
+
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,
@@ -3491,11 +3495,6 @@ export enum ChatErrorLevel {
 	Info = 0,
 	Warning = 1,
 	Error = 2
-}
-
-export enum CustomAgentTarget {
-	GitHubCopilot = 'github-copilot',
-	VSCode = 'vscode',
 }
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {

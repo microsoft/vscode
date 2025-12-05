@@ -59,7 +59,7 @@ import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common
 import { IChatContextItem, IChatContextSupport } from '../../contrib/chat/common/chatContext.js';
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent, IChatRequestVariableData } from '../../contrib/chat/common/chatModel.js';
-import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatExternalEditsDto, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
+import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatExternalEditsDto, IChatFollowup, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
 import { IChatSessionItem, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -1436,7 +1436,8 @@ export interface IChatAgentCompletionItem {
 }
 
 export type IChatContentProgressDto =
-	| Dto<Exclude<IChatProgressHistoryResponseContent, IChatTask>>
+	| Dto<Exclude<IChatProgressHistoryResponseContent, IChatTask | IChatMultiDiffData>>
+	| IChatMultiDiffDataSerialized
 	| IChatTaskDto;
 
 export type IChatAgentHistoryEntryDto = {
@@ -1765,6 +1766,8 @@ export interface SCMArtifactDto {
 	readonly name: string;
 	readonly description?: string;
 	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+	readonly timestamp?: number;
+	readonly command?: ICommandDto;
 }
 
 export interface MainThreadSCMShape extends IDisposable {
@@ -3272,8 +3275,14 @@ export type IChatSessionHistoryItemDto = {
 
 export interface ChatSessionOptionUpdateDto {
 	readonly optionId: string;
-	readonly value: string | undefined;
+	readonly value: string | IChatSessionProviderOptionItem | undefined;
 }
+
+export interface ChatSessionOptionUpdateDto2 {
+	readonly optionId: string;
+	readonly value: string | IChatSessionProviderOptionItem;
+}
+
 export interface ChatSessionDto {
 	id: string;
 	resource: UriComponents;
@@ -3295,6 +3304,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$onDidCommitChatSessionItem(handle: number, original: UriComponents, modified: UriComponents): void;
 	$registerChatSessionContentProvider(handle: number, chatSessionScheme: string): void;
 	$unregisterChatSessionContentProvider(handle: number): void;
+	$onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents, updates: ReadonlyArray<ChatSessionOptionUpdateDto2>): void;
 
 	$handleProgressChunk(handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
 	$handleAnchorResolve(handle: number, sessionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;

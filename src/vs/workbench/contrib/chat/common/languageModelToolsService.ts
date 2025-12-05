@@ -396,17 +396,18 @@ export function createToolSchemaUri(toolOrId: IToolData | string): URI {
 	return URI.from({ scheme: Schemas.vscode, authority: 'schemas', path: `/lm/tool/${toolOrId}` });
 }
 
-export namespace GithubCopilotToolReference {
-	export const shell = 'shell';
+export namespace SpecedToolAliases {
+	export const execute = 'execute';
 	export const edit = 'edit';
 	export const search = 'search';
-	export const customAgent = 'custom-agent';
+	export const agent = 'agent';
+	export const read = 'read';
+	export const web = 'web';
+	export const todo = 'todo';
 }
 
 export namespace VSCodeToolReference {
-	export const agent = 'agent';
-	export const execute = 'execute';
 	export const runSubagent = 'runSubagent';
 	export const vscode = 'vscode';
-	export const read = 'read';
+
 }

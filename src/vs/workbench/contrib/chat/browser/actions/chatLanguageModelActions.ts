@@ -18,7 +18,6 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ManageModelsAction } from './manageModelsActions.js';
 import { ILanguageModelsProviderGroup } from '../../common/languageModelsConfiguration.js';
 
 class ManageLanguageModelAuthenticationAction extends Action2 {
@@ -251,6 +250,5 @@ class ConfigureLanguageModelsGroupAction extends Action2 {
 
 export function registerLanguageModelActions() {
 	registerAction2(ManageLanguageModelAuthenticationAction);
-	registerAction2(ManageModelsAction);
 	registerAction2(ConfigureLanguageModelsGroupAction);
 }
