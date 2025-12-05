@@ -85,13 +85,15 @@ export class Margin extends ViewPart {
 		this._domNode.setLayerHinting(this._canUseLayerHinting);
 		this._domNode.setContain('strict');
 		const adjustedScrollTop = ctx.scrollTop - ctx.bigNumbersDelta;
-		this._domNode.setTop(-adjustedScrollTop);
+		this._domNode.domNode.style.transform = `translate3d(0, ${-adjustedScrollTop}px, 0)`;
+		this._domNode.domNode.style.willChange = 'transform';
 
 		const height = Math.min(ctx.scrollHeight, 1000000);
 		this._domNode.setHeight(height);
 		this._domNode.setWidth(this._contentLeft);
 
-		this._glyphMarginBackgroundDomNode.setLeft(this._glyphMarginLeft);
+		this._glyphMarginBackgroundDomNode.domNode.style.transform = `translate3d(${this._glyphMarginLeft}px, 0, 0)`;
+		this._glyphMarginBackgroundDomNode.domNode.style.willChange = 'transform';
 		this._glyphMarginBackgroundDomNode.setWidth(this._glyphMarginWidth);
 		this._glyphMarginBackgroundDomNode.setHeight(height);
 	}
