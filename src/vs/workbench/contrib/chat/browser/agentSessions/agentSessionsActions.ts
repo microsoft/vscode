@@ -5,7 +5,7 @@
 
 import './media/agentsessionsactions.css';
 import { localize, localize2 } from '../../../../../nls.js';
-import { IAgentSession } from './agentSessionsModel.js';
+import { getAgentChangesSummary, IAgentSession } from './agentSessionsModel.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -112,7 +112,7 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 		label.textContent = '';
 
 		const session = this.action.getSession();
-		const diff = session.statistics;
+		const diff = getAgentChangesSummary(session.changes);
 		if (!diff) {
 			return;
 		}

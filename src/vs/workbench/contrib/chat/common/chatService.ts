@@ -122,6 +122,7 @@ export interface IChatContentReference {
 	options?: {
 		status?: { description: string; kind: ChatResponseReferencePartStatusKind };
 		diffMeta?: { added: number; removed: number };
+		originalUri?: URI;
 	};
 	kind: 'reference';
 }
