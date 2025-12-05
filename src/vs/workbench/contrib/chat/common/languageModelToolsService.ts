@@ -290,6 +290,7 @@ export interface IPreparedToolInvocation {
 export interface IToolImpl {
 	invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult>;
 	prepareToolInvocation?(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	supportsModel?(modelId: string, token: CancellationToken): Promise<boolean | undefined>;
 }
 
 export type IToolAndToolSetEnablementMap = ReadonlyMap<IToolData | ToolSet, boolean>;
@@ -360,6 +361,7 @@ export interface ILanguageModelToolsService {
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
+	supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined>;
 	getTools(): Iterable<IToolData>;
 	readonly toolsObservable: IObservable<readonly IToolData[]>;
 	getTool(id: string): IToolData | undefined;
@@ -384,6 +386,7 @@ export interface ILanguageModelToolsService {
 	toFullReferenceNames(map: IToolAndToolSetEnablementMap): string[];
 	toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[];
 }
+
 
 export function createToolInputUri(toolCallId: string): URI {
 	return URI.from({ scheme: Schemas.inMemory, path: `/lm/tool/${toolCallId}/tool_input.json` });

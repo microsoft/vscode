@@ -1495,6 +1495,7 @@ export interface MainThreadLanguageModelToolsShape extends IDisposable {
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 	$registerTool(id: string): void;
 	$unregisterTool(name: string): void;
+	$supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined>;
 }
 
 export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
@@ -1505,6 +1506,7 @@ export interface ExtHostLanguageModelToolsShape {
 	$countTokensForInvocation(callId: string, input: string, token: CancellationToken): Promise<number>;
 
 	$prepareToolInvocation(toolId: string, context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined>;
+	$supportsModel(toolId: string, modelId: string, token: CancellationToken): Promise<boolean | undefined>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
