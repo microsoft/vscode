@@ -2,12 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+:root {
+	--vscode-button-padding: 4px;
+}
 
 .monaco-text-button {
 	box-sizing: border-box;
 	display: flex;
 	width: 100%;
-	padding: 4px;
+	padding: var(--vscode-button-padding);
 	border-radius: 2px;
 	text-align: center;
 	cursor: pointer;
@@ -39,7 +42,7 @@
 .monaco-text-button.monaco-text-button-with-short-label {
 	flex-direction: row;
 	flex-wrap: wrap;
-	padding: 0 4px;
+	padding: 0 var(--vscode-button-padding);
 	overflow: hidden;
 	height: 28px;
 }
@@ -61,7 +64,7 @@
 	align-items: center;
 	font-weight: normal;
 	font-style: inherit;
-	padding: 4px 0;
+	padding: var(--vscode-button-padding) 0;
 }
 
 .monaco-button-dropdown {
@@ -88,7 +91,7 @@
 }
 
 .monaco-button-dropdown .monaco-button-dropdown-separator {
-	padding: 4px 0;
+	padding: var(--vscode-button-padding) 0;
 	cursor: default;
 }
 
@@ -119,7 +122,7 @@
 .monaco-description-button .monaco-button-description {
 	font-style: italic;
 	font-size: 11px;
-	padding: 4px 20px;
+	padding: var(--vscode-button-padding) 20px;
 }
 
 .monaco-description-button .monaco-button-label,
