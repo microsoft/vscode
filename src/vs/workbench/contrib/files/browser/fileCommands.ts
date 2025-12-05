@@ -46,7 +46,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID } from './fileConstants.js';
+import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMPARE_COMMAND_ID, ResourceSelectedForCompareContext, COMPARE_SELECTED_COMMAND_ID, COMPARE_RESOURCE_COMMAND_ID, COPY_PATH_COMMAND_ID, COPY_RELATIVE_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, OPEN_WITH_EXPLORER_COMMAND_ID, SAVE_FILE_COMMAND_ID, SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_IN_GROUP_COMMAND_ID, SAVE_FILES_COMMAND_ID, REVERT_FILE_COMMAND_ID, REMOVE_ROOT_FOLDER_COMMAND_ID, PREVIOUS_COMPRESSED_FOLDER, NEXT_COMPRESSED_FOLDER, FIRST_COMPRESSED_FOLDER, LAST_COMPRESSED_FOLDER, NEW_UNTITLED_FILE_COMMAND_ID, NEW_UNTITLED_FILE_LABEL, NEW_FILE_COMMAND_ID, COPY_FILENAME_COMMAND_ID } from './fileConstants.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { RemoveRootFolderAction } from '../../../browser/actions/workspaceActions.js';
 import { OpenEditorsView } from './views/openEditorsView.js';
@@ -229,25 +229,38 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-async function resourcesToClipboard(resources: URI[], relative: boolean, clipboardService: IClipboardService, labelService: ILabelService, configurationService: IConfigurationService): Promise<void> {
+const enum CopyType {
+	Relative,
+	Absolute,
+	Filename
+}
+
+async function resourcesToClipboard(resources: URI[], type: CopyType, clipboardService: IClipboardService, labelService: ILabelService, configurationService: IConfigurationService): Promise<void> {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
 
 		let separator: '/' | '\\' | undefined = undefined;
-		const copyRelativeOrFullPathSeparatorSection = relative ? 'explorer.copyRelativePathSeparator' : 'explorer.copyPathSeparator';
+		const copyRelativeOrFullPathSeparatorSection = type === CopyType.Relative ? 'explorer.copyRelativePathSeparator' : 'explorer.copyPathSeparator';
 		const copyRelativeOrFullPathSeparator: '/' | '\\' | undefined = configurationService.getValue(copyRelativeOrFullPathSeparatorSection);
 		if (copyRelativeOrFullPathSeparator === '/' || copyRelativeOrFullPathSeparator === '\\') {
 			separator = copyRelativeOrFullPathSeparator;
 		}
 
-		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true, separator })).join(lineDelimiter);
+		let text = '';
+
+		if (type === CopyType.Filename) {
+			text = resources.map(resource => basename(resource)).join(lineDelimiter);
+		} else {
+			text = resources.map(resource => labelService.getUriLabel(resource, { relative: type === CopyType.Relative, noPrefix: true, separator })).join(lineDelimiter);
+		}
+
 		await clipboardService.writeText(text);
 	}
 }
 
 const copyPathCommandHandler: ICommandHandler = async (accessor, resource: unknown) => {
 	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
-	await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+	await resourcesToClipboard(resources, CopyType.Absolute, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 };
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -274,7 +287,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 const copyRelativePathCommandHandler: ICommandHandler = async (accessor, resource: unknown) => {
 	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
-	await resourcesToClipboard(resources, true, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+	await resourcesToClipboard(resources, CopyType.Relative, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 };
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -299,6 +312,33 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: copyRelativePathCommandHandler
 });
 
+const copyFilenameCommandHandler: ICommandHandler = async (accessor, resource: unknown) => {
+	const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
+	await resourcesToClipboard(resources, CopyType.Filename, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+};
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: EditorContextKeys.focus.toNegated(),
+	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyF,
+	win: {
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF)
+	},
+	id: COPY_FILENAME_COMMAND_ID,
+	handler: copyFilenameCommandHandler
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: EditorContextKeys.focus,
+	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyF),
+	win: {
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyF)
+	},
+	id: COPY_FILENAME_COMMAND_ID,
+	handler: copyFilenameCommandHandler
+});
+
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: undefined,
@@ -309,7 +349,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const activeInput = editorService.activeEditor;
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { supportSideBySide: SideBySideEditor.PRIMARY });
 		const resources = resource ? [resource] : [];
-		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
+		await resourcesToClipboard(resources, CopyType.Absolute, accessor.get(IClipboardService), accessor.get(ILabelService), accessor.get(IConfigurationService));
 	}
 });
 
