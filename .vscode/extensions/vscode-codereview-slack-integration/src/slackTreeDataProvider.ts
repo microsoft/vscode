@@ -151,7 +151,7 @@ export class SlackTreeDataProvider implements vscode.TreeDataProvider<TreeItem> 
         this._onDidChangeTreeData.fire();
     }
 
-    async fetchMessages(): Promise<void> {
+    async fetchPRs(): Promise<void> {
         this.isLoading = true;
         this.errorMessage = undefined;
         this.refresh();

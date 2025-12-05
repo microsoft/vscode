@@ -8,6 +8,9 @@ import { SlackTreeDataProvider } from './slackTreeDataProvider';
 import { SlackService } from './slackService';
 import { SlackAuthenticationProvider } from './slackAuthenticationProvider';
 import { registerCommands } from './commands';
+import { SessionManager } from './session';
+import { View } from './view';
+
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -20,51 +23,11 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// Create and register the Slack messages tree data provider
 	const slackTreeDataProvider = new SlackTreeDataProvider(slackService);
-	const treeView = vscode.window.createTreeView('codereview-slack-messages', { treeDataProvider: slackTreeDataProvider });
-	context.subscriptions.push(treeView);
 
-	// Update badge when message count changes
-	slackTreeDataProvider.setOnMessageCountChanged((count) => {
-		treeView.badge = count > 0 ? { value: count, tooltip: `${count} code review message${count !== 1 ? 's' : ''}` } : undefined;
-	});
+	context.subscriptions.push(...registerCommands(slackService, slackTreeDataProvider));
 
-	registerCommands(context, slackService, slackTreeDataProvider);
-
-	// Listen for authentication session changes
-	context.subscriptions.push(
-		vscode.authentication.onDidChangeSessions(async (e) => {
-			if (e.provider.id === 'slack') {
-				slackTreeDataProvider.refresh();
-				// Auto-fetch messages if authenticated (channel is auto-discovered)
-				const isAuthenticated = await slackService.isAuthenticated();
-				if (isAuthenticated) {
-					await slackTreeDataProvider.fetchMessages();
-				}
-			}
-		})
-	);
-
-	// Auto-fetch messages if already authenticated (channel is auto-discovered)
-	(async () => {
-		const isAuthenticated = await slackService.isAuthenticated();
-		if (isAuthenticated) {
-			await slackTreeDataProvider.fetchMessages();
-		}
-	})();
-
-	// Auto-refresh messages every 60 seconds
-	const REFRESH_INTERVAL_MS = 60 * 1000; // 1 minute
-	const autoRefreshInterval = setInterval(async () => {
-		const isAuthenticated = await slackService.isAuthenticated();
-		if (isAuthenticated) {
-			await slackTreeDataProvider.fetchMessages();
-		}
-	}, REFRESH_INTERVAL_MS);
-
-	// Clean up the interval when the extension is deactivated
-	context.subscriptions.push({
-		dispose: () => clearInterval(autoRefreshInterval)
-	});
+	context.subscriptions.push(new View(slackTreeDataProvider));
+	context.subscriptions.push(new SessionManager(slackService, slackTreeDataProvider));
 }
 
 export function deactivate() { }

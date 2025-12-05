@@ -2,12 +2,14 @@ import * as vscode from 'vscode';
 import { SlackService } from './slackService';
 import { SlackMessageItem, SlackTreeDataProvider } from './slackTreeDataProvider';
 
-export function registerCommands(context: vscode.ExtensionContext, slackService: SlackService, slackTreeDataProvider: SlackTreeDataProvider): void {
-	context.subscriptions.push(registerCommand(new SignInCommand(slackService, slackTreeDataProvider)));
-	context.subscriptions.push(registerCommand(new SignOutCommand(slackService, slackTreeDataProvider)));
-	context.subscriptions.push(registerCommand(new RefreshCommand(slackService, slackTreeDataProvider)));
-	context.subscriptions.push(registerCommand(new OpenPRViewCommand(slackService, slackTreeDataProvider)));
-	context.subscriptions.push(registerCommand(new OpenPRInBrowser(slackService, slackTreeDataProvider)));
+export function registerCommands(slackService: SlackService, slackTreeDataProvider: SlackTreeDataProvider): vscode.Disposable[] {
+	const disposables: vscode.Disposable[] = [];
+	disposables.push(registerCommand(new SignInCommand(slackService, slackTreeDataProvider)));
+	disposables.push(registerCommand(new SignOutCommand(slackService, slackTreeDataProvider)));
+	disposables.push(registerCommand(new RefreshCommand(slackService, slackTreeDataProvider)));
+	disposables.push(registerCommand(new OpenPRViewCommand(slackService, slackTreeDataProvider)));
+	disposables.push(registerCommand(new OpenPRInBrowser(slackService, slackTreeDataProvider)));
+	return disposables;
 }
 
 function registerCommand(command: Command): vscode.Disposable {
@@ -64,7 +66,7 @@ class RefreshCommand extends Command {
 	}
 
 	async execute(): Promise<void> {
-		await this.slackTreeDataProvider.fetchMessages();
+		await this.slackTreeDataProvider.fetchPRs();
 	}
 }
 
