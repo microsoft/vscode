@@ -66,6 +66,30 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._hasHiddenToolTerminalContext = TerminalChatContextKeys.hasHiddenChatTerminals.bindTo(this._contextKeyService);
 
 		this._restoreFromStorage();
+
+		// Register session disposal listener once in constructor to avoid duplicate listeners
+		this._register(this._chatService.onDidDisposeSession(e => {
+			for (const resource of e.sessionResource) {
+				const sessionId = LocalChatSessionUri.parseLocalSessionId(resource);
+				if (sessionId) {
+					// Clean up session auto approval state
+					this._sessionAutoApprovalEnabled.delete(sessionId);
+
+					// Clean up terminal instance mappings if the session ID matches a tool session
+					const instance = this._terminalInstancesByToolSessionId.get(sessionId);
+					if (instance) {
+						this._terminalInstancesByToolSessionId.delete(sessionId);
+						this._toolSessionIdByTerminalInstance.delete(instance);
+						this._terminalInstanceListenersByToolSessionId.deleteAndDispose(sessionId);
+						this._persistToStorage();
+						this._updateHasToolTerminalContextKeys();
+					}
+				}
+			}
+		}));
+
+		// Update context keys when terminal instances change (registered once)
+		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKeys()));
 	}
 
 	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
@@ -83,26 +107,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 			this._persistToStorage();
 			this._updateHasToolTerminalContextKeys();
 		}));
-
-		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
-				if (LocalChatSessionUri.parseLocalSessionId(resource) === terminalToolSessionId) {
-					this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
-					this._toolSessionIdByTerminalInstance.delete(instance);
-					this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
-					// Clean up session auto approval state
-					const sessionId = LocalChatSessionUri.parseLocalSessionId(resource);
-					if (sessionId) {
-						this._sessionAutoApprovalEnabled.delete(sessionId);
-					}
-					this._persistToStorage();
-					this._updateHasToolTerminalContextKeys();
-				}
-			}
-		}));
-
-		// Update context keys when terminal instances change (including when terminals are created, disposed, revealed, or hidden)
-		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKeys()));
 
 		if (isNumber(instance.shellLaunchConfig?.attachPersistentProcess?.id) || isNumber(instance.persistentProcessId)) {
 			this._persistToStorage();
