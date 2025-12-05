@@ -268,7 +268,7 @@ const _nls = (() => {
 		// `localize` named imports
 		const allLocalizeImportDeclarations = importDeclarations
 			.filter(d => !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamedImports))
-			.map(d => ([] as any[]).concat((d.importClause!.namedBindings! as ts.NamedImports).elements))
+			.map(d => (d.importClause!.namedBindings! as ts.NamedImports).elements)
 			.flatten();
 
 		// `localize` read-only references
@@ -280,7 +280,7 @@ const _nls = (() => {
 
 		// custom named `localize` read-only references
 		const namedLocalizeReferences = allLocalizeImportDeclarations
-			.filter(d => d.propertyName && d.propertyName.getText() === functionName)
+			.filter(d => !!d.propertyName && d.propertyName.getText() === functionName)
 			.map(n => service.getReferencesAtPosition(filename, n.name.pos + 1) ?? [])
 			.flatten()
 			.filter(r => !r.isWriteAccess);

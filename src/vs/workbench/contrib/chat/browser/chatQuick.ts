@@ -6,7 +6,6 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { Orientation, Sash } from '../../../../base/browser/ui/sash/sash.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -395,7 +394,7 @@ class QuickChat extends Disposable {
 	}
 
 	private updateModel(): void {
-		this.modelRef ??= this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, { disableBackgroundKeepAlive: true });
+		this.modelRef ??= this.chatService.startSession(ChatAgentLocation.Chat, { disableBackgroundKeepAlive: true });
 		const model = this.modelRef?.object;
 		if (!model) {
 			throw new Error('Could not start chat session');

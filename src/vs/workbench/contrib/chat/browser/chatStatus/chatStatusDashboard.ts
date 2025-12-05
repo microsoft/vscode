@@ -23,6 +23,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextResourceConfigurationService } from '../../../../../editor/common/services/textResourceConfiguration.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import * as languages from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -37,10 +40,15 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
-import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
-import { AGENT_SESSIONS_VIEW_ID } from '../agentSessions/agentSessions.js';
-import { defaultChat, canUseChat, isNewUser, isCompletionsEnabled } from './common.js';
+import { openAgentSessionsView } from '../agentSessions/agentSessions.js';
+import { isNewUser, isCompletionsEnabled } from './chatStatus.js';
 import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
+import product from '../../../../../platform/product/common/product.js';
+import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
+import { Color } from '../../../../../base/common/color.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+
+const defaultChat = product.defaultChatAgent;
 
 interface ISettingsAccessor {
 	readSetting: () => boolean;
@@ -59,7 +67,57 @@ type ChatSettingChangedEvent = {
 	settingEnablement: 'enabled' | 'disabled';
 };
 
+const gaugeForeground = registerColor('gauge.foreground', {
+	dark: inputValidationInfoBorder,
+	light: inputValidationInfoBorder,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('gaugeForeground', "Gauge foreground color."));
+
+registerColor('gauge.background', {
+	dark: transparent(gaugeForeground, 0.3),
+	light: transparent(gaugeForeground, 0.3),
+	hcDark: Color.white,
+	hcLight: Color.white
+}, localize('gaugeBackground', "Gauge background color."));
+
+registerColor('gauge.border', {
+	dark: null,
+	light: null,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('gaugeBorder', "Gauge border color."));
+
+const gaugeWarningForeground = registerColor('gauge.warningForeground', {
+	dark: inputValidationWarningBorder,
+	light: inputValidationWarningBorder,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('gaugeWarningForeground', "Gauge warning foreground color."));
+
+registerColor('gauge.warningBackground', {
+	dark: transparent(gaugeWarningForeground, 0.3),
+	light: transparent(gaugeWarningForeground, 0.3),
+	hcDark: Color.white,
+	hcLight: Color.white
+}, localize('gaugeWarningBackground', "Gauge warning background color."));
+
+const gaugeErrorForeground = registerColor('gauge.errorForeground', {
+	dark: inputValidationErrorBorder,
+	light: inputValidationErrorBorder,
+	hcDark: contrastBorder,
+	hcLight: contrastBorder
+}, localize('gaugeErrorForeground', "Gauge error foreground color."));
+
+registerColor('gauge.errorBackground', {
+	dark: transparent(gaugeErrorForeground, 0.3),
+	light: transparent(gaugeErrorForeground, 0.3),
+	hcDark: Color.white,
+	hcLight: Color.white
+}, localize('gaugeErrorBackground', "Gauge error background color."));
+
 export class ChatStatusDashboard extends DomWidget {
+
 	readonly element = $('div.chat-status-bar-entry-tooltip');
 
 	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
@@ -80,14 +138,17 @@ export class ChatStatusDashboard extends DomWidget {
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInlineCompletionsService private readonly inlineCompletionsService: IInlineCompletionsService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._render();
+		this.render();
 	}
 
-	private _render(): void {
+	private render(): void {
 		const token = cancelOnDispose(this._store);
 
 		let needsSeparator = false;
@@ -123,7 +184,7 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 
 			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
-				const upgradeProButton = this._store.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: canUseChat(this.chatEntitlementService) /* use secondary color when chat can still be used */ }));
+				const upgradeProButton = this._store.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: this.canUseChat() /* use secondary color when chat can still be used */ }));
 				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
 				this._store.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
@@ -147,7 +208,6 @@ export class ChatStatusDashboard extends DomWidget {
 			})();
 		}
 
-
 		// Anonymous Indicator
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
@@ -158,42 +218,29 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Chat sessions
 		{
-			let chatSessionsElement: HTMLElement | undefined;
+			const inProgress = this.chatSessionsService.getInProgress();
+			if (inProgress.some(item => item.count > 0)) {
 
-			const updateStatus = () => {
-				const inProgress = this.chatSessionsService.getInProgress();
-				if (inProgress.some(item => item.count > 0)) {
-
-					addSeparator(localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
-						id: 'workbench.view.chat.status.sessions',
-						label: localize('viewChatSessionsLabel', "View Agent Sessions"),
-						tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
-						class: ThemeIcon.asClassName(Codicon.eye),
-						run: () => {
-							// TODO@bpasero remove this check once settled
-							if (this.configurationService.getValue('chat.agentSessionsViewLocation') === 'single-view') {
-								this.runCommandAndClose(AGENT_SESSIONS_VIEW_ID);
-							} else {
-								this.runCommandAndClose(LEGACY_AGENT_SESSIONS_VIEW_ID);
-							}
-						}
-					}));
-
-					for (const { displayName, count } of inProgress) {
-						if (count > 0) {
-							const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
-							chatSessionsElement = this.element.appendChild($('div.description'));
-							const parts = renderLabelWithIcons(text);
-							chatSessionsElement.append(...parts);
-						}
+				addSeparator(localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
+					id: 'workbench.view.chat.status.sessions',
+					label: localize('viewChatSessionsLabel', "View Agent Sessions"),
+					tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
+					class: ThemeIcon.asClassName(Codicon.eye),
+					run: () => {
+						this.instantiationService.invokeFunction(openAgentSessionsView);
+						this.hoverService.hideHover(true);
 					}
-				} else {
-					chatSessionsElement?.remove();
-				}
-			};
+				}));
 
-			updateStatus();
-			this._store.add(this.chatSessionsService.onDidChangeInProgress(updateStatus));
+				for (const { displayName, count } of inProgress) {
+					if (count > 0) {
+						const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
+						const chatSessionsElement = this.element.appendChild($('div.description'));
+						const parts = renderLabelWithIcons(text);
+						chatSessionsElement.append(...parts);
+					}
+				}
+			}
 		}
 
 		// Contributions
@@ -234,8 +281,37 @@ export class ChatStatusDashboard extends DomWidget {
 			this.createSettings(this.element, this._store);
 		}
 
+		// Model Selection
+		{
+			const providers = this.languageFeaturesService.inlineCompletionsProvider.allNoModel();
+			const provider = providers.find(p => p.modelInfo && p.modelInfo.models.length > 0);
+
+			if (provider) {
+				const modelInfo = provider.modelInfo!;
+				const currentModel = modelInfo.models.find(m => m.id === modelInfo.currentModelId);
+
+				if (currentModel) {
+					const modelContainer = this.element.appendChild($('div.model-selection'));
+
+					modelContainer.appendChild($('span.model-text', undefined, localize('modelLabel', "Model: {0}", currentModel.name)));
+
+					const actionBar = modelContainer.appendChild($('div.model-action-bar'));
+					const toolbar = this._store.add(new ActionBar(actionBar, { hoverDelegate: nativeHoverDelegate }));
+					toolbar.push([toAction({
+						id: 'workbench.action.selectInlineCompletionsModel',
+						label: localize('selectModel', "Select Model"),
+						tooltip: localize('selectModel', "Select Model"),
+						class: ThemeIcon.asClassName(Codicon.gear),
+						run: async () => {
+							await this.showModelPicker(provider);
+						}
+					})], { icon: true, label: false });
+				}
+			}
+		}
+
 		// Completions Snooze
-		if (canUseChat(this.chatEntitlementService)) {
+		if (this.canUseChat()) {
 			const snooze = append(this.element, $('div.snooze-completions'));
 			this.createCompletionsSnooze(snooze, localize('settings.snooze', "Snooze"), this._store);
 		}
@@ -293,6 +369,22 @@ export class ChatStatusDashboard extends DomWidget {
 				this._store.add(button.onDidClick(() => this.runCommandAndClose(commandId)));
 			}
 		}
+	}
+
+	private canUseChat(): boolean {
+		if (!this.chatEntitlementService.sentiment.installed || this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
+			return false; // chat not installed or not enabled
+		}
+
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown || this.chatEntitlementService.entitlement === ChatEntitlement.Available) {
+			return this.chatEntitlementService.anonymous; // signed out or not-yet-signed-up users can only use Chat if anonymous access is allowed
+		}
+
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && this.chatEntitlementService.quotas.chat?.percentRemaining === 0 && this.chatEntitlementService.quotas.completions?.percentRemaining === 0) {
+			return false; // free user with no quota left
+		}
+
+		return true;
 	}
 
 	private renderHeader(container: HTMLElement, disposables: DisposableStore, label: string, action?: IAction): void {
@@ -475,7 +567,7 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 		}));
 
-		if (!canUseChat(this.chatEntitlementService)) {
+		if (!this.canUseChat()) {
 			container.classList.add('disabled');
 			checkbox.disable();
 			checkbox.checked = false;
@@ -536,7 +628,7 @@ export class ChatStatusDashboard extends DomWidget {
 
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(completionsSettingId)) {
-				if (completionsSettingAccessor.readSetting() && canUseChat(this.chatEntitlementService)) {
+				if (completionsSettingAccessor.readSetting() && this.canUseChat()) {
 					checkbox.enable();
 					container.classList.remove('disabled');
 				} else {
@@ -626,5 +718,30 @@ export class ChatStatusDashboard extends DomWidget {
 		disposables.add(this.inlineCompletionsService.onDidChangeIsSnoozing(e => {
 			updateIntervalTimer();
 		}));
+	}
+
+	private async showModelPicker(provider: languages.InlineCompletionsProvider): Promise<void> {
+		if (!provider.modelInfo || !provider.setModelId) {
+			return;
+		}
+
+		const modelInfo = provider.modelInfo;
+		const items: IQuickPickItem[] = modelInfo.models.map(model => ({
+			id: model.id,
+			label: model.name,
+			description: model.id === modelInfo.currentModelId ? localize('currentModel.description', "Currently selected") : undefined,
+			picked: model.id === modelInfo.currentModelId
+		}));
+
+		const selected = await this.quickInputService.pick(items, {
+			placeHolder: localize('selectModelFor', "Select a model for {0}", provider.displayName || 'inline completions'),
+			canPickMany: false
+		});
+
+		if (selected && selected.id && selected.id !== modelInfo.currentModelId) {
+			await provider.setModelId(selected.id);
+		}
+
+		this.hoverService.hideHover(true);
 	}
 }

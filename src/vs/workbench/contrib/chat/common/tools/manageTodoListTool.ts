@@ -30,6 +30,7 @@ export const TodoListToolDescriptionFieldSettingId = 'chat.todoListTool.descript
 export const ManageTodoListToolToolId = 'manage_todo_list';
 
 export function createManageTodoListToolData(writeOnly: boolean, includeDescription: boolean = true): IToolData {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const baseProperties: any = {
 		todoList: {
 			type: 'array',
@@ -120,6 +121,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		super();
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	async invoke(invocation: IToolInvocation, _countTokens: any, _progress: any, _token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IManageTodoListToolInputParams;
 		// For: #263001 Use default sessionId

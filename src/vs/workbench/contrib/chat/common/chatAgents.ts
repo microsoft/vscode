@@ -132,8 +132,6 @@ export type UserSelectedTools = Record<string, boolean>;
 
 
 export interface IChatAgentRequest {
-	/** @deprecated Use {@linkcode sessionResource} instead */
-	sessionId: string;
 	sessionResource: URI;
 	requestId: string;
 	agentId: string;

@@ -400,7 +400,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
-					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: argument-hint, description, handoffs, model, name, target, tools.` },
+					{ severity: MarkerSeverity.Warning, message: `Attribute 'applyTo' is not supported in VS Code agent files. Supported: argument-hint, description, handoffs, infer, model, name, target, tools.` },
 				]
 			);
 		});
@@ -512,8 +512,8 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.agent);
 			const messages = markers.map(m => m.message);
 			assert.deepStrictEqual(messages, [
-				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, mcp-servers, name, target, tools.',
-				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, mcp-servers, name, target, tools.',
+				'Attribute \'model\' is not supported in custom GitHub Copilot agent files. Supported: description, infer, mcp-servers, name, target, tools.',
+				'Attribute \'handoffs\' is not supported in custom GitHub Copilot agent files. Supported: description, infer, mcp-servers, name, target, tools.',
 			], 'Model and handoffs are not validated for github-copilot target');
 		});
 
@@ -731,6 +731,81 @@ suite('PromptValidator', () => {
 				].join('\n');
 				const markers = await validate(content, PromptsType.agent);
 				assert.deepStrictEqual(markers, [], 'Name should be optional for vscode target');
+			}
+		});
+
+		test('infer attribute validation', async () => {
+			// Valid infer: true
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: true',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid infer: true should not produce errors');
+			}
+
+			// Valid infer: false
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: false',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Valid infer: false should not produce errors');
+			}
+
+			// Invalid infer: string value
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: "yes"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'infer' attribute must be a boolean.`);
+			}
+
+			// Invalid infer: number value
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'infer: 1',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.strictEqual(markers.length, 1);
+				assert.strictEqual(markers[0].severity, MarkerSeverity.Error);
+				assert.strictEqual(markers[0].message, `The 'infer' attribute must be a boolean.`);
+			}
+
+			// Missing infer attribute (should be optional)
+			{
+				const content = [
+					'---',
+					'name: "TestAgent"',
+					'description: "Test agent"',
+					'---',
+					'Body',
+				].join('\n');
+				const markers = await validate(content, PromptsType.agent);
+				assert.deepStrictEqual(markers, [], 'Missing infer attribute should be allowed');
 			}
 		});
 	});

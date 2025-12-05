@@ -36,12 +36,13 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '..
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, ICustomAgent, ICustomAgentQueryOptions, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
 import { mockFiles } from '../testUtils/mockFilesystem.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
 import { IPathService } from '../../../../../../services/path/common/pathService.js';
 import { ISearchService } from '../../../../../../services/search/common/search.js';
+import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -72,6 +73,10 @@ suite('PromptsService', () => {
 		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instaService.stub(ITelemetryService, NullTelemetryService);
 		instaService.stub(IStorageService, InMemoryStorageService);
+		instaService.stub(IExtensionService, {
+			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
+			activateByEvent: () => Promise.resolve()
+		});
 
 		fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
@@ -724,6 +729,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -778,6 +784,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -849,6 +856,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -865,6 +873,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					tools: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -933,6 +942,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					argumentHint: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -949,6 +959,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					argumentHint: undefined,
 					tools: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -965,6 +976,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1018,6 +1030,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -1060,6 +1073,185 @@ suite('PromptsService', () => {
 			assert.strictEqual(actual[0].storage, PromptsStorage.extension);
 			assert.strictEqual(actual[0].type, PromptsType.instructions);
 			registered.dispose();
+		});
+
+		test('Custom agent provider', async () => {
+			const agentUri = URI.parse('file://extensions/my-extension/myAgent.agent.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+
+			// Mock the agent file content
+			await mockFiles(fileService, [
+				{
+					path: agentUri.path,
+					contents: [
+						'---',
+						'description: \'My custom agent from provider\'',
+						'tools: [ tool1, tool2 ]',
+						'---',
+						'I am a custom agent from a provider.',
+					]
+				}
+			]);
+
+			const provider = {
+				provideCustomAgents: async (_options: ICustomAgentQueryOptions, _token: CancellationToken) => {
+					return [
+						{
+							name: 'myAgent',
+							description: 'My custom agent from provider',
+							uri: agentUri
+						}
+					];
+				}
+			};
+
+			const registered = service.registerCustomAgentsProvider(extension, provider);
+
+			const actual = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(actual.length, 1);
+			assert.strictEqual(actual[0].name, 'myAgent');
+			assert.strictEqual(actual[0].description, 'My custom agent from provider');
+			assert.strictEqual(actual[0].uri.toString(), agentUri.toString());
+			assert.strictEqual(actual[0].source.storage, PromptsStorage.extension);
+			if (actual[0].source.storage === PromptsStorage.extension) {
+				assert.strictEqual(actual[0].source.type, ExtensionAgentSourceType.provider);
+			}
+
+			registered.dispose();
+
+			// After disposal, the agent should no longer be listed
+			const actualAfterDispose = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(actualAfterDispose.length, 0);
+		});
+
+		test('Custom agent provider with isEditable', async () => {
+			const readonlyAgentUri = URI.parse('file://extensions/my-extension/readonlyAgent.agent.md');
+			const editableAgentUri = URI.parse('file://extensions/my-extension/editableAgent.agent.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+
+			// Mock the agent file content
+			await mockFiles(fileService, [
+				{
+					path: readonlyAgentUri.path,
+					contents: [
+						'---',
+						'description: \'Readonly agent from provider\'',
+						'---',
+						'I am a readonly agent.',
+					]
+				},
+				{
+					path: editableAgentUri.path,
+					contents: [
+						'---',
+						'description: \'Editable agent from provider\'',
+						'---',
+						'I am an editable agent.',
+					]
+				}
+			]);
+
+			const provider = {
+				provideCustomAgents: async (_options: ICustomAgentQueryOptions, _token: CancellationToken) => {
+					return [
+						{
+							name: 'readonlyAgent',
+							description: 'Readonly agent from provider',
+							uri: readonlyAgentUri,
+							isEditable: false
+						},
+						{
+							name: 'editableAgent',
+							description: 'Editable agent from provider',
+							uri: editableAgentUri,
+							isEditable: true
+						}
+					];
+				}
+			};
+
+			const registered = service.registerCustomAgentsProvider(extension, provider);
+
+			// Spy on updateReadonly to verify it's called correctly
+			const filesConfigService = instaService.get(IFilesConfigurationService);
+			const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
+
+			// List prompt files to trigger the readonly check
+			await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+
+			// Verify updateReadonly was called only for the non-editable agent
+			assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
+			assert.ok(updateReadonlySpy.calledWith(readonlyAgentUri, true), 'updateReadonly should be called with readonly agent URI and true');
+
+			const actual = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(actual.length, 2);
+
+			const readonlyAgent = actual.find(a => a.name === 'readonlyAgent');
+			const editableAgent = actual.find(a => a.name === 'editableAgent');
+
+			assert.ok(readonlyAgent, 'Readonly agent should be found');
+			assert.ok(editableAgent, 'Editable agent should be found');
+			assert.strictEqual(readonlyAgent!.description, 'Readonly agent from provider');
+			assert.strictEqual(editableAgent!.description, 'Editable agent from provider');
+
+			registered.dispose();
+		});
+
+		test('Contributed agent file that does not exist should not crash', async () => {
+			const nonExistentUri = URI.parse('file://extensions/my-extension/nonexistent.agent.md');
+			const existingUri = URI.parse('file://extensions/my-extension/existing.agent.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' }
+			} as unknown as IExtensionDescription;
+
+			// Only create the existing file
+			await mockFiles(fileService, [
+				{
+					path: existingUri.path,
+					contents: [
+						'---',
+						'name: \'Existing Agent\'',
+						'description: \'An agent that exists\'',
+						'---',
+						'I am an existing agent.',
+					]
+				}
+			]);
+
+			// Register both agents (one exists, one doesn't)
+			const registered1 = service.registerContributedFile(
+				PromptsType.agent,
+				'NonExistent Agent',
+				'An agent that does not exist',
+				nonExistentUri,
+				extension
+			);
+
+			const registered2 = service.registerContributedFile(
+				PromptsType.agent,
+				'Existing Agent',
+				'An agent that exists',
+				existingUri,
+				extension
+			);
+
+			// Verify that getCustomAgents doesn't crash and returns only the valid agent
+			const agents = await service.getCustomAgents(CancellationToken.None);
+
+			// Should only get the existing agent, not the non-existent one
+			assert.strictEqual(agents.length, 1, 'Should only return the agent that exists');
+			assert.strictEqual(agents[0].name, 'Existing Agent');
+			assert.strictEqual(agents[0].description, 'An agent that exists');
+			assert.strictEqual(agents[0].uri.toString(), existingUri.toString());
+
+			registered1.dispose();
+			registered2.dispose();
 		});
 	});
 

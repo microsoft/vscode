@@ -155,6 +155,7 @@ export class TestNativeHostService implements INativeHostService {
 	async stopTracing(): Promise<void> { }
 	async openDevToolsWindow(url: string): Promise<void> { }
 	async openGPUInfoWindow(): Promise<void> { }
+	async openContentTracingWindow(): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
 	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
 	async lookupKerberosAuthorization(url: string): Promise<string | undefined> { return undefined; }

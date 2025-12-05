@@ -210,7 +210,7 @@ export class AgentSessionsFilter extends Disposable {
 					id: `agentSessions.filter.resetExcludes.${that.options.filterMenuId.id.toLowerCase()}`,
 					title: localize('agentSessions.filter.reset', "Reset"),
 					menu: {
-						id: MenuId.AgentSessionsFilterSubMenu,
+						id: that.options.filterMenuId,
 						group: '4_reset',
 						order: 0,
 					},

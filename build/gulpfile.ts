@@ -6,8 +6,8 @@ import { EventEmitter } from 'events';
 import glob from 'glob';
 import gulp from 'gulp';
 import { createRequire } from 'node:module';
-import { monacoTypecheckTask /* , monacoTypecheckWatchTask */ } from './gulpfile.editor.mjs';
-import { compileExtensionMediaTask, compileExtensionsTask, watchExtensionsTask } from './gulpfile.extensions.mjs';
+import { monacoTypecheckTask /* , monacoTypecheckWatchTask */ } from './gulpfile.editor.ts';
+import { compileExtensionMediaTask, compileExtensionsTask, watchExtensionsTask } from './gulpfile.extensions.ts';
 import * as compilation from './lib/compilation.ts';
 import * as task from './lib/task.ts';
 import * as util from './lib/util.ts';
@@ -52,7 +52,7 @@ process.on('unhandledRejection', (reason, p) => {
 });
 
 // Load all the gulpfiles only if running tasks other than the editor tasks
-glob.sync('gulpfile.*.{mjs,js}', { cwd: import.meta.dirname })
+glob.sync('gulpfile.*.ts', { cwd: import.meta.dirname })
 	.forEach(f => {
 		return require(`./${f}`);
 	});

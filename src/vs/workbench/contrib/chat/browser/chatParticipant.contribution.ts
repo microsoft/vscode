@@ -29,17 +29,17 @@ import { IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
-import { ChatViewId } from './chat.js';
-import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
+import { ChatViewId, ChatViewContainerId } from './chat.js';
+import { ChatViewPane } from './chatViewPane.js';
 
 // --- Chat Container &  View Registration
 
 const chatViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
-	id: CHAT_SIDEBAR_PANEL_ID,
+	id: ChatViewContainerId,
 	title: localize2('chat.viewContainer.label', "Chat"),
 	icon: Codicon.chatSparkle,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [CHAT_SIDEBAR_PANEL_ID, { mergeViewWithContainerWhenSingleView: true }]),
-	storageId: CHAT_SIDEBAR_PANEL_ID,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ChatViewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
+	storageId: ChatViewContainerId,
 	hideIfEmpty: true,
 	order: 1,
 }, ViewContainerLocation.AuxiliaryBar, { isDefault: true, doNotRegisterOpenCommand: true });
@@ -53,7 +53,7 @@ const chatViewDescriptor: IViewDescriptor = {
 	canToggleVisibility: false,
 	canMoveView: true,
 	openCommandActionDescriptor: {
-		id: CHAT_SIDEBAR_PANEL_ID,
+		id: ChatViewContainerId,
 		title: chatViewContainer.title,
 		mnemonicTitle: localize({ key: 'miToggleChat', comment: ['&& denotes a mnemonic'] }, "&&Chat"),
 		keybindings: {
@@ -64,7 +64,7 @@ const chatViewDescriptor: IViewDescriptor = {
 		},
 		order: 1
 	},
-	ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Chat }]),
+	ctorDescriptor: new SyncDescriptor(ChatViewPane),
 	when: ContextKeyExpr.or(
 		ContextKeyExpr.or(
 			ChatContextKeys.Setup.hidden,
