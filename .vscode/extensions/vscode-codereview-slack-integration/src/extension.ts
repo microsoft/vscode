@@ -8,7 +8,6 @@ import { SlackTreeDataProvider } from './treeDataProvider';
 import { SlackService } from './service';
 import { SlackAuthenticationProvider } from './authenticationProvider';
 import { SlackCommandsRegistry } from './commands';
-import { SlackSessionManager } from './session';
 import { SlackView } from './view';
 
 
@@ -20,9 +19,8 @@ export function activate(context: vscode.ExtensionContext) {
 	const slackTreeDataProvider = new SlackTreeDataProvider(slackService);
 
 	context.subscriptions.push(new SlackAuthenticationProvider(context));
-	context.subscriptions.push(new SlackView(slackTreeDataProvider));
+	context.subscriptions.push(new SlackView(slackService, slackTreeDataProvider));
 	context.subscriptions.push(new SlackCommandsRegistry(slackService, slackTreeDataProvider));
-	context.subscriptions.push(new SlackSessionManager(slackService, slackTreeDataProvider));
 }
 
 export function deactivate() { }
