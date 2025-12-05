@@ -182,7 +182,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 	private getIcon(session: IAgentSession): ThemeIcon {
 		if (session.status === ChatSessionStatus.InProgress) {
-			return ThemeIcon.modify(Codicon.loading, 'spin');
+			return Codicon.sessionInProgress;
 		}
 
 		if (session.status === ChatSessionStatus.Failed) {

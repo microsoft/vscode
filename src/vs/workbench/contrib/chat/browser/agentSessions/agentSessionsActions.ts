@@ -15,7 +15,7 @@ import { Action2, MenuId } from '../../../../../platform/actions/common/actions.
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, IAgentSessionsControl } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatService } from '../../common/chatService.js';
@@ -27,7 +27,6 @@ import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../.
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { AgentSessionsControl } from './agentSessionsControl.js';
 
 //#region Session Title Actions
 
@@ -332,10 +331,8 @@ export class RefreshAgentSessionsViewerAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, arg: unknown) {
-		if (arg instanceof AgentSessionsControl) {
-			arg.refresh();
-		}
+	override run(accessor: ServicesAccessor, agentSessionsControl: IAgentSessionsControl) {
+		agentSessionsControl.refresh();
 	}
 }
 
@@ -355,10 +352,8 @@ export class FindAgentSessionInViewerAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, arg: unknown) {
-		if (arg instanceof AgentSessionsControl) {
-			return arg.openFind();
-		}
+	override run(accessor: ServicesAccessor, agentSessionsControl: IAgentSessionsControl) {
+		return agentSessionsControl.openFind();
 	}
 }
 

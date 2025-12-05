@@ -35,6 +35,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
+import { IAgentSessionsControl } from './agentSessions.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
@@ -56,7 +57,7 @@ type AgentSessionOpenedEvent = {
 	providerType: string;
 };
 
-export class AgentSessionsControl extends Disposable {
+export class AgentSessionsControl extends Disposable implements IAgentSessionsControl {
 
 	private sessionsContainer: HTMLElement | undefined;
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, IAgentSession, FuzzyScore> | undefined;
