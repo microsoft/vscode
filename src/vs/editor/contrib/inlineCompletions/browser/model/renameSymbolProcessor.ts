@@ -26,6 +26,7 @@ import { InlineSuggestionItem } from './inlineSuggestionItem.js';
 import { IInlineSuggestDataActionEdit } from './provideInlineCompletions.js';
 import { InlineSuggestAlternativeAction } from './InlineSuggestAlternativeAction.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { LRUCache } from '../../../../../base/common/map.js';
 
 enum RenameKind {
 	no = 'no',
@@ -313,6 +314,7 @@ export class RenameSymbolProcessor extends Disposable {
 	private readonly _renameInferenceEngine = new RenameInferenceEngine();
 
 	private _renameRunnable: { id: string; runnable: RenameSymbolRunnable } | undefined;
+	private _previousRenames: LRUCache<string, boolean>;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
@@ -322,7 +324,8 @@ export class RenameSymbolProcessor extends Disposable {
 	) {
 		super();
 		const self = this;
-		this._register(CommandsRegistry.registerCommand(renameSymbolCommandId, async (_: ServicesAccessor, textModel: ITextModel, position: Position, newName: string, source: TextModelEditSource, id: string) => {
+		this._previousRenames = new LRUCache<string, boolean>(16);
+		this._register(CommandsRegistry.registerCommand(renameSymbolCommandId, async (_: ServicesAccessor, textModel: ITextModel, position: Position, newName: string, source: TextModelEditSource, id: string, key: string) => {
 			if (self._renameRunnable === undefined) {
 				return;
 			}
@@ -339,7 +342,14 @@ export class RenameSymbolProcessor extends Disposable {
 			if (workspaceEdit === undefined) {
 				return;
 			}
-			bulkEditService.apply(workspaceEdit, { reason: source });
+			try {
+				const result = await bulkEditService.apply(workspaceEdit, { reason: source });
+				if (result.isApplied) {
+					self._previousRenames.set(key, true);
+				}
+			} catch (_error) {
+				// ignore error
+			}
 		}));
 	}
 
@@ -363,6 +373,10 @@ export class RenameSymbolProcessor extends Disposable {
 		}
 
 		const { oldName, newName, position, edits: renameEdits } = edits.renames;
+		const key = this.makeKey(textModel, position, oldName, newName);
+		if (this._previousRenames.get(key) === true) {
+			return suggestItem;
+		}
 
 		// Check asynchronously if a rename is possible
 		let timedOut = false;
@@ -401,7 +415,7 @@ export class RenameSymbolProcessor extends Disposable {
 		const command: Command = {
 			id: renameSymbolCommandId,
 			title: localize('rename', "Rename"),
-			arguments: [textModel, position, newName, source, id],
+			arguments: [textModel, position, newName, source, id, key],
 		};
 		const alternativeAction: InlineSuggestAlternativeAction = {
 			label: localize('rename', "Rename"),
@@ -438,5 +452,9 @@ export class RenameSymbolProcessor extends Disposable {
 		} catch (error) {
 			return RenameKind.no;
 		}
+	}
+
+	private makeKey(textModel: ITextModel, position: Position, oldName: string, newName: string): string {
+		return `${textModel.uri.toString()}@[${position.lineNumber},${position.column}]#${oldName}->${newName}`;
 	}
 }
