@@ -356,7 +356,7 @@ export class DeleteDuplicateLinesAction extends EditorAction {
 				adjustedSelectionStart,
 				1,
 				adjustedSelectionStart + lines.length - 1,
-				lines[lines.length - 1].length
+				lines[lines.length - 1].length + 1
 			);
 
 			edits.push(EditOperation.replace(selectionToReplace, lines.join('\n')));
