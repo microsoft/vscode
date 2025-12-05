@@ -28,6 +28,8 @@ import { GitEditSessionIdentityProvider } from './editSessionIdentityProvider';
 import { GitCommitInputBoxCodeActionsProvider, GitCommitInputBoxDiagnosticsManager } from './diagnostics';
 import { GitBlameController } from './blame';
 import { CloneManager } from './cloneManager';
+import { GitMoveHandler } from './gitMoveHandler';
+import { FileOperationService } from './fileOperationService';
 
 const deactivateTasks: { (): Promise<void> }[] = [];
 
@@ -92,6 +94,12 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const model = new Model(git, askpass, context.globalState, context.workspaceState, logger, telemetryReporter);
 	disposables.push(model);
 	const cloneManager = new CloneManager(model, telemetryReporter, model.repositoryCache);
+
+	const fileOperationService = new FileOperationService();
+	disposables.push(fileOperationService);
+
+	const gitMoveHandler = new GitMoveHandler(model, fileOperationService);
+	disposables.push(gitMoveHandler);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
 	model.onDidOpenRepository(onRepository, null, disposables);
