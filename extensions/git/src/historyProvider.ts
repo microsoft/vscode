@@ -6,7 +6,7 @@
 
 import { CancellationToken, Command, ConfigurationChangeEvent, Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, LogOutputChannel, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemRef, SourceControlHistoryItemRefsChangeEvent, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, commands, l10n, window, workspace } from 'vscode';
 import { AvatarQuery, AvatarQueryCommit, Branch, LogOptions, Ref, RefType } from './api/git';
-import { throttle } from './decorators';
+import { sequentialize, throttle } from './decorators';
 import { emojify, ensureEmojis } from './emoji';
 import { Commit, Stash } from './git';
 import { ISourceControlHistoryItemDetailsProviderRegistry, provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
@@ -39,6 +39,14 @@ function compareSourceControlHistoryItemRef(ref1: SourceControlHistoryItemRef, r
 	}
 
 	return ref1.name.localeCompare(ref2.name);
+}
+
+function compareStashItemRef(ref1: SourceControlHistoryItemRef, ref2: SourceControlHistoryItemRef): number {
+	const getIndex = (id: string) => {
+		const match = id.match(/^stash@\{(\d+)\}$/);
+		return match ? parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
+	};
+	return getIndex(ref1.id) - getIndex(ref2.id);
 }
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
@@ -116,7 +124,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		} catch (err) {
 			this.logger.error(`[GitHistoryProvider][onDidRunWriteOperation] Failed to get stashes: ${err}`);
 		}
-		historyStashRefs.sort((a, b) => a.id.localeCompare(b.id));
+		historyStashRefs.sort(compareStashItemRef);
 		const stashDelta = deltaHistoryItemRefs(this._historyStashRefs, historyStashRefs);
 		this._historyStashRefs = historyStashRefs;
 
@@ -604,6 +612,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return Array.from(commits.values()).slice(0, options.maxEntries ?? 50);
 	}
 
+	@sequentialize
 	private async getAndSyncStashRefs(): Promise<SourceControlHistoryItemRef[]> {
 		const gitStashes = await this.repository.getStashes();
 		this._stashRefsByHash.clear();
