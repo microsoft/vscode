@@ -132,6 +132,9 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 				this.configuration = this.resolveConfiguration();
 				this.updateCompositeBar(true);
 			}
+			if (e.affectsConfiguration('workbench.secondarySideBar.fontSize')) {
+				this.applyAuxiliaryBarFontSize();
+			}
 		}));
 	}
 
@@ -171,6 +174,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '0px';
 		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '0px';
+
+		this.applyAuxiliaryBarFontSize(container);
 	}
 
 	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
@@ -233,6 +238,20 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			toggleShowLabelsAction,
 			toAction({ id: ToggleAuxiliaryBarAction.ID, label: localize('hide second side bar', "Hide Secondary Side Bar"), run: () => this.commandService.executeCommand(ToggleAuxiliaryBarAction.ID) })
 		]);
+	}
+
+	private applyAuxiliaryBarFontSize(container?: HTMLElement): void {
+		const target = container ?? this.getContainer();
+		if (!target) {
+			return;
+		}
+
+		const configuredSize = this.configurationService.getValue<number>('workbench.secondarySideBar.fontSize');
+		if (typeof configuredSize === 'number' && configuredSize > 0) {
+			target.style.setProperty('--vscode-workbench-secondary-sidebar-font-size', `${configuredSize}px`);
+		} else {
+			target.style.removeProperty('--vscode-workbench-secondary-sidebar-font-size');
+		}
 	}
 
 	protected shouldShowCompositeBar(): boolean {

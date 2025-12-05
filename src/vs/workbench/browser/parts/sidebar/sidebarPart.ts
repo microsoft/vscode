@@ -110,6 +110,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
 				this.onDidChangeActivityBarLocation();
 			}
+			if (e.affectsConfiguration('workbench.sideBar.fontSize')) {
+				this.applySidebarFontSize();
+			}
 		}));
 
 		this.registerActions();
@@ -149,6 +152,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
 		container.style.borderLeftColor = !isPositionLeft ? borderColor || '' : '';
 		container.style.outlineColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
+
+		this.applySidebarFontSize(container);
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
@@ -272,6 +277,20 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			}
 
 			this.activityBarPart.show(true);
+		}
+	}
+
+	private applySidebarFontSize(container?: HTMLElement): void {
+		const target = container ?? this.getContainer();
+		if (!target) {
+			return;
+		}
+
+		const configuredSize = this.configurationService.getValue<number>('workbench.sideBar.fontSize');
+		if (typeof configuredSize === 'number' && configuredSize > 0) {
+			target.style.setProperty('--vscode-workbench-sidebar-font-size', `${configuredSize}px`);
+		} else {
+			target.style.removeProperty('--vscode-workbench-sidebar-font-size');
 		}
 	}
 
