@@ -202,7 +202,8 @@ export class OpenAgentSessionInEditorGroupAction extends BaseOpenAgentSessionAct
 			title: localize('chat.openSessionInEditorGroup.label', "Open as Editor"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				order: 1
+				order: 1,
+				group: 'navigation'
 			}
 		});
 	}
@@ -226,7 +227,8 @@ export class OpenAgentSessionInNewEditorGroupAction extends BaseOpenAgentSession
 			title: localize('chat.openSessionInNewEditorGroup.label', "Open to the Side"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				order: 2
+				order: 2,
+				group: 'navigation'
 			}
 		});
 	}
@@ -250,7 +252,8 @@ export class OpenAgentSessionInNewWindowAction extends BaseOpenAgentSessionActio
 			title: localize('chat.openSessionInNewWindow.label', "Open in New Window"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				order: 3
+				order: 3,
+				group: 'navigation'
 			}
 		});
 	}
