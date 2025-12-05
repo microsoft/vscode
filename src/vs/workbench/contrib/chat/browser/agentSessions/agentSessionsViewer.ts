@@ -161,7 +161,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Details Actions
 		const { changes: diff } = session.element;
-		if (session.element.status !== ChatSessionStatus.InProgress && diff) {
+		if (session.element.status !== ChatSessionStatus.InProgress && diff && this.hasValidDiff(diff)) {
 			if (diff instanceof Array ? diff.length > 0 : (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
 				const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
 				template.detailsToolbar.push([diffAction], { icon: false, label: true });
@@ -178,6 +178,18 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Hover
 		this.renderHover(session, template);
+	}
+
+	private hasValidDiff(diff: IAgentSession['changes']): boolean {
+		if (!diff) {
+			return false;
+		}
+
+		if (diff instanceof Array) {
+			return diff.length > 0;
+		}
+
+		return diff.files > 0 || diff.insertions > 0 || diff.deletions > 0;
 	}
 
 	private getIcon(session: IAgentSession): ThemeIcon {
