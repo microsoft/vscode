@@ -28,6 +28,7 @@ import { isEmptyObject, isObject } from '../../../../base/common/types.js';
 import { DefaultConfiguration as BaseDefaultConfiguration } from '../../../../platform/configuration/common/configurations.js';
 import { IJSONEditingService } from '../common/jsonEditing.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 
 export class DefaultConfiguration extends BaseDefaultConfiguration {
 
@@ -225,6 +226,7 @@ export class UserConfiguration extends Disposable {
 class FileServiceBasedConfiguration extends Disposable {
 
 	private readonly allResources: URI[];
+	private readonly resolvedStandaloneConfigurationResources = new Map<string, URI>();
 	private _folderSettingsModelParser: ConfigurationModelParser;
 	private _folderSettingsParseOptions: ConfigurationParseOptions;
 	private _standAloneConfigurations: ConfigurationModel[];
@@ -243,7 +245,13 @@ class FileServiceBasedConfiguration extends Disposable {
 		private readonly logService: ILogService,
 	) {
 		super();
-		this.allResources = [this.settingsResource, ...this.standAloneConfigurationResources.map(([, resource]) => resource)];
+		const resourceSet = new ResourceSet();
+		for (const resource of [this.settingsResource, ...this.standAloneConfigurationResources.map(([, resource]) => resource)]) {
+			for (const candidate of this.getResourceCandidates(resource)) {
+				resourceSet.add(candidate);
+			}
+		}
+		this.allResources = Array.from(resourceSet);
 		this._register(combinedDisposable(...this.allResources.map(resource => combinedDisposable(
 			this.fileService.watch(uriIdentityService.extUri.dirname(resource)),
 			// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
@@ -263,29 +271,57 @@ class FileServiceBasedConfiguration extends Disposable {
 	}
 
 	async resolveContents(donotResolveSettings?: boolean): Promise<[string | undefined, [string, string | undefined][]]> {
+		this.resolvedStandaloneConfigurationResources.clear();
 
-		const resolveContents = async (resources: URI[]): Promise<(string | undefined)[]> => {
-			return Promise.all(resources.map(async resource => {
-				try {
-					const content = await this.fileService.readFile(resource, { atomic: true });
-					return content.value.toString();
-				} catch (error) {
-					this.logService.trace(`Error while resolving configuration file '${resource.toString()}': ${errors.getErrorMessage(error)}`);
-					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
-						&& (<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_DIRECTORY) {
-						this.logService.error(error);
-					}
+		const settingsResult = await this.resolveConfigurationContent(this.settingsResource, !!donotResolveSettings);
+		const standAloneConfigurationContents = await Promise.all(this.standAloneConfigurationResources.map(async ([key, resource]) => {
+			const result = await this.resolveConfigurationContent(resource);
+			if (result.resource) {
+				this.resolvedStandaloneConfigurationResources.set(key, result.resource);
+			} else {
+				this.resolvedStandaloneConfigurationResources.delete(key);
+			}
+			return <[string, string | undefined]>[key, result.content];
+		}));
+
+		return [settingsResult.content, standAloneConfigurationContents];
+	}
+
+	private async resolveConfigurationContent(resource: URI, skip?: boolean): Promise<{ content: string | undefined; resource: URI | undefined }> {
+		if (skip) {
+			return { content: undefined, resource: undefined };
+		}
+
+		const candidates = this.getResourceCandidates(resource);
+		for (const candidate of candidates) {
+			try {
+				const content = await this.fileService.readFile(candidate, { atomic: true });
+				return { content: content.value.toString(), resource: candidate };
+			} catch (error) {
+				this.logService.trace(`Error while resolving configuration file '${candidate.toString()}': ${errors.getErrorMessage(error)}`);
+				if (this.shouldFallbackToAlternative(error)) {
+					continue;
 				}
-				return '{}';
-			}));
-		};
+				this.logService.error(error);
+				break;
+			}
+		}
 
-		const [[settingsContent], standAloneConfigurationContents] = await Promise.all([
-			donotResolveSettings ? Promise.resolve([undefined]) : resolveContents([this.settingsResource]),
-			resolveContents(this.standAloneConfigurationResources.map(([, resource]) => resource)),
-		]);
+		return { content: '{}', resource: undefined };
+	}
 
-		return [settingsContent, standAloneConfigurationContents.map((content, index) => ([this.standAloneConfigurationResources[index][0], content]))];
+	private getResourceCandidates(resource: URI): URI[] {
+		const candidates = [resource];
+		const path = resource.path;
+		if (path.endsWith('.json')) {
+			candidates.push(resource.with({ path: `${path.slice(0, -'.json'.length)}.jsonc` }));
+		}
+		return candidates;
+	}
+
+	private shouldFallbackToAlternative(error: unknown): boolean {
+		const fileOperationResult = (error as FileOperationError)?.fileOperationResult;
+		return fileOperationResult === FileOperationResult.FILE_NOT_FOUND || fileOperationResult === FileOperationResult.FILE_NOT_DIRECTORY;
 	}
 
 	async loadConfiguration(settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
@@ -303,7 +339,9 @@ class FileServiceBasedConfiguration extends Disposable {
 		for (let index = 0; index < standAloneConfigurationContents.length; index++) {
 			const contents = standAloneConfigurationContents[index][1];
 			if (contents !== undefined) {
-				const standAloneConfigurationModelParser = new StandaloneConfigurationModelParser(this.standAloneConfigurationResources[index][1].toString(), this.standAloneConfigurationResources[index][0], this.logService);
+				const [key, resource] = this.standAloneConfigurationResources[index];
+				const resolvedResource = this.resolvedStandaloneConfigurationResources.get(key) ?? resource;
+				const standAloneConfigurationModelParser = new StandaloneConfigurationModelParser(resolvedResource.toString(), key, this.logService);
 				standAloneConfigurationModelParser.parse(contents);
 				this._standAloneConfigurations.push(standAloneConfigurationModelParser.configurationModel);
 			}
