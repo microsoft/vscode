@@ -119,7 +119,7 @@ const apiTestSerializer: vscode.NotebookSerializer = {
 	},
 };
 
-(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('Notebook API tests', function () {
+suite('Notebook API tests', function () {
 
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
