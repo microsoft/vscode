@@ -46,6 +46,10 @@
 		flex-direction: row;
 		padding: 8px;
 
+		&.archived {
+			color: var(--vscode-descriptionForeground);
+		}
+
 		.agent-session-main-col,
 		.agent-session-title-row,
 		.agent-session-details-row {

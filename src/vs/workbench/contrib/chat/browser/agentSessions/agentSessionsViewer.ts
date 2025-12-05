@@ -145,6 +145,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.detailsToolbar.clear();
 		template.description.textContent = '';
 
+		// Archived
+		template.element.classList.toggle('archived', session.element.isArchived());
+
 		// Icon
 		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}`;
 
