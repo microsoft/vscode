@@ -37,11 +37,6 @@
         "icon": "$(sign-in)"
       },
       {
-        "command": "vs-code-codereview.signOut",
-        "title": "Sign out from Slack",
-        "icon": "$(sign-out)"
-      },
-      {
         "command": "vs-code-codereview.openPrLocally",
         "title": "Open PR Locally",
         "icon": "$(link-external)"
@@ -77,11 +72,6 @@
           "command": "vs-code-codereview.refreshMessages",
           "when": "view == codereview-slack-messages",
           "group": "navigation"
-        },
-        {
-          "command": "vs-code-codereview.signOut",
-          "when": "view == codereview-slack-messages",
-          "group": "overflow"
         }
       ],
       "view/item/context": [

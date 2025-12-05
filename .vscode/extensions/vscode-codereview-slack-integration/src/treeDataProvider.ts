@@ -11,79 +11,85 @@ export interface SlackMessage {
     author: string;
     text: string;
     timestamp: string;
-    prUrl?: string;
-    prTitle?: string;
-    prAuthor?: string;
-    prOwner?: string;
-    prRepo?: string;
-    prNumber?: number;
-    prAdditions?: number;
-    prDeletions?: number;
-    prChangedFiles?: number;
+    pr?: {
+        url: string;
+        title: string;
+        owner: string;
+        repo: string;
+        number: number;
+        author?: string;
+        additions?: number;
+        deletions?: number;
+        changedFiles?: number;
+    }
 }
 
 export class SlackMessageItem extends vscode.TreeItem {
-    
+
+    public readonly message: SlackMessage;
+
     constructor(
-        public readonly message: SlackMessage,
+        message: SlackMessage,
         collapsibleState: vscode.TreeItemCollapsibleState,
         isOpeningPr: boolean = false
     ) {
-        // Use PR title as main label if available, otherwise use author
-        const label = message.prTitle || message.author;
+        const label = message.pr?.title || message.author;
         super(label, collapsibleState);
 
-        // Show PR author (GitHub handle) in description if PR, otherwise show timestamp
-        if (message.prUrl) {
-            this.description = message.prAuthor ? `@${message.prAuthor}` : message.author;
-            // Show spinning icon when opening PR, otherwise show git-pull-request icon
+        this.message = message;
+        this._setDescription(message);
+        this._setTooltip(message);
+        this._setIcon(message, isOpeningPr);
+        this._setContextValue(message, isOpeningPr);
+    }
+
+    private _setDescription(message: SlackMessage) {
+        if (message.pr) {
+            this.description = message.pr ? `@${message.pr.author}` : message.author;
+        }
+    }
+
+    private _setIcon(message: SlackMessage, isOpeningPr: boolean) {
+        if (message.pr) {
             this.iconPath = isOpeningPr
                 ? new vscode.ThemeIcon('loading~spin')
                 : new vscode.ThemeIcon('git-pull-request');
         } else {
             this.iconPath = new vscode.ThemeIcon('comment');
         }
+    }
 
+    private _setTooltip(message: SlackMessage) {
+        const pr = message.pr;
         this.tooltip = new vscode.MarkdownString();
-        if (message.prUrl) {
-            // PR message tooltip
-            if (message.prAuthor) {
-                this.tooltip.appendMarkdown(`**Author:** ${message.prAuthor}\n\n`);
+        if (pr) {
+            if (pr.author) {
+                this.tooltip.appendMarkdown(`**Author:** ${pr.author}\n\n`);
             }
-            if (message.prRepo) {
-                this.tooltip.appendMarkdown(`**Repository:** ${message.prRepo}\n\n`);
+            this.tooltip.appendMarkdown(`**Repository:** ${pr.repo}\n\n`);
+            this.tooltip.appendMarkdown(`**Title:** ${pr.title}\n\n`);
+            this.tooltip.appendMarkdown(`**PR Number:** ${pr.number}\n\n`);
+            this.tooltip.appendMarkdown(`**File Changes:** ${pr.url}\n\n`);
+            if (pr.additions !== undefined && pr.deletions !== undefined && pr.changedFiles !== undefined) {
+                this.tooltip.appendMarkdown(`**+${pr.additions}**, **-${pr.deletions}**, **${pr.changedFiles} file${pr.changedFiles !== 1 ? 's' : ''}**\n\n`);
             }
-            if (message.prTitle) {
-                this.tooltip.appendMarkdown(`**Title:** ${message.prTitle}\n\n`);
-            }
-            if (message.prNumber) {
-                this.tooltip.appendMarkdown(`**PR Number:** ${message.prNumber}\n\n`);
-            }
-            this.tooltip.appendMarkdown(`**Changes:** ${message.prUrl}\n\n`);
-            // Show additions, deletions, and changed files
-            if (message.prAdditions !== undefined || message.prDeletions !== undefined || message.prChangedFiles !== undefined) {
-                const additions = message.prAdditions ?? 0;
-                const deletions = message.prDeletions ?? 0;
-                const files = message.prChangedFiles ?? 0;
-                this.tooltip.appendMarkdown(`**+${additions}**, **-${deletions}**, **${files} file${files !== 1 ? 's' : ''}**\n\n`);
-            }
-            this.tooltip.appendMarkdown(`_${this.formatTimestamp(message.timestamp)}_`);
+            this.tooltip.appendMarkdown(`_${this._formatTimestamp(message.timestamp)}_`);
         } else {
-            // Regular message tooltip - show full message content
             this.tooltip.appendMarkdown(`**Author:** ${message.author}\n\n`);
             this.tooltip.appendMarkdown(`${message.text}\n\n`);
-            this.tooltip.appendMarkdown(`_${this.formatTimestamp(message.timestamp)}_`);
+            this.tooltip.appendMarkdown(`_${this._formatTimestamp(message.timestamp)}_`);
         }
+    }
 
-        // Use different contextValue when loading to show spinning icon
-        if (message.prUrl) {
+    private _setContextValue(message: SlackMessage, isOpeningPr: boolean) {
+        if (message.pr) {
             this.contextValue = isOpeningPr ? 'slackMessageWithPrLoading' : 'slackMessageWithPr';
         } else {
             this.contextValue = 'slackMessage';
         }
     }
 
-    private formatTimestamp(timestamp: string): string {
+    private _formatTimestamp(timestamp: string): string {
         const date = new Date(timestamp);
         return date.toLocaleString();
     }
@@ -124,38 +130,31 @@ export class NoMessagesItem extends vscode.TreeItem {
 type TreeItem = SlackMessageItem | SignInItem | LoadingItem | ErrorItem | NoMessagesItem;
 
 export class SlackTreeDataProvider implements vscode.TreeDataProvider<TreeItem> {
+
     private _onDidChangeTreeData: vscode.EventEmitter<TreeItem | undefined | null | void> = new vscode.EventEmitter<TreeItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<TreeItem | undefined | null | void> = this._onDidChangeTreeData.event;
+
+    private _onDidChangeMessageCount: vscode.EventEmitter<number> = new vscode.EventEmitter<number>();
+    readonly onDidChangeMessageCount: vscode.Event<number> = this._onDidChangeMessageCount.event;
 
     private messages: SlackMessage[] = [];
     private isLoading: boolean = false;
     private errorMessage: string | undefined;
-    private onMessageCountChanged?: (count: number) => void;
     private loadingPrMessageId: string | undefined;
 
     constructor(private slackService: SlackService) { }
 
-    setLoadingPr(messageId: string | undefined): void {
+    public setLoadingPR(messageId: string | undefined): void {
         this.loadingPrMessageId = messageId;
-        this.refresh();
     }
 
-    isLoadingPr(messageId: string): boolean {
+    private _isLoadingPR(messageId: string): boolean {
         return this.loadingPrMessageId === messageId;
     }
 
-    setOnMessageCountChanged(callback: (count: number) => void): void {
-        this.onMessageCountChanged = callback;
-    }
-
-    refresh(): void {
-        this._onDidChangeTreeData.fire();
-    }
-
-    async fetchMessages(): Promise<void> {
+    public async fetchMessages(): Promise<void> {
         this.isLoading = true;
         this.errorMessage = undefined;
-        this.refresh();
 
         try {
             this.messages = await this.slackService.getMessages();
@@ -164,16 +163,16 @@ export class SlackTreeDataProvider implements vscode.TreeDataProvider<TreeItem> 
             this.messages = [];
         } finally {
             this.isLoading = false;
-            this.refresh();
-            this.onMessageCountChanged?.(this.messages.length);
+            this._onDidChangeTreeData.fire();
+            this._onDidChangeMessageCount.fire(this.messages.length);
         }
     }
 
-    getTreeItem(element: TreeItem): vscode.TreeItem {
+    public getTreeItem(element: TreeItem): vscode.TreeItem {
         return element;
     }
 
-    async getChildren(element?: TreeItem): Promise<TreeItem[]> {
+    public async getChildren(element?: TreeItem): Promise<TreeItem[]> {
 
         // For non-message elements or when expanding other items, return empty
         if (element) {
@@ -201,15 +200,6 @@ export class SlackTreeDataProvider implements vscode.TreeDataProvider<TreeItem> 
             return [new NoMessagesItem()];
         }
 
-        return this.messages.map(msg => new SlackMessageItem(msg, vscode.TreeItemCollapsibleState.None, this.isLoadingPr(msg.id)));
-    }
-
-    setMessages(messages: SlackMessage[]): void {
-        this.messages = messages;
-        this.refresh();
-    }
-
-    getMessageCount(): number {
-        return this.messages.length;
+        return this.messages.map(msg => new SlackMessageItem(msg, vscode.TreeItemCollapsibleState.None, this._isLoadingPR(msg.id)));
     }
 }

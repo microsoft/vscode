@@ -19,7 +19,7 @@ export class SlackView extends vscode.Disposable {
 	) {
 		super(() => this.dispose());
 		this._treeView = vscode.window.createTreeView(this.SLACK_CODE_REVIEW_VIEW_ID, { treeDataProvider: slackTreeDataProvider });
-		slackTreeDataProvider.setOnMessageCountChanged((count) => this._onMessageCountChanged(count));
+		slackTreeDataProvider.onDidChangeMessageCount((count) => this._onMessageCountChanged(count));
 		this._onDidChangeSessions = vscode.authentication.onDidChangeSessions(async (e) => this._onDidChangeSession(e));
 		this._updateSession();
 	}
@@ -46,7 +46,6 @@ export class SlackView extends vscode.Disposable {
 	}
 
 	private async _createNewSession() {
-		this.slackTreeDataProvider.refresh();
 		await this.slackTreeDataProvider.fetchMessages();
 		this._autoRefresh = this._triggerAutoRefresh();
 	}

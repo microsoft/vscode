@@ -42,11 +42,7 @@ class SignIntoSlackCommand extends Command {
 	}
 
 	async execute(): Promise<void> {
-		const success = await this.slackService.signIn();
-		if (!success) {
-			return;
-		}
-		this.slackTreeDataProvider.refresh();
+		this.slackService.signIn();
 	}
 }
 
@@ -72,16 +68,16 @@ class OpenPRViewCommand extends Command {
 	}
 
 	async execute(item: SlackMessageItem): Promise<void> {
-		if (!item || !item.message.prOwner || !item.message.prRepo || !item.message.prNumber) {
+		if (!item || !item.message.pr) {
 			vscode.window.showWarningMessage('No PR information available for this item');
 			return;
 		}
 		try {
-			this.slackTreeDataProvider.setLoadingPr(item.message.id);
+			this.slackTreeDataProvider.setLoadingPR(item.message.id);
 			const params = {
-				owner: item.message.prOwner,
-				repo: item.message.prRepo,
-				pullRequestNumber: item.message.prNumber
+				owner: item.message.pr.owner,
+				repo: item.message.pr.repo,
+				pullRequestNumber: item.message.pr.number
 			};
 			const encodedParams = encodeURIComponent(JSON.stringify(params));
 			const uri = await vscode.env.asExternalUri(
@@ -89,12 +85,11 @@ class OpenPRViewCommand extends Command {
 			);
 			await vscode.env.openExternal(uri);
 		} catch (error) {
-			console.error('Failed to open pull request:', error);
-			vscode.window.showErrorMessage(`Failed to open PR #${item.message.prNumber}: ${error}`);
+			vscode.window.showErrorMessage(`Failed to open PR #${item.message.pr.number}: ${error}`);
 		} finally {
 			// Clear loading state after a delay to give time for the PR view to open
 			setTimeout(() => {
-				this.slackTreeDataProvider.setLoadingPr(undefined);
+				this.slackTreeDataProvider.setLoadingPR(undefined);
 			}, 2000);
 		}
 	}
@@ -109,12 +104,12 @@ class OpenPRInBrowser extends Command {
 	}
 
 	async execute(item: SlackMessageItem): Promise<void> {
-		if (!item || !item.message.prUrl) {
+		if (!item || !item.message.pr) {
 			vscode.window.showWarningMessage('No PR URL available for this item');
 			return;
 		}
 		try {
-			await vscode.env.openExternal(vscode.Uri.parse(item.message.prUrl));
+			await vscode.env.openExternal(vscode.Uri.parse(item.message.pr.url));
 		} catch (error) {
 			console.error('Failed to open PR in browser:', error);
 			vscode.window.showErrorMessage(`Failed to open PR in browser: ${error}`);

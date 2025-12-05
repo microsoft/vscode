@@ -112,21 +112,31 @@ export class SlackService {
         const prUrl = this._extractPullRequestUrl(text);
         const timestamp = this._timestampToISO(message.ts);
         const author = await this._getUserName(message.user);
+        if (!prUrl) {
+            return {
+                id: message.ts,
+                author,
+                text,
+                timestamp
+            };
+        }
         const prInfo = await this._fetchCachedPullRequestInfo(prUrl);
         const slackMessage: SlackMessage = {
             id: message.ts,
             author,
             text,
             timestamp,
-            prUrl: prUrl,
-            prTitle: prInfo?.title,
-            prAuthor: prInfo?.author,
-            prOwner: prInfo?.owner,
-            prRepo: prInfo?.repo,
-            prNumber: prInfo?.number,
-            prAdditions: prInfo?.additions,
-            prDeletions: prInfo?.deletions,
-            prChangedFiles: prInfo?.changedFiles,
+            pr: prInfo ? {
+                url: prUrl,
+                title: prInfo.title,
+                author: prInfo.author,
+                owner: prInfo.owner,
+                repo: prInfo.repo,
+                number: prInfo.number,
+                additions: prInfo.additions,
+                deletions: prInfo.deletions,
+                changedFiles: prInfo.changedFiles,
+            } : undefined,
         };
         return slackMessage;
     }
@@ -213,10 +223,7 @@ export class SlackService {
         }
     }
 
-    private async _fetchCachedPullRequestInfo(prUrl: string | undefined): Promise<IPullRequest | undefined> {
-        if (!prUrl) {
-            return undefined;
-        }
+    private async _fetchCachedPullRequestInfo(prUrl: string): Promise<IPullRequest | undefined> {
         if (this.prCache.has(prUrl)) {
             return this.prCache.get(prUrl);
         }

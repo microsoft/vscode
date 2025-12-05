@@ -118,7 +118,7 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
             };
 
             this._sessions.push(session);
-            await this.storeSessions();
+            await this._storeSessions();
             this._sessionChangeEmitter.fire({
                 added: [session],
                 removed: [],
@@ -138,7 +138,7 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
             return;
         }
         const removed = this._sessions.splice(sessionIndex, 1);
-        await this.storeSessions();
+        await this._storeSessions();
         this._sessionChangeEmitter.fire({
             added: [],
             removed: removed,
@@ -228,7 +228,7 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
         }
     }
 
-    private async storeSessions(): Promise<void> {
+    private async _storeSessions(): Promise<void> {
         await this.context.secrets.store(SESSIONS_SECRET_KEY, JSON.stringify(this._sessions));
     }
 
