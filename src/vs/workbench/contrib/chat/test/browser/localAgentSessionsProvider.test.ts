@@ -181,6 +181,10 @@ class MockChatService implements IChatService {
 	waitForModelDisposals(): Promise<void> {
 		return Promise.resolve();
 	}
+
+	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
+		throw new Error('Method not implemented.');
+	}
 }
 
 function createMockChatModel(options: {

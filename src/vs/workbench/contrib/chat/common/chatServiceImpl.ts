@@ -39,7 +39,7 @@ import { ChatRequestParser } from './chatRequestParser.js';
 import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
-import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
+import { ChatSessionStore, IChatSessionEntryMetadata, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
 import { LocalChatSessionUri } from './chatUri.js';
@@ -153,6 +153,8 @@ export class ChatService extends Disposable implements IChatService {
 					} else if (this._saveModelsEnabled) {
 						await this._chatSessionStore.storeSessions([model]);
 					}
+				} else if (!localSessionId && model.getRequests().length > 0) {
+					await this._chatSessionStore.storeSessionsMetadataOnly([model]);
 				}
 			}
 		}));
@@ -217,10 +219,14 @@ export class ChatService extends Disposable implements IChatService {
 			return;
 		}
 
-		const liveChats = Array.from(this._sessionModels.values())
+		const liveLocalChats = Array.from(this._sessionModels.values())
 			.filter(session => this.shouldStoreSession(session));
 
-		this._chatSessionStore.storeSessions(liveChats);
+		this._chatSessionStore.storeSessions(liveLocalChats);
+
+		const liveNonLocalChats = Array.from(this._sessionModels.values())
+			.filter(session => !LocalChatSessionUri.parseLocalSessionId(session.sessionResource));
+		this._chatSessionStore.storeSessionsMetadataOnly(liveNonLocalChats);
 	}
 
 	/**
@@ -405,16 +411,30 @@ export class ChatService extends Disposable implements IChatService {
 	async getHistorySessionItems(): Promise<IChatDetail[]> {
 		const index = await this._chatSessionStore.getIndex();
 		return Object.values(index)
+			.filter(entry => !entry.isExternal)
 			.filter(entry => !this._sessionModels.has(LocalChatSessionUri.forSession(entry.sessionId)) && entry.initialLocation === ChatAgentLocation.Chat && !entry.isEmpty)
 			.map((entry): IChatDetail => {
 				const sessionResource = LocalChatSessionUri.forSession(entry.sessionId);
 				return ({
 					...entry,
 					sessionResource,
-					stats: entry.stats,
 					isActive: this._sessionModels.has(sessionResource),
 				});
 			});
+	}
+
+	async getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
+		const index = await this._chatSessionStore.getIndex();
+		const metadata: IChatSessionEntryMetadata | undefined = index[sessionResource.toString()];
+		if (metadata) {
+			return {
+				...metadata,
+				sessionResource,
+				isActive: this._sessionModels.has(sessionResource),
+			};
+		}
+
+		return undefined;
 	}
 
 	private shouldBeInHistory(entry: ChatModel): boolean {

@@ -190,23 +190,22 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
-
-		// Support description as string
-		if (typeof session.element.description === 'string') {
-			template.description.textContent = session.element.description;
-		}
-
-		// or as markdown
-		else if (session.element.description) {
-			template.elementDisposable.add(this.markdownRendererService.render(session.element.description, {
-				sanitizerConfig: {
-					replaceWithPlaintext: true,
-					allowedTags: {
-						override: allowedChatMarkdownHtmlTags,
+		const description = session.element.description;
+		if (description) {
+			// Support description as string
+			if (typeof description === 'string') {
+				template.description.textContent = description;
+			} else {
+				template.elementDisposable.add(this.markdownRendererService.render(description, {
+					sanitizerConfig: {
+						replaceWithPlaintext: true,
+						allowedTags: {
+							override: allowedChatMarkdownHtmlTags,
+						},
+						allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
 					},
-					allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
-				},
-			}, template.description));
+				}, template.description));
+			}
 		}
 
 		// Fallback to state label
