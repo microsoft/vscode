@@ -10,6 +10,7 @@ import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDi
 import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
 import { FloatingClickMenu } from '../../../../platform/actions/browser/floatingMenu.js';
+import { getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService.js';
@@ -206,6 +207,12 @@ class MultiDiffEditorContentMenuOverlay extends Disposable {
 
 		this.rebuild = () => {
 			this.overlayStore.clear();
+
+			// Check if the menu has any actions before creating the container
+			const actions = getFlatActionBarActions(menu.getActions({ renderShortTitle: true, shouldForwardArgs: true }));
+			if (actions.length === 0) {
+				return;
+			}
 
 			const container = DOM.h('div.floating-menu-overlay-widget.multi-diff-root-floating-menu');
 			root.appendChild(container.root);
