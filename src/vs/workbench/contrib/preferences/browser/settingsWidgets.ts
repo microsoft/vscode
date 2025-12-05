@@ -29,25 +29,12 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { defaultButtonStyles, getInputBoxStyle, getSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
-import { SettingValueType } from '../../../services/preferences/common/preferences.js';
 import { settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../common/settingsEditorColorRegistry.js';
 import './media/settingsWidgets.css';
 import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from './preferencesIcons.js';
+import { EditKey, IBoolObjectDataItem, IBoolObjectSetValueOptions, IIncludeExcludeDataItem, IListDataItem, IListSetValueOptions, IListViewItem, IObjectBoolData, IObjectDataItem, IObjectEnumData, IObjectEnumOption, IObjectKeySuggester, IObjectRenderEditWidgetOptions, IObjectSetValueOptions, IObjectStringData, IObjectValueSuggester, ListSettingWidgetDragDetails, ObjectKey, ObjectValue, ObjectWidget, RowElementGroup, SettingListEvent } from './settingsWidgetsTypes.js';
 
 const $ = DOM.$;
-
-type EditKey = 'none' | 'create' | number;
-
-type RowElementGroup = {
-	rowElement: HTMLElement;
-	keyElement: HTMLElement;
-	valueElement?: HTMLElement;
-};
-
-type IListViewItem<TDataItem extends object> = TDataItem & {
-	editing?: boolean;
-	selected?: boolean;
-};
 
 export class ListSettingListModel<TDataItem extends object> {
 	protected _dataItems: TDataItem[] = [];
@@ -112,41 +99,6 @@ export class ListSettingListModel<TDataItem extends object> {
 		}
 	}
 }
-
-export interface ISettingListChangeEvent<TDataItem extends object> {
-	type: 'change';
-	originalItem: TDataItem;
-	newItem: TDataItem;
-	targetIndex: number;
-}
-
-export interface ISettingListAddEvent<TDataItem extends object> {
-	type: 'add';
-	newItem: TDataItem;
-	targetIndex: number;
-}
-
-export interface ISettingListMoveEvent<TDataItem extends object> {
-	type: 'move';
-	originalItem: TDataItem;
-	newItem: TDataItem;
-	targetIndex: number;
-	sourceIndex: number;
-}
-
-export interface ISettingListRemoveEvent<TDataItem extends object> {
-	type: 'remove';
-	originalItem: TDataItem;
-	targetIndex: number;
-}
-
-export interface ISettingListResetEvent<TDataItem extends object> {
-	type: 'reset';
-	originalItem: TDataItem;
-	targetIndex: number;
-}
-
-export type SettingListEvent<TDataItem extends object> = ISettingListChangeEvent<TDataItem> | ISettingListAddEvent<TDataItem> | ISettingListMoveEvent<TDataItem> | ISettingListRemoveEvent<TDataItem> | ISettingListResetEvent<TDataItem>;
 
 export abstract class AbstractListSettingWidget<TDataItem extends object> extends Disposable {
 	private listElement: HTMLElement;
@@ -431,23 +383,6 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.model.selectPrevious();
 		this.selectRow(this.model.getSelected()!);
 	}
-}
-
-interface IListSetValueOptions {
-	showAddButton?: boolean;
-	keySuggester?: IObjectKeySuggester;
-	isReadOnly?: boolean;
-}
-
-export interface IListDataItem {
-	value: ObjectKey;
-	sibling?: string;
-}
-
-interface ListSettingWidgetDragDetails<TListDataItem extends IListDataItem> {
-	element: HTMLElement;
-	item: TListDataItem;
-	itemIndex: number;
 }
 
 export class ListSettingWidget<TListDataItem extends IListDataItem> extends AbstractListSettingWidget<TListDataItem> {
@@ -853,71 +788,6 @@ export class IncludeSettingWidget extends ListSettingWidget<IIncludeExcludeDataI
 	}
 }
 
-interface IObjectStringData {
-	type: 'string';
-	data: string;
-}
-
-export interface IObjectEnumOption {
-	value: string;
-	description?: string;
-}
-
-interface IObjectEnumData {
-	type: 'enum';
-	data: string;
-	options: IObjectEnumOption[];
-}
-
-interface IObjectBoolData {
-	type: 'boolean';
-	data: boolean;
-}
-
-type ObjectKey = IObjectStringData | IObjectEnumData;
-export type ObjectValue = IObjectStringData | IObjectEnumData | IObjectBoolData;
-type ObjectWidget = InputBox | SelectBox;
-
-export interface IObjectDataItem {
-	key: ObjectKey;
-	value: ObjectValue;
-	keyDescription?: string;
-	source?: string;
-	removable: boolean;
-	resetable: boolean;
-}
-
-export interface IIncludeExcludeDataItem {
-	value: ObjectKey;
-	elementType: SettingValueType;
-	sibling?: string;
-	source?: string;
-}
-
-export interface IObjectValueSuggester {
-	(key: string): ObjectValue | undefined;
-}
-
-export interface IObjectKeySuggester {
-	(existingKeys: string[], idx?: number): IObjectEnumData | undefined;
-}
-
-interface IObjectSetValueOptions {
-	settingKey: string;
-	showAddButton: boolean;
-	isReadOnly?: boolean;
-	keySuggester?: IObjectKeySuggester;
-	valueSuggester?: IObjectValueSuggester;
-}
-
-interface IObjectRenderEditWidgetOptions {
-	isKey: boolean;
-	idx: number;
-	readonly originalItem: IObjectDataItem;
-	readonly changedItem: IObjectDataItem;
-	update(keyOrValue: ObjectKey | ObjectValue): void;
-}
-
 export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObjectDataItem> {
 	private editable: boolean = true;
 	private currentSettingKey: string = '';
@@ -1307,19 +1177,6 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 	}
 }
 
-interface IBoolObjectSetValueOptions {
-	settingKey: string;
-}
-
-export interface IBoolObjectDataItem {
-	key: IObjectStringData;
-	value: IObjectBoolData;
-	keyDescription?: string;
-	source?: string;
-	removable: false;
-	resetable: boolean;
-}
-
 export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBoolObjectDataItem> {
 	private currentSettingKey: string = '';
 
@@ -1470,3 +1327,21 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IBool
 		};
 	}
 }
+
+// Re-export types for backwards compatibility
+export type {
+IBoolObjectDataItem,
+IIncludeExcludeDataItem,
+IListDataItem,
+IObjectDataItem,
+IObjectEnumOption,
+IObjectKeySuggester,
+IObjectValueSuggester,
+ISettingListAddEvent,
+ISettingListChangeEvent,
+ISettingListMoveEvent,
+ISettingListRemoveEvent,
+ISettingListResetEvent,
+ObjectValue,
+SettingListEvent
+} from './settingsWidgetsTypes.js';
