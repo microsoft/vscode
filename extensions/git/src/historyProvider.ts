@@ -24,7 +24,7 @@ function compareSourceControlHistoryItemRef(ref1: SourceControlHistoryItemRef, r
 			return 2;
 		} else if (ref.id.startsWith('refs/tags/')) {
 			return 3;
-		} else if (ref.id.startsWith('refs/stash')) {
+		} else if (ref.id.startsWith('stash')) {
 			return 4;
 		}
 
@@ -110,7 +110,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const refDelta = deltaHistoryItemRefs(this._historyItemRefs, historyItemRefs);
 		this._historyItemRefs = historyItemRefs;
 
-		let historyStashRefs: SourceControlHistoryItemRef[] = [];
+		let historyStashRefs: SourceControlHistoryItemRef[] = this._historyStashRefs;
 		try {
 			historyStashRefs = await this.getAndSyncStashRefs();
 		} catch (err) {
@@ -241,12 +241,12 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	async provideHistoryItemRefs(historyItemRefs: string[] | undefined): Promise<SourceControlHistoryItemRef[]> {
+		const refs = await this.repository.getRefs({ pattern: historyItemRefs });
+
 		const branches: SourceControlHistoryItemRef[] = [];
 		const remoteBranches: SourceControlHistoryItemRef[] = [];
 		const tags: SourceControlHistoryItemRef[] = [];
-		let stashes: SourceControlHistoryItemRef[] = [];
 
-		const refs = await this.repository.getRefs({ pattern: historyItemRefs });
 		for (const ref of refs) {
 			switch (ref.type) {
 				case RefType.RemoteHead:
@@ -261,6 +261,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			}
 		}
 
+		let stashes: SourceControlHistoryItemRef[] = this._historyStashRefs;
 		try {
 			stashes = await this.getAndSyncStashRefs();
 		} catch (err) {
@@ -651,9 +652,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	private stashToSourceControlHistoryItemRef(stash: Stash): SourceControlHistoryItemRef {
 		return {
-			id: `refs/stash@{${stash.index}}`,
-			name: `stash@{${stash.index}}`,
-			description: stash.description,
+			id: `stash@{${stash.index}}`,
+			name: stash.description,
+			description: stash.branchName,
 			revision: stash.hash,
 			icon: new ThemeIcon('git-stash'),
 			category: l10n.t('stashes')
