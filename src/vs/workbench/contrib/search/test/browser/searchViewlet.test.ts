@@ -85,7 +85,7 @@ suite('Search - Viewlet', () => {
 					}
 				]
 			}]
-		}], '', false);
+		}], '', {});
 
 		const fileMatch = result.matches()[0];
 		const lineMatch = fileMatch.matches()[0];

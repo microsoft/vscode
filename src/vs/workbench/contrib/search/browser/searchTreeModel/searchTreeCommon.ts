@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchQuery, ITextSearchResult } from '../../../../services/search/common/search.js';
+import { IFileMatch, IFileQuery, ISearchComplete, ISearchProgressItem, ISearchRange, ITextQuery, ITextSearchQuery, ITextSearchResult } from '../../../../services/search/common/search.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -17,7 +17,7 @@ import { Event } from '../../../../../base/common/event.js';
 
 export type FileMatchOrMatch = ISearchTreeFileMatch | ISearchTreeMatch;
 
-export type RenderableMatch = ITextSearchHeading | ISearchTreeFolderMatch | ISearchTreeFileMatch | ISearchTreeMatch;
+export type RenderableMatch = ITextSearchHeading | ISearchTreeFolderMatch | ISearchTreeFileMatch | ISearchTreeMatch | IFileNameMatch;
 export function arrayContainsElementOrParent(element: RenderableMatch, testArray: RenderableMatch[]): boolean {
 	do {
 		if (testArray.includes(element)) {
@@ -30,7 +30,7 @@ export function arrayContainsElementOrParent(element: RenderableMatch, testArray
 
 
 export interface IChangeEvent {
-	elements: ISearchTreeFileMatch[];
+	elements: (ISearchTreeFileMatch | IFileNameMatch)[];
 	added?: boolean;
 	removed?: boolean;
 	clearingAll?: boolean;
@@ -43,6 +43,7 @@ export enum SearchModelLocation {
 
 export const PLAIN_TEXT_SEARCH__RESULT_ID = 'plainTextSearch';
 export const AI_TEXT_SEARCH_RESULT_ID = 'aiTextSearch';
+export const FILE_NAME_SEARCH_RESULT_ID = 'fileNameSearch';
 
 export function createParentList(element: RenderableMatch): RenderableMatch[] {
 	const parentArray: RenderableMatch[] = [];
@@ -98,6 +99,7 @@ export interface ISearchModel {
 	preserveCase: boolean;
 	searchResult: ISearchResult;
 	aiSearch(onResultReported: (result: ISearchProgressItem | undefined) => void): Promise<ISearchComplete>;
+	fileNameSearch(onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	hasAIResults: boolean;
 	hasPlainResults: boolean;
 	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
@@ -106,7 +108,9 @@ export interface ISearchModel {
 	};
 	cancelSearch(cancelledForNewSearch?: boolean): boolean;
 	cancelAISearch(cancelledForNewSearch?: boolean): boolean;
+	cancelFileNameSearch(cancelledForNewSearch?: boolean): boolean;
 	clearAiSearchResults(): void;
+	clearFileNameSearchResults(): void;
 	dispose(): void;
 }
 
@@ -116,6 +120,7 @@ export interface ISearchResult {
 	readonly searchModel: ISearchModel;
 	readonly plainTextSearchResult: IPlainTextSearchHeading;
 	readonly aiTextSearchResult: ITextSearchHeading;
+	readonly fileNameSearchResult: IFileNameSearchHeading;
 	readonly children: ITextSearchHeading[];
 	readonly hasChildren: boolean;
 	readonly isDirty: boolean;
@@ -124,7 +129,7 @@ export interface ISearchResult {
 	batchReplace(elementsToReplace: RenderableMatch[]): Promise<void>;
 	batchRemove(elementsToRemove: RenderableMatch[]): void;
 	folderMatches(ai?: boolean): ISearchTreeFolderMatch[];
-	add(allRaw: IFileMatch[], searchInstanceID: string, ai: boolean, silent?: boolean): void;
+	add(allRaw: IFileMatch[], searchInstanceID: string, options: { ai?: boolean; fileName?: boolean; silent?: boolean }): void;
 	clear(): void;
 	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatch | (ISearchTreeFileMatch | ISearchTreeFolderMatch)[], ai?: boolean): void;
 	replace(match: ISearchTreeFileMatch): Promise<any>;
@@ -155,7 +160,7 @@ export interface ITextSearchHeading {
 	name(): string;
 	readonly isDirty: boolean;
 	getFolderMatch(resource: URI): ISearchTreeFolderMatch | undefined;
-	add(allRaw: IFileMatch[], searchInstanceID: string, ai: boolean, silent?: boolean): void;
+	add(allRaw: IFileMatch[], searchInstanceID: string, silent?: boolean): void;
 	remove(matches: ISearchTreeFileMatch | ISearchTreeFolderMatch | (ISearchTreeFileMatch | ISearchTreeFolderMatch)[], ai?: boolean): void;
 	groupFilesByFolder(fileMatches: ISearchTreeFileMatch[]): { byFolder: Map<URI, ISearchTreeFileMatch[]>; other: ISearchTreeFileMatch[] };
 	isEmpty(): boolean;
@@ -175,6 +180,17 @@ export interface ITextSearchHeading {
 export interface IPlainTextSearchHeading extends ITextSearchHeading {
 	replace(match: ISearchTreeFileMatch): Promise<any>;
 	replaceAll(progress: IProgress<IProgressStep>): Promise<any>;
+}
+
+export interface IFileNameSearchHeading extends ITextSearchHeading {
+	readonly fileQuery: IFileQuery | null;
+	setFileQuery(fileQuery: IFileQuery | null): void;
+	fileNameMatches(): IFileNameMatch[];
+}
+
+export function isFileNameSearchHeading(obj: unknown): obj is IFileNameSearchHeading {
+	const heading = obj as IFileNameSearchHeading;
+	return isTextSearchHeading(obj) && typeof heading.setFileQuery === 'function';
 }
 
 export interface ISearchTreeFolderMatch {
@@ -337,6 +353,23 @@ export function isSearchTreeMatch(obj: any): obj is ISearchTreeMatch {
 		obj !== null &&
 		typeof obj.id === 'function' &&
 		obj.id().startsWith(MATCH_PREFIX);
+}
+
+export const FILE_NAME_MATCH_PREFIX = 'fileNameMatch:';
+
+export interface IFileNameMatch {
+	id(): string;
+	resource: URI;
+	isFolder: boolean;
+	parent(): IFileNameSearchHeading;
+	name(): string;
+}
+
+export function isFileNameMatch(obj: any): obj is IFileNameMatch {
+	return typeof obj === 'object' &&
+		obj !== null &&
+		typeof obj.id === 'function' &&
+		obj.id().startsWith(FILE_NAME_MATCH_PREFIX);
 }
 
 export function isSearchHeader(obj: any): boolean {

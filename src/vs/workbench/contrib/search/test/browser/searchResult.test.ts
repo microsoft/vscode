@@ -38,10 +38,11 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { CellMatch, NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
 import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
-import { ISearchResult, ISearchTreeFolderMatch, MATCH_PREFIX } from '../../browser/searchTreeModel/searchTreeCommon.js';
+import { ISearchResult, ISearchTreeFolderMatch, MATCH_PREFIX, FILE_NAME_MATCH_PREFIX, isFileNameMatch, IFileNameSearchHeading } from '../../browser/searchTreeModel/searchTreeCommon.js';
 import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
 import { SearchResultImpl } from '../../browser/searchTreeModel/searchResult.js';
 import { MatchImpl } from '../../browser/searchTreeModel/match.js';
+import { FileNameMatch } from '../../browser/searchTreeModel/fileNameSearchHeading.js';
 
 const lineOneRange = new OneLineRange(1, 0, 1);
 
@@ -682,4 +683,271 @@ suite('SearchResult', () => {
 	function getFileMatchAtIndex(parent: ISearchTreeFolderMatch, index: number) {
 		return Array.from(parent.fileMatchesIterator())[index];
 	}
+});
+
+suite('FileNameMatch', () => {
+
+	let instantiationService: TestInstantiationService;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
+		instantiationService = new TestInstantiationService();
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
+		instantiationService.stub(INotebookEditorService, stubNotebookEditorService(instantiationService));
+		const fileService = new FileService(new NullLogService());
+		store.add(fileService);
+		const uriIdentityService = new UriIdentityService(fileService);
+		store.add(uriIdentityService);
+		instantiationService.stub(IUriIdentityService, uriIdentityService);
+		instantiationService.stubPromise(IReplaceService, {});
+		instantiationService.stub(IReplaceService, 'replace', () => Promise.resolve(null));
+		instantiationService.stub(ILabelService, new MockLabelService());
+		instantiationService.stub(ILogService, new NullLogService());
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IThemeService, new TestThemeService());
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('search', { searchOnType: true });
+		instantiationService.stub(IConfigurationService, config);
+		const modelService = instantiationService.createInstance(ModelService);
+		store.add(modelService);
+		return modelService;
+	}
+
+	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
+		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IEditorService, store.add(new TestEditorService()));
+		const notebookEditorWidgetService = instantiationService.createInstance(NotebookEditorWidgetService);
+		store.add(notebookEditorWidgetService);
+		return notebookEditorWidgetService;
+	}
+
+	function aSearchResult(): ISearchResult {
+		const searchModel = instantiationService.createInstance(SearchModelImpl);
+		store.add(searchModel);
+		searchModel.searchResult.query = {
+			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
+				pattern: ''
+			}
+		};
+		return searchModel.searchResult;
+	}
+
+	test('FileNameMatch stores resource correctly', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult as IFileNameSearchHeading;
+		const resource = URI.file('/test/file.txt');
+		const match = new FileNameMatch(resource, false, heading);
+		store.add(match);
+
+		assert.strictEqual(match.resource.toString(), resource.toString());
+		assert.strictEqual(match.isFolder, false);
+	});
+
+	test('FileNameMatch stores isFolder correctly for folders', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult as IFileNameSearchHeading;
+		const resource = URI.file('/test/folder');
+		const match = new FileNameMatch(resource, true, heading);
+		store.add(match);
+
+		assert.strictEqual(match.isFolder, true);
+	});
+
+	test('FileNameMatch id() uses correct prefix', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult as IFileNameSearchHeading;
+		const resource = URI.file('/test/file.txt');
+		const match = new FileNameMatch(resource, false, heading);
+		store.add(match);
+
+		assert.ok(match.id().startsWith(FILE_NAME_MATCH_PREFIX));
+		assert.strictEqual(match.id(), FILE_NAME_MATCH_PREFIX + resource.toString());
+	});
+
+	test('FileNameMatch parent() returns heading', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult as IFileNameSearchHeading;
+		const resource = URI.file('/test/file.txt');
+		const match = new FileNameMatch(resource, false, heading);
+		store.add(match);
+
+		assert.strictEqual(match.parent(), heading);
+	});
+
+	test('isFileNameMatch type guard works correctly', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult as IFileNameSearchHeading;
+		const resource = URI.file('/test/file.txt');
+		const match = new FileNameMatch(resource, false, heading);
+		store.add(match);
+
+		assert.ok(isFileNameMatch(match));
+		assert.ok(!isFileNameMatch({}));
+		assert.ok(!isFileNameMatch(null));
+	});
+});
+
+suite('FileNameSearchHeading', () => {
+
+	let instantiationService: TestInstantiationService;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
+		instantiationService = new TestInstantiationService();
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IModelService, stubModelService(instantiationService));
+		instantiationService.stub(INotebookEditorService, stubNotebookEditorService(instantiationService));
+		const fileService = new FileService(new NullLogService());
+		store.add(fileService);
+		const uriIdentityService = new UriIdentityService(fileService);
+		store.add(uriIdentityService);
+		instantiationService.stub(IUriIdentityService, uriIdentityService);
+		instantiationService.stubPromise(IReplaceService, {});
+		instantiationService.stub(IReplaceService, 'replace', () => Promise.resolve(null));
+		instantiationService.stub(ILabelService, new MockLabelService());
+		instantiationService.stub(ILogService, new NullLogService());
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
+	function stubModelService(instantiationService: TestInstantiationService): IModelService {
+		instantiationService.stub(IThemeService, new TestThemeService());
+		const config = new TestConfigurationService();
+		config.setUserConfiguration('search', { searchOnType: true });
+		instantiationService.stub(IConfigurationService, config);
+		const modelService = instantiationService.createInstance(ModelService);
+		store.add(modelService);
+		return modelService;
+	}
+
+	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
+		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IEditorService, store.add(new TestEditorService()));
+		const notebookEditorWidgetService = instantiationService.createInstance(NotebookEditorWidgetService);
+		store.add(notebookEditorWidgetService);
+		return notebookEditorWidgetService;
+	}
+
+	function aSearchResult(): ISearchResult {
+		const searchModel = instantiationService.createInstance(SearchModelImpl);
+		store.add(searchModel);
+		searchModel.searchResult.query = {
+			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
+				pattern: 'test'
+			}
+		};
+		return searchModel.searchResult;
+	}
+
+	function aRawFileMatch(resource: string): IFileMatch {
+		return { resource: createFileUriFromPathFromRoot(resource), results: [] };
+	}
+
+	test('FileNameSearchHeading is hidden by default', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult;
+
+		assert.strictEqual(heading.hidden, true);
+	});
+
+	test('FileNameSearchHeading.add() creates FileNameMatch objects', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult as IFileNameSearchHeading;
+
+		const rawMatches: IFileMatch[] = [
+			aRawFileMatch('/test/file1.txt'),
+			aRawFileMatch('/test/file2.txt'),
+		];
+
+		heading.add(rawMatches, 'testInstance', true);
+
+		const matches = heading.fileNameMatches();
+		assert.strictEqual(matches.length, 2);
+		assert.ok(isFileNameMatch(matches[0]));
+		assert.ok(isFileNameMatch(matches[1]));
+	});
+
+	test('FileNameSearchHeading.isEmpty() returns true when no matches', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult as IFileNameSearchHeading;
+
+		assert.strictEqual(heading.isEmpty(), true);
+	});
+
+	test('FileNameSearchHeading.isEmpty() returns false after adding matches', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult as IFileNameSearchHeading;
+
+		heading.add([aRawFileMatch('/test/file.txt')], 'testInstance', true);
+
+		assert.strictEqual(heading.isEmpty(), false);
+	});
+
+	test('FileNameSearchHeading fires onChange when matches added', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult as IFileNameSearchHeading;
+		const eventSpy = sinon.spy();
+		store.add(heading.onChange(eventSpy));
+
+		heading.add([aRawFileMatch('/test/file.txt')], 'testInstance', false);
+
+		assert.ok(eventSpy.calledOnce);
+		assert.strictEqual(eventSpy.args[0][0].added, true);
+		assert.strictEqual(eventSpy.args[0][0].elements.length, 1);
+	});
+
+	test('FileNameSearchHeading does not fire onChange when silent', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult as IFileNameSearchHeading;
+		const eventSpy = sinon.spy();
+		store.add(heading.onChange(eventSpy));
+
+		heading.add([aRawFileMatch('/test/file.txt')], 'testInstance', true);
+
+		assert.ok(eventSpy.notCalled);
+	});
+
+	test('FileNameSearchHeading does not add duplicate matches', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult as IFileNameSearchHeading;
+
+		heading.add([aRawFileMatch('/test/file.txt')], 'testInstance', true);
+		heading.add([aRawFileMatch('/test/file.txt')], 'testInstance', true);
+
+		assert.strictEqual(heading.fileNameMatches().length, 1);
+	});
+
+	test('FileNameSearchHeading.name() returns correct name', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult;
+
+		assert.strictEqual(heading.name(), 'File and Folder Names');
+	});
+
+	test('FileNameSearchHeading.isAIContributed returns false', function () {
+		const searchResult = aSearchResult();
+		const heading = searchResult.fileNameSearchResult;
+
+		assert.strictEqual(heading.isAIContributed, false);
+	});
+
+	test('SearchResult routes fileName option to fileNameSearchResult', function () {
+		const searchResult = aSearchResult();
+
+		searchResult.add([aRawFileMatch('/test/file.txt')], 'testInstance', { fileName: true, silent: true });
+
+		assert.strictEqual(searchResult.fileNameSearchResult.isEmpty(), false);
+		assert.strictEqual((searchResult.fileNameSearchResult as IFileNameSearchHeading).fileNameMatches().length, 1);
+	});
 });
