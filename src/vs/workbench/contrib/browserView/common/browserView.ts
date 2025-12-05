@@ -6,6 +6,7 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import {
 	IBrowserViewBounds,
 	IBrowserViewNavigationEvent,
@@ -18,7 +19,8 @@ import {
 	IBrowserViewNewPageRequest,
 	IBrowserViewDevToolsStateEvent,
 	IBrowserViewService,
-	BrowserViewStorageScope
+	BrowserViewStorageScope,
+	IBrowserViewCaptureScreenshotOptions
 } from '../../../../platform/browserView/common/browserView.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -75,7 +77,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly url: string;
 	readonly title: string;
 	readonly favicon: string | undefined;
-	readonly screenshot: string | undefined;
+	readonly screenshot: VSBuffer | undefined;
 	readonly loading: boolean;
 	readonly canGoBack: boolean;
 	readonly isDevToolsOpen: boolean;
@@ -103,7 +105,7 @@ export interface IBrowserViewModel extends IDisposable {
 	goForward(): Promise<void>;
 	reload(): Promise<void>;
 	toggleDevTools(): Promise<void>;
-	captureScreenshot(quality?: number): Promise<string>;
+	captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
 	dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
 	focus(): Promise<void>;
 }
@@ -112,7 +114,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _url: string = '';
 	private _title: string = '';
 	private _favicon: string | undefined = undefined;
-	private _screenshot: string | undefined = undefined;
+	private _screenshot: VSBuffer | undefined = undefined;
 	private _loading: boolean = false;
 	private _isDevToolsOpen: boolean = false;
 	private _canGoBack: boolean = false;
@@ -141,7 +143,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get isDevToolsOpen(): boolean { return this._isDevToolsOpen; }
 	get canGoBack(): boolean { return this._canGoBack; }
 	get canGoForward(): boolean { return this._canGoForward; }
-	get screenshot(): string | undefined { return this._screenshot; }
+	get screenshot(): VSBuffer | undefined { return this._screenshot; }
 	get error(): IBrowserViewLoadError | undefined { return this._error; }
 	get storageScope(): BrowserViewStorageScope { return this._storageScope; }
 
@@ -270,9 +272,12 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return this.browserViewService.toggleDevTools(this.id);
 	}
 
-	async captureScreenshot(quality?: number): Promise<string> {
-		const result = await this.browserViewService.captureScreenshot(this.id, quality);
-		this._screenshot = result;
+	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
+		const result = await this.browserViewService.captureScreenshot(this.id, options);
+		// Encode to data URL for display in UI
+		if (!options?.rect) {
+			this._screenshot = result;
+		}
 		return result;
 	}
 

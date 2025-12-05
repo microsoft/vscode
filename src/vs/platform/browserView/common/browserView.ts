@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 
 export interface IBrowserViewBounds {
 	windowId: number;
@@ -14,6 +15,11 @@ export interface IBrowserViewBounds {
 	zoomFactor: number;
 }
 
+export interface IBrowserViewCaptureScreenshotOptions {
+	quality?: number;
+	rect?: { x: number; y: number; width: number; height: number };
+}
+
 export interface IBrowserViewState {
 	url: string;
 	title: string;
@@ -21,7 +27,7 @@ export interface IBrowserViewState {
 	canGoForward: boolean;
 	loading: boolean;
 	isDevToolsOpen: boolean;
-	lastScreenshot: string | undefined;
+	lastScreenshot: VSBuffer | undefined;
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
 	storageScope: BrowserViewStorageScope;
@@ -178,10 +184,10 @@ export interface IBrowserViewService {
 	/**
 	 * Capture a screenshot of the browser view
 	 * @param id The browser view identifier
-	 * @param quality The quality of the screenshot (0-100)
-	 * @returns Data URL of the screenshot, or undefined if capture failed
+	 * @param options Screenshot options (quality and rect)
+	 * @returns Screenshot as a buffer
 	 */
-	captureScreenshot(id: string, quality?: number): Promise<string>;
+	captureScreenshot(id: string, options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
 
 	/**
 	 * Dispatch a key event to the browser view

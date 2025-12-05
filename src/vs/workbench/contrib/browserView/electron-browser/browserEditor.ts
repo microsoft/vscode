@@ -33,6 +33,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 
 export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCanGoBack', false, localize('browser.canGoBack', "Whether the browser can go back"));
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
@@ -253,7 +254,7 @@ export class BrowserEditor extends EditorPane {
 			canGoBack: this._model.canGoBack,
 			canGoForward: this._model.canGoForward
 		});
-		this._browserContainer.style.backgroundImage = this._model.screenshot ? `url('${this._model.screenshot}')` : '';
+		this.setBackgroundImage(this._model.screenshot);
 
 		if (context.newInGroup) {
 			this._navigationBar.focusUrlInput();
@@ -401,11 +402,11 @@ export class BrowserEditor extends EditorPane {
 			errorContent.appendChild(errorUrl);
 			this._errorContainer.appendChild(errorContent);
 
-			this._browserContainer.style.backgroundImage = '';
+			this.setBackgroundImage(undefined);
 		} else {
 			// Hide error display
 			this._errorContainer.style.display = 'none';
-			this._browserContainer.style.backgroundImage = this._model.screenshot ? `url('${this._model.screenshot}')` : '';
+			this.setBackgroundImage(this._model.screenshot);
 		}
 
 		this.updateVisibility();
@@ -453,14 +454,23 @@ export class BrowserEditor extends EditorPane {
 		this._canGoForwardContext.set(event.canGoForward);
 	}
 
+	private setBackgroundImage(buffer: VSBuffer | undefined): void {
+		if (buffer) {
+			const dataUrl = `data:image/jpeg;base64,${encodeBase64(buffer)}`;
+			this._browserContainer.style.backgroundImage = `url('${dataUrl}')`;
+		} else {
+			this._browserContainer.style.backgroundImage = '';
+		}
+	}
+
 	/**
 	 * Capture a screenshot of the current browser view to use as placeholder background
 	 */
 	private async capturePlaceholderSnapshot(): Promise<void> {
 		if (this._model && !this._overlayVisible) {
 			try {
-				const dataUrl = await this._model.captureScreenshot(80);
-				this._browserContainer.style.backgroundImage = `url('${dataUrl}')`;
+				const buffer = await this._model.captureScreenshot({ quality: 80 });
+				this.setBackgroundImage(buffer);
 			} catch (error) {
 				this.logService.error('BrowserEditor.capturePlaceholderSnapshot: Failed to capture screenshot', error);
 			}
@@ -522,7 +532,7 @@ export class BrowserEditor extends EditorPane {
 		this._devToolsOpenContext.reset();
 
 		this._navigationBar.clear();
-		this._browserContainer.style.backgroundImage = '';
+		this.setBackgroundImage(undefined);
 
 		super.clearInput();
 	}

@@ -5,7 +5,8 @@
 
 import { session } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
-import { IBrowserViewBounds, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewService, BrowserViewStorageScope } from '../common/browserView.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { IBrowserViewBounds, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewService, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions } from '../common/browserView.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -183,8 +184,8 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).canGoForward();
 	}
 
-	async captureScreenshot(id: string, quality = 80): Promise<string> {
-		return this._getBrowserView(id).captureScreenshot(quality);
+	async captureScreenshot(id: string, options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
+		return this._getBrowserView(id).captureScreenshot(options);
 	}
 
 	async dispatchKeyEvent(id: string, keyEvent: IBrowserViewKeyDownEvent): Promise<void> {

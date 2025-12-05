@@ -32,7 +32,6 @@ export interface IBrowserEditorInputData {
 	readonly url?: string;
 	readonly title?: string;
 	readonly favicon?: string;
-	readonly screenshot?: string;
 }
 
 export class BrowserEditorInput extends EditorInput {
@@ -202,8 +201,7 @@ export class BrowserEditorInput extends EditorInput {
 			id: this._id,
 			url: this._model ? this._model.url : this._initialData.url,
 			title: this._model ? this._model.title : this._initialData.title,
-			favicon: this._model ? this._model.favicon : this._initialData.favicon,
-			screenshot: this._model ? this._model.screenshot : this._initialData.screenshot
+			favicon: this._model ? this._model.favicon : this._initialData.favicon
 		};
 	}
 }

@@ -6,7 +6,8 @@
 import { WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope } from '../common/browserView.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope, IBrowserViewCaptureScreenshotOptions } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -24,7 +25,7 @@ export class BrowserView extends Disposable {
 	private readonly _view: WebContentsView;
 	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 
-	private _lastScreenshot: string | undefined = undefined;
+	private _lastScreenshot: VSBuffer | undefined = undefined;
 	private _lastFavicon: string | undefined = undefined;
 	private _lastError: IBrowserViewLoadError | undefined = undefined;
 
@@ -362,14 +363,19 @@ export class BrowserView extends Disposable {
 	/**
 	 * Capture a screenshot of this view
 	 */
-	async captureScreenshot(quality = 80): Promise<string> {
-		const image = await this._view.webContents.capturePage(undefined, {
+	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
+		const quality = options?.quality ?? 80;
+		const image = await this._view.webContents.capturePage(options?.rect, {
 			stayHidden: true,
 			stayAwake: true
 		});
 		const buffer = image.toJPEG(quality);
-		this._lastScreenshot = `data:image/jpeg;base64,${buffer.toString('base64')}`;
-		return this._lastScreenshot;
+		const screenshot = VSBuffer.wrap(buffer);
+		// Only update _lastScreenshot if capturing the full view
+		if (!options?.rect) {
+			this._lastScreenshot = screenshot;
+		}
+		return screenshot;
 	}
 
 	/**
