@@ -976,7 +976,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			} else if (part.kind === 'progressMessage') {
 				description = part.content;
 			} else if (part.kind === 'thinking') {
-				description = 'Thinking...';
+				description = localize('chat.sessions.description.thinking', 'Thinking...');
 			}
 		}
 
