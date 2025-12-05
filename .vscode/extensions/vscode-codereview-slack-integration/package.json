@@ -1,13 +1,13 @@
 {
   "name": "vs-code-codereview",
   "displayName": "VS Code Codereview",
-  "description": "View your Slack code review channel messages directly in VS Code",
+  "description": "View the Slack code review channel messages directly in VS Code",
   "version": "0.0.1",
   "publisher": "vs-code-codereview",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/vs-code-codereview"
+    "url": "https://github.com/microsoft/vscode.git"
   },
   "icon": "icon.png",
   "engines": {
@@ -19,7 +19,7 @@
   "activationEvents": [
     "onUri"
   ],
-  "main": "./dist/extension.js",
+  "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
@@ -113,11 +113,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "@types/vscode": "^1.106.1",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2",
     "dotenv": "^17.2.3",
     "esbuild": "^0.27.0",
     "eslint": "^9.39.1",

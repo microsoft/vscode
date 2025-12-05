@@ -1,12 +1,13 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as vscode from 'vscode';
 import { SlackTreeDataProvider, SlackMessageItem } from './slackTreeDataProvider';
 import { SlackService } from './slackService';
 import { SlackAuthenticationProvider } from './slackAuthenticationProvider';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 
 	// Register the Slack authentication provider
@@ -137,5 +138,4 @@ export function activate(context: vscode.ExtensionContext) {
 	});
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() { }

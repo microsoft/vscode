@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as vscode from 'vscode';
 import { SlackService } from './slackService';
 
@@ -20,8 +25,8 @@ export interface SlackMessage {
 export class SlackMessageItem extends vscode.TreeItem {
     constructor(
         public readonly message: SlackMessage,
-        public readonly collapsibleState: vscode.TreeItemCollapsibleState,
-        public readonly isOpeningPr: boolean = false
+        collapsibleState: vscode.TreeItemCollapsibleState,
+        isOpeningPr: boolean = false
     ) {
         // Use PR title as main label if available, otherwise use author
         const label = message.prTitle || message.author;
@@ -31,7 +36,7 @@ export class SlackMessageItem extends vscode.TreeItem {
         if (message.prUrl) {
             this.description = message.prAuthor ? `@${message.prAuthor}` : message.author;
             // Show spinning icon when opening PR, otherwise show git-pull-request icon
-            this.iconPath = this.isOpeningPr
+            this.iconPath = isOpeningPr
                 ? new vscode.ThemeIcon('loading~spin')
                 : new vscode.ThemeIcon('git-pull-request');
         } else {
@@ -71,7 +76,7 @@ export class SlackMessageItem extends vscode.TreeItem {
 
         // Use different contextValue when loading to show spinning icon
         if (message.prUrl) {
-            this.contextValue = this.isOpeningPr ? 'slackMessageWithPrLoading' : 'slackMessageWithPr';
+            this.contextValue = isOpeningPr ? 'slackMessageWithPrLoading' : 'slackMessageWithPr';
         } else {
             this.contextValue = 'slackMessage';
         }

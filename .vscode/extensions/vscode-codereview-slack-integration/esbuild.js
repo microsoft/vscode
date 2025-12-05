@@ -38,7 +38,7 @@ async function main() {
 		sourcemap: !production,
 		sourcesContent: false,
 		platform: 'node',
-		outfile: 'dist/extension.js',
+		outfile: 'out/extension.js',
 		external: ['vscode'],
 		logLevel: 'silent',
 		// Inject environment variables at build time

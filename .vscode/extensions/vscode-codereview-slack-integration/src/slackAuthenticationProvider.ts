@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 
@@ -108,7 +113,7 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
         return this._sessionChangeEmitter.event;
     }
 
-    async getSessions(scopes?: readonly string[]): Promise<vscode.AuthenticationSession[]> {
+    async getSessions(): Promise<vscode.AuthenticationSession[]> {
         // Ensure sessions are loaded
         if (!this._sessionsLoaded) {
             await this.loadSessions();
