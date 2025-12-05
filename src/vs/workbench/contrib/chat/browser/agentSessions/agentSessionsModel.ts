@@ -414,36 +414,27 @@ class AgentSessionsCache {
 	//#region Sessions
 
 	saveCachedSessions(sessions: IInternalAgentSessionData[]): void {
-		const serialized: ISerializedAgentSession[] = sessions
-			.filter(session =>
-				// Only consider providers that we own where we know that
-				// we can also invalidate the data after startup
-				// Other providers are bound to a different lifecycle (extensions)
-				session.providerType === AgentSessionProviders.Local ||
-				session.providerType === AgentSessionProviders.Background ||
-				session.providerType === AgentSessionProviders.Cloud
-			)
-			.map(session => ({
-				providerType: session.providerType,
-				providerLabel: session.providerLabel,
+		const serialized: ISerializedAgentSession[] = sessions.map(session => ({
+			providerType: session.providerType,
+			providerLabel: session.providerLabel,
 
-				resource: session.resource.toJSON(),
+			resource: session.resource.toJSON(),
 
-				icon: session.icon.id,
-				label: session.label,
-				description: session.description,
-				tooltip: session.tooltip,
+			icon: session.icon.id,
+			label: session.label,
+			description: session.description,
+			tooltip: session.tooltip,
 
-				status: session.status,
-				archived: session.archived,
+			status: session.status,
+			archived: session.archived,
 
-				timing: {
-					startTime: session.timing.startTime,
-					endTime: session.timing.endTime,
-				},
+			timing: {
+				startTime: session.timing.startTime,
+				endTime: session.timing.endTime,
+			},
 
-				changes: session.changes,
-			}));
+			changes: session.changes,
+		}));
 
 		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
