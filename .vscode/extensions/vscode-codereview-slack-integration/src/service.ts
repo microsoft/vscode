@@ -57,7 +57,7 @@ export class SlackService {
 
     public async signIn(): Promise<boolean> {
         try {
-            await this._updateSession(true);
+            await this._updateSession(true, false);
             return this.isAuthenticated();
         } catch {
             return false;
@@ -130,9 +130,9 @@ export class SlackService {
         return slackMessage;
     }
 
-    private async _updateSession(createIfNone: boolean = false) {
+    private async _updateSession(createIfNone: boolean = false, silent: boolean = true) {
         try {
-            this.session = await vscode.authentication.getSession(SLACK_AUTH_PROVIDER_ID_EXPORT, [], { createIfNone, silent: true });
+            this.session = await vscode.authentication.getSession(SLACK_AUTH_PROVIDER_ID_EXPORT, [], { createIfNone, silent });
             this.client = this.session ? new WebClient(this.session.accessToken) : undefined;
         } catch (error) {
             console.error('Failed to update Slack session:', error);
@@ -173,7 +173,7 @@ export class SlackService {
             let cursor: string | undefined;
             do {
                 const result: ConversationsListResponse = await this.client.conversations.list({
-                    types: 'private_channel',
+                    types: 'public_channel,private_channel',
                     limit: 200,
                     cursor: cursor
                 });
@@ -188,7 +188,6 @@ export class SlackService {
                 }
                 cursor = result.response_metadata?.next_cursor;
             } while (cursor);
-
             return undefined;
         } catch (error) {
             console.error('Failed to find code-review channel:', error);
