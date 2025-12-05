@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
@@ -23,6 +22,8 @@ import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 import { isString } from '../../../../base/common/types.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 
 export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
@@ -36,6 +37,7 @@ const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountS
 
 interface IChatEntitlementsResponse {
 	readonly access_type_sku: string;
+	readonly copilot_plan: string;
 	readonly assigned_date: string;
 	readonly can_signup_for_limited: boolean;
 	readonly chat_enabled: boolean;
@@ -69,18 +71,6 @@ interface IMcpRegistryProvider {
 
 interface IMcpRegistryResponse {
 	readonly mcp_registries: ReadonlyArray<IMcpRegistryProvider>;
-}
-
-export const IDefaultAccountService = createDecorator<IDefaultAccountService>('defaultAccountService');
-
-export interface IDefaultAccountService {
-
-	readonly _serviceBrand: undefined;
-
-	readonly onDidChangeDefaultAccount: Event<IDefaultAccount | null>;
-
-	getDefaultAccount(): Promise<IDefaultAccount | null>;
-	setDefaultAccount(account: IDefaultAccount | null): void;
 }
 
 export class DefaultAccountService extends Disposable implements IDefaultAccountService {
@@ -123,6 +113,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IProductService private readonly productService: IProductService,
 		@IRequestService private readonly requestService: IRequestService,
@@ -166,6 +157,18 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		this.registerSignInAction(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes[0]);
 		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount.authenticationProvider.scopes));
 
+		type DefaultAccountStatusTelemetry = {
+			status: string;
+			initial: boolean;
+		};
+		type DefaultAccountStatusTelemetryClassification = {
+			owner: 'sandy081';
+			comment: 'Log default account availability status';
+			status: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether default account is available or not.' };
+			initial: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Indicates whether this is the initial status report.' };
+		};
+		this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: true });
+
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
 			if (e.providerId !== this.getDefaultAccountProviderId()) {
 				return;
@@ -173,9 +176,11 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 
 			if (this.defaultAccount && e.event.removed?.some(session => session.id === this.defaultAccount?.sessionId)) {
 				this.setDefaultAccount(null);
-				return;
+			} else {
+				this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount!.authenticationProvider.scopes));
 			}
-			this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(defaultAccountProviderId, this.productService.defaultAccount!.authenticationProvider.scopes));
+
+			this.telemetryService.publicLog2<DefaultAccountStatusTelemetry, DefaultAccountStatusTelemetryClassification>('defaultaccount:status', { status: this.defaultAccount ? 'available' : 'unavailable', initial: false });
 		}));
 
 		this.logService.debug('[DefaultAccount] Initialization complete');

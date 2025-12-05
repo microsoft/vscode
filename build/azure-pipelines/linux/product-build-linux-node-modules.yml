@@ -118,7 +118,7 @@ jobs:
 
           # Run preinstall script before root dependencies are installed
           # so that v8 headers are patched correctly for native modules.
-          node build/npm/preinstall.js
+          node build/npm/preinstall.ts
 
           for i in {1..5}; do # try 5 times
             npm ci && break

@@ -68,7 +68,7 @@ export function extractTimestamp(item: IChatSessionItem): number | undefined {
 
 	// For other items, timestamp might already be set
 	if ('timestamp' in item) {
-		// eslint-disable-next-line local/code-no-any-casts
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
 		return (item as any).timestamp;
 	}
 
@@ -109,14 +109,16 @@ export function getSessionItemContextOverlay(
 	provider?: IChatSessionItemProvider,
 	chatService?: IChatService,
 	editorGroupsService?: IEditorGroupsService
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): [string, any][] {
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	const overlay: [string, any][] = [];
 	if (provider) {
-		overlay.push([ChatContextKeys.sessionType.key, provider.chatSessionType]);
+		overlay.push([ChatContextKeys.agentSessionType.key, provider.chatSessionType]);
 	}
 
 	// Mark history items
-	overlay.push([ChatContextKeys.isArchivedItem.key, session.archived]);
+	overlay.push([ChatContextKeys.isArchivedAgentSession.key, session.archived]);
 
 	// Mark active sessions - check if session is currently open in editor or widget
 	let isActiveSession = false;
@@ -128,7 +130,7 @@ export function getSessionItemContextOverlay(
 		isActiveSession = !!chatService.getSession(session.resource);
 	}
 
-	overlay.push([ChatContextKeys.isActiveSession.key, isActiveSession]);
+	overlay.push([ChatContextKeys.isActiveAgentSession.key, isActiveSession]);
 
 	return overlay;
 }

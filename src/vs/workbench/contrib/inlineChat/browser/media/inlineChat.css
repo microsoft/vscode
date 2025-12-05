@@ -191,7 +191,7 @@
 .monaco-workbench .inline-chat > .status {
 	.label,
 	.actions {
-		padding-top: 8px;
+		padding: 4px 0;
 	}
 }
 
@@ -202,14 +202,13 @@
 .monaco-workbench .inline-chat .status .label {
 	overflow: hidden;
 	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
+	font-size: 12px;
 	display: flex;
 	white-space: nowrap;
 }
 
 .monaco-workbench .inline-chat .status .label.info {
 	margin-right: auto;
-	padding-left: 2px;
 }
 
 .monaco-workbench .inline-chat .status .label.status {

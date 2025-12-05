@@ -1018,7 +1018,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 		sb.appendString('<span ');
 		if (partContainsRTL) {
-			sb.appendString('dir="rtl" style="unicode-bidi:isolate" ');
+			sb.appendString('dir="auto" style="unicode-bidi:isolate" ');
 		}
 		sb.appendString('class="');
 		sb.appendString(partRendersWhitespaceWithWidth ? 'mtkz' : partType);

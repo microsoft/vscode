@@ -252,16 +252,16 @@ export class GhostTextView extends Disposable {
 		const cursorColumn = this._editor.getSelection()?.getStartPosition().column!;
 		const disjointInlineTexts = inlineTextsWithTokens.filter(inline => inline.text !== '');
 		const hasInsertionOnCurrentLine = disjointInlineTexts.length !== 0;
-		const telemetryViewData: InlineCompletionViewData = {
-			cursorColumnDistance: (hasInsertionOnCurrentLine ? disjointInlineTexts[0].column : 1) - cursorColumn,
-			cursorLineDistance: hasInsertionOnCurrentLine ? 0 : (additionalLines.findIndex(line => line.content !== '') + 1),
-			lineCountOriginal: hasInsertionOnCurrentLine ? 1 : 0,
-			lineCountModified: additionalLines.length + (hasInsertionOnCurrentLine ? 1 : 0),
-			characterCountOriginal: 0,
-			characterCountModified: sum(disjointInlineTexts.map(inline => inline.text.length)) + sum(tokenizedAdditionalLines.map(line => line.content.getTextLength())),
-			disjointReplacements: disjointInlineTexts.length + (additionalLines.length > 0 ? 1 : 0),
-			sameShapeReplacements: disjointInlineTexts.length > 1 && tokenizedAdditionalLines.length === 0 ? disjointInlineTexts.every(inline => inline.text === disjointInlineTexts[0].text) : undefined,
-		};
+		const telemetryViewData = new InlineCompletionViewData(
+			(hasInsertionOnCurrentLine ? disjointInlineTexts[0].column : 1) - cursorColumn,
+			hasInsertionOnCurrentLine ? 0 : (additionalLines.findIndex(line => line.content !== '') + 1),
+			hasInsertionOnCurrentLine ? 1 : 0,
+			additionalLines.length + (hasInsertionOnCurrentLine ? 1 : 0),
+			0,
+			sum(disjointInlineTexts.map(inline => inline.text.length)) + sum(tokenizedAdditionalLines.map(line => line.content.getTextLength())),
+			disjointInlineTexts.length + (additionalLines.length > 0 ? 1 : 0),
+			disjointInlineTexts.length > 1 && tokenizedAdditionalLines.length === 0 ? disjointInlineTexts.every(inline => inline.text === disjointInlineTexts[0].text) : undefined
+		);
 
 		return {
 			replacedRange,

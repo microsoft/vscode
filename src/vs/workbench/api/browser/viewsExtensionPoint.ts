@@ -241,7 +241,7 @@ const viewsContribution: IJSONSchema = {
 			items: remoteViewDescriptor,
 			default: []
 		},
-		'agentSessions': {
+		'agentSessions': { //TODO@bpasero retire this eventually
 			description: localize('views.agentSessions', "Contributes views to Agent Sessions container in the Activity bar. To contribute to this container, the 'chatSessionsProvider' API proposal must be enabled."),
 			type: 'array',
 			items: viewDescriptor,

@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -18,7 +18,7 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -26,6 +26,7 @@ import { EditorActivation } from '../../../../../platform/editor/common/editor.j
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
@@ -53,12 +54,14 @@ export abstract class EditingSessionAction extends Action2 {
 		return this.runEditingSessionAction(accessor, context.editingSession, context.chatWidget, ...args);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: unknown[]): any;
 }
 
 /**
  * Resolve view title toolbar context. If none, return context from the lastFocusedWidget.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]): { editingSession?: IChatEditingSession; chatWidget: IChatWidget } | undefined {
 	const arg0 = args.at(0);
 	const context = isChatViewTitleActionContext(arg0) ? arg0 : undefined;
@@ -96,6 +99,7 @@ abstract class WorkingSetAction extends EditingSessionAction {
 		return this.runWorkingSetAction(accessor, editingSession, chatWidget, ...uris);
 	}
 
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	abstract runWorkingSetAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget | undefined, ...uris: URI[]): any;
 }
 
@@ -205,7 +209,7 @@ export class ChatEditingAcceptAllAction extends EditingSessionAction {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 0,
-					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.lockedToCodingAgent.negate())
+					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), ContextKeyExpr.and(hasUndecidedChatEditingResourceContextKey))
 				}
 			]
 		});
@@ -231,7 +235,7 @@ export class ChatEditingDiscardAllAction extends EditingSessionAction {
 					id: MenuId.ChatEditingWidgetToolbar,
 					group: 'navigation',
 					order: 1,
-					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), hasUndecidedChatEditingResourceContextKey, ChatContextKeys.lockedToCodingAgent.negate())
+					when: ContextKeyExpr.and(applyingChatEditsFailedContextKey.negate(), hasUndecidedChatEditingResourceContextKey)
 				}
 			],
 			keybinding: {
@@ -300,6 +304,58 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 	}
 }
 registerAction2(ChatEditingShowChangesAction);
+
+export class ViewAllSessionChangesAction extends Action2 {
+	static readonly ID = 'chatEditing.viewAllSessionChanges';
+
+	constructor() {
+		super({
+			id: ViewAllSessionChangesAction.ID,
+			title: localize2('chatEditing.viewAllSessionChanges', 'View All Changes'),
+			icon: Codicon.diffMultiple,
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.hasAgentSessionChanges,
+			menu: [
+				{
+					id: MenuId.ChatEditingSessionChangesToolbar,
+					group: 'navigation',
+					order: 10,
+					when: ChatContextKeys.hasAgentSessionChanges
+				}
+			],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const agentSessionsService = accessor.get(IAgentSessionsService);
+		const commandService = accessor.get(ICommandService);
+
+		const chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).find(w => w.supportsChangingModes);
+		if (!chatWidget?.viewModel) {
+			return;
+		}
+
+		const sessionResource = chatWidget.viewModel.model.sessionResource;
+		const session = agentSessionsService.model.sessions.find(s => isEqual(s.resource, sessionResource));
+		const changes = session?.changes;
+		if (!(changes instanceof Array)) {
+			return;
+		}
+
+		const resources = changes
+			.filter(d => d.originalUri)
+			.map(d => ({ originalUri: d.originalUri!, modifiedUri: d.modifiedUri }));
+
+		if (resources.length > 0) {
+			await commandService.executeCommand('_workbench.openMultiDiffEditor', {
+				title: localize('chatEditing.allChanges.title', 'All Session Changes'),
+				resources,
+			});
+		}
+	}
+}
+registerAction2(ViewAllSessionChangesAction);
 
 async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatTreeItem): Promise<void> {
 	const configurationService = accessor.get(IConfigurationService);

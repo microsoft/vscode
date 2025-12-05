@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { themeColorFromId } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -25,6 +25,7 @@ import { IChatWidget } from '../chat.js';
 import { ChatWidget } from '../chatWidget.js';
 import { dynamicVariableDecorationType } from './chatDynamicVariables.js';
 import { NativeEditContextRegistry } from '../../../../../editor/browser/controller/editContext/native/nativeEditContextRegistry.js';
+import { TextAreaEditContextRegistry } from '../../../../../editor/browser/controller/editContext/textArea/textAreaEditContextRegistry.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
 
@@ -83,10 +84,7 @@ class InputEditorDecorations extends Disposable {
 	) {
 		super();
 
-		this.codeEditorService.registerDecorationType(decorationDescription, placeholderDecorationType, {});
-
 		this.registeredDecorationTypes();
-
 		this.triggerInputEditorDecorationsUpdate();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.triggerInputEditorDecorationsUpdate()));
 		this._register(this.widget.onDidChangeParsedInput(() => this.triggerInputEditorDecorationsUpdate()));
@@ -123,28 +121,22 @@ class InputEditorDecorations extends Disposable {
 	}
 
 	private registeredDecorationTypes() {
-
-		this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, placeholderDecorationType, {}));
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, slashCommandTextDecorationType, {
 			color: themeColorFromId(chatSlashCommandForeground),
 			backgroundColor: themeColorFromId(chatSlashCommandBackground),
 			borderRadius: '3px'
-		});
-		this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
+		}));
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, variableTextDecorationType, {
 			color: themeColorFromId(chatSlashCommandForeground),
 			backgroundColor: themeColorFromId(chatSlashCommandBackground),
 			borderRadius: '3px'
-		});
-		this.codeEditorService.registerDecorationType(decorationDescription, dynamicVariableDecorationType, {
+		}));
+		this._register(this.codeEditorService.registerDecorationType(decorationDescription, dynamicVariableDecorationType, {
 			color: themeColorFromId(chatSlashCommandForeground),
 			backgroundColor: themeColorFromId(chatSlashCommandBackground),
 			borderRadius: '3px',
 			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
-		});
-
-		this._register(toDisposable(() => {
-			this.codeEditorService.removeDecorationType(variableTextDecorationType);
-			this.codeEditorService.removeDecorationType(dynamicVariableDecorationType);
-			this.codeEditorService.removeDecorationType(slashCommandTextDecorationType);
 		}));
 	}
 
@@ -331,14 +323,23 @@ class InputEditorDecorations extends Disposable {
 
 	private updateAriaPlaceholder(value: string | undefined): void {
 		const nativeEditContext = NativeEditContextRegistry.get(this.widget.inputEditor.getId());
-		const domNode = nativeEditContext?.domNode.domNode;
-		if (!domNode) {
-			return;
-		}
-		if (value && value.trim().length) {
-			domNode.setAttribute('aria-placeholder', value);
+		if (nativeEditContext) {
+			const domNode = nativeEditContext.domNode.domNode;
+			if (value && value.trim().length) {
+				domNode.setAttribute('aria-placeholder', value);
+			} else {
+				domNode.removeAttribute('aria-placeholder');
+			}
 		} else {
-			domNode.removeAttribute('aria-placeholder');
+			const textAreaEditContext = TextAreaEditContextRegistry.get(this.widget.inputEditor.getId());
+			if (textAreaEditContext) {
+				const textArea = textAreaEditContext.textArea.domNode;
+				if (value && value.trim().length) {
+					textArea.setAttribute('aria-placeholder', value);
+				} else {
+					textArea.removeAttribute('aria-placeholder');
+				}
+			}
 		}
 	}
 }

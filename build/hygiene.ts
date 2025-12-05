@@ -30,7 +30,7 @@ interface VinylFileWithLines extends VinylFile {
 /**
  * Main hygiene function that runs checks on files
  */
-export function hygiene(some: NodeJS.ReadWriteStream | string[], runEslint = true): NodeJS.ReadWriteStream {
+export function hygiene(some: NodeJS.ReadWriteStream | string[] | undefined, runEslint = true): NodeJS.ReadWriteStream {
 	console.log('Starting hygiene...');
 	let errorCount = 0;
 

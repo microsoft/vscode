@@ -5,6 +5,10 @@
 
 .agent-sessions-viewer {
 
+	flex: 1 1 auto;
+	height: 100%;
+	min-height: 0;
+
 	.monaco-list-row .force-no-twistie {
 		display: none !important;
 	}
@@ -19,7 +23,16 @@
 		}
 	}
 
+	.monaco-list-row .agent-session-title-toolbar {
+		position: relative; /* for the absolute positioning of the toolbar below */
+		width: 22px;
+	}
+
 	.monaco-list-row .agent-session-title-toolbar .monaco-toolbar {
+		/* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
+		position: absolute;
+		right: 0;
+		top: 0;
 		display: none;
 	}
 
@@ -28,14 +41,10 @@
 		display: block;
 	}
 
-	.monaco-list-row .agent-session-title-toolbar .monaco-toolbar .action-label {
-		padding: 2px 3px; /* limit padding top/bottom to preserve our 20px line-height per row */
-	}
-
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 0 8px;
+		padding: 8px;
 
 		.agent-session-main-col,
 		.agent-session-title-row,
@@ -47,33 +56,29 @@
 		.agent-session-icon-col {
 			display: flex;
 			align-items: flex-start;
-			padding-top: 5px;
 
 			.agent-session-icon {
 				flex-shrink: 0;
-				width: 16px;
-				height: 16px;
 				font-size: 16px;
-
-				&.codicon-terminal {
-					font-size: 15px; /* TODO@bpasero remove once we settle on icon */
-				}
 			}
+		}
+
+		.agent-session-main-col {
+			padding-left: 8px;
 		}
 
 		.agent-session-title-row,
 		.agent-session-details-row {
 			display: flex;
 			align-items: center;
-			line-height: 20px; /* ends up as 22px with the padding below */
+			line-height: 16px;
 		}
 
 		.agent-session-title-row {
-			padding: 2px 6px 0 6px;
+			padding-bottom: 4px;
 		}
 
 		.agent-session-details-row {
-			padding: 0 6px 2px 6px;
 			font-size: 12px;
 			color: var(--vscode-descriptionForeground);
 
@@ -102,8 +107,12 @@
 		}
 
 		.agent-session-status {
-			padding: 0 4px 0 0; /* to align with diff area above */
+			padding-left: 8px;
 			font-variant-numeric: tabular-nums;
+
+			/* In case the changes toolbar to the left is greedy, we give up space */
+			overflow: hidden;
+			text-overflow: ellipsis;
 		}
 	}
 }

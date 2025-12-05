@@ -304,6 +304,13 @@
 	height: 100%;
 	overflow: hidden;
 	position: relative;
+	display: flex;
+	flex-direction: column;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-list-container > .tabs-list {
+	flex: 1;
+	min-height: 0;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container > .monaco-toolbar {
@@ -330,10 +337,7 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry {
-	position: absolute;
-	left: 0;
-	right: 0;
-	bottom: 0;
+	flex-shrink: 0;
 	height: 22px;
 	line-height: 22px;
 	display: flex;
@@ -352,6 +356,8 @@
 	width: 100%;
 	height: 100%;
 	padding: 0;
+	box-sizing: border-box;
+	overflow: hidden;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-tabs-chat-entry .terminal-tabs-entry:hover {

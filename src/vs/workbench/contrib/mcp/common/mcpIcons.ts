@@ -85,7 +85,8 @@ export function parseAndValidateMcpIcon(icons: MCP.Icons, launch: McpServerLaunc
 			continue;
 		}
 
-		const sizesArr = typeof icon.sizes === 'string' ? icon.sizes.split(' ') : Array.isArray(icon.sizes) ? icon.sizes : [];
+		// check for sizes as string for back-compat with early 2025-11-25 drafts
+		const sizesArr = typeof icon.sizes === 'string' ? (icon.sizes as string).split(' ') : Array.isArray(icon.sizes) ? icon.sizes : [];
 		result.push({
 			src: uri,
 			theme: icon.theme === 'light' ? IconTheme.Light : icon.theme === 'dark' ? IconTheme.Dark : IconTheme.Any,

@@ -71,7 +71,7 @@ const MimeTypesToCompress = new Set([
 function wait(stream: es.ThroughStream): Promise<void> {
 	return new Promise<void>((c, e) => {
 		stream.on('end', () => c());
-		stream.on('error', (err: any) => e(err));
+		stream.on('error', (err) => e(err));
 	});
 }
 
