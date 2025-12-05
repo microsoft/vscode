@@ -2119,10 +2119,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			reader.store.add(scopedInstantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar, {
 				telemetrySource: this.options.menus.telemetrySource,
 				menuOptions: {
-					arg: sessionResource ? {
+					arg: sessionResource && (isSessionMenu ? sessionResource : {
 						$mid: MarshalledId.ChatViewContext,
 						sessionResource,
-					} satisfies IChatViewTitleActionContext : undefined,
+					} satisfies IChatViewTitleActionContext),
 				},
 				buttonConfigProvider: (action) => {
 					if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id || action.id === ViewAllSessionChangesAction.ID) {
@@ -2170,7 +2170,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._chatEditsActionsDisposables.add(autorun(reader => {
 			const collapsed = this._workingSetCollapsed.read(reader);
-			button.icon = this._workingSetCollapsed ? Codicon.chevronRight : Codicon.chevronDown;
+			button.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
 			workingSetContainer.classList.toggle('collapsed', collapsed);
 			this._onDidChangeHeight.fire();
 		}));
