@@ -116,6 +116,7 @@ export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionResource: URI;
 	readonly onDidDispose: Event<void>;
+	readonly onDidClose: Event<void>;
 	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	/** Requests disabled by undo/redo in the session */

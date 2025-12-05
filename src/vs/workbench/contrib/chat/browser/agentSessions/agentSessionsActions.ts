@@ -8,7 +8,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { getAgentChangesSummary, IAgentSession } from './agentSessionsModel.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { EventHelper, h, hide, show } from '../../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -17,7 +17,6 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
 import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, IAgentSessionsControl } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
@@ -103,7 +102,8 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 	constructor(
 		action: IAction,
 		options: IActionViewItemOptions,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IChatService private readonly chatService: IChatService
 	) {
 		super(null, action, options);
 	}
@@ -155,28 +155,33 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 
 	override onClick(event: MouseEvent): void {
 		EventHelper.stop(event, true);
-		this.commandService.executeCommand(`agentSession.core.openChanges`, this.action.getSession().resource);
+		this.openChanges();
+
+	}
+	async openChanges(): Promise<void> {
+		const resource = this.action.getSession().resource;
+		const type = getChatSessionType(resource);
+		let session = this.chatService.getSession(resource);
+		if (!session) {
+			const chatModelRef = type === AgentSessionProviders.Local ? await this.chatService.getOrRestoreSession(resource) : await this.chatService.loadSessionForResource(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			session = chatModelRef?.object;
+			const disposable = session?.editingSession?.onDidClose(() => {
+				chatModelRef?.dispose();
+				disposable?.dispose();
+			});
+			if (disposable) {
+				this._register(disposable);
+			}
+		}
+		if (session) {
+			if (type === AgentSessionProviders.Local) {
+				await session?.editingSession?.show();
+			} else {
+				this.commandService.executeCommand(`agentSession.${type}.openChanges`, resource);
+			}
+		}
 	}
 }
-
-CommandsRegistry.registerCommand('agentSession.core.openChanges', async (accessor: ServicesAccessor, resource: URI) => {
-	const chatService = accessor.get(IChatService);
-	const commandService = accessor.get(ICommandService);
-	const type = getChatSessionType(resource);
-	let session = chatService.getSession(resource);
-	if (type === AgentSessionProviders.Local) {
-		if (!session) {
-			const chatModelRef = await chatService.getOrRestoreSession(resource);
-			session = chatModelRef?.object;
-		}
-		await session?.editingSession?.show();
-	} else {
-		if (!session) {
-			await chatService.loadSessionForResource(resource, ChatAgentLocation.Chat, CancellationToken.None);
-		}
-		commandService.executeCommand(`agentSession.${type}.openChanges`, resource);
-	}
-});
 
 //#endregion
 

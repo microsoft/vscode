@@ -175,6 +175,12 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._onDidDispose.event;
 	}
 
+	private readonly _onDidClose = new Emitter<void>();
+	get onDidClose() {
+		this._assertNotDisposed();
+		return this._onDidClose.event;
+	}
+
 	constructor(
 		readonly chatSessionResource: URI,
 		readonly isGlobalEditingSession: boolean,
@@ -435,6 +441,14 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		}, this._instantiationService);
 
 		this._editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
+		const disposable = this._editorGroupsService.activeGroup.onDidCloseEditor(e => {
+			if (e.editor === input) {
+				this._editorPane = undefined;
+				this._onDidClose.fire();
+				disposable.dispose();
+			}
+		});
+		this._register(disposable);
 	}
 
 	private _stopPromise: Promise<void> | undefined;
