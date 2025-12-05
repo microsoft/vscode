@@ -351,7 +351,7 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 	override getNewWidth(accessor: ServicesAccessor): number {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-		return Math.max(610, Math.round(layoutService.mainContainerDimension.width / 2));
+		return Math.max(600 + 1 /* account for possible theme border */, Math.round(layoutService.mainContainerDimension.width / 2));
 	}
 }
 
@@ -369,7 +369,7 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 	}
 
 	override getNewWidth(accessor: ServicesAccessor): number {
-		return 300;
+		return 300 + 1 /* account for possible theme border */;
 	}
 }
 

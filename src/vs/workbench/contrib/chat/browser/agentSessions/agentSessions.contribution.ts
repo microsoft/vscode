@@ -85,7 +85,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	command: {
 		id: ShowAgentSessionsSidebar.ID,
 		title: ShowAgentSessionsSidebar.TITLE,
-		icon: Codicon.layoutSidebarRight,
+		icon: Codicon.layoutSidebarRightOff,
 	},
 	group: 'navigation',
 	order: 1,
@@ -99,7 +99,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	command: {
 		id: ShowAgentSessionsSidebar.ID,
 		title: ShowAgentSessionsSidebar.TITLE,
-		icon: Codicon.layoutSidebarLeft,
+		icon: Codicon.layoutSidebarLeftOff,
 	},
 	group: 'navigation',
 	order: 1,
@@ -113,7 +113,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	command: {
 		id: HideAgentSessionsSidebar.ID,
 		title: HideAgentSessionsSidebar.TITLE,
-		icon: Codicon.layoutSidebarRightOff,
+		icon: Codicon.layoutSidebarRight,
 	},
 	group: 'navigation',
 	order: 1,
@@ -127,7 +127,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	command: {
 		id: HideAgentSessionsSidebar.ID,
 		title: HideAgentSessionsSidebar.TITLE,
-		icon: Codicon.layoutSidebarLeftOff,
+		icon: Codicon.layoutSidebarLeft,
 	},
 	group: 'navigation',
 	order: 1,

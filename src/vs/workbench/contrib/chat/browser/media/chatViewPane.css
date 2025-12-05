@@ -43,10 +43,10 @@
 				text-overflow: ellipsis;
 				white-space: nowrap;
 			}
+		}
 
-			.agent-sessions-toolbar {
-				visibility: hidden;
-			}
+		.agent-sessions-toolbar {
+			margin-right: 4px; /* align with the title actions*/
 		}
 
 		.agent-sessions-link-container {
@@ -64,10 +64,6 @@
 			text-decoration: none;
 			color: var(--vscode-textLink-foreground);
 		}
-	}
-
-	.agent-sessions-container:hover .agent-sessions-title-container .agent-sessions-toolbar {
-		visibility: visible;
 	}
 
 	.interactive-session {
