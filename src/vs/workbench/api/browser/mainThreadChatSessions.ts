@@ -459,29 +459,33 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				const uri = URI.revive(session.resource);
 				const model = this._chatService.getSession(uri);
 				let description: string | undefined;
-				let statistics: IChatSessionItem['statistics'];
+				let changes: IChatSessionItem['changes'];
 				if (model) {
 					description = this._chatSessionsService.getSessionDescription(model);
 				}
 
-				const modelStats = model ?
-					await awaitStatsForSession(model) :
-					(await this._chatService.getMetadataForSession(uri))?.stats;
-				if (modelStats) {
-					statistics = {
-						files: modelStats.fileCount,
-						insertions: modelStats.added,
-						deletions: modelStats.removed
-					};
+				if (session.changes instanceof Array) {
+					changes = revive(session.changes);
+				} else {
+					const modelStats = model ?
+						await awaitStatsForSession(model) :
+						(await this._chatService.getMetadataForSession(uri))?.stats;
+					if (modelStats) {
+						changes = {
+							files: modelStats.fileCount,
+							insertions: modelStats.added,
+							deletions: modelStats.removed
+						};
+					}
 				}
 
 				return {
 					...session,
+					changes,
 					resource: uri,
 					iconPath: session.iconPath,
 					tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined,
-					description: description || session.description,
-					statistics
+					description: description || session.description
 				} satisfies IChatSessionItem;
 			}));
 		} catch (error) {
@@ -498,6 +502,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			}
 			return {
 				...chatSessionItem,
+				changes: revive(chatSessionItem.changes),
 				resource: URI.revive(chatSessionItem.resource),
 				iconPath: chatSessionItem.iconPath,
 				tooltip: chatSessionItem.tooltip ? this._reviveTooltip(chatSessionItem.tooltip) : undefined,
