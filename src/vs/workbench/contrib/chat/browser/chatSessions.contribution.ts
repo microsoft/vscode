@@ -265,7 +265,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private readonly _onDidChangeContentProviderSchemes = this._register(new Emitter<{ readonly added: string[]; readonly removed: string[] }>());
 	public get onDidChangeContentProviderSchemes() { return this._onDidChangeContentProviderSchemes.event; }
-	private readonly _onDidChangeSessionOptions = this._register(new Emitter<{ readonly resource: URI; readonly updates: ReadonlyArray<{ optionId: string; value: string }> }>());
+	private readonly _onDidChangeSessionOptions = this._register(new Emitter<URI>());
 	public get onDidChangeSessionOptions() { return this._onDidChangeSessionOptions.event; }
 
 	private readonly inProgressMap: Map<string, number> = new Map();
@@ -953,33 +953,35 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		for (let i = responseParts.length - 1; i >= 0; i--) {
 			const part = responseParts[i];
-			if (!description && part.kind === 'confirmation' && typeof part.message === 'string') {
-				description = part.message;
+			if (description) {
+				break;
 			}
-			if (!description && part.kind === 'toolInvocation') {
+
+			if (part.kind === 'confirmation' && typeof part.message === 'string') {
+				description = part.message;
+			} else if (part.kind === 'toolInvocation') {
 				const toolInvocation = part as IChatToolInvocation;
 				const state = toolInvocation.state.get();
 
 				if (state.type !== IChatToolInvocation.StateKind.Completed) {
-					const pastTenseMessage = toolInvocation.pastTenseMessage;
-					const invocationMessage = toolInvocation.invocationMessage;
-					description = pastTenseMessage || invocationMessage;
+					description = toolInvocation.pastTenseMessage || toolInvocation.invocationMessage;
 
 					if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
-						const message = toolInvocation.confirmationMessages?.title && (typeof toolInvocation.confirmationMessages.title === 'string'
-							? toolInvocation.confirmationMessages.title
-							: toolInvocation.confirmationMessages.title.value);
-						description = message ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", typeof description === 'string' ? description : description.value);
+						const confirmationTitle = toolInvocation.confirmationMessages?.title;
+						const titleMessage = confirmationTitle && (typeof confirmationTitle === 'string'
+							? confirmationTitle
+							: confirmationTitle.value);
+						const descriptionValue = typeof description === 'string' ? description : description.value;
+						description = titleMessage ?? localize('chat.sessions.description.waitingForConfirmation', "Waiting for confirmation: {0}", descriptionValue);
 					}
 				}
-			}
-			if (!description && part.kind === 'toolInvocationSerialized') {
+			} else if (part.kind === 'toolInvocationSerialized') {
 				description = part.invocationMessage;
-			}
-			if (!description && part.kind === 'progressMessage') {
+			} else if (part.kind === 'progressMessage') {
 				description = part.content;
 			}
 		}
+
 		return renderAsPlaintext(description, { useLinkFormatter: true });
 	}
 
@@ -1078,7 +1080,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	/**
 	 * Notify extension about option changes for a session
 	 */
-	public async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string }>): Promise<void> {
+	public async notifySessionOptionsChange(sessionResource: URI, updates: ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): Promise<void> {
 		if (!updates.length) {
 			return;
 		}
@@ -1088,7 +1090,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		for (const u of updates) {
 			this.setSessionOption(sessionResource, u.optionId, u.value);
 		}
-		this._onDidChangeSessionOptions.fire({ resource: sessionResource, updates });
+		this._onDidChangeSessionOptions.fire(sessionResource);
 	}
 
 	/**

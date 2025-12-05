@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -56,11 +56,30 @@ interface IAgentSessionData {
 		readonly finishedOrFailedTime?: number;
 	};
 
-	readonly statistics?: {
+	readonly changes?: readonly IChatSessionFileChange[] | {
 		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
 	};
+}
+
+export function getAgentChangesSummary(changes: IAgentSession['changes']) {
+	if (!changes) {
+		return;
+	}
+
+	if (!(changes instanceof Array)) {
+		return changes;
+	}
+
+	let insertions = 0;
+	let deletions = 0;
+	for (const change of changes) {
+		insertions += change.insertions;
+		deletions += change.deletions;
+	}
+
+	return { files: changes.length, insertions, deletions };
 }
 
 export interface IAgentSession extends IAgentSessionData {
@@ -264,6 +283,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					});
 				}
 
+				const changes = session.changes;
+				const normalizedChanges = changes && !(changes instanceof Array)
+					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
+					: changes;
+
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: provider.chatSessionType,
 					providerLabel,
@@ -280,7 +304,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 						inProgressTime,
 						finishedOrFailedTime
 					},
-					statistics: session.statistics,
+					changes: normalizedChanges,
 				}));
 			}
 		}
@@ -365,6 +389,7 @@ interface ISerializedAgentSession {
 		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
+		readonly details: readonly IChatSessionFileChange[];
 	};
 }
 
@@ -413,7 +438,7 @@ class AgentSessionsCache {
 					endTime: session.timing.endTime,
 				},
 
-				statistics: session.statistics,
+				changes: session.changes,
 			}));
 
 		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -446,7 +471,7 @@ class AgentSessionsCache {
 					endTime: session.timing.endTime,
 				},
 
-				statistics: session.statistics,
+				changes: session.statistics,
 			}));
 		} catch {
 			return []; // invalid data in storage, fallback to empty sessions list
