@@ -353,7 +353,7 @@ suite('SplitLinesCollection', () => {
 						tokens[i].value << MetadataConsts.FOREGROUND_OFFSET
 					);
 				}
-				return new languages.EncodedTokenizationResult(result, state);
+				return new languages.EncodedTokenizationResult(result, [], state);
 			}
 		};
 		const LANGUAGE_ID = 'modelModeTest1';
