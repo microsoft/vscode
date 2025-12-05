@@ -29,6 +29,7 @@ export interface IAgentSessionsModel {
 	readonly onDidChangeSessions: Event<void>;
 
 	readonly sessions: IAgentSession[];
+	getSession(resource: URI): IAgentSession | undefined;
 
 	resolve(provider: string | string[] | undefined): Promise<void>;
 }
@@ -174,6 +175,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			this.cache.saveCachedSessions(Array.from(this._sessions.values()));
 			this.cache.saveSessionStates(this.sessionStates);
 		}));
+	}
+
+	getSession(resource: URI): IAgentSession | undefined {
+		return this._sessions.get(resource);
 	}
 
 	async resolve(provider: string | string[] | undefined): Promise<void> {

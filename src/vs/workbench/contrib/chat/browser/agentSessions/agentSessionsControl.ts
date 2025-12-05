@@ -35,7 +35,6 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { isEqual } from '../../../../../base/common/resources.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
@@ -109,8 +108,7 @@ export class AgentSessionsControl extends Disposable {
 			return;
 		}
 
-		const sessions = this.agentSessionsService.model.sessions;
-		const matchingSession = sessions.find(session => isEqual(session.resource, sessionResource));
+		const matchingSession = this.agentSessionsService.model.getSession(sessionResource);
 		if (matchingSession && this.sessionsList?.hasNode(matchingSession)) {
 			if (this.sessionsList.getRelativeTop(matchingSession) === null) {
 				this.sessionsList.reveal(matchingSession, 0.5); // only reveal when not already visible
