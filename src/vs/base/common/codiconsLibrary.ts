@@ -617,7 +617,6 @@ export const codiconsLibrary = {
 	cursor: register('cursor', 0xec5c),
 	eraser: register('eraser', 0xec5d),
 	fileText: register('file-text', 0xec5e),
-	gitLens: register('git-lens', 0xec5f),
 	quotes: register('quotes', 0xec60),
 	rename: register('rename', 0xec61),
 	runWithDeps: register('run-with-deps', 0xec62),
