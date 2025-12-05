@@ -22,7 +22,7 @@ import { getFlatContextMenuActions } from '../../../../../platform/actions/brows
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Action2, IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { ContextKeyExpr, ContextKeyValue, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -60,7 +60,8 @@ export interface IChatListDividerItem {
 	kind: 'divider';
 	label: string;
 	menuId?: MenuId;
-	contextKeys?: [key: string, value: ContextKeyValue][];
+	menuArg?: unknown;
+	scopedInstantiationService?: IInstantiationService;
 }
 
 export type IChatCollapsibleListItem = IChatReferenceListItem | IChatWarningMessage | IChatListDividerItem;
@@ -476,7 +477,6 @@ class DividerRenderer implements IListRenderer<IChatListDividerItem, IDividerTem
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) { }
 
 	renderTemplate(container: HTMLElement): IDividerTemplate {
@@ -499,14 +499,8 @@ class DividerRenderer implements IListRenderer<IChatListDividerItem, IDividerTem
 		dom.clearNode(templateData.toolbarContainer);
 
 		if (data.menuId) {
-			const contextKeyService = templateData.elementDisposables.add(this.contextKeyService.createScoped(templateData.toolbarContainer));
-			if (data.contextKeys) {
-				for (const [key, value] of data.contextKeys) {
-					contextKeyService.createKey(key, value);
-				}
-			}
-			const scopedInstantiationService = templateData.elementDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
-			templateData.toolbar = templateData.elementDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, templateData.toolbarContainer, data.menuId, { menuOptions: { shouldForwardArgs: true } }));
+			const instantiationService = data.scopedInstantiationService || this.instantiationService;
+			templateData.toolbar = templateData.elementDisposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, templateData.toolbarContainer, data.menuId, { menuOptions: { arg: data.menuArg } }));
 		}
 	}
 

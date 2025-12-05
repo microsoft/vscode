@@ -151,11 +151,10 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 				startTime,
 				endTime
 			},
-			statistics: chat.stats ? {
+			changes: chat.stats ? {
 				insertions: chat.stats.added,
 				deletions: chat.stats.removed,
 				files: chat.stats.fileCount,
-				details: [],
 			} : undefined
 		};
 	}

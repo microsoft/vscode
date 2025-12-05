@@ -157,10 +157,12 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.titleToolbar.context = session.element;
 
 		// Details Actions
-		const { statistics: diff } = session.element;
-		if (session.element.status !== ChatSessionStatus.InProgress && diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
-			const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
-			template.detailsToolbar.push([diffAction], { icon: false, label: true });
+		const { changes: diff } = session.element;
+		if (session.element.status !== ChatSessionStatus.InProgress && diff) {
+			if (diff instanceof Array ? diff.length > 0 : (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
+				const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
+				template.detailsToolbar.push([diffAction], { icon: false, label: true });
+			}
 		}
 
 		// Description otherwise

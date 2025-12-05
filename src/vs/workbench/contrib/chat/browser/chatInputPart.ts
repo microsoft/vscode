@@ -1998,20 +1998,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const sessionFileChanges = observableFromEvent(
 			this,
 			this.agentSessionsService.model.onDidChangeSessions,
-			() => this.agentSessionsService.model.sessions.find(s => isEqual(s.resource, this._widget?.viewModel?.model.sessionResource))?.statistics?.details,
+			() => {
+				const model = this.agentSessionsService.model.sessions.find(s => isEqual(s.resource, this._widget?.viewModel?.model.sessionResource));
+				return model?.changes instanceof Array ? model.changes : Iterable.empty();
+			},
 		);
 
 		const sessionFiles = derived(reader =>
-			sessionFileChanges.read(reader)?.map((entry): IChatCollapsibleListItem => ({
-				reference: entry.uri,
+			sessionFileChanges.read(reader).map((entry): IChatCollapsibleListItem => ({
+				reference: entry.modifiedUri,
 				state: ModifiedFileEntryState.Accepted,
 				kind: 'reference',
 				options: {
 					status: undefined,
 					diffMeta: { added: entry.insertions, removed: entry.deletions },
-					compareUri: entry.compareUri,
+					originalUri: entry.originalUri,
 				}
-			})) ?? []
+			}))
 		);
 
 		const shouldRender = derived(reader => editSessionEntries.read(reader).length > 0 || sessionFiles.read(reader).length > 0);
@@ -2068,7 +2071,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const scopedInstantiationService = this._chatEditsActionsDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
 
-
 		// Working set
 		// eslint-disable-next-line no-restricted-syntax
 		const workingSetContainer = innerContainer.querySelector('.chat-editing-session-list') as HTMLElement ?? dom.append(innerContainer, $('.chat-editing-session-list'));
@@ -2117,9 +2119,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			reader.store.add(scopedInstantiationService.createInstance(MenuWorkbenchButtonBar, actionsContainer, isSessionMenu ? MenuId.ChatEditingSessionChangesToolbar : MenuId.ChatEditingWidgetToolbar, {
 				telemetrySource: this.options.menus.telemetrySource,
 				menuOptions: {
-					arg: chatEditingSession ? {
+					arg: sessionResource ? {
 						$mid: MarshalledId.ChatViewContext,
-						sessionResource: chatEditingSession.chatSessionResource,
+						sessionResource,
 					} satisfies IChatViewTitleActionContext : undefined,
 				},
 				buttonConfigProvider: (action) => {
@@ -2183,12 +2185,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._chatEditsDisposables.add(list.onDidOpen(async (e) => {
 				if (e.element?.kind === 'reference' && URI.isUri(e.element.reference)) {
 					const modifiedFileUri = e.element.reference;
-					const compareUri = e.element.options?.compareUri;
+					const originalUri = e.element.options?.originalUri;
 
-					// If there's a compareUri, open as diff editor
-					if (compareUri) {
+					// If there's a originalUri, open as diff editor
+					if (originalUri) {
 						await this.editorService.openEditor({
-							original: { resource: compareUri },
+							original: { resource: originalUri },
 							modified: { resource: modifiedFileUri },
 							options: e.editorOptions
 						}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
@@ -2227,9 +2229,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					// Add divider between edit session entries and session file entries
 					allEntries.push({
 						kind: 'divider',
-						label: localize('chatEditingSession.allChanges', 'All Changes'),
+						label: localize('chatEditingSession.allChanges', 'Worktree Changes'),
 						menuId: MenuId.ChatEditingSessionChangesToolbar,
-						contextKeys: [[ChatContextKeys.hasAgentSessionChanges.key, true]],
+						menuArg: sessionResource,
+						scopedInstantiationService,
 					});
 				}
 				allEntries.push(...sessionFileEntries);

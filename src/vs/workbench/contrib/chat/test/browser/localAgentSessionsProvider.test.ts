@@ -528,10 +528,11 @@ suite('LocalAgentsSessionsProvider', () => {
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.ok(sessions[0].statistics);
-				assert.strictEqual(sessions[0].statistics?.files, 2);
-				assert.strictEqual(sessions[0].statistics?.insertions, 30);
-				assert.strictEqual(sessions[0].statistics?.deletions, 8);
+				assert.ok(sessions[0].changes);
+				const changes = sessions[0].changes as { files: number; insertions: number; deletions: number };
+				assert.strictEqual(changes.files, 2);
+				assert.strictEqual(changes.insertions, 30);
+				assert.strictEqual(changes.deletions, 8);
 			});
 		});
 
@@ -565,7 +566,7 @@ suite('LocalAgentsSessionsProvider', () => {
 
 				const sessions = await provider.provideChatSessionItems(CancellationToken.None);
 				assert.strictEqual(sessions.length, 1);
-				assert.strictEqual(sessions[0].statistics, undefined);
+				assert.strictEqual(sessions[0].changes, undefined);
 			});
 		});
 	});

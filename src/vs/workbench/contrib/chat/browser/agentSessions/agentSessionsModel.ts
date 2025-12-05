@@ -56,12 +56,30 @@ interface IAgentSessionData {
 		readonly finishedOrFailedTime?: number;
 	};
 
-	readonly statistics?: {
+	readonly changes?: readonly IChatSessionFileChange[] | {
 		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
-		readonly details: readonly IChatSessionFileChange[];
 	};
+}
+
+export function getAgentChangesSummary(changes: IAgentSession['changes']) {
+	if (!changes) {
+		return;
+	}
+
+	if (!(changes instanceof Array)) {
+		return changes;
+	}
+
+	let insertions = 0;
+	let deletions = 0;
+	for (const change of changes) {
+		insertions += change.insertions;
+		deletions += change.deletions;
+	}
+
+	return { files: changes.length, insertions, deletions };
 }
 
 export interface IAgentSession extends IAgentSessionData {
@@ -281,7 +299,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 						inProgressTime,
 						finishedOrFailedTime
 					},
-					statistics: session.statistics,
+					changes: session.changes,
 				}));
 			}
 		}
@@ -415,7 +433,7 @@ class AgentSessionsCache {
 					endTime: session.timing.endTime,
 				},
 
-				statistics: session.statistics,
+				changes: session.changes,
 			}));
 
 		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);

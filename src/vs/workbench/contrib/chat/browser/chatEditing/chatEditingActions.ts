@@ -319,7 +319,7 @@ export class ViewAllSessionChangesAction extends Action2 {
 				{
 					id: MenuId.ChatEditingSessionChangesToolbar,
 					group: 'navigation',
-					order: 0,
+					order: 10,
 					when: ChatContextKeys.hasAgentSessionChanges
 				}
 			],
@@ -338,14 +338,14 @@ export class ViewAllSessionChangesAction extends Action2 {
 
 		const sessionResource = chatWidget.viewModel.model.sessionResource;
 		const session = agentSessionsService.model.sessions.find(s => isEqual(s.resource, sessionResource));
-		const details = session?.statistics?.details;
-		if (!details?.length) {
+		const changes = session?.changes;
+		if (!(changes instanceof Array)) {
 			return;
 		}
 
-		const resources = details
-			.filter(d => d.compareUri)
-			.map(d => ({ originalUri: d.compareUri!, modifiedUri: d.uri }));
+		const resources = changes
+			.filter(d => d.originalUri)
+			.map(d => ({ originalUri: d.originalUri!, modifiedUri: d.modifiedUri }));
 
 		if (resources.length > 0) {
 			await commandService.executeCommand('_workbench.openMultiDiffEditor', {

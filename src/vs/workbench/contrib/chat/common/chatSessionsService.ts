@@ -73,12 +73,11 @@ export interface IChatSessionItem {
 		startTime: number;
 		endTime?: number;
 	};
-	statistics?: {
+	changes?: {
 		files: number;
 		insertions: number;
 		deletions: number;
-		details: readonly IChatSessionFileChange[];
-	};
+	} | readonly IChatSessionFileChange[];
 	archived?: boolean;
 	// TODO:@osortega remove once the single-view is default
 	/** @deprecated */
@@ -86,8 +85,8 @@ export interface IChatSessionItem {
 }
 
 export interface IChatSessionFileChange {
-	uri: URI;
-	compareUri?: URI;
+	modifiedUri: URI;
+	originalUri?: URI;
 	insertions: number;
 	deletions: number;
 }

@@ -3426,7 +3426,7 @@ export enum ChatSessionStatus {
 }
 
 export class ChatSessionChangedFile {
-	constructor(public readonly uri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly compareUri?: vscode.Uri) { }
+	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
 }
 
 export enum ChatResponseReferencePartStatusKind {
