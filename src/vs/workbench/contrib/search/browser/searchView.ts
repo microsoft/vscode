@@ -24,6 +24,7 @@ import { EmbeddedCodeEditorWidget } from '../../../../editor/browser/widget/code
 import { IEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { IEditor } from '../../../../editor/common/editorCommon.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { CommonFindController } from '../../../../editor/contrib/find/browser/findController.js';
 import { MultiCursorSelectionController } from '../../../../editor/contrib/multicursor/browser/multicursor.js';
 import * as nls from '../../../../nls.js';
@@ -79,12 +80,15 @@ import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../pl
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ISearchViewModelWorkbenchService } from './searchTreeModel/searchViewModelWorkbenchService.js';
-import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocation, IChangeEvent, FileMatchOrMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWithResource, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading, isSearchHeader } from './searchTreeModel/searchTreeCommon.js';
+import { ISearchTreeMatch, isSearchTreeMatch, RenderableMatch, SearchModelLocation, IChangeEvent, FileMatchOrMatch, ISearchTreeFileMatch, ISearchTreeFolderMatch, ISearchModel, ISearchResult, isSearchTreeFileMatch, isSearchTreeFolderMatch, isSearchTreeFolderMatchNoRoot, isSearchTreeFolderMatchWithResource, isSearchTreeFolderMatchWorkspaceRoot, isSearchResult, isTextSearchHeading, ITextSearchHeading, isSearchHeader, MATCH_PREFIX } from './searchTreeModel/searchTreeCommon.js';
 import { INotebookFileInstanceMatch, isIMatchInNotebook } from './notebookSearch/notebookSearchModelBase.js';
 import { searchMatchComparer } from './searchCompare.js';
 import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { forcedExpandRecursively } from './searchActionsTopBar.js';
+import { IModelContentChangedEvent, IModelContentChange } from '../../../../editor/common/textModelEvents.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { MatchImpl } from './searchTreeModel/match.js';
 
 const $ = dom.$;
 
@@ -205,6 +209,11 @@ export class SearchView extends ViewPane {
 	private _cachedResults: ISearchComplete | undefined;
 	private _cachedKeywords: string[] = [];
 	public _pendingSemanticSearchPromise: Promise<ISearchComplete> | undefined;
+
+	private _storedSearchResults: IStoredSearchResults | null = null;
+	private _modelChangeListeners: IDisposable[] = [];
+	private _pendingModelChanges: Map<string, IModelContentChange[]> = new Map();
+
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -236,6 +245,7 @@ export class SearchView extends ViewPane {
 		@ILogService private readonly logService: ILogService,
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IModelService private readonly modelService: IModelService,
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -575,6 +585,7 @@ export class SearchView extends ViewPane {
 				// Only refresh the AI node, not the whole tree
 				if (this.tree && this.tree.hasNode(this.searchResult.aiTextSearchResult) && !e.removed) {
 					this.tree.updateChildren(this.searchResult.aiTextSearchResult);
+					this.treeModelWasUpdated();
 				}
 			})
 		);
@@ -1043,6 +1054,10 @@ export class SearchView extends ViewPane {
 			this.searchResultHeaderFocused.reset();
 			this.isEditableItem.reset();
 		}));
+
+		this._register(this.tree.onDidChangeSelection(() => {
+			this.storeSearchResults();
+		}));
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<RenderableMatch | null>): void {
@@ -1083,12 +1098,31 @@ export class SearchView extends ViewPane {
 		return false;
 	}
 
+	/**
+	 * Reveal a match in the tree.
+	 * @param match The match to reveal.
+	 */
+	private revealMatch(match: RenderableMatch): void {
+		const event = getSelectionKeyboardEvent(undefined, false, false);
+		this.tree.setFocus([match], event);
+		this.tree.setSelection([match], event);
+		this.tree.reveal(match);
+		const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(match);
+		if (ariaLabel) { aria.status(ariaLabel); }
+	}
+
 	async selectNextMatch(): Promise<void> {
 		if (!this.hasSearchResults()) {
 			return;
 		}
 
 		const [selected] = this.tree.getSelection();
+
+		if (!selected) {
+			if (this.selectNextMatchUsingStoredSearchResults()) {
+				return;
+			}
+		}
 
 		// Expand the initial selected node, if needed
 		if (selected && !(isSearchTreeMatch(selected))) {
@@ -1119,12 +1153,7 @@ export class SearchView extends ViewPane {
 			if (next === selected) {
 				this.tree.setFocus([]);
 			}
-			const event = getSelectionKeyboardEvent(undefined, false, false);
-			this.tree.setFocus([next], event);
-			this.tree.setSelection([next], event);
-			this.tree.reveal(next);
-			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(next);
-			if (ariaLabel) { aria.status(ariaLabel); }
+			this.revealMatch(next);
 		}
 	}
 
@@ -1134,6 +1163,13 @@ export class SearchView extends ViewPane {
 		}
 
 		const [selected] = this.tree.getSelection();
+
+		if (!selected) {
+			if (this.selectPreviousMatchUsingStoredSearchResults()) {
+				return;
+			}
+		}
+
 		let navigator = this.tree.navigate(selected);
 
 		let prev = navigator.previous();
@@ -1165,12 +1201,7 @@ export class SearchView extends ViewPane {
 			if (prev === selected) {
 				this.tree.setFocus([]);
 			}
-			const event = getSelectionKeyboardEvent(undefined, false, false);
-			this.tree.setFocus([prev], event);
-			this.tree.setSelection([prev], event);
-			this.tree.reveal(prev);
-			const ariaLabel = this.treeAccessibilityProvider.getAriaLabel(prev);
-			if (ariaLabel) { aria.status(ariaLabel); }
+			this.revealMatch(prev);
 		}
 	}
 
@@ -1378,6 +1409,8 @@ export class SearchView extends ViewPane {
 		this.viewModel.cancelSearch();
 		this.viewModel.cancelAISearch();
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
+
+		this.clearStoredSearchResults();
 
 		this.accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 		this.reLayout();
@@ -1832,6 +1865,7 @@ export class SearchView extends ViewPane {
 				this.showSearchWithoutFolderMessage();
 			}
 			this.reLayout();
+			this.treeModelWasUpdated();
 		} else {
 			this.viewModel.searchResult.toggleHighlights(this.isVisible()); // show highlights
 
@@ -1943,6 +1977,8 @@ export class SearchView extends ViewPane {
 
 		this.tree.setSelection([]);
 		this.tree.setFocus([]);
+
+		this.clearStoredSearchResults();
 
 		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 		const result = this.viewModel.search(query);
@@ -2432,8 +2468,384 @@ export class SearchView extends ViewPane {
 
 	override dispose(): void {
 		this.isDisposed = true;
+
+		this._modelChangeListeners.forEach(disposable => disposable.dispose());
+		this._modelChangeListeners.length = 0;
+
 		this.saveState();
 		super.dispose();
+	}
+
+	/**
+	 * Store the part of the tree state for navigation continuity.
+	 * Call this whenever the tree selection changes.
+	 */
+	private storeSearchResults(): void {
+		this.unsubscribeFromModelChanges();
+
+		if (!this.hasSearchResults()) {
+			this._storedSearchResults = null;
+			return;
+		}
+		const [selected] = this.tree.getSelection();
+		if (!selected) {
+			this._storedSearchResults = null;
+			return;
+		}
+
+		const MAX_STORED_IDS = 2000;
+		this._storedSearchResults = this.buildStoredSearchResults(selected, MAX_STORED_IDS);
+
+		if (!this._storedSearchResults) {
+			return;
+		}
+
+		this.subscribeToModelChanges();
+	}
+
+	private static getMatchId(match: RenderableMatch): string | undefined {
+		const id = typeof match.id === 'function' && match.id();
+		if (id && id.startsWith(MATCH_PREFIX)) {
+			return id;
+		}
+		return undefined;
+	}
+
+	/**
+	 * Build a limited search results around the selected element.
+	 * Uses a single loop that alternates between walking upwards and downwards.
+	 */
+	private buildStoredSearchResults(selected: RenderableMatch, maxIds: number): IStoredSearchResults | null {
+		const upwardsIds: string[] = [];
+		const downwardsIds: string[] = [];
+
+		const selectedId = typeof selected.id === 'function' && selected.id();
+		if (!selectedId) {
+			return null;
+		}
+		downwardsIds.push(selectedId);
+
+		const upwardsNavigator = this.tree.navigate(selected);
+		const downwardsNavigator = this.tree.navigate(selected);
+
+		let prev = upwardsNavigator.previous();
+		let next = downwardsNavigator.next();
+
+		while ((prev || next) && (upwardsIds.length + downwardsIds.length) < maxIds) {
+			// Walk upwards until we find a valid ID to add
+			while (prev) {
+				const id = SearchView.getMatchId(prev);
+				if (id) {
+					upwardsIds.push(id);
+					prev = upwardsNavigator.previous();
+					break;
+				}
+				prev = upwardsNavigator.previous();
+			}
+
+			if ((upwardsIds.length + downwardsIds.length) >= maxIds) {
+				break;
+			}
+
+			// Walk downwards until we find a valid ID to add
+			while (next) {
+				const id = SearchView.getMatchId(next);
+				if (id) {
+					downwardsIds.push(id);
+					next = downwardsNavigator.next();
+					break;
+				}
+				next = downwardsNavigator.next();
+			}
+		}
+
+		const allIds = [...upwardsIds.reverse(), ...downwardsIds];
+
+		const selectedIndex = upwardsIds.length;
+
+		return {
+			ids: allIds,
+			selectedIndex: selectedIndex
+		};
+	}
+
+	/**
+	 * Store search results only if there's a valid selection after tree updates.
+	 * This ensures the stored context reflects the current state after tree changes.
+	 */
+	public treeModelWasUpdated(): void {
+		const [selected] = this.tree.getSelection();
+		if (selected || !this.hasSearchResults()) {
+			this.storeSearchResults();
+		} else {
+			this.applyPendingModelChanges();
+		}
+	}
+
+	/**
+	 * Build a map of element IDs to their corresponding elements in the current tree. If necessary, expand the whole tree to reveal all matches.
+	 * @returns A Map where keys are element IDs and values are the corresponding elements.
+	 */
+	private buildTreeIdMap(): Map<string, RenderableMatch> {
+		this.applyPendingModelChanges();
+
+		const navigator = this.tree.navigate();
+		let current = navigator.first();
+
+		const currentIds = new Map<string, RenderableMatch>();
+
+		while (current) {
+			const id = SearchView.getMatchId(current);
+
+			if (id) {
+				currentIds.set(id, current);
+			}
+
+			current = navigator.next();
+		}
+
+		return currentIds;
+	}
+
+	/**
+	 * Try to navigate to the next result using stored search results.
+	 * Returns true if navigation was successful, false otherwise.
+	 */
+	private selectNextMatchUsingStoredSearchResults(): boolean {
+		if (!this._storedSearchResults) {
+			return false;
+		}
+
+		const currentIds = this.buildTreeIdMap();
+
+		let nextIndex = this._storedSearchResults.selectedIndex + 1;
+
+		while (nextIndex < this._storedSearchResults.ids.length) {
+			const nextId = this._storedSearchResults.ids[nextIndex];
+
+			const parsedSearchResult = MatchImpl.parseId(nextId);
+
+			// Skip deleted matches (placeholders)
+			if (parsedSearchResult && parsedSearchResult.range.startLineNumber === -1) {
+				nextIndex++;
+				continue;
+			}
+
+			const nextMatch = currentIds.get(nextId);
+			if (nextMatch) {
+				this.revealMatch(nextMatch);
+				return true;
+			}
+			nextIndex++;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Try to navigate to the previous result using stored search results.
+	 * Returns true if navigation was successful, false otherwise.
+	 */
+	private selectPreviousMatchUsingStoredSearchResults(): boolean {
+		if (!this._storedSearchResults) {
+			return false;
+		}
+
+		const currentIds = this.buildTreeIdMap();
+
+		let prevIndex = this._storedSearchResults.selectedIndex - 1;
+
+		while (prevIndex >= 0) {
+			const prevId = this._storedSearchResults.ids[prevIndex];
+
+			const parsedSearchResult = MatchImpl.parseId(prevId);
+
+			// Skip deleted matches (placeholders)
+			if (parsedSearchResult && parsedSearchResult.range.startLineNumber === -1) {
+				prevIndex--;
+				continue;
+			}
+
+			const prevMatch = currentIds.get(prevId);
+			if (prevMatch) {
+				this.revealMatch(prevMatch);
+				return true;
+			}
+			prevIndex--;
+		}
+
+		return false;
+	}
+
+	public clearStoredSearchResults(): void {
+		this._storedSearchResults = null;
+		this.unsubscribeFromModelChanges();
+	}
+
+	private unsubscribeFromModelChanges(): void {
+		this._pendingModelChanges.clear();
+		this._modelChangeListeners.forEach(disposable => disposable.dispose());
+		this._modelChangeListeners.length = 0;
+	}
+
+	/**
+	 * Subscribe to model content changes for files that have stored search results.
+	 */
+	private subscribeToModelChanges(): void {
+		if (!this._storedSearchResults) {
+			return;
+		}
+
+		this.unsubscribeFromModelChanges();
+
+		const resources = new Set<string>();
+		for (const id of this._storedSearchResults.ids) {
+			const parsed = MatchImpl.parseId(id);
+			if (parsed) {
+				resources.add(parsed.resource);
+			}
+		}
+
+		for (const resourceStr of resources) {
+			const resource = URI.parse(resourceStr);
+			const model = this.modelService.getModel(resource);
+			if (!model) {
+				continue;
+			}
+
+			this._modelChangeListeners.push(model.onDidChangeContent((event: IModelContentChangedEvent) => {
+				this.onModelContentChanged(resourceStr, event);
+			}));
+		}
+	}
+
+	/**
+	 * Handle model content changes by queuing them for later processing.
+	 */
+	private onModelContentChanged(resourceStr: string, event: IModelContentChangedEvent): void {
+		if (!this._storedSearchResults) {
+			return;
+		}
+
+		// Queue the change instead of applying it immediately
+		const changes = this._pendingModelChanges.get(resourceStr) ?? [];
+		changes.push(...event.changes);
+		this._pendingModelChanges.set(resourceStr, changes);
+	}
+
+	/**
+	 * Remap stored search results IDs based on model changes.
+	 */
+	private remapStoredSearchResults(resourceStr: string, changes: IModelContentChange[]): void {
+		if (!this._storedSearchResults) {
+			return;
+		}
+
+		let currentIds = [...this._storedSearchResults.ids];
+		let selectedIndex = this._storedSearchResults.selectedIndex;
+
+		for (const change of changes) {
+			const deletedRange = change.range;
+			const deletedLines = deletedRange.endLineNumber - deletedRange.startLineNumber;
+			const insertedLinesArray = strings.splitLines(change.text);
+			const insertedLines = insertedLinesArray.length - 1;
+			const lineDelta = insertedLines - deletedLines;
+
+			const newIds: string[] = [];
+			let newSelectedIndex = selectedIndex;
+
+			function addId(id: string, i: number): void {
+				newIds.push(id);
+				if (i === selectedIndex) {
+					newSelectedIndex = newIds.length - 1;
+				}
+			}
+
+			for (let i = 0; i < currentIds.length; i++) {
+				const storedId = currentIds[i];
+				const storedMatch = MatchImpl.parseId(storedId);
+
+				if (!storedMatch || storedMatch.resource !== resourceStr) {
+					// Keep IDs from other files unchanged
+					addId(storedId, i);
+					continue;
+				}
+
+				// If the match is completely above the change, it's unaffected
+				if (storedMatch.range.endLineNumber < deletedRange.startLineNumber) {
+					addId(storedId, i);
+					continue;
+				}
+
+				// If the change was done inside the match, we can't reliably remap it
+				if (Range.strictContainsRange(deletedRange, storedMatch.range) || Range.areIntersecting(storedMatch.range, deletedRange)) {
+					if (i === selectedIndex) {
+						// But if this was the selected index, we need to preserve it with a placeholder
+						const placeholderId = MatchImpl.idToString(
+							{
+								resource: storedMatch.resource,
+								range: { startLineNumber: -1, startColumn: storedMatch.range.startColumn, endLineNumber: -1, endColumn: storedMatch.range.endColumn },
+								matchText: storedMatch.matchText
+							}
+						);
+						addId(placeholderId, i);
+					}
+					continue;
+				}
+
+				let newStartLine = storedMatch.range.startLineNumber;
+				let newEndLine = storedMatch.range.endLineNumber;
+				let newStartColumn = storedMatch.range.startColumn;
+				let newEndColumn = storedMatch.range.endColumn;
+
+				// Apply line shifts if match is at or after the change
+				if (storedMatch.range.startLineNumber >= deletedRange.endLineNumber) {
+					newStartLine += lineDelta;
+					newEndLine += lineDelta;
+				}
+
+				// If the change ended at the same line as the match, we need to adjust the column
+				if (storedMatch.range.startLineNumber === deletedRange.endLineNumber) {
+					const deletedColumnLength = deletedRange.endLineNumber === deletedRange.startLineNumber ? deletedRange.endColumn - deletedRange.startColumn : deletedRange.endColumn - 1;
+					const insertedColumnLength = strings.charCount(insertedLinesArray[insertedLinesArray.length - 1]);
+					const columnDelta = insertedColumnLength - deletedColumnLength;
+
+					newStartColumn += columnDelta;
+					if (storedMatch.range.endLineNumber === deletedRange.endLineNumber) {
+						newEndColumn += columnDelta;
+					}
+				}
+
+				const newId = MatchImpl.idToString({
+					resource: storedMatch.resource,
+					range: { startLineNumber: newStartLine, startColumn: newStartColumn, endLineNumber: newEndLine, endColumn: newEndColumn },
+					matchText: storedMatch.matchText
+				});
+				addId(newId, i);
+			}
+
+			currentIds = newIds;
+			selectedIndex = newSelectedIndex;
+		}
+
+		if (currentIds.length > 0) {
+			this._storedSearchResults = {
+				ids: currentIds,
+				selectedIndex: selectedIndex >= 0 ? selectedIndex : 0
+			};
+		} else {
+			this._storedSearchResults = null;
+		}
+	}
+
+	/**
+	 * Apply all pending model changes by remapping the stored search results.
+	 */
+	private applyPendingModelChanges(): void {
+		for (const [resourceStr, changes] of this._pendingModelChanges.entries()) {
+			this.remapStoredSearchResults(resourceStr, changes);
+		}
+		this._pendingModelChanges.clear();
 	}
 }
 
@@ -2721,5 +3133,12 @@ class RefreshTreeController extends Disposable {
 				}
 			}
 		}
+
+		this.searchView.treeModelWasUpdated();
 	}
+}
+
+interface IStoredSearchResults {
+	readonly ids: string[];
+	readonly selectedIndex: number;
 }

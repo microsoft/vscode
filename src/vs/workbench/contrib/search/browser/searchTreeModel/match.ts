@@ -7,7 +7,7 @@ import { memoize } from '../../../../../base/common/decorators.js';
 import { lcut } from '../../../../../base/common/strings.js';
 import { ISearchRange, ITextSearchMatch, OneLineRange } from '../../../../services/search/common/search.js';
 import { ISearchTreeMatch, ISearchTreeFileMatch, MATCH_PREFIX } from './searchTreeCommon.js';
-import { Range } from '../../../../../editor/common/core/range.js';
+import { Range, IRange } from '../../../../../editor/common/core/range.js';
 
 export function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch: ISearchTreeFileMatch, isAiContributed: boolean): ISearchTreeMatch[] {
 	const previewLines = rawMatch.previewText.split('\n');
@@ -15,6 +15,12 @@ export function textSearchResultToMatches(rawMatch: ITextSearchMatch, fileMatch:
 		const previewRange: ISearchRange = rangeLocation.preview;
 		return new MatchImpl(fileMatch, previewLines, previewRange, rangeLocation.source, isAiContributed);
 	});
+}
+
+export interface IMatchImplId {
+	readonly resource: string;
+	readonly range: IRange;
+	readonly matchText: string;
 }
 
 export class MatchImpl implements ISearchTreeMatch {
@@ -42,7 +48,33 @@ export class MatchImpl implements ISearchTreeMatch {
 
 		this._fullPreviewRange = _fullPreviewRange;
 
-		this._id = MATCH_PREFIX + this._parent.resource.toString() + '>' + this._range + this.getMatchString();
+		this._id = MatchImpl.idToString({
+			resource: this._parent.resource.toString(),
+			range: this._range,
+			matchText: this.getMatchString()
+		});
+	}
+
+	public static idToString(id: IMatchImplId): string {
+		return `${MATCH_PREFIX}${id.resource}>[${id.range.startLineNumber},${id.range.startColumn} -> ${id.range.endLineNumber},${id.range.endColumn}]${id.matchText}`;
+	}
+
+	public static parseId(id: string): IMatchImplId | null {
+		const match = id.match(new RegExp(`^${MATCH_PREFIX}(.*?)>\\[(-?\\d+),(\\d+) -> (-?\\d+),(\\d+)\\](.*)$`));
+		if (!match) {
+			return null;
+		}
+
+		return {
+			resource: match[1],
+			range: {
+				startLineNumber: parseInt(match[2], 10),
+				startColumn: parseInt(match[3], 10),
+				endLineNumber: parseInt(match[4], 10),
+				endColumn: parseInt(match[5], 10)
+			},
+			matchText: match[6] || ''
+		};
 	}
 
 	id(): string {

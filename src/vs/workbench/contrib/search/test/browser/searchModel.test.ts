@@ -41,7 +41,11 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CellMatch, MatchInNotebook } from '../../browser/notebookSearch/notebookSearchModel.js';
+import { CellMatch, MatchInNotebook, NotebookCompatibleFileMatch } from '../../browser/notebookSearch/notebookSearchModel.js';
+import { MatchImpl } from '../../browser/searchTreeModel/match.js';
+import { INotebookFileInstanceMatch } from '../../browser/notebookSearch/notebookSearchModelBase.js';
+import { FolderMatchImpl } from '../../browser/searchTreeModel/folderMatch.js';
+import { ISearchTreeFileMatch, ISearchTreeMatch } from '../../browser/searchTreeModel/searchTreeCommon.js';
 
 const nullEvent = new class {
 	id: number = -1;
@@ -67,6 +71,7 @@ const lineOneRange = new OneLineRange(1, 0, 1);
 suite('SearchModel', () => {
 
 	let instantiationService: TestInstantiationService;
+	let counter: number;
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const testSearchStats: IFileSearchStats = {
@@ -101,6 +106,7 @@ suite('SearchModel', () => {
 		store.add(uriIdentityService);
 		instantiationService.stub(IUriIdentityService, uriIdentityService);
 		instantiationService.stub(ILogService, new NullLogService());
+		counter = 0;
 	});
 
 	teardown(() => sinon.restore());
@@ -620,6 +626,47 @@ suite('SearchModel', () => {
 		assert.strictEqual('helloe', match.replaceString);
 	});
 
+	test('Search Model: Match IDs roundtrips correctly', () => {
+		const fileMatch = aFileMatch();
+		const match = aMatch(fileMatch);
+
+		const originalIdString = match.id();
+		assert.ok(originalIdString);
+
+		const parsedId = MatchImpl.parseId(originalIdString);
+		assert.ok(parsedId);
+
+		const roundtripIdString = MatchImpl.idToString(parsedId);
+		assert.strictEqual(originalIdString, roundtripIdString);
+	});
+
+	test('Search Model: Match IDs roundtrips correctly with deleted range', () => {
+		const fileMatch = aFileMatch();
+		const match = aMatch(fileMatch);
+
+		const originalIdString = match.id();
+		assert.ok(originalIdString);
+
+		const parsedId = MatchImpl.parseId(originalIdString);
+		assert.ok(parsedId);
+		const deletedId = {
+			...parsedId,
+			range: {
+				startLineNumber: -1,
+				startColumn: parsedId.range.startColumn,
+				endLineNumber: -1,
+				endColumn: parsedId.range.endColumn
+			}
+		};
+
+		const deletedIdString = MatchImpl.idToString(deletedId);
+		const parsedDeletedId = MatchImpl.parseId(deletedIdString);
+		assert.ok(parsedDeletedId);
+
+		const roundtripDeletedIdString = MatchImpl.idToString(parsedDeletedId);
+		assert.strictEqual(deletedIdString, roundtripDeletedIdString);
+	});
+
 	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {
 		return { resource: createFileUriFromPathFromRoot(resource), results };
 	}
@@ -645,5 +692,51 @@ suite('SearchModel', () => {
 		const notebookEditorWidgetService = instantiationService.createInstance(NotebookEditorWidgetService);
 		store.add(notebookEditorWidgetService);
 		return notebookEditorWidgetService;
+	}
+
+	function aFileMatch(): INotebookFileInstanceMatch {
+		const uri = URI.file('somepath' + ++counter);
+		const rawMatch: IFileMatch = {
+			resource: uri,
+			results: []
+		};
+
+		const searchModel = instantiationService.createInstance(SearchModelImpl);
+		store.add(searchModel);
+		const folderMatch = instantiationService.createInstance(FolderMatchImpl, URI.file('somepath'), '', 0, {
+			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
+				pattern: ''
+			}
+		}, searchModel.searchResult.plainTextSearchResult, searchModel.searchResult, null);
+		store.add(folderMatch);
+		const fileMatch = instantiationService.createInstance(NotebookCompatibleFileMatch, {
+			pattern: ''
+		}, undefined, undefined, folderMatch, rawMatch, null, '');
+		fileMatch.createMatches();
+		store.add(fileMatch);
+		return fileMatch;
+	}
+
+	function aMatch(fileMatch: ISearchTreeFileMatch): ISearchTreeMatch {
+		const line = ++counter;
+		const match = new MatchImpl(
+			fileMatch,
+			['some match'],
+			{
+				startLineNumber: 0,
+				startColumn: 0,
+				endLineNumber: 0,
+				endColumn: 2
+			},
+			{
+				startLineNumber: line,
+				startColumn: 0,
+				endLineNumber: line,
+				endColumn: 2
+			},
+			false
+		);
+		fileMatch.add(match);
+		return match;
 	}
 });
