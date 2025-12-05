@@ -250,6 +250,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('diffDecorationsIgnoreTrimWhitespace', "Controls whether leading and trailing whitespace is ignored in Source Control diff gutter decorations."),
 			default: 'false'
 		},
+		'scm.diffDecorationsIgnoreEOL': {
+			type: 'string',
+			enum: ['true', 'false', 'inherit'],
+			enumDescriptions: [
+				localize('scm.diffDecorationsIgnoreEOL.true', "Ignore end of line character differences."),
+				localize('scm.diffDecorationsIgnoreEOL.false', "Do not ignore end of line character differences."),
+				localize('scm.diffDecorationsIgnoreEOL.inherit', "Inherit from `diffEditor.ignoreEOL`.")
+			],
+			description: localize('diffDecorationsIgnoreEOL', "Controls whether end of line character differences are ignored in Source Control diff gutter decorations."),
+			default: 'true',
+		},
 		'scm.alwaysShowActions': {
 			type: 'boolean',
 			description: localize('alwaysShowActions', "Controls whether inline actions are always visible in the Source Control view."),
