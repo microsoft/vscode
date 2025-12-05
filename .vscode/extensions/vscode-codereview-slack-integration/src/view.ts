@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { SlackTreeDataProvider } from './slackTreeDataProvider';
 
-export class View extends vscode.Disposable {
+export class SlackView extends vscode.Disposable {
 
 	private SLACK_CODE_REVIEW_VIEW_ID = 'codereview-slack-messages';
 

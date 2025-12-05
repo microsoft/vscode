@@ -2,18 +2,26 @@ import * as vscode from 'vscode';
 import { SlackService } from './slackService';
 import { SlackMessageItem, SlackTreeDataProvider } from './slackTreeDataProvider';
 
-export function registerCommands(slackService: SlackService, slackTreeDataProvider: SlackTreeDataProvider): vscode.Disposable[] {
-	const disposables: vscode.Disposable[] = [];
-	disposables.push(registerCommand(new SignInCommand(slackService, slackTreeDataProvider)));
-	disposables.push(registerCommand(new SignOutCommand(slackService, slackTreeDataProvider)));
-	disposables.push(registerCommand(new RefreshCommand(slackService, slackTreeDataProvider)));
-	disposables.push(registerCommand(new OpenPRViewCommand(slackService, slackTreeDataProvider)));
-	disposables.push(registerCommand(new OpenPRInBrowser(slackService, slackTreeDataProvider)));
-	return disposables;
-}
+export class SlackCommandsRegistry extends vscode.Disposable {
 
-function registerCommand(command: Command): vscode.Disposable {
-	return vscode.commands.registerCommand(command.name, async (...args: any[]) => { command.execute(...args); });
+	private _disposables: vscode.Disposable[] = [];
+
+	constructor(slackService: SlackService, slackTreeDataProvider: SlackTreeDataProvider) {
+		super(() => this.dispose());
+		this._disposables.push(this._registerCommand(new SignInCommand(slackService, slackTreeDataProvider)));
+		this._disposables.push(this._registerCommand(new SignOutCommand(slackService, slackTreeDataProvider)));
+		this._disposables.push(this._registerCommand(new RefreshCommand(slackService, slackTreeDataProvider)));
+		this._disposables.push(this._registerCommand(new OpenPRViewCommand(slackService, slackTreeDataProvider)));
+		this._disposables.push(this._registerCommand(new OpenPRInBrowser(slackService, slackTreeDataProvider)));
+	}
+
+	private _registerCommand(command: Command): vscode.Disposable {
+		return vscode.commands.registerCommand(command.name, async (...args: any[]) => { command.execute(...args); });
+	}
+
+	override dispose() {
+		this._disposables.forEach(d => d.dispose());
+	}
 }
 
 export abstract class Command {

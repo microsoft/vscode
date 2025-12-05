@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { SlackService } from './slackService';
 import { SlackTreeDataProvider } from './slackTreeDataProvider';
 
-export class SessionManager extends vscode.Disposable {
+export class SlackSessionManager extends vscode.Disposable {
 
 	private readonly REFRESH_INTERVAL_MS = 60000;
 
