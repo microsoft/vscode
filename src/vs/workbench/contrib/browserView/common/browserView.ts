@@ -16,6 +16,7 @@ import {
 	IBrowserViewTitleChangeEvent,
 	IBrowserViewFaviconChangeEvent,
 	IBrowserViewNewPageRequest,
+	IBrowserViewDevToolsStateEvent,
 	IBrowserViewService,
 	BrowserViewStorageScope
 } from '../../../../platform/browserView/common/browserView.js';
@@ -77,6 +78,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly screenshot: string | undefined;
 	readonly loading: boolean;
 	readonly canGoBack: boolean;
+	readonly isDevToolsOpen: boolean;
 	readonly canGoForward: boolean;
 	readonly error: IBrowserViewLoadError | undefined;
 
@@ -85,6 +87,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidNavigate: Event<IBrowserViewNavigationEvent>;
 	readonly onDidChangeLoadingState: Event<IBrowserViewLoadingEvent>;
 	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent>;
+	readonly onDidChangeDevToolsState: Event<IBrowserViewDevToolsStateEvent>;
 	readonly onDidKeyCommand: Event<IBrowserViewKeyDownEvent>;
 	readonly onDidChangeTitle: Event<IBrowserViewTitleChangeEvent>;
 	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent>;
@@ -99,6 +102,7 @@ export interface IBrowserViewModel extends IDisposable {
 	goBack(): Promise<void>;
 	goForward(): Promise<void>;
 	reload(): Promise<void>;
+	toggleDevTools(): Promise<void>;
 	captureScreenshot(quality?: number): Promise<string>;
 	dispatchKeyEvent(keyEvent: IBrowserViewKeyDownEvent): Promise<void>;
 	focus(): Promise<void>;
@@ -110,6 +114,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	private _favicon: string | undefined = undefined;
 	private _screenshot: string | undefined = undefined;
 	private _loading: boolean = false;
+	private _isDevToolsOpen: boolean = false;
 	private _canGoBack: boolean = false;
 	private _canGoForward: boolean = false;
 	private _error: IBrowserViewLoadError | undefined = undefined;
@@ -133,6 +138,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	get title(): string { return this._title; }
 	get favicon(): string | undefined { return this._favicon; }
 	get loading(): boolean { return this._loading; }
+	get isDevToolsOpen(): boolean { return this._isDevToolsOpen; }
 	get canGoBack(): boolean { return this._canGoBack; }
 	get canGoForward(): boolean { return this._canGoForward; }
 	get screenshot(): string | undefined { return this._screenshot; }
@@ -149,6 +155,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidChangeFocus(): Event<IBrowserViewFocusEvent> {
 		return this.browserViewService.onDynamicDidChangeFocus(this.id);
+	}
+
+	get onDidChangeDevToolsState(): Event<IBrowserViewDevToolsStateEvent> {
+		return this.browserViewService.onDynamicDidChangeDevToolsState(this.id);
 	}
 
 	get onDidKeyCommand(): Event<IBrowserViewKeyDownEvent> {
@@ -190,6 +200,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._url = state.url;
 		this._title = state.title;
 		this._loading = state.loading;
+		this._isDevToolsOpen = state.isDevToolsOpen;
 		this._canGoBack = state.canGoBack;
 		this._canGoForward = state.canGoForward;
 		this._screenshot = state.lastScreenshot;
@@ -199,6 +210,11 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 		// Set up state synchronization
 		this._register(this.onDidNavigate(e => {
+			// Clear favicon on navigation to a different host
+			if (URL.parse(e.url)?.host !== URL.parse(this._url)?.host) {
+				this._favicon = undefined;
+			}
+
 			this._url = e.url;
 			this._canGoBack = e.canGoBack;
 			this._canGoForward = e.canGoForward;
@@ -207,6 +223,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._register(this.onDidChangeLoadingState(e => {
 			this._loading = e.loading;
 			this._error = e.error;
+		}));
+
+		this._register(this.onDidChangeDevToolsState(e => {
+			this._isDevToolsOpen = e.isDevToolsOpen;
 		}));
 
 		this._register(this.onDidChangeTitle(e => {
@@ -244,6 +264,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 	async reload(): Promise<void> {
 		this.logNavigationTelemetry('reload', this._url);
 		return this.browserViewService.reload(this.id);
+	}
+
+	async toggleDevTools(): Promise<void> {
+		return this.browserViewService.toggleDevTools(this.id);
 	}
 
 	async captureScreenshot(quality?: number): Promise<string> {

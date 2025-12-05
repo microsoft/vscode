@@ -118,6 +118,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).onDidChangeFocus;
 	}
 
+	onDynamicDidChangeDevToolsState(id: string) {
+		return this._getBrowserView(id).onDidChangeDevToolsState;
+	}
+
 	onDynamicDidKeyCommand(id: string) {
 		return this._getBrowserView(id).onDidKeyCommand;
 	}
@@ -165,6 +169,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 
 	async reload(id: string): Promise<void> {
 		return this._getBrowserView(id).reload();
+	}
+
+	async toggleDevTools(id: string): Promise<void> {
+		return this._getBrowserView(id).toggleDevTools();
 	}
 
 	async canGoBack(id: string): Promise<boolean> {

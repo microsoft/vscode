@@ -11,7 +11,7 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_STORAGE_SCOPE } from './browserEditor.js';
+import { BrowserEditor, CONTEXT_BROWSER_CAN_GO_BACK, CONTEXT_BROWSER_CAN_GO_FORWARD, CONTEXT_BROWSER_DEVTOOLS_OPEN, CONTEXT_BROWSER_FOCUSED, CONTEXT_BROWSER_STORAGE_SCOPE } from './browserEditor.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewStorageScope } from '../../../../platform/browserView/common/browserView.js';
@@ -145,6 +145,35 @@ class ReloadAction extends Action2 {
 	}
 }
 
+class ToggleDevToolsAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.toggleDevTools';
+
+	constructor() {
+		super({
+			id: ToggleDevToolsAction.ID,
+			title: localize2('browser.toggleDevToolsAction', 'Toggle Developer Tools'),
+			category: BrowserCategory,
+			icon: Codicon.tools,
+			f1: true,
+			toggled: ContextKeyExpr.equals(CONTEXT_BROWSER_DEVTOOLS_OPEN.key, true),
+			menu: {
+				id: MenuId.BrowserActionsToolbar,
+				group: 'actions',
+				order: 1,
+				when: BROWSER_EDITOR_ACTIVE
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const activeEditorPane = editorService.activeEditorPane;
+		if (activeEditorPane instanceof BrowserEditor) {
+			await activeEditorPane.toggleDevTools();
+		}
+	}
+}
+
 class ClearGlobalBrowserStorageAction extends Action2 {
 	static readonly ID = 'workbench.action.browser.clearGlobalStorage';
 
@@ -200,5 +229,6 @@ registerAction2(OpenIntegratedBrowserAction);
 registerAction2(GoBackAction);
 registerAction2(GoForwardAction);
 registerAction2(ReloadAction);
+registerAction2(ToggleDevToolsAction);
 registerAction2(ClearGlobalBrowserStorageAction);
 registerAction2(ClearWorkspaceBrowserStorageAction);

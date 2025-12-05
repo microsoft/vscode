@@ -6,7 +6,7 @@
 import { WebContentsView, webContents } from 'electron';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { IBrowserViewBounds, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope } from '../common/browserView.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, BrowserViewStorageScope } from '../common/browserView.js';
 import { EVENT_KEY_CODE_MAP, KeyCode, SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -39,6 +39,9 @@ export class BrowserView extends Disposable {
 
 	private readonly _onDidChangeFocus = this._register(new Emitter<IBrowserViewFocusEvent>());
 	readonly onDidChangeFocus: Event<IBrowserViewFocusEvent> = this._onDidChangeFocus.event;
+
+	private readonly _onDidChangeDevToolsState = this._register(new Emitter<IBrowserViewDevToolsStateEvent>());
+	readonly onDidChangeDevToolsState: Event<IBrowserViewDevToolsStateEvent> = this._onDidChangeDevToolsState.event;
 
 	private readonly _onDidKeyCommand = this._register(new Emitter<IBrowserViewKeyDownEvent>());
 	readonly onDidKeyCommand: Event<IBrowserViewKeyDownEvent> = this._onDidKeyCommand.event;
@@ -95,6 +98,15 @@ export class BrowserView extends Disposable {
 
 	private setupEventListeners(): void {
 		const webContents = this._view.webContents;
+
+		// DevTools state events
+		webContents.on('devtools-opened', () => {
+			this._onDidChangeDevToolsState.fire({ isDevToolsOpen: true });
+		});
+
+		webContents.on('devtools-closed', () => {
+			this._onDidChangeDevToolsState.fire({ isDevToolsOpen: false });
+		});
 
 		// Favicon events
 		webContents.on('page-favicon-updated', async (_event, favicons) => {
@@ -245,11 +257,19 @@ export class BrowserView extends Disposable {
 			canGoBack: webContents.navigationHistory.canGoBack(),
 			canGoForward: webContents.navigationHistory.canGoForward(),
 			loading: webContents.isLoading(),
+			isDevToolsOpen: webContents.isDevToolsOpened(),
 			lastScreenshot: this._lastScreenshot,
 			lastFavicon: this._lastFavicon,
 			lastError: this._lastError,
 			storageScope: this.storageScope
 		};
+	}
+
+	/**
+	 * Toggle developer tools for this browser view.
+	 */
+	toggleDevTools(): void {
+		this._view.webContents.toggleDevTools();
 	}
 
 	/**

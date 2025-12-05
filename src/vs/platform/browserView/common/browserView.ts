@@ -20,6 +20,7 @@ export interface IBrowserViewState {
 	canGoBack: boolean;
 	canGoForward: boolean;
 	loading: boolean;
+	isDevToolsOpen: boolean;
 	lastScreenshot: string | undefined;
 	lastFavicon: string | undefined;
 	lastError: IBrowserViewLoadError | undefined;
@@ -45,6 +46,10 @@ export interface IBrowserViewLoadError {
 
 export interface IBrowserViewFocusEvent {
 	focused: boolean;
+}
+
+export interface IBrowserViewDevToolsStateEvent {
+	isDevToolsOpen: boolean;
 }
 
 export interface IBrowserViewKeyDownEvent {
@@ -87,6 +92,7 @@ export interface IBrowserViewService {
 	onDynamicDidNavigate(id: string): Event<IBrowserViewNavigationEvent>;
 	onDynamicDidChangeLoadingState(id: string): Event<IBrowserViewLoadingEvent>;
 	onDynamicDidChangeFocus(id: string): Event<IBrowserViewFocusEvent>;
+	onDynamicDidChangeDevToolsState(id: string): Event<IBrowserViewDevToolsStateEvent>;
 	onDynamicDidKeyCommand(id: string): Event<IBrowserViewKeyDownEvent>;
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
@@ -150,6 +156,12 @@ export interface IBrowserViewService {
 	 * @param id The browser view identifier
 	 */
 	reload(id: string): Promise<void>;
+
+	/**
+	 * Toggle developer tools for the browser view.
+	 * @param id The browser view identifier
+	 */
+	toggleDevTools(id: string): Promise<void>;
 
 	/**
 	 * Check if the view can go back

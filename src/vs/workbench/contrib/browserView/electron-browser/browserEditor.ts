@@ -38,6 +38,7 @@ export const CONTEXT_BROWSER_CAN_GO_BACK = new RawContextKey<boolean>('browserCa
 export const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoForward', false, localize('browser.canGoForward', "Whether the browser can go forward"));
 export const CONTEXT_BROWSER_FOCUSED = new RawContextKey<boolean>('browserFocused', false, localize('browser.editorFocused', "Whether the browser editor is focused"));
 export const CONTEXT_BROWSER_STORAGE_SCOPE = new RawContextKey<string>('browserStorageScope', '', localize('browser.storageScope', "The storage scope of the current browser view"));
+export const CONTEXT_BROWSER_DEVTOOLS_OPEN = new RawContextKey<boolean>('browserDevToolsOpen', false, localize('browser.devToolsOpen', "Whether developer tools are open for the current browser view"));
 
 class BrowserNavigationBar extends Disposable {
 	private readonly _onDidNavigate = this._register(new Emitter<string>());
@@ -73,6 +74,7 @@ class BrowserNavigationBar extends Disposable {
 			MenuId.BrowserNavigationToolbar,
 			{
 				hoverDelegate,
+				highlightToggledItems: true,
 				// Render all actions inline regardless of group
 				toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 			}
@@ -91,6 +93,7 @@ class BrowserNavigationBar extends Disposable {
 			MenuId.BrowserActionsToolbar,
 			{
 				hoverDelegate,
+				highlightToggledItems: true,
 				toolbarOptions: { primaryGroup: 'actions' }
 			}
 		));
@@ -146,6 +149,7 @@ export class BrowserEditor extends EditorPane {
 	private _canGoForwardContext!: IContextKey<boolean>;
 	private _browserEditorFocusedContext!: IContextKey<boolean>;
 	private _storageScopeContext!: IContextKey<string>;
+	private _devToolsOpenContext!: IContextKey<boolean>;
 
 	private _model: IBrowserViewModel | undefined;
 	private readonly _inputDisposables = this._register(new DisposableStore());
@@ -174,6 +178,7 @@ export class BrowserEditor extends EditorPane {
 		this._canGoForwardContext = CONTEXT_BROWSER_CAN_GO_FORWARD.bindTo(contextKeyService);
 		this._browserEditorFocusedContext = CONTEXT_BROWSER_FOCUSED.bindTo(contextKeyService);
 		this._storageScopeContext = CONTEXT_BROWSER_STORAGE_SCOPE.bindTo(contextKeyService);
+		this._devToolsOpenContext = CONTEXT_BROWSER_DEVTOOLS_OPEN.bindTo(contextKeyService);
 
 		// Currently this is always true since it is scoped to the editor container
 		this._browserEditorFocusedContext.set(true);
@@ -230,11 +235,12 @@ export class BrowserEditor extends EditorPane {
 
 		// Resolve the browser view model from the input
 		this._model = await input.resolve();
-		if (token.isCancellationRequested) {
+		if (token.isCancellationRequested || this.input !== input) {
 			return;
 		}
 
 		this._storageScopeContext.set(this._model.storageScope);
+		this._devToolsOpenContext.set(this._model.isDevToolsOpen);
 
 		// Clean up on input disposal
 		input.onWillDispose(() => {
@@ -275,6 +281,10 @@ export class BrowserEditor extends EditorPane {
 			if (focused) {
 				this._browserContainer.focus();
 			}
+		}, null, this._inputDisposables);
+
+		this._model.onDidChangeDevToolsState(e => {
+			this._devToolsOpenContext.set(e.isDevToolsOpen);
 		}, null, this._inputDisposables);
 
 		this._model.onDidRequestNewPage(({ url, name, background }) => {
@@ -405,7 +415,8 @@ export class BrowserEditor extends EditorPane {
 		if (this._model) {
 			this.group.pinEditor(this.input); // pin editor on navigation
 
-			if (!/^https?:\/\//.test(url)) {
+			const scheme = URL.parse(url)?.protocol;
+			if (!scheme) {
 				// If no scheme provided, default to http (to support localhost etc -- sites will generally upgrade to https)
 				url = 'http://' + url;
 			}
@@ -424,6 +435,10 @@ export class BrowserEditor extends EditorPane {
 
 	public async reload(): Promise<void> {
 		return this._model?.reload();
+	}
+
+	public async toggleDevTools(): Promise<void> {
+		return this._model?.toggleDevTools();
 	}
 
 	/**
@@ -504,6 +519,7 @@ export class BrowserEditor extends EditorPane {
 		this._canGoForwardContext.reset();
 		this._browserEditorFocusedContext.reset();
 		this._storageScopeContext.reset();
+		this._devToolsOpenContext.reset();
 
 		this._navigationBar.clear();
 		this._browserContainer.style.backgroundImage = '';
