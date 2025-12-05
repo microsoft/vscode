@@ -9,7 +9,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatSessionItem, IChatSessionItemProvider, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, localChatSessionType } from '../../common/chatSessionsService.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 
 
@@ -119,6 +119,10 @@ export function getSessionItemContextOverlay(
 
 	// Mark history items
 	overlay.push([ChatContextKeys.isArchivedAgentSession.key, session.archived]);
+
+	const stats = session.statistics;
+	const hasChanges = !!stats && (stats.files > 0 || stats.insertions > 0 || stats.deletions > 0) && session.status !== ChatSessionStatus.InProgress;
+	overlay.push([ChatContextKeys.agentSessionHasChanges.key, hasChanges]);
 
 	// Mark active sessions - check if session is currently open in editor or widget
 	let isActiveSession = false;

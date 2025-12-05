@@ -90,6 +90,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsViewerOrientationContext: IContextKey<AgentSessionsViewerOrientation>;
 	private sessionsViewerPosition = AgentSessionsViewerPosition.Right;
 	private sessionsViewerPositionContext: IContextKey<AgentSessionsViewerPosition>;
+	private sessionsVisibleContext: IContextKey<boolean>;
 
 	private titleControl: ChatViewTitleControl | undefined;
 
@@ -138,6 +139,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.chatViewLocationContext = ChatContextKeys.panelLocation.bindTo(contextKeyService);
 		this.sessionsViewerOrientationContext = ChatContextKeys.agentSessionsViewerOrientation.bindTo(contextKeyService);
 		this.sessionsViewerPositionContext = ChatContextKeys.agentSessionsViewerPosition.bindTo(contextKeyService);
+		this.sessionsVisibleContext = ChatContextKeys.recentSessionsVisible.bindTo(contextKeyService);
 
 		this.updateContextKeys(false);
 
@@ -354,6 +356,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
 			allowOpenSessionsInPanel: true,
+			ariaLabel: localize('recentSessionsAriaLabel', "Recent Sessions"),
 			filter: {
 				limitResults: () => {
 					return that.sessionsViewerLimited ? ChatViewPane.SESSIONS_LIMIT : undefined;
@@ -373,7 +376,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				listBackground: editorWidgetBackground
 			}
 		}));
-		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			this.sessionsControl?.setVisible(visible);
+			if (visible) {
+				this.updateSessionsControlVisibility();
+			} else {
+				this.sessionsVisibleContext.set(false);
+			}
+		}));
 
 		// Link to Sessions View
 		this.sessionsLinkContainer = append(sessionsContainer, $('.agent-sessions-link-container'));
@@ -415,6 +425,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private updateSessionsControlVisibility(): { changed: boolean; visible: boolean } {
 		if (!this.sessionsContainer || !this.viewPaneContainer) {
+			this.sessionsVisibleContext.set(false);
 			return { changed: false, visible: false };
 		}
 
@@ -441,6 +452,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const sessionsContainerVisible = this.sessionsContainer.style.display !== 'none';
 		setVisibility(newSessionsContainerVisible, this.sessionsContainer);
+		this.sessionsVisibleContext.set(newSessionsContainerVisible);
 
 		return {
 			changed: sessionsContainerVisible !== newSessionsContainerVisible,
@@ -574,6 +586,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		super.focus();
 
 		this._widget.focusInput();
+	}
+
+	focusRecentSessions(): void {
+		const { visible } = this.updateSessionsControlVisibility();
+		if (!visible) {
+			return;
+		}
+
+		this.sessionsControl?.focus();
 	}
 
 	protected override layoutBody(height: number, width: number): void {

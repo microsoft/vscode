@@ -44,6 +44,7 @@ export interface IAgentSessionsControlOptions {
 	readonly allowOpenSessionsInPanel?: boolean; // TODO@bpasero retire this option eventually
 	readonly allowFiltering?: boolean;
 	readonly trackActiveEditor?: boolean;
+	readonly ariaLabel?: string;
 }
 
 type AgentSessionOpenedClassification = {
@@ -135,7 +136,7 @@ export class AgentSessionsControl extends Disposable {
 			],
 			new AgentSessionsDataSource(this.options?.filter, sorter),
 			{
-				accessibilityProvider: new AgentSessionsAccessibilityProvider(),
+				accessibilityProvider: new AgentSessionsAccessibilityProvider(this.options?.ariaLabel),
 				dnd: this.instantiationService.createInstance(AgentSessionsDragAndDrop),
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
