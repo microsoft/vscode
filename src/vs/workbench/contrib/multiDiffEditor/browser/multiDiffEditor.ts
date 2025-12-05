@@ -6,7 +6,6 @@
 import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../base/common/observable.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
@@ -34,12 +33,15 @@ import { IDiffEditor } from '../../../../editor/common/editorCommon.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { ResourceContextKey } from '../../../common/contextkeys.js';
 
 export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEditorViewState> {
 	static readonly ID = 'multiDiffEditor';
 
 	private _multiDiffEditorWidget: MultiDiffEditorWidget | undefined = undefined;
 	private _viewModel: MultiDiffEditorViewModel | undefined;
+	private _sessionResourceContextKey: ResourceContextKey | undefined;
+	private _contentOverlay: MultiDiffEditorContentMenuOverlay | undefined;
 
 	public get viewModel(): MultiDiffEditorViewModel | undefined {
 		return this._viewModel;
@@ -84,9 +86,10 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 		const scopedContextKeyService = this._multiDiffEditorWidget.getContextKeyService();
 		const scopedInstantiationService = this._multiDiffEditorWidget.getScopedInstantiationService();
-		this._register(new MultiDiffEditorContentMenuOverlay(
+		this._sessionResourceContextKey = this._register(scopedInstantiationService.createInstance(ResourceContextKey));
+		this._contentOverlay = this._register(new MultiDiffEditorContentMenuOverlay(
 			this._multiDiffEditorWidget.getRootElement(),
-			this._multiDiffEditorWidget.getViewModelObservable(),
+			this._sessionResourceContextKey,
 			scopedContextKeyService,
 			this.menuService,
 			scopedInstantiationService,
@@ -96,6 +99,8 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 	override async setInput(input: MultiDiffEditorInput, options: IMultiDiffEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this._viewModel = await input.getViewModel();
+		this._sessionResourceContextKey?.set(input.resource);
+		this._contentOverlay?.updateResource(input.resource);
 		this._multiDiffEditorWidget!.setViewModel(this._viewModel);
 
 		const viewState = this.loadEditorViewState(input, context);
@@ -122,6 +127,8 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 
 	override async clearInput(): Promise<void> {
 		await super.clearInput();
+		this._sessionResourceContextKey?.set(null);
+		this._contentOverlay?.updateResource(undefined);
 		this._multiDiffEditorWidget!.setViewModel(undefined);
 	}
 
@@ -180,26 +187,31 @@ export class MultiDiffEditor extends AbstractEditorWithViewState<IMultiDiffEdito
 }
 
 class MultiDiffEditorContentMenuOverlay extends Disposable {
+	private readonly overlayStore = this._register(new MutableDisposable<DisposableStore>());
+	private readonly resourceContextKey: ResourceContextKey;
+	private currentResource: URI | undefined;
+	private readonly rebuild: () => void;
+
 	constructor(
 		root: HTMLElement,
-		viewModel: IObservable<MultiDiffEditorViewModel | undefined>,
+		resourceContextKey: ResourceContextKey,
 		contextKeyService: IContextKeyService,
 		menuService: IMenuService,
 		instantiationService: IInstantiationService,
 	) {
 		super();
+		this.resourceContextKey = resourceContextKey;
 
 		const menu = this._register(menuService.createMenu(MenuId.MultiDiffEditorContent, contextKeyService));
-		const overlayStore = this._register(new MutableDisposable<DisposableStore>());
 
-		const updateOverlay = () => {
+		this.rebuild = () => {
 			const hasActions = menu.getActions().length > 0;
 			if (!hasActions) {
-				overlayStore.clear();
+				this.overlayStore.clear();
 				return;
 			}
 
-			if (overlayStore.value) {
+			if (this.overlayStore.value) {
 				return;
 			}
 
@@ -207,16 +219,29 @@ class MultiDiffEditorContentMenuOverlay extends Disposable {
 			const store = new DisposableStore();
 			root.appendChild(container.root);
 			store.add(toDisposable(() => container.root.remove()));
-
 			store.add(instantiationService.createInstance(MenuWorkbenchToolBar, container.root, MenuId.MultiDiffEditorContent, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				menuOptions: { renderShortTitle: true, arg: this.currentResource }
 			}));
 
-			overlayStore.value = store;
+			this.overlayStore.value = store;
 		};
 
-		updateOverlay();
-		this._register(menu.onDidChange(() => updateOverlay()));
+		this.rebuild();
+		this._register(menu.onDidChange(() => {
+			this.overlayStore.clear();
+			this.rebuild();
+		}));
+
+		this._register(resourceContextKey);
+	}
+
+	public updateResource(resource: URI | undefined): void {
+		this.currentResource = resource;
+		// Update context key and rebuild so menu arg matches
+		this.resourceContextKey.set(resource ?? null);
+		this.overlayStore.clear();
+		this.rebuild();
 	}
 }
 
