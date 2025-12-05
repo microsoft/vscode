@@ -851,10 +851,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		if (e.equals(KeyCode.UpArrow)) {
+			// eslint-disable-next-line no-restricted-syntax
 			return stopPropagationForMultiLineUpwards(e, this._findInput.getValue(), this._findInput.domNode.querySelector('textarea'));
 		}
 
 		if (e.equals(KeyCode.DownArrow)) {
+			// eslint-disable-next-line no-restricted-syntax
 			return stopPropagationForMultiLineDownwards(e, this._findInput.getValue(), this._findInput.domNode.querySelector('textarea'));
 		}
 	}
@@ -891,10 +893,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		if (e.equals(KeyCode.UpArrow)) {
+			// eslint-disable-next-line no-restricted-syntax
 			return stopPropagationForMultiLineUpwards(e, this._replaceInput.inputBox.value, this._replaceInput.inputBox.element.querySelector('textarea'));
 		}
 
 		if (e.equals(KeyCode.DownArrow)) {
+			// eslint-disable-next-line no-restricted-syntax
 			return stopPropagationForMultiLineDownwards(e, this._replaceInput.inputBox.value, this._replaceInput.inputBox.element.querySelector('textarea'));
 		}
 	}

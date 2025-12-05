@@ -540,5 +540,266 @@ ${indent}- Item 1a
 		assert.strictEqual(result.trim(), expected.trim());
 	});
 
+	test('table with columnheader role (th elements)', () => {
+		const nodes: AXNode[] = [
+			{
+				nodeId: 'table1',
+				ignored: false,
+				role: createAXValue('role', 'table'),
+				childIds: ['row1', 'row2']
+			},
+			{
+				nodeId: 'row1',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['header1', 'header2']
+			},
+			{
+				nodeId: 'row2',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['cell3', 'cell4']
+			},
+			{
+				nodeId: 'header1',
+				ignored: false,
+				role: createAXValue('role', 'columnheader'),
+				name: createAXValue('string', 'Header 1')
+			},
+			{
+				nodeId: 'header2',
+				ignored: false,
+				role: createAXValue('role', 'columnheader'),
+				name: createAXValue('string', 'Header 2')
+			},
+			{
+				nodeId: 'cell3',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'Data 1')
+			},
+			{
+				nodeId: 'cell4',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'Data 2')
+			}
+		];
+
+		const result = convertAXTreeToMarkdown(testUri, nodes);
+		const expected =
+			`
+| Header 1 | Header 2 |
+| --- | --- |
+| Data 1 | Data 2 |
+`;
+		assert.strictEqual(result.trim(), expected.trim());
+	});
+
+	test('table with rowheader role', () => {
+		const nodes: AXNode[] = [
+			{
+				nodeId: 'table1',
+				ignored: false,
+				role: createAXValue('role', 'table'),
+				childIds: ['row1', 'row2']
+			},
+			{
+				nodeId: 'row1',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['rowheader1', 'cell2']
+			},
+			{
+				nodeId: 'row2',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['rowheader2', 'cell4']
+			},
+			{
+				nodeId: 'rowheader1',
+				ignored: false,
+				role: createAXValue('role', 'rowheader'),
+				name: createAXValue('string', 'Row 1')
+			},
+			{
+				nodeId: 'cell2',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'Data 1')
+			},
+			{
+				nodeId: 'rowheader2',
+				ignored: false,
+				role: createAXValue('role', 'rowheader'),
+				name: createAXValue('string', 'Row 2')
+			},
+			{
+				nodeId: 'cell4',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'Data 2')
+			}
+		];
+
+		const result = convertAXTreeToMarkdown(testUri, nodes);
+		const expected =
+			`
+| Row 1 | Data 1 |
+| --- | --- |
+| Row 2 | Data 2 |
+`;
+		assert.strictEqual(result.trim(), expected.trim());
+	});
+
+	test('table with mixed cell types', () => {
+		const nodes: AXNode[] = [
+			{
+				nodeId: 'table1',
+				ignored: false,
+				role: createAXValue('role', 'table'),
+				childIds: ['row1', 'row2', 'row3']
+			},
+			{
+				nodeId: 'row1',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['header1', 'header2', 'header3']
+			},
+			{
+				nodeId: 'row2',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['rowheader1', 'cell2', 'cell3']
+			},
+			{
+				nodeId: 'row3',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['rowheader2', 'cell4', 'cell5']
+			},
+			{
+				nodeId: 'header1',
+				ignored: false,
+				role: createAXValue('role', 'columnheader'),
+				name: createAXValue('string', 'Name')
+			},
+			{
+				nodeId: 'header2',
+				ignored: false,
+				role: createAXValue('role', 'columnheader'),
+				name: createAXValue('string', 'Age')
+			},
+			{
+				nodeId: 'header3',
+				ignored: false,
+				role: createAXValue('role', 'columnheader'),
+				name: createAXValue('string', 'City')
+			},
+			{
+				nodeId: 'rowheader1',
+				ignored: false,
+				role: createAXValue('role', 'rowheader'),
+				name: createAXValue('string', 'John')
+			},
+			{
+				nodeId: 'cell2',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', '25')
+			},
+			{
+				nodeId: 'cell3',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'NYC')
+			},
+			{
+				nodeId: 'rowheader2',
+				ignored: false,
+				role: createAXValue('role', 'rowheader'),
+				name: createAXValue('string', 'Jane')
+			},
+			{
+				nodeId: 'cell4',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', '30')
+			},
+			{
+				nodeId: 'cell5',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'LA')
+			}
+		];
+
+		const result = convertAXTreeToMarkdown(testUri, nodes);
+		const expected =
+			`
+| Name | Age | City |
+| --- | --- | --- |
+| John | 25 | NYC |
+| Jane | 30 | LA |
+`;
+		assert.strictEqual(result.trim(), expected.trim());
+	});
+
+	test('table with gridcell role', () => {
+		const nodes: AXNode[] = [
+			{
+				nodeId: 'table1',
+				ignored: false,
+				role: createAXValue('role', 'table'),
+				childIds: ['row1', 'row2']
+			},
+			{
+				nodeId: 'row1',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['cell1', 'cell2']
+			},
+			{
+				nodeId: 'row2',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['cell3', 'cell4']
+			},
+			{
+				nodeId: 'cell1',
+				ignored: false,
+				role: createAXValue('role', 'gridcell'),
+				name: createAXValue('string', 'Header 1')
+			},
+			{
+				nodeId: 'cell2',
+				ignored: false,
+				role: createAXValue('role', 'gridcell'),
+				name: createAXValue('string', 'Header 2')
+			},
+			{
+				nodeId: 'cell3',
+				ignored: false,
+				role: createAXValue('role', 'gridcell'),
+				name: createAXValue('string', 'Data 1')
+			},
+			{
+				nodeId: 'cell4',
+				ignored: false,
+				role: createAXValue('role', 'gridcell'),
+				name: createAXValue('string', 'Data 2')
+			}
+		];
+
+		const result = convertAXTreeToMarkdown(testUri, nodes);
+		const expected =
+			`
+| Header 1 | Header 2 |
+| --- | --- |
+| Data 1 | Data 2 |
+`;
+		assert.strictEqual(result.trim(), expected.trim());
+	});
+
 	//#endregion
 });

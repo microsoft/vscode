@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -73,8 +74,8 @@ export class CodeBlockModelCollection extends Disposable {
 		this.clear();
 	}
 
-	get(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): CodeBlockEntry | undefined {
-		const entry = this._models.get(this.getKey(sessionId, chat, codeBlockIndex));
+	get(sessionResource: URI, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): CodeBlockEntry | undefined {
+		const entry = this._models.get(this.getKey(sessionResource, chat, codeBlockIndex));
 		if (!entry) {
 			return;
 		}
@@ -86,15 +87,15 @@ export class CodeBlockModelCollection extends Disposable {
 		};
 	}
 
-	getOrCreate(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): CodeBlockEntry {
-		const existing = this.get(sessionId, chat, codeBlockIndex);
+	getOrCreate(sessionResource: URI, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): CodeBlockEntry {
+		const existing = this.get(sessionResource, chat, codeBlockIndex);
 		if (existing) {
 			return existing;
 		}
 
-		const uri = this.getCodeBlockUri(sessionId, chat, codeBlockIndex);
+		const uri = this.getCodeBlockUri(sessionResource, chat, codeBlockIndex);
 		const model = this.textModelService.createModelReference(uri);
-		this._models.set(this.getKey(sessionId, chat, codeBlockIndex), {
+		this._models.set(this.getKey(sessionResource, chat, codeBlockIndex), {
 			model: model,
 			vulns: [],
 			inLanguageId: undefined,
@@ -127,26 +128,26 @@ export class CodeBlockModelCollection extends Disposable {
 		this._models.clear();
 	}
 
-	updateSync(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, content: CodeBlockContent): CodeBlockEntry {
-		const entry = this.getOrCreate(sessionId, chat, codeBlockIndex);
+	updateSync(sessionResource: URI, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, content: CodeBlockContent): CodeBlockEntry {
+		const entry = this.getOrCreate(sessionResource, chat, codeBlockIndex);
 
-		this.updateInternalCodeBlockEntry(content, sessionId, chat, codeBlockIndex);
+		this.updateInternalCodeBlockEntry(content, sessionResource, chat, codeBlockIndex);
 
-		return this.get(sessionId, chat, codeBlockIndex) ?? entry;
+		return this.get(sessionResource, chat, codeBlockIndex) ?? entry;
 	}
 
-	markCodeBlockCompleted(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): void {
-		const entry = this._models.get(this.getKey(sessionId, chat, codeBlockIndex));
+	markCodeBlockCompleted(sessionResource: URI, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number): void {
+		const entry = this._models.get(this.getKey(sessionResource, chat, codeBlockIndex));
 		if (!entry) {
 			return;
 		}
 		// TODO: fill this in once we've implemented https://github.com/microsoft/vscode/issues/232538
 	}
 
-	async update(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, content: CodeBlockContent): Promise<CodeBlockEntry> {
-		const entry = this.getOrCreate(sessionId, chat, codeBlockIndex);
+	async update(sessionResource: URI, chat: IChatRequestViewModel | IChatResponseViewModel, codeBlockIndex: number, content: CodeBlockContent): Promise<CodeBlockEntry> {
+		const entry = this.getOrCreate(sessionResource, chat, codeBlockIndex);
 
-		const newText = this.updateInternalCodeBlockEntry(content, sessionId, chat, codeBlockIndex);
+		const newText = this.updateInternalCodeBlockEntry(content, sessionResource, chat, codeBlockIndex);
 
 		const textModel = await entry.model;
 		if (!textModel || textModel.isDisposed()) {
@@ -176,8 +177,8 @@ export class CodeBlockModelCollection extends Disposable {
 		return entry;
 	}
 
-	private updateInternalCodeBlockEntry(content: CodeBlockContent, sessionId: string, chat: IChatResponseViewModel | IChatRequestViewModel, codeBlockIndex: number) {
-		const entry = this._models.get(this.getKey(sessionId, chat, codeBlockIndex));
+	private updateInternalCodeBlockEntry(content: CodeBlockContent, sessionResource: URI, chat: IChatResponseViewModel | IChatRequestViewModel, codeBlockIndex: number) {
+		const entry = this._models.get(this.getKey(sessionResource, chat, codeBlockIndex));
 		if (entry) {
 			entry.inLanguageId = content.languageId;
 		}
@@ -199,7 +200,7 @@ export class CodeBlockModelCollection extends Disposable {
 		}
 
 		if (content.isComplete) {
-			this.markCodeBlockCompleted(sessionId, chat, codeBlockIndex);
+			this.markCodeBlockCompleted(sessionResource, chat, codeBlockIndex);
 		}
 
 		return newText;
@@ -212,16 +213,17 @@ export class CodeBlockModelCollection extends Disposable {
 		}
 	}
 
-	private getKey(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, index: number): string {
-		return `${sessionId}/${chat.id}/${index}`;
+	private getKey(sessionResource: URI, chat: IChatRequestViewModel | IChatResponseViewModel, index: number): string {
+		return `${sessionResource.toString()}/${chat.id}/${index}`;
 	}
 
-	private getCodeBlockUri(sessionId: string, chat: IChatRequestViewModel | IChatResponseViewModel, index: number): URI {
+	private getCodeBlockUri(sessionResource: URI, chat: IChatRequestViewModel | IChatResponseViewModel, index: number): URI {
 		const metadata = this.getUriMetaData(chat);
 		const indexPart = this.tag ? `${this.tag}-${index}` : `${index}`;
+		const encodedSessionId = encodeBase64(VSBuffer.wrap(new TextEncoder().encode(sessionResource.toString())), false, true);
 		return URI.from({
 			scheme: Schemas.vscodeChatCodeBlock,
-			authority: sessionId,
+			authority: encodedSessionId,
 			path: `/${chat.id}/${indexPart}`,
 			fragment: metadata ? JSON.stringify(metadata) : undefined,
 		});

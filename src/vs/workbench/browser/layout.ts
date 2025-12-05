@@ -199,6 +199,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (targetDocument === this.mainContainer.ownerDocument) {
 			return this.mainContainer; // main window
 		} else {
+			// eslint-disable-next-line no-restricted-syntax
 			return targetDocument.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement; // auxiliary window
 		}
 	}
@@ -2506,7 +2507,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private createGridDescriptor(): ISerializedGrid {
-		const { width, height } = this._mainContainerDimension!;
+		const { width, height } = this._mainContainerDimension;
 		const sideBarSize = this.stateModel.getInitializationValue(LayoutStateKeys.SIDEBAR_SIZE);
 		const auxiliaryBarSize = this.stateModel.getInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE);
 		const panelSize = this.stateModel.getInitializationValue(LayoutStateKeys.PANEL_SIZE);
@@ -3050,7 +3051,6 @@ class LayoutStateModel extends Disposable {
 
 	private loadKeyFromStorage<T extends StorageKeyType>(key: WorkbenchLayoutStateKey<T>): T | undefined {
 		const value = this.storageService.get(`${LayoutStateModel.STORAGE_PREFIX}${key.name}`, key.scope);
-
 		if (value !== undefined) {
 			this.isNew[key.scope] = false; // remember that we had previous state for this scope
 

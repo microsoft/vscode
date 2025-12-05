@@ -251,6 +251,7 @@ export class Button extends Disposable implements IButton {
 			rendered.dispose();
 
 			// Don't include outer `<p>`
+			// eslint-disable-next-line no-restricted-syntax
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
 				safeSetInnerHtml(labelElement, root, buttonSanitizerConfig);
@@ -652,6 +653,7 @@ export class ButtonWithIcon extends Button {
 			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
 			rendered.dispose();
 
+			// eslint-disable-next-line no-restricted-syntax
 			const root = rendered.element.querySelector('p')?.innerHTML;
 			if (root) {
 				safeSetInnerHtml(this._mdlabelElement, root, buttonSanitizerConfig);

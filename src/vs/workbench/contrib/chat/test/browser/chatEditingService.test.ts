@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -106,6 +106,8 @@ suite('ChatEditingService', function () {
 		chatService = insta.get(IChatService);
 
 		store.add(insta.get(IChatSessionsService) as ChatSessionsService); // Needs to be disposed in between test runs to clear extensionPoint contribution
+		store.add(chatService as ChatService);
+		chatService.setSaveModelsEnabled(false);
 
 		const chatAgentService = insta.get(IChatAgentService);
 
@@ -128,7 +130,7 @@ suite('ChatEditingService', function () {
 		}));
 	});
 
-	teardown(() => {
+	teardown(async () => {
 		store.clear();
 	});
 
@@ -137,19 +139,20 @@ suite('ChatEditingService', function () {
 	test('create session', async function () {
 		assert.ok(editingService);
 
-		const model = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
-		const session = await editingService.createEditingSession(model, true);
+		const modelRef = chatService.startSession(ChatAgentLocation.EditorInline);
+		const model = modelRef.object as ChatModel;
+		const session = editingService.createEditingSession(model, true);
 
-		assert.strictEqual(session.chatSessionId, model.sessionId);
+		assert.strictEqual(session.chatSessionResource.toString(), model.sessionResource.toString());
 		assert.strictEqual(session.isGlobalEditingSession, true);
 
 		await assertThrowsAsync(async () => {
 			// DUPE not allowed
-			await editingService.createEditingSession(model);
+			editingService.createEditingSession(model);
 		});
 
 		session.dispose();
-		model.dispose();
+		modelRef.dispose();
 	});
 
 	test('create session, file entry & isCurrentlyBeingModifiedBy', async function () {
@@ -157,8 +160,9 @@ suite('ChatEditingService', function () {
 
 		const uri = URI.from({ scheme: 'test', path: 'HelloWorld' });
 
-		const model = chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
-		const session = await model.editingSessionObs?.promise;
+		const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+		const model = modelRef.object as ChatModel;
+		const session = model.editingSession;
 		if (!session) {
 			assert.fail('session not created');
 		}
@@ -183,8 +187,6 @@ suite('ChatEditingService', function () {
 		await unset;
 
 		await entry.reject();
-
-		model.dispose();
 	});
 
 	async function idleAfterEdit(session: IChatEditingSession, model: ChatModel, uri: URI, edits: TextEdit[]) {
@@ -210,96 +212,129 @@ suite('ChatEditingService', function () {
 	}
 
 	test('mirror typing outside -> accept', async function () {
-		assert.ok(editingService);
+		return runWithFakedTimers({}, async () => {
+			assert.ok(editingService);
 
-		const uri = URI.from({ scheme: 'test', path: 'abc\n' });
+			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-		const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
-		const session = await model.editingSessionObs?.promise;
-		assertType(session, 'session not created');
+			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+			const model = modelRef.object as ChatModel;
+			const session = model.editingSession;
+			assertType(session, 'session not created');
 
-		const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'FarBoo\n' }]);
-		const original = store.add(await textModelService.createModelReference(entry.originalURI)).object.textEditorModel;
-		const modified = store.add(await textModelService.createModelReference(entry.modifiedURI)).object.textEditorModel;
+			const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'FarBoo\n' }]);
+			const original = store.add(await textModelService.createModelReference(entry.originalURI)).object.textEditorModel;
+			const modified = store.add(await textModelService.createModelReference(entry.modifiedURI)).object.textEditorModel;
 
-		assert.strictEqual(entry.state.get(), ModifiedFileEntryState.Modified);
+			assert.strictEqual(entry.state.get(), ModifiedFileEntryState.Modified);
 
-		assert.strictEqual(original.getValue(), 'abc\n'.repeat(10));
-		assert.strictEqual(modified.getValue(), 'FarBoo\n' + 'abc\n'.repeat(10));
+			assert.strictEqual(original.getValue(), 'abc\n'.repeat(10));
+			assert.strictEqual(modified.getValue(), 'FarBoo\n' + 'abc\n'.repeat(10));
 
-		modified.pushEditOperations(null, [EditOperation.insert(new Position(3, 1), 'USER_TYPE\n')], () => null);
+			modified.pushEditOperations(null, [EditOperation.insert(new Position(3, 1), 'USER_TYPE\n')], () => null);
 
-		assert.ok(modified.getValue().includes('USER_TYPE'));
-		assert.ok(original.getValue().includes('USER_TYPE'));
+			assert.ok(modified.getValue().includes('USER_TYPE'));
+			assert.ok(original.getValue().includes('USER_TYPE'));
 
-		await entry.accept();
-		assert.strictEqual(modified.getValue(), original.getValue());
-		assert.strictEqual(entry.state.get(), ModifiedFileEntryState.Accepted);
+			await entry.accept();
+			assert.strictEqual(modified.getValue(), original.getValue());
+			assert.strictEqual(entry.state.get(), ModifiedFileEntryState.Accepted);
 
-		assert.ok(modified.getValue().includes('FarBoo'));
-		assert.ok(original.getValue().includes('FarBoo'));
+			assert.ok(modified.getValue().includes('FarBoo'));
+			assert.ok(original.getValue().includes('FarBoo'));
+		});
 	});
 
 	test('mirror typing outside -> reject', async function () {
-		assert.ok(editingService);
+		return runWithFakedTimers({}, async () => {
+			assert.ok(editingService);
 
-		const uri = URI.from({ scheme: 'test', path: 'abc\n' });
+			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-		const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
-		const session = await model.editingSessionObs?.promise;
-		assertType(session, 'session not created');
+			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+			const model = modelRef.object as ChatModel;
+			const session = model.editingSession;
+			assertType(session, 'session not created');
 
-		const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'FarBoo\n' }]);
-		const original = store.add(await textModelService.createModelReference(entry.originalURI)).object.textEditorModel;
-		const modified = store.add(await textModelService.createModelReference(entry.modifiedURI)).object.textEditorModel;
+			const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'FarBoo\n' }]);
+			const original = store.add(await textModelService.createModelReference(entry.originalURI)).object.textEditorModel;
+			const modified = store.add(await textModelService.createModelReference(entry.modifiedURI)).object.textEditorModel;
 
-		assert.strictEqual(entry.state.get(), ModifiedFileEntryState.Modified);
+			assert.strictEqual(entry.state.get(), ModifiedFileEntryState.Modified);
 
-		assert.strictEqual(original.getValue(), 'abc\n'.repeat(10));
-		assert.strictEqual(modified.getValue(), 'FarBoo\n' + 'abc\n'.repeat(10));
+			assert.strictEqual(original.getValue(), 'abc\n'.repeat(10));
+			assert.strictEqual(modified.getValue(), 'FarBoo\n' + 'abc\n'.repeat(10));
 
-		modified.pushEditOperations(null, [EditOperation.insert(new Position(3, 1), 'USER_TYPE\n')], () => null);
+			modified.pushEditOperations(null, [EditOperation.insert(new Position(3, 1), 'USER_TYPE\n')], () => null);
 
-		assert.ok(modified.getValue().includes('USER_TYPE'));
-		assert.ok(original.getValue().includes('USER_TYPE'));
+			assert.ok(modified.getValue().includes('USER_TYPE'));
+			assert.ok(original.getValue().includes('USER_TYPE'));
 
-		await entry.reject();
-		assert.strictEqual(modified.getValue(), original.getValue());
-		assert.strictEqual(entry.state.get(), ModifiedFileEntryState.Rejected);
+			await entry.reject();
+			assert.strictEqual(modified.getValue(), original.getValue());
+			assert.strictEqual(entry.state.get(), ModifiedFileEntryState.Rejected);
 
-		assert.ok(!modified.getValue().includes('FarBoo'));
-		assert.ok(!original.getValue().includes('FarBoo'));
+			assert.ok(!modified.getValue().includes('FarBoo'));
+			assert.ok(!original.getValue().includes('FarBoo'));
+		});
 	});
 
 	test('NO mirror typing inside -> accept', async function () {
-		assert.ok(editingService);
+		return runWithFakedTimers({}, async () => {
+			assert.ok(editingService);
 
-		const uri = URI.from({ scheme: 'test', path: 'abc\n' });
+			const uri = URI.from({ scheme: 'test', path: 'abc\n' });
 
-		const model = store.add(chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None));
-		const session = await model.editingSessionObs?.promise;
-		assertType(session, 'session not created');
+			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+			const model = modelRef.object as ChatModel;
+			const session = model.editingSession;
+			assertType(session, 'session not created');
 
-		const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'FarBoo\n' }]);
-		const original = store.add(await textModelService.createModelReference(entry.originalURI)).object.textEditorModel;
-		const modified = store.add(await textModelService.createModelReference(entry.modifiedURI)).object.textEditorModel;
+			const entry = await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'FarBoo\n' }]);
+			const original = store.add(await textModelService.createModelReference(entry.originalURI)).object.textEditorModel;
+			const modified = store.add(await textModelService.createModelReference(entry.modifiedURI)).object.textEditorModel;
 
-		assert.strictEqual(entry.state.get(), ModifiedFileEntryState.Modified);
+			assert.strictEqual(entry.state.get(), ModifiedFileEntryState.Modified);
 
-		assert.strictEqual(original.getValue(), 'abc\n'.repeat(10));
-		assert.strictEqual(modified.getValue(), 'FarBoo\n' + 'abc\n'.repeat(10));
+			assert.strictEqual(original.getValue(), 'abc\n'.repeat(10));
+			assert.strictEqual(modified.getValue(), 'FarBoo\n' + 'abc\n'.repeat(10));
 
-		modified.pushEditOperations(null, [EditOperation.replace(new Range(1, 2, 1, 7), 'ooBar')], () => null);
+			modified.pushEditOperations(null, [EditOperation.replace(new Range(1, 2, 1, 7), 'ooBar')], () => null);
 
-		assert.ok(modified.getValue().includes('FooBar'));
-		assert.ok(!original.getValue().includes('FooBar')); // typed in the AI edits, DO NOT transpose
+			assert.ok(modified.getValue().includes('FooBar'));
+			assert.ok(!original.getValue().includes('FooBar')); // typed in the AI edits, DO NOT transpose
 
-		await entry.accept();
-		assert.strictEqual(modified.getValue(), original.getValue());
-		assert.strictEqual(entry.state.get(), ModifiedFileEntryState.Accepted);
+			await entry.accept();
+			assert.strictEqual(modified.getValue(), original.getValue());
+			assert.strictEqual(entry.state.get(), ModifiedFileEntryState.Accepted);
 
-		assert.ok(modified.getValue().includes('FooBar'));
-		assert.ok(original.getValue().includes('FooBar'));
+			assert.ok(modified.getValue().includes('FooBar'));
+			assert.ok(original.getValue().includes('FooBar'));
+		});
+	});
+
+	test('ChatEditingService merges text edits it shouldn\'t merge, #272679', async function () {
+		return runWithFakedTimers({}, async () => {
+			assert.ok(editingService);
+
+			const uri = URI.from({ scheme: 'test', path: 'abc' });
+
+			const modified = store.add(await textModelService.createModelReference(uri)).object.textEditorModel;
+
+			const modelRef = store.add(chatService.startSession(ChatAgentLocation.Chat));
+			const model = modelRef.object as ChatModel;
+			const session = model.editingSession;
+			assertType(session, 'session not created');
+
+			modified.setValue('');
+			await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'a' }, { range: new Range(1, 1, 1, 1), text: 'b' }]);
+			assert.strictEqual(modified.getValue(), 'ab');
+
+			modified.setValue('');
+			await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'a' }]);
+			await idleAfterEdit(session, model, uri, [{ range: new Range(1, 1, 1, 1), text: 'b' }]);
+			assert.strictEqual(modified.getValue(), 'ba');
+		});
 	});
 
 });

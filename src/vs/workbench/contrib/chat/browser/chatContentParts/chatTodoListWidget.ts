@@ -18,6 +18,8 @@ import { WorkbenchList } from '../../../../../platform/list/browser/listService.
 import { IChatTodoListService, IChatTodo } from '../../common/chatTodoListService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { TodoListToolDescriptionFieldSettingId } from '../../common/tools/manageTodoListTool.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 
 class TodoListDelegate implements IListVirtualDelegate<IChatTodo> {
 	getHeight(element: IChatTodo): number {
@@ -128,10 +130,12 @@ export class ChatTodoListWidget extends Disposable {
 	private _isExpanded: boolean = false;
 	private _userManuallyExpanded: boolean = false;
 	private expandoButton!: Button;
+	private expandIcon!: HTMLElement;
+	private titleElement!: HTMLElement;
 	private todoListContainer!: HTMLElement;
 	private clearButtonContainer!: HTMLElement;
 	private clearButton!: Button;
-	private _currentSessionId: string | undefined;
+	private _currentSessionResource: URI | undefined;
 	private _todoList: WorkbenchList<IChatTodo> | undefined;
 
 	constructor(
@@ -156,6 +160,11 @@ export class ChatTodoListWidget extends Disposable {
 		return this.domNode.style.display === 'none' ? 0 : this.domNode.offsetHeight;
 	}
 
+	private hideWidget(): void {
+		this.domNode.style.display = 'none';
+		this._onDidChangeHeight.fire();
+	}
+
 	private createChatTodoWidget(): HTMLElement {
 		const container = dom.$('.chat-todo-list-widget');
 		container.style.display = 'none';
@@ -170,20 +179,20 @@ export class ChatTodoListWidget extends Disposable {
 		// Create title section to group icon and title
 		const titleSection = dom.$('.todo-list-title-section');
 
-		const expandIcon = dom.$('.expand-icon.codicon');
-		expandIcon.classList.add(this._isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
-		expandIcon.setAttribute('aria-hidden', 'true');
+		this.expandIcon = dom.$('.expand-icon.codicon');
+		this.expandIcon.classList.add(this._isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
+		this.expandIcon.setAttribute('aria-hidden', 'true');
 
-		const titleElement = dom.$('.todo-list-title');
-		titleElement.id = 'todo-list-title';
-		titleElement.textContent = localize('chat.todoList.title', 'Todos');
+		this.titleElement = dom.$('.todo-list-title');
+		this.titleElement.id = 'todo-list-title';
+		this.titleElement.textContent = localize('chat.todoList.title', 'Todos');
 
 		// Add clear button container to the expand element
 		this.clearButtonContainer = dom.$('.todo-clear-button-container');
 		this.createClearButton();
 
-		titleSection.appendChild(expandIcon);
-		titleSection.appendChild(titleElement);
+		titleSection.appendChild(this.expandIcon);
+		titleSection.appendChild(this.titleElement);
 
 		this.expandoButton.element.appendChild(titleSection);
 		this.expandoButton.element.appendChild(this.clearButtonContainer);
@@ -217,39 +226,39 @@ export class ChatTodoListWidget extends Disposable {
 		}));
 	}
 
-	public render(sessionId: string | undefined): void {
-		if (!sessionId) {
-			this.domNode.style.display = 'none';
-			this._onDidChangeHeight.fire();
+	public render(sessionResource: URI | undefined): void {
+		if (!sessionResource) {
+			this.hideWidget();
 			return;
 		}
 
-		if (this._currentSessionId !== sessionId) {
+		if (!isEqual(this._currentSessionResource, sessionResource)) {
 			this._userManuallyExpanded = false;
-			this._currentSessionId = sessionId;
+			this._currentSessionResource = sessionResource;
+			this.hideWidget();
 		}
 
 		this.updateTodoDisplay();
 	}
 
-	public clear(sessionId: string | undefined, force: boolean = false): void {
-		if (!sessionId || this.domNode.style.display === 'none') {
+	public clear(sessionResource: URI | undefined, force: boolean = false): void {
+		if (!sessionResource || this.domNode.style.display === 'none') {
 			return;
 		}
 
-		const currentTodos = this.chatTodoListService.getTodos(sessionId);
-		const shouldClear = force || !currentTodos.some(todo => todo.status !== 'completed');
+		const currentTodos = this.chatTodoListService.getTodos(sessionResource);
+		const shouldClear = force || (currentTodos.length > 0 && !currentTodos.some(todo => todo.status !== 'completed'));
 		if (shouldClear) {
 			this.clearAllTodos();
 		}
 	}
 
 	private updateTodoDisplay(): void {
-		if (!this._currentSessionId) {
+		if (!this._currentSessionResource) {
 			return;
 		}
 
-		const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+		const todoList = this.chatTodoListService.getTodos(this._currentSessionResource);
 		const shouldShow = todoList.length > 2;
 
 		if (!shouldShow) {
@@ -264,10 +273,7 @@ export class ChatTodoListWidget extends Disposable {
 	}
 
 	private renderTodoList(todoList: IChatTodo[]): void {
-		const titleElement = this.expandoButton.element.querySelector('.todo-list-title') as HTMLElement;
-		if (titleElement) {
-			this.updateTitleElement(titleElement, todoList);
-		}
+		this.updateTitleElement(this.titleElement, todoList);
 
 		const allIncomplete = todoList.every(todo => todo.status === 'not-started');
 		if (allIncomplete) {
@@ -318,13 +324,10 @@ export class ChatTodoListWidget extends Disposable {
 			this.expandoButton.element.setAttribute('aria-expanded', 'false');
 			this.todoListContainer.style.display = 'none';
 
-			const expandIcon = this.expandoButton.element.querySelector('.expand-icon') as HTMLElement;
-			if (expandIcon) {
-				expandIcon.classList.remove('codicon-chevron-down');
-				expandIcon.classList.add('codicon-chevron-right');
-			}
+			this.expandIcon.classList.remove('codicon-chevron-down');
+			this.expandIcon.classList.add('codicon-chevron-right');
 
-			this.updateTitleElement(titleElement, todoList);
+			this.updateTitleElement(this.titleElement, todoList);
 			this._onDidChangeHeight.fire();
 		}
 	}
@@ -333,41 +336,34 @@ export class ChatTodoListWidget extends Disposable {
 		this._isExpanded = !this._isExpanded;
 		this._userManuallyExpanded = true;
 
-		const expandIcon = this.expandoButton.element.querySelector('.expand-icon') as HTMLElement;
-		if (expandIcon) {
-			expandIcon.classList.toggle('codicon-chevron-down', this._isExpanded);
-			expandIcon.classList.toggle('codicon-chevron-right', !this._isExpanded);
-		}
+		this.expandIcon.classList.toggle('codicon-chevron-down', this._isExpanded);
+		this.expandIcon.classList.toggle('codicon-chevron-right', !this._isExpanded);
 
 		this.todoListContainer.style.display = this._isExpanded ? 'block' : 'none';
 
-		if (this._currentSessionId) {
-			const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
-			const titleElement = this.expandoButton.element.querySelector('.todo-list-title') as HTMLElement;
-			if (titleElement) {
-				this.updateTitleElement(titleElement, todoList);
-			}
+		if (this._currentSessionResource) {
+			const todoList = this.chatTodoListService.getTodos(this._currentSessionResource);
+			this.updateTitleElement(this.titleElement, todoList);
 		}
 
 		this._onDidChangeHeight.fire();
 	}
 
 	private clearAllTodos(): void {
-		if (!this._currentSessionId) {
+		if (!this._currentSessionResource) {
 			return;
 		}
 
-		this.chatTodoListService.setTodos(this._currentSessionId, []);
-		this.domNode.style.display = 'none';
-		this._onDidChangeHeight.fire();
+		this.chatTodoListService.setTodos(this._currentSessionResource, []);
+		this.hideWidget();
 	}
 
 	private updateClearButtonState(): void {
-		if (!this._currentSessionId) {
+		if (!this._currentSessionResource) {
 			return;
 		}
 
-		const todoList = this.chatTodoListService.getTodos(this._currentSessionId);
+		const todoList = this.chatTodoListService.getTodos(this._currentSessionResource);
 		const hasInProgressTask = todoList.some(todo => todo.status === 'in-progress');
 		const isRequestInProgress = ChatContextKeys.requestInProgress.getValue(this.contextKeyService) ?? false;
 		const shouldDisable = isRequestInProgress && hasInProgressTask;
@@ -433,7 +429,7 @@ export class ChatTodoListWidget extends Disposable {
 			// Show "Done" when all tasks are completed
 			else if (completedCount > 0 && completedCount === totalCount) {
 				const doneText = dom.$('span');
-				doneText.textContent = localize('chat.todoList.allDone', 'Done');
+				doneText.textContent = localize('chat.todoList.titleWithCount', 'Todos ({0}/{1})', totalCount, totalCount);
 				doneText.style.verticalAlign = 'middle';
 				titleElement.appendChild(doneText);
 			}

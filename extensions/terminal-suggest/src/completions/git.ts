@@ -6456,7 +6456,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: ["rm", "remove"],
-					description: "Removes given remote [name]",
+					description: "Removes the given remote",
 					args: {
 						name: "remote",
 						generators: gitGenerators.remotes,
@@ -6465,7 +6465,7 @@ const completionSpec: Fig.Spec = {
 				},
 				{
 					name: "rename",
-					description: "Removes given remote [name]",
+					description: "Renames the given remote",
 					args: [
 						{
 							name: "old remote",

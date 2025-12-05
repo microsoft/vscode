@@ -351,6 +351,34 @@ export class SettingsEditor2 extends EditorPane {
 		});
 	}
 
+	private canShowAdvancedSettings(): boolean {
+		return this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) ?? false;
+	}
+
+	/**
+	 * Determines whether a setting should be shown even when advanced settings are filtered out.
+	 * Returns true if:
+	 * - The setting is not tagged as advanced, OR
+	 * - The setting matches an ID filter (@id:settingKey), OR
+	 * - The setting key appears in the search query, OR
+	 * - The @hasPolicy filter is active (policy settings should always be shown when filtering by policy)
+	 */
+	private shouldShowSetting(setting: ISetting): boolean {
+		if (!setting.tags?.includes(ADVANCED_SETTING_TAG)) {
+			return true;
+		}
+		if (this.viewState.idFilters?.has(setting.key)) {
+			return true;
+		}
+		if (this.viewState.query?.toLowerCase().includes(setting.key.toLowerCase())) {
+			return true;
+		}
+		if (this.viewState.tagFilters?.has(POLICY_SETTING_TAG)) {
+			return true;
+		}
+		return false;
+	}
+
 	private disableAiSearchToggle(): void {
 		if (this.showAiResultsAction) {
 			this.showAiResultsAction.checked = false;
@@ -583,6 +611,7 @@ export class SettingsEditor2 extends EditorPane {
 		} else if (this._currentFocusContext === SettingsFocusContext.SettingControl) {
 			const element = this.focusedSettingDOMElement;
 			if (element) {
+				// eslint-disable-next-line no-restricted-syntax
 				const control = element.querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
 				if (control) {
 					(<HTMLElement>control).focus();
@@ -617,6 +646,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.settingsTree.domFocus();
 
 		if (focusSettingInput) {
+			// eslint-disable-next-line no-restricted-syntax
 			const controlInFocusedRow = this.settingsTree.getHTMLElement().querySelector(`.focused ${AbstractSettingRenderer.CONTROL_SELECTOR}`);
 			if (controlInFocusedRow) {
 				(<HTMLElement>controlInFocusedRow).focus();
@@ -823,6 +853,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private onDidClickSetting(evt: ISettingLinkClickEvent, recursed?: boolean): void {
+		// eslint-disable-next-line no-restricted-syntax
 		const targetElement = this.currentSettingsModel?.getElementsByName(evt.targetKey)?.[0];
 		let revealFailed = false;
 		if (targetElement) {
@@ -863,6 +894,7 @@ export class SettingsEditor2 extends EditorPane {
 
 				const domElements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), evt.targetKey);
 				if (domElements && domElements[0]) {
+					// eslint-disable-next-line no-restricted-syntax
 					const control = domElements[0].querySelector(AbstractSettingRenderer.CONTROL_SELECTOR);
 					if (control) {
 						(<HTMLElement>control).focus();
@@ -1406,7 +1438,7 @@ export class SettingsEditor2 extends EditorPane {
 				coreSettingsGroups.push(group);
 			}
 		}
-		const filter = this.viewState.tagFilters?.has(ADVANCED_SETTING_TAG) ? undefined : { exclude: { tags: [ADVANCED_SETTING_TAG] } };
+		const filter = this.canShowAdvancedSettings() ? undefined : { exclude: { tags: [ADVANCED_SETTING_TAG] } };
 
 		const settingsResult = resolveSettingsTree(tocData, coreSettingsGroups, filter, this.logService);
 		const resolvedSettingsRoot = settingsResult.tree;
@@ -1521,9 +1553,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, extensionSettingsGroups, filter));
 
-		const commonlyUsedDataToUse = getCommonlyUsedData(toggleData);
-		const commonlyUsed = resolveSettingsTree(commonlyUsedDataToUse, groups, undefined, this.logService);
-		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
+		resolvedSettingsRoot.children!.unshift(getCommonlyUsedData(groups, toggleData?.commonlyUsed));
 
 		if (toggleData && setAdditionalGroups) {
 			// Add the additional groups to the model to help with searching.
@@ -1601,6 +1631,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// If the context view is focused, delay rendering settings
 		if (this.contextViewFocused()) {
+			// eslint-disable-next-line no-restricted-syntax
 			const element = this.window.document.querySelector('.context-view');
 			if (element) {
 				this.scheduleRefresh(element as HTMLElement, key);
@@ -1632,6 +1663,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.renderResultCountMessages(false);
 
 		if (key) {
+			// eslint-disable-next-line no-restricted-syntax
 			const elements = this.currentSettingsModel?.getElementsByName(key);
 			if (elements?.length) {
 				if (elements.length >= 2) {
@@ -1678,6 +1710,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (!this.currentSettingsModel) {
 			return;
 		}
+		// eslint-disable-next-line no-restricted-syntax
 		const dataElements = this.currentSettingsModel.getElementsByName(key);
 		const isModified = dataElements && dataElements[0] && dataElements[0].isConfigured; // all elements are either configured or not
 		const elements = this.settingRenderers.getDOMElementsForSettingKey(this.settingsTree.getHTMLElement(), key);
@@ -1798,9 +1831,13 @@ export class SettingsEditor2 extends EditorPane {
 			filterMatches: [],
 			exactMatch: false,
 		};
+		const shouldShowAdvanced = this.canShowAdvancedSettings();
 		for (const g of this.defaultSettingsEditorModel.settingsGroups.slice(1)) {
 			for (const sect of g.sections) {
 				for (const setting of sect.settings) {
+					if (!shouldShowAdvanced && !this.shouldShowSetting(setting)) {
+						continue;
+					}
 					fullResult.filterMatches.push({
 						setting,
 						matches: [],
@@ -1956,6 +1993,11 @@ export class SettingsEditor2 extends EditorPane {
 		if (token.isCancellationRequested) {
 			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
 			return null;
+		}
+
+		// Filter out advanced settings unless the advanced tag is explicitly set or setting matches an ID filter
+		if (result && !this.canShowAdvancedSettings()) {
+			result.filterMatches = result.filterMatches.filter(match => this.shouldShowSetting(match.setting));
 		}
 
 		// Only log the elapsed time if there are actual results.

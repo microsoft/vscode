@@ -1,6 +1,6 @@
 {
 	// --- Chat ---
-	// "inlineChat.enableV2": true,
+	"inlineChat.enableV2": true,
 	"chat.tools.terminal.autoApprove": {
 		"/^npm (test|lint|run compile)\\b/": true,
 		"/^npx tsc\\b.*--noEmit/": true,
@@ -18,7 +18,6 @@
 	// "editor.experimental.preferTreeSitter.typescript": true,
 	// "editor.experimental.preferTreeSitter.regex": true,
 	// "editor.experimental.preferTreeSitter.css": true,
-
 	// --- Language Specific ---
 	"[plaintext]": {
 		"files.insertFinalNewline": false
@@ -63,7 +62,6 @@
 		"**/yarn.lock": true,
 		"**/package-lock.json": true,
 		"**/Cargo.lock": true,
-		"build/**/*.js": true,
 		"out/**": true,
 		"out-build/**": true,
 		"out-vscode/**": true,
@@ -74,12 +72,6 @@
 		"test/smoke/out/**": true,
 		"test/automation/out/**": true,
 		"test/integration/browser/out/**": true
-	},
-	"files.readonlyExclude": {
-		"build/builtin/*.js": true,
-		"build/monaco/*.js": true,
-		"build/npm/*.js": true,
-		"build/*.js": true
 	},
 
 	// --- Search ---
@@ -213,18 +205,11 @@
 
 	// --- Workbench ---
 	// "application.experimental.rendererProfiling": true, // https://github.com/microsoft/vscode/issues/265654
-
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
-	"chat.emptyState.history.enabled": true,
-	"chat.agentSessionsViewLocation": "view",
-	"chat.promptFilesRecommendations": {
-		"plan-fast": true,
-		"plan-deep": true
-	},
-	// Needed for kusto tool in data.prompt.md
 	"azureMcp.enabledServices": [
-		"kusto"
+		"kusto" // Needed for kusto tool in data.prompt.md
 	],
 	"azureMcp.serverMode": "all",
-	"azureMcp.readOnly": true
+	"azureMcp.readOnly": true,
+	"chat.tools.terminal.outputLocation": "none",
 }

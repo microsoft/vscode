@@ -20,7 +20,7 @@ import { IAccessibilityService } from '../../accessibility/common/accessibility.
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { ContextViewHandler } from '../../contextview/browser/contextViewService.js';
-import { isManagedHoverTooltipMarkdownString, type IHoverLifecycleOptions, type IHoverOptions, type IHoverWidget, type IManagedHover, type IManagedHoverContentOrFactory, type IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
+import { HoverStyle, isManagedHoverTooltipMarkdownString, type IHoverLifecycleOptions, type IHoverOptions, type IHoverTarget, type IHoverWidget, type IManagedHover, type IManagedHoverContentOrFactory, type IManagedHoverOptions } from '../../../base/browser/ui/hover/hover.js';
 import type { IHoverDelegate, IHoverDelegateTarget } from '../../../base/browser/ui/hover/hoverDelegate.js';
 import { ManagedHoverWidget } from './updatableHoverWidget.js';
 import { timeout, TimeoutTimer } from '../../../base/common/async.js';
@@ -139,10 +139,16 @@ export class HoverService extends Disposable implements IHoverService {
 		options: (() => Omit<IHoverOptions, 'target'>) | Omit<IHoverOptions, 'target'>,
 		lifecycleOptions?: IHoverLifecycleOptions,
 	): IDisposable {
-		const resolveHoverOptions = () => ({
-			...typeof options === 'function' ? options() : options,
-			target
-		} satisfies IHoverOptions);
+		const resolveHoverOptions = (e?: MouseEvent) => {
+			const resolved: IHoverOptions = {
+				...typeof options === 'function' ? options() : options,
+				target
+			};
+			if (resolved.style === HoverStyle.Mouse && e) {
+				resolved.target = resolveMouseStyleHoverTarget(target, e);
+			}
+			return resolved;
+		};
 		return this._setupDelayedHover(target, resolveHoverOptions, lifecycleOptions);
 	}
 
@@ -153,10 +159,7 @@ export class HoverService extends Disposable implements IHoverService {
 	): IDisposable {
 		const resolveHoverOptions = (e?: MouseEvent) => ({
 			...typeof options === 'function' ? options() : options,
-			target: {
-				targetElements: [target],
-				x: e !== undefined ? e.x + 10 : undefined,
-			}
+			target: e ? resolveMouseStyleHoverTarget(target, e) : target
 		} satisfies IHoverOptions);
 		return this._setupDelayedHover(target, resolveHoverOptions, lifecycleOptions);
 	}
@@ -444,7 +447,7 @@ export class HoverService extends Disposable implements IHoverService {
 				// track the mouse position
 				const onMouseMove = (e: MouseEvent) => {
 					target.x = e.x + 10;
-					if ((isHTMLElement(e.target)) && getHoverTargetElement(e.target, targetElement) !== targetElement) {
+					if (!eventIsRelatedToTarget(e, targetElement)) {
 						hideHover(true, true);
 					}
 				};
@@ -453,17 +456,21 @@ export class HoverService extends Disposable implements IHoverService {
 
 			hoverPreparation = mouseOverStore;
 
-			if ((isHTMLElement(e.target)) && getHoverTargetElement(e.target as HTMLElement, targetElement) !== targetElement) {
+			if (!eventIsRelatedToTarget(e, targetElement)) {
 				return; // Do not show hover when the mouse is over another hover target
 			}
 
 			mouseOverStore.add(triggerShowHover(typeof hoverDelegate.delay === 'function' ? hoverDelegate.delay(content) : hoverDelegate.delay, false, target));
 		}, true));
 
-		const onFocus = () => {
+		const onFocus = (e: FocusEvent) => {
 			if (isMouseDown || hoverPreparation) {
 				return;
 			}
+			if (!eventIsRelatedToTarget(e, targetElement)) {
+				return; // Do not show hover when the focus is on another hover target
+			}
+
 			const target: IHoverDelegateTarget = {
 				targetElements: [targetElement],
 				dispose: () => { }
@@ -597,12 +604,23 @@ class HoverContextViewDelegate implements IDelegate {
 	}
 }
 
+function eventIsRelatedToTarget(event: UIEvent, target: HTMLElement): boolean {
+	return isHTMLElement(event.target) && getHoverTargetElement(event.target, target) === target;
+}
+
 function getHoverTargetElement(element: HTMLElement, stopElement?: HTMLElement): HTMLElement {
 	stopElement = stopElement ?? getWindow(element).document.body;
 	while (!element.hasAttribute('custom-hover') && element !== stopElement) {
 		element = element.parentElement!;
 	}
 	return element;
+}
+
+function resolveMouseStyleHoverTarget(target: HTMLElement, e: MouseEvent): IHoverTarget {
+	return {
+		targetElements: [target],
+		x: e.x + 10
+	};
 }
 
 registerSingleton(IHoverService, HoverService, InstantiationType.Delayed);

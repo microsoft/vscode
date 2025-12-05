@@ -231,15 +231,11 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput {
-		if ('pid' in deserializedInput) {
-			const newDeserializedInput = { ...deserializedInput, findRevivedId: true };
-			const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: newDeserializedInput }, TerminalLocation.Editor);
-			const input = this._instantiationService.createInstance(TerminalEditorInput, instance.resource, instance);
-			this._registerInstance(instance.resource.path, input, instance);
-			return input;
-		} else {
-			throw new Error(`Could not revive terminal editor input, ${deserializedInput}`);
-		}
+		const newDeserializedInput = { ...deserializedInput, findRevivedId: true };
+		const instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: newDeserializedInput }, TerminalLocation.Editor);
+		const input = this._instantiationService.createInstance(TerminalEditorInput, instance.resource, instance);
+		this._registerInstance(instance.resource.path, input, instance);
+		return input;
 	}
 
 	detachInstance(instance: ITerminalInstance) {

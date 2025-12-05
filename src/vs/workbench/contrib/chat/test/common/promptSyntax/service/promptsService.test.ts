@@ -36,9 +36,13 @@ import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '..
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, LEGACY_MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { ICustomAgent, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ExtensionAgentSourceType, ICustomAgent, ICustomAgentQueryOptions, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
-import { MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { mockFiles } from '../testUtils/mockFilesystem.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+import { IPathService } from '../../../../../../services/path/common/pathService.js';
+import { ISearchService } from '../../../../../../services/search/common/search.js';
+import { IExtensionService } from '../../../../../../services/extensions/common/extensions.js';
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,6 +50,8 @@ suite('PromptsService', () => {
 	let service: IPromptsService;
 	let instaService: TestInstantiationService;
 	let workspaceContextService: TestContextService;
+	let testConfigService: TestConfigurationService;
+	let fileService: IFileService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
@@ -54,7 +60,7 @@ suite('PromptsService', () => {
 		workspaceContextService = new TestContextService();
 		instaService.stub(IWorkspaceContextService, workspaceContextService);
 
-		const testConfigService = new TestConfigurationService();
+		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_MD, true);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_NESTED_AGENT_MD, false);
@@ -66,8 +72,13 @@ suite('PromptsService', () => {
 		instaService.stub(IWorkbenchEnvironmentService, {});
 		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instaService.stub(ITelemetryService, NullTelemetryService);
+		instaService.stub(IStorageService, InMemoryStorageService);
+		instaService.stub(IExtensionService, {
+			whenInstalledExtensionsRegistered: () => Promise.resolve(true),
+			activateByEvent: () => Promise.resolve()
+		});
 
-		const fileService = disposables.add(instaService.createInstance(FileService));
+		fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
 
 		const modelService = disposables.add(instaService.createInstance(ModelService));
@@ -92,6 +103,15 @@ suite('PromptsService', () => {
 
 		instaService.stub(IFilesConfigurationService, { updateReadonly: () => Promise.resolve() });
 
+		const pathService = {
+			userHome: (): URI | Promise<URI> => {
+				return Promise.resolve(URI.file('/home/user'));
+			},
+		} as IPathService;
+		instaService.stub(IPathService, pathService);
+
+		instaService.stub(ISearchService, {});
+
 		service = disposables.add(instaService.createInstance(PromptsService));
 		instaService.stub(IPromptsService, service);
 	});
@@ -109,107 +129,87 @@ suite('PromptsService', () => {
 
 			const rootFileUri = URI.joinPath(rootFolderUri, rootFileName);
 
-			await (instaService.createInstance(MockFilesystem,
-				// the file structure to be created on the disk for the test
-				[{
-					name: rootFolderName,
-					children: [
-						{
-							name: 'file1.prompt.md',
-							contents: [
-								'## Some Header',
-								'some contents',
-								' ',
-							],
-						},
-						{
-							name: rootFileName,
-							contents: [
-								'---',
-								'description: \'Root prompt description.\'',
-								'tools: [\'my-tool1\', , true]',
-								'agent: "agent" ',
-								'---',
-								'## Files',
-								'\t- this file #file:folder1/file3.prompt.md ',
-								'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
-								'## Vars',
-								'\t- #tool:my-tool',
-								'\t- #tool:my-other-tool',
-								' ',
-							],
-						},
-						{
-							name: 'folder1',
-							children: [
-								{
-									name: 'file3.prompt.md',
-									contents: [
-										'---',
-										'tools: [ false, \'my-tool1\' , ]',
-										'agent: \'edit\'',
-										'---',
-										'',
-										'[](./some-other-folder/non-existing-folder)',
-										`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.instructions.md contents`,
-										' some more\t content',
-									],
-								},
-								{
-									name: 'some-other-folder',
-									children: [
-										{
-											name: 'file4.prompt.md',
-											contents: [
-												'---',
-												'tools: [\'my-tool1\', "my-tool2", true, , ]',
-												'something: true',
-												'agent: \'ask\'\t',
-												'description: "File 4 splendid description."',
-												'---',
-												'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
-												'',
-												'',
-												'and some',
-												' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
-											],
-										},
-										{
-											name: 'file.txt',
-											contents: [
-												'---',
-												'description: "Non-prompt file description".',
-												'tools: ["my-tool-24"]',
-												'---',
-											],
-										},
-										{
-											name: 'yetAnotherFolder🤭',
-											children: [
-												{
-													name: 'another-file.instructions.md',
-													contents: [
-														'---',
-														'description: "Another file description."',
-														'tools: [\'my-tool3\', false, "my-tool2" ]',
-														'applyTo: "**/*.tsx"',
-														'---',
-														`[](${rootFolder}/folder1/some-other-folder)`,
-														'another-file.instructions.md contents\t [#file:file.txt](../file.txt)',
-													],
-												},
-												{
-													name: 'one_more_file_just_in_case.prompt.md',
-													contents: 'one_more_file_just_in_case.prompt.md contents',
-												},
-											],
-										},
-									],
-								},
-							],
-						},
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/file1.prompt.md`,
+					contents: [
+						'## Some Header',
+						'some contents',
+						' ',
 					],
-				}])).mock();
+				},
+				{
+					path: `${rootFolder}/${rootFileName}`,
+					contents: [
+						'---',
+						'description: \'Root prompt description.\'',
+						'tools: [\'my-tool1\', , true]',
+						'agent: "agent" ',
+						'---',
+						'## Files',
+						'\t- this file #file:folder1/file3.prompt.md ',
+						'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
+						'## Vars',
+						'\t- #tool:my-tool',
+						'\t- #tool:my-other-tool',
+						' ',
+					],
+				},
+				{
+					path: `${rootFolder}/folder1/file3.prompt.md`,
+					contents: [
+						'---',
+						'tools: [ false, \'my-tool1\' , ]',
+						'agent: \'edit\'',
+						'---',
+						'',
+						'[](./some-other-folder/non-existing-folder)',
+						`\t- some seemingly random #file:${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.instructions.md contents`,
+						' some more\t content',
+					],
+				},
+				{
+					path: `${rootFolder}/folder1/some-other-folder/file4.prompt.md`,
+					contents: [
+						'---',
+						'tools: [\'my-tool1\', "my-tool2", true, , ]',
+						'something: true',
+						'agent: \'ask\'\t',
+						'description: "File 4 splendid description."',
+						'---',
+						'this file has a non-existing #file:./some-non-existing/file.prompt.md\t\treference',
+						'',
+						'',
+						'and some',
+						' non-prompt #file:./some-non-prompt-file.md\t\t \t[](../../folder1/)\t',
+					],
+				},
+				{
+					path: `${rootFolder}/folder1/some-other-folder/file.txt`,
+					contents: [
+						'---',
+						'description: "Non-prompt file description".',
+						'tools: ["my-tool-24"]',
+						'---',
+					],
+				},
+				{
+					path: `${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/another-file.instructions.md`,
+					contents: [
+						'---',
+						'description: "Another file description."',
+						'tools: [\'my-tool3\', false, "my-tool2" ]',
+						'applyTo: "**/*.tsx"',
+						'---',
+						`[](${rootFolder}/folder1/some-other-folder)`,
+						'another-file.instructions.md contents\t [#file:file.txt](../file.txt)',
+					],
+				},
+				{
+					path: `${rootFolder}/folder1/some-other-folder/yetAnotherFolder🤭/one_more_file_just_in_case.prompt.md`,
+					contents: ['one_more_file_just_in_case.prompt.md contents'],
+				},
+			]);
 
 			const file3 = URI.joinPath(rootFolderUri, 'folder1/file3.prompt.md');
 			const file4 = URI.joinPath(rootFolderUri, 'folder1/some-other-folder/file4.prompt.md');
@@ -325,121 +325,104 @@ suite('PromptsService', () => {
 				]));
 
 			// mock current workspace file structure
-			await (instaService.createInstance(MockFilesystem,
-				[{
-					name: rootFolderName,
-					children: [
-						{
-							name: 'file1.prompt.md',
-							contents: [
-								'## Some Header',
-								'some contents',
-								' ',
-							],
-						},
-						{
-							name: '.github/prompts',
-							children: [
-								{
-									name: 'file1.instructions.md',
-									contents: [
-										'---',
-										'description: \'Instructions file 1.\'',
-										'applyTo: "**/*.tsx"',
-										'---',
-										'Some instructions 1 contents.',
-									],
-								},
-								{
-									name: 'file2.instructions.md',
-									contents: [
-										'---',
-										'description: \'Instructions file 2.\'',
-										'applyTo: "**/folder1/*.tsx"',
-										'---',
-										'Some instructions 2 contents.',
-									],
-								},
-								{
-									name: 'file3.instructions.md',
-									contents: [
-										'---',
-										'description: \'Instructions file 3.\'',
-										'applyTo: "**/folder2/*.tsx"',
-										'---',
-										'Some instructions 3 contents.',
-									],
-								},
-								{
-									name: 'file4.instructions.md',
-									contents: [
-										'---',
-										'description: \'Instructions file 4.\'',
-										'applyTo: "src/build/*.tsx"',
-										'---',
-										'Some instructions 4 contents.',
-									],
-								},
-								{
-									name: 'file5.prompt.md',
-									contents: [
-										'---',
-										'description: \'Prompt file 5.\'',
-										'---',
-										'Some prompt 5 contents.',
-									],
-								},
-							],
-						},
-						{
-							name: 'folder1',
-							children: [
-								{
-									name: 'main.tsx',
-									contents: 'console.log("Haalou!")',
-								},
-							],
-						},
-					],
-				}])).mock();
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/file1.prompt.md`,
+					contents: [
+						'## Some Header',
+						'some contents',
+						' ',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/prompts/file1.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Instructions file 1.\'',
+						'applyTo: "**/*.tsx"',
+						'---',
+						'Some instructions 1 contents.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/prompts/file2.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Instructions file 2.\'',
+						'applyTo: "**/folder1/*.tsx"',
+						'---',
+						'Some instructions 2 contents.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/prompts/file3.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Instructions file 3.\'',
+						'applyTo: "**/folder2/*.tsx"',
+						'---',
+						'Some instructions 3 contents.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/prompts/file4.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Instructions file 4.\'',
+						'applyTo: "src/build/*.tsx"',
+						'---',
+						'Some instructions 4 contents.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/prompts/file5.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Prompt file 5.\'',
+						'---',
+						'Some prompt 5 contents.',
+					]
+				},
+				{
+					path: `${rootFolder}/folder1/main.tsx`,
+					contents: [
+						'console.log("Haalou!")'
+					]
+				}
+			]);
 
 			// mock user data instructions
-			await (instaService.createInstance(MockFilesystem, [
+			await mockFiles(fileService, [
 				{
-					name: userPromptsFolderName,
-					children: [
-						{
-							name: 'file10.instructions.md',
-							contents: [
-								'---',
-								'description: \'Instructions file 10.\'',
-								'applyTo: "**/folder1/*.tsx"',
-								'---',
-								'Some instructions 10 contents.',
-							],
-						},
-						{
-							name: 'file11.instructions.md',
-							contents: [
-								'---',
-								'description: \'Instructions file 11.\'',
-								'applyTo: "**/folder1/*.py"',
-								'---',
-								'Some instructions 11 contents.',
-							],
-						},
-						{
-							name: 'file12.prompt.md',
-							contents: [
-								'---',
-								'description: \'Prompt file 12.\'',
-								'---',
-								'Some prompt 12 contents.',
-							],
-						},
-					],
+					path: `${userPromptsFolderName}/file10.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Instructions file 10.\'',
+						'applyTo: "**/folder1/*.tsx"',
+						'---',
+						'Some instructions 10 contents.',
+					]
+				},
+				{
+					path: `${userPromptsFolderName}/file11.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Instructions file 11.\'',
+						'applyTo: "**/folder1/*.py"',
+						'---',
+						'Some instructions 11 contents.',
+					]
+				},
+				{
+					path: `${userPromptsFolderName}/file12.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Prompt file 12.\'',
+						'---',
+						'Some prompt 12 contents.',
+					]
 				}
-			])).mock();
+			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
 			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined);
@@ -513,121 +496,104 @@ suite('PromptsService', () => {
 				]));
 
 			// mock current workspace file structure
-			await (instaService.createInstance(MockFilesystem,
-				[{
-					name: rootFolderName,
-					children: [
-						{
-							name: 'file1.prompt.md',
-							contents: [
-								'## Some Header',
-								'some contents',
-								' ',
-							],
-						},
-						{
-							name: '.github/prompts',
-							children: [
-								{
-									name: 'file1.instructions.md',
-									contents: [
-										'---',
-										'description: \'Instructions file 1.\'',
-										'applyTo: "**/*.tsx"',
-										'---',
-										'Some instructions 1 contents.',
-									],
-								},
-								{
-									name: 'file2.instructions.md',
-									contents: [
-										'---',
-										'description: \'Instructions file 2.\'',
-										'applyTo: "**/folder1/*.tsx"',
-										'---',
-										'Some instructions 2 contents. [](./file1.instructions.md)',
-									],
-								},
-								{
-									name: 'file3.instructions.md',
-									contents: [
-										'---',
-										'description: \'Instructions file 3.\'',
-										'applyTo: "**/folder2/*.tsx"',
-										'---',
-										'Some instructions 3 contents.',
-									],
-								},
-								{
-									name: 'file4.instructions.md',
-									contents: [
-										'---',
-										'description: \'Instructions file 4.\'',
-										'applyTo: "src/build/*.tsx"',
-										'---',
-										'[](./file3.instructions.md) Some instructions 4 contents.',
-									],
-								},
-								{
-									name: 'file5.prompt.md',
-									contents: [
-										'---',
-										'description: \'Prompt file 5.\'',
-										'---',
-										'Some prompt 5 contents.',
-									],
-								},
-							],
-						},
-						{
-							name: 'folder1',
-							children: [
-								{
-									name: 'main.tsx',
-									contents: 'console.log("Haalou!")',
-								},
-							],
-						},
-					],
-				}])).mock();
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/file1.prompt.md`,
+					contents: [
+						'## Some Header',
+						'some contents',
+						' ',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/prompts/file1.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Instructions file 1.\'',
+						'applyTo: "**/*.tsx"',
+						'---',
+						'Some instructions 1 contents.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/prompts/file2.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Instructions file 2.\'',
+						'applyTo: "**/folder1/*.tsx"',
+						'---',
+						'Some instructions 2 contents. [](./file1.instructions.md)',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/prompts/file3.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Instructions file 3.\'',
+						'applyTo: "**/folder2/*.tsx"',
+						'---',
+						'Some instructions 3 contents.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/prompts/file4.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Instructions file 4.\'',
+						'applyTo: "src/build/*.tsx"',
+						'---',
+						'[](./file3.instructions.md) Some instructions 4 contents.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/prompts/file5.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Prompt file 5.\'',
+						'---',
+						'Some prompt 5 contents.',
+					]
+				},
+				{
+					path: `${rootFolder}/folder1/main.tsx`,
+					contents: [
+						'console.log("Haalou!")'
+					]
+				}
+			]);
 
 			// mock user data instructions
-			await (instaService.createInstance(MockFilesystem, [
+			await mockFiles(fileService, [
 				{
-					name: userPromptsFolderName,
-					children: [
-						{
-							name: 'file10.instructions.md',
-							contents: [
-								'---',
-								'description: \'Instructions file 10.\'',
-								'applyTo: "**/folder1/*.tsx"',
-								'---',
-								'Some instructions 10 contents.',
-							],
-						},
-						{
-							name: 'file11.instructions.md',
-							contents: [
-								'---',
-								'description: \'Instructions file 11.\'',
-								'applyTo: "**/folder1/*.py"',
-								'---',
-								'Some instructions 11 contents.',
-							],
-						},
-						{
-							name: 'file12.prompt.md',
-							contents: [
-								'---',
-								'description: \'Prompt file 12.\'',
-								'---',
-								'Some prompt 12 contents.',
-							],
-						},
-					],
+					path: `${userPromptsFolderName}/file10.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Instructions file 10.\'',
+						'applyTo: "**/folder1/*.tsx"',
+						'---',
+						'Some instructions 10 contents.',
+					]
+				},
+				{
+					path: `${userPromptsFolderName}/file11.instructions.md`,
+					contents: [
+						'---',
+						'description: \'Instructions file 11.\'',
+						'applyTo: "**/folder1/*.py"',
+						'---',
+						'Some instructions 11 contents.',
+					]
+				},
+				{
+					path: `${userPromptsFolderName}/file12.prompt.md`,
+					contents: [
+						'---',
+						'description: \'Prompt file 12.\'',
+						'---',
+						'Some prompt 12 contents.',
+					]
 				}
-			])).mock();
+			]);
 
 			const instructionFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
 			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined);
@@ -664,59 +630,44 @@ suite('PromptsService', () => {
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			// mock current workspace file structure
-			await (instaService.createInstance(MockFilesystem,
-				[{
-					name: rootFolderName,
-					children: [
-						{
-							name: 'codestyle.md',
-							contents: [
-								'Can you see this?',
-							],
-						},
-						{
-							name: 'AGENTS.md',
-							contents: [
-								'What about this?',
-							],
-						},
-						{
-							name: 'README.md',
-							contents: [
-								'Thats my project?',
-							],
-						},
-						{
-							name: '.github',
-							children: [
-								{
-									name: 'copilot-instructions.md',
-									contents: [
-										'Be nice and friendly. Also look at instructions at #file:../codestyle.md and [more-codestyle.md](./more-codestyle.md).',
-									],
-								},
-								{
-									name: 'more-codestyle.md',
-									contents: [
-										'I like it clean.',
-									],
-								},
-							],
-						},
-						{
-							name: 'folder1',
-							children: [
-								// This will not be returned because we have PromptsConfig.USE_NESTED_AGENT_MD set to false.
-								{
-									name: 'AGENTS.md',
-									contents: [
-										'An AGENTS.md file in another repo'
-									]
-								}
-							]
-						}
-					],
-				}])).mock();
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/codestyle.md`,
+					contents: [
+						'Can you see this?',
+					]
+				},
+				{
+					path: `${rootFolder}/AGENTS.md`,
+					contents: [
+						'What about this?',
+					]
+				},
+				{
+					path: `${rootFolder}/README.md`,
+					contents: [
+						'Thats my project?',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/copilot-instructions.md`,
+					contents: [
+						'Be nice and friendly. Also look at instructions at #file:../codestyle.md and [more-codestyle.md](./more-codestyle.md).',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/more-codestyle.md`,
+					contents: [
+						'I like it clean.',
+					]
+				},
+				{
+					path: `${rootFolder}/folder1/AGENTS.md`,
+					contents: [
+						'An AGENTS.md file in another repo'
+					]
+				}
+			]);
 
 
 			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined);
@@ -751,34 +702,24 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			await (instaService.createInstance(MockFilesystem,
-				[{
-					name: rootFolderName,
-					children: [
-						{
-							name: '.github/agents',
-							children: [
-								{
-									name: 'agent1.agent.md',
-									contents: [
-										'---',
-										'description: \'Agent file 1.\'',
-										'handoffs: [ { agent: "Edit", label: "Do it", prompt: "Do it now" } ]',
-										'---',
-									],
-								}
-							],
-
-						},
-					],
-				}])).mock();
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/agent1.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent file 1.\'',
+						'handoffs: [ { agent: "Edit", label: "Do it", prompt: "Do it now" } ]',
+						'---',
+					]
+				}
+			]);
 
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
 				{
 					name: 'agent1',
 					description: 'Agent file 1.',
-					handOffs: [{ agent: 'Edit', label: 'Do it', prompt: 'Do it now', send: undefined }],
+					handOffs: [{ agent: 'Edit', label: 'Do it', prompt: 'Do it now' }],
 					agentInstructions: {
 						content: '',
 						toolReferences: [],
@@ -788,6 +729,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -808,34 +750,24 @@ suite('PromptsService', () => {
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			// mock current workspace file structure
-			await (instaService.createInstance(MockFilesystem,
-				[{
-					name: rootFolderName,
-					children: [
-						{
-							name: '.github/agents',
-							children: [
-								{
-									name: 'agent1.agent.md',
-									contents: [
-										'---',
-										'description: \'Agent file 1.\'',
-										'tools: [ tool1, tool2 ]',
-										'---',
-										'Do it with #tool:tool1',
-									],
-								},
-								{
-									name: 'agent2.agent.md',
-									contents: [
-										'First use #tool:tool2\nThen use #tool:tool1',
-									],
-								}
-							],
-
-						},
-					],
-				}])).mock();
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/agent1.agent.md`,
+					contents: [
+						'---',
+						'description: \'Agent file 1.\'',
+						'tools: [ tool1, tool2 ]',
+						'---',
+						'Do it with #tool:tool1',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent2.agent.md`,
+					contents: [
+						'First use #tool:tool2\nThen use #tool:tool1',
+					]
+				}
+			]);
 
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
@@ -852,6 +784,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					argumentHint: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local },
 				},
@@ -884,39 +817,29 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			await (instaService.createInstance(MockFilesystem,
-				[{
-					name: rootFolderName,
-					children: [
-						{
-							name: '.github/agents',
-							children: [
-								{
-									name: 'agent1.agent.md',
-									contents: [
-										'---',
-										'description: \'Code review agent.\'',
-										'argument-hint: \'Provide file path or code snippet to review\'',
-										'tools: [ code-analyzer, linter ]',
-										'---',
-										'I will help review your code for best practices.',
-									],
-								},
-								{
-									name: 'agent2.agent.md',
-									contents: [
-										'---',
-										'description: \'Documentation generator.\'',
-										'argument-hint: \'Specify function or class name to document\'',
-										'---',
-										'I generate comprehensive documentation.',
-									],
-								}
-							],
-
-						},
-					],
-				}])).mock();
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/agent1.agent.md`,
+					contents: [
+						'---',
+						'description: \'Code review agent.\'',
+						'argument-hint: \'Provide file path or code snippet to review\'',
+						'tools: [ code-analyzer, linter ]',
+						'---',
+						'I will help review your code for best practices.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/agent2.agent.md`,
+					contents: [
+						'---',
+						'description: \'Documentation generator.\'',
+						'argument-hint: \'Specify function or class name to document\'',
+						'---',
+						'I generate comprehensive documentation.',
+					]
+				}
+			]);
 
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
@@ -933,6 +856,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent1.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -949,6 +873,7 @@ suite('PromptsService', () => {
 					model: undefined,
 					tools: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/agent2.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -968,49 +893,39 @@ suite('PromptsService', () => {
 
 			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
-			await (instaService.createInstance(MockFilesystem,
-				[{
-					name: rootFolderName,
-					children: [
-						{
-							name: '.github/agents',
-							children: [
-								{
-									name: 'github-agent.agent.md',
-									contents: [
-										'---',
-										'description: \'GitHub Copilot specialized agent.\'',
-										'target: \'github-copilot\'',
-										'tools: [ github-api, code-search ]',
-										'---',
-										'I am optimized for GitHub Copilot workflows.',
-									],
-								},
-								{
-									name: 'vscode-agent.agent.md',
-									contents: [
-										'---',
-										'description: \'VS Code specialized agent.\'',
-										'target: \'vscode\'',
-										'model: \'gpt-4\'',
-										'---',
-										'I am specialized for VS Code editor tasks.',
-									],
-								},
-								{
-									name: 'generic-agent.agent.md',
-									contents: [
-										'---',
-										'description: \'Generic agent without target.\'',
-										'---',
-										'I work everywhere.',
-									],
-								}
-							],
-
-						},
-					],
-				}])).mock();
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/github-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'GitHub Copilot specialized agent.\'',
+						'target: \'github-copilot\'',
+						'tools: [ github-api, code-search ]',
+						'---',
+						'I am optimized for GitHub Copilot workflows.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/vscode-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'VS Code specialized agent.\'',
+						'target: \'vscode\'',
+						'model: \'gpt-4\'',
+						'---',
+						'I am specialized for VS Code editor tasks.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/generic-agent.agent.md`,
+					contents: [
+						'---',
+						'description: \'Generic agent without target.\'',
+						'---',
+						'I work everywhere.',
+					]
+				}
+			]);
 
 			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
 			const expected: ICustomAgent[] = [
@@ -1027,6 +942,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					model: undefined,
 					argumentHint: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/github-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1043,6 +959,7 @@ suite('PromptsService', () => {
 					handOffs: undefined,
 					argumentHint: undefined,
 					tools: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/vscode-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1059,6 +976,7 @@ suite('PromptsService', () => {
 					argumentHint: undefined,
 					tools: undefined,
 					target: undefined,
+					infer: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/agents/generic-agent.agent.md'),
 					source: { storage: PromptsStorage.local }
 				},
@@ -1068,6 +986,70 @@ suite('PromptsService', () => {
 				result,
 				expected,
 				'Must get custom agents with target attribute.',
+			);
+		});
+
+		test('agents with .md extension (no .agent.md)', async () => {
+			const rootFolderName = 'custom-agents-md-extension';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.github/agents/demonstrate.md`,
+					contents: [
+						'---',
+						'description: \'Demonstrate agent.\'',
+						'tools: [ demo-tool ]',
+						'---',
+						'This is a demonstration agent using .md extension.',
+					]
+				},
+				{
+					path: `${rootFolder}/.github/agents/test.md`,
+					contents: [
+						'Test agent without header.',
+					]
+				}
+			]);
+
+			const result = (await service.getCustomAgents(CancellationToken.None)).map(agent => ({ ...agent, uri: URI.from(agent.uri) }));
+			const expected: ICustomAgent[] = [
+				{
+					name: 'demonstrate',
+					description: 'Demonstrate agent.',
+					tools: ['demo-tool'],
+					agentInstructions: {
+						content: 'This is a demonstration agent using .md extension.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					handOffs: undefined,
+					model: undefined,
+					argumentHint: undefined,
+					target: undefined,
+					infer: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/agents/demonstrate.md'),
+					source: { storage: PromptsStorage.local },
+				},
+				{
+					name: 'test',
+					agentInstructions: {
+						content: 'Test agent without header.',
+						toolReferences: [],
+						metadata: undefined
+					},
+					uri: URI.joinPath(rootFolderUri, '.github/agents/test.md'),
+					source: { storage: PromptsStorage.local },
+				}
+			];
+
+			assert.deepEqual(
+				result,
+				expected,
+				'Must get custom agents with .md extension from .github/agents/ folder.',
 			);
 		});
 	});
@@ -1091,6 +1073,331 @@ suite('PromptsService', () => {
 			assert.strictEqual(actual[0].storage, PromptsStorage.extension);
 			assert.strictEqual(actual[0].type, PromptsType.instructions);
 			registered.dispose();
+		});
+
+		test('Custom agent provider', async () => {
+			const agentUri = URI.parse('file://extensions/my-extension/myAgent.agent.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+
+			// Mock the agent file content
+			await mockFiles(fileService, [
+				{
+					path: agentUri.path,
+					contents: [
+						'---',
+						'description: \'My custom agent from provider\'',
+						'tools: [ tool1, tool2 ]',
+						'---',
+						'I am a custom agent from a provider.',
+					]
+				}
+			]);
+
+			const provider = {
+				provideCustomAgents: async (_options: ICustomAgentQueryOptions, _token: CancellationToken) => {
+					return [
+						{
+							name: 'myAgent',
+							description: 'My custom agent from provider',
+							uri: agentUri
+						}
+					];
+				}
+			};
+
+			const registered = service.registerCustomAgentsProvider(extension, provider);
+
+			const actual = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(actual.length, 1);
+			assert.strictEqual(actual[0].name, 'myAgent');
+			assert.strictEqual(actual[0].description, 'My custom agent from provider');
+			assert.strictEqual(actual[0].uri.toString(), agentUri.toString());
+			assert.strictEqual(actual[0].source.storage, PromptsStorage.extension);
+			if (actual[0].source.storage === PromptsStorage.extension) {
+				assert.strictEqual(actual[0].source.type, ExtensionAgentSourceType.provider);
+			}
+
+			registered.dispose();
+
+			// After disposal, the agent should no longer be listed
+			const actualAfterDispose = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(actualAfterDispose.length, 0);
+		});
+
+		test('Custom agent provider with isEditable', async () => {
+			const readonlyAgentUri = URI.parse('file://extensions/my-extension/readonlyAgent.agent.md');
+			const editableAgentUri = URI.parse('file://extensions/my-extension/editableAgent.agent.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+
+			// Mock the agent file content
+			await mockFiles(fileService, [
+				{
+					path: readonlyAgentUri.path,
+					contents: [
+						'---',
+						'description: \'Readonly agent from provider\'',
+						'---',
+						'I am a readonly agent.',
+					]
+				},
+				{
+					path: editableAgentUri.path,
+					contents: [
+						'---',
+						'description: \'Editable agent from provider\'',
+						'---',
+						'I am an editable agent.',
+					]
+				}
+			]);
+
+			const provider = {
+				provideCustomAgents: async (_options: ICustomAgentQueryOptions, _token: CancellationToken) => {
+					return [
+						{
+							name: 'readonlyAgent',
+							description: 'Readonly agent from provider',
+							uri: readonlyAgentUri,
+							isEditable: false
+						},
+						{
+							name: 'editableAgent',
+							description: 'Editable agent from provider',
+							uri: editableAgentUri,
+							isEditable: true
+						}
+					];
+				}
+			};
+
+			const registered = service.registerCustomAgentsProvider(extension, provider);
+
+			// Spy on updateReadonly to verify it's called correctly
+			const filesConfigService = instaService.get(IFilesConfigurationService);
+			const updateReadonlySpy = sinon.spy(filesConfigService, 'updateReadonly');
+
+			// List prompt files to trigger the readonly check
+			await service.listPromptFiles(PromptsType.agent, CancellationToken.None);
+
+			// Verify updateReadonly was called only for the non-editable agent
+			assert.strictEqual(updateReadonlySpy.callCount, 1, 'updateReadonly should be called once');
+			assert.ok(updateReadonlySpy.calledWith(readonlyAgentUri, true), 'updateReadonly should be called with readonly agent URI and true');
+
+			const actual = await service.getCustomAgents(CancellationToken.None);
+			assert.strictEqual(actual.length, 2);
+
+			const readonlyAgent = actual.find(a => a.name === 'readonlyAgent');
+			const editableAgent = actual.find(a => a.name === 'editableAgent');
+
+			assert.ok(readonlyAgent, 'Readonly agent should be found');
+			assert.ok(editableAgent, 'Editable agent should be found');
+			assert.strictEqual(readonlyAgent!.description, 'Readonly agent from provider');
+			assert.strictEqual(editableAgent!.description, 'Editable agent from provider');
+
+			registered.dispose();
+		});
+
+		test('Contributed agent file that does not exist should not crash', async () => {
+			const nonExistentUri = URI.parse('file://extensions/my-extension/nonexistent.agent.md');
+			const existingUri = URI.parse('file://extensions/my-extension/existing.agent.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' }
+			} as unknown as IExtensionDescription;
+
+			// Only create the existing file
+			await mockFiles(fileService, [
+				{
+					path: existingUri.path,
+					contents: [
+						'---',
+						'name: \'Existing Agent\'',
+						'description: \'An agent that exists\'',
+						'---',
+						'I am an existing agent.',
+					]
+				}
+			]);
+
+			// Register both agents (one exists, one doesn't)
+			const registered1 = service.registerContributedFile(
+				PromptsType.agent,
+				'NonExistent Agent',
+				'An agent that does not exist',
+				nonExistentUri,
+				extension
+			);
+
+			const registered2 = service.registerContributedFile(
+				PromptsType.agent,
+				'Existing Agent',
+				'An agent that exists',
+				existingUri,
+				extension
+			);
+
+			// Verify that getCustomAgents doesn't crash and returns only the valid agent
+			const agents = await service.getCustomAgents(CancellationToken.None);
+
+			// Should only get the existing agent, not the non-existent one
+			assert.strictEqual(agents.length, 1, 'Should only return the agent that exists');
+			assert.strictEqual(agents[0].name, 'Existing Agent');
+			assert.strictEqual(agents[0].description, 'An agent that exists');
+			assert.strictEqual(agents[0].uri.toString(), existingUri.toString());
+
+			registered1.dispose();
+			registered2.dispose();
+		});
+	});
+
+	suite('findClaudeSkills', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+		test('should return undefined when USE_CLAUDE_SKILLS is disabled', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, false);
+
+			const result = await service.findClaudeSkills(CancellationToken.None);
+			assert.strictEqual(result, undefined);
+		});
+
+		test('should find Claude skills in workspace and user home', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+
+			const rootFolderName = 'claude-skills-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create mock filesystem with skills
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Project Skill 1"',
+						'description: "A project skill for testing"',
+						'---',
+						'This is project skill 1 content',
+					],
+				},
+				{
+					path: `${rootFolder}/.claude/skills/project-skill-2/SKILL.md`,
+					contents: [
+						'---',
+						'description: "Invalid skill, no name"',
+						'---',
+						'This is project skill 2 content',
+					],
+				},
+				{
+					path: `${rootFolder}/.claude/skills/not-a-skill-dir/README.md`,
+					contents: ['This is not a skill'],
+				},
+				{
+					path: '/home/user/.claude/skills/personal-skill-1/SKILL.md',
+					contents: [
+						'---',
+						'name: "Personal Skill 1"',
+						'description: "A personal skill for testing"',
+						'---',
+						'This is personal skill 1 content',
+					],
+				},
+				{
+					path: '/home/user/.claude/skills/not-a-skill/other-file.md',
+					contents: ['Not a skill file'],
+				},
+			]);
+
+			const result = await service.findClaudeSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results when Claude skills are enabled');
+			assert.strictEqual(result.length, 2, 'Should find 2 skills total');
+
+			// Check project skills
+			const projectSkills = result.filter(skill => skill.type === 'project');
+			assert.strictEqual(projectSkills.length, 1, 'Should find 1 project skill');
+
+			const projectSkill1 = projectSkills.find(skill => skill.name === 'Project Skill 1');
+			assert.ok(projectSkill1, 'Should find project skill 1');
+			assert.strictEqual(projectSkill1.description, 'A project skill for testing');
+			assert.strictEqual(projectSkill1.uri.path, `${rootFolder}/.claude/skills/project-skill-1/SKILL.md`);
+
+			// Check personal skills
+			const personalSkills = result.filter(skill => skill.type === 'personal');
+			assert.strictEqual(personalSkills.length, 1, 'Should find 1 personal skill');
+
+			const personalSkill1 = personalSkills[0];
+			assert.strictEqual(personalSkill1.name, 'Personal Skill 1');
+			assert.strictEqual(personalSkill1.description, 'A personal skill for testing');
+			assert.strictEqual(personalSkill1.uri.path, '/home/user/.claude/skills/personal-skill-1/SKILL.md');
+		});
+
+		test('should handle parsing errors gracefully', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+
+			const rootFolderName = 'claude-skills-error-test';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create mock filesystem with malformed skill file
+			await mockFiles(fileService, [
+				{
+					path: `${rootFolder}/.claude/skills/valid-skill/SKILL.md`,
+					contents: [
+						'---',
+						'name: "Valid Skill"',
+						'description: "A valid skill"',
+						'---',
+						'Valid skill content',
+					],
+				},
+				{
+					path: `${rootFolder}/.claude/skills/invalid-skill/SKILL.md`,
+					contents: [
+						'---',
+						'invalid yaml: [unclosed',
+						'---',
+						'Invalid skill content',
+					],
+				},
+			]);
+
+			const result = await service.findClaudeSkills(CancellationToken.None);
+
+			// Should still return the valid skill, even if one has parsing errors
+			assert.ok(result, 'Should return results even with parsing errors');
+			assert.strictEqual(result.length, 1, 'Should find 1 valid skill');
+			assert.strictEqual(result[0].name, 'Valid Skill');
+			assert.strictEqual(result[0].type, 'project');
+		});
+
+		test('should return empty array when no skills found', async () => {
+			testConfigService.setUserConfiguration(PromptsConfig.USE_CLAUDE_SKILLS, true);
+
+			const rootFolderName = 'empty-workspace';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// Create empty mock filesystem
+			await mockFiles(fileService, []);
+
+			const result = await service.findClaudeSkills(CancellationToken.None);
+
+			assert.ok(result, 'Should return results array');
+			assert.strictEqual(result.length, 0, 'Should find no skills');
 		});
 	});
 });

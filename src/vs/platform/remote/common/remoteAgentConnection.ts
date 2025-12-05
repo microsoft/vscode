@@ -14,7 +14,7 @@ import * as performance from '../../../base/common/performance.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IIPCLogger } from '../../../base/parts/ipc/common/ipc.js';
-import { Client, ISocket, PersistentProtocol, SocketCloseEventType } from '../../../base/parts/ipc/common/ipc.net.js';
+import { Client, ISocket, PersistentProtocol, ProtocolConstants, SocketCloseEventType } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ILogService } from '../../log/common/log.js';
 import { RemoteAgentConnectionContext } from './remoteAgentEnvironment.js';
 import { RemoteAuthorityResolverError, RemoteConnection } from './remoteAuthorityResolver.js';
@@ -563,6 +563,7 @@ export abstract class PersistentConnection extends Disposable {
 
 	private _isReconnecting: boolean = false;
 	private _isDisposed: boolean = false;
+	private _reconnectionGraceTime: number = ProtocolConstants.ReconnectionGraceTime;
 
 	constructor(
 		private readonly _connectionType: ConnectionType,
@@ -572,6 +573,7 @@ export abstract class PersistentConnection extends Disposable {
 		private readonly _reconnectionFailureIsFatal: boolean
 	) {
 		super();
+
 
 		this._onDidStateChange.fire(new ConnectionGainEvent(this.reconnectionToken, 0, 0));
 
@@ -611,6 +613,13 @@ export abstract class PersistentConnection extends Disposable {
 		}
 	}
 
+	public updateGraceTime(graceTime: number): void {
+		const sanitizedGrace = sanitizeGraceTime(graceTime, ProtocolConstants.ReconnectionGraceTime);
+		const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, false);
+		this._options.logService.trace(`${logPrefix} Applying reconnection grace time: ${sanitizedGrace}ms (${Math.floor(sanitizedGrace / 1000)}s)`);
+		this._reconnectionGraceTime = sanitizedGrace;
+	}
+
 	public override dispose(): void {
 		super.dispose();
 		this._isDisposed = true;
@@ -638,6 +647,14 @@ export abstract class PersistentConnection extends Disposable {
 		this._options.logService.info(`${logPrefix} starting reconnecting loop. You can get more information with the trace log level.`);
 		this._onDidStateChange.fire(new ConnectionLostEvent(this.reconnectionToken, this.protocol.getMillisSinceLastIncomingData()));
 		const TIMES = [0, 5, 5, 10, 10, 10, 10, 10, 30];
+		const graceTime = this._reconnectionGraceTime;
+		this._options.logService.info(`${logPrefix} starting reconnection with grace time: ${graceTime}ms (${Math.floor(graceTime / 1000)}s)`);
+		if (graceTime <= 0) {
+			this._options.logService.error(`${logPrefix} reconnection grace time is set to 0ms, will not attempt to reconnect.`);
+			this._onReconnectionPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), 0, false);
+			return;
+		}
+		const loopStartTime = Date.now();
 		let attempt = -1;
 		do {
 			attempt++;
@@ -675,9 +692,9 @@ export abstract class PersistentConnection extends Disposable {
 					this._onReconnectionPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);
 					break;
 				}
-				if (attempt > 360) {
-					// ReconnectionGraceTime is 3hrs, with 30s between attempts that yields a maximum of 360 attempts
-					this._options.logService.error(`${logPrefix} An error occurred while reconnecting, but it will be treated as a permanent error because the reconnection grace time has expired! Will give up now! Error:`);
+				if (Date.now() - loopStartTime >= graceTime) {
+					const graceSeconds = Math.round(graceTime / 1000);
+					this._options.logService.error(`${logPrefix} An error occurred while reconnecting, but it will be treated as a permanent error because the reconnection grace time (${graceSeconds}s) has expired! Will give up now! Error:`);
 					this._options.logService.error(err);
 					this._onReconnectionPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);
 					break;
@@ -786,6 +803,16 @@ function getErrorFromMessage(msg: any): Error | null {
 		return error;
 	}
 	return null;
+}
+
+function sanitizeGraceTime(candidate: number, fallback: number): number {
+	if (typeof candidate !== 'number' || !isFinite(candidate) || candidate < 0) {
+		return fallback;
+	}
+	if (candidate > Number.MAX_SAFE_INTEGER) {
+		return Number.MAX_SAFE_INTEGER;
+	}
+	return Math.floor(candidate);
 }
 
 function stringRightPad(str: string, len: number): string {

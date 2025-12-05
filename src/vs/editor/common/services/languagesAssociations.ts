@@ -8,7 +8,7 @@ import { Mimes } from '../../../base/common/mime.js';
 import { Schemas } from '../../../base/common/network.js';
 import { basename, posix } from '../../../base/common/path.js';
 import { DataUri } from '../../../base/common/resources.js';
-import { startsWithUTF8BOM } from '../../../base/common/strings.js';
+import { endsWithIgnoreCase, equals, startsWithUTF8BOM } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
 
@@ -23,9 +23,7 @@ export interface ILanguageAssociation {
 
 interface ILanguageAssociationItem extends ILanguageAssociation {
 	readonly userConfigured: boolean;
-	readonly filenameLowercase?: string;
-	readonly extensionLowercase?: string;
-	readonly filepatternLowercase?: ParsedPattern;
+	readonly filepatternParsed?: ParsedPattern;
 	readonly filepatternOnPath?: boolean;
 }
 
@@ -97,9 +95,7 @@ function toLanguageAssociationItem(association: ILanguageAssociation, userConfig
 		filepattern: association.filepattern,
 		firstline: association.firstline,
 		userConfigured: userConfigured,
-		filenameLowercase: association.filename ? association.filename.toLowerCase() : undefined,
-		extensionLowercase: association.extension ? association.extension.toLowerCase() : undefined,
-		filepatternLowercase: association.filepattern ? parse(association.filepattern.toLowerCase()) : undefined,
+		filepatternParsed: association.filepattern ? parse(association.filepattern, { ignoreCase: true }) : undefined,
 		filepatternOnPath: association.filepattern ? association.filepattern.indexOf(posix.sep) >= 0 : false
 	};
 }
@@ -203,7 +199,7 @@ function getAssociationByPath(path: string, filename: string, associations: ILan
 		const association = associations[i];
 
 		// First exact name match
-		if (filename === association.filenameLowercase) {
+		if (equals(filename, association.filename, true)) {
 			filenameMatch = association;
 			break; // take it!
 		}
@@ -212,7 +208,7 @@ function getAssociationByPath(path: string, filename: string, associations: ILan
 		if (association.filepattern) {
 			if (!patternMatch || association.filepattern.length > patternMatch.filepattern!.length) {
 				const target = association.filepatternOnPath ? path : filename; // match on full path if pattern contains path separator
-				if (association.filepatternLowercase?.(target)) {
+				if (association.filepatternParsed?.(target)) {
 					patternMatch = association;
 				}
 			}
@@ -221,7 +217,7 @@ function getAssociationByPath(path: string, filename: string, associations: ILan
 		// Longest extension match
 		if (association.extension) {
 			if (!extensionMatch || association.extension.length > extensionMatch.extension!.length) {
-				if (filename.endsWith(association.extensionLowercase!)) {
+				if (endsWithIgnoreCase(filename, association.extension)) {
 					extensionMatch = association;
 				}
 			}
@@ -248,7 +244,7 @@ function getAssociationByPath(path: string, filename: string, associations: ILan
 
 function getAssociationByFirstline(firstLine: string): ILanguageAssociationItem | undefined {
 	if (startsWithUTF8BOM(firstLine)) {
-		firstLine = firstLine.substr(1);
+		firstLine = firstLine.substring(1);
 	}
 
 	if (firstLine.length > 0) {

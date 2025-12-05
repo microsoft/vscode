@@ -15,6 +15,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/comm
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../base/browser/window.js';
 
+/* eslint-disable no-restricted-syntax */
+
 suite('Workbench parts', () => {
 
 	const disposables = new DisposableStore();

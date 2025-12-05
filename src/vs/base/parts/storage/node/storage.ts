@@ -258,7 +258,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		return integrity;
 	}
 
-	private async connect(path: string, retryOnBusy: boolean = true): Promise<IDatabaseConnection> {
+	private async connect(path: string, retryOnBusy = true): Promise<IDatabaseConnection> {
 		this.logger.trace(`[storage ${this.name}] open(${path}, retryOnBusy: ${retryOnBusy})`);
 
 		try {

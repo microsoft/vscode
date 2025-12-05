@@ -8,7 +8,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
@@ -45,24 +45,34 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 	) {
 		super();
 
+		type Rec = { source?: ToolDataSource } & IDisposable;
+
 		// Keep tools in sync with the tools service.
-		const previous = this._register(new DisposableMap<IMcpServer, DisposableStore>());
+		const previous = this._register(new DisposableMap<IMcpServer, Rec>());
 		this._register(autorun(reader => {
 			const servers = mcpService.servers.read(reader);
 
 			const toDelete = new Set(previous.keys());
 			for (const server of servers) {
-				if (previous.has(server)) {
+				const previousRec = previous.get(server);
+				if (previousRec) {
 					toDelete.delete(server);
-					continue;
+					if (!previousRec.source || equals(previousRec.source, mcpServerToSourceData(server, reader))) {
+						continue; // same definition, no need to update
+					}
+
+					previousRec.dispose();
 				}
 
 				const store = new DisposableStore();
+				const rec: Rec = { dispose: () => store.dispose() };
 				const toolSet = new Lazy(() => {
-					const source = mcpServerToSourceData(server);
+					const source = rec.source = mcpServerToSourceData(server);
+					const referenceName = server.definition.label.toLowerCase().replace(/\s+/g, '-'); // see issue https://github.com/microsoft/vscode/issues/278152
 					const toolSet = store.add(this._toolsService.createToolSet(
 						source,
-						server.definition.id, server.definition.label,
+						server.definition.id,
+						referenceName,
 						{
 							icon: Codicon.mcp,
 							description: localize('mcp.toolset', "{0}: All Tools", server.definition.label)
@@ -73,7 +83,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 				});
 
 				this._syncTools(server, toolSet, store);
-				previous.set(server, store);
+				previous.set(server, rec);
 			}
 
 			for (const key of toDelete) {
@@ -115,6 +125,8 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 					inputSchema: tool.definition.inputSchema,
 					canBeReferencedInPrompt: true,
 					alwaysDisplayInputOutput: true,
+					canRequestPreApproval: !tool.definition.annotations?.readOnlyHint,
+					canRequestPostApproval: !!tool.definition.annotations?.openWorldHint,
 					runsInWorkspace: collection?.scope === StorageScope.WORKSPACE || !!collection?.remoteAuthority,
 					tags: ['mcp'],
 				};
@@ -146,6 +158,10 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 			for (const fn of toRegister) {
 				fn();
 			}
+
+			// Important: flush tool updates when the server is fully registered so that
+			// any consuming (e.g. autostarting) requests have the tools available immediately.
+			this._toolsService.flushToolUpdates();
 		}));
 
 		store.add(toDisposable(() => {
@@ -313,7 +329,7 @@ class McpToolImplementation implements IToolImpl {
 					});
 
 					if (isForModel) {
-						const permalink = invocation.context && ChatResponseResource.createUri(invocation.context.sessionId, invocation.callId, result.content.length, basename(uri));
+						const permalink = invocation.context && ChatResponseResource.createUri(invocation.context.sessionResource, invocation.callId, result.content.length, basename(uri));
 						addAsLinkedResource(permalink || uri, item.resource.mimeType);
 					}
 				}

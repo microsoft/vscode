@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -16,7 +17,6 @@ import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../serv
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { isChatViewTitleActionContext } from '../../common/chatActions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { LocalChatSessionUri } from '../../common/chatUri.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ChatEditor, IChatEditorOptions } from '../chatEditor.js';
@@ -49,7 +49,7 @@ export function registerMoveActions() {
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
-			executeMoveToAction(accessor, MoveToNewLocation.Editor, isChatViewTitleActionContext(context) ? context.sessionId : undefined);
+			executeMoveToAction(accessor, MoveToNewLocation.Editor, isChatViewTitleActionContext(context) ? context.sessionResource : undefined);
 		}
 	});
 
@@ -72,7 +72,7 @@ export function registerMoveActions() {
 
 		async run(accessor: ServicesAccessor, ...args: unknown[]) {
 			const context = args[0];
-			executeMoveToAction(accessor, MoveToNewLocation.Window, isChatViewTitleActionContext(context) ? context.sessionId : undefined);
+			executeMoveToAction(accessor, MoveToNewLocation.Window, isChatViewTitleActionContext(context) ? context.sessionResource : undefined);
 		}
 	});
 
@@ -111,32 +111,35 @@ export function registerMoveActions() {
 	});
 }
 
-async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation, _sessionId?: string) {
+async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation, sessionResource?: URI) {
 	const widgetService = accessor.get(IChatWidgetService);
-	const editorService = accessor.get(IEditorService);
 
-	const widget = (_sessionId ? widgetService.getWidgetBySessionId(_sessionId) : undefined)
+	const auxiliary = { compact: true, bounds: { width: 800, height: 640 } };
+
+	const widget = (sessionResource ? widgetService.getWidgetBySessionResource(sessionResource) : undefined)
 		?? widgetService.lastFocusedWidget;
 	if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Chat) {
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+		await widgetService.openSession(ChatEditorInput.getNewEditorUri(), moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP, { pinned: true, auxiliary });
 		return;
 	}
 
-	const sessionId = widget.viewModel.sessionId;
-	const existingWidget = widgetService.getWidgetBySessionId(sessionId);
+	const existingWidget = widgetService.getWidgetBySessionResource(widget.viewModel.sessionResource);
 	if (!existingWidget) {
 		// Do NOT attempt to open a session that isn't already open since we cannot guarantee its state.
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+		await widgetService.openSession(ChatEditorInput.getNewEditorUri(), moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP, { pinned: true, auxiliary });
 		return;
 	}
-	const viewState = widget.getViewState();
 
-	widget.clear();
-	await widget.waitForReady();
+	// Save off the session resource before clearing
+	const resourceToOpen = widget.viewModel.sessionResource;
 
-	const resource = LocalChatSessionUri.forSession(sessionId);
-	const options: IChatEditorOptions = { pinned: true, viewState, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } };
-	await editorService.openEditor({ resource, options }, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP);
+	// Todo: can possibly go away with https://github.com/microsoft/vscode/pull/278476
+	const modelInputState = existingWidget.getViewState();
+
+	await widget.clear();
+
+	const options: IChatEditorOptions = { pinned: true, modelInputState, auxiliary };
+	await widgetService.openSession(resourceToOpen, moveTo === MoveToNewLocation.Window ? AUX_WINDOW_GROUP : ACTIVE_GROUP, options);
 }
 
 async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
@@ -147,10 +150,16 @@ async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
 	const chatEditor = editorService.activeEditorPane;
 	const chatEditorInput = chatEditor?.input;
 	let view: ChatViewPane;
-	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId) {
+	if (chatEditor instanceof ChatEditor && chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionResource) {
+		const previousViewState = chatEditor.widget.getViewState();
 		await editorService.closeEditor({ editor: chatEditor.input, groupId: editorGroupService.activeGroup.id });
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
-		await view.loadSession(chatEditorInput.sessionId, chatEditor.getViewState());
+
+		// Todo: can possibly go away with https://github.com/microsoft/vscode/pull/278476
+		const newModel = await view.loadSession(chatEditorInput.sessionResource);
+		if (previousViewState && newModel && !newModel.inputModel.state.get()) {
+			newModel.inputModel.setState(previousViewState);
+		}
 	} else {
 		view = await viewsService.openView(ChatViewId) as ChatViewPane;
 	}

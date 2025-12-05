@@ -376,6 +376,12 @@ export class ShellIntegrationAddon extends Disposable implements IShellIntegrati
 		this._createOrGetBufferMarkDetection(terminal).getMark(vscodeMarkerId);
 	}
 
+	setNextCommandId(command: string, commandId: string): void {
+		if (this._terminal) {
+			this._createOrGetCommandDetection(this._terminal).setNextCommandId(command, commandId);
+		}
+	}
+
 	private _markSequenceSeen(sequence: string) {
 		if (!this._seenSequences.has(sequence)) {
 			this._seenSequences.add(sequence);

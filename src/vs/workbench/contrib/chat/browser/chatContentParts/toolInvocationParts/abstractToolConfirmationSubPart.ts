@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Separator } from '../../../../../../base/common/actions.js';
-import { assertNever } from '../../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
@@ -19,14 +18,6 @@ import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatCo
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
-export const enum ConfirmationOutcome {
-	Allow,
-	Skip,
-	AllowWorkspace,
-	AllowGlobally,
-	AllowSession,
-}
-
 export interface IToolConfirmationConfig {
 	allowActionId: string;
 	skipActionId: string;
@@ -36,7 +27,7 @@ export interface IToolConfirmationConfig {
 	subtitle?: string;
 }
 
-type AbstractToolPrimaryAction = IChatConfirmationButton<(() => void) | ConfirmationOutcome> | Separator;
+type AbstractToolPrimaryAction = IChatConfirmationButton<(() => void)> | Separator;
 
 /**
  * Base class for a tool confirmation.
@@ -69,17 +60,22 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		const skipTooltip = skipKeybinding ? `${config.skipLabel} (${skipKeybinding})` : config.skipLabel;
 
 
-		const buttons: IChatConfirmationButton<ConfirmationOutcome | (() => void)>[] = [
+		const additionalActions = this.additionalPrimaryActions();
+		const buttons: IChatConfirmationButton<(() => void)>[] = [
 			{
 				label: config.allowLabel,
 				tooltip: allowTooltip,
-				data: ConfirmationOutcome.Allow,
-				moreActions: this.additionalPrimaryActions(),
+				data: () => {
+					this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction });
+				},
+				moreActions: additionalActions.length > 0 ? additionalActions : undefined,
 			},
 			{
 				label: localize('skip', "Skip"),
 				tooltip: skipTooltip,
-				data: ConfirmationOutcome.Skip,
+				data: () => {
+					this.confirmWith(toolInvocation, { type: ToolConfirmKind.Skipped });
+				},
 				isSecondary: true,
 			}
 		];
@@ -87,7 +83,7 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		const contentElement = this.createContentElement();
 		const tool = languageModelToolsService.getTool(toolInvocation.toolId);
 		const confirmWidget = this._register(this.instantiationService.createInstance(
-			ChatCustomConfirmationWidget<ConfirmationOutcome | (() => void)>,
+			ChatCustomConfirmationWidget<(() => void)>,
 			this.context,
 			{
 				title: this.getTitle(),
@@ -107,32 +103,8 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		hasToolConfirmation.set(true);
 
 		this._register(confirmWidget.onDidClick(button => {
-			const confirm = (reason: ConfirmedReason) => this.confirmWith(toolInvocation, reason);
-			if (typeof button.data === 'function') {
-				button.data();
-			} else {
-				switch (button.data) {
-					case ConfirmationOutcome.AllowGlobally:
-						confirm({ type: ToolConfirmKind.LmServicePerTool, scope: 'profile' });
-						break;
-					case ConfirmationOutcome.AllowWorkspace:
-						confirm({ type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' });
-						break;
-					case ConfirmationOutcome.AllowSession:
-						confirm({ type: ToolConfirmKind.LmServicePerTool, scope: 'session' });
-						break;
-					case ConfirmationOutcome.Allow:
-						confirm({ type: ToolConfirmKind.UserAction });
-						break;
-					case ConfirmationOutcome.Skip:
-						confirm({ type: ToolConfirmKind.Skipped });
-						break;
-					default:
-						assertNever(button.data);
-				}
-			}
-
-			this.chatWidgetService.getWidgetBySessionId(this.context.element.sessionId)?.focusInput();
+			button.data();
+			this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
 		}));
 
 		this._register(confirmWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));

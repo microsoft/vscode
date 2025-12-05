@@ -367,7 +367,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 			let title = action.description;
 			if (action.fixName === fixNames.classIncorrectlyImplementsInterface) {
 				title = vscode.l10n.t('{0} with AI', action.description);
-				message = vscode.l10n.t(`Implement the stubbed-out class members for ${document.getText(diagnostic.range)} with a useful implementation.`);
+				message = vscode.l10n.t('Implement the stubbed-out class members for {0} with a useful implementation.', document.getText(diagnostic.range));
 				expand = { kind: 'code-action', action };
 			} else if (action.fixName === fixNames.fixClassDoesntImplementInheritedAbstractMember) {
 				title = vscode.l10n.t('{0} with AI', action.description);

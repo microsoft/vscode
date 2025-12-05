@@ -21,6 +21,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly toolId: string;
 	public readonly source: ToolDataSource;
 	public readonly fromSubAgent: boolean | undefined;
+	public readonly parameters: unknown;
+	public generatedTitle?: string;
 
 	public readonly toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 
@@ -32,7 +34,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 
-	constructor(preparedInvocation: IPreparedToolInvocation | undefined, toolData: IToolData, public readonly toolCallId: string, fromSubAgent: boolean | undefined) {
+	constructor(preparedInvocation: IPreparedToolInvocation | undefined, toolData: IToolData, public readonly toolCallId: string, fromSubAgent: boolean | undefined, parameters: unknown) {
 		const defaultMessage = localize('toolInvocationMessage', "Using {0}", `"${toolData.displayName}"`);
 		const invocationMessage = preparedInvocation?.invocationMessage ?? defaultMessage;
 		this.invocationMessage = invocationMessage;
@@ -44,6 +46,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		this.toolId = toolData.id;
 		this.source = toolData.source;
 		this.fromSubAgent = fromSubAgent;
+		this.parameters = parameters;
 
 		if (!this.confirmationMessages?.title) {
 			this._state = observableValue(this, { type: IChatToolInvocation.StateKind.Executing, confirmed: { type: ToolConfirmKind.ConfirmationNotNeeded }, progress: this._progress });
@@ -127,6 +130,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			toolCallId: this.toolCallId,
 			toolId: this.toolId,
 			fromSubAgent: this.fromSubAgent,
+			generatedTitle: this.generatedTitle,
 		};
 	}
 }

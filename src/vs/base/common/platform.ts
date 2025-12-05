@@ -275,10 +275,6 @@ export const isSafari = !!(!isChrome && (userAgent && userAgent.indexOf('Safari'
 export const isEdge = !!(userAgent && userAgent.indexOf('Edg/') >= 0);
 export const isAndroid = !!(userAgent && userAgent.indexOf('Android') >= 0);
 
-export function isBigSurOrNewer(osVersion: string): boolean {
-	return parseFloat(osVersion) >= 20;
-}
-
 export function isTahoeOrNewer(osVersion: string): boolean {
 	return parseFloat(osVersion) >= 25;
 }

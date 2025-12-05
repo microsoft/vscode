@@ -415,19 +415,19 @@ suite('Debug - CallStack', () => {
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
 		let context = getContext(firstStackFrame);
-		assert.strictEqual(context.sessionId, firstStackFrame.thread.session.getId());
-		assert.strictEqual(context.threadId, firstStackFrame.thread.getId());
-		assert.strictEqual(context.frameId, firstStackFrame.getId());
+		assert.strictEqual(context?.sessionId, firstStackFrame.thread.session.getId());
+		assert.strictEqual(context?.threadId, firstStackFrame.thread.getId());
+		assert.strictEqual(context?.frameId, firstStackFrame.getId());
 
 		context = getContext(secondStackFrame.thread);
-		assert.strictEqual(context.sessionId, secondStackFrame.thread.session.getId());
-		assert.strictEqual(context.threadId, secondStackFrame.thread.getId());
-		assert.strictEqual(context.frameId, undefined);
+		assert.strictEqual(context?.sessionId, secondStackFrame.thread.session.getId());
+		assert.strictEqual(context?.threadId, secondStackFrame.thread.getId());
+		assert.strictEqual(context?.frameId, undefined);
 
 		context = getContext(session);
-		assert.strictEqual(context.sessionId, session.getId());
-		assert.strictEqual(context.threadId, undefined);
-		assert.strictEqual(context.frameId, undefined);
+		assert.strictEqual(context?.sessionId, session.getId());
+		assert.strictEqual(context?.threadId, undefined);
+		assert.strictEqual(context?.frameId, undefined);
 
 		let contributedContext = getContextForContributedActions(firstStackFrame);
 		assert.strictEqual(contributedContext, firstStackFrame.source.raw.path);

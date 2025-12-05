@@ -212,7 +212,7 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 		}
 
 		const attachments = widget.attachmentModel.attachments;
-		const dynamicVariables = this.chatVariableService.getDynamicVariables(widget.viewModel.sessionId);
+		const dynamicVariables = this.chatVariableService.getDynamicVariables(widget.viewModel.sessionResource);
 
 		if (attachments.length === 0 && dynamicVariables.length === 0) {
 			return undefined;

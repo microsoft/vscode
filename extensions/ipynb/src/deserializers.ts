@@ -20,8 +20,7 @@ const jupyterLanguageToMonacoLanguageMapping = new Map([
 export function getPreferredLanguage(metadata?: nbformat.INotebookMetadata) {
 	const jupyterLanguage =
 		metadata?.language_info?.name ||
-		// eslint-disable-next-line local/code-no-any-casts
-		(metadata?.kernelspec as any)?.language;
+		(metadata?.kernelspec as unknown as { language: string })?.language;
 
 	// Default to python language only if the Python extension is installed.
 	const defaultLanguage =
@@ -151,7 +150,7 @@ function convertJupyterOutputToBuffer(mime: string, value: unknown): NotebookCel
 	}
 }
 
-function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
+function getNotebookCellMetadata(cell: nbformat.ICell): {
 	[key: string]: any;
 } {
 	// We put this only for VSC to display in diff view.
@@ -169,7 +168,7 @@ function getNotebookCellMetadata(cell: nbformat.IBaseCell): {
 		cellMetadata['metadata'] = JSON.parse(JSON.stringify(cell['metadata']));
 	}
 
-	if ('id' in cell && typeof cell.id === 'string') {
+	if (typeof cell.id === 'string') {
 		cellMetadata.id = cell.id;
 	}
 
@@ -291,8 +290,7 @@ export function jupyterCellOutputToCellOutput(output: nbformat.IOutput): Noteboo
 	if (fn) {
 		result = fn(output);
 	} else {
-		// eslint-disable-next-line local/code-no-any-casts
-		result = translateDisplayDataOutput(output as any);
+		result = translateDisplayDataOutput(output as unknown as nbformat.IDisplayData | nbformat.IDisplayUpdate | nbformat.IExecuteResult);
 	}
 	return result;
 }

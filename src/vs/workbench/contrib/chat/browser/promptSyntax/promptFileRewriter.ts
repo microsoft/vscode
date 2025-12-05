@@ -39,19 +39,48 @@ export class PromptFileRewriter {
 		}
 
 		editor.setSelection(toolsAttr.range);
-		this.rewriteTools(model, newTools, toolsAttr.range);
+		if (newTools === undefined) {
+			this.rewriteAttribute(model, '', toolsAttr.range);
+			return;
+		} else {
+			this.rewriteTools(model, newTools, toolsAttr.value.range);
+		}
 	}
 
-	public rewriteTools(model: ITextModel, newTools: IToolAndToolSetEnablementMap | undefined, range: Range): void {
-		const newString = newTools === undefined ? '' : `tools: ${this.getNewValueString(newTools)}`;
+	public rewriteTools(model: ITextModel, newTools: IToolAndToolSetEnablementMap, range: Range): void {
+		const newToolNames = this._languageModelToolsService.toFullReferenceNames(newTools);
+		const newValue = `[${newToolNames.map(s => `'${s}'`).join(', ')}]`;
+		this.rewriteAttribute(model, newValue, range);
+	}
+
+	private rewriteAttribute(model: ITextModel, newValue: string, range: Range): void {
 		model.pushStackElement();
-		model.pushEditOperations(null, [EditOperation.replaceMove(range, newString)], () => null);
+		model.pushEditOperations(null, [EditOperation.replaceMove(range, newValue)], () => null);
 		model.pushStackElement();
 	}
 
-	public getNewValueString(tools: IToolAndToolSetEnablementMap): string {
-		const newToolNames = this._languageModelToolsService.toQualifiedToolNames(tools);
-		return `[${newToolNames.map(s => `'${s}'`).join(', ')}]`;
+	public async openAndRewriteName(uri: URI, newName: string, token: CancellationToken): Promise<void> {
+		const editor = await this._codeEditorService.openCodeEditor({ resource: uri }, this._codeEditorService.getFocusedCodeEditor());
+		if (!editor || !editor.hasModel()) {
+			return;
+		}
+		const model = editor.getModel();
+
+		const promptAST = this._promptsService.getParsedPromptFile(model);
+		if (!promptAST.header) {
+			return;
+		}
+
+		const nameAttr = promptAST.header.getAttribute(PromptHeaderAttributes.name);
+		if (!nameAttr) {
+			return;
+		}
+		if (nameAttr.value.type === 'string' && nameAttr.value.value === newName) {
+			return;
+		}
+
+		editor.setSelection(nameAttr.range);
+		this.rewriteAttribute(model, newName, nameAttr.value.range);
 	}
 }
 

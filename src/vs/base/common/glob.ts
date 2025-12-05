@@ -596,7 +596,7 @@ export function parse(arg1: string | IExpression | IRelativePattern, options: IG
 	}
 
 	// Glob with Expression
-	return parsedExpression(<IExpression>arg1, options);
+	return parsedExpression(arg1, options);
 }
 
 export function isRelativePattern(obj: unknown): obj is IRelativePattern {

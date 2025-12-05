@@ -89,8 +89,8 @@ export class ChatResponseResourceFileSystemProvider extends Disposable implement
 		if (!parsed) {
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}
-		const { sessionId, toolCallId, index } = parsed;
-		const session = this.chatService.getSession(sessionId);
+		const { sessionResource, toolCallId, index } = parsed;
+		const session = this.chatService.getSession(sessionResource);
 		if (!session) {
 			throw createFileSystemProviderError(`File not found`, FileSystemProviderErrorCode.FileNotFound);
 		}

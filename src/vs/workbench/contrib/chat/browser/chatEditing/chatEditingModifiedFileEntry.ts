@@ -11,6 +11,7 @@ import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Location, TextEdit } from '../../../../../editor/common/languages.js';
+import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -21,7 +22,6 @@ import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undo
 import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
-import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -197,6 +197,11 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	enableReviewModeUntilSettled(): void {
 
+		if (this.state.get() !== ModifiedFileEntryState.Modified) {
+			// nothing to do
+			return;
+		}
+
 		this._reviewModeTempObs.set(true, undefined);
 
 		const cleanup = autorun(r => {
@@ -296,7 +301,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			modelId: this._telemetryInfo.modelId,
 			modeId: this._telemetryInfo.modeId,
 			command: this._telemetryInfo.command,
-			sessionId: this._telemetryInfo.sessionId,
+			sessionResource: this._telemetryInfo.sessionResource,
 			requestId: this._telemetryInfo.requestId,
 			result: this._telemetryInfo.result
 		});
@@ -323,7 +328,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	abstract readonly changesCount: IObservable<number>;
 
-	acceptStreamingEditsStart(responseModel: IChatResponseModel, undoStopId: string | undefined, tx: ITransaction) {
+	acceptStreamingEditsStart(responseModel: IChatResponseModel, undoStopId: string | undefined, tx: ITransaction | undefined) {
 		this._resetEditsState(tx);
 		this._isCurrentlyBeingModifiedByObs.set({ responseModel, undoStopId }, tx);
 		this._lastModifyingResponseObs.set(responseModel, tx);
@@ -358,7 +363,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	// --- snapshot
 
-	abstract createSnapshot(requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry;
+	abstract createSnapshot(chatSessionResource: URI, requestId: string | undefined, undoStop: string | undefined): ISnapshotEntry;
 
 	abstract equalsSnapshot(snapshot: ISnapshotEntry | undefined): boolean;
 

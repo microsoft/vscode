@@ -26,12 +26,13 @@ export namespace MCP {
  *
  * ⚠️ Do not edit within `namespace` manually except to update schema versions ⚠️
  */
-export namespace MCP {/* JSON-RPC types */
+export namespace MCP {
+	/* JSON-RPC types */
 
 	/**
 	 * Refers to any valid JSON-RPC object that can be decoded off the wire, or encoded to be sent.
 	 *
-	 * @internal
+	 * @category JSON-RPC
 	 */
 	export type JSONRPCMessage =
 		| JSONRPCRequest
@@ -40,50 +41,85 @@ export namespace MCP {/* JSON-RPC types */
 		| JSONRPCError;
 
 	/** @internal */
-	export const LATEST_PROTOCOL_VERSION = "2025-06-18";
+	export const LATEST_PROTOCOL_VERSION = "2025-11-25";
 	/** @internal */
 	export const JSONRPC_VERSION = "2.0";
 
 	/**
 	 * A progress token, used to associate progress notifications with the original request.
+	 *
+	 * @category Common Types
 	 */
 	export type ProgressToken = string | number;
 
 	/**
 	 * An opaque token used to represent a cursor for pagination.
+	 *
+	 * @category Common Types
 	 */
 	export type Cursor = string;
+
+	/**
+	 * Common params for any task-augmented request.
+	 *
+	 * @internal
+	 */
+	export interface TaskAugmentedRequestParams extends RequestParams {
+		/**
+		 * If specified, the caller is requesting task-augmented execution for this request.
+		 * The request will return a CreateTaskResult immediately, and the actual result can be
+		 * retrieved later via tasks/result.
+		 *
+		 * Task augmentation is subject to capability negotiation - receivers MUST declare support
+		 * for task augmentation of specific request types in their capabilities.
+		 */
+		task?: TaskMetadata;
+	}
+	/**
+	 * Common params for any request.
+	 *
+	 * @internal
+	 */
+	export interface RequestParams {
+		/**
+		 * See [General fields: `_meta`](/specification/draft/basic/index#meta) for notes on `_meta` usage.
+		 */
+		_meta?: {
+			/**
+			 * If specified, the caller is requesting out-of-band progress notifications for this request (as represented by notifications/progress). The value of this parameter is an opaque token that will be attached to any subsequent notifications. The receiver is not obligated to provide these notifications.
+			 */
+			progressToken?: ProgressToken;
+			[key: string]: unknown;
+		};
+	}
 
 	/** @internal */
 	export interface Request {
 		method: string;
-		params?: {
-			/**
-			 * See [General fields: `_meta`](/specification/draft/basic/index#meta) for notes on `_meta` usage.
-			 */
-			_meta?: {
-				/**
-				 * If specified, the caller is requesting out-of-band progress notifications for this request (as represented by notifications/progress). The value of this parameter is an opaque token that will be attached to any subsequent notifications. The receiver is not obligated to provide these notifications.
-				 */
-				progressToken?: ProgressToken;
-				[key: string]: unknown;
-			};
-			[key: string]: unknown;
-		};
+		// Allow unofficial extensions of `Request.params` without impacting `RequestParams`.
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		params?: { [key: string]: any };
+	}
+
+	/** @internal */
+	export interface NotificationParams {
+		/**
+		 * See [General fields: `_meta`](/specification/draft/basic/index#meta) for notes on `_meta` usage.
+		 */
+		_meta?: { [key: string]: unknown };
 	}
 
 	/** @internal */
 	export interface Notification {
 		method: string;
-		params?: {
-			/**
-			 * See [General fields: `_meta`](/specification/draft/basic/index#meta) for notes on `_meta` usage.
-			 */
-			_meta?: { [key: string]: unknown };
-			[key: string]: unknown;
-		};
+		// Allow unofficial extensions of `Notification.params` without impacting `NotificationParams`.
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		params?: { [key: string]: any };
 	}
 
+	/**
+	 * @category Common Types
+	 */
 	export interface Result {
 		/**
 		 * See [General fields: `_meta`](/specification/draft/basic/index#meta) for notes on `_meta` usage.
@@ -92,6 +128,9 @@ export namespace MCP {/* JSON-RPC types */
 		[key: string]: unknown;
 	}
 
+	/**
+	 * @category Common Types
+	 */
 	export interface Error {
 		/**
 		 * The error type that occurred.
@@ -109,11 +148,15 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * A uniquely identifying ID for a request in JSON-RPC.
+	 *
+	 * @category Common Types
 	 */
 	export type RequestId = string | number;
 
 	/**
 	 * A request that expects a response.
+	 *
+	 * @category JSON-RPC
 	 */
 	export interface JSONRPCRequest extends Request {
 		jsonrpc: typeof JSONRPC_VERSION;
@@ -122,6 +165,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * A notification which does not expect a response.
+	 *
+	 * @category JSON-RPC
 	 */
 	export interface JSONRPCNotification extends Notification {
 		jsonrpc: typeof JSONRPC_VERSION;
@@ -129,6 +174,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * A successful (non-error) response to a request.
+	 *
+	 * @category JSON-RPC
 	 */
 	export interface JSONRPCResponse {
 		jsonrpc: typeof JSONRPC_VERSION;
@@ -137,19 +184,20 @@ export namespace MCP {/* JSON-RPC types */
 	}
 
 	// Standard JSON-RPC error codes
-	/** @internal */
 	export const PARSE_ERROR = -32700;
-	/** @internal */
 	export const INVALID_REQUEST = -32600;
-	/** @internal */
 	export const METHOD_NOT_FOUND = -32601;
-	/** @internal */
 	export const INVALID_PARAMS = -32602;
-	/** @internal */
 	export const INTERNAL_ERROR = -32603;
+
+	// Implementation-specific JSON-RPC error codes [-32000, -32099]
+	/** @internal */
+	export const URL_ELICITATION_REQUIRED = -32042;
 
 	/**
 	 * A response to a request that indicates an error occurred.
+	 *
+	 * @category JSON-RPC
 	 */
 	export interface JSONRPCError {
 		jsonrpc: typeof JSONRPC_VERSION;
@@ -157,13 +205,52 @@ export namespace MCP {/* JSON-RPC types */
 		error: Error;
 	}
 
+	/**
+	 * An error response that indicates that the server requires the client to provide additional information via an elicitation request.
+	 *
+	 * @internal
+	 */
+	export interface URLElicitationRequiredError
+		extends Omit<JSONRPCError, "error"> {
+		error: Error & {
+			code: typeof URL_ELICITATION_REQUIRED;
+			data: {
+				elicitations: ElicitRequestURLParams[];
+				[key: string]: unknown;
+			};
+		};
+	}
+
 	/* Empty result */
 	/**
 	 * A response that indicates success but carries no data.
+	 *
+	 * @category Common Types
 	 */
 	export type EmptyResult = Result;
 
 	/* Cancellation */
+	/**
+	 * Parameters for a `notifications/cancelled` notification.
+	 *
+	 * @category `notifications/cancelled`
+	 */
+	export interface CancelledNotificationParams extends NotificationParams {
+		/**
+		 * The ID of the request to cancel.
+		 *
+		 * This MUST correspond to the ID of a request previously issued in the same direction.
+		 * This MUST be provided for cancelling non-task requests.
+		 * This MUST NOT be used for cancelling tasks (use the `tasks/cancel` request instead).
+		 */
+		requestId?: RequestId;
+
+		/**
+		 * An optional string describing the reason for the cancellation. This MAY be logged or presented to the user.
+		 */
+		reason?: string;
+	}
+
 	/**
 	 * This notification can be sent by either side to indicate that it is cancelling a previously-issued request.
 	 *
@@ -173,47 +260,44 @@ export namespace MCP {/* JSON-RPC types */
 	 *
 	 * A client MUST NOT attempt to cancel its `initialize` request.
 	 *
-	 * @category notifications/cancelled
+	 * For task cancellation, use the `tasks/cancel` request instead of this notification.
+	 *
+	 * @category `notifications/cancelled`
 	 */
 	export interface CancelledNotification extends JSONRPCNotification {
 		method: "notifications/cancelled";
-		params: {
-			/**
-			 * The ID of the request to cancel.
-			 *
-			 * This MUST correspond to the ID of a request previously issued in the same direction.
-			 */
-			requestId: RequestId;
-
-			/**
-			 * An optional string describing the reason for the cancellation. This MAY be logged or presented to the user.
-			 */
-			reason?: string;
-		};
+		params: CancelledNotificationParams;
 	}
 
 	/* Initialization */
 	/**
+	 * Parameters for an `initialize` request.
+	 *
+	 * @category `initialize`
+	 */
+	export interface InitializeRequestParams extends RequestParams {
+		/**
+		 * The latest version of the Model Context Protocol that the client supports. The client MAY decide to support older versions as well.
+		 */
+		protocolVersion: string;
+		capabilities: ClientCapabilities;
+		clientInfo: Implementation;
+	}
+
+	/**
 	 * This request is sent from the client to the server when it first connects, asking it to begin initialization.
 	 *
-	 * @category initialize
+	 * @category `initialize`
 	 */
 	export interface InitializeRequest extends JSONRPCRequest {
 		method: "initialize";
-		params: {
-			/**
-			 * The latest version of the Model Context Protocol that the client supports. The client MAY decide to support older versions as well.
-			 */
-			protocolVersion: string;
-			capabilities: ClientCapabilities;
-			clientInfo: Implementation;
-		};
+		params: InitializeRequestParams;
 	}
 
 	/**
 	 * After receiving an initialize request from the client, the server sends this response.
 	 *
-	 * @category initialize
+	 * @category `initialize`
 	 */
 	export interface InitializeResult extends Result {
 		/**
@@ -234,14 +318,17 @@ export namespace MCP {/* JSON-RPC types */
 	/**
 	 * This notification is sent from the client to the server after initialization has finished.
 	 *
-	 * @category notifications/initialized
+	 * @category `notifications/initialized`
 	 */
 	export interface InitializedNotification extends JSONRPCNotification {
 		method: "notifications/initialized";
+		params?: NotificationParams;
 	}
 
 	/**
 	 * Capabilities a client may support. Known capabilities are defined here, in this schema, but this is not a closed set: any client can define its own, additional capabilities.
+	 *
+	 * @category `initialize`
 	 */
 	export interface ClientCapabilities {
 		/**
@@ -260,15 +347,64 @@ export namespace MCP {/* JSON-RPC types */
 		/**
 		 * Present if the client supports sampling from an LLM.
 		 */
-		sampling?: object;
+		sampling?: {
+			/**
+			 * Whether the client supports context inclusion via includeContext parameter.
+			 * If not declared, servers SHOULD only use `includeContext: "none"` (or omit it).
+			 */
+			context?: object;
+			/**
+			 * Whether the client supports tool use via tools and toolChoice parameters.
+			 */
+			tools?: object;
+		};
 		/**
 		 * Present if the client supports elicitation from the server.
 		 */
-		elicitation?: object;
+		elicitation?: { form?: object; url?: object };
+
+		/**
+		 * Present if the client supports task-augmented requests.
+		 */
+		tasks?: {
+			/**
+			 * Whether this client supports tasks/list.
+			 */
+			list?: object;
+			/**
+			 * Whether this client supports tasks/cancel.
+			 */
+			cancel?: object;
+			/**
+			 * Specifies which request types can be augmented with tasks.
+			 */
+			requests?: {
+				/**
+				 * Task support for sampling-related requests.
+				 */
+				sampling?: {
+					/**
+					 * Whether the client supports task-augmented sampling/createMessage requests.
+					 */
+					createMessage?: object;
+				};
+				/**
+				 * Task support for elicitation-related requests.
+				 */
+				elicitation?: {
+					/**
+					 * Whether the client supports task-augmented elicitation/create requests.
+					 */
+					create?: object;
+				};
+			};
+		};
 	}
 
 	/**
 	 * Capabilities that a server may support. Known capabilities are defined here, in this schema, but this is not a closed set: any server can define its own, additional capabilities.
+	 *
+	 * @category `initialize`
 	 */
 	export interface ServerCapabilities {
 		/**
@@ -314,10 +450,39 @@ export namespace MCP {/* JSON-RPC types */
 			 */
 			listChanged?: boolean;
 		};
+		/**
+		 * Present if the server supports task-augmented requests.
+		 */
+		tasks?: {
+			/**
+			 * Whether this server supports tasks/list.
+			 */
+			list?: object;
+			/**
+			 * Whether this server supports tasks/cancel.
+			 */
+			cancel?: object;
+			/**
+			 * Specifies which request types can be augmented with tasks.
+			 */
+			requests?: {
+				/**
+				 * Task support for tool-related requests.
+				 */
+				tools?: {
+					/**
+					 * Whether the server supports task-augmented tools/call requests.
+					 */
+					call?: object;
+				};
+			};
+		};
 	}
 
 	/**
 	 * An optionally-sized icon that can be displayed in a user interface.
+	 *
+	 * @category Common Types
 	 */
 	export interface Icon {
 		/**
@@ -341,12 +506,12 @@ export namespace MCP {/* JSON-RPC types */
 		mimeType?: string;
 
 		/**
-		 * Optional string that specifies one or more sizes at which the icon can be used.
-		 * For example: `"48x48"`, `"48x48 96x96"`, or `"any"` for scalable formats like SVG.
+		 * Optional array of strings that specify sizes at which the icon can be used.
+		 * Each string should be in WxH format (e.g., `"48x48"`, `"96x96"`) or `"any"` for scalable formats like SVG.
 		 *
 		 * If not provided, the client should assume that the icon can be used at any size.
 		 */
-		sizes?: string;
+		sizes?: string[];
 
 		/**
 		 * Optional specifier for the theme this icon is designed for. `light` indicates
@@ -355,7 +520,7 @@ export namespace MCP {/* JSON-RPC types */
 		 *
 		 * If not provided, the client should assume the icon can be used with any theme.
 		 */
-		theme?: 'light' | 'dark';
+		theme?: "light" | "dark";
 	}
 
 	/**
@@ -401,10 +566,21 @@ export namespace MCP {/* JSON-RPC types */
 	}
 
 	/**
-	 * Describes the MCP implementation
+	 * Describes the MCP implementation.
+	 *
+	 * @category `initialize`
 	 */
 	export interface Implementation extends BaseMetadata, Icons {
 		version: string;
+
+		/**
+		 * An optional human-readable description of what this implementation does.
+		 *
+		 * This can be used by clients or servers to provide context about their purpose
+		 * and capabilities. For example, a server might describe the types of resources
+		 * or tools it provides, while a client might describe its intended use case.
+		 */
+		description?: string;
 
 		/**
 		 * An optional URL of the website for this implementation.
@@ -418,54 +594,70 @@ export namespace MCP {/* JSON-RPC types */
 	/**
 	 * A ping, issued by either the server or the client, to check that the other party is still alive. The receiver must promptly respond, or else may be disconnected.
 	 *
-	 * @category ping
+	 * @category `ping`
 	 */
 	export interface PingRequest extends JSONRPCRequest {
 		method: "ping";
+		params?: RequestParams;
 	}
 
 	/* Progress notifications */
+
+	/**
+	 * Parameters for a `notifications/progress` notification.
+	 *
+	 * @category `notifications/progress`
+	 */
+	export interface ProgressNotificationParams extends NotificationParams {
+		/**
+		 * The progress token which was given in the initial request, used to associate this notification with the request that is proceeding.
+		 */
+		progressToken: ProgressToken;
+		/**
+		 * The progress thus far. This should increase every time progress is made, even if the total is unknown.
+		 *
+		 * @TJS-type number
+		 */
+		progress: number;
+		/**
+		 * Total number of items to process (or total progress required), if known.
+		 *
+		 * @TJS-type number
+		 */
+		total?: number;
+		/**
+		 * An optional message describing the current progress.
+		 */
+		message?: string;
+	}
+
 	/**
 	 * An out-of-band notification used to inform the receiver of a progress update for a long-running request.
 	 *
-	 * @category notifications/progress
+	 * @category `notifications/progress`
 	 */
 	export interface ProgressNotification extends JSONRPCNotification {
 		method: "notifications/progress";
-		params: {
-			/**
-			 * The progress token which was given in the initial request, used to associate this notification with the request that is proceeding.
-			 */
-			progressToken: ProgressToken;
-			/**
-			 * The progress thus far. This should increase every time progress is made, even if the total is unknown.
-			 *
-			 * @TJS-type number
-			 */
-			progress: number;
-			/**
-			 * Total number of items to process (or total progress required), if known.
-			 *
-			 * @TJS-type number
-			 */
-			total?: number;
-			/**
-			 * An optional message describing the current progress.
-			 */
-			message?: string;
-		};
+		params: ProgressNotificationParams;
 	}
 
 	/* Pagination */
+	/**
+	 * Common parameters for paginated requests.
+	 *
+	 * @internal
+	 */
+	export interface PaginatedRequestParams extends RequestParams {
+		/**
+		 * An opaque token representing the current pagination position.
+		 * If provided, the server should return results starting after this cursor.
+		 */
+		cursor?: Cursor;
+	}
+
 	/** @internal */
 	export interface PaginatedRequest extends JSONRPCRequest {
-		params?: {
-			/**
-			 * An opaque token representing the current pagination position.
-			 * If provided, the server should return results starting after this cursor.
-			 */
-			cursor?: Cursor;
-		};
+		params?: PaginatedRequestParams;
 	}
 
 	/** @internal */
@@ -481,7 +673,7 @@ export namespace MCP {/* JSON-RPC types */
 	/**
 	 * Sent from the client to request a list of resources the server has.
 	 *
-	 * @category resources/list
+	 * @category `resources/list`
 	 */
 	export interface ListResourcesRequest extends PaginatedRequest {
 		method: "resources/list";
@@ -490,7 +682,7 @@ export namespace MCP {/* JSON-RPC types */
 	/**
 	 * The server's response to a resources/list request from the client.
 	 *
-	 * @category resources/list
+	 * @category `resources/list`
 	 */
 	export interface ListResourcesResult extends PaginatedResult {
 		resources: Resource[];
@@ -499,7 +691,7 @@ export namespace MCP {/* JSON-RPC types */
 	/**
 	 * Sent from the client to request a list of resource templates the server has.
 	 *
-	 * @category resources/templates/list
+	 * @category `resources/templates/list`
 	 */
 	export interface ListResourceTemplatesRequest extends PaginatedRequest {
 		method: "resources/templates/list";
@@ -508,33 +700,47 @@ export namespace MCP {/* JSON-RPC types */
 	/**
 	 * The server's response to a resources/templates/list request from the client.
 	 *
-	 * @category resources/templates/list
+	 * @category `resources/templates/list`
 	 */
 	export interface ListResourceTemplatesResult extends PaginatedResult {
 		resourceTemplates: ResourceTemplate[];
 	}
 
 	/**
+	 * Common parameters when working with resources.
+	 *
+	 * @internal
+	 */
+	export interface ResourceRequestParams extends RequestParams {
+		/**
+		 * The URI of the resource. The URI can use any protocol; it is up to the server how to interpret it.
+		 *
+		 * @format uri
+		 */
+		uri: string;
+	}
+
+	/**
+	 * Parameters for a `resources/read` request.
+	 *
+	 * @category `resources/read`
+	 */
+	export interface ReadResourceRequestParams extends ResourceRequestParams { }
+
+	/**
 	 * Sent from the client to the server, to read a specific resource URI.
 	 *
-	 * @category resources/read
+	 * @category `resources/read`
 	 */
 	export interface ReadResourceRequest extends JSONRPCRequest {
 		method: "resources/read";
-		params: {
-			/**
-			 * The URI of the resource to read. The URI can use any protocol; it is up to the server how to interpret it.
-			 *
-			 * @format uri
-			 */
-			uri: string;
-		};
+		params: ReadResourceRequestParams;
 	}
 
 	/**
 	 * The server's response to a resources/read request from the client.
 	 *
-	 * @category resources/read
+	 * @category `resources/read`
 	 */
 	export interface ReadResourceResult extends Result {
 		contents: (TextResourceContents | BlobResourceContents)[];
@@ -543,65 +749,75 @@ export namespace MCP {/* JSON-RPC types */
 	/**
 	 * An optional notification from the server to the client, informing it that the list of resources it can read from has changed. This may be issued by servers without any previous subscription from the client.
 	 *
-	 * @category notifications/resources/list_changed
+	 * @category `notifications/resources/list_changed`
 	 */
 	export interface ResourceListChangedNotification extends JSONRPCNotification {
 		method: "notifications/resources/list_changed";
+		params?: NotificationParams;
 	}
+
+	/**
+	 * Parameters for a `resources/subscribe` request.
+	 *
+	 * @category `resources/subscribe`
+	 */
+	export interface SubscribeRequestParams extends ResourceRequestParams { }
 
 	/**
 	 * Sent from the client to request resources/updated notifications from the server whenever a particular resource changes.
 	 *
-	 * @category resources/subscribe
+	 * @category `resources/subscribe`
 	 */
 	export interface SubscribeRequest extends JSONRPCRequest {
 		method: "resources/subscribe";
-		params: {
-			/**
-			 * The URI of the resource to subscribe to. The URI can use any protocol; it is up to the server how to interpret it.
-			 *
-			 * @format uri
-			 */
-			uri: string;
-		};
+		params: SubscribeRequestParams;
 	}
+
+	/**
+	 * Parameters for a `resources/unsubscribe` request.
+	 *
+	 * @category `resources/unsubscribe`
+	 */
+	export interface UnsubscribeRequestParams extends ResourceRequestParams { }
 
 	/**
 	 * Sent from the client to request cancellation of resources/updated notifications from the server. This should follow a previous resources/subscribe request.
 	 *
-	 * @category resources/unsubscribe
+	 * @category `resources/unsubscribe`
 	 */
 	export interface UnsubscribeRequest extends JSONRPCRequest {
 		method: "resources/unsubscribe";
-		params: {
-			/**
-			 * The URI of the resource to unsubscribe from.
-			 *
-			 * @format uri
-			 */
-			uri: string;
-		};
+		params: UnsubscribeRequestParams;
+	}
+
+	/**
+	 * Parameters for a `notifications/resources/updated` notification.
+	 *
+	 * @category `notifications/resources/updated`
+	 */
+	export interface ResourceUpdatedNotificationParams extends NotificationParams {
+		/**
+		 * The URI of the resource that has been updated. This might be a sub-resource of the one that the client actually subscribed to.
+		 *
+		 * @format uri
+		 */
+		uri: string;
 	}
 
 	/**
 	 * A notification from the server to the client, informing it that a resource has changed and may need to be read again. This should only be sent if the client previously sent a resources/subscribe request.
 	 *
-	 * @category notifications/resources/updated
+	 * @category `notifications/resources/updated`
 	 */
 	export interface ResourceUpdatedNotification extends JSONRPCNotification {
 		method: "notifications/resources/updated";
-		params: {
-			/**
-			 * The URI of the resource that has been updated. This might be a sub-resource of the one that the client actually subscribed to.
-			 *
-			 * @format uri
-			 */
-			uri: string;
-		};
+		params: ResourceUpdatedNotificationParams;
 	}
 
 	/**
 	 * A known resource that the server is capable of reading.
+	 *
+	 * @category `resources/list`
 	 */
 	export interface Resource extends BaseMetadata, Icons {
 		/**
@@ -643,6 +859,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * A template description for resources available on the server.
+	 *
+	 * @category `resources/templates/list`
 	 */
 	export interface ResourceTemplate extends BaseMetadata, Icons {
 		/**
@@ -677,6 +895,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * The contents of a specific resource or sub-resource.
+	 *
+	 * @internal
 	 */
 	export interface ResourceContents {
 		/**
@@ -696,6 +916,9 @@ export namespace MCP {/* JSON-RPC types */
 		_meta?: { [key: string]: unknown };
 	}
 
+	/**
+	 * @category Content
+	 */
 	export interface TextResourceContents extends ResourceContents {
 		/**
 		 * The text of the item. This must only be set if the item can actually be represented as text (not binary data).
@@ -703,6 +926,9 @@ export namespace MCP {/* JSON-RPC types */
 		text: string;
 	}
 
+	/**
+	 * @category Content
+	 */
 	export interface BlobResourceContents extends ResourceContents {
 		/**
 		 * A base64-encoded string representing the binary data of the item.
@@ -716,7 +942,7 @@ export namespace MCP {/* JSON-RPC types */
 	/**
 	 * Sent from the client to request a list of prompts and prompt templates the server has.
 	 *
-	 * @category prompts/list
+	 * @category `prompts/list`
 	 */
 	export interface ListPromptsRequest extends PaginatedRequest {
 		method: "prompts/list";
@@ -725,35 +951,42 @@ export namespace MCP {/* JSON-RPC types */
 	/**
 	 * The server's response to a prompts/list request from the client.
 	 *
-	 * @category prompts/list
+	 * @category `prompts/list`
 	 */
 	export interface ListPromptsResult extends PaginatedResult {
 		prompts: Prompt[];
 	}
 
 	/**
+	 * Parameters for a `prompts/get` request.
+	 *
+	 * @category `prompts/get`
+	 */
+	export interface GetPromptRequestParams extends RequestParams {
+		/**
+		 * The name of the prompt or prompt template.
+		 */
+		name: string;
+		/**
+		 * Arguments to use for templating the prompt.
+		 */
+		arguments?: { [key: string]: string };
+	}
+
+	/**
 	 * Used by the client to get a prompt provided by the server.
 	 *
-	 * @category prompts/get
+	 * @category `prompts/get`
 	 */
 	export interface GetPromptRequest extends JSONRPCRequest {
 		method: "prompts/get";
-		params: {
-			/**
-			 * The name of the prompt or prompt template.
-			 */
-			name: string;
-			/**
-			 * Arguments to use for templating the prompt.
-			 */
-			arguments?: { [key: string]: string };
-		};
+		params: GetPromptRequestParams;
 	}
 
 	/**
 	 * The server's response to a prompts/get request from the client.
 	 *
-	 * @category prompts/get
+	 * @category `prompts/get`
 	 */
 	export interface GetPromptResult extends Result {
 		/**
@@ -765,6 +998,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * A prompt or prompt template that the server offers.
+	 *
+	 * @category `prompts/list`
 	 */
 	export interface Prompt extends BaseMetadata, Icons {
 		/**
@@ -785,6 +1020,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * Describes an argument that a prompt can accept.
+	 *
+	 * @category `prompts/list`
 	 */
 	export interface PromptArgument extends BaseMetadata {
 		/**
@@ -799,6 +1036,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * The sender or recipient of messages and data in a conversation.
+	 *
+	 * @category Common Types
 	 */
 	export type Role = "user" | "assistant";
 
@@ -807,6 +1046,8 @@ export namespace MCP {/* JSON-RPC types */
 	 *
 	 * This is similar to `SamplingMessage`, but also supports the embedding of
 	 * resources from the MCP server.
+	 *
+	 * @category `prompts/get`
 	 */
 	export interface PromptMessage {
 		role: Role;
@@ -817,6 +1058,8 @@ export namespace MCP {/* JSON-RPC types */
 	 * A resource that the server is capable of reading, included in a prompt or tool call result.
 	 *
 	 * Note: resource links returned by tools are not guaranteed to appear in the results of `resources/list` requests.
+	 *
+	 * @category Content
 	 */
 	export interface ResourceLink extends Resource {
 		type: "resource_link";
@@ -827,6 +1070,8 @@ export namespace MCP {/* JSON-RPC types */
 	 *
 	 * It is up to the client how best to render embedded resources for the benefit
 	 * of the LLM and/or the user.
+	 *
+	 * @category Content
 	 */
 	export interface EmbeddedResource {
 		type: "resource";
@@ -845,17 +1090,18 @@ export namespace MCP {/* JSON-RPC types */
 	/**
 	 * An optional notification from the server to the client, informing it that the list of prompts it offers has changed. This may be issued by servers without any previous subscription from the client.
 	 *
-	 * @category notifications/prompts/list_changed
+	 * @category `notifications/prompts/list_changed`
 	 */
 	export interface PromptListChangedNotification extends JSONRPCNotification {
 		method: "notifications/prompts/list_changed";
+		params?: NotificationParams;
 	}
 
 	/* Tools */
 	/**
 	 * Sent from the client to request a list of tools the server has.
 	 *
-	 * @category tools/list
+	 * @category `tools/list`
 	 */
 	export interface ListToolsRequest extends PaginatedRequest {
 		method: "tools/list";
@@ -864,7 +1110,7 @@ export namespace MCP {/* JSON-RPC types */
 	/**
 	 * The server's response to a tools/list request from the client.
 	 *
-	 * @category tools/list
+	 * @category `tools/list`
 	 */
 	export interface ListToolsResult extends PaginatedResult {
 		tools: Tool[];
@@ -873,7 +1119,7 @@ export namespace MCP {/* JSON-RPC types */
 	/**
 	 * The server's response to a tool call.
 	 *
-	 * @category tools/call
+	 * @category `tools/call`
 	 */
 	export interface CallToolResult extends Result {
 		/**
@@ -904,25 +1150,39 @@ export namespace MCP {/* JSON-RPC types */
 	}
 
 	/**
+	 * Parameters for a `tools/call` request.
+	 *
+	 * @category `tools/call`
+	 */
+	export interface CallToolRequestParams extends TaskAugmentedRequestParams {
+		/**
+		 * The name of the tool.
+		 */
+		name: string;
+		/**
+		 * Arguments to use for the tool call.
+		 */
+		arguments?: { [key: string]: unknown };
+	}
+
+	/**
 	 * Used by the client to invoke a tool provided by the server.
 	 *
-	 * @category tools/call
+	 * @category `tools/call`
 	 */
 	export interface CallToolRequest extends JSONRPCRequest {
 		method: "tools/call";
-		params: {
-			name: string;
-			arguments?: { [key: string]: unknown };
-		};
+		params: CallToolRequestParams;
 	}
 
 	/**
 	 * An optional notification from the server to the client, informing it that the list of tools it offers has changed. This may be issued by servers without any previous subscription from the client.
 	 *
-	 * @category notifications/tools/list_changed
+	 * @category `notifications/tools/list_changed`
 	 */
 	export interface ToolListChangedNotification extends JSONRPCNotification {
 		method: "notifications/tools/list_changed";
+		params?: NotificationParams;
 	}
 
 	/**
@@ -934,6 +1194,8 @@ export namespace MCP {/* JSON-RPC types */
 	 *
 	 * Clients should never make tool use decisions based on ToolAnnotations
 	 * received from untrusted servers.
+	 *
+	 * @category `tools/list`
 	 */
 	export interface ToolAnnotations {
 		/**
@@ -960,7 +1222,7 @@ export namespace MCP {/* JSON-RPC types */
 
 		/**
 		 * If true, calling the tool repeatedly with the same arguments
-		 * will have no additional effect on the its environment.
+		 * will have no additional effect on its environment.
 		 *
 		 * (This property is meaningful only when `readOnlyHint == false`)
 		 *
@@ -980,7 +1242,29 @@ export namespace MCP {/* JSON-RPC types */
 	}
 
 	/**
+	 * Execution-related properties for a tool.
+	 *
+	 * @category `tools/list`
+	 */
+	export interface ToolExecution {
+		/**
+		 * Indicates whether this tool supports task-augmented execution.
+		 * This allows clients to handle long-running operations through polling
+		 * the task system.
+		 *
+		 * - "forbidden": Tool does not support task-augmented execution (default when absent)
+		 * - "optional": Tool may support task-augmented execution
+		 * - "required": Tool requires task-augmented execution
+		 *
+		 * Default: "forbidden"
+		 */
+		taskSupport?: "forbidden" | "optional" | "required";
+	}
+
+	/**
 	 * Definition for a tool the client can call.
+	 *
+	 * @category `tools/list`
 	 */
 	export interface Tool extends BaseMetadata, Icons {
 		/**
@@ -994,16 +1278,26 @@ export namespace MCP {/* JSON-RPC types */
 		 * A JSON Schema object defining the expected parameters for the tool.
 		 */
 		inputSchema: {
+			$schema?: string;
 			type: "object";
 			properties?: { [key: string]: object };
 			required?: string[];
 		};
 
 		/**
+		 * Execution-related properties for this tool.
+		 */
+		execution?: ToolExecution;
+
+		/**
 		 * An optional JSON Schema object defining the structure of the tool's output returned in
 		 * the structuredContent field of a CallToolResult.
+		 *
+		 * Defaults to JSON Schema 2020-12 when no explicit $schema is provided.
+		 * Currently restricted to type: "object" at the root level.
 		 */
 		outputSchema?: {
+			$schema?: string;
 			type: "object";
 			properties?: { [key: string]: object };
 			required?: string[];
@@ -1022,43 +1316,253 @@ export namespace MCP {/* JSON-RPC types */
 		_meta?: { [key: string]: unknown };
 	}
 
+	/* Tasks */
+
+	/**
+	 * The status of a task.
+	 *
+	 * @category `tasks`
+	 */
+	export type TaskStatus =
+		| "working" // The request is currently being processed
+		| "input_required" // The task is waiting for input (e.g., elicitation or sampling)
+		| "completed" // The request completed successfully and results are available
+		| "failed" // The associated request did not complete successfully. For tool calls specifically, this includes cases where the tool call result has `isError` set to true.
+		| "cancelled"; // The request was cancelled before completion
+
+	/**
+	 * Metadata for augmenting a request with task execution.
+	 * Include this in the `task` field of the request parameters.
+	 *
+	 * @category `tasks`
+	 */
+	export interface TaskMetadata {
+		/**
+		 * Requested duration in milliseconds to retain task from creation.
+		 */
+		ttl?: number;
+	}
+
+	/**
+	 * Metadata for associating messages with a task.
+	 * Include this in the `_meta` field under the key `io.modelcontextprotocol/related-task`.
+	 *
+	 * @category `tasks`
+	 */
+	export interface RelatedTaskMetadata {
+		/**
+		 * The task identifier this message is associated with.
+		 */
+		taskId: string;
+	}
+
+	/**
+	 * Data associated with a task.
+	 *
+	 * @category `tasks`
+	 */
+	export interface Task {
+		/**
+		 * The task identifier.
+		 */
+		taskId: string;
+
+		/**
+		 * Current task state.
+		 */
+		status: TaskStatus;
+
+		/**
+		 * Optional human-readable message describing the current task state.
+		 * This can provide context for any status, including:
+		 * - Reasons for "cancelled" status
+		 * - Summaries for "completed" status
+		 * - Diagnostic information for "failed" status (e.g., error details, what went wrong)
+		 */
+		statusMessage?: string;
+
+		/**
+		 * ISO 8601 timestamp when the task was created.
+		 */
+		createdAt: string;
+
+		/**
+		 * Actual retention duration from creation in milliseconds, null for unlimited.
+		 */
+		ttl: number | null;
+
+		/**
+		 * Suggested polling interval in milliseconds.
+		 */
+		pollInterval?: number;
+	}
+
+	/**
+	 * A response to a task-augmented request.
+	 *
+	 * @category `tasks`
+	 */
+	export interface CreateTaskResult extends Result {
+		task: Task;
+	}
+
+	/**
+	 * A request to retrieve the state of a task.
+	 *
+	 * @category `tasks/get`
+	 */
+	export interface GetTaskRequest extends JSONRPCRequest {
+		method: "tasks/get";
+		params: {
+			/**
+			 * The task identifier to query.
+			 */
+			taskId: string;
+		};
+	}
+
+	/**
+	 * The response to a tasks/get request.
+	 *
+	 * @category `tasks/get`
+	 */
+	export type GetTaskResult = Result & Task;
+
+	/**
+	 * A request to retrieve the result of a completed task.
+	 *
+	 * @category `tasks/result`
+	 */
+	export interface GetTaskPayloadRequest extends JSONRPCRequest {
+		method: "tasks/result";
+		params: {
+			/**
+			 * The task identifier to retrieve results for.
+			 */
+			taskId: string;
+		};
+	}
+
+	/**
+	 * The response to a tasks/result request.
+	 * The structure matches the result type of the original request.
+	 * For example, a tools/call task would return the CallToolResult structure.
+	 *
+	 * @category `tasks/result`
+	 */
+	export interface GetTaskPayloadResult extends Result {
+		[key: string]: unknown;
+	}
+
+	/**
+	 * A request to cancel a task.
+	 *
+	 * @category `tasks/cancel`
+	 */
+	export interface CancelTaskRequest extends JSONRPCRequest {
+		method: "tasks/cancel";
+		params: {
+			/**
+			 * The task identifier to cancel.
+			 */
+			taskId: string;
+		};
+	}
+
+	/**
+	 * The response to a tasks/cancel request.
+	 *
+	 * @category `tasks/cancel`
+	 */
+	export type CancelTaskResult = Result & Task;
+
+	/**
+	 * A request to retrieve a list of tasks.
+	 *
+	 * @category `tasks/list`
+	 */
+	export interface ListTasksRequest extends PaginatedRequest {
+		method: "tasks/list";
+	}
+
+	/**
+	 * The response to a tasks/list request.
+	 *
+	 * @category `tasks/list`
+	 */
+	export interface ListTasksResult extends PaginatedResult {
+		tasks: Task[];
+	}
+
+	/**
+	 * Parameters for a `notifications/tasks/status` notification.
+	 *
+	 * @category `notifications/tasks/status`
+	 */
+	export type TaskStatusNotificationParams = NotificationParams & Task;
+
+	/**
+	 * An optional notification from the receiver to the requestor, informing them that a task's status has changed. Receivers are not required to send these notifications.
+	 *
+	 * @category `notifications/tasks/status`
+	 */
+	export interface TaskStatusNotification extends JSONRPCNotification {
+		method: "notifications/tasks/status";
+		params: TaskStatusNotificationParams;
+	}
+
 	/* Logging */
+
+	/**
+	 * Parameters for a `logging/setLevel` request.
+	 *
+	 * @category `logging/setLevel`
+	 */
+	export interface SetLevelRequestParams extends RequestParams {
+		/**
+		 * The level of logging that the client wants to receive from the server. The server should send all logs at this level and higher (i.e., more severe) to the client as notifications/message.
+		 */
+		level: LoggingLevel;
+	}
+
 	/**
 	 * A request from the client to the server, to enable or adjust logging.
 	 *
-	 * @category logging/setLevel
+	 * @category `logging/setLevel`
 	 */
 	export interface SetLevelRequest extends JSONRPCRequest {
 		method: "logging/setLevel";
-		params: {
-			/**
-			 * The level of logging that the client wants to receive from the server. The server should send all logs at this level and higher (i.e., more severe) to the client as notifications/message.
-			 */
-			level: LoggingLevel;
-		};
+		params: SetLevelRequestParams;
+	}
+
+	/**
+	 * Parameters for a `notifications/message` notification.
+	 *
+	 * @category `notifications/message`
+	 */
+	export interface LoggingMessageNotificationParams extends NotificationParams {
+		/**
+		 * The severity of this log message.
+		 */
+		level: LoggingLevel;
+		/**
+		 * An optional name of the logger issuing this message.
+		 */
+		logger?: string;
+		/**
+		 * The data to be logged, such as a string message or an object. Any JSON serializable type is allowed here.
+		 */
+		data: unknown;
 	}
 
 	/**
 	 * JSONRPCNotification of a log message passed from server to client. If no logging/setLevel request has been sent from the client, the server MAY decide which messages to send automatically.
 	 *
-	 * @category notifications/message
+	 * @category `notifications/message`
 	 */
 	export interface LoggingMessageNotification extends JSONRPCNotification {
 		method: "notifications/message";
-		params: {
-			/**
-			 * The severity of this log message.
-			 */
-			level: LoggingLevel;
-			/**
-			 * An optional name of the logger issuing this message.
-			 */
-			logger?: string;
-			/**
-			 * The data to be logged, such as a string message or an object. Any JSON serializable type is allowed here.
-			 */
-			data: unknown;
-		};
+		params: LoggingMessageNotificationParams;
 	}
 
 	/**
@@ -1066,6 +1570,8 @@ export namespace MCP {/* JSON-RPC types */
 	 *
 	 * These map to syslog message severities, as specified in RFC-5424:
 	 * https://datatracker.ietf.org/doc/html/rfc5424#section-6.2.1
+	 *
+	 * @category Common Types
 	 */
 	export type LoggingLevel =
 		| "debug"
@@ -1079,74 +1585,136 @@ export namespace MCP {/* JSON-RPC types */
 
 	/* Sampling */
 	/**
-	 * A request from the server to sample an LLM via the client. The client has full discretion over which model to select. The client should also inform the user before beginning sampling, to allow them to inspect the request (human in the loop) and decide whether to approve it.
+	 * Parameters for a `sampling/createMessage` request.
 	 *
-	 * @category sampling/createMessage
+	 * @category `sampling/createMessage`
 	 */
-	export interface CreateMessageRequest extends JSONRPCRequest {
-		method: "sampling/createMessage";
-		params: {
-			messages: SamplingMessage[];
-			/**
-			 * The server's preferences for which model to select. The client MAY ignore these preferences.
-			 */
-			modelPreferences?: ModelPreferences;
-			/**
-			 * An optional system prompt the server wants to use for sampling. The client MAY modify or omit this prompt.
-			 */
-			systemPrompt?: string;
-			/**
-			 * A request to include context from one or more MCP servers (including the caller), to be attached to the prompt. The client MAY ignore this request.
-			 */
-			includeContext?: "none" | "thisServer" | "allServers";
-			/**
-			 * @TJS-type number
-			 */
-			temperature?: number;
-			/**
-			 * The requested maximum number of tokens to sample (to prevent runaway completions).
-			 *
-			 * The client MAY choose to sample fewer tokens than the requested maximum.
-			 */
-			maxTokens: number;
-			stopSequences?: string[];
-			/**
-			 * Optional metadata to pass through to the LLM provider. The format of this metadata is provider-specific.
-			 */
-			metadata?: object;
-		};
+	export interface CreateMessageRequestParams extends TaskAugmentedRequestParams {
+		messages: SamplingMessage[];
+		/**
+		 * The server's preferences for which model to select. The client MAY ignore these preferences.
+		 */
+		modelPreferences?: ModelPreferences;
+		/**
+		 * An optional system prompt the server wants to use for sampling. The client MAY modify or omit this prompt.
+		 */
+		systemPrompt?: string;
+		/**
+		 * A request to include context from one or more MCP servers (including the caller), to be attached to the prompt.
+		 * The client MAY ignore this request.
+		 *
+		 * Default is "none". Values "thisServer" and "allServers" are soft-deprecated. Servers SHOULD only use these values if the client
+		 * declares ClientCapabilities.sampling.context. These values may be removed in future spec releases.
+		 */
+		includeContext?: "none" | "thisServer" | "allServers";
+		/**
+		 * @TJS-type number
+		 */
+		temperature?: number;
+		/**
+		 * The requested maximum number of tokens to sample (to prevent runaway completions).
+		 *
+		 * The client MAY choose to sample fewer tokens than the requested maximum.
+		 */
+		maxTokens: number;
+		stopSequences?: string[];
+		/**
+		 * Optional metadata to pass through to the LLM provider. The format of this metadata is provider-specific.
+		 */
+		metadata?: object;
+		/**
+		 * Tools that the model may use during generation.
+		 * The client MUST return an error if this field is provided but ClientCapabilities.sampling.tools is not declared.
+		 */
+		tools?: Tool[];
+		/**
+		 * Controls how the model uses tools.
+		 * The client MUST return an error if this field is provided but ClientCapabilities.sampling.tools is not declared.
+		 * Default is `{ mode: "auto" }`.
+		 */
+		toolChoice?: ToolChoice;
 	}
 
 	/**
-	 * The client's response to a sampling/create_message request from the server. The client should inform the user before returning the sampled message, to allow them to inspect the response (human in the loop) and decide whether to allow the server to see it.
+	 * Controls tool selection behavior for sampling requests.
 	 *
-	 * @category sampling/createMessage
+	 * @category `sampling/createMessage`
+	 */
+	export interface ToolChoice {
+		/**
+		 * Controls the tool use ability of the model:
+		 * - "auto": Model decides whether to use tools (default)
+		 * - "required": Model MUST use at least one tool before completing
+		 * - "none": Model MUST NOT use any tools
+		 */
+		mode?: "auto" | "required" | "none";
+	}
+
+	/**
+	 * A request from the server to sample an LLM via the client. The client has full discretion over which model to select. The client should also inform the user before beginning sampling, to allow them to inspect the request (human in the loop) and decide whether to approve it.
+	 *
+	 * @category `sampling/createMessage`
+	 */
+	export interface CreateMessageRequest extends JSONRPCRequest {
+		method: "sampling/createMessage";
+		params: CreateMessageRequestParams;
+	}
+
+	/**
+	 * The client's response to a sampling/createMessage request from the server.
+	 * The client should inform the user before returning the sampled message, to allow them
+	 * to inspect the response (human in the loop) and decide whether to allow the server to see it.
+	 *
+	 * @category `sampling/createMessage`
 	 */
 	export interface CreateMessageResult extends Result, SamplingMessage {
 		/**
 		 * The name of the model that generated the message.
 		 */
 		model: string;
+
 		/**
 		 * The reason why sampling stopped, if known.
+		 *
+		 * Standard values:
+		 * - "endTurn": Natural end of the assistant's turn
+		 * - "stopSequence": A stop sequence was encountered
+		 * - "maxTokens": Maximum token limit was reached
+		 * - "toolUse": The model wants to use one or more tools
+		 *
+		 * This field is an open string to allow for provider-specific stop reasons.
 		 */
-		stopReason?: "endTurn" | "stopSequence" | "maxTokens" | string;
+		stopReason?: "endTurn" | "stopSequence" | "maxTokens" | "toolUse" | string;
 	}
 
 	/**
 	 * Describes a message issued to or received from an LLM API.
+	 *
+	 * @category `sampling/createMessage`
 	 */
 	export interface SamplingMessage {
 		role: Role;
-		content: TextContent | ImageContent | AudioContent;
+		content: SamplingMessageContentBlock | SamplingMessageContentBlock[];
+		/**
+		 * See [General fields: `_meta`](/specification/draft/basic/index#meta) for notes on `_meta` usage.
+		 */
+		_meta?: { [key: string]: unknown };
 	}
+	export type SamplingMessageContentBlock =
+		| TextContent
+		| ImageContent
+		| AudioContent
+		| ToolUseContent
+		| ToolResultContent;
 
 	/**
 	 * Optional annotations for the client. The client can use annotations to inform how objects are used or displayed
+	 *
+	 * @category Common Types
 	 */
 	export interface Annotations {
 		/**
-		 * Describes who the intended customer of this object or data is.
+		 * Describes who the intended audience of this object or data is.
 		 *
 		 * It can include multiple entries to indicate content useful for multiple audiences (e.g., `["user", "assistant"]`).
 		 */
@@ -1176,6 +1744,9 @@ export namespace MCP {/* JSON-RPC types */
 		lastModified?: string;
 	}
 
+	/**
+	 * @category Content
+	 */
 	export type ContentBlock =
 		| TextContent
 		| ImageContent
@@ -1185,6 +1756,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * Text provided to or from an LLM.
+	 *
+	 * @category Content
 	 */
 	export interface TextContent {
 		type: "text";
@@ -1207,6 +1780,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * An image provided to or from an LLM.
+	 *
+	 * @category Content
 	 */
 	export interface ImageContent {
 		type: "image";
@@ -1236,6 +1811,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * Audio provided to or from an LLM.
+	 *
+	 * @category Content
 	 */
 	export interface AudioContent {
 		type: "audio";
@@ -1264,6 +1841,87 @@ export namespace MCP {/* JSON-RPC types */
 	}
 
 	/**
+	 * A request from the assistant to call a tool.
+	 *
+	 * @category `sampling/createMessage`
+	 */
+	export interface ToolUseContent {
+		type: "tool_use";
+
+		/**
+		 * A unique identifier for this tool use.
+		 *
+		 * This ID is used to match tool results to their corresponding tool uses.
+		 */
+		id: string;
+
+		/**
+		 * The name of the tool to call.
+		 */
+		name: string;
+
+		/**
+		 * The arguments to pass to the tool, conforming to the tool's input schema.
+		 */
+		input: { [key: string]: unknown };
+
+		/**
+		 * Optional metadata about the tool use. Clients SHOULD preserve this field when
+		 * including tool uses in subsequent sampling requests to enable caching optimizations.
+		 *
+		 * See [General fields: `_meta`](/specification/draft/basic/index#meta) for notes on `_meta` usage.
+		 */
+		_meta?: { [key: string]: unknown };
+	}
+
+	/**
+	 * The result of a tool use, provided by the user back to the assistant.
+	 *
+	 * @category `sampling/createMessage`
+	 */
+	export interface ToolResultContent {
+		type: "tool_result";
+
+		/**
+		 * The ID of the tool use this result corresponds to.
+		 *
+		 * This MUST match the ID from a previous ToolUseContent.
+		 */
+		toolUseId: string;
+
+		/**
+		 * The unstructured result content of the tool use.
+		 *
+		 * This has the same format as CallToolResult.content and can include text, images,
+		 * audio, resource links, and embedded resources.
+		 */
+		content: ContentBlock[];
+
+		/**
+		 * An optional structured result object.
+		 *
+		 * If the tool defined an outputSchema, this SHOULD conform to that schema.
+		 */
+		structuredContent?: { [key: string]: unknown };
+
+		/**
+		 * Whether the tool use resulted in an error.
+		 *
+		 * If true, the content typically describes the error that occurred.
+		 * Default: false
+		 */
+		isError?: boolean;
+
+		/**
+		 * Optional metadata about the tool result. Clients SHOULD preserve this field when
+		 * including tool results in subsequent sampling requests to enable caching optimizations.
+		 *
+		 * See [General fields: `_meta`](/specification/draft/basic/index#meta) for notes on `_meta` usage.
+		 */
+		_meta?: { [key: string]: unknown };
+	}
+
+	/**
 	 * The server's preferences for model selection, requested of the client during sampling.
 	 *
 	 * Because LLMs can vary along multiple dimensions, choosing the "best" model is
@@ -1275,6 +1933,8 @@ export namespace MCP {/* JSON-RPC types */
 	 * These preferences are always advisory. The client MAY ignore them. It is also
 	 * up to the client to decide how to interpret these preferences and how to
 	 * balance them against other considerations.
+	 *
+	 * @category `sampling/createMessage`
 	 */
 	export interface ModelPreferences {
 		/**
@@ -1327,6 +1987,8 @@ export namespace MCP {/* JSON-RPC types */
 	 *
 	 * Keys not declared here are currently left unspecified by the spec and are up
 	 * to the client to interpret.
+	 *
+	 * @category `sampling/createMessage`
 	 */
 	export interface ModelHint {
 		/**
@@ -1345,44 +2007,51 @@ export namespace MCP {/* JSON-RPC types */
 
 	/* Autocomplete */
 	/**
+	 * Parameters for a `completion/complete` request.
+	 *
+	 * @category `completion/complete`
+	 */
+	export interface CompleteRequestParams extends RequestParams {
+		ref: PromptReference | ResourceTemplateReference;
+		/**
+		 * The argument's information
+		 */
+		argument: {
+			/**
+			 * The name of the argument
+			 */
+			name: string;
+			/**
+			 * The value of the argument to use for completion matching.
+			 */
+			value: string;
+		};
+
+		/**
+		 * Additional, optional context for completions
+		 */
+		context?: {
+			/**
+			 * Previously-resolved variables in a URI template or prompt.
+			 */
+			arguments?: { [key: string]: string };
+		};
+	}
+
+	/**
 	 * A request from the client to the server, to ask for completion options.
 	 *
-	 * @category completion/complete
+	 * @category `completion/complete`
 	 */
 	export interface CompleteRequest extends JSONRPCRequest {
 		method: "completion/complete";
-		params: {
-			ref: PromptReference | ResourceTemplateReference;
-			/**
-			 * The argument's information
-			 */
-			argument: {
-				/**
-				 * The name of the argument
-				 */
-				name: string;
-				/**
-				 * The value of the argument to use for completion matching.
-				 */
-				value: string;
-			};
-
-			/**
-			 * Additional, optional context for completions
-			 */
-			context?: {
-				/**
-				 * Previously-resolved variables in a URI template or prompt.
-				 */
-				arguments?: { [key: string]: string };
-			};
-		};
+		params: CompleteRequestParams;
 	}
 
 	/**
 	 * The server's response to a completion/complete request
 	 *
-	 * @category completion/complete
+	 * @category `completion/complete`
 	 */
 	export interface CompleteResult extends Result {
 		completion: {
@@ -1403,6 +2072,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * A reference to a resource or resource template definition.
+	 *
+	 * @category `completion/complete`
 	 */
 	export interface ResourceTemplateReference {
 		type: "ref/resource";
@@ -1416,6 +2087,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * Identifies a prompt.
+	 *
+	 * @category `completion/complete`
 	 */
 	export interface PromptReference extends BaseMetadata {
 		type: "ref/prompt";
@@ -1431,10 +2104,11 @@ export namespace MCP {/* JSON-RPC types */
 	 * This request is typically used when the server needs to understand the file system
 	 * structure or access specific locations that the client has permission to read from.
 	 *
-	 * @category roots/list
+	 * @category `roots/list`
 	 */
 	export interface ListRootsRequest extends JSONRPCRequest {
 		method: "roots/list";
+		params?: RequestParams;
 	}
 
 	/**
@@ -1442,7 +2116,7 @@ export namespace MCP {/* JSON-RPC types */
 	 * This result contains an array of Root objects, each representing a root directory
 	 * or file that the server can operate on.
 	 *
-	 * @category roots/list
+	 * @category `roots/list`
 	 */
 	export interface ListRootsResult extends Result {
 		roots: Root[];
@@ -1450,6 +2124,8 @@ export namespace MCP {/* JSON-RPC types */
 
 	/**
 	 * Represents a root directory or file that the server can operate on.
+	 *
+	 * @category `roots/list`
 	 */
 	export interface Root {
 		/**
@@ -1478,41 +2154,97 @@ export namespace MCP {/* JSON-RPC types */
 	 * This notification should be sent whenever the client adds, removes, or modifies any root.
 	 * The server should then request an updated list of roots using the ListRootsRequest.
 	 *
-	 * @category notifications/roots/list_changed
+	 * @category `notifications/roots/list_changed`
 	 */
 	export interface RootsListChangedNotification extends JSONRPCNotification {
 		method: "notifications/roots/list_changed";
+		params?: NotificationParams;
 	}
+
+	/**
+	 * The parameters for a request to elicit non-sensitive information from the user via a form in the client.
+	 *
+	 * @category `elicitation/create`
+	 */
+	export interface ElicitRequestFormParams extends TaskAugmentedRequestParams {
+		/**
+		 * The elicitation mode.
+		 */
+		mode?: "form";
+
+		/**
+		 * The message to present to the user describing what information is being requested.
+		 */
+		message: string;
+
+		/**
+		 * A restricted subset of JSON Schema.
+		 * Only top-level properties are allowed, without nesting.
+		 */
+		requestedSchema: {
+			$schema?: string;
+			type: "object";
+			properties: {
+				[key: string]: PrimitiveSchemaDefinition;
+			};
+			required?: string[];
+		};
+	}
+
+	/**
+	 * The parameters for a request to elicit information from the user via a URL in the client.
+	 *
+	 * @category `elicitation/create`
+	 */
+	export interface ElicitRequestURLParams extends TaskAugmentedRequestParams {
+		/**
+		 * The elicitation mode.
+		 */
+		mode: "url";
+
+		/**
+		 * The message to present to the user explaining why the interaction is needed.
+		 */
+		message: string;
+
+		/**
+		 * The ID of the elicitation, which must be unique within the context of the server.
+		 * The client MUST treat this ID as an opaque value.
+		 */
+		elicitationId: string;
+
+		/**
+		 * The URL that the user should navigate to.
+		 *
+		 * @format uri
+		 */
+		url: string;
+	}
+
+	/**
+	 * The parameters for a request to elicit additional information from the user via the client.
+	 *
+	 * @category `elicitation/create`
+	 */
+	export type ElicitRequestParams =
+		| ElicitRequestFormParams
+		| ElicitRequestURLParams;
 
 	/**
 	 * A request from the server to elicit additional information from the user via the client.
 	 *
-	 * @category elicitation/create
+	 * @category `elicitation/create`
 	 */
 	export interface ElicitRequest extends JSONRPCRequest {
 		method: "elicitation/create";
-		params: {
-			/**
-			 * The message to present to the user.
-			 */
-			message: string;
-			/**
-			 * A restricted subset of JSON Schema.
-			 * Only top-level properties are allowed, without nesting.
-			 */
-			requestedSchema: {
-				type: "object";
-				properties: {
-					[key: string]: PrimitiveSchemaDefinition;
-				};
-				required?: string[];
-			};
-		};
+		params: ElicitRequestParams;
 	}
 
 	/**
 	 * Restricted schema definitions that only allow primitive types
 	 * without nested objects or arrays.
+	 *
+	 * @category `elicitation/create`
 	 */
 	export type PrimitiveSchemaDefinition =
 		| StringSchema
@@ -1520,6 +2252,9 @@ export namespace MCP {/* JSON-RPC types */
 		| BooleanSchema
 		| EnumSchema;
 
+	/**
+	 * @category `elicitation/create`
+	 */
 	export interface StringSchema {
 		type: "string";
 		title?: string;
@@ -1530,6 +2265,9 @@ export namespace MCP {/* JSON-RPC types */
 		default?: string;
 	}
 
+	/**
+	 * @category `elicitation/create`
+	 */
 	export interface NumberSchema {
 		type: "number" | "integer";
 		title?: string;
@@ -1539,6 +2277,9 @@ export namespace MCP {/* JSON-RPC types */
 		default?: number;
 	}
 
+	/**
+	 * @category `elicitation/create`
+	 */
 	export interface BooleanSchema {
 		type: "boolean";
 		title?: string;
@@ -1546,19 +2287,199 @@ export namespace MCP {/* JSON-RPC types */
 		default?: boolean;
 	}
 
-	export interface EnumSchema {
+	/**
+	 * Schema for single-selection enumeration without display titles for options.
+	 *
+	 * @category `elicitation/create`
+	 */
+	export interface UntitledSingleSelectEnumSchema {
 		type: "string";
+		/**
+		 * Optional title for the enum field.
+		 */
 		title?: string;
+		/**
+		 * Optional description for the enum field.
+		 */
 		description?: string;
+		/**
+		 * Array of enum values to choose from.
+		 */
 		enum: string[];
-		enumNames?: string[]; // Display names for enum values
+		/**
+		 * Optional default value.
+		 */
 		default?: string;
 	}
 
 	/**
+	 * Schema for single-selection enumeration with display titles for each option.
+	 *
+	 * @category `elicitation/create`
+	 */
+	export interface TitledSingleSelectEnumSchema {
+		type: "string";
+		/**
+		 * Optional title for the enum field.
+		 */
+		title?: string;
+		/**
+		 * Optional description for the enum field.
+		 */
+		description?: string;
+		/**
+		 * Array of enum options with values and display labels.
+		 */
+		oneOf: Array<{
+			/**
+			 * The enum value.
+			 */
+			const: string;
+			/**
+			 * Display label for this option.
+			 */
+			title: string;
+		}>;
+		/**
+		 * Optional default value.
+		 */
+		default?: string;
+	}
+
+	/**
+	 * @category `elicitation/create`
+	 */
+	// Combined single selection enumeration
+	export type SingleSelectEnumSchema =
+		| UntitledSingleSelectEnumSchema
+		| TitledSingleSelectEnumSchema;
+
+	/**
+	 * Schema for multiple-selection enumeration without display titles for options.
+	 *
+	 * @category `elicitation/create`
+	 */
+	export interface UntitledMultiSelectEnumSchema {
+		type: "array";
+		/**
+		 * Optional title for the enum field.
+		 */
+		title?: string;
+		/**
+		 * Optional description for the enum field.
+		 */
+		description?: string;
+		/**
+		 * Minimum number of items to select.
+		 */
+		minItems?: number;
+		/**
+		 * Maximum number of items to select.
+		 */
+		maxItems?: number;
+		/**
+		 * Schema for the array items.
+		 */
+		items: {
+			type: "string";
+			/**
+			 * Array of enum values to choose from.
+			 */
+			enum: string[];
+		};
+		/**
+		 * Optional default value.
+		 */
+		default?: string[];
+	}
+
+	/**
+	 * Schema for multiple-selection enumeration with display titles for each option.
+	 *
+	 * @category `elicitation/create`
+	 */
+	export interface TitledMultiSelectEnumSchema {
+		type: "array";
+		/**
+		 * Optional title for the enum field.
+		 */
+		title?: string;
+		/**
+		 * Optional description for the enum field.
+		 */
+		description?: string;
+		/**
+		 * Minimum number of items to select.
+		 */
+		minItems?: number;
+		/**
+		 * Maximum number of items to select.
+		 */
+		maxItems?: number;
+		/**
+		 * Schema for array items with enum options and display labels.
+		 */
+		items: {
+			/**
+			 * Array of enum options with values and display labels.
+			 */
+			anyOf: Array<{
+				/**
+				 * The constant enum value.
+				 */
+				const: string;
+				/**
+				 * Display title for this option.
+				 */
+				title: string;
+			}>;
+		};
+		/**
+		 * Optional default value.
+		 */
+		default?: string[];
+	}
+
+	/**
+	 * @category `elicitation/create`
+	 */
+	// Combined multiple selection enumeration
+	export type MultiSelectEnumSchema =
+		| UntitledMultiSelectEnumSchema
+		| TitledMultiSelectEnumSchema;
+
+	/**
+	 * Use TitledSingleSelectEnumSchema instead.
+	 * This interface will be removed in a future version.
+	 *
+	 * @category `elicitation/create`
+	 */
+	export interface LegacyTitledEnumSchema {
+		type: "string";
+		title?: string;
+		description?: string;
+		enum: string[];
+		/**
+		 * (Legacy) Display names for enum values.
+		 * Non-standard according to JSON schema 2020-12.
+		 */
+		enumNames?: string[];
+		default?: string;
+	}
+
+	/**
+	 * @category `elicitation/create`
+	 */
+	// Union type for all enum schemas
+	export type EnumSchema =
+		| SingleSelectEnumSchema
+		| MultiSelectEnumSchema
+		| LegacyTitledEnumSchema;
+
+	/**
 	 * The client's response to an elicitation request.
 	 *
-	 * @category elicitation/create
+	 * @category `elicitation/create`
 	 */
 	export interface ElicitResult extends Result {
 		/**
@@ -1570,10 +2491,26 @@ export namespace MCP {/* JSON-RPC types */
 		action: "accept" | "decline" | "cancel";
 
 		/**
-		 * The submitted form data, only present when action is "accept".
+		 * The submitted form data, only present when action is "accept" and mode was "form".
 		 * Contains values matching the requested schema.
+		 * Omitted for out-of-band mode responses.
 		 */
-		content?: { [key: string]: string | number | boolean };
+		content?: { [key: string]: string | number | boolean | string[] };
+	}
+
+	/**
+	 * An optional notification from the server to the client, informing it of a completion of a out-of-band elicitation request.
+	 *
+	 * @category `notifications/elicitation/complete`
+	 */
+	export interface ElicitationCompleteNotification extends JSONRPCNotification {
+		method: "notifications/elicitation/complete";
+		params: {
+			/**
+			 * The ID of the elicitation that completed.
+			 */
+			elicitationId: string;
+		};
 	}
 
 	/* Client messages */
@@ -1591,21 +2528,30 @@ export namespace MCP {/* JSON-RPC types */
 		| SubscribeRequest
 		| UnsubscribeRequest
 		| CallToolRequest
-		| ListToolsRequest;
+		| ListToolsRequest
+		| GetTaskRequest
+		| GetTaskPayloadRequest
+		| ListTasksRequest
+		| CancelTaskRequest;
 
 	/** @internal */
 	export type ClientNotification =
 		| CancelledNotification
 		| ProgressNotification
 		| InitializedNotification
-		| RootsListChangedNotification;
+		| RootsListChangedNotification
+		| TaskStatusNotification;
 
 	/** @internal */
 	export type ClientResult =
 		| EmptyResult
 		| CreateMessageResult
 		| ListRootsResult
-		| ElicitResult;
+		| ElicitResult
+		| GetTaskResult
+		| GetTaskPayloadResult
+		| ListTasksResult
+		| CancelTaskResult;
 
 	/* Server messages */
 	/** @internal */
@@ -1613,7 +2559,11 @@ export namespace MCP {/* JSON-RPC types */
 		| PingRequest
 		| CreateMessageRequest
 		| ListRootsRequest
-		| ElicitRequest;
+		| ElicitRequest
+		| GetTaskRequest
+		| GetTaskPayloadRequest
+		| ListTasksRequest
+		| CancelTaskRequest;
 
 	/** @internal */
 	export type ServerNotification =
@@ -1623,7 +2573,9 @@ export namespace MCP {/* JSON-RPC types */
 		| ResourceUpdatedNotification
 		| ResourceListChangedNotification
 		| ToolListChangedNotification
-		| PromptListChangedNotification;
+		| PromptListChangedNotification
+		| ElicitationCompleteNotification
+		| TaskStatusNotification;
 
 	/** @internal */
 	export type ServerResult =
@@ -1636,5 +2588,9 @@ export namespace MCP {/* JSON-RPC types */
 		| ListResourcesResult
 		| ReadResourceResult
 		| CallToolResult
-		| ListToolsResult;
+		| ListToolsResult
+		| GetTaskResult
+		| GetTaskPayloadResult
+		| ListTasksResult
+		| CancelTaskResult;
 }

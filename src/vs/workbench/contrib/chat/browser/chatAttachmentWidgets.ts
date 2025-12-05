@@ -42,6 +42,7 @@ import { FileKind, IFileService } from '../../../../platform/files/common/files.
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService, OpenInternalOptions } from '../../../../platform/opener/common/opener.js';
 import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
@@ -52,6 +53,7 @@ import { IPreferencesService } from '../../../services/preferences/common/prefer
 import { revealInSideBarCommand } from '../../files/browser/fileActions.contribution.js';
 import { CellUri } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
+import { toHistoryItemHoverContent } from '../../scm/browser/scmHistory.js';
 import { getHistoryItemEditorTitle } from '../../scm/browser/util.js';
 import { ITerminalService } from '../../terminal/browser/terminal.js';
 import { IChatContentReference } from '../common/chatService.js';
@@ -291,7 +293,10 @@ export class TerminalCommandAttachmentWidget extends AbstractChatAttachmentWidge
 	}
 }
 
-const MAX_TERMINAL_ATTACHMENT_OUTPUT_LENGTH = 2000;
+const enum TerminalConstants {
+	MaxAttachmentOutputLineCount = 5,
+	MaxAttachmentOutputLineLength = 80,
+}
 
 function createTerminalCommandElements(
 	element: HTMLElement,
@@ -312,7 +317,9 @@ function createTerminalCommandElements(
 	element.appendChild(textLabel);
 
 	disposable.add(dom.addDisposableListener(element, dom.EventType.CLICK, e => {
-		void clickHandler();
+		e.preventDefault();
+		e.stopPropagation();
+		clickHandler();
 	}));
 
 	const hoverElement = dom.$('div.chat-attached-context-hover');
@@ -326,37 +333,33 @@ function createTerminalCommandElements(
 	hoverElement.append(commandTitle, commandBlock);
 
 	if (attachment.output && attachment.output.trim().length > 0) {
-		const outputTitle = dom.$('div', {}, localize('chat.terminalCommandHoverOutputTitle', "Output"));
+		const outputTitle = dom.$('div', {}, localize('chat.terminalCommandHoverOutputTitle', "Output:"));
 		outputTitle.classList.add('attachment-additional-info');
 		const outputBlock = dom.$('pre.chat-terminal-command-output');
-		let outputText = attachment.output;
-		let truncated = false;
-		if (outputText.length > MAX_TERMINAL_ATTACHMENT_OUTPUT_LENGTH) {
-			outputText = `${outputText.slice(0, MAX_TERMINAL_ATTACHMENT_OUTPUT_LENGTH)}...`;
-			truncated = true;
+		const fullOutputLines = attachment.output.split('\n');
+		const hoverOutputLines = [];
+		for (const line of fullOutputLines) {
+			if (hoverOutputLines.length >= TerminalConstants.MaxAttachmentOutputLineCount) {
+				hoverOutputLines.push('...');
+				break;
+			}
+			const trimmed = line.trim();
+			if (trimmed.length === 0) {
+				continue;
+			}
+			if (trimmed.length > TerminalConstants.MaxAttachmentOutputLineLength) {
+				hoverOutputLines.push(`${trimmed.slice(0, TerminalConstants.MaxAttachmentOutputLineLength)}...`);
+			} else {
+				hoverOutputLines.push(trimmed);
+			}
 		}
-		outputBlock.textContent = outputText;
+		outputBlock.textContent = hoverOutputLines.join('\n');
 		hoverElement.append(outputTitle, outputBlock);
-
-		if (truncated) {
-			const truncatedInfo = dom.$('div', {}, localize('chat.terminalCommandHoverOutputTruncated', "Output truncated to first {0} characters.", MAX_TERMINAL_ATTACHMENT_OUTPUT_LENGTH));
-			truncatedInfo.classList.add('attachment-additional-info');
-			hoverElement.appendChild(truncatedInfo);
-		}
 	}
 
 	const hint = dom.$('div', {}, localize('chat.terminalCommandHoverHint', "Click to focus this command in the terminal."));
 	hint.classList.add('attachment-additional-info');
 	hoverElement.appendChild(hint);
-
-	const separator = dom.$('div.chat-attached-context-url-separator');
-	const openLink = dom.$('a.chat-attached-context-url', {}, localize('chat.terminalCommandHoverOpen', "Open in terminal"));
-	disposable.add(dom.addDisposableListener(openLink, 'click', e => {
-		e.preventDefault();
-		e.stopPropagation();
-		void clickHandler();
-	}));
-	hoverElement.append(separator, openLink);
 
 	disposable.add(hoverService.setupDelayedHover(element, {
 		...commonHoverOptions,
@@ -465,6 +468,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 		const pillImg = dom.$('img.chat-attached-context-pill-image', { src: url, alt: '' });
 		const pill = dom.$('div.chat-attached-context-pill', {}, pillImg);
 
+		// eslint-disable-next-line no-restricted-syntax
 		const existingPill = element.querySelector('.chat-attached-context-pill');
 		if (existingPill) {
 			existingPill.replaceWith(pill);
@@ -486,6 +490,7 @@ function createImageElements(resource: URI | undefined, name: string, fullName: 
 			// reset to original icon on error or invalid image
 			const pillIcon = dom.$('div.chat-attached-context-pill', {}, dom.$('span.codicon.codicon-file-media'));
 			const pill = dom.$('div.chat-attached-context-pill', {}, pillIcon);
+			// eslint-disable-next-line no-restricted-syntax
 			const existingPill = element.querySelector('.chat-attached-context-pill');
 			if (existingPill) {
 				existingPill.replaceWith(pill);
@@ -910,6 +915,7 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IHoverService hoverService: IHoverService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService
@@ -921,12 +927,12 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 		this.element.style.cursor = 'pointer';
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-		const historyItem = attachment.historyItem;
-		const hoverContent = historyItem.tooltip ?? historyItem.message;
+		const { content, disposables } = toHistoryItemHoverContent(markdownRendererService, attachment.historyItem, false);
 		this._store.add(hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
-			content: hoverContent,
+			content,
 		}, commonHoverLifecycleOptions));
+		this._store.add(disposables);
 
 		this._store.add(dom.addDisposableListener(this.element, dom.EventType.CLICK, (e: MouseEvent) => {
 			dom.EventHelper.stop(e, true);
@@ -960,6 +966,7 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
 		@IHoverService hoverService: IHoverService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -971,12 +978,11 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 
 		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
 
-		const historyItem = attachment.historyItem;
-		const hoverContent = historyItem.tooltip ?? historyItem.message;
+		const { content, disposables } = toHistoryItemHoverContent(markdownRendererService, attachment.historyItem, false);
 		this._store.add(hoverService.setupDelayedHover(this.element, {
-			...commonHoverOptions,
-			content: hoverContent,
+			...commonHoverOptions, content,
 		}, commonHoverLifecycleOptions));
+		this._store.add(disposables);
 
 		this.addResourceOpenHandlers(attachment.value, undefined);
 		this.attachClearButton();
@@ -1125,7 +1131,7 @@ function setResourceContext(accessor: ServicesAccessor, scopedContextKeyService:
 	return resourceContextKey;
 }
 
-function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: any, updateContextKeys?: () => Promise<void>): IDisposable {
+function addBasicContextMenu(accessor: ServicesAccessor, widget: HTMLElement, scopedContextKeyService: IScopedContextKeyService, menuId: MenuId, arg: unknown, updateContextKeys?: () => Promise<void>): IDisposable {
 	const contextMenuService = accessor.get(IContextMenuService);
 	const menuService = accessor.get(IMenuService);
 

@@ -351,7 +351,7 @@ export class ExplorerService implements IExplorerService {
 		// Add
 		if (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY)) {
 			const addedElement = e.target;
-			const parentResource = dirname(addedElement.resource)!;
+			const parentResource = dirname(addedElement.resource);
 			const parents = this.model.findAll(parentResource);
 
 			if (parents.length) {

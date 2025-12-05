@@ -13,6 +13,42 @@ import { createDecorator } from '../../../../../../platform/instantiation/common
 import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 import { PromptsType } from '../promptTypes.js';
 import { IHandOff, ParsedPromptFile } from '../promptFileParser.js';
+import { ResourceSet } from '../../../../../../base/common/map.js';
+
+/**
+ * Activation event for custom agent providers.
+ */
+export const CUSTOM_AGENTS_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentsProvider';
+
+/**
+ * Options for querying custom agents.
+ */
+export interface ICustomAgentQueryOptions { }
+
+/**
+ * Represents a custom agent resource from an external provider.
+ */
+export interface IExternalCustomAgent {
+	/**
+	 * The unique identifier/name of the custom agent resource.
+	 */
+	readonly name: string;
+
+	/**
+	 * A description of what the custom agent resource does.
+	 */
+	readonly description: string;
+
+	/**
+	 * The URI to the agent or prompt resource file.
+	 */
+	readonly uri: URI;
+
+	/**
+	 * Indicates whether the custom agent resource is editable. Defaults to false.
+	 */
+	readonly isEditable?: boolean;
+}
 
 /**
  * Provides prompt services.
@@ -26,6 +62,14 @@ export enum PromptsStorage {
 	local = 'local',
 	user = 'user',
 	extension = 'extension'
+}
+
+/**
+ * The type of source for extension agents.
+ */
+export enum ExtensionAgentSourceType {
+	contribution = 'contribution',
+	provider = 'provider',
 }
 
 /**
@@ -66,6 +110,7 @@ export interface IExtensionPromptPath extends IPromptPathBase {
 	readonly extension: IExtensionDescription;
 	readonly name: string;
 	readonly description: string;
+	readonly source: ExtensionAgentSourceType;
 }
 export interface ILocalPromptPath extends IPromptPathBase {
 	readonly storage: PromptsStorage.local;
@@ -77,6 +122,7 @@ export interface IUserPromptPath extends IPromptPathBase {
 export type IAgentSource = {
 	readonly storage: PromptsStorage.extension;
 	readonly extensionId: ExtensionIdentifier;
+	readonly type: ExtensionAgentSourceType;
 } | {
 	readonly storage: PromptsStorage.local | PromptsStorage.user;
 };
@@ -118,6 +164,11 @@ export interface ICustomAgent {
 	readonly target?: string;
 
 	/**
+	 * Infer metadata in the prompt header.
+	 */
+	readonly infer?: boolean;
+
+	/**
 	 * Contents of the custom agent file body and other agent instructions.
 	 */
 	readonly agentInstructions: IChatModeInstructions;
@@ -137,6 +188,21 @@ export interface IAgentInstructions {
 	readonly content: string;
 	readonly toolReferences: readonly IVariableReference[];
 	readonly metadata?: Record<string, boolean | string | number>;
+}
+
+export interface IChatPromptSlashCommand {
+	readonly name: string;
+	readonly description: string | undefined;
+	readonly argumentHint: string | undefined;
+	readonly promptPath: IPromptPath;
+	readonly parsedPromptFile: ParsedPromptFile;
+}
+
+export interface IClaudeSkill {
+	readonly uri: URI;
+	readonly type: 'personal' | 'project';
+	readonly name: string;
+	readonly description: string | undefined;
 }
 
 /**
@@ -167,37 +233,30 @@ export interface IPromptsService extends IDisposable {
 	getSourceFolders(type: PromptsType): readonly IPromptPath[];
 
 	/**
-	 * Returns a prompt command if the command name.
-	 * Undefined is returned if the name does not look like a file name of a prompt file.
+	 * Validates if the provided command name is a valid prompt slash command.
 	 */
-	asPromptSlashCommand(name: string): IChatPromptSlashCommand | undefined;
+	isValidSlashCommandName(name: string): boolean;
 
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<ParsedPromptFile | undefined>;
+	resolvePromptSlashCommand(command: string, token: CancellationToken): Promise<IChatPromptSlashCommand | undefined>;
 
 	/**
-	 * Gets the prompt file for a slash command from cache if available.
-	 * @param command - name of the prompt command without slash
+	 * Event that is triggered when the slash command to ParsedPromptFile cache is updated.
+	 * Event handlers can use {@link resolvePromptSlashCommand} to retrieve the latest data.
 	 */
-	resolvePromptSlashCommandFromCache(command: string): ParsedPromptFile | undefined;
-
-	/**
-	 * Event that is triggered when slash command -> ParsedPromptFile cache is updated.
-	 * Event handler can call resolvePromptSlashCommandFromCache in case there is new value populated.
-	 */
-	readonly onDidChangeParsedPromptFilesCache: Event<void>;
+	readonly onDidChangeSlashCommands: Event<void>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
 	 */
-	findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]>;
+	getPromptSlashCommands(token: CancellationToken): Promise<readonly IChatPromptSlashCommand[]>;
 
 	/**
 	 * Returns the prompt command name for the given URI.
 	 */
-	getPromptCommandName(uri: URI): Promise<string>;
+	getPromptSlashCommandName(uri: URI, token: CancellationToken): Promise<string>;
 
 	/**
 	 * Event that is triggered when the list of custom agents changes.
@@ -214,12 +273,6 @@ export interface IPromptsService extends IDisposable {
 	 * @param uris
 	 */
 	parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile>;
-
-	/**
-	 * Returns the prompt file type for the given URI.
-	 * @param resource the URI of the resource
-	 */
-	getPromptFileType(resource: URI): PromptsType | undefined;
 
 	/**
 	 * Internal: register a contributed file. Returns a disposable that removes the contribution.
@@ -251,10 +304,31 @@ export interface IPromptsService extends IDisposable {
 	 * @param oldURI
 	 */
 	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined;
-}
 
-export interface IChatPromptSlashCommand {
-	readonly command: string;
-	readonly detail: string;
-	readonly promptPath?: IPromptPath;
+	/**
+	 * Returns the list of disabled prompt file URIs for a given type. By default no prompt files are disabled.
+	 */
+	getDisabledPromptFiles(type: PromptsType): ResourceSet;
+
+	/**
+	 * Persists the set of disabled prompt file URIs for the given type.
+	 */
+	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void;
+
+	/**
+	 * Registers a CustomAgentsProvider that can provide custom agents for repositories.
+	 * This is part of the proposed API and requires the chatParticipantPrivate proposal.
+	 * @param extension The extension registering the provider.
+	 * @param provider The provider implementation with optional change event.
+	 * @returns A disposable that unregisters the provider when disposed.
+	 */
+	registerCustomAgentsProvider(extension: IExtensionDescription, provider: {
+		onDidChangeCustomAgents?: Event<void>;
+		provideCustomAgents: (options: ICustomAgentQueryOptions, token: CancellationToken) => Promise<IExternalCustomAgent[] | undefined>;
+	}): IDisposable;
+
+	/**
+	 * Gets list of claude skills files.
+	 */
+	findClaudeSkills(token: CancellationToken): Promise<IClaudeSkill[] | undefined>;
 }

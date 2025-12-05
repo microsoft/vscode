@@ -97,19 +97,19 @@ export const inlineEditIndicatorSecondaryBackground = registerColor(
 	localize('inlineEdit.gutterIndicator.secondaryBackground', 'Background color for the secondary inline edit gutter indicator.')
 );
 
-export const inlineEditIndicatorsuccessfulForeground = registerColor(
+export const inlineEditIndicatorSuccessfulForeground = registerColor(
 	'inlineEdit.gutterIndicator.successfulForeground',
 	buttonForeground,
 	localize('inlineEdit.gutterIndicator.successfulForeground', 'Foreground color for the successful inline edit gutter indicator.')
 );
-export const inlineEditIndicatorsuccessfulBorder = registerColor(
+export const inlineEditIndicatorSuccessfulBorder = registerColor(
 	'inlineEdit.gutterIndicator.successfulBorder',
 	buttonBackground,
 	localize('inlineEdit.gutterIndicator.successfulBorder', 'Border color for the successful inline edit gutter indicator.')
 );
-export const inlineEditIndicatorsuccessfulBackground = registerColor(
+export const inlineEditIndicatorSuccessfulBackground = registerColor(
 	'inlineEdit.gutterIndicator.successfulBackground',
-	inlineEditIndicatorsuccessfulBorder,
+	inlineEditIndicatorSuccessfulBorder,
 	localize('inlineEdit.gutterIndicator.successfulBackground', 'Background color for the successful inline edit gutter indicator.')
 );
 

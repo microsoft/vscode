@@ -38,7 +38,10 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 
 	const instance = terminalService.activeInstance;
 	if (instance) {
-		let text = isObject(args) && 'text' in args ? toOptionalString(args.text) : undefined;
+		function isTextArg(obj: unknown): obj is { text: string } {
+			return isObject(obj) && 'text' in obj;
+		}
+		let text = isTextArg(args) ? toOptionalString(args.text) : undefined;
 
 		// If no text provided, prompt user for input and process special characters
 		if (!text) {

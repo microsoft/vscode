@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env } from 'vscode';
+import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env, SourceControlHistoryItem } from 'vscode';
 import { dirname, normalize, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import byline from 'byline';
+import { Stash } from './git';
 
 export const isMacintosh = process.platform === 'darwin';
 export const isWindows = process.platform === 'win32';
@@ -797,6 +798,12 @@ export function getCommitShortHash(scope: Uri, hash: string): string {
 	return hash.substring(0, shortHashLength);
 }
 
+export function getHistoryItemDisplayName(historyItem: SourceControlHistoryItem): string {
+	return historyItem.references?.length
+		? historyItem.references[0].name
+		: historyItem.displayId ?? historyItem.id;
+}
+
 export type DiagnosticSeverityConfig = 'error' | 'warning' | 'information' | 'hint' | 'none';
 
 export function toDiagnosticSeverity(value: DiagnosticSeverityConfig): DiagnosticSeverity {
@@ -839,4 +846,20 @@ export function extractFilePathFromArgs(argv: string[], startIndex: number): str
 	// If no closing quote was found, remove
 	// leading quote and return the path as-is
 	return path.slice(1);
+}
+
+export function getStashDescription(stash: Stash): string | undefined {
+	if (!stash.commitDate && !stash.branchName) {
+		return undefined;
+	}
+
+	const descriptionSegments: string[] = [];
+	if (stash.commitDate) {
+		descriptionSegments.push(fromNow(stash.commitDate));
+	}
+	if (stash.branchName) {
+		descriptionSegments.push(stash.branchName);
+	}
+
+	return descriptionSegments.join(' \u2022 ');
 }

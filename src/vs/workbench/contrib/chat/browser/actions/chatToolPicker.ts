@@ -5,7 +5,7 @@
 import { assertNever } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { markdownCommandLink } from '../../../../../base/common/htmlContent.js';
+import { createMarkdownCommandLink } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -492,7 +492,7 @@ export async function showToolsPicker(
 			traverse(treePicker.itemTree);
 			if (count > toolLimit) {
 				treePicker.severity = Severity.Warning;
-				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, markdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
+				treePicker.validationMessage = localize('toolLimitExceeded', "{0} tools are enabled. You may experience degraded tool calling above {1} tools.", count, createMarkdownCommandLink({ title: String(toolLimit), id: '_chat.toolPicker.closeAndOpenVirtualThreshold' }));
 			} else {
 				treePicker.severity = Severity.Ignore;
 				treePicker.validationMessage = undefined;

@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Parser, Query, QueryCapture, Tree } from '@vscode/tree-sitter-wasm';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { BugIndicatingError, ErrorNoTelemetry } from '../../../../../base/common/errors.js';
-import { arch } from '../../../../../base/common/process.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
+import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
 
 export const enum TreeSitterCommandParserLanguage {
@@ -13,13 +15,15 @@ export const enum TreeSitterCommandParserLanguage {
 	PowerShell = 'powershell',
 }
 
-export class TreeSitterCommandParser {
-	private readonly _parser: Promise<Parser>;
+export class TreeSitterCommandParser extends Disposable {
+	private readonly _parser: Lazy<Promise<Parser>>;
+	private readonly _treeCache = this._register(new TreeCache());
 
 	constructor(
 		@ITreeSitterLibraryService private readonly _treeSitterLibraryService: ITreeSitterLibraryService,
 	) {
-		this._parser = this._treeSitterLibraryService.getParserClass().then(ParserCtor => new ParserCtor());
+		super();
+		this._parser = new Lazy(() => this._treeSitterLibraryService.getParserClass().then(ParserCtor => new ParserCtor()));
 	}
 
 	async extractSubCommands(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
@@ -30,34 +34,31 @@ export class TreeSitterCommandParser {
 	async extractPwshDoubleAmpersandChainOperators(commandLine: string): Promise<QueryCapture[]> {
 		const captures = await this._queryTree(TreeSitterCommandParserLanguage.PowerShell, commandLine, [
 			'(',
-			'  (command',
-			'    (command_elements',
-			'      (generic_token) @double.ampersand',
-			'        (#eq? @double.ampersand "&&")))',
+			'  (pipeline',
+			'    (pipeline_chain_tail) @double.ampersand)',
 			')',
 		].join('\n'));
 		return captures;
 	}
 
-	async getFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<QueryCapture[]> {
+	async getFileWrites(languageId: TreeSitterCommandParserLanguage, commandLine: string): Promise<string[]> {
 		let query: string;
 		switch (languageId) {
 			case TreeSitterCommandParserLanguage.Bash:
 				query = [
 					'(file_redirect',
-					'  (word) @file)',
+					'  destination: [(word) (string (string_content)) (raw_string) (concatenation)] @file)',
 				].join('\n');
 				break;
 			case TreeSitterCommandParserLanguage.PowerShell:
 				query = [
 					'(redirection',
-					'  (redirected_file_name',
-					'    (generic_token) @file))',
+					'  (redirected_file_name) @file)',
 				].join('\n');
 				break;
 		}
 		const captures = await this._queryTree(languageId, commandLine, query);
-		return captures;
+		return captures.map(e => e.node.text.trim());
 	}
 
 	private async _queryTree(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<QueryCapture[]> {
@@ -66,19 +67,22 @@ export class TreeSitterCommandParser {
 	}
 
 	private async _doQuery(languageId: TreeSitterCommandParserLanguage, commandLine: string, querySource: string): Promise<{ tree: Tree; query: Query }> {
-		this._throwIfCanCrash(languageId);
-
-		const parser = await this._parser;
 		const language = await this._treeSitterLibraryService.getLanguagePromise(languageId);
 		if (!language) {
 			throw new BugIndicatingError('Failed to fetch language grammar');
 		}
 
-		parser.setLanguage(language);
-
-		const tree = parser.parse(commandLine);
+		let tree = this._treeCache.get(languageId, commandLine);
 		if (!tree) {
-			throw new ErrorNoTelemetry('Failed to parse tree');
+			const parser = await this._parser.value;
+			parser.setLanguage(language);
+			const parsedTree = parser.parse(commandLine);
+			if (!parsedTree) {
+				throw new ErrorNoTelemetry('Failed to parse tree');
+			}
+
+			tree = parsedTree;
+			this._treeCache.set(languageId, commandLine, tree);
 		}
 
 		const query = await this._treeSitterLibraryService.createQuery(language, querySource);
@@ -88,14 +92,39 @@ export class TreeSitterCommandParser {
 
 		return { tree, query };
 	}
+}
 
-	private _throwIfCanCrash(languageId: TreeSitterCommandParserLanguage) {
-		// TODO: The powershell grammar can cause an OOM crash on arm https://github.com/microsoft/vscode/issues/273177
-		if (
-			(arch === 'arm' || arch === 'arm64') &&
-			languageId === TreeSitterCommandParserLanguage.PowerShell
-		) {
-			throw new ErrorNoTelemetry('powershell grammar is not supported on arm or arm64');
-		}
+/**
+ * Caches trees temporarily to avoid reparsing the same command line multiple
+ * times in quick succession.
+ */
+class TreeCache extends Disposable {
+	private readonly _cache = new Map<string, Tree>();
+	private readonly _clearScheduler = this._register(new MutableDisposable<RunOnceScheduler>());
+
+	constructor() {
+		super();
+		this._register(toDisposable(() => this._cache.clear()));
+	}
+
+	get(languageId: TreeSitterCommandParserLanguage, commandLine: string): Tree | undefined {
+		this._resetClearTimer();
+		return this._cache.get(this._getCacheKey(languageId, commandLine));
+	}
+
+	set(languageId: TreeSitterCommandParserLanguage, commandLine: string, tree: Tree): void {
+		this._resetClearTimer();
+		this._cache.set(this._getCacheKey(languageId, commandLine), tree);
+	}
+
+	private _getCacheKey(languageId: TreeSitterCommandParserLanguage, commandLine: string): string {
+		return `${languageId}:${commandLine}`;
+	}
+
+	private _resetClearTimer(): void {
+		this._clearScheduler.value = new RunOnceScheduler(() => {
+			this._cache.clear();
+		}, 10000);
+		this._clearScheduler.value.schedule();
 	}
 }

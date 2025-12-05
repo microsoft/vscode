@@ -3,13 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindow, n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
-import { IMouseEvent, StandardMouseEvent } from '../../../../../../../base/browser/mouseEvent.js';
+import { $, ModifierKeyEmitter, n, ObserverNodeWithElement } from '../../../../../../../base/browser/dom.js';
+import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { KeybindingLabel, unthemedKeybindingLabelOptions } from '../../../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableFromEvent, observableFromPromise, observableValue } from '../../../../../../../base/common/observable.js';
+import { OS } from '../../../../../../../base/common/platform.js';
+import { localize } from '../../../../../../../nls.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { editorBackground, editorHoverForeground } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
+import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { LineSource, renderLines, RenderOptions } from '../../../../../../browser/widget/diffEditor/components/diffEditorViewZones/renderLines.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
@@ -20,9 +26,22 @@ import { TextReplacement } from '../../../../../../common/core/edits/textEdit.js
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
-import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
-import { getModifiedBorderColor, getOriginalBorderColor, modifiedChangedTextOverlayColor, originalChangedTextOverlayColor } from '../theme.js';
+import { inlineSuggestCommitAlternativeActionId } from '../../../controller/commandIds.js';
+import { InlineSuggestAlternativeAction } from '../../../model/InlineSuggestAlternativeAction.js';
+import { IInlineEditsView, InlineEditClickEvent, InlineEditTabAction } from '../inlineEditsViewInterface.js';
+import { getModifiedBorderColor, getOriginalBorderColor, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, modifiedChangedTextOverlayColor, observeColor, originalChangedTextOverlayColor } from '../theme.js';
 import { getEditorValidOverlayRect, mapOutFalsy, rectToProps } from '../utils/utils.js';
+
+export class WordReplacementsViewData {
+	constructor(
+		public readonly edit: TextReplacement,
+		public readonly alternativeAction: InlineSuggestAlternativeAction | undefined,
+	) { }
+
+	equals(other: WordReplacementsViewData): boolean {
+		return this.edit.equals(other.edit) && this.alternativeAction === other.alternativeAction;
+	}
+}
 
 const BORDER_WIDTH = 1;
 
@@ -30,15 +49,16 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 	public static MAX_LENGTH = 100;
 
-	private readonly _onDidClick;
-	readonly onDidClick;
+	private readonly _onDidClick = this._register(new Emitter<InlineEditClickEvent>());
+	readonly onDidClick = this._onDidClick.event;
 
 	private readonly _start;
 	private readonly _end;
 
 	private readonly _line;
 
-	private readonly _hoverableElement;
+	private readonly _primaryElement;
+	private readonly _secondaryElement;
 
 	readonly isHovered;
 
@@ -46,36 +66,39 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 	constructor(
 		private readonly _editor: ObservableCodeEditor,
-		/** Must be single-line in both sides */
-		private readonly _edit: TextReplacement,
+		private readonly _viewData: WordReplacementsViewData,
 		protected readonly _tabAction: IObservable<InlineEditTabAction>,
 		@ILanguageService private readonly _languageService: ILanguageService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
-		this._onDidClick = this._register(new Emitter<IMouseEvent>());
-		this.onDidClick = this._onDidClick.event;
-		this._start = this._editor.observePosition(constObservable(this._edit.range.getStartPosition()), this._store);
-		this._end = this._editor.observePosition(constObservable(this._edit.range.getEndPosition()), this._store);
+		this._start = this._editor.observePosition(constObservable(this._viewData.edit.range.getStartPosition()), this._store);
+		this._end = this._editor.observePosition(constObservable(this._viewData.edit.range.getEndPosition()), this._store);
 		this._line = document.createElement('div');
-		this._hoverableElement = observableValue<ObserverNodeWithElement | null>(this, null);
-		this.isHovered = this._hoverableElement.map((e, reader) => e?.didMouseMoveDuringHover.read(reader) ?? false);
+		this._primaryElement = observableValue<ObserverNodeWithElement | null>(this, null);
+		this._secondaryElement = observableValue<ObserverNodeWithElement | null>(this, null);
+		this.isHovered = this._primaryElement.map((e, reader) => e?.didMouseMoveDuringHover.read(reader) ?? false);
 		this._renderTextEffect = derived(this, _reader => {
 			const tm = this._editor.model.get()!;
-			const origLine = tm.getLineContent(this._edit.range.startLineNumber);
+			const origLine = tm.getLineContent(this._viewData.edit.range.startLineNumber);
 
-			const edit = StringReplacement.replace(new OffsetRange(this._edit.range.startColumn - 1, this._edit.range.endColumn - 1), this._edit.text);
+			const edit = StringReplacement.replace(new OffsetRange(this._viewData.edit.range.startColumn - 1, this._viewData.edit.range.endColumn - 1), this._viewData.edit.text);
 			const lineToTokenize = edit.replace(origLine);
-			const t = tm.tokenization.tokenizeLinesAt(this._edit.range.startLineNumber, [lineToTokenize])?.[0];
+			const t = tm.tokenization.tokenizeLinesAt(this._viewData.edit.range.startLineNumber, [lineToTokenize])?.[0];
 			let tokens: LineTokens;
 			if (t) {
-				tokens = TokenArray.fromLineTokens(t).slice(edit.getRangeAfterReplace()).toLineTokens(this._edit.text, this._languageService.languageIdCodec);
+				tokens = TokenArray.fromLineTokens(t).slice(edit.getRangeAfterReplace()).toLineTokens(this._viewData.edit.text, this._languageService.languageIdCodec);
 			} else {
-				tokens = LineTokens.createEmpty(this._edit.text, this._languageService.languageIdCodec);
+				tokens = LineTokens.createEmpty(this._viewData.edit.text, this._languageService.languageIdCodec);
 			}
 			const res = renderLines(new LineSource([tokens]), RenderOptions.fromEditor(this._editor.editor).withSetWidth(false).withScrollBeyondLastColumn(0), [], this._line, true);
 			this._line.style.width = `${res.minWidthInPx}px`;
 		});
-		const modifiedLineHeight = this._editor.observeLineHeightForPosition(this._edit.range.getStartPosition());
+		const modifiedLineHeight = this._editor.observeLineHeightForPosition(this._viewData.edit.range.getStartPosition());
+		const altCount = observableFromPromise(this._viewData.alternativeAction?.count ?? new Promise<undefined>(resolve => resolve(undefined))).map(c => c.value);
+		const altModifierActive = observableFromEvent(this, ModifierKeyEmitter.getInstance().event, () => ModifierKeyEmitter.getInstance().keyStatus.shiftKey);
 		this._layout = derived(this, reader => {
 			this._renderTextEffect.read(reader);
 			const widgetStart = this._start.read(reader);
@@ -94,15 +117,37 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 			const modifiedTopOffset = 4;
 			const modifiedOffset = new Point(modifiedLeftOffset, modifiedTopOffset);
 
-			const originalLine = Rect.fromPoints(widgetStart, widgetEnd).withHeight(lineHeight).translateX(-scrollLeft);
-			const modifiedLine = Rect.fromPointSize(originalLine.getLeftBottom().add(modifiedOffset), new Point(this._edit.text.length * w, originalLine.height));
+			let alternativeAction = undefined;
+			if (this._viewData.alternativeAction) {
+				const label = this._viewData.alternativeAction.label;
+				const count = altCount.read(reader);
+				const active = altModifierActive.read(reader);
+				const occurrencesLabel = count !== undefined ? count === 1 ?
+					localize('labelOccurence', "{0} 1 occurrence", label) :
+					localize('labelOccurences', "{0} {1} occurrences", label, count)
+					: label;
+				const keybindingTooltip = localize('shiftToSeeOccurences', "{0} show occurrences", '[shift]');
+				alternativeAction = {
+					label: count !== undefined ? (active ? occurrencesLabel : label) : label,
+					tooltip: occurrencesLabel ? `${occurrencesLabel}\n${keybindingTooltip}` : undefined,
+					icon: undefined, //this._viewData.alternativeAction.icon, Do not render icon fo the moment
+					count,
+					keybinding: this._keybindingService.lookupKeybinding(inlineSuggestCommitAlternativeActionId),
+					active: altModifierActive,
+				};
+			}
 
+			const originalLine = Rect.fromPoints(widgetStart, widgetEnd).withHeight(lineHeight).translateX(-scrollLeft);
+			const codeLine = Rect.fromPointSize(originalLine.getLeftBottom().add(modifiedOffset), new Point(this._viewData.edit.text.length * w, originalLine.height));
+			const modifiedLine = codeLine.withWidth(codeLine.width + (alternativeAction ? alternativeAction.label.length * w + 8 + 4 + 12 : 0));
 			const lowerBackground = modifiedLine.withLeft(originalLine.left);
 
 			// debugView(debugLogRects({ lowerBackground }, this._editor.editor.getContainerDomNode()), reader);
 
 			return {
+				alternativeAction,
 				originalLine,
+				codeLine,
 				modifiedLine,
 				lowerBackground,
 				lineHeight,
@@ -126,7 +171,36 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 
 				const originalBorderColor = getOriginalBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
 				const modifiedBorderColor = getModifiedBorderColor(this._tabAction).map(c => asCssVariable(c)).read(reader);
+				this._line.style.lineHeight = `${layout.read(reader).modifiedLine.height + 2 * BORDER_WIDTH}px`;
 
+				const secondaryElementHovered = constObservable(false);//this._secondaryElement.map((e, r) => e?.isHovered.read(r) ?? false);
+				const alternativeAction = layout.map(l => l.alternativeAction);
+				const alternativeActionActive = derived(reader => (alternativeAction.read(reader)?.active.read(reader) ?? false) || secondaryElementHovered.read(reader));
+
+				const primaryActiveStyles = {
+					borderColor: modifiedBorderColor,
+					backgroundColor: asCssVariable(modifiedChangedTextOverlayColor),
+					color: '',
+					opacity: '1',
+				};
+
+				const secondaryActiveStyles = {
+					borderColor: asCssVariable(inlineEditIndicatorPrimaryBorder),
+					backgroundColor: asCssVariable(inlineEditIndicatorPrimaryBackground),
+					color: asCssVariable(inlineEditIndicatorPrimaryForeground),
+					opacity: '1',
+				};
+
+				const passiveStyles = {
+					borderColor: observeColor(editorHoverForeground, this._themeService).map(c => c.transparent(0.2).toString()).read(reader),
+					backgroundColor: asCssVariable(editorBackground),
+					color: '',
+					opacity: '0.7',
+				};
+
+				const primaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? primaryActiveStyles : primaryActiveStyles);
+				const secondaryActionStyles = derived(this, r => alternativeActionActive.read(r) ? secondaryActiveStyles : passiveStyles);
+				// TODO@benibenj clicking the arrow does not accept suggestion anymore
 				return [
 					n.div({
 						style: {
@@ -141,39 +215,97 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).lowerBackground.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH, BORDER_WIDTH, 0)),
 								background: asCssVariable(editorBackground),
-								//boxShadow: `${asCssVariable(scrollbarShadow)} 0 6px 6px -6px`,
-								cursor: 'pointer',
-								pointerEvents: 'auto',
 							},
 							onmousedown: e => {
 								e.preventDefault(); // This prevents that the editor loses focus
 							},
-							onmouseup: (e) => this._onDidClick.fire(new StandardMouseEvent(getWindow(e), e)),
-							obsRef: (elem) => {
-								this._hoverableElement.set(elem, undefined);
-							}
 						}),
 						n.div({
 							style: {
 								position: 'absolute',
 								...rectToProps(reader => layout.read(reader).modifiedLine.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH)),
-								fontFamily: this._editor.getOption(EditorOption.fontFamily),
-								fontSize: this._editor.getOption(EditorOption.fontSize),
-								fontWeight: this._editor.getOption(EditorOption.fontWeight),
-
+								width: undefined,
 								pointerEvents: 'none',
 								boxSizing: 'border-box',
 								borderRadius: '4px',
-								border: `${BORDER_WIDTH}px solid ${modifiedBorderColor}`,
 
-								background: asCssVariable(modifiedChangedTextOverlayColor),
+								background: asCssVariable(editorBackground),
 								display: 'flex',
-								justifyContent: 'center',
-								alignItems: 'center',
+								justifyContent: 'left',
 
 								outline: `2px solid ${asCssVariable(editorBackground)}`,
-							}
-						}, [this._line]),
+							},
+						}, [
+							n.div({
+								style: {
+									fontFamily: this._editor.getOption(EditorOption.fontFamily),
+									fontSize: this._editor.getOption(EditorOption.fontSize),
+									fontWeight: this._editor.getOption(EditorOption.fontWeight),
+									width: rectToProps(reader => layout.read(reader).codeLine.withMargin(BORDER_WIDTH, 2 * BORDER_WIDTH)).width,
+									borderRadius: '4px',
+									border: primaryActionStyles.map(s => `${BORDER_WIDTH}px solid ${s.borderColor}`),
+									boxSizing: 'border-box',
+									padding: `${BORDER_WIDTH}px`,
+									opacity: primaryActionStyles.map(s => s.opacity),
+									background: primaryActionStyles.map(s => s.backgroundColor),
+									display: 'flex',
+									justifyContent: 'left',
+									alignItems: 'center',
+									pointerEvents: 'auto',
+									cursor: 'pointer',
+								},
+								onmouseup: (e) => this._onDidClick.fire(InlineEditClickEvent.create(e, false)),
+								obsRef: (elem) => {
+									this._primaryElement.set(elem, undefined);
+								}
+							}, [this._line]),
+							derived(this, reader => {
+								const altAction = alternativeAction.read(reader);
+								if (!altAction) {
+									return undefined;
+								}
+								const keybinding = document.createElement('div');
+								const keybindingLabel = reader.store.add(new KeybindingLabel(keybinding, OS, { ...unthemedKeybindingLabelOptions, disableTitle: true }));
+								keybindingLabel.set(altAction.keybinding);
+
+								return n.div({
+									style: {
+										position: 'relative',
+										borderRadius: '4px',
+										borderTop: `${BORDER_WIDTH}px solid`,
+										borderRight: `${BORDER_WIDTH}px solid`,
+										borderBottom: `${BORDER_WIDTH}px solid`,
+										borderLeft: `${BORDER_WIDTH}px solid`,
+										borderColor: secondaryActionStyles.map(s => s.borderColor),
+										opacity: secondaryActionStyles.map(s => s.opacity),
+										color: secondaryActionStyles.map(s => s.color),
+										display: 'flex',
+										justifyContent: 'center',
+										alignItems: 'center',
+										padding: '0 4px 0 1px',
+										marginLeft: '4px',
+										background: secondaryActionStyles.map(s => s.backgroundColor),
+										pointerEvents: 'auto',
+										cursor: 'pointer',
+									},
+									class: 'inline-edit-alternative-action-label',
+									onmouseup: (e) => this._onDidClick.fire(InlineEditClickEvent.create(e, true)),
+									obsRef: (elem) => {
+										this._secondaryElement.set(elem, undefined);
+									},
+									ref: (elem) => {
+										if (altAction.tooltip) {
+											reader.store.add(this._hoverService.setupDelayedHoverAtMouse(elem, { content: altAction.tooltip, appearance: { compact: true } }));
+										}
+									}
+								}, [
+									keybinding,
+									$('div.inline-edit-alternative-action-label-separator'),
+									altAction.icon ? renderIcon(altAction.icon) : undefined,
+									altAction.label,
+								]);
+							})
+						]),
 						n.div({
 							style: {
 								position: 'absolute',

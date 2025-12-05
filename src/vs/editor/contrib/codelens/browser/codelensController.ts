@@ -42,7 +42,7 @@ export class CodeLensContribution implements IEditorContribution {
 	private _getCodeLensModelPromise: CancelablePromise<CodeLensModel> | undefined;
 	private readonly _oldCodeLensModels = new DisposableStore();
 	private _currentCodeLensModel: CodeLensModel | undefined;
-	private _resolveCodeLensesPromise: CancelablePromise<any> | undefined;
+	private _resolveCodeLensesPromise: CancelablePromise<void[]> | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,

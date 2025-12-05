@@ -16,12 +16,11 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { IChatAcceptInputOptions, showChatView } from '../../../chat/browser/chat.js';
-import type { IChatViewState } from '../../../chat/browser/chatWidget.js';
+import { IChatAcceptInputOptions, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatAgentService } from '../../../chat/common/chatAgents.js';
-import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../../chat/common/chatModel.js';
-import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
+import { IChatResponseModel, isCellTextEditOperationArray } from '../../../chat/common/chatModel.js';
+import { ChatMode } from '../../../chat/common/chatModes.js';
+import { IChatModelReference, IChatProgress, IChatService } from '../../../chat/common/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { InlineChatWidget } from '../../../inlineChat/browser/inlineChatWidget.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
@@ -29,8 +28,6 @@ import { ITerminalInstance, type IXtermTerminal } from '../../../terminal/browse
 import { TerminalStickyScrollContribution } from '../../stickyScroll/browser/terminalStickyScrollContribution.js';
 import './media/terminalChatWidget.css';
 import { MENU_TERMINAL_CHAT_WIDGET_INPUT_SIDE_TOOLBAR, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from './terminalChat.js';
-import { ChatMode } from '../../../chat/common/chatModes.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 const enum Constants {
 	HorizontalMargin = 10,
@@ -84,7 +81,7 @@ export class TerminalChatWidget extends Disposable {
 
 	private _terminalAgentName = 'terminal';
 
-	private readonly _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
+	private readonly _model: MutableDisposable<IChatModelReference> = this._register(new MutableDisposable());
 
 	private _sessionCtor: CancelablePromise<void> | undefined;
 
@@ -101,10 +98,9 @@ export class TerminalChatWidget extends Disposable {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -235,8 +231,8 @@ export class TerminalChatWidget extends Disposable {
 		this.inlineChatWidget.placeholder = defaultAgent?.description ?? localize('askAboutCommands', 'Ask about commands');
 	}
 
-	async reveal(viewState?: IChatViewState): Promise<void> {
-		await this._createSession(viewState);
+	async reveal(): Promise<void> {
+		await this._createSession();
 		this._doLayout();
 		this._container.classList.remove('hide');
 		this._visibleContextKey.set(true);
@@ -328,38 +324,24 @@ export class TerminalChatWidget extends Disposable {
 		return this._focusTracker;
 	}
 
-	private async _createSession(viewState?: IChatViewState): Promise<void> {
+	private async _createSession(): Promise<void> {
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (!this._model.value) {
-				this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, token);
-				const model = this._model.value;
-				if (model) {
-					this._inlineChatWidget.setChatModel(model, this._loadViewState());
-					this._resetPlaceholder();
-				}
-				if (!this._model.value) {
-					throw new Error('Failed to start chat session');
-				}
+				const modelRef = this._chatService.startSession(ChatAgentLocation.Terminal);
+				this._model.value = modelRef;
+				const model = modelRef.object;
+				this._inlineChatWidget.setChatModel(model);
+				this._resetPlaceholder();
 			}
 		});
 		this._register(toDisposable(() => this._sessionCtor?.cancel()));
 	}
 
-	private _loadViewState() {
-		const rawViewState = this._storageService.get(this._viewStateStorageKey, StorageScope.PROFILE, undefined);
-		let viewState: IChatViewState | undefined;
-		if (rawViewState) {
-			try {
-				viewState = JSON.parse(rawViewState);
-			} catch {
-				viewState = undefined;
-			}
-		}
-		return viewState;
-	}
-
 	private _saveViewState() {
-		this._storageService.store(this._viewStateStorageKey, JSON.stringify(this._inlineChatWidget.chatWidget.getViewState()), StorageScope.PROFILE, StorageTarget.USER);
+		const viewState = this._inlineChatWidget.chatWidget.getViewState();
+		if (viewState) {
+			this._storageService.store(this._viewStateStorageKey, JSON.stringify(viewState), StorageScope.PROFILE, StorageTarget.USER);
+		}
 	}
 
 	clear(): void {
@@ -425,14 +407,14 @@ export class TerminalChatWidget extends Disposable {
 		this._activeRequestCts?.cancel();
 		this._requestActiveContextKey.set(false);
 		const model = this._inlineChatWidget.getChatModel();
-		if (!model?.sessionId) {
+		if (!model?.sessionResource) {
 			return;
 		}
-		this._chatService.cancelCurrentRequestForSession(model?.sessionId);
+		this._chatService.cancelCurrentRequestForSession(model?.sessionResource);
 	}
 
 	async viewInChat(): Promise<void> {
-		const widget = await showChatView(this._viewsService, this._layoutService);
+		const widget = await this._chatWidgetService.revealWidget();
 		const currentRequest = this._inlineChatWidget.chatWidget.viewModel?.model.getRequests().find(r => r.id === this._currentRequestId);
 		if (!widget || !currentRequest?.response) {
 			return;
@@ -450,16 +432,16 @@ export class TerminalChatWidget extends Disposable {
 				}
 			} else if (item.kind === 'notebookEditGroup') {
 				for (const group of item.edits) {
-					if (isCellTextEditOperation(group)) {
+					if (isCellTextEditOperationArray(group)) {
 						message.push({
 							kind: 'textEdit',
-							edits: [group.edit],
-							uri: group.uri
+							edits: group.map(e => e.edit),
+							uri: group[0].uri
 						});
 					} else {
 						message.push({
 							kind: 'notebookEdit',
-							edits: [group],
+							edits: group,
 							uri: item.uri
 						});
 					}
@@ -469,7 +451,7 @@ export class TerminalChatWidget extends Disposable {
 			}
 		}
 
-		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
+		this._chatService.addCompleteRequest(widget!.viewModel!.sessionResource,
 			`@${this._terminalAgentName} ${currentRequest.message.text}`,
 			currentRequest.variableData,
 			currentRequest.attempt,

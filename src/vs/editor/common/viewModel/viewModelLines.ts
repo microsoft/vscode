@@ -151,8 +151,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 			if (lineNumber === nextLineNumberToUpdateHiddenArea) {
 				hiddenAreaIdx++;
-				hiddenAreaStart = hiddenAreas[hiddenAreaIdx]!.startLineNumber;
-				hiddenAreaEnd = hiddenAreas[hiddenAreaIdx]!.endLineNumber;
+				hiddenAreaStart = hiddenAreas[hiddenAreaIdx].startLineNumber;
+				hiddenAreaEnd = hiddenAreas[hiddenAreaIdx].endLineNumber;
 				nextLineNumberToUpdateHiddenArea = (hiddenAreaIdx + 1 < hiddenAreas.length) ? hiddenAreaEnd + 1 : lineCount + 2;
 			}
 

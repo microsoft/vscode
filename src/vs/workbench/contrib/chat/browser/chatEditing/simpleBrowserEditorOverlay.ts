@@ -20,8 +20,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { IChatWidgetService, showChatView } from '../chat.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IChatWidgetService } from '../chat.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { addDisposableListener } from '../../../../../base/browser/dom.js';
@@ -37,7 +36,6 @@ import { IBrowserElementsService } from '../../../../services/browserElements/br
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IAction, toAction } from '../../../../../base/common/actions.js';
 import { BrowserType } from '../../../../../platform/browserElements/common/browserElements.js';
-import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 
 class SimpleBrowserOverlayWidget {
 
@@ -56,7 +54,6 @@ class SimpleBrowserOverlayWidget {
 		private readonly _container: HTMLElement,
 		@IHostService private readonly _hostService: IHostService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
-		@IViewsService private readonly _viewService: IViewsService,
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
@@ -64,7 +61,6 @@ class SimpleBrowserOverlayWidget {
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@IBrowserElementsService private readonly _browserElementsService: IBrowserElementsService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 	) {
 		this._showStore.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.sendElementsToChat.enabled')) {
@@ -82,10 +78,13 @@ class SimpleBrowserOverlayWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'element-selection-message';
 
+		const mainContent = document.createElement('div');
+		mainContent.className = 'element-selection-main-content';
+
 		const message = document.createElement('span');
 		const startSelectionMessage = localize('elementSelectionMessage', 'Add element to chat');
 		message.textContent = startSelectionMessage;
-		this._domNode.appendChild(message);
+		mainContent.appendChild(message);
 
 		let cts: CancellationTokenSource;
 		const actions: IAction[] = [];
@@ -124,7 +123,7 @@ class SimpleBrowserOverlayWidget {
 				}
 			}));
 
-		const startButton = this._showStore.add(new ButtonWithDropdown(this._domNode, {
+		const startButton = this._showStore.add(new ButtonWithDropdown(mainContent, {
 			actions: actions,
 			addPrimaryActionToDropdown: false,
 			contextMenuProvider: this.contextMenuService,
@@ -137,28 +136,29 @@ class SimpleBrowserOverlayWidget {
 		startButton.primaryButton.label = localize('startSelection', 'Start');
 		startButton.element.classList.add('element-selection-start');
 
-		const cancelButton = this._showStore.add(new Button(this._domNode, { ...defaultButtonStyles, supportIcons: true, title: localize('cancelSelection', 'Click to cancel selection.') }));
+		const cancelButton = this._showStore.add(new Button(mainContent, { ...defaultButtonStyles, supportIcons: true, title: localize('cancelSelection', 'Click to cancel selection.') }));
 		cancelButton.element.className = 'element-selection-cancel hidden';
 		const cancelButtonLabel = localize('cancelSelectionLabel', 'Cancel');
 		cancelButton.label = cancelButtonLabel;
 
-		const configure = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.configureElements', "Configure Attachments Sent") }));
+		const configure = this._showStore.add(new Button(mainContent, { supportIcons: true, title: localize('chat.configureElements', "Configure Attachments Sent") }));
 		configure.icon = Codicon.gear;
 
-		const collapseOverlay = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.hideOverlay', "Collapse Overlay") }));
+		const collapseOverlay = this._showStore.add(new Button(mainContent, { supportIcons: true, title: localize('chat.hideOverlay', "Collapse Overlay") }));
 		collapseOverlay.icon = Codicon.chevronRight;
 
-		const nextSelection = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.nextSelection', "Select Again") }));
+		const nextSelection = this._showStore.add(new Button(mainContent, { supportIcons: true, title: localize('chat.nextSelection', "Select Again") }));
 		nextSelection.icon = Codicon.close;
 		nextSelection.element.classList.add('hidden');
 
 		// shown if the overlay is collapsed
-		const expandOverlay = this._showStore.add(new Button(this._domNode, { supportIcons: true, title: localize('chat.expandOverlay', "Expand Overlay") }));
-		expandOverlay.icon = Codicon.layout;
 		const expandContainer = document.createElement('div');
 		expandContainer.className = 'element-expand-container hidden';
-		expandContainer.appendChild(expandOverlay.element);
-		this._container.appendChild(expandContainer);
+		const expandOverlay = this._showStore.add(new Button(expandContainer, { supportIcons: true, title: localize('chat.expandOverlay', "Expand Overlay") }));
+		expandOverlay.icon = Codicon.layout;
+
+		this._domNode.appendChild(mainContent);
+		this._domNode.appendChild(expandContainer);
 
 		const resetButtons = () => {
 			this.hideElement(nextSelection.element);
@@ -206,12 +206,12 @@ class SimpleBrowserOverlayWidget {
 		}));
 
 		this._showStore.add(addDisposableListener(collapseOverlay.element, 'click', () => {
-			this.hideElement(this._domNode);
+			this.hideElement(mainContent);
 			this.showElement(expandContainer);
 		}));
 
 		this._showStore.add(addDisposableListener(expandOverlay.element, 'click', () => {
-			this.showElement(this._domNode);
+			this.showElement(mainContent);
 			this.hideElement(expandContainer);
 		}));
 
@@ -245,6 +245,7 @@ class SimpleBrowserOverlayWidget {
 	}
 
 	async addElementToChat(cts: CancellationTokenSource) {
+		// eslint-disable-next-line no-restricted-syntax
 		const editorContainer = this._container.querySelector('.editor-container') as HTMLDivElement;
 		const editorContainerPosition = editorContainer ? editorContainer.getBoundingClientRect() : this._container.getBoundingClientRect();
 
@@ -255,7 +256,7 @@ class SimpleBrowserOverlayWidget {
 		const bounds = elementData.bounds;
 		const toAttach: IChatRequestVariableEntry[] = [];
 
-		const widget = await showChatView(this._viewService, this._layoutService) ?? this._chatWidgetService.lastFocusedWidget;
+		const widget = await this._chatWidgetService.revealWidget() ?? this._chatWidgetService.lastFocusedWidget;
 		let value = 'Attached HTML and CSS Context\n\n' + elementData.outerHTML;
 		if (this.configurationService.getValue('chat.sendElementsToChat.attachCSS')) {
 			value += '\n\n' + elementData.computedStyle;

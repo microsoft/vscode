@@ -54,7 +54,7 @@ export class ExtensionKey {
 		return `${this.id}-${this.version}${this.targetPlatform !== TargetPlatform.UNDEFINED ? `-${this.targetPlatform}` : ''}`;
 	}
 
-	equals(o: any): boolean {
+	equals(o: unknown): boolean {
 		if (!(o instanceof ExtensionKey)) {
 			return false;
 		}

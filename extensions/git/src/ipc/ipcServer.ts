@@ -25,7 +25,7 @@ function getIPCHandlePath(id: string): string {
 }
 
 export interface IIPCHandler {
-	handle(request: any): Promise<any>;
+	handle(request: unknown): Promise<unknown>;
 }
 
 export async function createIPCServer(context?: string): Promise<IPCServer> {

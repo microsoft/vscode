@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as eslint from 'eslint';
-import * as ESTree from 'estree';
+import type * as ESTree from 'estree';
 import { TSESTree } from '@typescript-eslint/utils';
 
 /**
  * WORKAROUND for https://github.com/evanw/esbuild/issues/3823
  */
-export = new class implements eslint.Rule.RuleModule {
+export default new class implements eslint.Rule.RuleModule {
 
 	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
 
-		function checkProperty(inNode: any) {
+		function checkProperty(inNode: TSESTree.PropertyDefinition) {
 
-			const classDeclaration = context.sourceCode.getAncestors(inNode).find(node => node.type === 'ClassDeclaration');
-			const propertyDefinition = <TSESTree.PropertyDefinition>inNode;
+			const classDeclaration = context.sourceCode.getAncestors(inNode as ESTree.Node).find(node => node.type === 'ClassDeclaration');
+			const propertyDefinition = inNode;
 
 			if (!classDeclaration || !classDeclaration.id?.name) {
 				return;

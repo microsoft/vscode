@@ -1080,7 +1080,7 @@ export function scopesMatch(scopes1: readonly string[] | undefined, scopes2: rea
 interface CommonResponse {
 	status: number;
 	statusText: string;
-	json(): Promise<any>;
+	json(): Promise<unknown>;
 	text(): Promise<string>;
 }
 
@@ -1264,34 +1264,47 @@ export async function fetchAuthorizationServerMetadata(
 	const authorizationServerUrl = new URL(authorizationServer);
 	const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
 
-	const doFetch = async (url: string): Promise<{ metadata: IAuthorizationServerMetadata | undefined; rawResponse: CommonResponse }> => {
-		const rawResponse = await fetchImpl(url, {
-			method: 'GET',
-			headers: {
-				...additionalHeaders,
-				'Accept': 'application/json'
+	const errors: Error[] = [];
+
+	const doFetch = async (url: string): Promise<IAuthorizationServerMetadata | undefined> => {
+		try {
+			const rawResponse = await fetchImpl(url, {
+				method: 'GET',
+				headers: {
+					...additionalHeaders,
+					'Accept': 'application/json'
+				}
+			});
+			const metadata = await tryParseAuthServerMetadata(rawResponse);
+			if (metadata) {
+				return metadata;
 			}
-		});
-		const metadata = await tryParseAuthServerMetadata(rawResponse);
-		return { metadata, rawResponse };
+			// No metadata found, collect error from response
+			errors.push(new Error(`Failed to fetch authorization server metadata from ${url}: ${rawResponse.status} ${await getErrText(rawResponse)}`));
+			return undefined;
+		} catch (e) {
+			// Collect error from fetch failure
+			errors.push(e instanceof Error ? e : new Error(String(e)));
+			return undefined;
+		}
 	};
 
 	// For the oauth server metadata discovery path, we _INSERT_
 	// the well known path after the origin and before the path.
 	// https://datatracker.ietf.org/doc/html/rfc8414#section-3
 	const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
-	let result = await doFetch(pathToFetch);
-	if (result.metadata) {
-		return result.metadata;
+	let metadata = await doFetch(pathToFetch);
+	if (metadata) {
+		return metadata;
 	}
 
 	// Try fetching the OpenID Connect Discovery with path insertion.
 	// For issuer URLs with path components, this inserts the well-known path
 	// after the origin and before the path.
 	const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
-	result = await doFetch(openidPathInsertionUrl);
-	if (result.metadata) {
-		return result.metadata;
+	metadata = await doFetch(openidPathInsertionUrl);
+	if (metadata) {
+		return metadata;
 	}
 
 	// Try fetching the other discovery URL. For the openid metadata discovery
@@ -1300,10 +1313,15 @@ export async function fetchAuthorizationServerMetadata(
 	const openidPathAdditionUrl = authorizationServer.endsWith('/')
 		? authorizationServer + OPENID_CONNECT_DISCOVERY_PATH.substring(1) // Remove leading slash if authServer ends with slash
 		: authorizationServer + OPENID_CONNECT_DISCOVERY_PATH;
-	result = await doFetch(openidPathAdditionUrl);
-	if (result.metadata) {
-		return result.metadata;
+	metadata = await doFetch(openidPathAdditionUrl);
+	if (metadata) {
+		return metadata;
 	}
 
-	throw new Error(`Failed to fetch authorization server metadata: ${result.rawResponse.status} ${await getErrText(result.rawResponse)}`);
+	// If we've tried all URLs and none worked, throw the error(s)
+	if (errors.length === 1) {
+		throw errors[0];
+	} else {
+		throw new AggregateError(errors, 'Failed to fetch authorization server metadata from all attempted URLs');
+	}
 }

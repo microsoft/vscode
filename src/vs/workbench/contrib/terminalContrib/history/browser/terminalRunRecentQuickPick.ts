@@ -31,6 +31,7 @@ import { getCommandHistory, getDirectoryHistory, getShellFileHistory } from '../
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { extUri, extUriIgnorePathCase } from '../../../../../base/common/resources.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
+import { isObject } from '../../../../../base/common/types.js';
 
 export async function showRunRecentQuickPick(
 	accessor: ServicesAccessor,
@@ -325,7 +326,10 @@ export async function showRunRecentQuickPick(
 		if (!item) {
 			return;
 		}
-		if ('command' in item && item.command && item.command.marker) {
+		function isItem(obj: unknown): obj is Item {
+			return isObject(obj) && 'rawLabel' in obj;
+		}
+		if (isItem(item) && item.command && item.command.marker) {
 			if (!terminalScrollStateSaved) {
 				xterm.markTracker.saveScrollState();
 				terminalScrollStateSaved = true;

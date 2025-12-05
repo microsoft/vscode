@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './hover.css';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../base/common/event.js';
 import * as dom from '../../../base/browser/dom.js';
 import { IKeybindingService } from '../../keybinding/common/keybinding.js';
@@ -177,7 +177,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		} else {
 			const markdown = options.content;
 
-			const { element, dispose } = this._markdownRenderer.render(markdown, {
+			const { element } = this._register(this._markdownRenderer.render(markdown, {
 				actionHandler: this._linkHandler,
 				asyncRenderCallback: () => {
 					contentsElement.classList.add('code-hover-contents');
@@ -185,9 +185,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 					// This changes the dimensions of the hover so trigger a layout
 					this._onRequestLayout.fire();
 				}
-			});
+			}));
 			contentsElement.appendChild(element);
-			this._register(toDisposable(dispose));
 		}
 		rowElement.appendChild(contentsElement);
 		this._hover.contentsDomNode.appendChild(rowElement);

@@ -2689,7 +2689,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 		// Unification
 		if (this.extension.enablementState === EnablementState.DisabledByUnification) {
-			this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('extension disabled because of unification', "The Copilot extension has been disabled. Copilot functionality will now be served by the Copilot Chat extension. In case this is causing issues, please create an issue on the vscode repository. The setting {0} can be used to revert back to having both extensions enabled.", '`chat.extensionUnification.enabled`')) }, true);
+			this.updateStatus({ icon: infoIcon, message: new MarkdownString(localize('extension disabled because of unification', "All GitHub Copilot functionality is now being served from the GitHub Copilot Chat extension. To temporarily opt out of this extension unification, toggle the {0} setting.", '`chat.extensionUnification.enabled`')) }, true);
 			return;
 		}
 

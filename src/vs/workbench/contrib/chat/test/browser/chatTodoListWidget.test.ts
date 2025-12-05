@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable no-restricted-syntax */
+
 import assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -12,6 +14,9 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { URI } from '../../../../../base/common/uri.js';
+
+const testSessionUri = URI.parse('chat-session://test/session1');
 
 suite('ChatTodoListWidget Accessibility', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -29,8 +34,8 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const mockTodoListService: IChatTodoListService = {
 			_serviceBrand: undefined,
 			onDidUpdateTodos: Event.None,
-			getTodos: (sessionId: string) => sampleTodos,
-			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
+			getTodos: (sessionResource: URI) => sampleTodos,
+			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { }
 		};
 
 		// Mock the configuration service
@@ -50,7 +55,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	});
 
 	test('creates proper semantic list structure', () => {
-		widget.render('test-session');
+		widget.render(testSessionUri);
 
 		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
 		assert.ok(todoListContainer, 'Should have todo list container');
@@ -68,7 +73,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	});
 
 	test('todo items have proper accessibility attributes', () => {
-		widget.render('test-session');
+		widget.render(testSessionUri);
 
 		const todoItems = widget.domNode.querySelectorAll('.todo-item');
 		assert.strictEqual(todoItems.length, 3, 'Should have 3 todo items');
@@ -92,7 +97,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	});
 
 	test('status icons are hidden from screen readers', () => {
-		widget.render('test-session');
+		widget.render(testSessionUri);
 
 		const statusIcons = widget.domNode.querySelectorAll('.todo-status-icon');
 		statusIcons.forEach(icon => {
@@ -101,7 +106,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	});
 
 	test('expand button has proper accessibility attributes', () => {
-		widget.render('test-session');
+		widget.render(testSessionUri);
 
 		// The expandoButton is now a Monaco Button, so we need to check its element
 		const expandoContainer = widget.domNode.querySelector('.todo-list-expand');
@@ -123,7 +128,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	});
 
 	test('todo items have complete aria-label with status information', () => {
-		widget.render('test-session');
+		widget.render(testSessionUri);
 
 		const todoItems = widget.domNode.querySelectorAll('.todo-item');
 		assert.strictEqual(todoItems.length, 3, 'Should have 3 todo items');
@@ -153,8 +158,8 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const emptyTodoListService: IChatTodoListService = {
 			_serviceBrand: undefined,
 			onDidUpdateTodos: Event.None,
-			getTodos: (sessionId: string) => [],
-			setTodos: (sessionId: string, todos: IChatTodo[]) => { }
+			getTodos: (sessionResource: URI) => [],
+			setTodos: (sessionResource: URI, todos: IChatTodo[]) => { }
 		};
 
 		const emptyConfigurationService = new TestConfigurationService({ 'chat.todoListTool.descriptionField': true });
@@ -165,14 +170,14 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const emptyWidget = store.add(instantiationService.createInstance(ChatTodoListWidget));
 		mainWindow.document.body.appendChild(emptyWidget.domNode);
 
-		emptyWidget.render('test-session');
+		emptyWidget.render(testSessionUri);
 
 		// Widget should be hidden when no todos
 		assert.strictEqual(emptyWidget.domNode.style.display, 'none', 'Widget should be hidden when no todos');
 	});
 
 	test('clear button has proper accessibility', () => {
-		widget.render('test-session');
+		widget.render(testSessionUri);
 
 		const clearButton = widget.domNode.querySelector('.todo-clear-button-container .monaco-button');
 		assert.ok(clearButton, 'Should have clear button');
@@ -180,7 +185,7 @@ suite('ChatTodoListWidget Accessibility', () => {
 	});
 
 	test('title element displays progress correctly and is accessible', () => {
-		widget.render('test-session');
+		widget.render(testSessionUri);
 
 		const titleElement = widget.domNode.querySelector('#todo-list-title');
 		assert.ok(titleElement, 'Should have title element with ID');

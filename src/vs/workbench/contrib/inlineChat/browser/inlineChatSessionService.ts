@@ -9,14 +9,14 @@ import { URI } from '../../../../base/common/uri.js';
 import { IActiveCodeEditor, ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { IRange } from '../../../../editor/common/core/range.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
 import { IValidEditOperation } from '../../../../editor/common/model.js';
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { showChatView } from '../../chat/browser/chat.js';
+import { ChatViewPaneTarget, IChatWidgetService } from '../../chat/browser/chat.js';
 import { IChatEditingSession } from '../../chat/common/chatEditingService.js';
-import { IChatModel, IChatRequestModel } from '../../chat/common/chatModel.js';
+import { IChatModel, IChatModelInputState, IChatRequestModel } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { Session, StashedSession } from './inlineChatSession.js';
 
 export interface ISessionKeyComputer {
@@ -36,6 +36,7 @@ export interface IInlineChatSessionEndEvent extends IInlineChatSessionEvent {
 
 export interface IInlineChatSession2 {
 	readonly initialPosition: Position;
+	readonly initialSelection: Selection;
 	readonly uri: URI;
 	readonly chatModel: IChatModel;
 	readonly editingSession: IChatEditingSession;
@@ -68,22 +69,21 @@ export interface IInlineChatSessionService {
 
 	createSession2(editor: ICodeEditor, uri: URI, token: CancellationToken): Promise<IInlineChatSession2>;
 	getSession2(uri: URI): IInlineChatSession2 | undefined;
-	getSession2(sessionId: string): IInlineChatSession2 | undefined;
+	getSessionBySessionUri(uri: URI): IInlineChatSession2 | undefined;
 	readonly onDidChangeSessions: Event<this>;
 }
 
 export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatModel | undefined, resend: boolean) {
 
-	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
-	const layoutService = accessor.get(IWorkbenchLayoutService);
+	const widgetService = accessor.get(IChatWidgetService);
 
-	const widget = await showChatView(viewsService, layoutService);
+	const widget = await widgetService.revealWidget();
 
 	if (widget && widget.viewModel && model) {
 		let lastRequest: IChatRequestModel | undefined;
 		for (const request of model.getRequests().slice()) {
-			await chatService.adoptRequest(widget.viewModel.model.sessionId, request);
+			await chatService.adoptRequest(widget.viewModel.model.sessionResource, request);
 			lastRequest = request;
 		}
 
@@ -93,4 +93,25 @@ export async function moveToPanelChat(accessor: ServicesAccessor, model: IChatMo
 
 		widget.focusResponseItem();
 	}
+}
+
+export async function askInPanelChat(accessor: ServicesAccessor, request: IChatRequestModel, state: IChatModelInputState | undefined) {
+
+	const widgetService = accessor.get(IChatWidgetService);
+	const chatService = accessor.get(IChatService);
+
+
+	if (!request) {
+		return;
+	}
+
+	const newModelRef = chatService.startSession(ChatAgentLocation.Chat);
+	const newModel = newModelRef.object;
+
+	newModel.inputModel.setState({ ...state });
+
+	const widget = await widgetService.openSession(newModelRef.object.sessionResource, ChatViewPaneTarget);
+
+	newModelRef.dispose(); // can be freed after opening because the widget also holds a reference
+	widget?.acceptInput(request.message.text);
 }

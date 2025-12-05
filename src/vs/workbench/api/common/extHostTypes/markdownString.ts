@@ -14,11 +14,14 @@ export class MarkdownString implements vscode.MarkdownString {
 
 	readonly #delegate: BaseMarkdownString;
 
-	static isMarkdownString(thing: any): thing is vscode.MarkdownString {
+	static isMarkdownString(thing: unknown): thing is vscode.MarkdownString {
 		if (thing instanceof MarkdownString) {
 			return true;
 		}
-		return thing && thing.appendCodeblock && thing.appendMarkdown && thing.appendText && (thing.value !== undefined);
+		if (!thing || typeof thing !== 'object') {
+			return false;
+		}
+		return (thing as vscode.MarkdownString).appendCodeblock && (thing as vscode.MarkdownString).appendMarkdown && (thing as vscode.MarkdownString).appendText && ((thing as vscode.MarkdownString).value !== undefined);
 	}
 
 	constructor(value?: string, supportThemeIcons: boolean = false) {

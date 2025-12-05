@@ -9,6 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from '../../../../platform/theme/common/colors/inputColors.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { getCodeEditor } from '../../../browser/editorBrowser.js';
@@ -22,14 +23,33 @@ interface IGotoLineQuickPickItem extends IQuickPickItem, Partial<IPosition> { }
 
 export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditorNavigationQuickAccessProvider {
 
-	static PREFIX = ':';
+	static readonly GO_TO_LINE_PREFIX = ':';
+	static readonly GO_TO_OFFSET_PREFIX = '::';
+	private static readonly ZERO_BASED_OFFSET_STORAGE_KEY = 'gotoLine.useZeroBasedOffset';
 
-	constructor(private useZeroBasedOffset: { value: boolean } = { value: false }) {
+	constructor() {
 		super({ canAcceptInBackground: true });
 	}
 
+	protected abstract readonly storageService: IStorageService;
+
+	private get useZeroBasedOffset() {
+		return this.storageService.getBoolean(
+			AbstractGotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY,
+			StorageScope.APPLICATION,
+			false);
+	}
+
+	private set useZeroBasedOffset(value: boolean) {
+		this.storageService.store(
+			AbstractGotoLineQuickAccessProvider.ZERO_BASED_OFFSET_STORAGE_KEY,
+			value,
+			StorageScope.APPLICATION,
+			StorageTarget.USER);
+	}
+
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoLineQuickPickItem, { useSeparators: true }>): IDisposable {
-		const label = localize('cannotRunGotoLine', "Open a text editor first to go to a line.");
+		const label = localize('gotoLine.noEditor', "Open a text editor first to go to a line or an offset.");
 
 		picker.items = [{ label }];
 		picker.ariaLabel = label;
@@ -45,7 +65,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		disposables.add(picker.onDidAccept(event => {
 			const [item] = picker.selectedItems;
 			if (item) {
-				if (!this.isValidLineNumber(editor, item.lineNumber)) {
+				if (!item.lineNumber) {
 					return;
 				}
 
@@ -59,35 +79,37 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		// React to picker changes
 		const updatePickerAndEditor = () => {
-			const inputText = picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.PREFIX.length);
-			const inOffsetMode = inputText.startsWith(':');
-			const position = this.parsePosition(editor, inputText);
-			const label = this.getPickLabel(editor, position.lineNumber, position.column, inOffsetMode);
+			const inputText = picker.value.trim().substring(AbstractGotoLineQuickAccessProvider.GO_TO_LINE_PREFIX.length);
+			const { inOffsetMode, lineNumber, column, label } = this.parsePosition(editor, inputText);
 
 			// Show toggle only when input text starts with '::'.
-			toggle.visible = inOffsetMode;
+			toggle.visible = !!inOffsetMode;
 
 			// Picker
 			picker.items = [{
-				lineNumber: position.lineNumber,
-				column: position.column,
+				lineNumber,
+				column,
 				label,
-				detail: inputText.length ?
-					undefined : // Don't show hint once the user has started typing.
-					localize('gotoLineQuickAccessDescription', "Use :line[:column] or ::offset to go to a position. Negative values are counted from the end.")
 			}];
 
 			// ARIA Label
-			picker.ariaLabel = label;
+			const cursor = editor.getPosition() ?? { lineNumber: 1, column: 1 };
+			picker.ariaLabel = localize(
+				{
+					key: 'gotoLine.ariaLabel',
+					comment: ['{0} is the line number, {1} is the column number, {2} is instructions for typing in the Go To Line picker']
+				},
+				"Current position: line {0}, column {1}. {2}", cursor.lineNumber, cursor.column, label
+			);
 
 			// Clear decorations for invalid range
-			if (!this.isValidLineNumber(editor, position.lineNumber)) {
+			if (!lineNumber) {
 				this.clearDecorations(editor);
 				return;
 			}
 
 			// Reveal
-			const range = this.toRange(position.lineNumber, position.column);
+			const range = this.toRange(lineNumber, column);
 			editor.revealRangeInCenter(range, ScrollType.Smooth);
 
 			// Decorate
@@ -96,9 +118,9 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		// Add a toggle to switch between 1- and 0-based offsets.
 		const toggle = new Toggle({
-			title: localize('gotoLineToggle', "Use zero-based offset"),
+			title: localize('gotoLineToggle', "Use Zero-Based Offset"),
 			icon: Codicon.indexZero,
-			isChecked: this.useZeroBasedOffset.value,
+			isChecked: this.useZeroBasedOffset,
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground)
@@ -106,7 +128,7 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 
 		disposables.add(
 			toggle.onChange(() => {
-				this.useZeroBasedOffset.value = !this.useZeroBasedOffset.value;
+				this.useZeroBasedOffset = !this.useZeroBasedOffset;
 				updatePickerAndEditor();
 			}));
 
@@ -139,95 +161,80 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		};
 	}
 
-	protected parsePosition(editor: IEditor, value: string): IPosition {
+	protected parsePosition(editor: IEditor, value: string): Partial<IPosition> & { inOffsetMode?: boolean; label: string } {
 		const model = this.getModel(editor);
+		if (!model) {
+			return {
+				label: localize('gotoLine.noEditor', "Open a text editor first to go to a line or an offset.")
+			};
+		}
 
 		// Support ::<offset> notation to navigate to a specific offset in the model.
 		if (value.startsWith(':')) {
 			let offset = parseInt(value.substring(1), 10);
-			if (!isNaN(offset) && model) {
+			const maxOffset = model.getValueLength();
+			if (isNaN(offset)) {
+				// No valid offset specified.
+				return {
+					inOffsetMode: true,
+					label: this.useZeroBasedOffset ?
+						localize('gotoLine.offsetPromptZero', "Type a character position to go to (from 0 to {0}).", maxOffset - 1) :
+						localize('gotoLine.offsetPrompt', "Type a character position to go to (from 1 to {0}).", maxOffset)
+				};
+			} else {
 				const reverse = offset < 0;
-				if (!this.useZeroBasedOffset.value) {
+				if (!this.useZeroBasedOffset) {
 					// Convert 1-based offset to model's 0-based.
 					offset -= Math.sign(offset);
 				}
 				if (reverse) {
 					// Offset from the end of the buffer
-					offset += model.getValueLength();
+					offset += maxOffset;
 				}
-				return model.getPositionAt(offset);
+				const pos = model.getPositionAt(offset);
+				return {
+					...pos,
+					inOffsetMode: true,
+					label: localize('gotoLine.goToPosition', "Press 'Enter' to go to line {0} at column {1}.", pos.lineNumber, pos.column)
+				};
 			}
-		}
+		} else {
+			// Support line-col formats of `line,col`, `line:col`, `line#col`
+			const parts = value.split(/,|:|#/);
 
-		// Support line-col formats of `line,col`, `line:col`, `line#col`
-		let [lineNumber, column] = value.split(/,|:|#/).map(part => parseInt(part, 10)).filter(part => !isNaN(part));
+			const maxLine = model.getLineCount();
+			let lineNumber = parseInt(parts[0]?.trim(), 10);
+			if (parts.length < 1 || isNaN(lineNumber)) {
+				return {
+					label: localize('gotoLine.linePrompt', "Type a line number to go to (from 1 to {0}).", maxLine)
+				};
+			}
 
-		// Handle negative line numbers and clip to valid range.
-		const maxLine = (model?.getLineCount() ?? 0) + 1;
-		lineNumber = lineNumber >= 0 ? lineNumber : maxLine + lineNumber;
-		lineNumber = Math.min(Math.max(1, lineNumber), maxLine);
+			// Handle negative line numbers and clip to valid range.
+			lineNumber = lineNumber >= 0 ? lineNumber : (maxLine + 1) + lineNumber;
+			lineNumber = Math.min(Math.max(1, lineNumber), maxLine);
 
-		// Handle negative column numbers and clip to valid range.
-		if (column !== undefined && model) {
 			const maxColumn = model.getLineMaxColumn(lineNumber);
+			let column = parseInt(parts[1]?.trim(), 10);
+			if (parts.length < 2 || isNaN(column)) {
+				return {
+					lineNumber,
+					column: 1,
+					label: parts.length < 2 ?
+						localize('gotoLine.lineColumnPrompt', "Press 'Enter' to go to line {0} or enter colon : to add a column number.", lineNumber) :
+						localize('gotoLine.columnPrompt', "Press 'Enter' to go to line {0} or enter a column number (from 1 to {1}).", lineNumber, maxColumn)
+				};
+			}
+
+			// Handle negative column numbers and clip to valid range.
 			column = column >= 0 ? column : maxColumn + column;
 			column = Math.min(Math.max(1, column), maxColumn);
+
+			return {
+				lineNumber,
+				column,
+				label: localize('gotoLine.goToPosition', "Press 'Enter' to go to line {0} at column {1}.", lineNumber, column)
+			};
 		}
-
-		return { lineNumber, column };
-	}
-
-	private getPickLabel(editor: IEditor, lineNumber: number, column: number | undefined, inOffsetMode: boolean): string {
-
-		// Location valid: indicate this as picker label
-		if (this.isValidLineNumber(editor, lineNumber)) {
-			if (this.isValidColumn(editor, lineNumber, column)) {
-				return localize('gotoLineColumnLabel', "Go to line {0} and character {1}.", lineNumber, column);
-			}
-
-			return localize('gotoLineLabel', "Go to line {0}.", lineNumber);
-		}
-
-		// Location invalid: show generic label
-		const position = editor.getPosition() || { lineNumber: 1, column: 1 };
-
-		// When in offset mode, prompt for an offset.
-		if (inOffsetMode) {
-			return localize('gotoLineOffsetLabel', "Current Line: {0}, Character: {1}. Type a character offset to navigate to.", position.lineNumber, position.column);
-		}
-
-		const lineCount = this.lineCount(editor);
-		if (lineCount > 1) {
-			return localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}, Character: {1}. Type a line number between 1 and {2} to navigate to.", position.lineNumber, position.column, lineCount);
-		}
-
-		return localize('gotoLineLabelEmpty', "Current Line: {0}, Character: {1}. Type a line number to navigate to.", position.lineNumber, position.column);
-	}
-
-	private isValidLineNumber(editor: IEditor, lineNumber: number | undefined): boolean {
-		if (!lineNumber || typeof lineNumber !== 'number') {
-			return false;
-		}
-
-		return lineNumber > 0 && lineNumber <= this.lineCount(editor);
-	}
-
-	private isValidColumn(editor: IEditor, lineNumber: number, column: number | undefined): boolean {
-		if (!column || typeof column !== 'number') {
-			return false;
-		}
-
-		const model = this.getModel(editor);
-		if (!model) {
-			return false;
-		}
-
-		const positionCandidate = { lineNumber, column };
-
-		return model.validatePosition(positionCandidate).equals(positionCandidate);
-	}
-
-	private lineCount(editor: IEditor): number {
-		return this.getModel(editor)?.getLineCount() ?? 0;
 	}
 }

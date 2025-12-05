@@ -5,9 +5,11 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
+import { chatSessionResourceToId } from './chatUri.js';
 
 export interface IChatTodo {
 	id: number;
@@ -17,17 +19,17 @@ export interface IChatTodo {
 }
 
 export interface IChatTodoListStorage {
-	getTodoList(sessionId: string): IChatTodo[];
-	setTodoList(sessionId: string, todoList: IChatTodo[]): void;
+	getTodoList(sessionResource: URI): IChatTodo[];
+	setTodoList(sessionResource: URI, todoList: IChatTodo[]): void;
 }
 
 export const IChatTodoListService = createDecorator<IChatTodoListService>('chatTodoListService');
 
 export interface IChatTodoListService {
 	readonly _serviceBrand: undefined;
-	readonly onDidUpdateTodos: Event<string>;
-	getTodos(sessionId: string): IChatTodo[];
-	setTodos(sessionId: string, todos: IChatTodo[]): void;
+	readonly onDidUpdateTodos: Event<URI>;
+	getTodos(sessionResource: URI): IChatTodo[];
+	setTodos(sessionResource: URI, todos: IChatTodo[]): void;
 }
 
 export class ChatTodoListStorage implements IChatTodoListStorage {
@@ -37,31 +39,35 @@ export class ChatTodoListStorage implements IChatTodoListStorage {
 		this.memento = new Memento('chat-todo-list', storageService);
 	}
 
-	private getSessionData(sessionId: string): IChatTodo[] {
+	private getSessionData(sessionResource: URI): IChatTodo[] {
 		const storage = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		return storage[sessionId] || [];
+		return storage[this.toKey(sessionResource)] || [];
 	}
 
-	private setSessionData(sessionId: string, todoList: IChatTodo[]): void {
+	private setSessionData(sessionResource: URI, todoList: IChatTodo[]): void {
 		const storage = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		storage[sessionId] = todoList;
+		storage[this.toKey(sessionResource)] = todoList;
 		this.memento.saveMemento();
 	}
 
-	getTodoList(sessionId: string): IChatTodo[] {
-		return this.getSessionData(sessionId);
+	getTodoList(sessionResource: URI): IChatTodo[] {
+		return this.getSessionData(sessionResource);
 	}
 
-	setTodoList(sessionId: string, todoList: IChatTodo[]): void {
-		this.setSessionData(sessionId, todoList);
+	setTodoList(sessionResource: URI, todoList: IChatTodo[]): void {
+		this.setSessionData(sessionResource, todoList);
+	}
+
+	private toKey(sessionResource: URI): string {
+		return chatSessionResourceToId(sessionResource);
 	}
 }
 
 export class ChatTodoListService extends Disposable implements IChatTodoListService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidUpdateTodos = this._register(new Emitter<string>());
-	readonly onDidUpdateTodos: Event<string> = this._onDidUpdateTodos.event;
+	private readonly _onDidUpdateTodos = this._register(new Emitter<URI>());
+	readonly onDidUpdateTodos = this._onDidUpdateTodos.event;
 
 	private todoListStorage: IChatTodoListStorage;
 
@@ -70,12 +76,12 @@ export class ChatTodoListService extends Disposable implements IChatTodoListServ
 		this.todoListStorage = new ChatTodoListStorage(storageService);
 	}
 
-	getTodos(sessionId: string): IChatTodo[] {
-		return this.todoListStorage.getTodoList(sessionId);
+	getTodos(sessionResource: URI): IChatTodo[] {
+		return this.todoListStorage.getTodoList(sessionResource);
 	}
 
-	setTodos(sessionId: string, todos: IChatTodo[]): void {
-		this.todoListStorage.setTodoList(sessionId, todos);
-		this._onDidUpdateTodos.fire(sessionId);
+	setTodos(sessionResource: URI, todos: IChatTodo[]): void {
+		this.todoListStorage.setTodoList(sessionResource, todos);
+		this._onDidUpdateTodos.fire(sessionResource);
 	}
 }
