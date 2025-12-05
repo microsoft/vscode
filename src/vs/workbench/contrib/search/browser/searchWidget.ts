@@ -597,7 +597,7 @@ export class SearchWidget extends Widget {
 			return null;
 		}
 		try {
-			new RegExp(value, 'u');
+			new RegExp(value, 'v');
 		} catch (e) {
 			return { content: e.message };
 		}
@@ -612,7 +612,7 @@ export class SearchWidget extends Widget {
 		if (this.searchConfiguration.searchOnType) {
 			if (this.searchInput?.getRegex()) {
 				try {
-					const regex = new RegExp(this.searchInput.getValue(), 'ug');
+					const regex = new RegExp(this.searchInput.getValue(), 'gv');
 					const matchienessHeuristic = `
 								~!@#$%^&*()_+
 								\`1234567890-=
