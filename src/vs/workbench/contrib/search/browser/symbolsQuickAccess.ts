@@ -144,6 +144,12 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, { ...query, values: undefined /* disable multi-query support */ }, 0, 0);
 					if (typeof symbolScore === 'number') {
 						skipContainerQuery = true; // since we consumed the query, skip any container matching
+					} else {
+						// Try multi-query
+						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, query, 0, symbolLabelIconOffset);
+						if (typeof symbolScore === 'number') {
+							skipContainerQuery = true; // since we consumed the query, skip any container matching
+						}
 					}
 				}
 
