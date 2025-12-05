@@ -75,8 +75,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 					overflow: 'hidden',
 				}
 			}),
-			h('div.monaco-editor@overflowWidgetsDomNode', {
-			}),
+			h('div.monaco-editor@overflowWidgetsDomNode', {}),
 		]);
 		this._scrollable = this._register(new Scrollable({
 			forceIntegerValues: false,
@@ -103,6 +102,11 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			template.setData(data);
 			return template;
 		}));
+		this._contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
+		this._instantiationService = this._register(this._parentInstantiationService.createChild(
+			new ServiceCollection([IContextKeyService, this._contextKeyService])
+		));
+		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
 		this.scrollTop = observableFromEvent(this, this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
 		this.scrollLeft = observableFromEvent(this, this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);
 		this._viewItemsInfo = derived<{ items: readonly VirtualizedViewItem[]; getItem: (viewModel: DocumentDiffItemViewModel) => VirtualizedViewItem }>(this,
@@ -138,13 +142,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			const viewItem = this._viewItemsInfo.read(reader).getItem(activeDiffItem);
 			return viewItem.template.read(reader)?.editor;
 		});
-		this._contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
-		this._instantiationService = this._register(this._parentInstantiationService.createChild(
-			new ServiceCollection([IContextKeyService, this._contextKeyService])
-		));
-
-		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
-
 		this._lastDocStates = {};
 
 		this._register(autorunWithStore((reader, store) => {
@@ -255,10 +252,17 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		})));
 	}
 
-	public setScrollState(scrollState: { top?: number; left?: number }): void {
-		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
+	public getRootElement(): HTMLElement {
+		return this._elements.root;
 	}
 
+	public getContextKeyService(): IContextKeyService {
+		return this._contextKeyService;
+	}
+
+	public getScopedInstantiationService(): IInstantiationService {
+		return this._instantiationService;
+	}
 	public reveal(resource: IMultiDiffResourceId, options?: RevealOptions): void {
 		const viewItems = this._viewItems.get();
 		const index = viewItems.findIndex(
@@ -297,6 +301,10 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	/** This accounts for documents that are not loaded yet. */
 	private _lastDocStates: IMultiDiffEditorViewState['docStates'];
+
+	public setScrollState(scrollState: { top?: number; left?: number }): void {
+		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
+	}
 
 	public setViewState(viewState: IMultiDiffEditorViewState): void {
 		this.setScrollState(viewState.scrollState);
@@ -444,6 +452,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		this._scrollableElements.content.style.transform = `translateY(${-(scrollTop + contentScrollOffsetToScrollOffset)}px)`;
 	}
 }
+
 
 function highlightRange(targetEditor: ICodeEditor, range: IRange) {
 	const modelNow = targetEditor.getModel();

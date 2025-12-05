@@ -34,6 +34,53 @@
 		}
 	}
 
+	> .multi-diff-root-floating-menu {
+		position: absolute;
+		right: 16px;
+		bottom: 16px;
+		top: auto;
+		left: auto;
+		height: auto;
+		width: auto;
+		padding: 4px 6px;
+		color: var(--vscode-button-foreground);
+		background-color: var(--vscode-button-background);
+		border-radius: 4px;
+		border: 1px solid var(--vscode-contrastBorder);
+		display: flex;
+		align-items: center;
+		z-index: 10;
+		box-shadow: 0 3px 12px var(--vscode-widget-shadow);
+		overflow: hidden;
+	}
+
+	.multi-diff-root-floating-menu .action-item > .action-label {
+		padding: 7px 8px;
+		font-size: 13px;
+		border-radius: 2px;
+	}
+
+	.multi-diff-root-floating-menu .action-item > .action-label.codicon {
+		color: var(--vscode-button-foreground);
+	}
+
+	.multi-diff-root-floating-menu .action-item > .action-label.codicon:not(.separator) {
+		padding-top: 6px;
+		padding-bottom: 6px;
+	}
+
+	.multi-diff-root-floating-menu .action-item:first-child > .action-label {
+		padding-left: 7px;
+	}
+
+	.multi-diff-root-floating-menu .action-item:last-child > .action-label {
+		padding-right: 7px;
+	}
+
+	.multi-diff-root-floating-menu .action-item .action-label.separator {
+		background-color: var(--vscode-button-separator);
+	}
+
 	.active {
 		--vscode-multiDiffEditor-border: var(--vscode-focusBorder);
 	}

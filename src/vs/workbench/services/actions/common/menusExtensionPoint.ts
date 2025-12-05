@@ -438,6 +438,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: 'contribMergeEditorMenus'
 	},
 	{
+		key: 'multiDiffEditor/content',
+		id: MenuId.MultiDiffEditorContent,
+		description: localize('menus.multiDiffEditorContent', "A prominent button overlaying the multi diff editor"),
+		proposed: 'contribEditorContentMenu'
+	},
+	{
 		key: 'multiDiffEditor/resource/title',
 		id: MenuId.MultiDiffEditorFileToolbar,
 		description: localize('menus.multiDiffEditorResource', "The resource toolbar in the multi diff editor"),
