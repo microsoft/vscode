@@ -327,6 +327,10 @@ export class ApiRepository implements Repository {
 		return this.#repository.deleteWorktree(path, options);
 	}
 
+	getWorktreeChanges(worktreePath: string): Promise<Change[]> {
+		return this.#repository.getWorktreeChanges(worktreePath);
+	}
+
 	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void> {
 		return this.#repository.migrateChanges(sourceRepositoryPath, options);
 	}

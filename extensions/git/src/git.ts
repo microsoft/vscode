@@ -3182,6 +3182,104 @@ export class Repository {
 		}
 	}
 
+	/**
+	 * Compares the on-disk state of a worktree against this repository's working directory.
+	 * Returns changes representing files that differ between the two working directories.
+	 * Includes tracked and untracked files, excluding ignored files.
+	 */
+	async diffWorkingTrees(worktreePath: string): Promise<Change[]> {
+		// Get all files from this repository (tracked + untracked, excluding ignored)
+		const thisFiles = await this.listAllFiles();
+		// Get all files from the worktree
+		const worktreeFiles = await this.listAllFilesInPath(worktreePath);
+
+		const changes: Change[] = [];
+		const allPaths = new Set([...thisFiles, ...worktreeFiles]);
+
+		for (const relativePath of allPaths) {
+			const thisFilePath = path.join(this.repositoryRoot, relativePath);
+			const worktreeFilePath = path.join(worktreePath, relativePath);
+
+			const existsInThis = thisFiles.has(relativePath);
+			const existsInWorktree = worktreeFiles.has(relativePath);
+
+			if (existsInWorktree && !existsInThis) {
+				// File exists in worktree but not in this repo - it's an addition
+				changes.push({
+					status: Status.INDEX_ADDED,
+					uri: Uri.file(worktreeFilePath),
+					originalUri: Uri.file(worktreeFilePath),
+					renameUri: undefined
+				});
+			} else if (existsInThis && !existsInWorktree) {
+				// File exists in this repo but not in worktree - it's a deletion
+				changes.push({
+					status: Status.DELETED,
+					uri: Uri.file(thisFilePath),
+					originalUri: Uri.file(thisFilePath),
+					renameUri: undefined
+				});
+			} else {
+				// File exists in both - check if contents differ
+				try {
+					const [thisContent, worktreeContent] = await Promise.all([
+						fs.readFile(thisFilePath),
+						fs.readFile(worktreeFilePath)
+					]);
+
+					if (!thisContent.equals(worktreeContent)) {
+						changes.push({
+							status: Status.MODIFIED,
+							uri: Uri.file(worktreeFilePath),
+							originalUri: Uri.file(thisFilePath),
+							renameUri: undefined
+						});
+					}
+				} catch {
+					// If we can't read one of the files, skip it
+				}
+			}
+		}
+
+		return changes;
+	}
+
+	/**
+	 * Lists all tracked and untracked (non-ignored) files in this repository.
+	 */
+	private async listAllFiles(): Promise<Set<string>> {
+		return this.listAllFilesInPath(this.repositoryRoot);
+	}
+
+	/**
+	 * Lists all tracked and untracked (non-ignored) files at the given path.
+	 */
+	private async listAllFilesInPath(repoPath: string): Promise<Set<string>> {
+		const files = new Set<string>();
+
+		// Get tracked files: git ls-files
+		const trackedResult = await this.git.exec(repoPath, ['ls-files', '-z']);
+		if (trackedResult.exitCode === 0) {
+			for (const file of trackedResult.stdout.split('\0')) {
+				if (file) {
+					files.add(file);
+				}
+			}
+		}
+
+		// Get untracked non-ignored files: git ls-files --others --exclude-standard
+		const untrackedResult = await this.git.exec(repoPath, ['ls-files', '--others', '--exclude-standard', '-z']);
+		if (untrackedResult.exitCode === 0) {
+			for (const file of untrackedResult.stdout.split('\0')) {
+				if (file) {
+					files.add(file);
+				}
+			}
+		}
+
+		return files;
+	}
+
 	private sanitizeRelativePath(filePath: string): string {
 		this.logger.trace(`[Git][sanitizeRelativePath] filePath: ${filePath}`);
 
