@@ -16,7 +16,7 @@ import { IModelService } from '../../../../../../editor/common/services/model.js
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -387,7 +387,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		let agentFiles = await this.listPromptFiles(PromptsType.agent, token);
 		const disabledAgents = this.getDisabledPromptFiles(PromptsType.agent);
 		agentFiles = agentFiles.filter(promptPath => !disabledAgents.has(promptPath.uri));
-		const customAgents = await Promise.all(
+		const customAgentsResults = await Promise.allSettled(
 			agentFiles.map(async (promptPath): Promise<ICustomAgent> => {
 				const uri = promptPath.uri;
 				const ast = await this.parseNew(uri, token);
@@ -432,6 +432,23 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return { uri, name, description, model, tools, handOffs, argumentHint, target, infer, agentInstructions, source };
 			})
 		);
+
+		const customAgents: ICustomAgent[] = [];
+		for (let i = 0; i < customAgentsResults.length; i++) {
+			const result = customAgentsResults[i];
+			if (result.status === 'fulfilled') {
+				customAgents.push(result.value);
+			} else {
+				const uri = agentFiles[i].uri;
+				const error = result.reason;
+				if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+					this.logger.warn(`[computeCustomAgents] Skipping agent file that does not exist: ${uri}`, error.message);
+				} else {
+					this.logger.error(`[computeCustomAgents] Failed to parse agent file: ${uri}`, error);
+				}
+			}
+		}
+
 		return customAgents;
 	}
 

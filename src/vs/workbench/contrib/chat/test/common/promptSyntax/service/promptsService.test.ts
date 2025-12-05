@@ -1202,6 +1202,57 @@ suite('PromptsService', () => {
 
 			registered.dispose();
 		});
+
+		test('Contributed agent file that does not exist should not crash', async () => {
+			const nonExistentUri = URI.parse('file://extensions/my-extension/nonexistent.agent.md');
+			const existingUri = URI.parse('file://extensions/my-extension/existing.agent.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' }
+			} as unknown as IExtensionDescription;
+
+			// Only create the existing file
+			await mockFiles(fileService, [
+				{
+					path: existingUri.path,
+					contents: [
+						'---',
+						'name: \'Existing Agent\'',
+						'description: \'An agent that exists\'',
+						'---',
+						'I am an existing agent.',
+					]
+				}
+			]);
+
+			// Register both agents (one exists, one doesn't)
+			const registered1 = service.registerContributedFile(
+				PromptsType.agent,
+				'NonExistent Agent',
+				'An agent that does not exist',
+				nonExistentUri,
+				extension
+			);
+
+			const registered2 = service.registerContributedFile(
+				PromptsType.agent,
+				'Existing Agent',
+				'An agent that exists',
+				existingUri,
+				extension
+			);
+
+			// Verify that getCustomAgents doesn't crash and returns only the valid agent
+			const agents = await service.getCustomAgents(CancellationToken.None);
+
+			// Should only get the existing agent, not the non-existent one
+			assert.strictEqual(agents.length, 1, 'Should only return the agent that exists');
+			assert.strictEqual(agents[0].name, 'Existing Agent');
+			assert.strictEqual(agents[0].description, 'An agent that exists');
+			assert.strictEqual(agents[0].uri.toString(), existingUri.toString());
+
+			registered1.dispose();
+			registered2.dispose();
+		});
 	});
 
 	suite('findClaudeSkills', () => {

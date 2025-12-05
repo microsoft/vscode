@@ -263,7 +263,7 @@ export class LongDistancePreviewEditor extends Disposable {
 		// find the horizontal range we want to show.
 		const preferredRange = growUntilVariableBoundaries(editor.getModel()!, firstCharacterChange, 5);
 		const left = this._previewEditorObs.getLeftOfPosition(preferredRange.getStartPosition(), reader);
-		const right = trueContentWidth; //this._previewEditorObs.getLeftOfPosition(preferredRange.getEndPosition(), reader);
+		const right = Math.min(left, trueContentWidth); //this._previewEditorObs.getLeftOfPosition(preferredRange.getEndPosition(), reader);
 
 		const indentCol = editor.getModel()!.getLineFirstNonWhitespaceColumn(preferredRange.startLineNumber);
 		const indentationEnd = this._previewEditorObs.getLeftOfPosition(new Position(preferredRange.startLineNumber, indentCol), reader);
