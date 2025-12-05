@@ -36,8 +36,8 @@
 
 	> .multi-diff-root-floating-menu {
 		position: absolute;
-		right: 16px;
-		bottom: 16px;
+		right: 32px;
+		bottom: 32px;
 		top: auto;
 		left: auto;
 		height: auto;
@@ -56,7 +56,7 @@
 
 	.multi-diff-root-floating-menu .action-item > .action-label {
 		padding: 7px 8px;
-		font-size: 13px;
+		font-size: 15px;
 		border-radius: 2px;
 	}
 
@@ -80,6 +80,7 @@
 	.multi-diff-root-floating-menu .action-item .action-label.separator {
 		background-color: var(--vscode-button-separator);
 	}
+
 
 	.active {
 		--vscode-multiDiffEditor-border: var(--vscode-focusBorder);

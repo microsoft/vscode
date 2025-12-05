@@ -9,7 +9,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { FloatingClickMenu } from '../../../../platform/actions/browser/floatingMenu.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService.js';
@@ -205,25 +205,19 @@ class MultiDiffEditorContentMenuOverlay extends Disposable {
 		const menu = this._register(menuService.createMenu(MenuId.MultiDiffEditorContent, contextKeyService));
 
 		this.rebuild = () => {
-			const hasActions = menu.getActions().length > 0;
-			if (!hasActions) {
-				this.overlayStore.clear();
-				return;
-			}
-
-			if (this.overlayStore.value) {
-				return;
-			}
+			this.overlayStore.clear();
 
 			const container = DOM.h('div.floating-menu-overlay-widget.multi-diff-root-floating-menu');
-			const store = new DisposableStore();
 			root.appendChild(container.root);
-			store.add(toDisposable(() => container.root.remove()));
-			store.add(instantiationService.createInstance(MenuWorkbenchToolBar, container.root, MenuId.MultiDiffEditorContent, {
-				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				menuOptions: { renderShortTitle: true, arg: this.currentResource }
-			}));
+			const floatingMenu = instantiationService.createInstance(FloatingClickMenu, {
+				container: container.root,
+				menuId: MenuId.MultiDiffEditorContent,
+				getActionArg: () => this.currentResource,
+			});
 
+			const store = new DisposableStore();
+			store.add(floatingMenu);
+			store.add(toDisposable(() => container.root.remove()));
 			this.overlayStore.value = store;
 		};
 
