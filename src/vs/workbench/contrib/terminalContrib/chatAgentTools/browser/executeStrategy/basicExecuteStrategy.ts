@@ -116,6 +116,15 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			if (commandId) {
 				this._log(`In basic execute strategy: skipping pre-bound command id ${commandId} because basic shell integration executes via sendText`);
 			}
+
+			// Check if the terminal is busy with a child process (e.g., interactive program like ncdu, vim, etc.)
+			// to prevent VS Code from crashing when trying to send commands to a busy terminal
+			if (this._instance.hasChildProcesses) {
+				const errorMessage = 'Cannot execute command: terminal is currently busy with a running process. Please wait for the current process to complete or exit it before running new commands.';
+				this._log(errorMessage);
+				throw new Error(errorMessage);
+			}
+
 			// IMPORTANT: This uses `sendText` not `runCommand` since when basic shell integration
 			// is used as it's more common to not recognize the prompt input which would result in
 			// ^C being sent and also to return the exit code of 130 when from the shell when that
