@@ -307,7 +307,7 @@ export class PromptFilesLocator {
 		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
 		const getExcludePattern = (folder: URI) => getExcludes(this.configService.getValue<ISearchConfiguration>({ resource: folder })) || {};
 		const searchOptions: IFileQuery = {
-			folderQueries: [{ folder, disregardIgnoreFiles }],
+			folderQueries: [{ folder, disregardIgnoreFiles, ignoreCase: true }],
 			type: QueryType.File,
 			shouldGlobMatchFilePattern: true,
 			excludePattern: getExcludePattern(folder),
