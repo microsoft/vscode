@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { SlackService } from './slackService';
+import { SlackService } from './service';
 
 export interface SlackMessage {
     id: string;
@@ -151,7 +151,7 @@ export class SlackTreeDataProvider implements vscode.TreeDataProvider<TreeItem> 
         this._onDidChangeTreeData.fire();
     }
 
-    async fetchPRs(): Promise<void> {
+    async fetchMessages(): Promise<void> {
         this.isLoading = true;
         this.errorMessage = undefined;
         this.refresh();

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { SlackTreeDataProvider } from './slackTreeDataProvider';
+import { SlackTreeDataProvider } from './treeDataProvider';
 
 export class SlackView extends vscode.Disposable {
 

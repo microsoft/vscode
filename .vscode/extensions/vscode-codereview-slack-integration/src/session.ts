@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { SlackService } from './slackService';
-import { SlackTreeDataProvider } from './slackTreeDataProvider';
+import { SlackService } from './service';
+import { SlackTreeDataProvider } from './treeDataProvider';
 
 export class SlackSessionManager extends vscode.Disposable {
 
@@ -16,36 +16,32 @@ export class SlackSessionManager extends vscode.Disposable {
 	) {
 		super(() => this.dispose());
 		this._onDidChangeSessions = vscode.authentication.onDidChangeSessions(async (e) => this._onDidChangeSession(e));
-		this._triggerNewSession();
+		this._createNewSession();
 	}
 
 	private async _onDidChangeSession(e: vscode.AuthenticationSessionsChangeEvent): Promise<void> {
 		if (e.provider.id !== 'slack') {
 			return;
 		}
-		const isAuthenticated = await this.slackService.isAuthenticated();
-		if (!isAuthenticated) {
-			this._autoRefresh?.dispose();
-			return;
-		}
-		this._triggerNewSession();
+		this._createNewSession();
 	}
 
-	private _triggerNewSession() {
+	private _createNewSession() {
 		(async () => {
 			const isAuthenticated = await this.slackService.isAuthenticated();
 			if (!isAuthenticated) {
+				this._autoRefresh?.dispose();
 				return;
 			}
 			this.slackTreeDataProvider.refresh();
 			this._autoRefresh = this._triggerAutoRefresh();
-			await this.slackTreeDataProvider.fetchPRs();
+			await this.slackTreeDataProvider.fetchMessages();
 		})();
 	}
 
 	private _triggerAutoRefresh(): vscode.Disposable {
 		const autoRefreshInterval = setInterval(async () => {
-			await this.slackTreeDataProvider.fetchPRs();
+			await this.slackTreeDataProvider.fetchMessages();
 		}, this.REFRESH_INTERVAL_MS);
 		return {
 			dispose: () => clearInterval(autoRefreshInterval)

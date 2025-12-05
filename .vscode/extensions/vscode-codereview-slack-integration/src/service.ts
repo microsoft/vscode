@@ -5,8 +5,8 @@
 
 import * as vscode from 'vscode';
 import { WebClient, ConversationsHistoryResponse, ConversationsListResponse, UsersInfoResponse } from '@slack/web-api';
-import { SlackMessage } from './slackTreeDataProvider';
-import { SLACK_AUTH_PROVIDER_ID_EXPORT } from './slackAuthenticationProvider';
+import { SlackMessage } from './treeDataProvider';
+import { SLACK_AUTH_PROVIDER_ID_EXPORT } from './authenticationProvider';
 
 const SLACK_CHANNEL_ID_KEY = 'slack-channel-id';
 const CODE_REVIEW_CHANNEL_NAME = 'codereview';

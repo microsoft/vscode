@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { SlackService } from './slackService';
-import { SlackMessageItem, SlackTreeDataProvider } from './slackTreeDataProvider';
+import { SlackService } from './service';
+import { SlackMessageItem, SlackTreeDataProvider } from './treeDataProvider';
 
 export class SlackCommandsRegistry extends vscode.Disposable {
 
@@ -8,15 +8,15 @@ export class SlackCommandsRegistry extends vscode.Disposable {
 
 	constructor(slackService: SlackService, slackTreeDataProvider: SlackTreeDataProvider) {
 		super(() => this.dispose());
-		this._disposables.push(this._registerCommand(new SignInCommand(slackService, slackTreeDataProvider)));
-		this._disposables.push(this._registerCommand(new SignOutCommand(slackService, slackTreeDataProvider)));
-		this._disposables.push(this._registerCommand(new RefreshCommand(slackService, slackTreeDataProvider)));
+		this._disposables.push(this._registerCommand(new SignIntoSlackCommand(slackService, slackTreeDataProvider)));
+		this._disposables.push(this._registerCommand(new SignOutSlackCommand(slackService, slackTreeDataProvider)));
+		this._disposables.push(this._registerCommand(new RefreshPRsCommand(slackService, slackTreeDataProvider)));
 		this._disposables.push(this._registerCommand(new OpenPRViewCommand(slackService, slackTreeDataProvider)));
 		this._disposables.push(this._registerCommand(new OpenPRInBrowser(slackService, slackTreeDataProvider)));
 	}
 
 	private _registerCommand(command: Command): vscode.Disposable {
-		return vscode.commands.registerCommand(command.name, async (...args: any[]) => { command.execute(...args); });
+		return vscode.commands.registerCommand(command.ID, async (...args: any[]) => { command.execute(...args); });
 	}
 
 	override dispose() {
@@ -28,15 +28,15 @@ export abstract class Command {
 
 	constructor() { }
 
-	public abstract readonly name: string;
+	public abstract readonly ID: string;
 
 	public abstract execute(...args: any[]): Promise<void> | void;
 }
 
 
-class SignInCommand extends Command {
+class SignIntoSlackCommand extends Command {
 
-	public readonly name = 'vs-code-codereview.signIn';
+	public readonly ID = 'vs-code-codereview.signIn';
 
 	constructor(public readonly slackService: SlackService, public readonly slackTreeDataProvider: SlackTreeDataProvider) {
 		super();
@@ -51,9 +51,9 @@ class SignInCommand extends Command {
 	}
 }
 
-class SignOutCommand extends Command {
+class SignOutSlackCommand extends Command {
 
-	public readonly name = 'vs-code-codereview.signOut';
+	public readonly ID = 'vs-code-codereview.signOut';
 
 	constructor(public readonly slackService: SlackService, public readonly slackTreeDataProvider: SlackTreeDataProvider) {
 		super();
@@ -65,22 +65,22 @@ class SignOutCommand extends Command {
 	}
 }
 
-class RefreshCommand extends Command {
+class RefreshPRsCommand extends Command {
 
-	public readonly name = 'vs-code-codereview.refreshMessages';
+	public readonly ID = 'vs-code-codereview.refreshMessages';
 
 	constructor(public readonly slackService: SlackService, public readonly slackTreeDataProvider: SlackTreeDataProvider) {
 		super();
 	}
 
 	async execute(): Promise<void> {
-		await this.slackTreeDataProvider.fetchPRs();
+		await this.slackTreeDataProvider.fetchMessages();
 	}
 }
 
 class OpenPRViewCommand extends Command {
 
-	public readonly name = 'vs-code-codereview.openPrLocally';
+	public readonly ID = 'vs-code-codereview.openPrLocally';
 
 	constructor(public readonly slackService: SlackService, public readonly slackTreeDataProvider: SlackTreeDataProvider) {
 		super();
@@ -117,7 +117,7 @@ class OpenPRViewCommand extends Command {
 
 class OpenPRInBrowser extends Command {
 
-	public readonly name = 'vs-code-codereview.openPrInBrowser';
+	public readonly ID = 'vs-code-codereview.openPrInBrowser';
 
 	constructor(public readonly slackService: SlackService, public readonly slackTreeDataProvider: SlackTreeDataProvider) {
 		super();

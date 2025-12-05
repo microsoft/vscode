@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { SlackTreeDataProvider } from './slackTreeDataProvider';
-import { SlackService } from './slackService';
-import { SlackAuthenticationProvider } from './slackAuthenticationProvider';
+import { SlackTreeDataProvider } from './treeDataProvider';
+import { SlackService } from './service';
+import { SlackAuthenticationProvider } from './authenticationProvider';
 import { SlackCommandsRegistry } from './commands';
 import { SlackSessionManager } from './session';
 import { SlackView } from './view';
