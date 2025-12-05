@@ -138,12 +138,14 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			const viewItem = this._viewItemsInfo.read(reader).getItem(activeDiffItem);
 			return viewItem.template.read(reader)?.editor;
 		});
-		this._lastDocStates = {};
 		this._contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
 		this._instantiationService = this._register(this._parentInstantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this._contextKeyService])
 		));
+
 		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
+
+		this._lastDocStates = {};
 
 		this._register(autorunWithStore((reader, store) => {
 			const viewModel = this._viewModel.read(reader);
