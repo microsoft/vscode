@@ -364,6 +364,9 @@ export class Range {
 		return new Range(this.startLineNumber + lineCount, this.startColumn, this.endLineNumber + lineCount, this.endColumn);
 	}
 
+	/**
+	 * Test if this range starts and ends on the same line.
+	 */
 	public isSingleLine(): boolean {
 		return this.startLineNumber === this.endLineNumber;
 	}
