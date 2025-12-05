@@ -2174,6 +2174,7 @@ class EditorContextKeysManager extends Disposable {
 	private readonly _hasNonEmptySelection: IContextKey<boolean>;
 	private readonly _canUndo: IContextKey<boolean>;
 	private readonly _canRedo: IContextKey<boolean>;
+	private readonly _removePasteFromEditorContextMenu: IContextKey<boolean>;
 
 	constructor(
 		editor: CodeEditorWidget,
@@ -2197,6 +2198,7 @@ class EditorContextKeysManager extends Disposable {
 		this._hasNonEmptySelection = EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService);
 		this._canUndo = EditorContextKeys.canUndo.bindTo(contextKeyService);
 		this._canRedo = EditorContextKeys.canRedo.bindTo(contextKeyService);
+		this._removePasteFromEditorContextMenu = EditorContextKeys.removePasteFromEditorContextMenu.bindTo(contextKeyService);
 
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
 		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));
@@ -2223,6 +2225,7 @@ class EditorContextKeysManager extends Disposable {
 		this._editorReadonly.set(options.get(EditorOption.readOnly));
 		this._inDiffEditor.set(options.get(EditorOption.inDiffEditor));
 		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));
+		this._removePasteFromEditorContextMenu.set(options.get(EditorOption.removePasteFromEditorContextMenu));
 	}
 
 	private _updateFromSelection(): void {

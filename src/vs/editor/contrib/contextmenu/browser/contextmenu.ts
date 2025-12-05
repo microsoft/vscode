@@ -156,6 +156,15 @@ export class ContextMenuController implements IEditorContribution {
 		}
 	}
 
+	/**
+	 * Test-only helper to retrieve resolved context menu actions after filtering.
+	 * Not part of the public (stable) API; subject to change.
+	 */
+	public getContextMenuActionsForTesting(): readonly IAction[] {
+		if (!this._editor.hasModel()) { return []; }
+		return this._getMenuActions(this._editor.getModel()!, this._editor.contextMenuId);
+	}
+
 	private _getMenuActions(model: ITextModel, menuId: MenuId): IAction[] {
 		const result: IAction[] = [];
 
@@ -236,10 +245,7 @@ export class ContextMenuController implements IEditorContribution {
 
 				return new ActionViewItem(action, action, { icon: true, label: true, isMenu: true });
 			},
-
-			getKeyBinding: (action): ResolvedKeybinding | undefined => {
-				return this._keybindingFor(action);
-			},
+			getKeyBinding: (action): ResolvedKeybinding | undefined => this._keybindingFor(action),
 
 			onHide: (wasCancelled: boolean) => {
 				this._contextMenuIsBeingShownCount--;
@@ -272,12 +278,10 @@ export class ContextMenuController implements IEditorContribution {
 			};
 		};
 		const createSubmenuAction = (label: string, actions: IAction[]): SubmenuAction => {
-			return new SubmenuAction(
-				`menu-action-${++lastId}`,
+			return new SubmenuAction(`menu-action-${++lastId}`,
 				label,
 				actions,
-				undefined
-			);
+				undefined);
 		};
 		const createEnumAction = <T>(label: string, enabled: boolean, configName: string, configuredValue: T, options: { label: string; value: T }[]): IAction => {
 			if (!enabled) {
