@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VSCode AI App - VNExpress Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #005a9e;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f9f9f9;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>VSCode AI App - VNExpress Test</h1>
+        
+        <div class="test-section">
+            <h3>Test 1: Load VNExpress.net</h3>
+            <p>This test will attempt to load VNExpress.net in an iframe to verify it works without proxy.</p>
+            <button class="test-button" onclick="testVNExpress()">Test VNExpress Loading</button>
+            <div id="result1" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Test 2: Check Network Connectivity</h3>
+            <p>This test will check if we can reach external websites.</p>
+            <button class="test-button" onclick="testConnectivity()">Test Connectivity</button>
+            <div id="result2" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Test 3: AI App Components</h3>
+            <p>This test will verify that the AI app components are properly loaded.</p>
+            <button class="test-button" onclick="testAIComponents()">Test AI Components</button>
+            <div id="result3" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        function testVNExpress() {
+            const result = document.getElementById('result1');
+            result.innerHTML = 'Testing VNExpress loading...';
+            
+            // Create iframe
+            const iframe = document.createElement('iframe');
+            iframe.src = 'https://vnexpress.net';
+            iframe.style.width = '100%';
+            iframe.style.height = '400px';
+            iframe.style.border = '1px solid #ddd';
+            iframe.style.borderRadius = '5px';
+            
+            iframe.onload = function() {
+                result.innerHTML = '<span class="success">✓ VNExpress loaded successfully!</span>';
+                result.appendChild(iframe);
+            };
+            
+            iframe.onerror = function() {
+                result.innerHTML = '<span class="error">✗ Failed to load VNExpress. This might be due to CORS restrictions or network issues.</span>';
+            };
+            
+            // Timeout after 10 seconds
+            setTimeout(() => {
+                if (result.innerHTML.includes('Testing')) {
+                    result.innerHTML = '<span class="error">✗ Timeout loading VNExpress. This might be due to CORS restrictions or network issues.</span>';
+                }
+            }, 10000);
+        }
+
+        function testConnectivity() {
+            const result = document.getElementById('result2');
+            result.innerHTML = 'Testing connectivity...';
+            
+            // Test with a simple API call
+            fetch('https://httpbin.org/get')
+                .then(response => response.json())
+                .then(data => {
+                    result.innerHTML = '<span class="success">✓ Network connectivity is working!</span><br>Response: ' + JSON.stringify(data, null, 2);
+                })
+                .catch(error => {
+                    result.innerHTML = '<span class="error">✗ Network connectivity failed: ' + error.message + '</span>';
+                });
+        }
+
+        function testAIComponents() {
+            const result = document.getElementById('result3');
+            result.innerHTML = 'Testing AI components...';
+            
+            // Check if we're in the VSCode environment
+            if (typeof window !== 'undefined' && window.parent !== window) {
+                result.innerHTML = '<span class="success">✓ Running in VSCode environment!</span><br>';
+                
+                // Check for AI app elements
+                const aiAppContainer = document.querySelector('.ai-app-container');
+                if (aiAppContainer) {
+                    result.innerHTML += '<span class="success">✓ AI App container found!</span><br>';
+                } else {
+                    result.innerHTML += '<span class="error">✗ AI App container not found. Make sure the AI app is properly loaded.</span><br>';
+                }
+                
+                const browserComponent = document.querySelector('.browser-container');
+                if (browserComponent) {
+                    result.innerHTML += '<span class="success">✓ Browser component found!</span><br>';
+                } else {
+                    result.innerHTML += '<span class="error">✗ Browser component not found.</span><br>';
+                }
+                
+                const chatboxComponent = document.querySelector('.chatbox-container');
+                if (chatboxComponent) {
+                    result.innerHTML += '<span class="success">✓ Chatbox component found!</span><br>';
+                } else {
+                    result.innerHTML += '<span class="error">✗ Chatbox component not found.</span><br>';
+                }
+            } else {
+                result.innerHTML = '<span class="error">✗ Not running in VSCode environment. This test should be run within the VSCode AI App.</span>';
+            }
+        }
+    </script>
+</body>
+</html>
