@@ -18,6 +18,10 @@ class Point {
 	getLength2D(): number {
 		return↓ Math.sqrt(this.x * this.x + this.y * this.y↓);
 	}
+
+	getJson(): string {
+		return ↓Ü;
+	}
 }
 `);
 
@@ -57,6 +61,10 @@ class Point {
 	getLength3D(): number {
 		return Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
 	}
+
+	getJson(): string {
+		return Ü;
+	}
 }
 `);
 		});
@@ -86,6 +94,24 @@ class Point {
 			editorViewModel.type('his.z * this.z');
 			assert.deepStrictEqual(view.getAndClearViewStates(), ([
 				'\n\tget❰Length2↦Length3❱D(): numbe...'
+			]));
+		});
+	});
+
+	test('Inline Edit Is Correctly Shifted When Typing', async function () {
+		await runTest(async ({ context, model, editor, editorViewModel }, provider, view) => {
+			provider.add(`Ü`, `{x: this.x, y: this.y}`);
+			await model.trigger();
+			await timeout(10000);
+			assert.deepStrictEqual(view.getAndClearViewStates(), ([
+				undefined,
+				"...\n\t\treturn ❰Ü↦{x: t...is.y}❱;\n"
+			]));
+			editor.setPosition(val.getMarkerPosition(2));
+			editorViewModel.type('{');
+
+			assert.deepStrictEqual(view.getAndClearViewStates(), ([
+				"...\t\treturn {❰Ü↦x: th...is.y}❱;\n"
 			]));
 		});
 	});
