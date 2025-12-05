@@ -14,6 +14,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IChatModel } from '../../common/chatModel.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { getChatSessionType } from '../../common/chatUri.js';
 import { ChatSessionItemWithProvider } from '../chatSessions/common.js';
 
 export class LocalAgentsSessionsProvider extends Disposable implements IChatSessionItemProvider, IWorkbenchContribution {
@@ -51,6 +52,13 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 		this._register(this.chatSessionsService.onDidChangeSessionItems(sessionType => {
 			if (sessionType === this.chatSessionType) {
 				this._onDidChange.fire();
+			}
+		}));
+
+		this._register(this.chatService.onDidDisposeSession(e => {
+			const session = e.sessionResource.filter(resource => getChatSessionType(resource) === this.chatSessionType);
+			if (session.length > 0) {
+				this._onDidChangeChatSessionItems.fire();
 			}
 		}));
 	}
