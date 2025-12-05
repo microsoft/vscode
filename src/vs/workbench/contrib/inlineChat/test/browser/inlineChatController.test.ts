@@ -245,7 +245,8 @@ suite('InlineChatController', function () {
 						onDidResolve: Event.None,
 						onDidChangeSessions: Event.None,
 						sessions: [],
-						resolve: async () => { }
+						resolve: async () => { },
+						getSession: (resource: URI) => undefined,
 					} as IAgentSessionsModel;
 				}
 			}],

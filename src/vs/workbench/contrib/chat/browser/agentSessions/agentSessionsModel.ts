@@ -390,11 +390,10 @@ interface ISerializedAgentSession {
 		readonly endTime?: number;
 	};
 
-	readonly statistics?: {
+	readonly changes?: readonly IChatSessionFileChange[] | {
 		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
-		readonly details: readonly IChatSessionFileChange[];
 	};
 }
 
@@ -476,7 +475,12 @@ class AgentSessionsCache {
 					endTime: session.timing.endTime,
 				},
 
-				changes: session.statistics,
+				changes: Array.isArray(session.changes) ? session.changes.map((change: IChatSessionFileChange) => ({
+					modifiedUri: URI.revive(change.modifiedUri),
+					originalUri: change.originalUri ? URI.revive(change.originalUri) : undefined,
+					insertions: change.insertions,
+					deletions: change.deletions,
+				})) : session.changes,
 			}));
 		} catch {
 			return []; // invalid data in storage, fallback to empty sessions list
