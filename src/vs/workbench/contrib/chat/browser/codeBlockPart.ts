@@ -72,6 +72,7 @@ import { ChatEditorOptions } from './chatOptions.js';
 import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { TextDirectionContribution } from '../../../../editor/contrib/textDirection/browser/textDirectionContribution.js';
 
 const $ = dom.$;
 
@@ -335,6 +336,7 @@ export class CodeBlockPart extends Disposable {
 				SnippetController2.ID,
 				ColorDetector.ID,
 				LinkDetector.ID,
+				TextDirectionContribution.ID,
 
 				InspectEditorTokensController.ID,
 			])
