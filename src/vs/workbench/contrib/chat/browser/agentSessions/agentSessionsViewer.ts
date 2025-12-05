@@ -145,6 +145,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.detailsToolbar.clear();
 		template.description.textContent = '';
 
+		// Archived
+		template.element.classList.toggle('archived', session.element.isArchived());
+
 		// Icon
 		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}`;
 
@@ -179,7 +182,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 	private getIcon(session: IAgentSession): ThemeIcon {
 		if (session.status === ChatSessionStatus.InProgress) {
-			return ThemeIcon.modify(Codicon.loading, 'spin');
+			return Codicon.sessionInProgress;
 		}
 
 		if (session.status === ChatSessionStatus.Failed) {
@@ -192,6 +195,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
 		const description = session.element.description;
 		if (description) {
+
 			// Support description as string
 			if (typeof description === 'string') {
 				template.description.textContent = description;

@@ -67,3 +67,8 @@ export enum AgentSessionsViewerPosition {
 	Left = 1,
 	Right,
 }
+
+export interface IAgentSessionsControl {
+	refresh(): void;
+	openFind(): void;
+}
