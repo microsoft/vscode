@@ -307,7 +307,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const allowFallbackCompletions = explicitlyInvoked || quickSuggestionsConfig.unknown === 'on';
 		this._logService.trace('SuggestAddon#_handleCompletionProviders provideCompletions');
 		// Trim ghost text from the prompt value when requesting completions
-		const promptValue = this._mostRecentPromptInputState?.ghostTextIndex !== undefined ? this._currentPromptInputState.value.substring(0, this._mostRecentPromptInputState?.ghostTextIndex) : this._currentPromptInputState.value;
+		const ghostTextIndex = this._mostRecentPromptInputState?.ghostTextIndex === undefined ? -1 : this._mostRecentPromptInputState?.ghostTextIndex;
+		const promptValue = ghostTextIndex > -1 ? this._currentPromptInputState.value.substring(0, ghostTextIndex) : this._currentPromptInputState.value;
 		const providedCompletions = await this._terminalCompletionService.provideCompletions(promptValue, this._currentPromptInputState.cursorIndex, allowFallbackCompletions, this.shellType, this._capabilities, token, false, doNotRequestExtensionCompletions, explicitlyInvoked);
 		this._logService.trace('SuggestAddon#_handleCompletionProviders provideCompletions done');
 
