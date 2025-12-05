@@ -348,15 +348,11 @@ export class InlineEditsView extends Disposable {
 			diff = lineRangeMappingFromRangeMappings(mappings, inlineEdit.originalText, newText);
 		}
 
-		const tm = this._editorObs.model.read(reader);
-		if (!tm) {
-			return undefined;
-		}
-		this._previewTextModel.setLanguage(tm.getLanguageId());
+		this._previewTextModel.setLanguage(textModel.getLanguageId());
 
 		const previousNewText = this._previewTextModel.getValue();
 		if (previousNewText !== newText.getValue()) {
-			this._previewTextModel.setEOL(tm.getEndOfLineSequence());
+			this._previewTextModel.setEOL(textModel.getEndOfLineSequence());
 			const updateOldValueEdit = StringEdit.replace(new OffsetRange(0, previousNewText.length), newText.getValue());
 			const updateOldValueEditSmall = updateOldValueEdit.removeCommonSuffixPrefix(previousNewText);
 
