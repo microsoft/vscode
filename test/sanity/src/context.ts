@@ -317,52 +317,102 @@ export class TestContext {
 	}
 
 	/**
-	 * Installs a Windows EXE installer silently.
-	 * @param filePath The path to the installer file.
+	 * Installs a Microsoft Installer package silently.
+	 * @param installerPath The path to the installer executable.
+	 * @returns The path to the installed VS Code executable.
 	 */
-	public installExe(filePath: string) {
-		this.log(`Installing ${filePath} using Windows Installer in silent mode`);
-		this.runNoErrors(filePath, '/silent', '/mergetasks=!runcode');
-		this.log(`Installed ${filePath} successfully`);
+	public installWindowsApp(type: 'user' | 'system', installerPath: string): string {
+		this.log(`Installing ${installerPath} in silent mode`);
+		this.runNoErrors(installerPath, '/silent', '/mergetasks=!runcode');
+		this.log(`Installed ${installerPath} successfully`);
+
+		const varName = type === 'system' ? 'PROGRAMFILES' : 'LOCALAPPDATA';
+		const parentDir = process.env[varName];
+		if (parentDir === undefined) {
+			this.error(`Environment variable ${varName} is not defined`);
+		}
+
+		const entryPoint = this.quality === 'insider' ?
+			path.join(parentDir, 'Microsoft VS Code Insiders', 'Code - Insiders.exe') :
+			path.join(parentDir, 'Microsoft VS Code', 'Code.exe');
+
+		if (!fs.existsSync(entryPoint)) {
+			this.error(`Desktop entry point does not exist: ${entryPoint}`);
+		}
+
+		this.log(`Installed VS Code executable at: ${entryPoint}`);
+		return entryPoint;
+	}
+
+	/**
+	 * Installs a macOS .app bundle to /Applications.
+	 * @param bundleDir The directory containing the .app bundle.
+	 * @returns The path to the installed VS Code executable.
+	 */
+	public installMacApp(bundleDir: string): string {
+		const appPath = path.join(bundleDir, 'Visual Studio Code.app');
+
+		this.log(`Copying ${appPath} to /Applications`);
+		this.runNoErrors('sudo', 'cp', '-R', appPath, '/Applications/');
+		this.log(`Copied ${appPath} successfully`);
+
+		const entryPoint = '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code';
+		this.log(`Installed VS Code executable at: ${entryPoint}`);
+		return entryPoint;
 	}
 
 	/**
 	 * Installs a Linux RPM package.
-	 * @param filePath The path to the RPM file.
+	 * @param packagePath The path to the RPM file.
+	 * @returns The path to the installed VS Code executable.
 	 */
-	public installRpm(filePath: string) {
-		this.log(`Installing ${filePath} using RPM package manager`);
-		this.runNoErrors('sudo', 'rpm', '-i', filePath);
-		this.log(`Installed ${filePath} successfully`);
+	public installRpm(packagePath: string): string {
+		this.log(`Installing ${packagePath} using RPM package manager`);
+		this.runNoErrors('sudo', 'rpm', '-i', packagePath);
+		this.log(`Installed ${packagePath} successfully`);
+
+		const entryPoint = this.getEntryPoint('desktop', '/usr/bin');
+		this.log(`Installed VS Code executable at: ${entryPoint}`);
+		return entryPoint;
 	}
 
 	/**
 	 * Installs a Linux DEB package.
-	 * @param filePath The path to the DEB file.
+	 * @param packagePath The path to the DEB file.
+	 * @returns The path to the installed VS Code executable.
 	 */
-	public installDeb(filePath: string) {
-		this.log(`Installing ${filePath} using DEB package manager`);
-		this.runNoErrors('sudo', 'dpkg', '-i', filePath);
-		this.log(`Installed ${filePath} successfully`);
+	public installDeb(packagePath: string): string {
+		this.log(`Installing ${packagePath} using DEB package manager`);
+		this.runNoErrors('sudo', 'dpkg', '-i', packagePath);
+		this.log(`Installed ${packagePath} successfully`);
+
+		const entryPoint = this.getEntryPoint('desktop', '/usr/bin');
+		this.log(`Installed VS Code executable at: ${entryPoint}`);
+		return entryPoint;
 	}
 
 	/**
 	 * Installs a Linux Snap package.
-	 * @param filePath The path to the Snap file.
+	 * @param packagePath The path to the Snap file.
+	 * @returns The path to the installed VS Code executable.
 	 */
-	public installSnap(filePath: string) {
-		this.log(`Installing ${filePath} using Snap package manager`);
-		this.runNoErrors('sudo', 'snap', 'install', filePath, '--classic', '--dangerous');
-		this.log(`Installed ${filePath} successfully`);
+	public installSnap(packagePath: string): string {
+		this.log(`Installing ${packagePath} using Snap package manager`);
+		this.runNoErrors('sudo', 'snap', 'install', packagePath, '--classic', '--dangerous');
+		this.log(`Installed ${packagePath} successfully`);
+
+		const entryPoint = this.getEntryPoint('desktop', '/snap/bin');
+		this.log(`Installed VS Code executable at: ${entryPoint}`);
+		return entryPoint;
 	}
 
 	/**
-	 * Returns the entry point executable for the VS Code CLI installation in the specified directory.
+	 * Returns the entry point executable for the VS Code CLI or Desktop installation in the specified directory.
 	 * @param dir The directory of the VS Code installation.
 	 * @returns The path to the entry point executable.
 	 */
-	public getCliEntryPoint(dir: string): string {
-		const suffix = this.quality === 'insider' ? '-insiders' : '';
+	public getEntryPoint(type: 'cli' | 'desktop', dir: string): string {
+		const suffix = this.quality === 'insider' ? (type === 'cli' ? '-insiders' : ' - Insiders') : '';
 		const extension = os.platform() === 'win32' ? '.exe' : '';
 
 		const filePath = path.join(dir, `code${suffix}${extension}`);
