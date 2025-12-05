@@ -175,10 +175,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._onDidDispose.event;
 	}
 
-	private readonly _onDidClose = new Emitter<void>();
-	get onDidClose() {
+	private readonly _onDidEditorPaneClose = new Emitter<void>();
+	get onDidEditorPaneClose() {
 		this._assertNotDisposed();
-		return this._onDidClose.event;
+		return this._onDidEditorPaneClose.event;
 	}
 
 	constructor(
@@ -444,7 +444,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const disposable = this._editorGroupsService.activeGroup.onDidCloseEditor(e => {
 			if (e.editor === input) {
 				this._editorPane = undefined;
-				this._onDidClose.fire();
+				this._onDidEditorPaneClose.fire();
 				disposable.dispose();
 			}
 		});

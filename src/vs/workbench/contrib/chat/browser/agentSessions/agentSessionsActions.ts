@@ -165,7 +165,7 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 		if (!session) {
 			const chatModelRef = type === AgentSessionProviders.Local ? await this.chatService.getOrRestoreSession(resource) : await this.chatService.loadSessionForResource(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			session = chatModelRef?.object;
-			const disposable = session?.editingSession?.onDidClose(() => {
+			const disposable = session?.editingSession?.onDidEditorPaneClose(() => {
 				chatModelRef?.dispose();
 				disposable?.dispose();
 			});
