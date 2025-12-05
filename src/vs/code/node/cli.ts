@@ -256,9 +256,11 @@ export async function main(argv: string[]): Promise<void> {
 
 		const hasReadStdinArg = args._.some(arg => arg === '-') || args.chat?._.some(arg => arg === '-');
 		if (hasReadStdinArg) {
-			// remove the "-" argument when we read from stdin
+			// Remove "-" from parsed args (args._), but keep it in argv to preserve position for later replacement
 			args._ = args._.filter(a => a !== '-');
-			argv = argv.filter(a => a !== '-');
+			if (args.chat) {
+				args.chat._ = args.chat._.filter(a => a !== '-');
+			}
 		}
 
 		let stdinFilePath: string | undefined;
@@ -293,13 +295,30 @@ export async function main(argv: string[]): Promise<void> {
 						processCallbacks.push(() => readFromStdinDone.p);
 					}
 
+					// Find all "-" occurrences in argv
+					const stdinIndices = argv
+						.map((arg, idx) => arg === '-' ? idx : -1)
+						.filter(idx => idx !== -1);
+
+					if (stdinIndices.length > 1) {
+						console.error('Error: Multiple \'-\' arguments provided. Only one is allowed when reading from stdin.');
+						process.exit(1);
+					}
+
 					if (args.chat) {
-						// Make sure to add tmp file as context to chat
+						// For chat mode: remove "-" from argv and add stdin file via --add-file
+						if (stdinIndices.length > 0) {
+							argv = argv.filter(arg => arg !== '-');
+						}
 						addArg(argv, '--add-file', stdinFilePath);
 					} else {
-						// Make sure to open tmp file as editor but ignore
-						// it in the "recently open" list
-						addArg(argv, stdinFilePath);
+						// For regular mode: replace "-" in-place to preserve position (for diff, etc.)
+						if (stdinIndices.length === 1) {
+							argv[stdinIndices[0]] = stdinFilePath;
+						} else if (stdinIndices.length === 0) {
+							// Fallback: append stdin file if "-" was not found in argv
+							addArg(argv, stdinFilePath);
+						}
 						addArg(argv, '--skip-add-to-recently-opened');
 					}
 
