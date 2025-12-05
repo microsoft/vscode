@@ -26,12 +26,12 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { editorBackground, inputBackground, opaque, registerColor, transparent } from '../../../../platform/theme/common/colorRegistry.js';
+import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../common/memento.js';
-import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
+import { SIDE_BAR_FOREGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { ILifecycleService, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
 import { IChatViewTitleActionContext } from '../common/chatActions.js';
@@ -63,17 +63,6 @@ type ChatViewPaneOpenedClassification = {
 	owner: 'sbatten';
 	comment: 'Event fired when the chat view pane is opened';
 };
-
-export const agentSessionsListBackground = registerColor(
-	'agentSessionsList.background',
-	{
-		dark: opaque(transparent(inputBackground, 0.5), SIDE_BAR_BACKGROUND),
-		light: opaque(transparent(inputBackground, 0.8), SIDE_BAR_BACKGROUND),
-		hcDark: SIDE_BAR_BACKGROUND,
-		hcLight: SIDE_BAR_BACKGROUND
-	},
-	localize('agentSessionsList.background', "Background color of the agent sessions list in the Chat view.")
-);
 
 export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
@@ -384,9 +373,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				notifyResults(count: number) {
 					that.notifySessionsControlChanged(count);
 				}
-			},
-			overrideStyles: {
-				listBackground: agentSessionsListBackground
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));

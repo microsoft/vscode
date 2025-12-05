@@ -633,7 +633,6 @@
 		"--vscode-searchEditor-findMatchBorder",
 		"--vscode-searchEditor-textInputBorder",
 		"--vscode-selection-background",
-		"--vscode-agentSessionsList-background",
 		"--vscode-settings-checkboxBackground",
 		"--vscode-settings-checkboxBorder",
 		"--vscode-settings-checkboxForeground",

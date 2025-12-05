@@ -27,7 +27,6 @@
 	.agent-sessions-container {
 		display: flex;
 		flex-direction: column;
-		background-color: var(--vscode-agentSessionsList-background);
 
 		.agent-sessions-title-container {
 			display: flex;
@@ -82,10 +81,18 @@
 
 	&.sessions-control-position-left {
 		flex-direction: row;
+
+		.agent-sessions-container {
+			border-right: 1px solid var(--vscode-sideBarSectionHeader-border);
+		}
 	}
 
 	&:not(.sessions-control-position-left) {
 		flex-direction: row-reverse;
+
+		.agent-sessions-container {
+			border-left: 1px solid var(--vscode-sideBarSectionHeader-border);
+		}
 	}
 }
 
@@ -93,6 +100,10 @@
 .chat-viewpane.has-sessions-control:not(.sessions-control-orientation-sidebyside) {
 
 	flex-direction: column;
+
+	.agent-sessions-container {
+		border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+	}
 }
 
 /* Welcome disabled */
