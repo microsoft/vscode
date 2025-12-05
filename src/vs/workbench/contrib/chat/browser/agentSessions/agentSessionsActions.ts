@@ -326,6 +326,10 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			return; // only applicable for sidebar or auxiliary bar
 		}
 
+		if (chatLocation === ViewContainerLocation.AuxiliaryBar) {
+			layoutService.setAuxiliaryBarMaximized(false); // Leave maximized state if applicable
+		}
+
 		const part = getPartByLocation(chatLocation);
 		const currentSize = layoutService.getSize(part);
 		layoutService.setSize(part, {
