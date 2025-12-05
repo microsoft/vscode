@@ -1,0 +1,67 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .editor-selection-widget {
+	display: flex !important;
+	flex-direction: row !important;
+	align-items: center;
+	gap: 4px;
+	background-color: var(--vscode-editorWidget-background);
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: 4px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	padding: 2px;
+	z-index: 50;
+}
+
+.monaco-editor .editor-selection-widget .button {
+	display: inline-flex !important;
+	flex-direction: row !important;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 6px;
+	border-radius: 3px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	user-select: none;
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+
+.monaco-editor .editor-selection-widget .button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-editor .editor-selection-widget .button .codicon {
+	font-size: 12px;
+	flex-shrink: 0;
+}
+
+.monaco-editor .editor-selection-widget .button .label {
+	font-size: 11px;
+	white-space: nowrap;
+}
+
+.monaco-editor .editor-selection-widget .button .keybinding {
+	font-size: 11px;
+	white-space: nowrap;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.9;
+}
+
+.monaco-editor .editor-selection-widget .button.close-button {
+	margin-left: 4px;
+	padding: 2px 4px;
+	border-left: 1px solid var(--vscode-editorWidget-border);
+}
+
+.monaco-editor .editor-selection-widget .button.close-button .codicon {
+	font-size: 12px;
+}
+
+.monaco-editor .editor-selection-widget .button.close-button .label,
+.monaco-editor .editor-selection-widget .button.close-button .keybinding {
+	display: none;
+}
