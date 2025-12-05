@@ -51,3 +51,58 @@ suite('ManageTodoListTool Description Field Setting', () => {
 		assert.strictEqual(required.includes('description'), true);
 	});
 });
+
+suite('ManageTodoListTool Error Handling', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('should return helpful error message when todoList is missing for write operation', async () => {
+		const { ManageTodoListTool } = await import('../../../common/tools/manageTodoListTool.js');
+		const { TestInstantiationService } = await import('../../../../../../platform/instantiation/test/common/instantiationServiceMock.js');
+		const { NullLogService } = await import('../../../../../../platform/log/common/log.js');
+		const { NullTelemetryService } = await import('../../../../../../platform/telemetry/common/telemetryUtils.js');
+		const { IChatTodoListService } = await import('../../../common/chatTodoListService.js');
+		const { CancellationToken } = await import('../../../../../../base/common/cancellation.js');
+
+		const instantiationService = new TestInstantiationService();
+		const mockTodoListService = {
+			getTodos: () => [],
+			setTodos: () => { },
+			onDidUpdateTodos: () => ({ dispose: () => { } })
+		};
+
+		instantiationService.stub(IChatTodoListService, mockTodoListService);
+
+		const tool = new ManageTodoListTool(
+			false, // writeOnly
+			true,  // includeDescription
+			mockTodoListService as any,
+			new NullLogService(),
+			NullTelemetryService
+		);
+
+		const result = await tool.invoke(
+			{
+				parameters: {
+					operation: 'write'
+					// Note: todoList is intentionally missing
+				},
+				context: { sessionId: 'test-session' }
+			} as any,
+			null,
+			null,
+			CancellationToken.None
+		);
+
+		assert.ok(result.content);
+		assert.strictEqual(result.content.length, 1);
+		assert.strictEqual(result.content[0].kind, 'text');
+
+		const errorMessage = (result.content[0] as any).value;
+		assert.ok(errorMessage.includes('todoList parameter is required'), 'Error should mention todoList parameter');
+		assert.ok(errorMessage.includes('internal todo list'), 'Error should clarify this is for internal todo list');
+		assert.ok(errorMessage.includes('NOT for editing todo.md files'), 'Error should clarify it is not for editing files');
+		assert.ok(errorMessage.includes('file editing capabilities'), 'Error should suggest using file editing capabilities');
+
+		tool.dispose();
+	});
+});
