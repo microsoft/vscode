@@ -9,6 +9,13 @@
             }
         },
         {
+            "key": "General",
+            "name": {
+                "key": "generalConfigurationTitle",
+                "value": "General"
+            }
+        },
+        {
             "key": "IntegratedTerminal",
             "name": {
                 "key": "terminalIntegratedConfigurationTitle",
@@ -182,6 +189,34 @@
             },
             "type": "boolean",
             "default": true
+        },
+        {
+            "key": "policy.adminContact.email",
+            "name": "AdminContactEmail",
+            "category": "General",
+            "minimumVersion": "1.107",
+            "localization": {
+                "description": {
+                    "key": "adminContactEmail",
+                    "value": "Contact email address for the administrator managing this installation. This information is shown to users when they encounter settings managed by system policy."
+                }
+            },
+            "type": "string",
+            "default": ""
+        },
+        {
+            "key": "policy.adminContact.url",
+            "name": "AdminContactUrl",
+            "category": "General",
+            "minimumVersion": "1.107",
+            "localization": {
+                "description": {
+                    "key": "adminContactUrl",
+                    "value": "Contact URL or website for the administrator managing this installation. This information is shown to users when they encounter settings managed by system policy."
+                }
+            },
+            "type": "string",
+            "default": ""
         },
         {
             "key": "update.mode",
