@@ -255,6 +255,10 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		})));
 	}
 
+	public setScrollState(scrollState: { top?: number; left?: number }): void {
+		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
+	}
+
 	public getRootElement(): HTMLElement {
 		return this._elements.root;
 	}
@@ -304,10 +308,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 
 	/** This accounts for documents that are not loaded yet. */
 	private _lastDocStates: IMultiDiffEditorViewState['docStates'];
-
-	public setScrollState(scrollState: { top?: number; left?: number }): void {
-		this._scrollableElement.setScrollPosition({ scrollLeft: scrollState.left, scrollTop: scrollState.top });
-	}
 
 	public setViewState(viewState: IMultiDiffEditorViewState): void {
 		this.setScrollState(viewState.scrollState);
