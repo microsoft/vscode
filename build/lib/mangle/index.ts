@@ -429,7 +429,7 @@ export class Mangler {
 		this.log = log;
 		this.config = config;
 
-		const workerScript = config.useLspRename ? 'lspRenameWorker.js' : 'renameWorker.js';
+		const workerScript = config.useLspRename ? 'lspRenameWorker.ts' : 'renameWorker.ts';
 		this.renameWorkerPool = workerpool.pool(path.join(import.meta.dirname, workerScript), {
 			maxWorkers: 4,
 			minWorkers: 'max'

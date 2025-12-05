@@ -31,7 +31,7 @@ class LSPClient {
 	}
 
 	async start(): Promise<void> {
-		const lspPath = path.join(__dirname, '..', '..', '..', 'node_modules', '@typescript', 'native-preview', 'bin', 'tsgo.js');
+		const lspPath = path.join(import.meta.dirname, '..', '..', '..', 'node_modules', '@typescript', 'native-preview', 'bin', 'tsgo.js');
 
 		this.process = spawn('node', [lspPath, '--lsp', '--stdio'], {
 			stdio: ['pipe', 'pipe', 'pipe'],
