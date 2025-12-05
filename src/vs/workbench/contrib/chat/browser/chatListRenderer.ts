@@ -765,16 +765,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
-		const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
 		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 
-		if (collapsedToolsMode !== CollapsedToolsDisplayMode.Off && this.getLastThinkingPart(templateData.renderedParts)) {
-			return false;
+		if (collapsedToolsMode === CollapsedToolsDisplayMode.Always || (collapsedToolsMode === CollapsedToolsDisplayMode.WithThinking && this.getLastThinkingPart(templateData.renderedParts))) {
+			if (!lastPart || lastPart.kind === 'thinking' || lastPart.kind === 'toolInvocation' || lastPart.kind === 'prepareToolInvocation' || lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') {
+				return false;
+			}
 		}
 
 		if (
 			!lastPart ||
-			lastPart.kind === 'references' || (lastPart.kind === 'thinking' && thinkingStyle !== ThinkingDisplayMode.FixedScrolling) ||
+			lastPart.kind === 'references' ||
 			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (IChatToolInvocation.isComplete(lastPart) || lastPart.presentation === 'hidden')) ||
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part))) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
