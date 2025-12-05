@@ -9,6 +9,7 @@
 	.chat-controls-container {
 		height: 100%;
 		min-height: 0;
+		min-width: 0;
 	}
 }
 
@@ -85,6 +86,7 @@
 	&.sessions-control-position-left {
 		flex-direction: row;
 	}
+
 	&:not(.sessions-control-position-left) {
 		flex-direction: row-reverse;
 	}
