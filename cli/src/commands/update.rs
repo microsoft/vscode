@@ -28,7 +28,7 @@ pub async fn update(ctx: CommandContext, args: StandaloneUpdateArgs) -> Result<i
 	let current_version = update_service.get_current_release().await?;
 	if update_service.is_up_to_date_with(&current_version) {
 		ctx.log.result(format!(
-			"{} is already to to date ({})",
+			"{} is already up to date ({})",
 			PRODUCT_NAME_LONG, current_version.commit
 		));
 		return Ok(1);
