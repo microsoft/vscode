@@ -355,7 +355,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Title
 		const sessionsTitleContainer = this.sessionsTitleContainer = append(sessionsContainer, $('.agent-sessions-title-container'));
 		const title = append(sessionsTitleContainer, $('span.agent-sessions-title'));
-		title.textContent = localize('recentSessions', "Recent Sessions");
+		title.textContent = this.sessionsViewerLimited ? localize('recentSessions', "Recent Sessions") : localize('allSessions', "All Sessions");
 
 		// Sessions Toolbar
 		const toolbarContainer = append(sessionsTitleContainer, $('.agent-sessions-toolbar'));
@@ -395,6 +395,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			opener: () => {
 				this.sessionsViewerLimited = !this.sessionsViewerLimited;
 
+				title.textContent = this.sessionsViewerLimited ? localize('recentSessions', "Recent Sessions") : localize('allSessions', "All Sessions");
 				linkControl.link = {
 					label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Limit to Recent Sessions"),
 					href: ''
