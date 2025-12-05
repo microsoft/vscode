@@ -7,7 +7,7 @@ import { Dimension } from '../../../../base/browser/dom.js';
 import { Event } from '../../../../base/common/event.js';
 import { readHotReloadableExport } from '../../../../base/common/hotReloadHelpers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IObservable, derived, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
+import { derived, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -81,10 +81,6 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
 		return this._widgetImpl.get().tryGetCodeEditor(resource);
-	}
-
-	public getViewModelObservable(): IObservable<MultiDiffEditorViewModel | undefined> {
-		return this._viewModel;
 	}
 
 	public getRootElement(): HTMLElement {
