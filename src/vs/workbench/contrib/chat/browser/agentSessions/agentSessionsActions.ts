@@ -27,6 +27,9 @@ import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../.
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { getChatSessionType } from '../../common/chatUri.js';
+import { ChatAgentLocation } from '../../common/constants.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 //#region Session Title Actions
 
@@ -152,18 +155,27 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 
 	override onClick(event: MouseEvent): void {
 		EventHelper.stop(event, true);
-
-		const session = this.action.getSession();
-
-		this.commandService.executeCommand(`agentSession.${session.providerType}.openChanges`, this.action.getSession().resource);
+		this.commandService.executeCommand(`agentSession.core.openChanges`, this.action.getSession().resource);
 	}
 }
 
-CommandsRegistry.registerCommand(`agentSession.${AgentSessionProviders.Local}.openChanges`, async (accessor: ServicesAccessor, resource: URI) => {
+CommandsRegistry.registerCommand('agentSession.core.openChanges', async (accessor: ServicesAccessor, resource: URI) => {
 	const chatService = accessor.get(IChatService);
-
-	const session = chatService.getSession(resource);
-	session?.editingSession?.show();
+	const commandService = accessor.get(ICommandService);
+	const type = getChatSessionType(resource);
+	let session = chatService.getSession(resource);
+	if (type === AgentSessionProviders.Local) {
+		if (!session) {
+			const chatModelRef = await chatService.getOrRestoreSession(resource);
+			session = chatModelRef?.object;
+		}
+		await session?.editingSession?.show();
+	} else {
+		if (!session) {
+			await chatService.loadSessionForResource(resource, ChatAgentLocation.Chat, CancellationToken.None);
+		}
+		commandService.executeCommand(`agentSession.${type}.openChanges`, resource);
+	}
 });
 
 //#endregion
