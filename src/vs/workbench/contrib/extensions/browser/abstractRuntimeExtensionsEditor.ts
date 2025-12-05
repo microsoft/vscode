@@ -46,6 +46,7 @@ import { RuntimeExtensionsInput } from '../common/runtimeExtensionsInput.js';
 import { errorIcon, warningIcon } from './extensionsIcons.js';
 import { ExtensionIconWidget } from './extensionsWidgets.js';
 import './media/runtimeExtensionsEditor.css';
+import { ExtensionRuntimeStateAction } from './extensionsActions.js';
 
 interface IExtensionProfileInformation {
 	/**
@@ -293,6 +294,17 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				}
 
 				data.actionbar.clear();
+
+				// Add restart action if needed
+				if (element.marketplaceInfo) {
+					const restartAction = this._instantiationService.createInstance(ExtensionRuntimeStateAction);
+					restartAction.extension = element.marketplaceInfo;
+					if (restartAction.enabled) {
+						data.actionbar.push(restartAction, { icon: false, label: true });
+						data.elementDisposables.push(restartAction);
+					}
+				}
+
 				const slowExtensionAction = this._createSlowExtensionAction(element);
 				if (slowExtensionAction) {
 					data.actionbar.push(slowExtensionAction, { icon: false, label: true });
