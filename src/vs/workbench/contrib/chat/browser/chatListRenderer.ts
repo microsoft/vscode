@@ -289,14 +289,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.viewModel = viewModel;
 		this._announcedToolProgressKeys.clear();
 
-		for (const templateData of this.templateDataByRequestId.values()) {
-			if (templateData.renderedParts) {
-				const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-				if (lastThinking?.getIsActive()) {
-					lastThinking.markAsInactive();
-				}
-			}
-		}
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
