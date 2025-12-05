@@ -9,6 +9,7 @@
 	.chat-controls-container {
 		height: 100%;
 		min-height: 0;
+		min-width: 0;
 	}
 }
 
@@ -46,7 +47,8 @@
 		}
 
 		.agent-sessions-toolbar {
-			margin-right: 4px; /* align with the title actions*/
+			/* align with the title actions*/
+			margin-right: 4px;
 		}
 
 		.agent-sessions-link-container {
@@ -81,6 +83,7 @@
 	&.sessions-control-position-left {
 		flex-direction: row;
 	}
+
 	&:not(.sessions-control-position-left) {
 		flex-direction: row-reverse;
 	}
