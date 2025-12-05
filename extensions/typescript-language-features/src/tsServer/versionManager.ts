@@ -106,11 +106,18 @@ export class TypeScriptVersionManager extends Disposable {
 
 	private getBundledPickItem(): QuickPickItem {
 		const bundledVersion = this.versionProvider.defaultVersion;
+		const isSelected = !this.useWorkspaceTsdkSetting || !vscode.workspace.isTrusted;
+		const isActive = this.currentVersion.eq(bundledVersion);
+		
+		let description = bundledVersion.displayName;
+		if (isSelected && !isActive) {
+			// User selected bundled version, but a different version is active
+			description = vscode.l10n.t("{0} (Currently Active: {1})", bundledVersion.displayName, this.currentVersion.displayName);
+		}
+		
 		return {
-			label: (!this.useWorkspaceTsdkSetting || !vscode.workspace.isTrusted
-				? '• '
-				: '') + vscode.l10n.t("Use VS Code's Version"),
-			description: bundledVersion.displayName,
+			label: (isSelected ? '• ' : '') + vscode.l10n.t("Use VS Code's Version"),
+			description,
 			detail: bundledVersion.pathLabel,
 			run: async () => {
 				await this.workspaceState.update(useWorkspaceTsdkStorageKey, false);
@@ -121,11 +128,18 @@ export class TypeScriptVersionManager extends Disposable {
 
 	private getLocalPickItems(): QuickPickItem[] {
 		return this.versionProvider.localVersions.map(version => {
+			const isSelected = this.useWorkspaceTsdkSetting && vscode.workspace.isTrusted && this.currentVersion.eq(version);
+			const isActive = this.currentVersion.eq(version);
+			
+			let description = version.displayName;
+			if (!isSelected && isActive) {
+				// Workspace version is active but not explicitly selected (e.g., manually configured in settings)
+				description = vscode.l10n.t("{0} (Currently Active)", version.displayName);
+			}
+			
 			return {
-				label: (this.useWorkspaceTsdkSetting && vscode.workspace.isTrusted && this.currentVersion.eq(version)
-					? '• '
-					: '') + vscode.l10n.t("Use Workspace Version"),
-				description: version.displayName,
+				label: (isSelected ? '• ' : '') + vscode.l10n.t("Use Workspace Version"),
+				description,
 				detail: version.pathLabel,
 				run: async () => {
 					const trusted = await vscode.workspace.requestWorkspaceTrust();
