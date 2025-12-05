@@ -929,8 +929,8 @@ export class ChatModelsWidget extends Disposable {
 				this.viewModel.collapseAll();
 			}
 		));
-		collapseAllAction.enabled = this.viewModel.viewModelEntries.some(e => isVendorEntry(e) || isGroupEntry(e));
-		this._register(this.viewModel.onDidChange(() => collapseAllAction.enabled = this.viewModel.viewModelEntries.some(e => isVendorEntry(e) || isGroupEntry(e))));
+		collapseAllAction.enabled = this.viewModel.viewModelEntries.some(e => isLanguageModelGroupEntry(e) || isLanguageModelProviderEntry(e));
+		this._register(this.viewModel.onDidChange(() => collapseAllAction.enabled = this.viewModel.viewModelEntries.some(e => isLanguageModelProviderEntry(e) || isLanguageModelGroupEntry(e))));
 
 		this._register(this.searchWidget.onInputDidChange(() => {
 			clearSearchAction.enabled = !!this.searchWidget.getValue();
@@ -1092,18 +1092,18 @@ export class ChatModelsWidget extends Disposable {
 							return e.id === 'visible' ? localize('visible.ariaLabel', 'Visible Models') : localize('hidden.ariaLabel', 'Hidden Models');
 						}
 						const ariaLabels = [];
-						ariaLabels.push(localize('model.name', '{0} from {1}', e.modelEntry.metadata.name, e.modelEntry.vendorDisplayName));
-						if (e.modelEntry.metadata.maxInputTokens && e.modelEntry.metadata.maxOutputTokens) {
-							ariaLabels.push(localize('model.contextSize', 'Context size: {0} input tokens and {1} output tokens', formatTokenCount(e.modelEntry.metadata.maxInputTokens), formatTokenCount(e.modelEntry.metadata.maxOutputTokens)));
+						ariaLabels.push(localize('model.name', '{0} from {1}', e.model.metadata.name, e.model.provider.vendor.displayName));
+						if (e.model.metadata.maxInputTokens && e.model.metadata.maxOutputTokens) {
+							ariaLabels.push(localize('model.contextSize', 'Context size: {0} input tokens and {1} output tokens', formatTokenCount(e.model.metadata.maxInputTokens), formatTokenCount(e.model.metadata.maxOutputTokens)));
 						}
-						if (e.modelEntry.metadata.capabilities) {
-							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.modelEntry.metadata.capabilities).join(', ')));
+						if (e.model.metadata.capabilities) {
+							ariaLabels.push(localize('model.capabilities', 'Capabilities: {0}', Object.keys(e.model.metadata.capabilities).join(', ')));
 						}
-						const multiplierText = (e.modelEntry.metadata.detail && e.modelEntry.metadata.detail.trim().toLowerCase() !== e.modelEntry.vendor.trim().toLowerCase()) ? e.modelEntry.metadata.detail : '-';
+						const multiplierText = (e.model.metadata.detail && e.model.metadata.detail.trim().toLowerCase() !== e.model.provider.vendor.vendor.trim().toLowerCase()) ? e.model.metadata.detail : '-';
 						if (multiplierText !== '-') {
 							ariaLabels.push(localize('multiplier.tooltip', "Every chat message counts {0} towards your premium model request quota", multiplierText));
 						}
-						if (e.modelEntry.metadata.isUserSelectable) {
+						if (e.model.metadata.isUserSelectable) {
 							ariaLabels.push(localize('model.visible', 'This model is visible in the chat model picker'));
 						} else {
 							ariaLabels.push(localize('model.hidden', 'This model is hidden in the chat model picker'));

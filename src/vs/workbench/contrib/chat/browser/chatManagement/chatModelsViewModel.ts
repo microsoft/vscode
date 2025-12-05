@@ -417,7 +417,6 @@ export class ChatModelsViewModel extends Disposable {
 	private async doRefresh(): Promise<void> {
 		this.languageModels = [];
 		for (const vendor of this.getVendors()) {
-
 			const models: ILanguageModel[] = [];
 			const languageModelsGroups = await this.languageModelsService.fetchLanguageModelsGroups(vendor.vendor);
 			for (const group of languageModelsGroups) {
@@ -439,10 +438,9 @@ export class ChatModelsViewModel extends Disposable {
 				}
 			}
 			this.languageModels.push(...models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)));
+			this.languageModelGroups = this.groupModels(this.languageModels);
+			this.doFilter();
 		}
-
-		this.languageModelGroups = this.groupModels(this.languageModels);
-		this.doFilter();
 	}
 
 	toggleVisibility(model: ILanguageModelEntry): void {
@@ -478,31 +476,11 @@ export class ChatModelsViewModel extends Disposable {
 	}
 
 	collapseAll(): void {
-		const allGroupIds = new Set<string>();
+		this.collapsedGroups.clear();
 		for (const entry of this.viewModelEntries) {
-			if (isVendorEntry(entry)) {
-				allGroupIds.add(entry.vendorEntry.vendor);
-			} else if (isGroupEntry(entry)) {
-				allGroupIds.add(entry.group);
+			if (isLanguageModelProviderEntry(entry) || isLanguageModelGroupEntry(entry)) {
+				this.collapsedGroups.add(entry.id);
 			}
-		}
-		for (const id of allGroupIds) {
-			this.collapsedGroups.add(id);
-		}
-		this.doFilter();
-	}
-
-	collapseAll(): void {
-		const allGroupIds = new Set<string>();
-		for (const entry of this.viewModelEntries) {
-			if (isVendorEntry(entry)) {
-				allGroupIds.add(entry.vendorEntry.vendor);
-			} else if (isGroupEntry(entry)) {
-				allGroupIds.add(entry.group);
-			}
-		}
-		for (const id of allGroupIds) {
-			this.collapsedGroups.add(id);
 		}
 		this.filter(this.searchValue);
 	}
