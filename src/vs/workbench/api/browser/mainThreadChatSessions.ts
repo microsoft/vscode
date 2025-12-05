@@ -464,17 +464,19 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					description = this._chatSessionsService.getSessionDescription(model);
 				}
 
-				const modelStats = model ?
-					await awaitStatsForSession(model) :
-					(await this._chatService.getMetadataForSession(uri))?.stats;
-				if (modelStats) {
-					changes = {
-						files: modelStats.fileCount,
-						insertions: modelStats.added,
-						deletions: modelStats.removed
-					};
+				if (session.changes instanceof Array) {
+					changes = revive(session.changes);
 				} else {
-					changes = session.changes instanceof Array ? revive(session.changes) : session.changes;
+					const modelStats = model ?
+						await awaitStatsForSession(model) :
+						(await this._chatService.getMetadataForSession(uri))?.stats;
+					if (modelStats) {
+						changes = {
+							files: modelStats.fileCount,
+							insertions: modelStats.added,
+							deletions: modelStats.removed
+						};
+					}
 				}
 
 				return {
