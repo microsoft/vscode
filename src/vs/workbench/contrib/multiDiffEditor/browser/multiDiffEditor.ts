@@ -5,7 +5,7 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
 import { IResourceLabel, IWorkbenchUIElementFactory } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
@@ -190,17 +190,33 @@ class MultiDiffEditorContentMenuOverlay extends Disposable {
 		super();
 
 		const menu = this._register(menuService.createMenu(MenuId.MultiDiffEditorContent, contextKeyService));
-		if (menu.getActions().length === 0) {
-			return;
-		}
+		const overlayStore = this._register(new MutableDisposable<DisposableStore>());
 
-		const container = DOM.h('div.floating-menu-overlay-widget.multi-diff-root-floating-menu');
-		root.appendChild(container.root);
-		this._register(toDisposable(() => container.root.remove()));
+		const updateOverlay = () => {
+			const hasActions = menu.getActions().length > 0;
+			if (!hasActions) {
+				overlayStore.clear();
+				return;
+			}
 
-		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, container.root, MenuId.MultiDiffEditorContent, {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-		}));
+			if (overlayStore.value) {
+				return;
+			}
+
+			const container = DOM.h('div.floating-menu-overlay-widget.multi-diff-root-floating-menu');
+			const store = new DisposableStore();
+			root.appendChild(container.root);
+			store.add(toDisposable(() => container.root.remove()));
+
+			store.add(instantiationService.createInstance(MenuWorkbenchToolBar, container.root, MenuId.MultiDiffEditorContent, {
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			}));
+
+			overlayStore.value = store;
+		};
+
+		updateOverlay();
+		this._register(menu.onDidChange(() => updateOverlay()));
 	}
 }
 
