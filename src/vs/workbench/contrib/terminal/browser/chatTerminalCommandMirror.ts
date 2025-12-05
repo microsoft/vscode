@@ -8,9 +8,13 @@ import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
 import { DetachedProcessInfo } from './detachedTerminal.js';
+import { TerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../common/theme.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
+import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
 
 export async function getCommandOutputSnapshot(
 	xtermTerminal: XtermTerminal,
@@ -95,6 +99,7 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 		private readonly _xtermTerminal: XtermTerminal,
 		private readonly _command: ITerminalCommand,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._detachedTerminal = this._createTerminal();
@@ -128,19 +133,24 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private async _createTerminal(): Promise<IDetachedTerminalInstance> {
+		const processInfo = this._register(new DetachedProcessInfo({ initialCwd: '' }));
+		const capabilities = this._register(new TerminalCapabilityStore());
 		const detached = await this._terminalService.createDetachedTerminal({
 			cols: this._xtermTerminal.raw!.cols,
 			rows: 10,
 			readonly: true,
-			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
+			processInfo,
 			disableOverviewRuler: true,
+			capabilities,
 			colorProvider: {
 				getBackgroundColor: theme => {
 					const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
 					if (terminalBackground) {
 						return terminalBackground;
 					}
-					return theme.getColor(PANEL_BACKGROUND);
+					// Use editor background when in chat editor, panel background otherwise
+					const isInEditor = ChatContextKeys.inChatEditor.getValue(this._contextKeyService);
+					return theme.getColor(isInEditor ? editorBackground : PANEL_BACKGROUND);
 				},
 			}
 		});

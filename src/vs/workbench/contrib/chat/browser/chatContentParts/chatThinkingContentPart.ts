@@ -7,7 +7,7 @@ import { $, clearNode } from '../../../../../base/browser/dom.js';
 import { IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService.js';
 import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
-import { ThinkingDisplayMode } from '../../common/constants.js';
+import { ChatConfiguration, ThinkingDisplayMode } from '../../common/constants.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -307,11 +307,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return;
 		}
 
-		// case where we only have one dropdown in the thinking container
-		if (this.toolInvocationCount === 1 && this.extractedTitles.length === 1 && this.currentToolCallLabel) {
+		// case where we only have one dropdown in the thinking container and no thinking parts
+		if (this.toolInvocationCount === 1 && this.extractedTitles.length === 1 && this.currentToolCallLabel && this.currentThinkingValue.trim() === '') {
 			const title = this.currentToolCallLabel;
 			this.currentTitle = title;
-			this.content.generatedTitle = title;
 			this.setTitleWithWidgets(new MarkdownString(title), this.instantiationService, this.chatMarkdownAnchorService, this.chatContentMarkdownRenderer);
 			return;
 		}
@@ -322,6 +321,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.currentTitle = title;
 			this.content.generatedTitle = title;
 			super.setTitle(title);
+			return;
+		}
+
+		const generateTitles = this.configurationService.getValue<boolean>(ChatConfiguration.ThinkingGenerateTitles) ?? true;
+		if (!generateTitles) {
+			this.setFallbackTitle();
 			return;
 		}
 
@@ -352,7 +357,14 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				context = this.currentThinkingValue.substring(0, 1000);
 			}
 
-			const prompt = `Summarize the following in 6-7 words: ${context}. Respond with only the summary, no quotes or punctuation. Make sure to use past tense.`;
+			const prompt = `Summarize the following actions in 6-7 words using past tense. Be very concise - focus on the main action only. No subjects, quotes, or punctuation.
+
+			Examples:
+			- "Preparing to create new page file, Read HomePage.tsx, Creating new TypeScript file" → "Created new page file"
+			- "Searching for files, Reading configuration, Analyzing dependencies" → "Analyzed project structure"
+			- "Invoked terminal command, Checked build output, Fixed errors" → "Ran build and fixed errors"
+
+			Actions: ${context}`;
 
 			const response = await this.languageModelsService.sendChatRequest(
 				models[0],

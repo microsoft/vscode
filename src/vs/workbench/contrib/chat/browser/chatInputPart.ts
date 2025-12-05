@@ -81,7 +81,8 @@ import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from 
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup, IChatService } from '../common/chatService.js';
-import { IChatSessionProviderOptionItem, IChatSessionsService } from '../common/chatSessionsService.js';
+import { IChatSessionProviderOptionItem, IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
+import { getChatSessionType } from '../common/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeRangeVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, isStringVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatHistoryNavigator } from '../common/chatWidgetHistoryService.js';
@@ -441,6 +442,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.refreshChatSessionPickers();
 		}));
 
+		// React to chat session option changes for the active session
+		this._register(this.chatSessionsService.onDidChangeSessionOptions(e => {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (sessionResource && isEqual(sessionResource, e)) {
+				// Options changed for our current session - refresh pickers
+				this.refreshChatSessionPickers();
+			}
+		}));
+
 		this._attachmentModel = this._register(this.instantiationService.createInstance(ChatAttachmentModel));
 		this._register(this._attachmentModel.onDidChange(() => this._syncInputStateToModel()));
 		this.selectedToolsModel = this._register(this.instantiationService.createInstance(ChatSelectedTools, this.currentModeObs));
@@ -701,7 +711,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this.getOrCreateOptionEmitter(optionGroup.id).fire(option);
 					this.chatSessionsService.notifySessionOptionsChange(
 						ctx.chatSessionResource,
-						[{ optionId: optionGroup.id, value: option.id }]
+						[{ optionId: optionGroup.id, value: option }]
 					).catch(err => this.logService.error(`Failed to notify extension of ${optionGroup.id} change:`, err));
 				},
 				getAllOptions: () => {
@@ -826,7 +836,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private checkModelSupported(): void {
-		if (this._currentLanguageModel && !this.modelSupportedForDefaultAgent(this._currentLanguageModel)) {
+		if (this._currentLanguageModel && (!this.modelSupportedForDefaultAgent(this._currentLanguageModel) || !this.modelSupportedForInlineChat(this._currentLanguageModel))) {
 			this.setCurrentLanguageModelToDefault();
 		}
 	}
@@ -1261,9 +1271,16 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			if (currentOption) {
 				const optionGroup = optionGroups.find(g => g.id === optionGroupId);
 				if (optionGroup) {
-					const item = optionGroup.items.find(m => m.id === currentOption);
+					const currentOptionId = typeof currentOption === 'string' ? currentOption : currentOption.id;
+					const item = optionGroup.items.find(m => m.id === currentOptionId);
 					if (item) {
-						this.getOrCreateOptionEmitter(optionGroupId).fire(item);
+						// If currentOption is an object (not a string ID), it represents a complete option item and should be used directly.
+						// Otherwise, if it's a string ID, look up the corresponding item and use that.
+						if (typeof currentOption === 'string') {
+							this.getOrCreateOptionEmitter(optionGroupId).fire(item);
+						} else {
+							this.getOrCreateOptionEmitter(optionGroupId).fire(currentOption);
+						}
 					}
 				}
 			}
@@ -1315,8 +1332,36 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	}
 
+	/**
+	 * Updates the widget controller based on session type.
+	 */
+	private tryUpdateWidgetController(): void {
+		const sessionResource = this._widget?.viewModel?.model.sessionResource;
+		if (!sessionResource) {
+			return;
+		}
+
+		const sessionType = getChatSessionType(sessionResource);
+		const isLocalSession = sessionType === localChatSessionType;
+
+		if (!isLocalSession) {
+			this._widgetController.clear();
+			return;
+		}
+
+		if (!this._widgetController.value) {
+			this._widgetController.value = this.instantiationService.createInstance(ChatInputPartWidgetController, this.chatInputWidgetsContainer);
+			this._register(this._widgetController.value.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		}
+	}
+
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
 		this._widget = widget;
+
+		this._register(widget.onDidChangeViewModel(() => {
+			this.refreshChatSessionPickers();
+			this.tryUpdateWidgetController();
+		}));
 
 		let elements;
 		if (this.options.renderStyle === 'compact') {
@@ -1391,8 +1436,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this._implicitContext = undefined;
 		}
 
-		this._widgetController.value = this.instantiationService.createInstance(ChatInputPartWidgetController, this.chatInputWidgetsContainer);
-		this._register(this._widgetController.value.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+		this.tryUpdateWidgetController();
 
 		this.renderAttachedContext();
 		this._register(this._attachmentModel.onDidChange((e) => {
@@ -1472,6 +1516,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 				}
 			}
+		}));
+
+		this._register(this._inputEditor.onDidScrollChange(e => {
+			toolbarsContainer.classList.toggle('scroll-top-decoration', e.scrollTop > 0);
 		}));
 
 		this._register(this._inputEditor.onDidChangeModelContent(() => {

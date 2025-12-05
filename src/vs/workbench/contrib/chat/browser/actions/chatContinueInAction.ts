@@ -37,6 +37,7 @@ import { ChatAgentLocation } from '../../common/constants.js';
 import { PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IChatWidgetService } from '../chat.js';
+import { ctxHasEditorModification } from '../chatEditing/chatEditingEditorContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from './chatActions.js';
 import { PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/chatVariableEntries.js';
 import { NEW_CHAT_SESSION_ACTION_ID } from '../chatSessions/common.js';
@@ -73,6 +74,7 @@ export class ContinueChatInSessionAction extends Action2 {
 					ContextKeyExpr.equals(ResourceContextKey.Scheme.key, Schemas.untitled),
 					ContextKeyExpr.equals(ResourceContextKey.LangId.key, PROMPT_LANGUAGE_ID),
 					ContextKeyExpr.notEquals(chatEditingWidgetFileStateContextKey.key, ModifiedFileEntryState.Modified),
+					ctxHasEditorModification.negate(),
 				),
 			}
 			]
@@ -281,10 +283,12 @@ class CreateRemoteAgentJobAction {
 			const requestData = await chatService.sendRequest(sessionResource, userPrompt, {
 				agentIdSilent: continuationTargetType,
 				attachedContext: attachedContext.asArray(),
+				userSelectedModelId: widget.input.currentLanguageModel,
+				...widget.getModeRequestOptions()
 			});
 
 			if (requestData) {
-				await widget.handleDelegationExitIfNeeded(requestData.agent);
+				await widget.handleDelegationExitIfNeeded(defaultAgent, requestData.agent);
 			}
 		} catch (e) {
 			console.error('Error creating remote coding agent job', e);

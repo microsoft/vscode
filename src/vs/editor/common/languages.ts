@@ -1074,7 +1074,8 @@ export type LifetimeSummary = {
 	typingIntervalCharacterCount: number;
 	selectedSuggestionInfo: boolean;
 	availableProviders: string;
-	sku: string | undefined;
+	skuPlan: string | undefined;
+	skuType: string | undefined;
 	renameCreated: boolean;
 	renameDuration: number | undefined;
 	renameTimedOut: boolean;
