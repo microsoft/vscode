@@ -289,14 +289,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.viewModel = viewModel;
 		this._announcedToolProgressKeys.clear();
 
-		for (const templateData of this.templateDataByRequestId.values()) {
-			if (templateData.renderedParts) {
-				const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-				if (lastThinking?.getIsActive()) {
-					lastThinking.markAsInactive();
-				}
-			}
-		}
 	}
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
@@ -776,11 +768,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const thinkingStyle = this.configService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle');
 		const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
 
-		if (collapsedToolsMode !== CollapsedToolsDisplayMode.Off) {
-			const hasActiveThinking = !!this.getLastThinkingPart(templateData.renderedParts);
-			if (hasActiveThinking) {
-				return lastPart?.kind !== 'thinking' && lastPart?.kind !== 'toolInvocation' && lastPart?.kind !== 'prepareToolInvocation' && lastPart?.kind !== 'textEditGroup' && lastPart?.kind !== 'notebookEditGroup';
-			}
+		if (collapsedToolsMode !== CollapsedToolsDisplayMode.Off && this.getLastThinkingPart(templateData.renderedParts)) {
+			return false;
 		}
 
 		if (
