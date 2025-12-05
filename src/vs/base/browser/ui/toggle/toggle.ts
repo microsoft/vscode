@@ -118,7 +118,7 @@ export class ToggleActionViewItem extends BaseActionViewItem {
 
 export class Toggle extends Widget {
 
-	private readonly _onChange = this._register(new Emitter<boolean>());
+	protected readonly _onChange = this._register(new Emitter<boolean>());
 	get onChange(): Event<boolean /* via keyboard */> { return this._onChange.event; }
 
 	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
