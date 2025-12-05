@@ -6,6 +6,7 @@
 .agent-sessions-viewer {
 
 	flex: 1 1 auto;
+	height: 100%;
 	min-height: 0;
 
 	.monaco-list-row .force-no-twistie {
