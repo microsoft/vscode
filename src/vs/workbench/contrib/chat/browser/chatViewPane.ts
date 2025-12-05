@@ -382,7 +382,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Link to Sessions View
 		this.sessionsLinkContainer = append(sessionsContainer, $('.agent-sessions-link-container'));
 		const linkControl = this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, {
-			label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Limit to Recent Sessions"),
+			label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Show Recent Sessions"),
 			href: '',
 		}, {
 			opener: () => {
@@ -391,7 +391,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 				title.textContent = this.sessionsViewerLimited ? localize('recentSessions', "Recent Sessions") : localize('allSessions', "All Sessions");
 				linkControl.link = {
-					label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Limit to Recent Sessions"),
+					label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Show Recent Sessions"),
 					href: ''
 				};
 
