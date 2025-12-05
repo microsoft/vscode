@@ -750,9 +750,15 @@ class SCMTreeCompressionDelegate implements ITreeCompressionDelegate<TreeElement
 
 class SCMTreeFilter implements ITreeFilter<TreeElement> {
 
+	constructor(
+		private readonly configurationService: IConfigurationService
+	) { }
+
 	filter(element: TreeElement): boolean {
 		if (isSCMResourceGroup(element)) {
 			return element.resources.length > 0 || !element.hideWhenEmpty;
+		} else if (isSCMInput(element)) {
+			return this.configurationService.getValue<boolean>('scm.showInputBox') !== false;
 		} else {
 			return true;
 		}
@@ -2345,7 +2351,8 @@ export class SCMViewPane extends ViewPane {
 						e =>
 							e.affectsConfiguration('scm.inputMinLineCount') ||
 							e.affectsConfiguration('scm.inputMaxLineCount') ||
-							e.affectsConfiguration('scm.showActionButton'),
+							e.affectsConfiguration('scm.showActionButton') ||
+							e.affectsConfiguration('scm.showInputBox'),
 						this.visibilityDisposables)
 						(() => this.updateChildren(), this, this.visibilityDisposables);
 
@@ -2421,7 +2428,7 @@ export class SCMViewPane extends ViewPane {
 				horizontalScrolling: false,
 				setRowLineHeight: false,
 				transformOptimization: false,
-				filter: new SCMTreeFilter(),
+				filter: new SCMTreeFilter(this.configurationService),
 				dnd: new SCMTreeDragAndDrop(this.instantiationService),
 				identityProvider: new SCMResourceIdentityProvider(),
 				sorter: new SCMTreeSorter(() => this.viewMode, () => this.viewSortKey),

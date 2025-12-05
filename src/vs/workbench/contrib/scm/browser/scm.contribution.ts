@@ -374,6 +374,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('showInputActionButton', "Controls whether an action button can be shown in the Source Control input."),
 			default: true
 		},
+		'scm.showInputBox': {
+			type: 'boolean',
+			markdownDescription: localize('showInputBox', "Controls whether the commit input box is shown in the Source Control view."),
+			default: true
+		},
 		'scm.workingSets.enabled': {
 			type: 'boolean',
 			description: localize('scm.workingSets.enabled', "Controls whether to store editor working sets when switching between source control history item groups."),
