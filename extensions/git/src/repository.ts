@@ -2080,7 +2080,7 @@ export class Repository implements Disposable {
 			remote = head.upstream.remote;
 
 			// Respect push.default=current configuration
-			const pushDefault = await this.repository.config('get', '', 'push.default');
+			const pushDefault = await this.run(Operation.Config(true), () => this.repository.config('get', '', 'push.default'));
 			if (pushDefault === 'current') {
 				branch = head.name;
 			} else {
