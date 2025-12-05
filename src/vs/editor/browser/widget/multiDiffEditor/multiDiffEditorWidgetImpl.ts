@@ -75,7 +75,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 					overflow: 'hidden',
 				}
 			}),
-			h('div.monaco-editor@overflowWidgetsDomNode', {}),
+			h('div.monaco-editor@overflowWidgetsDomNode', {
+			}),
 		]);
 		this._scrollable = this._register(new Scrollable({
 			forceIntegerValues: false,
@@ -102,11 +103,6 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			template.setData(data);
 			return template;
 		}));
-		this._contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
-		this._instantiationService = this._register(this._parentInstantiationService.createChild(
-			new ServiceCollection([IContextKeyService, this._contextKeyService])
-		));
-		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
 		this.scrollTop = observableFromEvent(this, this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
 		this.scrollLeft = observableFromEvent(this, this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);
 		this._viewItemsInfo = derived<{ items: readonly VirtualizedViewItem[]; getItem: (viewModel: DocumentDiffItemViewModel) => VirtualizedViewItem }>(this,
@@ -143,6 +139,11 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			return viewItem.template.read(reader)?.editor;
 		});
 		this._lastDocStates = {};
+		this._contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
+		this._instantiationService = this._register(this._parentInstantiationService.createChild(
+			new ServiceCollection([IContextKeyService, this._contextKeyService])
+		));
+		this._contextKeyService.createKey(EditorContextKeys.inMultiDiffEditor.key, true);
 
 		this._register(autorunWithStore((reader, store) => {
 			const viewModel = this._viewModel.read(reader);
