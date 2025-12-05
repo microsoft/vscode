@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { WebClient, ConversationsHistoryResponse, ConversationsListResponse, UsersInfoResponse } from '@slack/web-api';
 import { SlackMessage } from './treeDataProvider';
-import { SLACK_AUTH_PROVIDER_ID_EXPORT } from './authenticationProvider';
+import { SLACK_AUTH_PROVIDER_ID } from './authenticationProvider';
 import { MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
 
 const SLACK_CODE_REVIEW_CHANNEL_ID_KEY = 'slack-code-review-channel-id';
@@ -24,7 +24,7 @@ interface IPullRequest {
 }
 
 interface IFetchedPullRequestInfo {
-    title: string;
+    title?: string;
     user?: { login: string };
     additions?: number;
     deletions?: number;
@@ -49,6 +49,7 @@ export class SlackService {
             }
             this._updateSession();
         });
+        this._updateSession();
     }
 
     public async isAuthenticated(): Promise<boolean> {
@@ -108,8 +109,8 @@ export class SlackService {
             return undefined;
         }
         const text = message.text || '';
-        const prUrl = this._extractPrUrl(text);
-        const timestamp = this._slackTsToIso(message.ts);
+        const prUrl = this._extractPullRequestUrl(text);
+        const timestamp = this._timestampToISO(message.ts);
         const author = await this._getUserName(message.user);
         const prInfo = await this._fetchCachedPullRequestInfo(prUrl);
         const slackMessage: SlackMessage = {
@@ -132,7 +133,7 @@ export class SlackService {
 
     private async _updateSession(createIfNone: boolean = false, silent: boolean = true) {
         try {
-            this.session = await vscode.authentication.getSession(SLACK_AUTH_PROVIDER_ID_EXPORT, [], { createIfNone, silent });
+            this.session = await vscode.authentication.getSession(SLACK_AUTH_PROVIDER_ID, [], { createIfNone, silent });
             this.client = this.session ? new WebClient(this.session.accessToken) : undefined;
         } catch (error) {
             console.error('Failed to update Slack session:', error);
@@ -252,7 +253,7 @@ export class SlackService {
         if (response.ok) {
             const data = await response.json() as IFetchedPullRequestInfo;
             return {
-                title: data.title,
+                title: data.title || `PR #${prNumber}`,
                 author: data.user?.login,
                 owner: owner,
                 repo: repo,
@@ -270,7 +271,7 @@ export class SlackService {
         };;
     }
 
-    private _extractPrUrl(text: string): string | undefined {
+    private _extractPullRequestUrl(text: string): string | undefined {
         const slackUrlPattern = /<(https?:\/\/[^|>]+)(?:\|[^>]*)?>|(?:^|\s)(https?:\/\/[^\s<]+)/g;
         const prPattern = /github\.com\/[^/]+\/[^/]+\/pull\/\d+/;
 
@@ -291,7 +292,7 @@ export class SlackService {
         return undefined;
     }
 
-    private _slackTsToIso(ts: string): string {
+    private _timestampToISO(ts: string): string {
         // Slack timestamps are in format "1234567890.123456"
         const seconds = parseFloat(ts);
         return new Date(seconds * 1000).toISOString();

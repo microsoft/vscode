@@ -156,7 +156,6 @@
         // Get the query parameters from the URL
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
-        const state = params.get('state');
         const error = params.get('error');
 
         if (error) {
@@ -166,7 +165,7 @@
         } else if (code) {
             // Build the VS Code Insiders URI
             // The extension ID should match your package.json publisher.name format
-            const vscodeUri = `vscode-insiders://vs-code-codereview.vs-code-codereview/callback?code=${encodeURIComponent(code)}${state ? '&state=' + encodeURIComponent(state) : ''}`;
+            const vscodeUri = `vscode-insiders://vs-code-codereview.vs-code-codereview/callback?code=${encodeURIComponent(code)}`;
 
             // Set the manual link
             document.getElementById('vscodeLink').href = vscodeUri;
