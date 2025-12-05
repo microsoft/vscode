@@ -20,7 +20,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { LocalAgentsSessionsProvider } from './localAgentSessionsProvider.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ArchiveAgentSessionAction, UnarchiveAgentSessionAction, RefreshAgentSessionsViewAction, FindAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar } from './agentSessionsActions.js';
+import { ArchiveAgentSessionAction, UnarchiveAgentSessionAction, RefreshAgentSessionsViewAction, FindAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction } from './agentSessionsActions.js';
 
 //#region View Container and View Registration
 
@@ -70,6 +70,8 @@ registerAction2(OpenAgentSessionInEditorGroupAction);
 registerAction2(OpenAgentSessionInNewEditorGroupAction);
 registerAction2(RefreshAgentSessionsViewAction);
 registerAction2(FindAgentSessionAction);
+registerAction2(RefreshAgentSessionsViewerAction);
+registerAction2(FindAgentSessionInViewerAction);
 registerAction2(ShowAgentSessionsSidebar);
 registerAction2(HideAgentSessionsSidebar);
 
@@ -88,7 +90,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 		icon: Codicon.layoutSidebarRightOff,
 	},
 	group: 'navigation',
-	order: 1,
+	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
@@ -102,7 +104,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 		icon: Codicon.layoutSidebarLeftOff,
 	},
 	group: 'navigation',
-	order: 1,
+	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)
@@ -116,7 +118,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 		icon: Codicon.layoutSidebarRight,
 	},
 	group: 'navigation',
-	order: 1,
+	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Right)
@@ -130,7 +132,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 		icon: Codicon.layoutSidebarLeft,
 	},
 	group: 'navigation',
-	order: 1,
+	order: 5,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
 		ChatContextKeys.agentSessionsViewerPosition.isEqualTo(AgentSessionsViewerPosition.Left)

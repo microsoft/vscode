@@ -41,7 +41,6 @@ export interface IAgentSessionsControlOptions {
 	readonly filter?: IAgentSessionsFilter;
 	readonly allowNewSessionFromEmptySpace?: boolean;
 	readonly allowOpenSessionsInPanel?: boolean; // TODO@bpasero retire this option eventually
-	readonly allowFiltering?: boolean;
 	readonly trackActiveEditor?: boolean;
 }
 
@@ -138,7 +137,7 @@ export class AgentSessionsControl extends Disposable {
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
-				findWidgetEnabled: this.options?.allowFiltering,
+				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter,

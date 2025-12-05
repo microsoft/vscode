@@ -46,7 +46,7 @@
 			}
 		}
 
-		.agent-sessions-toolbar {
+		.agent-sessions-toolbar .action-item {
 			/* align with the title actions*/
 			margin-right: 4px;
 		}

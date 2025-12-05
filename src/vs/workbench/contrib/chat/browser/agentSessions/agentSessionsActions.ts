@@ -27,6 +27,7 @@ import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../.
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { AgentSessionsControl } from './agentSessionsControl.js';
 
 //#region Session Title Actions
 
@@ -313,7 +314,53 @@ export class FindAgentSessionAction extends ViewAction<AgentSessionsView> {
 
 //#endregion
 
-//#region Recent Sessions in Chat View Actions
+//#region Sessions Control Toolbar
+
+export class RefreshAgentSessionsViewerAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionsViewer.refresh',
+			title: localize2('refresh', "Refresh Agent Sessions"),
+			icon: Codicon.refresh,
+			menu: {
+				id: MenuId.AgentSessionsToolbar,
+				group: 'navigation',
+				order: 1,
+				when: ChatContextKeys.agentSessionsViewerExpanded
+			},
+		});
+	}
+
+	override run(accessor: ServicesAccessor, arg: unknown) {
+		if (arg instanceof AgentSessionsControl) {
+			arg.refresh();
+		}
+	}
+}
+
+export class FindAgentSessionInViewerAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'agentSessionsViewer.find',
+			title: localize2('find', "Find Agent Session"),
+			icon: Codicon.search,
+			menu: {
+				id: MenuId.AgentSessionsToolbar,
+				group: 'navigation',
+				order: 2,
+				when: ChatContextKeys.agentSessionsViewerExpanded
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor, arg: unknown) {
+		if (arg instanceof AgentSessionsControl) {
+			return arg.openFind();
+		}
+	}
+}
 
 abstract class UpdateChatViewWidthAction extends Action2 {
 
