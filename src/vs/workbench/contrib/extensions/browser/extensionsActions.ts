@@ -54,7 +54,7 @@ import { getErrorMessage, isCancellationError } from '../../../../base/common/er
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { errorIcon, infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon } from './extensionsIcons.js';
+import { errorIcon, infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon, favoriteIcon, favoriteFilledIcon } from './extensionsIcons.js';
 import { isIOS, isWeb, language } from '../../../../base/common/platform.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -2526,6 +2526,37 @@ export class ToggleSyncExtensionAction extends DropDownExtensionAction {
 					, undefined, true, () => this.extensionsWorkbenchService.toggleExtensionIgnoredToSync(this.extension!))
 			]
 		]);
+	}
+}
+
+export class ToggleFavoriteExtensionAction extends ExtensionAction {
+
+	static readonly ID = 'extensions.toggleFavorite';
+	private static readonly FAVORITE_CLASS = `${ExtensionAction.ICON_ACTION_CLASS} extension-favorite ${ThemeIcon.asClassName(favoriteFilledIcon)}`;
+	private static readonly NOT_FAVORITE_CLASS = `${ExtensionAction.ICON_ACTION_CLASS} extension-favorite ${ThemeIcon.asClassName(favoriteIcon)}`;
+
+	constructor(
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+	) {
+		super(ToggleFavoriteExtensionAction.ID, '', ToggleFavoriteExtensionAction.NOT_FAVORITE_CLASS, true);
+		this._register(this.extensionsWorkbenchService.onDidChangeFavorites(() => this.update()));
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = !!this.extension;
+		if (this.extension) {
+			const isFavorite = this.extensionsWorkbenchService.isFavorite(this.extension);
+			this.class = isFavorite ? ToggleFavoriteExtensionAction.FAVORITE_CLASS : ToggleFavoriteExtensionAction.NOT_FAVORITE_CLASS;
+			this.tooltip = isFavorite ? localize('remove from favorites', "Remove from Favorites") : localize('add to favorites', "Add to Favorites");
+			this.label = isFavorite ? localize('unfavorite', "Unfavorite") : localize('favorite', "Favorite");
+		}
+	}
+
+	override async run(): Promise<void> {
+		if (this.extension) {
+			await this.extensionsWorkbenchService.toggleFavorite(this.extension);
+		}
 	}
 }
 

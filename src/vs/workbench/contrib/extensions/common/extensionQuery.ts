@@ -9,7 +9,12 @@ import { EXTENSION_CATEGORIES } from '../../../../platform/extensions/common/ext
 
 export class Query {
 
-	constructor(public value: string, public sortBy: string) {
+	constructor(
+		public value: string,
+		public sortBy: string,
+		public minRating: number | undefined = undefined,
+		public minDownloads: number | undefined = undefined
+	) {
 		this.value = value.trim();
 	}
 
@@ -26,7 +31,7 @@ export class Query {
 			commands.push('category');
 		}
 
-		commands.push(...['tag', 'ext', 'id', 'outdated', 'recentlyUpdated']);
+		commands.push(...['tag', 'ext', 'id', 'outdated', 'recentlyUpdated', 'favorites', 'minRating', 'minDownloads']);
 		const sortCommands = [];
 		if (galleryManifest?.capabilities.extensionQuery?.sorting?.some(c => c.name === SortBy.InstallCount)) {
 			sortCommands.push('installs');
@@ -41,7 +46,9 @@ export class Query {
 			'category': isCategoriesEnabled ? EXTENSION_CATEGORIES.map(c => `"${c.toLowerCase()}"`) : [],
 			'tag': [''],
 			'ext': [''],
-			'id': ['']
+			'id': [''],
+			'minRating': ['3', '4', '4.5'],
+			'minDownloads': ['1000', '10000', '100000', '1000000']
 		} as const;
 
 		const queryContains = (substr: string) => query.indexOf(substr) > -1;
@@ -64,12 +71,50 @@ export class Query {
 
 	static parse(value: string): Query {
 		let sortBy = '';
+		let minRating: number | undefined;
+		let minDownloads: number | undefined;
+
 		value = value.replace(/@sort:(\w+)(-\w*)?/g, (match, by: string, order: string) => {
 			sortBy = by;
-
 			return '';
 		});
-		return new Query(value, sortBy);
+
+		value = value.replace(/@minRating:(\d+\.?\d*)/g, (match, rating: string) => {
+			const parsed = parseFloat(rating);
+			if (!isNaN(parsed) && parsed >= 0 && parsed <= 5) {
+				minRating = parsed;
+			}
+			return '';
+		});
+
+		value = value.replace(/@minDownloads:(\d+[kKmM]?)/g, (match, downloads: string) => {
+			minDownloads = Query.parseDownloadCount(downloads);
+			return '';
+		});
+
+		return new Query(value, sortBy, minRating, minDownloads);
+	}
+
+	/**
+	 * Parse download count string with K/M suffix support
+	 * e.g., "1000", "10K", "1M" -> number
+	 */
+	static parseDownloadCount(value: string): number | undefined {
+		const match = value.match(/^(\d+)([kKmM])?$/);
+		if (!match) {
+			return undefined;
+		}
+		let num = parseInt(match[1], 10);
+		if (isNaN(num)) {
+			return undefined;
+		}
+		const suffix = match[2]?.toLowerCase();
+		if (suffix === 'k') {
+			num *= 1000;
+		} else if (suffix === 'm') {
+			num *= 1000000;
+		}
+		return num;
 	}
 
 	toString(): string {
@@ -77,6 +122,12 @@ export class Query {
 
 		if (this.sortBy) {
 			result = `${result}${result ? ' ' : ''}@sort:${this.sortBy}`;
+		}
+		if (this.minRating !== undefined) {
+			result = `${result}${result ? ' ' : ''}@minRating:${this.minRating}`;
+		}
+		if (this.minDownloads !== undefined) {
+			result = `${result}${result ? ' ' : ''}@minDownloads:${this.minDownloads}`;
 		}
 		return result;
 	}
@@ -86,6 +137,9 @@ export class Query {
 	}
 
 	equals(other: Query): boolean {
-		return this.value === other.value && this.sortBy === other.sortBy;
+		return this.value === other.value
+			&& this.sortBy === other.sortBy
+			&& this.minRating === other.minRating
+			&& this.minDownloads === other.minDownloads;
 	}
 }

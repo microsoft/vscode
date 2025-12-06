@@ -302,6 +302,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				description: localize('extensionsSupportNodeGlobalNavigator', "When enabled, Node.js navigator object is exposed on the global scope."),
 				default: false,
 			},
+			'extensions.favorites': {
+				type: 'array',
+				items: {
+					type: 'string',
+					pattern: '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$'
+				},
+				description: localize('extensionsFavorites', "List of extension identifiers that are marked as favorites. Use the format 'publisher.name'."),
+				default: [],
+				scope: ConfigurationScope.APPLICATION,
+				tags: ['sync']
+			},
 			[ExtensionRequestsTimeoutConfigKey]: {
 				type: 'number',
 				description: localize('extensionsRequestTimeout', "Controls the timeout in milliseconds for HTTP requests made when fetching extensions from the Marketplace"),
@@ -1058,6 +1069,24 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			run: () => this.extensionsWorkbenchService.openSearch('@recentlyPublished ')
 		});
 
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.showFavoriteExtensions',
+			title: localize2('showFavoriteExtensions', 'Show Favorite Extensions'),
+			category: ExtensionsLocalizedLabel,
+			f1: true,
+			menu: [{
+				id: MenuId.CommandPalette,
+			}, {
+				id: extensionsFilterSubMenu,
+				group: '1_predefined',
+				order: 3,
+			}],
+			menuTitles: {
+				[extensionsFilterSubMenu.id]: localize('favorites filter', "Favorites")
+			},
+			run: () => this.extensionsWorkbenchService.openSearch('@favorites ')
+		});
+
 		const extensionsCategoryFilterSubMenu = new MenuId('extensionsCategoryFilterSubMenu');
 		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, {
 			submenu: extensionsCategoryFilterSubMenu,
@@ -1217,7 +1246,74 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				run: async () => {
 					const extensionsViewPaneContainer = ((await this.viewsService.openViewContainer(VIEWLET_ID, true))?.getViewPaneContainer()) as IExtensionsViewPaneContainer | undefined;
 					const currentQuery = Query.parse(extensionsViewPaneContainer?.searchValue ?? '');
-					extensionsViewPaneContainer?.search(new Query(currentQuery.value, id).toString());
+					extensionsViewPaneContainer?.search(new Query(currentQuery.value, id, currentQuery.minRating, currentQuery.minDownloads).toString());
+					extensionsViewPaneContainer?.focus();
+				}
+			});
+		});
+
+		// Minimum Rating Filter Submenu
+		const extensionsMinRatingFilterSubMenu = new MenuId('extensionsMinRatingFilterSubMenu');
+		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, {
+			submenu: extensionsMinRatingFilterSubMenu,
+			title: localize('filter by min rating', "Minimum Rating"),
+			when: CONTEXT_HAS_GALLERY,
+			group: '5_filters',
+			order: 1,
+		});
+
+		[
+			{ id: 'any', title: localize('rating any', "Any"), value: undefined },
+			{ id: '3', title: localize('rating 3 plus', "3+ Stars"), value: 3 },
+			{ id: '4', title: localize('rating 4 plus', "4+ Stars"), value: 4 },
+			{ id: '4.5', title: localize('rating 4.5 plus', "4.5+ Stars"), value: 4.5 },
+		].forEach(({ id, title, value }, index) => {
+			this.registerExtensionAction({
+				id: `extensions.filter.minRating.${id}`,
+				title,
+				menu: [{
+					id: extensionsMinRatingFilterSubMenu,
+					when: CONTEXT_HAS_GALLERY,
+					order: index,
+				}],
+				run: async () => {
+					const extensionsViewPaneContainer = ((await this.viewsService.openViewContainer(VIEWLET_ID, true))?.getViewPaneContainer()) as IExtensionsViewPaneContainer | undefined;
+					const currentQuery = Query.parse(extensionsViewPaneContainer?.searchValue ?? '');
+					extensionsViewPaneContainer?.search(new Query(currentQuery.value, currentQuery.sortBy, value, currentQuery.minDownloads).toString());
+					extensionsViewPaneContainer?.focus();
+				}
+			});
+		});
+
+		// Minimum Downloads Filter Submenu
+		const extensionsMinDownloadsFilterSubMenu = new MenuId('extensionsMinDownloadsFilterSubMenu');
+		MenuRegistry.appendMenuItem(extensionsFilterSubMenu, {
+			submenu: extensionsMinDownloadsFilterSubMenu,
+			title: localize('filter by min downloads', "Minimum Downloads"),
+			when: CONTEXT_HAS_GALLERY,
+			group: '5_filters',
+			order: 2,
+		});
+
+		[
+			{ id: 'any', title: localize('downloads any', "Any"), value: undefined },
+			{ id: '1k', title: localize('downloads 1k plus', "1K+"), value: 1000 },
+			{ id: '10k', title: localize('downloads 10k plus', "10K+"), value: 10000 },
+			{ id: '100k', title: localize('downloads 100k plus', "100K+"), value: 100000 },
+			{ id: '1m', title: localize('downloads 1m plus', "1M+"), value: 1000000 },
+		].forEach(({ id, title, value }, index) => {
+			this.registerExtensionAction({
+				id: `extensions.filter.minDownloads.${id}`,
+				title,
+				menu: [{
+					id: extensionsMinDownloadsFilterSubMenu,
+					when: CONTEXT_HAS_GALLERY,
+					order: index,
+				}],
+				run: async () => {
+					const extensionsViewPaneContainer = ((await this.viewsService.openViewContainer(VIEWLET_ID, true))?.getViewPaneContainer()) as IExtensionsViewPaneContainer | undefined;
+					const currentQuery = Query.parse(extensionsViewPaneContainer?.searchValue ?? '');
+					extensionsViewPaneContainer?.search(new Query(currentQuery.value, currentQuery.sortBy, currentQuery.minRating, value).toString());
 					extensionsViewPaneContainer?.focus();
 				}
 			});
@@ -1792,6 +1888,24 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				order: 1
 			},
 			run: async (accessor: ServicesAccessor, id: string) => accessor.get(IExtensionIgnoredRecommendationsService).toggleGlobalIgnoredRecommendation(id, false)
+		});
+
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.toggleFavorite',
+			title: localize2('workbench.extensions.action.toggleFavorite', "Toggle Favorite"),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '3_recommendations',
+				when: ContextKeyExpr.has('isBuiltinExtension').negate(),
+				order: 3
+			},
+			run: async (accessor: ServicesAccessor, id: string) => {
+				const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+				const extensions = await extensionsWorkbenchService.getExtensions([{ id }], CancellationToken.None);
+				if (extensions.length > 0) {
+					await extensionsWorkbenchService.toggleFavorite(extensions[0]);
+				}
+			}
 		});
 
 		this.registerExtensionAction({

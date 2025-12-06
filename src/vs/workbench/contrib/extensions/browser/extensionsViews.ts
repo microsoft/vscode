@@ -300,6 +300,10 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			return { model, disposables: new DisposableStore() };
 		}
 
+		if (ExtensionsListView.isFavoritesQuery(query.value)) {
+			return this.queryFavorites(query, options, token);
+		}
+
 		if (ExtensionsListView.isLocalExtensionsQuery(query.value, query.sortBy)) {
 			return this.queryLocal(query, options);
 		}
@@ -330,6 +334,34 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		}
 
 		return new PagedModel(result);
+	}
+
+	private async queryFavorites(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IQueryResult> {
+		const favoriteIds = this.extensionsWorkbenchService.getFavorites();
+		if (!favoriteIds.length) {
+			return { model: new PagedModel([]), disposables: new DisposableStore() };
+		}
+
+		// First get locally installed favorites
+		const local = await this.extensionsWorkbenchService.queryLocal(this.options.server);
+		const localFavorites = local.filter(e => favoriteIds.some(id => areSameExtensions(e.identifier, { id })));
+
+		// Get favorites that are not installed locally from the gallery
+		const notInstalledIds = favoriteIds.filter(id => !localFavorites.some(e => areSameExtensions(e.identifier, { id })));
+		let galleryFavorites: IExtension[] = [];
+		if (notInstalledIds.length) {
+			try {
+				galleryFavorites = await this.extensionsWorkbenchService.getExtensions(notInstalledIds.map(id => ({ id })), { source: 'favorites' }, token);
+			} catch (error) {
+				// Ignore errors when fetching from gallery
+				this.logService.warn('Failed to fetch favorite extensions from gallery', error);
+			}
+		}
+
+		let extensions = [...localFavorites, ...galleryFavorites];
+		extensions = this.sortExtensions(extensions, options);
+
+		return { model: new PagedModel(extensions), disposables: new DisposableStore() };
 	}
 
 	private async queryLocal(query: Query, options: IQueryOptions): Promise<IQueryResult> {
@@ -411,6 +443,9 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		else if (includeBuiltin) {
 			extensions = this.filterBuiltinExtensions(local, query, options);
 		}
+
+		// Apply rating and downloads filters
+		extensions = this.filterExtensionsByRatingAndDownloads(extensions, query);
 
 		return { extensions, canIncludeInstalledExtensions, description };
 	}
@@ -729,8 +764,29 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			options.sortBy = GallerySortBy.InstallCount;
 		}
 
+		const hasRatingOrDownloadsFilter = query.minRating !== undefined || query.minDownloads !== undefined;
+
+		// Helper to apply rating/downloads filter to a pager
+		const applyFilters = (pager: IPager<IExtension>): IPager<IExtension> => {
+			if (hasRatingOrDownloadsFilter) {
+				return createFilteredExtensionsPager(pager, query.minRating, query.minDownloads);
+			}
+			return pager;
+		};
+
 		if (this.isRecommendationsQuery(query)) {
 			const model = await this.queryRecommendations(query, options, token);
+			if (hasRatingOrDownloadsFilter) {
+				// For recommendations, filter the already-loaded model
+				const allExtensions: IExtension[] = [];
+				for (let i = 0; i < model.length; i++) {
+					if (model.isResolved(i)) {
+						allExtensions.push(model.get(i));
+					}
+				}
+				const filtered = this.filterExtensionsByRatingAndDownloads(allExtensions, query);
+				return { model: new PagedModel(filtered), disposables: new DisposableStore() };
+			}
 			return { model, disposables: new DisposableStore() };
 		}
 
@@ -739,14 +795,14 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		if (!text) {
 			options.source = 'viewlet';
 			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
-			return { model: new PagedModel(pager), disposables: new DisposableStore() };
+			return { model: new PagedModel(applyFilters(pager)), disposables: new DisposableStore() };
 		}
 
 		if (/\bext:([^\s]+)\b/g.test(text)) {
 			options.text = text;
 			options.source = 'file-extension-tags';
 			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
-			return { model: new PagedModel(pager), disposables: new DisposableStore() };
+			return { model: new PagedModel(applyFilters(pager)), disposables: new DisposableStore() };
 		}
 
 		options.text = text.substring(0, 350);
@@ -754,7 +810,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 
 		if (hasUserDefinedSortOrder || /\b(category|tag):([^\s]+)\b/gi.test(text) || /\bfeatured(\s+|\b|$)/gi.test(text)) {
 			const pager = await this.extensionsWorkbenchService.queryGallery(options, token);
-			return { model: new PagedModel(pager), disposables: new DisposableStore() };
+			return { model: new PagedModel(applyFilters(pager)), disposables: new DisposableStore() };
 		}
 
 		try {
@@ -763,7 +819,12 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 				this.getPreferredExtensions(options.text.toLowerCase(), token).catch(() => [])
 			]);
 
-			const model = preferredExtensions.length ? new PreferredExtensionsPagedModel(preferredExtensions, pager) : new PagedModel(pager);
+			const filteredPager = applyFilters(pager);
+			const filteredPreferred = hasRatingOrDownloadsFilter
+				? this.filterExtensionsByRatingAndDownloads(preferredExtensions, query)
+				: preferredExtensions;
+
+			const model = filteredPreferred.length ? new PreferredExtensionsPagedModel(filteredPreferred, filteredPager) : new PagedModel(filteredPager);
 			return { model, disposables: new DisposableStore() };
 		} catch (error) {
 			if (isCancellationError(error)) {
@@ -775,7 +836,10 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			}
 
 			const searchText = options.text.toLowerCase();
-			const localExtensions = this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && (e.name.toLowerCase().indexOf(searchText) > -1 || e.displayName.toLowerCase().indexOf(searchText) > -1 || e.description.toLowerCase().indexOf(searchText) > -1));
+			let localExtensions = this.extensionsWorkbenchService.local.filter(e => !e.isBuiltin && (e.name.toLowerCase().indexOf(searchText) > -1 || e.displayName.toLowerCase().indexOf(searchText) > -1 || e.description.toLowerCase().indexOf(searchText) > -1));
+			if (hasRatingOrDownloadsFilter) {
+				localExtensions = this.filterExtensionsByRatingAndDownloads(localExtensions, query);
+			}
 			if (localExtensions.length) {
 				const message = this.getMessage(error);
 				return { model: new PagedModel(localExtensions), disposables: new DisposableStore(), message: { text: localize('showing local extensions only', "{0} Showing local extensions.", message.text), severity: message.severity } };
@@ -854,6 +918,29 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			extensions = extensions.reverse();
 		}
 		return extensions;
+	}
+
+	/**
+	 * Filter extensions by minimum rating and minimum download count
+	 */
+	private filterExtensionsByRatingAndDownloads(extensions: IExtension[], query: Query): IExtension[] {
+		let result = extensions;
+
+		if (query.minRating !== undefined) {
+			result = result.filter(e => {
+				const rating = e.rating;
+				return typeof rating === 'number' && rating >= query.minRating!;
+			});
+		}
+
+		if (query.minDownloads !== undefined) {
+			result = result.filter(e => {
+				const installCount = e.installCount;
+				return typeof installCount === 'number' && installCount >= query.minDownloads!;
+			});
+		}
+
+		return result;
 	}
 
 	private isRecommendationsQuery(query: Query): boolean {
@@ -1265,6 +1352,10 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		return /@feature:/i.test(query);
 	}
 
+	static isFavoritesQuery(query: string): boolean {
+		return /@favorites/i.test(query);
+	}
+
 	override focus(): void {
 		super.focus();
 		if (!this.list) {
@@ -1551,6 +1642,44 @@ export class WorkspaceRecommendedExtensionsView extends ExtensionsListView imple
 		}
 	}
 
+}
+
+/**
+ * A pager wrapper that filters extensions by rating and download count.
+ * Since filtering happens client-side, we need to fetch more pages to fill the requested page size.
+ */
+export function createFilteredExtensionsPager(
+	pager: IPager<IExtension>,
+	minRating: number | undefined,
+	minDownloads: number | undefined
+): IPager<IExtension> {
+	const filterExtension = (e: IExtension): boolean => {
+		if (minRating !== undefined) {
+			const rating = e.rating;
+			if (typeof rating !== 'number' || rating < minRating) {
+				return false;
+			}
+		}
+		if (minDownloads !== undefined) {
+			const installCount = e.installCount;
+			if (typeof installCount !== 'number' || installCount < minDownloads) {
+				return false;
+			}
+		}
+		return true;
+	};
+
+	const filteredFirstPage = pager.firstPage.filter(filterExtension);
+
+	return {
+		firstPage: filteredFirstPage,
+		total: pager.total, // Note: total is approximate since we can't know how many will pass filter
+		pageSize: pager.pageSize,
+		getPage: async (pageIndex: number, token: CancellationToken): Promise<IExtension[]> => {
+			const page = await pager.getPage(pageIndex, token);
+			return page.filter(filterExtension);
+		}
+	};
 }
 
 export class PreferredExtensionsPagedModel implements IPagedModel<IExtension> {

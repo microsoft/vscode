@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, privateExtensionIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon } from './extensionsIcons.js';
+import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIcon, privateExtensionIcon, ratingIcon, remoteIcon, sponsorIcon, starEmptyIcon, starFullIcon, starHalfIcon, syncIgnoredIcon, warningIcon, favoriteFilledIcon } from './extensionsIcons.js';
 import { registerColor, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -471,6 +471,41 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 			this.element = append(this.parent, $('div.extension-bookmark'));
 			const preRelease = append(this.element, $('.pre-release'));
 			append(preRelease, $('span' + ThemeIcon.asCSSSelector(preReleaseIcon)));
+		}
+	}
+
+}
+
+export class FavoriteWidget extends ExtensionWidget {
+
+	private element?: HTMLElement;
+	private readonly disposables = this._register(new DisposableStore());
+
+	constructor(
+		private parent: HTMLElement,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super();
+		this.render();
+		this._register(toDisposable(() => this.clear()));
+		this._register(this.extensionsWorkbenchService.onDidChangeFavorites(() => this.render()));
+	}
+
+	private clear(): void {
+		this.element?.remove();
+		this.element = undefined;
+		this.disposables.clear();
+	}
+
+	render(): void {
+		this.clear();
+		if (!this.extension) {
+			return;
+		}
+		if (this.extensionsWorkbenchService.isFavorite(this.extension)) {
+			this.element = append(this.parent, $('div.extension-bookmark'));
+			const favorite = append(this.element, $('.favorite'));
+			append(favorite, $('span' + ThemeIcon.asCSSSelector(favoriteFilledIcon)));
 		}
 	}
 
