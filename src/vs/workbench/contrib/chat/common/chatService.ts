@@ -1058,7 +1058,7 @@ export interface IChatService {
 
 	readonly onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
-	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI; readonly reason: 'cleared' }>;
+	readonly onDidDisposeSession: Event<{ readonly sessionResource: URI[]; readonly reason: 'cleared' }>;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 
