@@ -5,36 +5,14 @@
 
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
+import { SESSIONS_SECRET_KEY, SLACK_AUTH_PROVIDER_ID, SLACK_AUTH_PROVIDER_LABEL, SLACK_CLIENT_ID, SLACK_CLIENT_SECRET, SLACK_REDIRECT_URI, SLACK_SCOPES } from './authVariables';
 
-export const SLACK_AUTH_PROVIDER_ID = 'slack';
-
-const SLACK_AUTH_PROVIDER_LABEL = 'Slack';
-const SESSIONS_SECRET_KEY = 'slack.sessions';
-
-// These values come from the slack app
-const SLACK_CLIENT_ID = process.env.SLACK_CLIENT_ID || '';
-const SLACK_CLIENT_SECRET = process.env.SLACK_CLIENT_SECRET || '';
-
-// Deployed the oauth-redirect/index.html to Vercel
-const SLACK_REDIRECT_URI = process.env.SLACK_REDIRECT_URI || '';
-
-const SLACK_SCOPES = [
-    'channels:history',
-    'channels:read',
-    'groups:history',
-    'groups:read',
-    'users:read',
-    'im:history',
-    'im:read'
-].join(',');
-
-// Pending authentication state
-interface PendingAuth {
-    resolve: (userInfo: IUserInfo) => void;
+interface IPendingAuthentication {
+    resolve: (userInfo: IUserCredentials) => void;
     reject: (error: Error) => void;
 }
 
-interface IUserInfo {
+interface IUserCredentials {
     token: string;
     userId: string;
 }
@@ -48,7 +26,7 @@ interface ITokenFetchResponse {
     error?: string;
 }
 
-interface ISlackUserProfile {
+interface IUserFetchResponse {
     ok: boolean;
     user: {
         id: string;
@@ -59,27 +37,27 @@ interface ISlackUserProfile {
 
 export class SlackAuthenticationProvider implements vscode.AuthenticationProvider, vscode.Disposable {
 
-    private _sessionChangeEmitter = new vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-    private _disposable: vscode.Disposable;
-    private _sessions: vscode.AuthenticationSession[] = [];
-    private _pendingAuth: PendingAuth | undefined;
-    private _initialSessionLoad: Promise<void>;
+    private _onDidChangeSessions: vscode.EventEmitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent> = new vscode.EventEmitter();
+    public onDidChangeSessions: vscode.Event<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
+
+    private _disposables: vscode.Disposable;
+    private _sessions: Promise<vscode.AuthenticationSession[]> | vscode.AuthenticationSession[] = [];
+    private _pendingAuth: IPendingAuthentication | undefined;
 
     constructor(private readonly context: vscode.ExtensionContext) {
-        this._disposable = vscode.Disposable.from(
+        this._disposables = vscode.Disposable.from(
             vscode.authentication.registerAuthenticationProvider(
                 SLACK_AUTH_PROVIDER_ID,
                 SLACK_AUTH_PROVIDER_LABEL,
                 this,
                 { supportsMultipleAccounts: false }
             ),
-            // Register URI handler for OAuth callback
             vscode.window.registerUriHandler(this)
         );
-        this._initialSessionLoad = this._loadSessionsOnStart();
+        this._sessions = this._loadSessionsOnStart();
     }
 
-    // URI Handler implementation - handles vscode-insiders://vs-code-codereview.vs-code-codereview/callback
+    // URI Handler handles vscode-insiders://vs-code-codereview.vs-code-codereview/callback
     public async handleUri(uri: vscode.Uri): Promise<void> {
         const query = new URLSearchParams(uri.query);
         const code = query.get('code');
@@ -88,79 +66,75 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
             vscode.window.showErrorMessage('No pending authentication request. Please try signing in again.');
             return;
         }
-        if (code) {
-            try {
-                vscode.window.showInformationMessage('Completing Slack authentication...');
-                const userInfo = await this._exchangeCodeForTokenAndID(code);
-                this._pendingAuth.resolve(userInfo);
-                vscode.window.showInformationMessage('Successfully signed in to Slack!');
-            } catch (err) {
-                const errorMessage = err instanceof Error ? err.message : 'Token exchange failed';
-                vscode.window.showErrorMessage(`Slack authentication failed: ${errorMessage}`);
-                this._pendingAuth.reject(err instanceof Error ? err : new Error(errorMessage));
-            }
-            this._pendingAuth = undefined;
+        if (!code) {
+            vscode.window.showErrorMessage('Error with the callback. Please try signing in again.');
+            return;
         }
+        try {
+            vscode.window.showInformationMessage('Completing Slack authentication...');
+            const userCredentials = await this._exchangeCodeForCredentials(code);
+            this._pendingAuth.resolve(userCredentials);
+            vscode.window.showInformationMessage('Successfully signed in to Slack!');
+        } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : 'Token exchange failed';
+            vscode.window.showErrorMessage(`Slack authentication failed: ${errorMessage}`);
+            this._pendingAuth.reject(new Error(errorMessage));
+        }
+        this._pendingAuth = undefined;
     }
 
-    get onDidChangeSessions(): vscode.Event<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent> {
-        return this._sessionChangeEmitter.event;
-    }
-
-    async getSessions(): Promise<vscode.AuthenticationSession[]> {
-        await this._initialSessionLoad;
+    public async getSessions(): Promise<vscode.AuthenticationSession[]> {
         return this._sessions;
     }
 
-    async createSession(scopes: readonly string[]): Promise<vscode.AuthenticationSession> {
+    public async createSession(scopes: readonly string[]): Promise<vscode.AuthenticationSession> {
         try {
-            const userInfo = await this._login();
-            if (!userInfo) {
+            const sessions = await this._sessions;
+            const userCredentials = await this._login();
+            if (!userCredentials) {
                 throw new Error('Slack login failed');
             }
-            const userName = await this._getUserName(userInfo);
+            const name = await this._getUserName(userCredentials);
             const session: vscode.AuthenticationSession = {
                 id: crypto.randomUUID(),
-                accessToken: userInfo.token,
+                accessToken: userCredentials.token,
                 account: {
-                    id: userInfo.userId,
-                    label: userName
+                    id: userCredentials.userId,
+                    label: name
                 },
-                scopes: scopes as string[]
+                scopes
             };
-
-            this._sessions.push(session);
-            await this._storeSessions();
-            this._sessionChangeEmitter.fire({
+            sessions.push(session);
+            await this._updateSessions(sessions);
+            this._onDidChangeSessions.fire({
                 added: [session],
                 removed: [],
                 changed: []
             });
-
             return session;
         } catch (error) {
-            vscode.window.showErrorMessage(`Slack sign in failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            vscode.window.showErrorMessage(`Slack sign in failed: ${error.message}`);
             throw error;
         }
     }
 
-    async removeSession(sessionId: string): Promise<void> {
-        const sessionIndex = this._sessions.findIndex(s => s.id === sessionId);
+    public async removeSession(sessionId: string): Promise<void> {
+        const sessions = await this._sessions;
+        const sessionIndex = sessions.findIndex(s => s.id === sessionId);
         if (sessionIndex < 0) {
             return;
         }
-        const removed = this._sessions.splice(sessionIndex, 1);
-        await this._storeSessions();
-        this._sessionChangeEmitter.fire({
+        const removed = sessions.splice(sessionIndex, 1);
+        await this._updateSessions(sessions);
+        this._onDidChangeSessions.fire({
             added: [],
             removed: removed,
             changed: []
         });
     }
 
-    private async _login(): Promise<IUserInfo | undefined> {
+    private async _login(): Promise<IUserCredentials | undefined> {
         return new Promise((resolve, reject) => {
-            // Store the pending auth request
             this._pendingAuth = { resolve, reject };
 
             // Open the Slack authorization URL in the browser
@@ -179,16 +153,16 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
         });
     }
 
-    private async _exchangeCodeForTokenAndID(code: string): Promise<IUserInfo> {
+    private async _exchangeCodeForCredentials(code: string): Promise<IUserCredentials> {
         const response = await fetch('https://slack.com/api/oauth.v2.access', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
             body: new URLSearchParams({
+                code,
                 client_id: SLACK_CLIENT_ID,
                 client_secret: SLACK_CLIENT_SECRET,
-                code: code,
                 redirect_uri: SLACK_REDIRECT_URI
             })
         });
@@ -202,29 +176,30 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
         };
     }
 
-    private async _getUserName(userInfo: IUserInfo): Promise<string> {
+    private async _getUserName(userInfo: IUserCredentials): Promise<string> {
         const userResponse = await fetch(`https://slack.com/api/users.info?user=${userInfo.userId}`, {
             headers: {
                 'Authorization': `Bearer ${userInfo.token}`
             }
         });
-        const userData = await userResponse.json() as ISlackUserProfile;
+        const userData = await userResponse.json() as IUserFetchResponse;
         if (!userData.ok) {
-            return 'Slack Code Review Extension';
+            return 'Slack Code Review';
         }
         return userData.user.name;
     }
 
-    private async _loadSessionsOnStart(): Promise<void> {
+    private async _loadSessionsOnStart(): Promise<vscode.AuthenticationSession[]> {
         return this._loadSessions().then((sessions: vscode.AuthenticationSession[]) => {
             this._sessions = sessions;
             if (this._sessions.length > 0) {
-                this._sessionChangeEmitter.fire({
+                this._onDidChangeSessions.fire({
                     added: this._sessions,
                     removed: [],
                     changed: []
                 });
             }
+            return sessions;
         });
     }
 
@@ -240,11 +215,12 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
         }
     }
 
-    private async _storeSessions(): Promise<void> {
-        await this.context.secrets.store(SESSIONS_SECRET_KEY, JSON.stringify(this._sessions));
+    private async _updateSessions(sessions: vscode.AuthenticationSession[]): Promise<void> {
+        this._sessions = sessions;
+        await this.context.secrets.store(SESSIONS_SECRET_KEY, JSON.stringify(sessions));
     }
 
     dispose(): void {
-        this._disposable.dispose();
+        this._disposables.dispose();
     }
 }

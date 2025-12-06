@@ -6,10 +6,10 @@
 import * as vscode from 'vscode';
 import { WebClient, ConversationsHistoryResponse, ConversationsListResponse, UsersInfoResponse } from '@slack/web-api';
 import { SlackMessage } from './treeDataProvider';
-import { SLACK_AUTH_PROVIDER_ID } from './authenticationProvider';
 import { MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
+import { SLACK_AUTH_PROVIDER_ID } from './authVariables';
 
-const SLACK_CODE_REVIEW_CHANNEL_ID_KEY = 'slack-code-review-channel-id';
+const SLACK_CODE_REVIEW_CHANNEL_ID_KEY = 'slack-codereview-channel-id';
 const CODE_REVIEW_CHANNEL_NAME = 'codereview';
 
 interface IPullRequest {
@@ -23,7 +23,7 @@ interface IPullRequest {
     changedFiles?: number;
 }
 
-interface IFetchedPullRequestInfo {
+interface IFetchedPullRequestResponse {
     title?: string;
     user?: { login: string };
     additions?: number;
@@ -33,46 +33,39 @@ interface IFetchedPullRequestInfo {
 
 export class SlackService {
 
-    private client: Promise<WebClient | undefined> | undefined;
+    private _onSignIn: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
+    readonly onSignIn: vscode.Event<void> = this._onSignIn.event;
 
-    private userCache: Map<string, string> = new Map();
-    private prCache: Map<string, IPullRequest> = new Map();
+    private _onSignOut: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
+    readonly onSignOut: vscode.Event<void> = this._onSignOut.event;
 
-    private cachedChannelId: string | undefined;
-    private githubToken: string | undefined;
+    private readonly _userCache: Map<string, string> = new Map();
+    private readonly _pullRequestCache: Map<string, IPullRequest> = new Map();
+
+    private _client: Promise<WebClient | undefined> | undefined;
+    private _cachedChannelId: string | undefined;
+    private _githubToken: string | undefined;
 
     constructor(private readonly _context: vscode.ExtensionContext) {
         vscode.authentication.onDidChangeSessions(async (e) => {
-            if (e.provider.id !== 'slack') {
+            if (e.provider.id !== SLACK_AUTH_PROVIDER_ID) {
                 return;
             }
-            this._updateSession();
+            this._onSessionUpdate();
         });
-        this._updateSession();
+        this._onSessionUpdate();
     }
 
-    public async isAuthenticated(): Promise<boolean> {
-        return !!(await this.client);
+    public async waitUntilAuthenticationStatus(): Promise<boolean> {
+        return !!(await this._client);
     }
 
-    public async signIn(): Promise<boolean> {
-        try {
-            await this._updateSession(true, false);
-            return this.isAuthenticated();
-        } catch {
-            return false;
-        }
-    }
-
-    public async onSignOut(): Promise<void> {
-        await this._context.secrets.delete(SLACK_CODE_REVIEW_CHANNEL_ID_KEY);
-        this.client = undefined;
-        this.userCache.clear();
-        this.cachedChannelId = undefined;
+    public signIn(): void {
+        this._onSessionUpdate(true);
     }
 
     public async getMessages(): Promise<SlackMessage[]> {
-        const client = await this.client;
+        const client = await this._client;
         if (!client) {
             return [];
         }
@@ -102,89 +95,100 @@ export class SlackService {
         }
     }
 
-    // ---
+    private async _onSessionUpdate(createIfNone: boolean = false) {
+        this._client = Promise.resolve(this._getSession(createIfNone)).then(session => {
+            if (!session) {
+                this._userCache.clear();
+                this._pullRequestCache.clear();
+                this._cachedChannelId = undefined;
+                this._context.secrets.delete(SLACK_CODE_REVIEW_CHANNEL_ID_KEY);
+                this._onSignOut.fire();
+                return undefined;
+            } else {
+                this._onSignIn.fire();
+                return new WebClient(session.accessToken);
+            }
+        });
+    }
+
+    private _getSession(createIfNone: boolean = false): Thenable<vscode.AuthenticationSession | undefined> {
+        return vscode.authentication.getSession(SLACK_AUTH_PROVIDER_ID, [], { createIfNone });
+    }
 
     private async _toSlackMessage(message: MessageElement): Promise<SlackMessage | undefined> {
-        if (!message.ts || !message.user) {
+        if (!message.ts || !message.user || !message.text) {
             return undefined;
         }
-        const text = message.text || '';
+        const id = message.ts;
+        const text = message.text;
         const prUrl = this._extractPullRequestUrl(text);
         const timestamp = this._timestampToISO(message.ts);
-        const author = await this._getUserName(message.user);
+        const author = await this._getAuthor(message.user);
         if (!prUrl) {
             return {
-                id: message.ts,
+                id,
                 author,
                 text,
                 timestamp
             };
         }
-        const prInfo = await this._fetchCachedPullRequestInfo(prUrl);
+        const pullRequest = await this._fetchCachedPullRequest(prUrl);
+        if (!pullRequest) {
+            return {
+                id,
+                author,
+                text,
+                timestamp
+            };
+        }
         const slackMessage: SlackMessage = {
-            id: message.ts,
+            id,
             author,
             text,
             timestamp,
-            pr: prInfo ? {
+            pr: {
                 url: prUrl,
-                title: prInfo.title,
-                author: prInfo.author,
-                owner: prInfo.owner,
-                repo: prInfo.repo,
-                number: prInfo.number,
-                additions: prInfo.additions,
-                deletions: prInfo.deletions,
-                changedFiles: prInfo.changedFiles,
-            } : undefined,
+                title: pullRequest.title,
+                author: pullRequest.author,
+                owner: pullRequest.owner,
+                repo: pullRequest.repo,
+                number: pullRequest.number,
+                additions: pullRequest.additions,
+                deletions: pullRequest.deletions,
+                changedFiles: pullRequest.changedFiles,
+            }
         };
         return slackMessage;
     }
 
-    private async _updateSession(createIfNone: boolean = false, silent: boolean = true) {
-        try {
-            this.client = new Promise((resolve) => {
-                vscode.authentication.getSession(SLACK_AUTH_PROVIDER_ID, [], { createIfNone, silent }).then(session => {
-                    if (session) {
-                        resolve(new WebClient(session.accessToken));
-                    } else {
-                        resolve(undefined);
-                    }
-                });
-            });
-        } catch (error) {
-            console.error('Failed to update Slack session:', error);
-        }
-    }
-
     private async _getGitHubToken(): Promise<string | undefined> {
-        if (this.githubToken) {
-            return this.githubToken;
+        if (this._githubToken) {
+            return this._githubToken;
         }
         try {
-            const session = await vscode.authentication.getSession('github', ['repo'], { createIfNone: true, silent: true });
-            this.githubToken = session.accessToken;
-            return this.githubToken;
+            const session = await vscode.authentication.getSession('github', ['repo'], { createIfNone: true });
+            this._githubToken = session.accessToken;
+            return this._githubToken;
         } catch (error) {
-            console.error('GitHub authentication failed:', error);
+            console.log(`GitHub authentication failed: ${error}`);
         }
         return undefined;
     }
 
     private async _getCodeReviewChannelId(): Promise<string | undefined> {
-        if (this.cachedChannelId) {
-            return this.cachedChannelId;
+        if (this._cachedChannelId) {
+            return this._cachedChannelId;
         }
         const storedId = await this._context.secrets.get(SLACK_CODE_REVIEW_CHANNEL_ID_KEY);
         if (storedId) {
-            this.cachedChannelId = storedId;
-            return this.cachedChannelId;
+            this._cachedChannelId = storedId;
+            return this._cachedChannelId;
         }
         return this._findCodeReviewChannel();
     }
 
     private async _findCodeReviewChannel(): Promise<string | undefined> {
-        const client = await this.client;
+        const client = await this._client;
         if (!client) {
             return undefined;
         }
@@ -200,8 +204,8 @@ export class SlackService {
                     for (const channel of result.channels) {
                         if (channel.id && channel.name === CODE_REVIEW_CHANNEL_NAME) {
                             await this._context.secrets.store(SLACK_CODE_REVIEW_CHANNEL_ID_KEY, channel.id);
-                            this.cachedChannelId = channel.id;
-                            return this.cachedChannelId;
+                            this._cachedChannelId = channel.id;
+                            return this._cachedChannelId;
                         }
                     }
                 }
@@ -214,43 +218,43 @@ export class SlackService {
         }
     }
 
-    private async _getUserName(userId: string): Promise<string> {
-        if (this.userCache.has(userId)) {
-            return this.userCache.get(userId)!;
+    private async _getAuthor(userId: string): Promise<string> {
+        if (this._userCache.has(userId)) {
+            return this._userCache.get(userId)!;
         }
-        const client = await this.client;
+        const client = await this._client;
         if (!client) {
-            return userId;
+            return '';
         }
         try {
             const result: UsersInfoResponse = await client.users.info({ user: userId });
-            const name = result.user?.real_name || result.user?.name || userId;
-            this.userCache.set(userId, name);
-            return name;
+            const author = result.user?.real_name || result.user?.name || '';
+            this._userCache.set(userId, author);
+            return author;
         } catch {
-            return userId;
+            return '';
         }
     }
 
-    private async _fetchCachedPullRequestInfo(prUrl: string): Promise<IPullRequest | undefined> {
-        if (this.prCache.has(prUrl)) {
-            return this.prCache.get(prUrl);
+    private async _fetchCachedPullRequest(pullRequestUrl: string): Promise<IPullRequest | undefined> {
+        if (this._pullRequestCache.has(pullRequestUrl)) {
+            return this._pullRequestCache.get(pullRequestUrl);
         }
         try {
-            const prInfo = await this._fetchPullRequestInfo(prUrl);
-            if (!prInfo) {
+            const pullRequest = await this._fetchPullRequest(pullRequestUrl);
+            if (!pullRequest) {
                 return undefined;
             }
-            this.prCache.set(prUrl, prInfo);
-            return prInfo;
+            this._pullRequestCache.set(pullRequestUrl, pullRequest);
+            return pullRequest;
         } catch (error) {
             console.error('Failed to fetch PR info:', error);
             return undefined;
         }
     }
 
-    private async _fetchPullRequestInfo(prUrl: string): Promise<IPullRequest | undefined> {
-        const githubMatch = prUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
+    private async _fetchPullRequest(pullRequestUrl: string): Promise<IPullRequest | undefined> {
+        const githubMatch = pullRequestUrl.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
         if (!githubMatch) {
             return undefined;
         }
@@ -266,14 +270,15 @@ export class SlackService {
         const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`, {
             headers
         });
+        const parsedPrNumber = parseInt(prNumber, 10);
         if (response.ok) {
-            const data = await response.json() as IFetchedPullRequestInfo;
+            const data = await response.json() as IFetchedPullRequestResponse;
             return {
-                title: data.title || `PR #${prNumber}`,
-                author: data.user?.login,
                 owner: owner,
                 repo: repo,
-                number: parseInt(prNumber, 10),
+                number: parsedPrNumber,
+                title: data.title || `PR #${prNumber}`,
+                author: data.user?.login,
                 additions: data.additions,
                 deletions: data.deletions,
                 changedFiles: data.changed_files
@@ -283,29 +288,14 @@ export class SlackService {
             title: `PR #${prNumber}`,
             owner: owner,
             repo: repo,
-            number: parseInt(prNumber, 10)
+            number: parsedPrNumber
         };
     }
 
     private _extractPullRequestUrl(text: string): string | undefined {
-        const slackUrlPattern = /<(https?:\/\/[^|>]+)(?:\|[^>]*)?>|(?:^|\s)(https?:\/\/[^\s<]+)/g;
-        const prPattern = /github\.com\/[^/]+\/[^/]+\/pull\/\d+/;
-
-        let match;
-        while ((match = slackUrlPattern.exec(text)) !== null) {
-            const url = match[1] || match[2];
-            if (url) {
-                if (prPattern.test(url)) {
-                    return url;
-                }
-            }
-        }
-        // Also try to find URLs directly in the text (without Slack formatting)
-        const directMatch = text.match(new RegExp(`https?://[^\\s]*${prPattern.source}[^\\s]*`));
-        if (directMatch) {
-            return directMatch[0];
-        }
-        return undefined;
+        // Single pattern that matches GitHub PR URLs in both Slack-formatted (<url|text>) and plain text
+        const match = text.match(/<(https?:\/\/[^|>]*github\.com\/[^/]+\/[^/]+\/pull\/\d+[^|>]*)(?:\|[^>]*)?>|(https?:\/\/\S*github\.com\/[^/]+\/[^/]+\/pull\/\d+\S*)/);
+        return match ? (match[1] || match[2]) : undefined;
     }
 
     private _timestampToISO(ts: string): string {

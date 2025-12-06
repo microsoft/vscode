@@ -6,67 +6,24 @@
 import * as vscode from 'vscode';
 import { SlackTreeDataProvider } from './treeDataProvider';
 
-import { SlackService } from './service';
 
 export class SlackView extends vscode.Disposable {
 
 	private readonly SLACK_CODE_REVIEW_VIEW_ID = 'codereview-slack-messages';
-	private readonly REFRESH_INTERVAL_MS = 60000;
-
-	private readonly _onDidChangeSessions: vscode.Disposable;
 
 	private _treeView: vscode.TreeView<any>;
-	private _autoRefresh: vscode.Disposable | undefined;
 
-	constructor(
-		private readonly slackService: SlackService,
-		private readonly slackTreeDataProvider: SlackTreeDataProvider
-	) {
+	constructor(slackTreeDataProvider: SlackTreeDataProvider) {
 		super(() => this.dispose());
 		this._treeView = vscode.window.createTreeView(this.SLACK_CODE_REVIEW_VIEW_ID, { treeDataProvider: slackTreeDataProvider });
 		slackTreeDataProvider.onDidChangeMessageCount((count) => this._onMessageCountChanged(count));
-		this._onDidChangeSessions = vscode.authentication.onDidChangeSessions(async (e) => this._onDidChangeSession(e));
-		this._updateSession();
 	}
 
 	private _onMessageCountChanged(count: number) {
 		this._treeView.badge = count > 0 ? { value: count, tooltip: `${count} code review message${count !== 1 ? 's' : ''}` } : undefined;
 	}
 
-	private async _onDidChangeSession(e: vscode.AuthenticationSessionsChangeEvent): Promise<void> {
-		if (e.provider.id !== 'slack') {
-			return;
-		}
-		this._updateSession();
-	}
-
-	private async _updateSession() {
-		const isAuthenticated = await this.slackService.isAuthenticated();
-		if (!isAuthenticated) {
-			this._autoRefresh?.dispose();
-			this.slackService.onSignOut();
-			return;
-		}
-		this._createNewSession();
-	}
-
-	private async _createNewSession() {
-		await this.slackTreeDataProvider.fetchMessages();
-		this._autoRefresh = this._triggerAutoRefresh();
-	}
-
-	private _triggerAutoRefresh(): vscode.Disposable {
-		const autoRefreshInterval = setInterval(async () => {
-			await this.slackTreeDataProvider.fetchMessages();
-		}, this.REFRESH_INTERVAL_MS);
-		return {
-			dispose: () => clearInterval(autoRefreshInterval)
-		};
-	}
-
 	override dispose() {
-		this._onDidChangeSessions.dispose();
-		this._autoRefresh?.dispose();
 		this._treeView.dispose();
 		super.dispose();
 	}

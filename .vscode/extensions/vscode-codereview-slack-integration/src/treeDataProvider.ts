@@ -45,7 +45,7 @@ export class SlackMessageItem extends vscode.TreeItem {
 
     private _setDescription(message: SlackMessage) {
         if (message.pr) {
-            this.description = message.pr ? `@${message.pr.author}` : message.author;
+            this.description = `@${message.pr.author}`;
         }
     }
 
@@ -73,12 +73,11 @@ export class SlackMessageItem extends vscode.TreeItem {
             if (pr.additions !== undefined && pr.deletions !== undefined && pr.changedFiles !== undefined) {
                 this.tooltip.appendMarkdown(`**+${pr.additions}**, **-${pr.deletions}**, **${pr.changedFiles} file${pr.changedFiles !== 1 ? 's' : ''}**\n\n`);
             }
-            this.tooltip.appendMarkdown(`_${this._formatTimestamp(message.timestamp)}_`);
         } else {
             this.tooltip.appendMarkdown(`**Author:** ${message.author}\n\n`);
             this.tooltip.appendMarkdown(`${message.text}\n\n`);
-            this.tooltip.appendMarkdown(`_${this._formatTimestamp(message.timestamp)}_`);
         }
+        this.tooltip.appendMarkdown(`_${this._formatTimestamp(message.timestamp)}_`);
     }
 
     private _setContextValue(message: SlackMessage, isOpeningPr: boolean) {
@@ -137,34 +136,70 @@ export class SlackTreeDataProvider implements vscode.TreeDataProvider<TreeItem> 
     private _onDidChangeMessageCount: vscode.EventEmitter<number> = new vscode.EventEmitter<number>();
     readonly onDidChangeMessageCount: vscode.Event<number> = this._onDidChangeMessageCount.event;
 
-    private messages: SlackMessage[] = [];
-    private isLoading: boolean = false;
-    private errorMessage: string | undefined;
-    private loadingPrMessageId: string | undefined;
+    private readonly REFRESH_INTERVAL_MS = 60000;
 
-    constructor(private slackService: SlackService) { }
+    private _autoRefresh: vscode.Disposable | undefined;
+    private _messages: SlackMessage[] = [];
+    private _isLoading: boolean = false;
+    private _errorMessage: string | undefined;
+    private _loadingPrMessageId: string | undefined;
 
-    public setLoadingPR(messageId: string | undefined): void {
-        this.loadingPrMessageId = messageId;
+    constructor(private slackService: SlackService) {
+        slackService.onSignIn(() => this._triggerAutoRefresh());
+        slackService.onSignOut(() => this._clearAutoRefresh());
     }
 
-    private _isLoadingPR(messageId: string): boolean {
-        return this.loadingPrMessageId === messageId;
+    public async viewPR(item: SlackMessageItem): Promise<void> {
+        if (!item || !item.message.pr) {
+            vscode.window.showWarningMessage('No PR information available for this item');
+            return;
+        }
+        try {
+            this._setLoadingPR(item.message.id);
+            const params = {
+                owner: item.message.pr.owner,
+                repo: item.message.pr.repo,
+                pullRequestNumber: item.message.pr.number
+            };
+            const encodedParams = encodeURIComponent(JSON.stringify(params));
+            const uri = await vscode.env.asExternalUri(
+                vscode.Uri.parse(`${vscode.env.uriScheme}://github.vscode-pull-request-github/open-pull-request-webview?${encodedParams}&`)
+            );
+            await vscode.env.openExternal(uri);
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to open PR #${item.message.pr.number}: ${error}`);
+        } finally {
+            // Clear loading state after a delay to give time for the PR view to open
+            setTimeout(() => {
+                this._setLoadingPR(undefined);
+            }, 2000);
+        }
+    }
+
+    public async openPRInBrowser(item: SlackMessageItem): Promise<void> {
+        if (!item || !item.message.pr) {
+            vscode.window.showWarningMessage('No PR URL available for this item');
+            return;
+        }
+        try {
+            await vscode.env.openExternal(vscode.Uri.parse(item.message.pr.url));
+        } catch (error) {
+            vscode.window.showErrorMessage(`Failed to open PR in browser: ${error}`);
+        }
     }
 
     public async fetchMessages(): Promise<void> {
-        this.isLoading = true;
-        this.errorMessage = undefined;
-
+        this._isLoading = true;
+        this._errorMessage = undefined;
         try {
-            this.messages = await this.slackService.getMessages();
+            this._messages = await this.slackService.getMessages();
         } catch (error) {
-            this.errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            this.messages = [];
+            this._errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            this._messages = [];
         } finally {
-            this.isLoading = false;
+            this._isLoading = false;
             this._onDidChangeTreeData.fire();
-            this._onDidChangeMessageCount.fire(this.messages.length);
+            this._onDidChangeMessageCount.fire(this._messages.length);
         }
     }
 
@@ -180,26 +215,42 @@ export class SlackTreeDataProvider implements vscode.TreeDataProvider<TreeItem> 
         }
 
         // Check authentication status
-        const isAuthenticated = await this.slackService.isAuthenticated();
+        const isAuthenticated = await this.slackService.waitUntilAuthenticationStatus();
         if (!isAuthenticated) {
             return [new SignInItem()];
         }
 
         // Show loading state
-        if (this.isLoading) {
+        if (this._isLoading) {
             return [new LoadingItem()];
         }
 
         // Show error state
-        if (this.errorMessage) {
-            return [new ErrorItem(this.errorMessage)];
+        if (this._errorMessage) {
+            return [new ErrorItem(this._errorMessage)];
         }
 
         // Show messages or empty state
-        if (this.messages.length === 0) {
+        if (this._messages.length === 0) {
             return [new NoMessagesItem()];
         }
 
-        return this.messages.map(msg => new SlackMessageItem(msg, vscode.TreeItemCollapsibleState.None, this._isLoadingPR(msg.id)));
+        return this._messages.map(msg => new SlackMessageItem(msg, vscode.TreeItemCollapsibleState.None, this._loadingPrMessageId === msg.id));
+    }
+
+    private _triggerAutoRefresh(): void {
+        const interval = setInterval(async () => {
+            this.fetchMessages();
+        }, this.REFRESH_INTERVAL_MS);
+        this._autoRefresh = { dispose: () => clearInterval(interval) };
+    }
+
+    private _clearAutoRefresh(): void {
+        this._autoRefresh?.dispose();
+    }
+
+    private _setLoadingPR(messageId: string | undefined): void {
+        this._loadingPrMessageId = messageId;
+        this._onDidChangeTreeData.fire();
     }
 }

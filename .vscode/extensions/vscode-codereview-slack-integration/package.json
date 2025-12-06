@@ -33,12 +33,12 @@
         "icon": "$(sign-in)"
       },
       {
-        "command": "vs-code-codereview.openPrLocally",
+        "command": "vs-code-codereview.viewPR",
         "title": "Open PR Locally",
         "icon": "$(link-external)"
       },
       {
-        "command": "vs-code-codereview.openPrInBrowser",
+        "command": "vs-code-codereview.openPRInBrowser",
         "title": "Open PR in Browser",
         "icon": "$(globe)"
       }
@@ -72,12 +72,12 @@
       ],
       "view/item/context": [
         {
-          "command": "vs-code-codereview.openPrLocally",
+          "command": "vs-code-codereview.viewPR",
           "when": "view == codereview-slack-messages && viewItem == slackMessageWithPr",
           "group": "inline@1"
         },
         {
-          "command": "vs-code-codereview.openPrInBrowser",
+          "command": "vs-code-codereview.openPRInBrowser",
           "when": "view == codereview-slack-messages && viewItem == slackMessageWithPr",
           "group": "inline@2"
         }
