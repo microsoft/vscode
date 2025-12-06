@@ -369,10 +369,10 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('chat.welcome.enabled', "Show welcome banner when chat is empty."),
 		},
-		[ChatConfiguration.ChatViewRecentSessionsEnabled]: { // TODO@bpasero move off preview
+		[ChatConfiguration.ChatViewSessionsEnabled]: { // TODO@bpasero move off preview
 			type: 'boolean',
 			default: true,
-			description: nls.localize('chat.sessions.enabled', "Show recent chat agent sessions when chat is empty or to the side when chat view is wide enough."),
+			description: nls.localize('chat.viewSessions.enabled', "Show chat agent sessions when chat is empty or to the side when chat view is wide enough."),
 			tags: ['preview', 'experimental'],
 			experiment: {
 				mode: 'auto'
