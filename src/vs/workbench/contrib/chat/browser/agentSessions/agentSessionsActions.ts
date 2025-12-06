@@ -162,8 +162,13 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 CommandsRegistry.registerCommand(`agentSession.${AgentSessionProviders.Local}.openChanges`, async (accessor: ServicesAccessor, resource: URI) => {
 	const chatService = accessor.get(IChatService);
 
-	const sessionRef = await chatService.getOrRestoreSession(resource);
-	sessionRef?.object.editingSession?.show();
+	let sessionRef: IChatModelReference | undefined;
+	try {
+		sessionRef = await chatService.getOrRestoreSession(resource);
+		await sessionRef?.object.editingSession?.show();
+	} finally {
+		sessionRef?.dispose();
+	}
 });
 
 //#endregion
