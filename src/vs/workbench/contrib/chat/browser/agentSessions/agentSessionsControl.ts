@@ -8,7 +8,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenEvent, WorkbenchCompressibleAsyncDataTree } from '../../../../../platform/list/browser/listService.js';
-import { $, append } from '../../../../../base/browser/dom.js';
+import { $, append, EventHelper } from '../../../../../base/browser/dom.js';
 import { IAgentSession, IAgentSessionsModel, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { AgentSessionRenderer, AgentSessionsAccessibilityProvider, AgentSessionsCompressionDelegate, AgentSessionsDataSource, AgentSessionsDragAndDrop, AgentSessionsIdentityProvider, AgentSessionsKeyboardNavigationLabelProvider, AgentSessionsListDelegate, AgentSessionsSorter, IAgentSessionsFilter } from './agentSessionsViewer.js';
 import { FuzzyScore } from '../../../../../base/common/filters.js';
@@ -213,10 +213,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 		await this.chatWidgetService.openSession(session.resource, target, options);
 	}
 
-	private async showContextMenu({ element: session, anchor }: ITreeContextMenuEvent<IAgentSession>): Promise<void> {
+	private async showContextMenu({ element: session, anchor, browserEvent }: ITreeContextMenuEvent<IAgentSession>): Promise<void> {
 		if (!session) {
 			return;
 		}
+
+		EventHelper.stop(browserEvent, true);
 
 		const provider = await this.chatSessionsService.activateChatSessionItemProvider(session.providerType);
 		const contextOverlay = getSessionItemContextOverlay(session, provider, this.chatService, this.editorGroupsService);
