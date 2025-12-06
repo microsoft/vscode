@@ -54,6 +54,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 	private isCollapsed: boolean = false;
 	private readonly readOnly: boolean;
 	private readonly diffData: IObservable<IChatMultiDiffInnerData>;
+	private _currentListHeight: number = 0;
 
 	constructor(
 		private readonly content: IChatMultiDiffData,
@@ -230,7 +231,11 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			const height = Math.min(items.length, MAX_ITEMS_SHOWN) * ELEMENT_HEIGHT;
 			this.list.layout(height);
 			listContainer.style.height = `${height}px`;
-			this._onDidChangeHeight.fire();
+			// Only fire height change if the height actually changed to avoid flickering
+			if (height !== this._currentListHeight) {
+				this._currentListHeight = height;
+				this._onDidChangeHeight.fire();
+			}
 		}));
 
 
