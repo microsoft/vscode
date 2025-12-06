@@ -56,6 +56,9 @@ export class BrowserView extends Disposable {
 	private readonly _onDidRequestNewPage = this._register(new Emitter<IBrowserViewNewPageRequest>());
 	readonly onDidRequestNewPage: Event<IBrowserViewNewPageRequest> = this._onDidRequestNewPage.event;
 
+	private readonly _onDidClose = this._register(new Emitter<void>());
+	readonly onDidClose: Event<void> = this._onDidClose.event;
+
 	constructor(
 		viewSession: Electron.Session,
 		private readonly storageScope: BrowserViewStorageScope,
@@ -89,6 +92,10 @@ export class BrowserView extends Disposable {
 
 			// Deny other requests like new windows.
 			return { action: 'deny' };
+		});
+
+		this._view.webContents.on('destroyed', () => {
+			this._onDidClose.fire();
 		});
 
 		this.setupEventListeners();

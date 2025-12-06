@@ -139,6 +139,10 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 		return this._getBrowserView(id).onDidRequestNewPage;
 	}
 
+	onDynamicDidClose(id: string) {
+		return this._getBrowserView(id).onDidClose;
+	}
+
 	async destroyBrowserView(id: string): Promise<void> {
 		this._getBrowserView(id).dispose();
 		this.browserViews.delete(id);

@@ -103,6 +103,7 @@ export interface IBrowserViewService {
 	onDynamicDidChangeTitle(id: string): Event<IBrowserViewTitleChangeEvent>;
 	onDynamicDidChangeFavicon(id: string): Event<IBrowserViewFaviconChangeEvent>;
 	onDynamicDidRequestNewPage(id: string): Event<IBrowserViewNewPageRequest>;
+	onDynamicDidClose(id: string): Event<void>;
 
 	/**
 	 * Get or create a browser view instance

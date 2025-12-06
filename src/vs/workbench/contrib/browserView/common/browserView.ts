@@ -94,6 +94,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onDidChangeTitle: Event<IBrowserViewTitleChangeEvent>;
 	readonly onDidChangeFavicon: Event<IBrowserViewFaviconChangeEvent>;
 	readonly onDidRequestNewPage: Event<IBrowserViewNewPageRequest>;
+	readonly onDidClose: Event<void>;
 	readonly onWillDispose: Event<void>;
 
 	initialize(): Promise<void>;
@@ -177,6 +178,10 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	get onDidRequestNewPage(): Event<IBrowserViewNewPageRequest> {
 		return this.browserViewService.onDynamicDidRequestNewPage(this.id);
+	}
+
+	get onDidClose(): Event<void> {
+		return this.browserViewService.onDynamicDidClose(this.id);
 	}
 
 	/**

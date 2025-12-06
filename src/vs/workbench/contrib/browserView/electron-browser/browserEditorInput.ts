@@ -81,6 +81,11 @@ export class BrowserEditorInput extends EditorInput {
 					this._model = undefined;
 				}));
 
+				// Auto-close editor when webcontents closes
+				this._register(this._model.onDidClose(() => {
+					this.dispose();
+				}));
+
 				// Listen for label-relevant changes to fire onDidChangeLabel
 				this._register(this._model.onDidChangeTitle(() => this._onDidChangeLabel.fire()));
 				this._register(this._model.onDidChangeFavicon(() => this._onDidChangeLabel.fire()));
