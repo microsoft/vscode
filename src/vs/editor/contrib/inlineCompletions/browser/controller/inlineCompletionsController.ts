@@ -369,6 +369,12 @@ export class InlineCompletionsController extends Disposable {
 			const state = model?.inlineCompletionState.read(reader);
 			return state?.primaryGhostText && state?.inlineSuggestion ? state.inlineSuggestion.source.inlineSuggestions.suppressSuggestions : undefined;
 		}));
+		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.inlineSuggestionAlternativeActionVisible, reader => {
+			const model = this.model.read(reader);
+			const state = model?.inlineEditState.read(reader);
+			const action = state?.inlineSuggestion.action;
+			return action && action.kind === 'edit' && action.alternativeAction !== undefined;
+		}));
 		this._register(contextKeySvcObs.bind(InlineCompletionContextKeys.inlineSuggestionVisible, reader => {
 			const model = this.model.read(reader);
 			const state = model?.inlineCompletionState.read(reader);

@@ -116,7 +116,9 @@ export class ViewContentWidgets extends ViewPart {
 		const myWidget = this._widgets[widget.getId()];
 		myWidget.setPosition(primaryAnchor, secondaryAnchor, preference, affinity);
 
-		this.setShouldRender();
+		if (!myWidget.useDisplayNone) {
+			this.setShouldRender();
+		}
 	}
 
 	public removeWidget(widget: IContentWidget): void {
@@ -209,6 +211,7 @@ class Widget {
 	private _isVisible: boolean;
 
 	private _renderData: IRenderData | null;
+	public readonly useDisplayNone: boolean;
 
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>, actual: IContentWidget) {
 		this._context = context;
@@ -223,6 +226,7 @@ class Widget {
 		this.id = this._actual.getId();
 		this.allowEditorOverflow = (this._actual.allowEditorOverflow || false) && allowOverflow;
 		this.suppressMouseDown = this._actual.suppressMouseDown || false;
+		this.useDisplayNone = this._actual.useDisplayNone || false;
 
 		this._fixedOverflowWidgets = options.get(EditorOption.fixedOverflowWidgets);
 		this._contentWidth = layoutInfo.contentWidth;
@@ -289,7 +293,7 @@ class Widget {
 	public setPosition(primaryAnchor: IPosition | null, secondaryAnchor: IPosition | null, preference: ContentWidgetPositionPreference[] | null, affinity: PositionAffinity | null): void {
 		this._setPosition(affinity, primaryAnchor, secondaryAnchor);
 		this._preference = preference;
-		if (this._primaryAnchor.viewPosition && this._preference && this._preference.length > 0) {
+		if (!this.useDisplayNone && this._primaryAnchor.viewPosition && this._preference && this._preference.length > 0) {
 			// this content widget would like to be visible if possible
 			// we change it from `display:none` to `display:block` even if it
 			// might be outside the viewport such that we can measure its size

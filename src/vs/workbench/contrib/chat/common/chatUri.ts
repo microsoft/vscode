@@ -62,3 +62,23 @@ export function chatSessionResourceToId(resource: URI): string {
 
 	return resource.toString();
 }
+
+/**
+ * Extracts the chat session type from a resource URI.
+ *
+ * @param resource - The chat session resource URI
+ * @returns The session type string. Returns `localChatSessionType` for local sessions
+ *          (vscodeChatEditor and vscodeLocalChatSession schemes), or the scheme/authority
+ *          for contributed sessions.
+ */
+export function getChatSessionType(resource: URI): string {
+	if (resource.scheme === Schemas.vscodeChatEditor) {
+		return localChatSessionType;
+	}
+
+	if (resource.scheme === LocalChatSessionUri.scheme) {
+		return resource.authority || localChatSessionType;
+	}
+
+	return resource.scheme;
+}

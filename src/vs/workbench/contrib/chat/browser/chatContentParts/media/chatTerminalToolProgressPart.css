@@ -11,13 +11,13 @@
 .chat-terminal-content-part .chat-terminal-content-title {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
-	padding: 5px 9px 5px 5px;
+	padding: 0px 9px 0px 5px;
 	max-width: 100%;
 	box-sizing: border-box;
 	display: flex;
 	flex-direction: row;
 	align-items: flex-start;
-	gap: 10px;
+	gap: 12px;
 
 	.rendered-markdown {
 		display: flex;
@@ -74,7 +74,7 @@
 	width: 16px;
 	height: 16px;
 	flex-shrink: 0;
-	margin-top: 3px;
+	margin-top: 2px;
 }
 
 .chat-terminal-content-part .chat-terminal-content-title .chat-terminal-command-block .chat-terminal-command-decoration.success,
@@ -132,16 +132,15 @@
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-bottom-left-radius: 4px;
 	border-bottom-right-radius: 4px;
-	background: var(--vscode-panel-background);
 	max-height: 300px;
 	box-sizing: border-box;
 	overflow: hidden;
 	position: relative;
 	max-width: 100%;
-	padding: 5px 9px;
+	padding: 0;
 }
 
-.chat-terminal-content-title.expanded {
+.chat-terminal-content-part .chat-terminal-content-title.chat-terminal-content-title-no-bottom-radius {
 	border-bottom-left-radius: 0px;
 	border-bottom-right-radius: 0px;
 	border-bottom: 0;
@@ -150,16 +149,38 @@
 .chat-terminal-output-container.expanded { display: block; }
 .chat-terminal-output-container > .monaco-scrollable-element {
 	width: 100%;
+	background: inherit;
+}
+.chat-terminal-output-container.chat-terminal-output-container-no-output .chat-terminal-output-body {
+	padding-bottom: 5px;
 }
 .chat-terminal-output-container:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px;
 }
+div.chat-terminal-content-part.progress-step > div.chat-terminal-output-container.expanded > div > div.chat-terminal-output-body > div > div.chat-terminal-output-terminal > div > div.xterm-scrollable-element {
+	margin-left: -12px;
+	margin-right: -12px;
+	padding-left: 12px;
+	padding-right: 12px;
+	box-sizing: border-box;
+	background: inherit;
+}
 .chat-terminal-output-body {
-	padding: 4px 6px;
+	padding: 5px 0px 1px;
 	max-width: 100%;
 	box-sizing: border-box;
 	min-height: 0;
+	background: inherit;
+}
+.chat-terminal-output-content {
+	background: inherit;
+}
+.chat-terminal-output-terminal {
+	background: inherit;
+}
+.chat-terminal-output-terminal .xterm-viewport {
+	background: inherit !important;
 }
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output {
 	display: none;
@@ -175,6 +196,7 @@
 	font-style: italic;
 	color: var(--vscode-descriptionForeground);
 	line-height: normal;
+	padding-left: 12px;
 }
 .chat-terminal-output-terminal.chat-terminal-output-terminal-no-output ~ .chat-terminal-output-empty {
 	display: block;

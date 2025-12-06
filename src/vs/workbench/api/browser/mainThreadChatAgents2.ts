@@ -33,7 +33,6 @@ import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
-import { LocalChatSessionUri } from '../../contrib/chat/common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
@@ -125,10 +124,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
 
 		this._register(this._chatService.onDidDisposeSession(e => {
-			const localSessionId = LocalChatSessionUri.parseLocalSessionId(e.sessionResource);
-			if (localSessionId) {
-				this._proxy.$releaseSession(localSessionId);
-			}
+			this._proxy.$releaseSession(e.sessionResource);
 		}));
 		this._register(this._chatService.onDidPerformUserAction(e => {
 			if (typeof e.agentId === 'string') {

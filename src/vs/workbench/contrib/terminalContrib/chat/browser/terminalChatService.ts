@@ -202,6 +202,9 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	}
 
 	getMostRecentProgressPart(): IChatTerminalToolProgressPart | undefined {
+		if (!this._mostRecentProgressPart || !this._activeProgressParts.has(this._mostRecentProgressPart)) {
+			this._mostRecentProgressPart = this._getLastActiveProgressPart();
+		}
 		return this._mostRecentProgressPart;
 	}
 
@@ -270,8 +273,14 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		try {
 			const entries: [string, number][] = [];
 			for (const [toolSessionId, instance] of this._terminalInstancesByToolSessionId.entries()) {
-				if (isNumber(instance.persistentProcessId) && instance.shouldPersist) {
-					entries.push([toolSessionId, instance.persistentProcessId]);
+				// Use the live persistent process id when available, otherwise fall back to the id
+				// from the attached process so mappings survive early in the terminal lifecycle.
+				const persistentId = isNumber(instance.persistentProcessId)
+					? instance.persistentProcessId
+					: instance.shellLaunchConfig.attachPersistentProcess?.id;
+				const shouldPersist = instance.shouldPersist || instance.shellLaunchConfig.forcePersist;
+				if (isNumber(persistentId) && shouldPersist) {
+					entries.push([toolSessionId, persistentId]);
 				}
 			}
 			if (entries.length > 0) {

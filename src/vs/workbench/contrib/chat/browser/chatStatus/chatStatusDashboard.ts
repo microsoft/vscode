@@ -208,7 +208,6 @@ export class ChatStatusDashboard extends DomWidget {
 			})();
 		}
 
-
 		// Anonymous Indicator
 		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
@@ -219,38 +218,29 @@ export class ChatStatusDashboard extends DomWidget {
 
 		// Chat sessions
 		{
-			let chatSessionsElement: HTMLElement | undefined;
+			const inProgress = this.chatSessionsService.getInProgress();
+			if (inProgress.some(item => item.count > 0)) {
 
-			const updateStatus = () => {
-				const inProgress = this.chatSessionsService.getInProgress();
-				if (inProgress.some(item => item.count > 0)) {
-
-					addSeparator(localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
-						id: 'workbench.view.chat.status.sessions',
-						label: localize('viewChatSessionsLabel', "View Agent Sessions"),
-						tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
-						class: ThemeIcon.asClassName(Codicon.eye),
-						run: () => {
-							this.instantiationService.invokeFunction(openAgentSessionsView);
-							this.hoverService.hideHover(true);
-						}
-					}));
-
-					for (const { displayName, count } of inProgress) {
-						if (count > 0) {
-							const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
-							chatSessionsElement = this.element.appendChild($('div.description'));
-							const parts = renderLabelWithIcons(text);
-							chatSessionsElement.append(...parts);
-						}
+				addSeparator(localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
+					id: 'workbench.view.chat.status.sessions',
+					label: localize('viewChatSessionsLabel', "View Agent Sessions"),
+					tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
+					class: ThemeIcon.asClassName(Codicon.eye),
+					run: () => {
+						this.instantiationService.invokeFunction(openAgentSessionsView);
+						this.hoverService.hideHover(true);
 					}
-				} else {
-					chatSessionsElement?.remove();
-				}
-			};
+				}));
 
-			updateStatus();
-			this._store.add(this.chatSessionsService.onDidChangeInProgress(updateStatus));
+				for (const { displayName, count } of inProgress) {
+					if (count > 0) {
+						const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
+						const chatSessionsElement = this.element.appendChild($('div.description'));
+						const parts = renderLabelWithIcons(text);
+						chatSessionsElement.append(...parts);
+					}
+				}
+			}
 		}
 
 		// Contributions

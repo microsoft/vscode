@@ -1,0 +1,36 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-viewpane {
+
+	.chat-view-title-container {
+		display: none;
+		/* try to align with the sessions view title */
+		padding: 8px 8px 8px 16px;
+		border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+		align-items: center;
+		cursor: pointer;
+
+		.chat-view-title-label {
+			text-transform: uppercase;
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+			min-width: 0;
+		}
+
+		.chat-view-title-icon {
+			margin-left: auto;
+			color: var(--vscode-descriptionForeground);
+		}
+	}
+
+	.chat-view-title-container.visible {
+		display: flex;
+		gap: 4px;
+	}
+}

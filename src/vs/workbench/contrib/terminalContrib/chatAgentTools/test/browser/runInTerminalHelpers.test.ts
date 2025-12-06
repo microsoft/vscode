@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok, strictEqual } from 'assert';
-import { dedupeRules, isPowerShell } from '../../browser/runInTerminalHelpers.js';
+import { TRUNCATION_MESSAGE, dedupeRules, isPowerShell, sanitizeTerminalOutput, truncateOutputKeepingTail } from '../../browser/runInTerminalHelpers.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -255,5 +255,35 @@ suite('dedupeRules', () => {
 		strictEqual(result[0].rule?.sourceText, 'npm');
 		strictEqual(result[0].reason, 'npm rule 1');
 		strictEqual(result[1].rule?.sourceText, 'git');
+	});
+});
+
+suite('truncateOutputKeepingTail', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+	test('returns original when below limit', () => {
+		const output = 'short output';
+		strictEqual(truncateOutputKeepingTail(output, 100), output);
+	});
+
+	test('keeps tail and adds message when above limit', () => {
+		const output = 'a'.repeat(200);
+		const result = truncateOutputKeepingTail(output, 120);
+		ok(result.startsWith(TRUNCATION_MESSAGE));
+		strictEqual(result.length, 120);
+	});
+
+	test('gracefully handles tiny limits', () => {
+		const result = truncateOutputKeepingTail('example', 5);
+		strictEqual(result.length, 5);
+	});
+});
+
+suite('sanitizeTerminalOutput', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+	test('adds truncation notice when exceeding max length', () => {
+		const longOutput = 'line\n'.repeat(20000);
+		const result = sanitizeTerminalOutput(longOutput);
+		ok(result.startsWith(TRUNCATION_MESSAGE));
+		ok(result.endsWith('line'));
 	});
 });

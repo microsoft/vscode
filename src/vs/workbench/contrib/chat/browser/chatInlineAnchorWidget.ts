@@ -108,7 +108,7 @@ export class InlineAnchorWidget extends Disposable {
 
 		element.classList.add(InlineAnchorWidget.className, 'show-file-icons');
 
-		let iconText: string;
+		let iconText: Array<string | HTMLElement>;
 		let iconClasses: string[];
 
 		let location: { readonly uri: URI; readonly range?: IRange };
@@ -118,19 +118,25 @@ export class InlineAnchorWidget extends Disposable {
 			const symbol = this.data.symbol;
 
 			location = this.data.symbol.location;
-			iconText = this.data.symbol.name;
+			iconText = [this.data.symbol.name];
 			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind))];
 
 			this._store.add(instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, element, contextKeyService, { value: symbol.location, name: symbol.name, kind: symbol.kind }, MenuId.ChatInlineSymbolAnchorContext)));
 		} else {
 			location = this.data;
 
-			const label = labelService.getUriBasenameLabel(location.uri);
-			iconText = location.range && this.data.kind !== 'symbol' ?
-				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
-				location.uri.scheme === 'vscode-notebook-cell' && this.data.kind !== 'symbol' ?
-					`${label} • cell${this.getCellIndex(location.uri)}` :
-					label;
+			const filePathLabel = labelService.getUriBasenameLabel(location.uri);
+			if (location.range && this.data.kind !== 'symbol') {
+				const suffix = location.range.startLineNumber === location.range.endLineNumber
+					? `:${location.range.startLineNumber}`
+					: `:${location.range.startLineNumber}-${location.range.endLineNumber}`;
+
+				iconText = [filePathLabel, dom.$('span.label-suffix', undefined, suffix)];
+			} else if (location.uri.scheme === 'vscode-notebook-cell' && this.data.kind !== 'symbol') {
+				iconText = [`${filePathLabel} • cell${this.getCellIndex(location.uri)}`];
+			} else {
+				iconText = [filePathLabel];
+			}
 
 			let fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
 			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined);
@@ -182,6 +188,15 @@ export class InlineAnchorWidget extends Disposable {
 					},
 				});
 			}));
+
+			// Add line range label for screen readers
+			if (location.range) {
+				if (location.range.startLineNumber === location.range.endLineNumber) {
+					element.setAttribute('aria-label', nls.localize('chat.inlineAnchor.ariaLabel.line', "{0} line {1}", filePathLabel, location.range.startLineNumber));
+				} else {
+					element.setAttribute('aria-label', nls.localize('chat.inlineAnchor.ariaLabel.range', "{0} lines {1} to {2}", filePathLabel, location.range.startLineNumber, location.range.endLineNumber));
+				}
+			}
 		}
 
 		const resourceContextKey = this._register(new ResourceContextKey(contextKeyService, fileService, languageService, modelService));
@@ -190,7 +205,7 @@ export class InlineAnchorWidget extends Disposable {
 
 		const iconEl = dom.$('span.icon');
 		iconEl.classList.add(...iconClasses);
-		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, iconText));
+		element.replaceChildren(iconEl, dom.$('span.icon-label', {}, ...iconText));
 
 		const fragment = location.range ? `${location.range.startLineNumber},${location.range.startColumn}` : '';
 		element.setAttribute('data-href', (fragment ? location.uri.with({ fragment }) : location.uri).toString());

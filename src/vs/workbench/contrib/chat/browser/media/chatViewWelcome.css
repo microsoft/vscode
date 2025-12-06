@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .pane-body.chat-view-welcome-visible {
+
 	& > .interactive-session {
 		display: none;
 	}
@@ -13,24 +14,15 @@
 	}
 }
 
-/* Container for chat widget welcome message and interactive session variants */
-.interactive-session {
-	position: relative;
-	/* Enable absolute positioning for child elements */
+/* Chat welcome container */
+.interactive-session .chat-welcome-view-container {
 	display: flex;
 	flex-direction: column;
-	height: 100%;
-
-	/* chat welcome container */
-	.chat-welcome-view-container {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		overflow: hidden;
-		flex: 1;
-		position: relative; /* Allow absolute positioning of prompts */
-	}
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	flex: 1;
+	position: relative; /* Allow absolute positioning of prompts */
 }
 
 /* Container for ChatViewPane welcome view */
@@ -99,6 +91,10 @@ div.chat-welcome-view {
 			color: var(--vscode-textLink-foreground);
 		}
 
+		a:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+		}
+
 		p {
 			margin-top: 8px;
 			margin-bottom: 8px;
@@ -143,6 +139,10 @@ div.chat-welcome-view {
 		a {
 			color: var(--vscode-textLink-foreground);
 		}
+
+		a:focus {
+			outline: 1px solid var(--vscode-focusBorder);
+		}
 	}
 }
 
@@ -181,7 +181,6 @@ div.chat-welcome-view {
 		background-color: var(--vscode-editorWidget-background);
 		cursor: pointer;
 		border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-		max-width: 100%;
 		width: fit-content;
 		margin: 0;
 		box-sizing: border-box;
@@ -208,4 +207,3 @@ div.chat-welcome-view {
 		background-color: var(--vscode-list-hoverBackground);
 	}
 }
-

@@ -466,6 +466,10 @@ export class Scope extends ExpressionContainer implements IScope {
 		super(stackFrame.thread.session, stackFrame.thread.threadId, reference, `scope:${name}:${id}`, namedVariables, indexedVariables);
 	}
 
+	get childrenHaveBeenLoaded(): boolean {
+		return !!this.children;
+	}
+
 	override toString(): string {
 		return this.name;
 	}

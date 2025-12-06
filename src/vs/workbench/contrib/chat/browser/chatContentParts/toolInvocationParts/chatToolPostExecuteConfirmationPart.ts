@@ -180,7 +180,7 @@ export class ChatToolPostExecuteConfirmationPart extends AbstractToolConfirmatio
 				// Check if it's an image
 				if (mimeType?.startsWith('image/')) {
 					const permalinkBasename = getExtensionForMimeType(mimeType) ? `image${getExtensionForMimeType(mimeType)}` : 'image.bin';
-					const permalinkUri = ChatResponseResource.createUri(this.context.element.sessionId, toolInvocation.toolCallId, i, permalinkBasename);
+					const permalinkUri = ChatResponseResource.createUri(this.context.element.sessionResource, toolInvocation.toolCallId, i, permalinkBasename);
 					parts.push({ kind: 'data', value: data.buffer, mimeType, uri: permalinkUri, audience: part.audience });
 				} else {
 					// Try to display as UTF-8 text, otherwise base64

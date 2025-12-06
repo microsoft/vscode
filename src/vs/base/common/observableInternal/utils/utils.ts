@@ -299,3 +299,7 @@ class ArrayMap<TIn, TOut, TKey> implements IDisposable {
 		return this._items;
 	}
 }
+
+export function isObservable<T>(obj: unknown): obj is IObservable<T> {
+	return !!obj && (<IObservable<T>>obj).read !== undefined && (<IObservable<T>>obj).reportChanges !== undefined;
+}

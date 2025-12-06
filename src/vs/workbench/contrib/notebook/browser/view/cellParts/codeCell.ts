@@ -48,6 +48,7 @@ export class CodeCell extends Disposable {
 	private _collapsedExecutionIcon: CollapsedCodeCellExecutionIcon;
 	private _cellEditorOptions: CellEditorOptions;
 	private _useNewApproachForEditorLayout = true;
+	private _pointerDownInEditor = false;
 	private readonly _cellLayout: CodeCellLayout;
 	private readonly _debug: (output: string) => void;
 	constructor(
@@ -342,6 +343,10 @@ export class CodeCell extends Disposable {
 
 		if (this._useNewApproachForEditorLayout) {
 			this._register(this.templateData.editor.onDidScrollChange(e => {
+				// Option 4: Gate scroll-driven reactions during active drag-selection
+				if (this._pointerDownInEditor) {
+					return;
+				}
 				if (this._cellLayout.editorVisibility === 'Invisible' || !this.templateData.editor.hasTextFocus()) {
 					return;
 				}
@@ -376,6 +381,11 @@ export class CodeCell extends Disposable {
 				// nor if the text editor is not actually focused (e.g. inline chat is focused and modifying the cell content)
 				|| !this.templateData.editor.hasTextFocus()
 			) {
+				return;
+			}
+
+			// Option 3: Avoid relayouts during active pointer drag to prevent stuck selection mode
+			if (this._pointerDownInEditor && this._useNewApproachForEditorLayout) {
 				return;
 			}
 
@@ -423,7 +433,22 @@ export class CodeCell extends Disposable {
 			if (e.event.rightButton) {
 				e.event.preventDefault();
 			}
+
+			if (this._useNewApproachForEditorLayout) {
+				// Track pointer-down to gate layout behavior (options 3 & 4)
+				this._pointerDownInEditor = true;
+				this._cellLayout.setPointerDown(true);
+			}
 		}));
+
+		if (this._useNewApproachForEditorLayout) {
+			// Ensure we reset pointer-down even if mouseup lands outside the editor
+			const win = DOM.getWindow(this.notebookEditor.getDomNode());
+			this._register(DOM.addDisposableListener(win, 'mouseup', () => {
+				this._pointerDownInEditor = false;
+				this._cellLayout.setPointerDown(false);
+			}));
+		}
 	}
 
 	private shouldPreserveEditor() {
@@ -675,6 +700,7 @@ export class CodeCellLayout {
 	public _previousScrollBottom?: number;
 	public _lastChangedEditorScrolltop?: number;
 	private _initialized: boolean = false;
+	private _pointerDown: boolean = false;
 	constructor(
 		private readonly _enabled: boolean,
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
@@ -683,6 +709,10 @@ export class CodeCellLayout {
 		private readonly _logService: { debug: (output: string) => void },
 		private readonly _initialEditorDimension: IDimension
 	) {
+	}
+
+	public setPointerDown(isDown: boolean) {
+		this._pointerDown = isDown;
 	}
 	/**
 	 * Dynamically lays out the code cell's Monaco editor to simulate a "sticky" run/exec area while
@@ -845,7 +875,8 @@ export class CodeCellLayout {
 				width: this._initialized ? editorWidth : this._initialEditorDimension.width,
 				height
 			}, true);
-			if (editorScrollTop >= 0) {
+			// Option 3: Avoid programmatic scrollTop changes while user is actively dragging selection
+			if (!this._pointerDown && editorScrollTop >= 0) {
 				this._lastChangedEditorScrolltop = editorScrollTop;
 				editor.setScrollTop(editorScrollTop);
 			}

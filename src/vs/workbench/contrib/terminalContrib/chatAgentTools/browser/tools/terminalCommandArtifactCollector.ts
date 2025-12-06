@@ -6,7 +6,8 @@
 import { URI } from '../../../../../../base/common/uri.js';
 import { IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
+import { getCommandOutputSnapshot } from '../../../../terminal/browser/chatTerminalCommandMirror.js';
+import { TerminalCapability, type ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 
 export class TerminalCommandArtifactCollector {
@@ -33,12 +34,33 @@ export class TerminalCommandArtifactCollector {
 					timestamp: command.timestamp,
 					duration: command.duration
 				};
+				const snapshot = await this._captureCommandOutput(instance, command);
+				if (snapshot) {
+					toolSpecificData.terminalCommandOutput = snapshot;
+				}
 				this._applyTheme(toolSpecificData, instance);
 				return;
 			}
 		}
 
 		this._applyTheme(toolSpecificData, instance);
+	}
+
+	private async _captureCommandOutput(instance: ITerminalInstance, command: ITerminalCommand): Promise<IChatTerminalToolInvocationData['terminalCommandOutput'] | undefined> {
+		try {
+			await instance.xtermReadyPromise;
+		} catch {
+			return undefined;
+		}
+		const xterm = instance.xterm;
+		if (!xterm) {
+			return undefined;
+		}
+
+		return getCommandOutputSnapshot(xterm, command, (reason, error) => {
+			const suffix = reason === 'fallback' ? ' (fallback)' : '';
+			this._logService.debug(`RunInTerminalTool: Failed to snapshot command output${suffix}`, error);
+		});
 	}
 
 	private _applyTheme(toolSpecificData: IChatTerminalToolInvocationData, instance: ITerminalInstance): void {

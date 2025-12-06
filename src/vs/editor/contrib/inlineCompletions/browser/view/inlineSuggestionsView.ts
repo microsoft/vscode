@@ -101,6 +101,7 @@ export class InlineSuggestionsView extends Disposable {
 					InlineSuggestionGutterMenuData.fromInlineSuggestion(s.inlineSuggestion),
 					s.displayRange,
 					SimpleInlineSuggestModel.fromInlineCompletionModel(s.model),
+					s.inlineSuggestion.action?.kind === 'edit' ? s.inlineSuggestion.action.alternativeAction : undefined,
 				);
 			}),
 			this._gutterIndicatorState.map((s, reader) => s?.tabAction.read(reader) ?? InlineEditTabAction.Inactive),
@@ -134,7 +135,7 @@ export class InlineSuggestionsView extends Disposable {
 				}
 				return {
 					ghostText: ghostText.read(reader),
-					handleInlineCompletionShown: (viewData) => model.handleInlineSuggestionShown(inlineCompletion, InlineCompletionViewKind.GhostText, viewData),
+					handleInlineCompletionShown: (viewData) => model.handleInlineSuggestionShown(inlineCompletion, InlineCompletionViewKind.GhostText, viewData, Date.now()),
 					warning: GhostTextWidgetWarning.from(model?.warning.read(reader)),
 				} satisfies IGhostTextWidgetData;
 			}),

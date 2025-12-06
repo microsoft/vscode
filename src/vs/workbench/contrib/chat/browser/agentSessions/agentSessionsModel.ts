@@ -16,7 +16,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
-import { ChatSessionStatus, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionFileChange, IChatSessionItem, IChatSessionsExtensionPoint, IChatSessionsService, localChatSessionType } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 
 //#region Interfaces, Types
@@ -29,6 +29,7 @@ export interface IAgentSessionsModel {
 	readonly onDidChangeSessions: Event<void>;
 
 	readonly sessions: IAgentSession[];
+	getSession(resource: URI): IAgentSession | undefined;
 
 	resolve(provider: string | string[] | undefined): Promise<void>;
 }
@@ -56,11 +57,30 @@ interface IAgentSessionData {
 		readonly finishedOrFailedTime?: number;
 	};
 
-	readonly statistics?: {
+	readonly changes?: readonly IChatSessionFileChange[] | {
 		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
 	};
+}
+
+export function getAgentChangesSummary(changes: IAgentSession['changes']) {
+	if (!changes) {
+		return;
+	}
+
+	if (!(changes instanceof Array)) {
+		return changes;
+	}
+
+	let insertions = 0;
+	let deletions = 0;
+	for (const change of changes) {
+		insertions += change.insertions;
+		deletions += change.deletions;
+	}
+
+	return { files: changes.length, insertions, deletions };
 }
 
 export interface IAgentSession extends IAgentSessionData {
@@ -155,6 +175,10 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 			this.cache.saveCachedSessions(Array.from(this._sessions.values()));
 			this.cache.saveSessionStates(this.sessionStates);
 		}));
+	}
+
+	getSession(resource: URI): IAgentSession | undefined {
+		return this._sessions.get(resource);
 	}
 
 	async resolve(provider: string | string[] | undefined): Promise<void> {
@@ -264,6 +288,11 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					});
 				}
 
+				const changes = session.changes;
+				const normalizedChanges = changes && !(changes instanceof Array)
+					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
+					: changes;
+
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: provider.chatSessionType,
 					providerLabel,
@@ -280,7 +309,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 						inProgressTime,
 						finishedOrFailedTime
 					},
-					statistics: session.statistics,
+					changes: normalizedChanges,
 				}));
 			}
 		}
@@ -361,7 +390,7 @@ interface ISerializedAgentSession {
 		readonly endTime?: number;
 	};
 
-	readonly statistics?: {
+	readonly changes?: readonly IChatSessionFileChange[] | {
 		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
@@ -385,36 +414,27 @@ class AgentSessionsCache {
 	//#region Sessions
 
 	saveCachedSessions(sessions: IInternalAgentSessionData[]): void {
-		const serialized: ISerializedAgentSession[] = sessions
-			.filter(session =>
-				// Only consider providers that we own where we know that
-				// we can also invalidate the data after startup
-				// Other providers are bound to a different lifecycle (extensions)
-				session.providerType === AgentSessionProviders.Local ||
-				session.providerType === AgentSessionProviders.Background ||
-				session.providerType === AgentSessionProviders.Cloud
-			)
-			.map(session => ({
-				providerType: session.providerType,
-				providerLabel: session.providerLabel,
+		const serialized: ISerializedAgentSession[] = sessions.map(session => ({
+			providerType: session.providerType,
+			providerLabel: session.providerLabel,
 
-				resource: session.resource.toJSON(),
+			resource: session.resource.toJSON(),
 
-				icon: session.icon.id,
-				label: session.label,
-				description: session.description,
-				tooltip: session.tooltip,
+			icon: session.icon.id,
+			label: session.label,
+			description: session.description,
+			tooltip: session.tooltip,
 
-				status: session.status,
-				archived: session.archived,
+			status: session.status,
+			archived: session.archived,
 
-				timing: {
-					startTime: session.timing.startTime,
-					endTime: session.timing.endTime,
-				},
+			timing: {
+				startTime: session.timing.startTime,
+				endTime: session.timing.endTime,
+			},
 
-				statistics: session.statistics,
-			}));
+			changes: session.changes,
+		}));
 
 		this.storageService.store(AgentSessionsCache.SESSIONS_STORAGE_KEY, JSON.stringify(serialized), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
@@ -446,7 +466,12 @@ class AgentSessionsCache {
 					endTime: session.timing.endTime,
 				},
 
-				statistics: session.statistics,
+				changes: Array.isArray(session.changes) ? session.changes.map((change: IChatSessionFileChange) => ({
+					modifiedUri: URI.revive(change.modifiedUri),
+					originalUri: change.originalUri ? URI.revive(change.originalUri) : undefined,
+					insertions: change.insertions,
+					deletions: change.deletions,
+				})) : session.changes,
 			}));
 		} catch {
 			return []; // invalid data in storage, fallback to empty sessions list

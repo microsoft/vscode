@@ -191,7 +191,7 @@ export class FetchWebPageTool implements IToolImpl {
 			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', urlsNeedingConfirmation.size));
 			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', urlsNeedingConfirmation.size));
 		} else if (urlsNeedingConfirmation.size === 1) {
-			const url = Iterable.first(urlsNeedingConfirmation)!.toString();
+			const url = Iterable.first(urlsNeedingConfirmation)!.toString(true);
 			// If the URL is too long or it's a file url, show it as a link... otherwise, show it as plain text
 			if (url.length > 400 || validFileUris.length === 1) {
 				pastTenseMessage.appendMarkdown(localize({
@@ -235,13 +235,13 @@ export class FetchWebPageTool implements IToolImpl {
 			if (urlsNeedingConfirmation.size === 1) {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch web page?');
 				confirmationMessage = new MarkdownString(
-					Iterable.first(urlsNeedingConfirmation)!.toString(),
+					Iterable.first(urlsNeedingConfirmation)!.toString(true),
 					{ supportThemeIcons: true }
 				);
 			} else {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.plural', 'Fetch web pages?');
 				confirmationMessage = new MarkdownString(
-					[...urlsNeedingConfirmation].map(uri => `- ${uri.toString()}`).join('\n'),
+					[...urlsNeedingConfirmation].map(uri => `- ${uri.toString(true)}`).join('\n'),
 					{ supportThemeIcons: true }
 				);
 			}

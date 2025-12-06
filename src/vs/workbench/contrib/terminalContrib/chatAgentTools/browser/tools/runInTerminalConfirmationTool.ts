@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/languageModelToolsService.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
@@ -58,6 +59,18 @@ export const ConfirmTerminalCommandToolData: IToolData = {
 
 export class ConfirmTerminalCommandTool extends RunInTerminalTool {
 	override async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
+		// Safe-guard: If session is the chat provider specific id
+		// then convert it to the session id understood by chat service
+		try {
+			const sessionUri = context.chatSessionId ? URI.parse(context.chatSessionId) : undefined;
+			const sessionId = sessionUri ? this._chatService.getSession(sessionUri)?.sessionId : undefined;
+			if (sessionId) {
+				context.chatSessionId = sessionId;
+			}
+		}
+		catch {
+			// Ignore parse errors or session lookup failures; fallback to using the original chatSessionId.
+		}
 		const preparedInvocation = await super.prepareToolInvocation(context, token);
 		if (preparedInvocation) {
 			preparedInvocation.presentation = ToolInvocationPresentation.HiddenAfterComplete;

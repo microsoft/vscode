@@ -171,7 +171,7 @@
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
     "request-light": "^0.8.0",
-    "vscode-languageclient": "^10.0.0-next.17"
+    "vscode-languageclient": "^10.0.0-next.18"
   },
   "devDependencies": {
     "@types/node": "22.x"

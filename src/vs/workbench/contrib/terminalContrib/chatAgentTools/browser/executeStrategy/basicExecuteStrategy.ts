@@ -113,6 +113,9 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			}
 
 			// Execute the command
+			if (commandId) {
+				this._log(`In basic execute strategy: skipping pre-bound command id ${commandId} because basic shell integration executes via sendText`);
+			}
 			// IMPORTANT: This uses `sendText` not `runCommand` since when basic shell integration
 			// is used as it's more common to not recognize the prompt input which would result in
 			// ^C being sent and also to return the exit code of 130 when from the shell when that
@@ -128,6 +131,11 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 				throw new Error('The terminal was closed');
 			}
 			const finishedCommand = onDoneResult && onDoneResult.type === 'success' ? onDoneResult.command : undefined;
+			if (finishedCommand) {
+				this._log(`Finished command id=${finishedCommand.id ?? 'none'} for requested=${commandId ?? 'none'}`);
+			} else if (commandId) {
+				this._log(`No finished command surfaced for requested=${commandId}`);
+			}
 
 			// Wait for the terminal to idle
 			this._log('Waiting for idle');

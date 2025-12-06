@@ -30,6 +30,8 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private readonly activeCodeEditorListener = this._register(new MutableDisposable());
 
+	private runningSessionsCount: number;
+
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -41,7 +43,10 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	) {
 		super();
 
+		this.runningSessionsCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
+
 		this.update();
+
 		this.registerListeners();
 	}
 
@@ -64,8 +69,16 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.update()));
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.update()));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.update()));
+
 		this._register(this.completionsService.onDidChangeIsSnoozing(() => this.update()));
-		this._register(this.chatSessionsService.onDidChangeInProgress(() => this.update()));
+
+		this._register(this.chatSessionsService.onDidChangeInProgress(() => {
+			const oldSessionsCount = this.runningSessionsCount;
+			this.runningSessionsCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
+			if (this.runningSessionsCount !== oldSessionsCount) {
+				this.update();
+			}
+		}));
 
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 
@@ -114,7 +127,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
-			const chatSessionsInProgressCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
 
 			// Disabled
 			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
@@ -123,10 +135,10 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 
 			// Sessions in progress
-			else if (chatSessionsInProgressCount > 0) {
+			else if (this.runningSessionsCount > 0) {
 				text = '$(copilot-in-progress)';
-				if (chatSessionsInProgressCount > 1) {
-					ariaLabel = localize('chatSessionsInProgressStatus', "{0} agent sessions in progress", chatSessionsInProgressCount);
+				if (this.runningSessionsCount > 1) {
+					ariaLabel = localize('chatSessionsInProgressStatus', "{0} agent sessions in progress", this.runningSessionsCount);
 				} else {
 					ariaLabel = localize('chatSessionInProgressStatus', "1 agent session in progress");
 				}

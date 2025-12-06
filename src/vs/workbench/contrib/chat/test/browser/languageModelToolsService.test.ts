@@ -24,7 +24,7 @@ import { LanguageModelToolsService } from '../../browser/languageModelToolsServi
 import { ChatModel, IChatModel } from '../../common/chatModel.js';
 import { IChatService, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { GithubCopilotToolReference, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet, VSCodeToolReference } from '../../common/languageModelToolsService.js';
+import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { MockChatService } from '../common/mockChatService.js';
 import { ChatToolInvocation } from '../../common/chatProgressTypes/chatToolInvocation.js';
 import { LocalChatSessionUri } from '../../common/chatUri.js';
@@ -1008,8 +1008,8 @@ suite('LanguageModelToolsService', () => {
 
 		const agentSet = store.add(service.createToolSet(
 			ToolDataSource.Internal,
-			VSCodeToolReference.agent,
-			VSCodeToolReference.agent,
+			SpecedToolAliases.agent,
+			SpecedToolAliases.agent,
 			{ description: 'Agent' }
 		));
 		store.add(agentSet.addTool(runSubagentToolData));
@@ -1063,19 +1063,19 @@ suite('LanguageModelToolsService', () => {
 		assert.equal(playwrightMcpToolSet.referenceName, 'playwright', 'microsoft/playwright-mcp will be normalized to playwright');
 
 		{
-			const toolNames = [GithubCopilotToolReference.customAgent, GithubCopilotToolReference.shell];
+			const toolNames = ['custom-agent', 'shell'];
 			const result = service.toToolAndToolSetEnablementMap(toolNames, undefined);
 
 			assert.strictEqual(result.get(service.executeToolSet), true, 'execute should be enabled');
 			assert.strictEqual(result.get(agentSet), true, 'agent should be enabled');
 
 			const fullReferenceNames = service.toFullReferenceNames(result).sort();
-			assert.deepStrictEqual(fullReferenceNames, [VSCodeToolReference.agent, VSCodeToolReference.execute].sort(), 'toFullReferenceNames should return the VS Code tool names');
+			assert.deepStrictEqual(fullReferenceNames, [SpecedToolAliases.agent, SpecedToolAliases.execute].sort(), 'toFullReferenceNames should return the VS Code tool names');
 
 			assert.deepStrictEqual(toolNames.map(name => service.getToolByFullReferenceName(name)), [agentSet, service.executeToolSet]);
 
-			assert.deepStrictEqual(deprecatesTo(GithubCopilotToolReference.customAgent), [VSCodeToolReference.agent], 'customAgent should map to agent');
-			assert.deepStrictEqual(deprecatesTo(GithubCopilotToolReference.shell), [VSCodeToolReference.execute], 'shell is fine');
+			assert.deepStrictEqual(deprecatesTo('custom-agent'), [SpecedToolAliases.agent], 'customAgent should map to agent');
+			assert.deepStrictEqual(deprecatesTo('shell'), [SpecedToolAliases.execute], 'shell is now execute');
 		}
 		{
 			const toolNames = ['github/*', 'playwright/*'];

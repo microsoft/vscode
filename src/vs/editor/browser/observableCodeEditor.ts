@@ -396,6 +396,7 @@ export class ObservableCodeEditor extends Disposable {
 			},
 			getId: () => contentWidgetId,
 			allowEditorOverflow: false,
+			useDisplayNone: true,
 			afterRender: (position, coordinate) => {
 				const model = this._model.get();
 				if (model && pos && pos.lineNumber > model.getLineCount()) {

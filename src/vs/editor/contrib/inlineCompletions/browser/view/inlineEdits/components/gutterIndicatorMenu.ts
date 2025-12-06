@@ -26,7 +26,7 @@ import { defaultKeybindingLabelStyles } from '../../../../../../../platform/them
 import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
-import { hideInlineCompletionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
+import { hideInlineCompletionId, inlineSuggestCommitAlternativeActionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
 import { FirstFnArg, } from '../utils/utils.js';
 import { InlineSuggestionGutterMenuData } from './gutterIndicatorView.js';
 
@@ -71,7 +71,7 @@ export class GutterIndicatorMenuContent {
 			id: 'gotoAndAccept',
 			title: `${localize('goto', "Go To")} / ${localize('accept', "Accept")}`,
 			icon: Codicon.check,
-			commandId: inlineSuggestCommitId
+			commandId: inlineSuggestCommitId,
 		}));
 
 		const reject = option(createOptionArgs({
@@ -80,6 +80,13 @@ export class GutterIndicatorMenuContent {
 			icon: Codicon.close,
 			commandId: hideInlineCompletionId
 		}));
+
+		const alternativeCommand = this._data.alternativeAction ? option(createOptionArgs({
+			id: 'alternativeCommand',
+			title: this._data.alternativeAction.command.title,
+			icon: this._data.alternativeAction.icon,
+			commandId: inlineSuggestCommitAlternativeActionId,
+		})) : undefined;
 
 		const extensionCommands = this._data.extensionCommands.map((c, idx) => option(createOptionArgs({
 			id: c.command.id + '_' + idx,
@@ -148,6 +155,7 @@ export class GutterIndicatorMenuContent {
 		return hoverContent([
 			title,
 			gotoAndAccept,
+			alternativeCommand,
 			reject,
 			toggleCollapsedMode,
 			modelOptions.length ? separator() : undefined,

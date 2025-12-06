@@ -574,15 +574,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.secondarySideBar.defaultVisibility.maximized', "The secondary side bar is visible and maximized by default.")
 				]
 			},
-			'workbench.secondarySideBar.enableDefaultVisibilityInOldWorkspace': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('enableDefaultVisibilityInOldWorkspace', "Enables the default secondary sidebar visibility in older workspaces before we had default visibility support."),
-				'tags': ['advanced'],
-				'experiment': {
-					'mode': 'auto'
-				}
-			},
 			'workbench.secondarySideBar.showLabels': {
 				'type': 'boolean',
 				'default': true,

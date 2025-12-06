@@ -15,7 +15,7 @@ import { IFileService } from '../../../platform/files/common/files.js';
 import { extHostCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { MainThreadDocuments } from './mainThreadDocuments.js';
 import { MainThreadTextEditor } from './mainThreadEditor.js';
-import { MainThreadTextEditors } from './mainThreadEditors.js';
+import { IMainThreadEditorLocator, MainThreadTextEditors } from './mainThreadEditors.js';
 import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta, IModelAddedData, ITextEditorAddData, MainContext } from '../common/extHost.protocol.js';
 import { AbstractTextEditor } from '../../browser/parts/editor/textEditor.js';
 import { IEditorPane } from '../../common/editor.js';
@@ -274,7 +274,7 @@ class MainThreadDocumentAndEditorStateComputer {
 }
 
 @extHostCustomer
-export class MainThreadDocumentsAndEditors {
+export class MainThreadDocumentsAndEditors implements IMainThreadEditorLocator {
 
 	private readonly _toDispose = new DisposableStore();
 	private readonly _proxy: ExtHostDocumentsAndEditorsShape;

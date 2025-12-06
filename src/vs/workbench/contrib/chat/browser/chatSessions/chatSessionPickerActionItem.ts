@@ -49,7 +49,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 		const actionWithLabel: IAction = {
 			...action,
 			label: item?.name || group.name,
-			tooltip: group.description || group.name,
+			tooltip: item?.description ?? group.description ?? group.name,
 			run: () => { }
 		};
 
@@ -66,7 +66,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 							checked: true,
 							class: undefined,
 							description: undefined,
-							tooltip: currentOption.name,
+							tooltip: currentOption.description ?? currentOption.name,
 							label: currentOption.name,
 							run: () => { }
 						} satisfies IActionWidgetDropdownAction];
@@ -80,7 +80,7 @@ export class ChatSessionPickerActionItem extends ActionWidgetDropdownActionViewI
 								checked: isCurrent,
 								class: undefined,
 								description: undefined,
-								tooltip: optionItem.name,
+								tooltip: optionItem.description ?? optionItem.name,
 								label: optionItem.name,
 								run: () => {
 									this.delegate.setOption(optionItem);

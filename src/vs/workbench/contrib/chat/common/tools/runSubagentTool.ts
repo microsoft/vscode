@@ -97,7 +97,6 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const runSubagentToolData: IToolData = {
 			id: RunSubagentToolId,
 			toolReferenceName: VSCodeToolReference.runSubagent,
-			legacyToolReferenceFullNames: ['runSubagent'],
 			icon: ThemeIcon.fromId(Codicon.organization.id),
 			displayName: localize('tool.runSubagent.displayName', 'Run Subagent'),
 			userDescription: localize('tool.runSubagent.userDescription', 'Run a task within an isolated subagent context to enable efficient organization of tasks and context window management.'),
@@ -217,7 +216,6 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 			// Build the agent request
 			const agentRequest: IChatAgentRequest = {
-				sessionId: invocation.context.sessionId,
 				sessionResource: invocation.context.sessionResource,
 				requestId: invocation.callId ?? `subagent-${Date.now()}`,
 				agentId: defaultAgent.id,

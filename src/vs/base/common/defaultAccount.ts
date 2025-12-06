@@ -7,6 +7,7 @@ export interface IDefaultAccount {
 	readonly sessionId: string;
 	readonly enterprise: boolean;
 	readonly access_type_sku?: string;
+	readonly copilot_plan?: string;
 	readonly assigned_date?: string;
 	readonly can_signup_for_limited?: boolean;
 	readonly chat_enabled?: boolean;

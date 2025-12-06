@@ -64,7 +64,7 @@ const chatViewDescriptor: IViewDescriptor = {
 		},
 		order: 1
 	},
-	ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Chat }]),
+	ctorDescriptor: new SyncDescriptor(ChatViewPane),
 	when: ContextKeyExpr.or(
 		ContextKeyExpr.or(
 			ChatContextKeys.Setup.hidden,

@@ -40,7 +40,7 @@ import { ConfirmedReason, IChatService, IChatToolInvocation, ToolConfirmKind } f
 import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { ILanguageModelToolsConfirmationService } from '../common/languageModelToolsConfirmationService.js';
-import { CountTokensCallback, createToolSchemaUri, GithubCopilotToolReference, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, SpecedToolAliases, stringifyPromptTsxPart, ToolDataSource, ToolSet, VSCodeToolReference } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -148,7 +148,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this.executeToolSet = this._register(this.createToolSet(
 			ToolDataSource.Internal,
 			'execute',
-			VSCodeToolReference.execute,
+			SpecedToolAliases.execute,
 			{
 				icon: ThemeIcon.fromId(Codicon.terminal.id),
 				description: localize('copilot.toolSet.execute.description', 'Execute code and applications on your machine'),
@@ -159,7 +159,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		this.readToolSet = this._register(this.createToolSet(
 			ToolDataSource.Internal,
 			'read',
-			VSCodeToolReference.read,
+			SpecedToolAliases.read,
 			{
 				icon: ThemeIcon.fromId(Codicon.eye.id),
 				description: localize('copilot.toolSet.read.description', 'Read files in your workspace'),
@@ -310,7 +310,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const request = model.getRequests().at(-1)!;
 				requestId = request.id;
 				dto.modelId = request.modelId;
-				dto.userSelectedTools = request.userSelectedTools;
+				dto.userSelectedTools = request.userSelectedTools && { ...request.userSelectedTools };
 
 				// Replace the token with a new token that we can cancel when cancelToolCallsForRequest is called
 				if (!this._callsByRequestId.has(requestId)) {
@@ -728,19 +728,19 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					yield alias + '/*';
 				}
 				break;
-			case VSCodeToolReference.execute: // 'execute'
-				yield GithubCopilotToolReference.shell;
+			case SpecedToolAliases.execute: // 'execute'
+				yield 'shell'; // legacy alias
 				break;
-			case VSCodeToolReference.agent: // 'agent'
-				yield VSCodeToolReference.runSubagent;
-				yield GithubCopilotToolReference.customAgent;
+			case SpecedToolAliases.agent: // 'agent'
+				yield VSCodeToolReference.runSubagent; // prefer the tool set over th old tool name
+				yield 'custom-agent'; // legacy alias
 				break;
 		}
 	}
 
 	private * getToolAliases(toolSet: IToolData, fullReferenceName: string): Iterable<string> {
 		const referenceName = toolSet.toolReferenceName ?? toolSet.displayName;
-		if (fullReferenceName !== referenceName) {
+		if (fullReferenceName !== referenceName && referenceName !== VSCodeToolReference.runSubagent) {
 			yield referenceName; // simple name, without toolset name
 		}
 		if (toolSet.legacyToolReferenceFullNames) {

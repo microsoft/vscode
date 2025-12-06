@@ -430,117 +430,114 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		//#region Editor Context Menu
 
-		// TODO@bpasero remove these when Chat extension is built-in
-		{
-			function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review' | 'chat.internal.generateDocs' | 'chat.internal.generateTests', actualCommand: string): void {
+		function registerGenerateCodeCommand(coreCommand: 'chat.internal.explain' | 'chat.internal.fix' | 'chat.internal.review' | 'chat.internal.generateDocs' | 'chat.internal.generateTests', actualCommand: string): void {
 
-				CommandsRegistry.registerCommand(coreCommand, async accessor => {
-					const commandService = accessor.get(ICommandService);
-					const codeEditorService = accessor.get(ICodeEditorService);
-					const markerService = accessor.get(IMarkerService);
+			CommandsRegistry.registerCommand(coreCommand, async accessor => {
+				const commandService = accessor.get(ICommandService);
+				const codeEditorService = accessor.get(ICodeEditorService);
+				const markerService = accessor.get(IMarkerService);
 
-					switch (coreCommand) {
-						case 'chat.internal.explain':
-						case 'chat.internal.fix': {
-							const textEditor = codeEditorService.getActiveCodeEditor();
-							const uri = textEditor?.getModel()?.uri;
-							const range = textEditor?.getSelection();
-							if (!uri || !range) {
-								return;
-							}
-
-							const markers = AICodeActionsHelper.warningOrErrorMarkersAtRange(markerService, uri, range);
-
-							const actualCommand = coreCommand === 'chat.internal.explain'
-								? AICodeActionsHelper.explainMarkers(markers)
-								: AICodeActionsHelper.fixMarkers(markers, range);
-
-							await commandService.executeCommand(actualCommand.id, ...(actualCommand.arguments ?? []));
-
-							break;
+				switch (coreCommand) {
+					case 'chat.internal.explain':
+					case 'chat.internal.fix': {
+						const textEditor = codeEditorService.getActiveCodeEditor();
+						const uri = textEditor?.getModel()?.uri;
+						const range = textEditor?.getSelection();
+						if (!uri || !range) {
+							return;
 						}
-						case 'chat.internal.review':
-						case 'chat.internal.generateDocs':
-						case 'chat.internal.generateTests': {
-							const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
-							if (result) {
-								await commandService.executeCommand(actualCommand);
-							}
+
+						const markers = AICodeActionsHelper.warningOrErrorMarkersAtRange(markerService, uri, range);
+
+						const actualCommand = coreCommand === 'chat.internal.explain'
+							? AICodeActionsHelper.explainMarkers(markers)
+							: AICodeActionsHelper.fixMarkers(markers, range);
+
+						await commandService.executeCommand(actualCommand.id, ...(actualCommand.arguments ?? []));
+
+						break;
+					}
+					case 'chat.internal.review':
+					case 'chat.internal.generateDocs':
+					case 'chat.internal.generateTests': {
+						const result = await commandService.executeCommand(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID);
+						if (result) {
+							await commandService.executeCommand(actualCommand);
 						}
 					}
-				});
-			}
-			registerGenerateCodeCommand('chat.internal.explain', 'github.copilot.chat.explain');
-			registerGenerateCodeCommand('chat.internal.fix', 'github.copilot.chat.fix');
-			registerGenerateCodeCommand('chat.internal.review', 'github.copilot.chat.review');
-			registerGenerateCodeCommand('chat.internal.generateDocs', 'github.copilot.chat.generateDocs');
-			registerGenerateCodeCommand('chat.internal.generateTests', 'github.copilot.chat.generateTests');
-
-			const internalGenerateCodeContext = ContextKeyExpr.and(
-				ChatContextKeys.Setup.hidden.negate(),
-				ChatContextKeys.Setup.disabled.negate(),
-				ChatContextKeys.Setup.installed.negate(),
-			);
-
-			MenuRegistry.appendMenuItem(MenuId.EditorContext, {
-				command: {
-					id: 'chat.internal.explain',
-					title: localize('explain', "Explain"),
-				},
-				group: '1_chat',
-				order: 4,
-				when: internalGenerateCodeContext
-			});
-
-			MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-				command: {
-					id: 'chat.internal.fix',
-					title: localize('fix', "Fix"),
-				},
-				group: '1_action',
-				order: 1,
-				when: ContextKeyExpr.and(
-					internalGenerateCodeContext,
-					EditorContextKeys.readOnly.negate()
-				)
-			});
-
-			MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-				command: {
-					id: 'chat.internal.review',
-					title: localize('review', "Code Review"),
-				},
-				group: '1_action',
-				order: 2,
-				when: internalGenerateCodeContext
-			});
-
-			MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-				command: {
-					id: 'chat.internal.generateDocs',
-					title: localize('generateDocs', "Generate Docs"),
-				},
-				group: '2_generate',
-				order: 1,
-				when: ContextKeyExpr.and(
-					internalGenerateCodeContext,
-					EditorContextKeys.readOnly.negate()
-				)
-			});
-
-			MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
-				command: {
-					id: 'chat.internal.generateTests',
-					title: localize('generateTests', "Generate Tests"),
-				},
-				group: '2_generate',
-				order: 2,
-				when: ContextKeyExpr.and(
-					internalGenerateCodeContext,
-					EditorContextKeys.readOnly.negate()
-				)
+				}
 			});
 		}
+		registerGenerateCodeCommand('chat.internal.explain', 'github.copilot.chat.explain');
+		registerGenerateCodeCommand('chat.internal.fix', 'github.copilot.chat.fix');
+		registerGenerateCodeCommand('chat.internal.review', 'github.copilot.chat.review');
+		registerGenerateCodeCommand('chat.internal.generateDocs', 'github.copilot.chat.generateDocs');
+		registerGenerateCodeCommand('chat.internal.generateTests', 'github.copilot.chat.generateTests');
+
+		const internalGenerateCodeContext = ContextKeyExpr.and(
+			ChatContextKeys.Setup.hidden.negate(),
+			ChatContextKeys.Setup.disabled.negate(),
+			ChatContextKeys.Setup.installed.negate(),
+		);
+
+		MenuRegistry.appendMenuItem(MenuId.EditorContext, {
+			command: {
+				id: 'chat.internal.explain',
+				title: localize('explain', "Explain"),
+			},
+			group: '1_chat',
+			order: 4,
+			when: internalGenerateCodeContext
+		});
+
+		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+			command: {
+				id: 'chat.internal.fix',
+				title: localize('fix', "Fix"),
+			},
+			group: '1_action',
+			order: 1,
+			when: ContextKeyExpr.and(
+				internalGenerateCodeContext,
+				EditorContextKeys.readOnly.negate()
+			)
+		});
+
+		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+			command: {
+				id: 'chat.internal.review',
+				title: localize('review', "Code Review"),
+			},
+			group: '1_action',
+			order: 2,
+			when: internalGenerateCodeContext
+		});
+
+		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+			command: {
+				id: 'chat.internal.generateDocs',
+				title: localize('generateDocs', "Generate Docs"),
+			},
+			group: '2_generate',
+			order: 1,
+			when: ContextKeyExpr.and(
+				internalGenerateCodeContext,
+				EditorContextKeys.readOnly.negate()
+			)
+		});
+
+		MenuRegistry.appendMenuItem(MenuId.ChatTextEditorMenu, {
+			command: {
+				id: 'chat.internal.generateTests',
+				title: localize('generateTests', "Generate Tests"),
+			},
+			group: '2_generate',
+			order: 2,
+			when: ContextKeyExpr.and(
+				internalGenerateCodeContext,
+				EditorContextKeys.readOnly.negate()
+			)
+		});
 	}
 
 	private registerUrlLinkHandler(): void {
@@ -592,10 +589,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 class ChatSetupExtensionUrlHandler implements IExtensionUrlHandlerOverride {
 	constructor(
-		private readonly productService: IProductService,
-		private readonly commandService: ICommandService,
-		private readonly telemetryService: ITelemetryService,
-		private readonly chatModeService: IChatModeService,
+		@IProductService private readonly productService: IProductService,
+		@ICommandService private readonly commandService: ICommandService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 	) { }
 
 	canHandleURL(url: URI): boolean {

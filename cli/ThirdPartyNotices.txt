@@ -4422,7 +4422,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 keyring 2.3.3 - MIT OR Apache-2.0
-https://github.com/hwchen/keyring-rs
+https://github.com/open-source-cooperative/keyring-rs
 
 Copyright (c) 2016 keyring Developers
 

@@ -12,10 +12,10 @@
     "start-stdio": "echo 'Starting vscode-playwright-mcp... For customization and troubleshooting, see ./test/mcp/README.md' && npm ci && npm run -s compile && node ./out/stdio.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.18.1",
+    "@modelcontextprotocol/sdk": "1.24.0",
     "@playwright/mcp": "^0.0.37",
     "cors": "^2.8.5",
-    "express": "^5.1.0",
+    "express": "^5.2.1",
     "minimist": "^1.2.8",
     "ncp": "^2.0.0",
     "node-fetch": "^2.6.7"

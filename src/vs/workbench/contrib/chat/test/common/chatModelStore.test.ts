@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
@@ -43,7 +42,6 @@ suite('ChatModelStore', () => {
 		const props: IStartSessionProps = {
 			sessionResource: uri,
 			location: ChatAgentLocation.Chat,
-			token: CancellationToken.None,
 			canUseTools: true
 		};
 
@@ -64,7 +62,6 @@ suite('ChatModelStore', () => {
 		const props: IStartSessionProps = {
 			sessionResource: uri,
 			location: ChatAgentLocation.Chat,
-			token: CancellationToken.None,
 			canUseTools: true
 		};
 
@@ -96,7 +93,6 @@ suite('ChatModelStore', () => {
 		const props: IStartSessionProps = {
 			sessionResource: uri,
 			location: ChatAgentLocation.Chat,
-			token: CancellationToken.None,
 			canUseTools: true
 		};
 
@@ -117,7 +113,6 @@ suite('ChatModelStore', () => {
 		const props: IStartSessionProps = {
 			sessionResource: uri,
 			location: ChatAgentLocation.Chat,
-			token: CancellationToken.None,
 			canUseTools: true
 		};
 
@@ -140,13 +135,11 @@ suite('ChatModelStore', () => {
 		const props1: IStartSessionProps = {
 			sessionResource: uri1,
 			location: ChatAgentLocation.Chat,
-			token: CancellationToken.None,
 			canUseTools: true
 		};
 		const props2: IStartSessionProps = {
 			sessionResource: uri2,
 			location: ChatAgentLocation.Chat,
-			token: CancellationToken.None,
 			canUseTools: true
 		};
 
@@ -170,7 +163,6 @@ suite('ChatModelStore', () => {
 		const props: IStartSessionProps = {
 			sessionResource: uri,
 			location: ChatAgentLocation.Chat,
-			token: CancellationToken.None,
 			canUseTools: true
 		};
 

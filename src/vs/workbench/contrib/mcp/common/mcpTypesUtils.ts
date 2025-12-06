@@ -106,7 +106,7 @@ export function canLoadMcpNetworkResourceDirectly(resource: URL, server: IMcpSer
 	let isResourceRequestValid = false;
 	if (resource.protocol === 'http:') {
 		const launch = server?.connection.get()?.launchDefinition;
-		if (launch && launch.type === McpServerTransportType.HTTP && launch.uri.authority.toLowerCase() === resource.hostname.toLowerCase()) {
+		if (launch && launch.type === McpServerTransportType.HTTP && launch.uri.authority.toLowerCase() === resource.host.toLowerCase()) {
 			isResourceRequestValid = true;
 		}
 	} else if (resource.protocol === 'https:') {

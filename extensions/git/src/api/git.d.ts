@@ -200,7 +200,7 @@ export interface RefQuery {
 	readonly contains?: string;
 	readonly count?: number;
 	readonly pattern?: string | string[];
-	readonly sort?: 'alphabetically' | 'committerdate';
+	readonly sort?: 'alphabetically' | 'committerdate' | 'creatordate';
 }
 
 export interface BranchQuery extends RefQuery {

@@ -191,7 +191,7 @@ suite('Agent Sessions', () => {
 							tooltip: 'Session tooltip',
 							iconPath: ThemeIcon.fromId('check'),
 							timing: { startTime, endTime },
-							statistics: { files: 1, insertions: 10, deletions: 5 }
+							changes: { files: 1, insertions: 10, deletions: 5, details: [] }
 						}
 					]
 				};
@@ -212,7 +212,7 @@ suite('Agent Sessions', () => {
 				assert.strictEqual(session.status, ChatSessionStatus.Completed);
 				assert.strictEqual(session.timing.startTime, startTime);
 				assert.strictEqual(session.timing.endTime, endTime);
-				assert.deepStrictEqual(session.statistics, { files: 1, insertions: 10, deletions: 5 });
+				assert.deepStrictEqual(session.changes, { files: 1, insertions: 10, deletions: 5 });
 			});
 		});
 

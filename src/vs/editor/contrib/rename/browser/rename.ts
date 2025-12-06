@@ -124,9 +124,14 @@ export function hasProvider(registry: LanguageFeatureRegistry<RenameProvider>, m
 	return providers.length > 0;
 }
 
-export async function prepareRename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position): Promise<RenameLocation & Rejection | undefined> {
+export async function prepareRename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position, cancellationToken?: CancellationToken): Promise<RenameLocation & Rejection | undefined> {
 	const skeleton = new RenameSkeleton(model, position, registry);
-	return skeleton.resolveRenameLocation(CancellationToken.None);
+	return skeleton.resolveRenameLocation(cancellationToken ?? CancellationToken.None);
+}
+
+export async function rawRename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position, newName: string, cancellationToken?: CancellationToken): Promise<WorkspaceEdit & Rejection> {
+	const skeleton = new RenameSkeleton(model, position, registry);
+	return skeleton.provideRenameEdits(newName, cancellationToken ?? CancellationToken.None);
 }
 
 export async function rename(registry: LanguageFeatureRegistry<RenameProvider>, model: ITextModel, position: Position, newName: string): Promise<WorkspaceEdit & Rejection> {

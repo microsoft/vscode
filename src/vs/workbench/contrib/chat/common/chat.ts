@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IChatTerminalToolInvocationData, ILegacyChatTerminalToolInvocationData } from './chatService.js';
+import { awaitCompleteChatEditingDiff } from './chatEditingService.js';
+import { IChatModel } from './chatModel.js';
+import type { IChatSessionStats, IChatTerminalToolInvocationData, ILegacyChatTerminalToolInvocationData } from './chatService.js';
 import { ChatModeKind } from './constants.js';
 
 export function checkModeOption(mode: ChatModeKind, option: boolean | ((mode: ChatModeKind) => boolean) | undefined): boolean | undefined {
@@ -33,4 +35,18 @@ export function migrateLegacyTerminalToolSpecificData(data: IChatTerminalToolInv
 		} satisfies IChatTerminalToolInvocationData;
 	}
 	return data;
+}
+
+export async function awaitStatsForSession(model: IChatModel): Promise<IChatSessionStats | undefined> {
+	if (!model.editingSession) {
+		return undefined;
+	}
+
+	const diffs = await awaitCompleteChatEditingDiff(model.editingSession.getDiffsForFilesInSession());
+	return diffs.reduce((acc, diff) => {
+		acc.fileCount++;
+		acc.added += diff.added;
+		acc.removed += diff.removed;
+		return acc;
+	}, { fileCount: 0, added: 0, removed: 0 } satisfies IChatSessionStats);
 }

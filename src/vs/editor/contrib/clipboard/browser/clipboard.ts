@@ -17,9 +17,9 @@ import { KeybindingWeight } from '../../../../platform/keybinding/common/keybind
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { CopyOptions, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
+import { CopyOptions, generateDataToCopyAndStoreInMemory, InMemoryClipboardMetadataManager } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { NativeEditContextRegistry } from '../../../browser/controller/editContext/native/nativeEditContextRegistry.js';
-import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../browser/editorBrowser.js';
 import { Command, EditorAction, MultiCommand, registerEditorAction } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
@@ -173,6 +173,7 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const logService = accessor.get(ILogService);
+		const clipboardService = accessor.get(IClipboardService);
 		logService.trace('ExecCommandCopyWithSyntaxHighlightingAction#run');
 		if (!editor.hasModel()) {
 			return;
@@ -187,9 +188,26 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends EditorAction {
 		CopyOptions.forceCopyWithSyntaxHighlighting = true;
 		editor.focus();
 		logService.trace('ExecCommandCopyWithSyntaxHighlightingAction (before execCommand copy)');
-		editor.getContainerDomNode().ownerDocument.execCommand('copy');
+		executeClipboardCopyWithWorkaround(editor, clipboardService);
 		logService.trace('ExecCommandCopyWithSyntaxHighlightingAction (after execCommand copy)');
 		CopyOptions.forceCopyWithSyntaxHighlighting = false;
+	}
+}
+
+function executeClipboardCopyWithWorkaround(editor: IActiveCodeEditor, clipboardService: IClipboardService) {
+	// !!!!!
+	// This is a workaround for what we think is an Electron bug where
+	// execCommand('copy') does not always work (it does not fire a clipboard event)
+	// We will use this as a signal that we have executed a copy command
+	// !!!!!
+	CopyOptions.electronBugWorkaroundCopyEventHasFired = false;
+	editor.getContainerDomNode().ownerDocument.execCommand('copy');
+	if (platform.isNative && CopyOptions.electronBugWorkaroundCopyEventHasFired === false) {
+		// We have encountered the Electron bug!
+		// As a workaround, we will write (only the plaintext data) to the clipboard in a different way
+		// We will use the clipboard service (which in the native case will go to electron's clipboard API)
+		const { dataToCopy } = generateDataToCopyAndStoreInMemory(editor._getViewModel(), editor.getOptions(), undefined, browser.isFirefox);
+		clipboardService.writeText(dataToCopy.text);
 	}
 }
 
@@ -201,10 +219,11 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 	// 1. handle case when focus is in editor.
 	target.addImplementation(10000, 'code-editor', (accessor: ServicesAccessor, args: unknown) => {
 		const logService = accessor.get(ILogService);
+		const clipboardService = accessor.get(IClipboardService);
 		logService.trace('registerExecCommandImpl (addImplementation code-editor for : ', browserCommand, ')');
 		// Only if editor text focus (i.e. not if editor has widget focus).
 		const focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
-		if (focusedEditor && focusedEditor.hasTextFocus()) {
+		if (focusedEditor && focusedEditor.hasTextFocus() && focusedEditor.hasModel()) {
 			// Do not execute if there is no selection and empty selection clipboard is off
 			const emptySelectionClipboard = focusedEditor.getOption(EditorOption.emptySelectionClipboard);
 			const selection = focusedEditor.getSelection();
@@ -216,13 +235,17 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 				logCopyCommand(focusedEditor);
 				// execCommand(copy) works for edit context, but not execCommand(cut).
 				logService.trace('registerExecCommandImpl (before execCommand copy)');
-				focusedEditor.getContainerDomNode().ownerDocument.execCommand('copy');
+				executeClipboardCopyWithWorkaround(focusedEditor, clipboardService);
 				focusedEditor.trigger(undefined, Handler.Cut, undefined);
 				logService.trace('registerExecCommandImpl (after execCommand copy)');
 			} else {
 				logCopyCommand(focusedEditor);
 				logService.trace('registerExecCommandImpl (before execCommand ' + browserCommand + ')');
-				focusedEditor.getContainerDomNode().ownerDocument.execCommand(browserCommand);
+				if (browserCommand === 'copy') {
+					executeClipboardCopyWithWorkaround(focusedEditor, clipboardService);
+				} else {
+					focusedEditor.getContainerDomNode().ownerDocument.execCommand(browserCommand);
+				}
 				logService.trace('registerExecCommandImpl (after execCommand ' + browserCommand + ')');
 			}
 			return true;

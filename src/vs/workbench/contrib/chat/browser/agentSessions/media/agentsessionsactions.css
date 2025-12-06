@@ -5,7 +5,8 @@
 
 .agent-sessions-viewer .agent-session-item .agent-session-details-toolbar {
 
-	.monaco-action-bar .actions-container .action-item .action-label {
+	.actions-container .action-item .action-label {
+		background-color: var(--vscode-toolbar-hoverBackground);
 		padding: 0;
 	}
 
@@ -31,11 +32,15 @@
 	}
 }
 
-.monaco-list-row.selected .agent-session-item .agent-session-details-toolbar {
+.agent-sessions-viewer .monaco-list-row.selected .agent-session-item .agent-session-details-toolbar {
 
 	.agent-session-diff-files,
 	.agent-session-diff-added,
 	.agent-session-diff-removed {
 		color: unset;
+	}
+
+	.actions-container .action-item .action-label {
+		background-color: unset;
 	}
 }

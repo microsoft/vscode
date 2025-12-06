@@ -32,6 +32,7 @@ import { equals } from '../../../../base/common/arrays.js';
 import { isString } from '../../../../base/common/types.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { isWeb } from '../../../../base/common/platform.js';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -104,7 +105,12 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 		// Disabling extension unification should immediately disable the unified extension flow
 		// Enabling extension unification will only take effect after restart
-		this._extensionUnificationEnabled = this.configurationService.getValue<boolean>(EXTENSION_UNIFICATION_SETTING);
+		// Extension Unification is disabled in web when there is no remote authority
+		if (isWeb && this.environmentService.remoteAuthority === undefined) {
+			this._extensionUnificationEnabled = false;
+		} else {
+			this._extensionUnificationEnabled = this.configurationService.getValue<boolean>(EXTENSION_UNIFICATION_SETTING);
+		}
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(EXTENSION_UNIFICATION_SETTING)) {
 				const extensionUnificationEnabled = this.configurationService.getValue<boolean>(EXTENSION_UNIFICATION_SETTING);

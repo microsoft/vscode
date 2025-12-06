@@ -261,13 +261,20 @@ export interface ITerminalVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly exitCode?: number;
 }
 
+export interface IDebugVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'debugVariable';
+	readonly value: string;
+	readonly expression: string;
+	readonly type?: string;
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
 	| IPromptFileVariableEntry | IPromptTextVariableEntry
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
-	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry;
+	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -294,6 +301,10 @@ export function isStringVariableEntry(obj: IChatRequestVariableEntry): obj is IC
 
 export function isTerminalVariableEntry(obj: IChatRequestVariableEntry): obj is ITerminalVariableEntry {
 	return obj.kind === 'terminalCommand';
+}
+
+export function isDebugVariableEntry(obj: IChatRequestVariableEntry): obj is IDebugVariableEntry {
+	return obj.kind === 'debugVariable';
 }
 
 export function isPasteVariableEntry(obj: IChatRequestVariableEntry): obj is IChatRequestPasteVariableEntry {

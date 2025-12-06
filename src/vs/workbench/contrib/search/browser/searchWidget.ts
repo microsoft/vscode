@@ -84,11 +84,11 @@ class ReplaceAllAction extends Action {
 		this._searchWidget = searchWidget;
 	}
 
-	override run(): Promise<any> {
+	override run(): Promise<void> {
 		if (this._searchWidget) {
 			return this._searchWidget.triggerReplaceAll();
 		}
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 }
 
@@ -548,9 +548,9 @@ export class SearchWidget extends Widget {
 		this._register(this.replaceInput.onPreserveCaseKeyDown((keyboardEvent: IKeyboardEvent) => this.onPreserveCaseKeyDown(keyboardEvent)));
 	}
 
-	triggerReplaceAll(): Promise<any> {
+	triggerReplaceAll(): Promise<void> {
 		this._onReplaceAll.fire();
-		return Promise.resolve(null);
+		return Promise.resolve();
 	}
 
 	private onToggleReplaceButton(): void {

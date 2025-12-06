@@ -293,7 +293,7 @@ export class View extends ViewEventHandler {
 		if (usingExperimentalEditContext) {
 			return this._instantiationService.createInstance(NativeEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		} else {
-			return this._instantiationService.createInstance(TextAreaEditContext, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
+			return this._instantiationService.createInstance(TextAreaEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		}
 	}
 
@@ -652,6 +652,15 @@ export class View extends ViewEventHandler {
 		return visibleRange.left;
 	}
 
+	public getLineWidth(modelLineNumber: number): number {
+		const model = this._context.viewModel.model;
+		const viewLine = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelLineNumber, model.getLineMaxColumn(modelLineNumber))).lineNumber;
+		this._flushAccumulatedAndRenderNow();
+		const width = this._viewLines.getLineWidth(viewLine);
+
+		return width;
+	}
+
 	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
 		const mouseTarget = this._pointerHandler.getTargetAtClientPoint(clientX, clientY);
 		if (!mouseTarget) {
@@ -723,7 +732,9 @@ export class View extends ViewEventHandler {
 			widgetData.position?.preference ?? null,
 			widgetData.position?.positionAffinity ?? null
 		);
-		this._scheduleRender();
+		if (this._contentWidgets.shouldRender()) {
+			this._scheduleRender();
+		}
 	}
 
 	public removeContentWidget(widgetData: IContentWidgetData): void {

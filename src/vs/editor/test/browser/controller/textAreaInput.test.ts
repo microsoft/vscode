@@ -13,7 +13,6 @@ import { IRecorded, IRecordedEvent, IRecordedTextareaState } from './imeRecorded
 import { TestAccessibilityService } from '../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from '../../../browser/controller/editContext/textArea/textAreaEditContextInput.js';
-import { ClipboardDataToCopy } from '../../../browser/controller/editContext/clipboardUtils.js';
 import { TextAreaState } from '../../../browser/controller/editContext/textArea/textAreaEditContextState.js';
 
 suite('TextAreaInput', () => {
@@ -49,9 +48,7 @@ suite('TextAreaInput', () => {
 	async function simulateInteraction(recorded: IRecorded): Promise<OutoingEvent[]> {
 		const disposables = new DisposableStore();
 		const host: ITextAreaInputHost = {
-			getDataToCopy: function (): ClipboardDataToCopy {
-				throw new Error('Function not implemented.');
-			},
+			context: null,
 			getScreenReaderContent: function (): TextAreaState {
 				return new TextAreaState('', 0, 0, null, undefined);
 			},

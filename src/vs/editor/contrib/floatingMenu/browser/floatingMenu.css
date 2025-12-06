@@ -21,7 +21,7 @@
 		border-radius: 2px;
 	}
 
-	.action-item > .action-label.codicon {
+	.action-item > .action-label.codicon, .action-item .codicon {
 		color: var(--vscode-button-foreground);
 	}
 

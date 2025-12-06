@@ -413,11 +413,20 @@ export class ChatModelsViewModel extends Disposable {
 			}));
 
 			this.modelEntries.push(...models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name)));
-		}
+			const modelEntries = distinct(this.modelEntries, modelEntry => ChatModelsViewModel.getId(modelEntry));
 
-		const modelEntries = distinct(this.modelEntries, modelEntry => ChatModelsViewModel.getId(modelEntry));
-		this.modelEntries = this._groupBy === ChatModelGroup.Visibility ? this.sortModels(modelEntries) : modelEntries;
-		this.filter(this.searchValue);
+			if (this._groupBy === ChatModelGroup.Visibility) {
+				this.modelEntries = this.sortModels(modelEntries);
+			} else {
+				this.modelEntries = modelEntries;
+				if (models.every(m => !m.metadata.isUserSelectable)) {
+					this.collapsedGroups.add(vendor.vendor);
+				}
+			}
+
+			this.modelEntries = this._groupBy === ChatModelGroup.Visibility ? this.sortModels(modelEntries) : modelEntries;
+			this.filter(this.searchValue);
+		}
 	}
 
 	toggleVisibility(model: IModelItemEntry): void {
@@ -447,6 +456,21 @@ export class ChatModelsViewModel extends Disposable {
 		}
 		this.selectedEntry = viewModelEntry;
 		if (!this.collapsedGroups.delete(id)) {
+			this.collapsedGroups.add(id);
+		}
+		this.filter(this.searchValue);
+	}
+
+	collapseAll(): void {
+		const allGroupIds = new Set<string>();
+		for (const entry of this.viewModelEntries) {
+			if (isVendorEntry(entry)) {
+				allGroupIds.add(entry.vendorEntry.vendor);
+			} else if (isGroupEntry(entry)) {
+				allGroupIds.add(entry.group);
+			}
+		}
+		for (const id of allGroupIds) {
 			this.collapsedGroups.add(id);
 		}
 		this.filter(this.searchValue);
