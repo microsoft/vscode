@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - 'release/*'
+      - '1.107/sessions'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
