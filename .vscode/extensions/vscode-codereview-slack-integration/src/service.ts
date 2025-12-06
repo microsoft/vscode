@@ -56,7 +56,7 @@ export class SlackService {
         this._onSessionUpdate();
     }
 
-    public async waitUntilAuthenticationStatus(): Promise<boolean> {
+    public async authenticationStatus(): Promise<boolean> {
         return !!(await this._client);
     }
 

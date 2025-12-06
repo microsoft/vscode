@@ -147,6 +147,12 @@ export class SlackTreeDataProvider implements vscode.TreeDataProvider<TreeItem> 
     constructor(private slackService: SlackService) {
         slackService.onSignIn(() => this._triggerAutoRefresh());
         slackService.onSignOut(() => this._clearAutoRefresh());
+        slackService.authenticationStatus().then(isAuthenticated => {
+            if (isAuthenticated) {
+                this.fetchMessages();
+                this._triggerAutoRefresh();
+            }
+        });
     }
 
     public async viewPR(item: SlackMessageItem): Promise<void> {
@@ -215,7 +221,7 @@ export class SlackTreeDataProvider implements vscode.TreeDataProvider<TreeItem> 
         }
 
         // Check authentication status
-        const isAuthenticated = await this.slackService.waitUntilAuthenticationStatus();
+        const isAuthenticated = await this.slackService.authenticationStatus();
         if (!isAuthenticated) {
             return [new SignInItem()];
         }
