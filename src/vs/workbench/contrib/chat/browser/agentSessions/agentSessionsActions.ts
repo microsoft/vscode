@@ -162,7 +162,15 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 CommandsRegistry.registerCommand(`agentSession.${AgentSessionProviders.Local}.openChanges`, async (accessor: ServicesAccessor, resource: URI) => {
 	const chatService = accessor.get(IChatService);
 
-	const session = chatService.getSession(resource);
+	// Try to get the existing session first
+	let session = chatService.getSession(resource);
+
+	// If session is not loaded or has no editing session, restore it from history
+	if (!session?.editingSession) {
+		const sessionRef = await chatService.getOrRestoreSession(resource);
+		session = sessionRef?.object;
+	}
+
 	session?.editingSession?.show();
 });
 
