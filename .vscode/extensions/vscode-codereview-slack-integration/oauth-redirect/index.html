@@ -163,11 +163,9 @@
             document.getElementById('error').style.display = 'block';
             document.getElementById('error').textContent = 'Authentication failed: ' + error;
         } else if (code) {
-            // Build the VS Code Insiders URI
-            // The extension ID should match your package.json publisher.name format
+
             const vscodeUri = `vscode-insiders://vs-code-codereview.vs-code-codereview/callback?code=${encodeURIComponent(code)}`;
 
-            // Set the manual link
             document.getElementById('vscodeLink').href = vscodeUri;
 
             // Try to open VS Code Insiders

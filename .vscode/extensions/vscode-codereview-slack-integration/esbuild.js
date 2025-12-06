@@ -1,31 +1,16 @@
-const esbuild = require("esbuild");
-const path = require("path");
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+const esbuild = require('esbuild');
+const path = require('path');
 
 // Load environment variables from .env file
 require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
-
-/**
- * @type {import('esbuild').Plugin}
- */
-const esbuildProblemMatcherPlugin = {
-	name: 'esbuild-problem-matcher',
-
-	setup(build) {
-		build.onStart(() => {
-			console.log('[watch] build started');
-		});
-		build.onEnd((result) => {
-			result.errors.forEach(({ text, location }) => {
-				console.error(`✘ [ERROR] ${text}`);
-				console.error(`    ${location.file}:${location.line}:${location.column}:`);
-			});
-			console.log('[watch] build finished');
-		});
-	},
-};
 
 async function main() {
 	const ctx = await esbuild.context({
@@ -47,10 +32,7 @@ async function main() {
 			'process.env.SLACK_CLIENT_SECRET': JSON.stringify(process.env.SLACK_CLIENT_SECRET || ''),
 			'process.env.SLACK_REDIRECT_URI': JSON.stringify(process.env.SLACK_REDIRECT_URI || ''),
 		},
-		plugins: [
-			/* add to the end of plugins array */
-			esbuildProblemMatcherPlugin,
-		],
+		plugins: [],
 	});
 	if (watch) {
 		await ctx.watch();
