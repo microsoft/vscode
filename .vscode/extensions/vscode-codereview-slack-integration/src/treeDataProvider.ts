@@ -149,7 +149,6 @@ export class SlackTreeDataProvider implements vscode.TreeDataProvider<TreeItem> 
         slackService.onSignOut(() => this._clearAutoRefresh());
         slackService.authenticationStatus().then(isAuthenticated => {
             if (isAuthenticated) {
-                this.fetchMessages();
                 this._triggerAutoRefresh();
             }
         });
@@ -245,6 +244,7 @@ export class SlackTreeDataProvider implements vscode.TreeDataProvider<TreeItem> 
     }
 
     private _triggerAutoRefresh(): void {
+        this.fetchMessages();
         const interval = setInterval(async () => {
             this.fetchMessages();
         }, this.REFRESH_INTERVAL_MS);
