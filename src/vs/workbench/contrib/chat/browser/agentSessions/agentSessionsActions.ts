@@ -17,7 +17,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
 import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, IAgentSessionsControl } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
-import { IChatModelReference, IChatService } from '../../common/chatService.js';
+import { IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
@@ -27,8 +27,6 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../commo
 import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { getChatSessionType } from '../../common/chatUri.js';
-import { ChatAgentLocation } from '../../common/constants.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 //#region Session Title Actions
 
@@ -161,19 +159,12 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 	async openChanges(): Promise<void> {
 		const resource = this.action.getSession().resource;
 		const type = getChatSessionType(resource);
-		let session = this.chatService.getSession(resource);
-		let chatModelRef: IChatModelReference | undefined;
-		if (!session) {
-			chatModelRef = type === AgentSessionProviders.Local ? await this.chatService.getOrRestoreSession(resource) : await this.chatService.loadSessionForResource(resource, ChatAgentLocation.Chat, CancellationToken.None);
-			session = chatModelRef?.object;
+		if (type !== AgentSessionProviders.Local) {
+			await this.commandService.executeCommand(`agentSession.${type}.openChanges`, resource);
+			return;
 		}
-		if (session) {
-			if (type === AgentSessionProviders.Local) {
-				await session?.editingSession?.show();
-			} else {
-				await this.commandService.executeCommand(`agentSession.${type}.openChanges`, resource);
-			}
-		}
+		const chatModelRef = await this.chatService.getOrRestoreSession(resource);
+		await chatModelRef?.object.editingSession?.show();
 
 		chatModelRef?.dispose();
 	}
