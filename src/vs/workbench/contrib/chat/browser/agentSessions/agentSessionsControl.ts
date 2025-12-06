@@ -35,14 +35,13 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { IAgentSessionsControl } from './agentSessions.js';
 
 export interface IAgentSessionsControlOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly filter?: IAgentSessionsFilter;
 	readonly allowNewSessionFromEmptySpace?: boolean;
 	readonly allowOpenSessionsInPanel?: boolean; // TODO@bpasero retire this option eventually
-	readonly allowFiltering?: boolean;
 	readonly trackActiveEditor?: boolean;
 }
 
@@ -58,7 +57,7 @@ type AgentSessionOpenedEvent = {
 	providerType: string;
 };
 
-export class AgentSessionsControl extends Disposable {
+export class AgentSessionsControl extends Disposable implements IAgentSessionsControl {
 
 	private sessionsContainer: HTMLElement | undefined;
 	private sessionsList: WorkbenchCompressibleAsyncDataTree<IAgentSessionsModel, IAgentSession, FuzzyScore> | undefined;
@@ -109,8 +108,7 @@ export class AgentSessionsControl extends Disposable {
 			return;
 		}
 
-		const sessions = this.agentSessionsService.model.sessions;
-		const matchingSession = sessions.find(session => isEqual(session.resource, sessionResource));
+		const matchingSession = this.agentSessionsService.model.getSession(sessionResource);
 		if (matchingSession && this.sessionsList?.hasNode(matchingSession)) {
 			if (this.sessionsList.getRelativeTop(matchingSession) === null) {
 				this.sessionsList.reveal(matchingSession, 0.5); // only reveal when not already visible
@@ -140,7 +138,7 @@ export class AgentSessionsControl extends Disposable {
 				identityProvider: new AgentSessionsIdentityProvider(),
 				horizontalScrolling: false,
 				multipleSelectionSupport: false,
-				findWidgetEnabled: this.options?.allowFiltering,
+				findWidgetEnabled: true,
 				defaultFindMode: TreeFindMode.Filter,
 				keyboardNavigationLabelProvider: new AgentSessionsKeyboardNavigationLabelProvider(),
 				sorter,

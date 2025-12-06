@@ -26,7 +26,8 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { editorBackground, editorWidgetBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { editorBackground } from '../../../../platform/theme/common/colorRegistry.js';
+import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { Memento } from '../../../common/memento.js';
@@ -46,7 +47,6 @@ import { showCloseActiveChatNotification } from './actions/chatCloseNotification
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
 import { AgentSessionsListDelegate } from './agentSessions/agentSessionsViewer.js';
 import { ChatWidget } from './chatWidget.js';
-import { ChatViewTitleControl } from './chatViewTitleControl.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions/agentSessions.js';
@@ -88,6 +88,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsViewerLimited = true;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationContext: IContextKey<AgentSessionsViewerOrientation>;
+	private sessionsViewerExpandedContext: IContextKey<boolean>;
 	private sessionsViewerPosition = AgentSessionsViewerPosition.Right;
 	private sessionsViewerPositionContext: IContextKey<AgentSessionsViewerPosition>;
 
@@ -136,6 +137,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Contextkeys
 		this.chatViewLocationContext = ChatContextKeys.panelLocation.bindTo(contextKeyService);
+		this.sessionsViewerExpandedContext = ChatContextKeys.agentSessionsViewerExpanded.bindTo(contextKeyService);
 		this.sessionsViewerOrientationContext = ChatContextKeys.agentSessionsViewerOrientation.bindTo(contextKeyService);
 		this.sessionsViewerPositionContext = ChatContextKeys.agentSessionsViewerPosition.bindTo(contextKeyService);
 
@@ -159,6 +161,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.sessionsViewerPosition = sideSessionsOnRightPosition ? AgentSessionsViewerPosition.Right : AgentSessionsViewerPosition.Left;
 
+		this.sessionsViewerExpandedContext.set(this.sessionsViewerLimited === false);
 		this.chatViewLocationContext.set(viewLocation ?? ViewContainerLocation.AuxiliaryBar);
 		this.sessionsViewerOrientationContext.set(this.sessionsViewerOrientation);
 		this.sessionsViewerPositionContext.set(this.sessionsViewerPosition);
@@ -344,11 +347,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Sessions Title
 		const sessionsTitleContainer = this.sessionsTitleContainer = append(sessionsContainer, $('.agent-sessions-title-container'));
 		const title = append(sessionsTitleContainer, $('span.agent-sessions-title'));
-		title.textContent = localize('recentSessions', "Recent Sessions");
+		title.textContent = this.sessionsViewerLimited ? localize('recentSessions', "Recent Sessions") : localize('allSessions', "All Sessions");
 
 		// Sessions Toolbar
 		const toolbarContainer = append(sessionsTitleContainer, $('.agent-sessions-toolbar'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, MenuId.AgentSessionsToolbar, {}));
+		const toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, toolbarContainer, MenuId.AgentSessionsToolbar, {
+			menuOptions: { shouldForwardArgs: true }
+		}));
 
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
@@ -368,24 +373,25 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				notifyResults(count: number) {
 					that.notifySessionsControlChanged(count);
 				}
-			},
-			overrideStyles: {
-				listBackground: editorWidgetBackground
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));
 
+		toolbar.context = this.sessionsControl;
+
 		// Link to Sessions View
 		this.sessionsLinkContainer = append(sessionsContainer, $('.agent-sessions-link-container'));
 		const linkControl = this._register(this.instantiationService.createInstance(Link, this.sessionsLinkContainer, {
-			label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Limit to Recent Sessions"),
+			label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Show Recent Sessions"),
 			href: '',
 		}, {
 			opener: () => {
 				this.sessionsViewerLimited = !this.sessionsViewerLimited;
+				this.sessionsViewerExpandedContext.set(this.sessionsViewerLimited === false);
 
+				title.textContent = this.sessionsViewerLimited ? localize('recentSessions', "Recent Sessions") : localize('allSessions', "All Sessions");
 				linkControl.link = {
-					label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Limit to Recent Sessions"),
+					label: this.sessionsViewerLimited ? localize('showAllSessions', "Show All Sessions") : localize('showRecentSessions', "Show Recent Sessions"),
 					href: ''
 				};
 

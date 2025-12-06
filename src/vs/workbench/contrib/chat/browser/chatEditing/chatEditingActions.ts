@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { basename, isEqual } from '../../../../../base/common/resources.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -337,7 +337,7 @@ export class ViewAllSessionChangesAction extends Action2 {
 		}
 
 		const sessionResource = chatWidget.viewModel.model.sessionResource;
-		const session = agentSessionsService.model.sessions.find(s => isEqual(s.resource, sessionResource));
+		const session = agentSessionsService.getSession(sessionResource);
 		const changes = session?.changes;
 		if (!(changes instanceof Array)) {
 			return;

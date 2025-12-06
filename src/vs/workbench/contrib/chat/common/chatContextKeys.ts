@@ -92,6 +92,7 @@ export namespace ChatContextKeys {
 	export const panelLocation = new RawContextKey<ViewContainerLocation>('chatPanelLocation', undefined, { type: 'number', description: localize('chatPanelLocation', "The location of the chat panel.") });
 
 	export const isCombinedAgentSessionsViewer = new RawContextKey<boolean>('chatIsCombinedSessionViewer', false, { type: 'boolean', description: localize('chatIsCombinedSessionViewer', "True when the chat session viewer uses the new combined style.") }); // TODO@bpasero eventually retire this context key
+	export const agentSessionsViewerExpanded = new RawContextKey<boolean>('agentSessionsViewerExpanded', undefined, { type: 'boolean', description: localize('agentSessionsViewerExpanded', "If the agent sessions view in the chat view is expanded to show all sessions.") });
 	export const agentSessionsViewerOrientation = new RawContextKey<number>('agentSessionsViewerOrientation', undefined, { type: 'number', description: localize('agentSessionsViewerOrientation', "Orientation of the agent sessions view in the chat view.") });
 	export const agentSessionsViewerPosition = new RawContextKey<number>('agentSessionsViewerPosition', undefined, { type: 'number', description: localize('agentSessionsViewerPosition', "Position of the agent sessions view in the chat view.") });
 	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
