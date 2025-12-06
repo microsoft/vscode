@@ -103,7 +103,7 @@ export class View extends ViewEventHandler {
 	private readonly _viewParts: ViewPart[];
 	private readonly _viewController: ViewController;
 
-	private _experimentalEditContextEnabled: boolean;
+	private _editContextEnabled: boolean;
 	private _accessibilitySupport: AccessibilitySupport;
 	private _editContext: AbstractEditContext;
 	private readonly _pointerHandler: PointerHandler;
@@ -157,7 +157,7 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.effectiveExperimentalEditContextEnabled);
+		this._editContextEnabled = this._context.configuration.options.get(EditorOption.effectiveEditContext);
 		this._accessibilitySupport = this._context.configuration.options.get(EditorOption.accessibilitySupport);
 		this._editContext = this._instantiateEditContext();
 
@@ -289,21 +289,21 @@ export class View extends ViewEventHandler {
 	}
 
 	private _instantiateEditContext(): AbstractEditContext {
-		const usingExperimentalEditContext = this._context.configuration.options.get(EditorOption.effectiveExperimentalEditContextEnabled);
+		const usingExperimentalEditContext = this._context.configuration.options.get(EditorOption.effectiveEditContext);
 		if (usingExperimentalEditContext) {
 			return this._instantiationService.createInstance(NativeEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		} else {
-			return this._instantiationService.createInstance(TextAreaEditContext, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
+			return this._instantiationService.createInstance(TextAreaEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		}
 	}
 
 	private _updateEditContext(): void {
-		const experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.effectiveExperimentalEditContextEnabled);
+		const editContextEnabled = this._context.configuration.options.get(EditorOption.effectiveEditContext);
 		const accessibilitySupport = this._context.configuration.options.get(EditorOption.accessibilitySupport);
-		if (this._experimentalEditContextEnabled === experimentalEditContextEnabled && this._accessibilitySupport === accessibilitySupport) {
+		if (this._editContextEnabled === editContextEnabled && this._accessibilitySupport === accessibilitySupport) {
 			return;
 		}
-		this._experimentalEditContextEnabled = experimentalEditContextEnabled;
+		this._editContextEnabled = editContextEnabled;
 		this._accessibilitySupport = accessibilitySupport;
 		const isEditContextFocused = this._editContext.isFocused();
 		const indexOfEditContext = this._viewParts.indexOf(this._editContext);
@@ -652,6 +652,15 @@ export class View extends ViewEventHandler {
 		return visibleRange.left;
 	}
 
+	public getLineWidth(modelLineNumber: number): number {
+		const model = this._context.viewModel.model;
+		const viewLine = this._context.viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(modelLineNumber, model.getLineMaxColumn(modelLineNumber))).lineNumber;
+		this._flushAccumulatedAndRenderNow();
+		const width = this._viewLines.getLineWidth(viewLine);
+
+		return width;
+	}
+
 	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
 		const mouseTarget = this._pointerHandler.getTargetAtClientPoint(clientX, clientY);
 		if (!mouseTarget) {
@@ -664,7 +673,7 @@ export class View extends ViewEventHandler {
 		return new OverviewRuler(this._context, cssClassName);
 	}
 
-	public change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): void {
+	public change(callback: (changeAccessor: IViewZoneChangeAccessor) => unknown): void {
 		this._viewZones.changeViewZones(callback);
 		this._scheduleRender();
 	}
@@ -723,7 +732,9 @@ export class View extends ViewEventHandler {
 			widgetData.position?.preference ?? null,
 			widgetData.position?.positionAffinity ?? null
 		);
-		this._scheduleRender();
+		if (this._contentWidgets.shouldRender()) {
+			this._scheduleRender();
+		}
 	}
 
 	public removeContentWidget(widgetData: IContentWidgetData): void {

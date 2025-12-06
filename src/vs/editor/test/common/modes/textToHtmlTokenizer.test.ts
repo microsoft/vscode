@@ -292,6 +292,75 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		);
 	});
 
+	test('tokenizeLineToHTML with tabs and non-zero startOffset #263387', () => {
+		// This test demonstrates the issue where tab padding is calculated incorrectly
+		// when startOffset is non-zero and there are tabs AFTER the start position.
+		// The bug: tabsCharDelta doesn't account for characters before startOffset.
+
+		const colorMap = [null!, '#000000', '#ffffff', '#ff0000', '#00ff00'];
+
+		// Critical test case: "\ta\tb" starting at position 2 (skipping first tab and 'a')
+		// Layout: First tab (pos 0) goes to column 4, 'a' (pos 1) at column 4,
+		//         second tab (pos 2) should go from column 5 to column 8 (3 spaces)
+		// With the bug: charIndex starts at 2, tabsCharDelta=0 (first tab was never seen)
+		//   When processing second tab: insertSpacesCount = 4 - (2 + 0) % 4 = 2 spaces (WRONG!)
+		//   The old code thinks it's at column 2, but it's actually at column 5
+		const text = '\ta\tb';
+		const lineTokens = new TestLineTokens([
+			new TestLineToken(
+				1,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				2,
+				(
+					(3 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				3,
+				(
+					(1 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			),
+			new TestLineToken(
+				4,
+				(
+					(4 << MetadataConsts.FOREGROUND_OFFSET)
+				) >>> 0
+			)
+		]);
+
+		// First, verify the full line works correctly
+		assert.strictEqual(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 4, 4, true),
+			[
+				'<div>',
+				'<span style="color: #000000;">&#160; &#160; </span>', // First tab: 4 spaces
+				'<span style="color: #ff0000;">a</span>',               // 'a' at column 4
+				'<span style="color: #000000;"> &#160; </span>',       // Second tab: 3 spaces (column 5 to 8)
+				'<span style="color: #00ff00;">b</span>',
+				'</div>'
+			].join('')
+		);
+
+		// THE BUG: Starting at position 2 (after first tab and 'a')
+		// Expected (with fix): 3 spaces for the second tab (column 5 to 8)
+		// Buggy behavior (old code): 2 spaces (thinks it's at column 2, gives &#160; )
+		// The fix correctly accounts for the skipped tab and 'a', outputting &#160; &#160;
+		assert.strictEqual(
+			tokenizeLineToHTML(text, lineTokens, colorMap, 2, 4, 4, true),
+			[
+				'<div>',
+				'<span style="color: #000000;">&#160; &#160;</span>', // With fix: 3 spaces; with bug: only 2 spaces
+				'<span style="color: #00ff00;">b</span>',
+				'</div>'
+			].join('')
+		);
+	});
+
 });
 
 class Mode extends Disposable {

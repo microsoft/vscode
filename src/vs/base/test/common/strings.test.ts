@@ -19,7 +19,20 @@ suite('Strings', () => {
 		assert(strings.equalsIgnoreCase('ÖL', 'Öl'));
 	});
 
-	test('beginsWithIgnoreCase', () => {
+	test('equals', () => {
+		assert(!strings.equals(undefined, 'abc'));
+		assert(!strings.equals('abc', undefined));
+		assert(strings.equals(undefined, undefined));
+		assert(strings.equals('', ''));
+		assert(strings.equals('a', 'a'));
+		assert(!strings.equals('abc', 'Abc'));
+		assert(strings.equals('abc', 'ABC', true));
+		assert(!strings.equals('Höhenmeter', 'HÖhenmeter'));
+		assert(!strings.equals('ÖL', 'Öl'));
+		assert(strings.equals('ÖL', 'Öl', true));
+	});
+
+	test('startsWithIgnoreCase', () => {
 		assert(strings.startsWithIgnoreCase('', ''));
 		assert(!strings.startsWithIgnoreCase('', '1'));
 		assert(strings.startsWithIgnoreCase('1', ''));
@@ -43,6 +56,34 @@ suite('Strings', () => {
 		assert(!strings.startsWithIgnoreCase('alles klar', 'öALLES K '));
 		assert(!strings.startsWithIgnoreCase('alles klar', ' '));
 		assert(!strings.startsWithIgnoreCase('alles klar', 'ö'));
+	});
+
+	test('endsWithIgnoreCase', () => {
+		assert(strings.endsWithIgnoreCase('', ''));
+		assert(!strings.endsWithIgnoreCase('', '1'));
+		assert(strings.endsWithIgnoreCase('1', ''));
+
+		assert(!strings.endsWithIgnoreCase('abcd', 'abcde'));
+
+		assert(strings.endsWithIgnoreCase('a', 'a'));
+		assert(strings.endsWithIgnoreCase('abc', 'Abc'));
+		assert(strings.endsWithIgnoreCase('abc', 'ABC'));
+		assert(strings.endsWithIgnoreCase('Höhenmeter', 'HÖhenmeter'));
+		assert(strings.endsWithIgnoreCase('ÖL', 'Öl'));
+
+		assert(strings.endsWithIgnoreCase('alles klar', 'r'));
+		assert(strings.endsWithIgnoreCase('alles klar', 'R'));
+		assert(strings.endsWithIgnoreCase('alles klar', 's klar'));
+		assert(strings.endsWithIgnoreCase('alles klar', 'S klar'));
+		assert(strings.endsWithIgnoreCase('alles klar', 'S KLAR'));
+		assert(strings.endsWithIgnoreCase('alles klar', 'alles klar'));
+		assert(strings.endsWithIgnoreCase('alles klar', 'ALLES KLAR'));
+
+		assert(!strings.endsWithIgnoreCase('alles klar', 'S KLAR '));
+		assert(!strings.endsWithIgnoreCase('alles klar', ' S KLAR'));
+		assert(!strings.endsWithIgnoreCase('alles klar', 'S KLARö'));
+		assert(!strings.endsWithIgnoreCase('alles klar', ' '));
+		assert(!strings.endsWithIgnoreCase('alles klar', 'ö'));
 	});
 
 	test('compareIgnoreCase', () => {
@@ -155,24 +196,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('............a', 10, '…'), '............a');
 	});
 
-	suite('rcut', () => {
-		test('basic truncation', () => {
-			assert.strictEqual(strings.rcut('foo bar', 0), 'foo');
-			assert.strictEqual(strings.rcut('foo bar', 1), 'foo');
-			assert.strictEqual(strings.rcut('foo bar', 4), 'foo');
-			assert.strictEqual(strings.rcut('foo bar', 7), 'foo bar');
-			assert.strictEqual(strings.rcut('test string 0.1.2.3', 3), 'test');
-		});
-
-		test('truncation with suffix', () => {
-			assert.strictEqual(strings.rcut('foo bar', 0, '…'), 'foo…');
-			assert.strictEqual(strings.rcut('foo bar', 1, '…'), 'foo…');
-			assert.strictEqual(strings.rcut('foo bar', 4, '…'), 'foo…');
-			assert.strictEqual(strings.rcut('foo bar', 7, '…'), 'foo bar');
-			assert.strictEqual(strings.rcut('test string 0.1.2.3', 3, '…'), 'test…');
-		});
-	});
-
 	test('escape', () => {
 		assert.strictEqual(strings.escape(''), '');
 		assert.strictEqual(strings.escape('foo'), 'foo');
@@ -192,6 +215,11 @@ suite('Strings', () => {
 		assert.strictEqual(strings.ltrim('///', '/'), '');
 		assert.strictEqual(strings.ltrim('', ''), '');
 		assert.strictEqual(strings.ltrim('', '/'), '');
+		// Multi-character needle with consecutive repetitions
+		assert.strictEqual(strings.ltrim('---hello', '---'), 'hello');
+		assert.strictEqual(strings.ltrim('------hello', '---'), 'hello');
+		assert.strictEqual(strings.ltrim('---------hello', '---'), 'hello');
+		assert.strictEqual(strings.ltrim('hello---', '---'), 'hello---');
 	});
 
 	test('rtrim', () => {
@@ -205,6 +233,13 @@ suite('Strings', () => {
 		assert.strictEqual(strings.rtrim('///', '/'), '');
 		assert.strictEqual(strings.rtrim('', ''), '');
 		assert.strictEqual(strings.rtrim('', '/'), '');
+		// Multi-character needle with consecutive repetitions (bug fix)
+		assert.strictEqual(strings.rtrim('hello---', '---'), 'hello');
+		assert.strictEqual(strings.rtrim('hello------', '---'), 'hello');
+		assert.strictEqual(strings.rtrim('hello---------', '---'), 'hello');
+		assert.strictEqual(strings.rtrim('---hello', '---'), '---hello');
+		assert.strictEqual(strings.rtrim('hello world' + '---'.repeat(10), '---'), 'hello world');
+		assert.strictEqual(strings.rtrim('path/to/file///', '//'), 'path/to/file/');
 	});
 
 	test('trim', () => {
@@ -660,6 +695,12 @@ suite('Strings', () => {
 		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter(' '), true);
 		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e004e}b'), true);
 		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e015a}\u000bb'), true);
+	});
+
+	test('multibyteAwareBtoa', () => {
+		assert.ok(strings.multibyteAwareBtoa('hello world').length > 0);
+		assert.ok(strings.multibyteAwareBtoa('平仮名').length > 0);
+		assert.ok(strings.multibyteAwareBtoa(new Array(100000).fill('vs').join('')).length > 0); // https://github.com/microsoft/vscode/issues/112013
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

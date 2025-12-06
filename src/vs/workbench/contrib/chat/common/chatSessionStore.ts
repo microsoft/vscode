@@ -17,10 +17,15 @@ import { FileOperationResult, IFileService, toFileOperationResult } from '../../
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
-import { ChatAgentLocation, ChatMode } from './constants.js';
+import { awaitStatsForSession } from './chat.js';
+import { ModifiedFileEntryState } from './chatEditingService.js';
+import { ChatModel, IChatModelInputState, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
+import { IChatSessionStats } from './chatService.js';
+import { LocalChatSessionUri } from './chatUri.js';
+import { ChatAgentLocation } from './constants.js';
 
 const maxPersistedSessions = 25;
 
@@ -29,6 +34,7 @@ const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
 
 export class ChatSessionStore extends Disposable {
 	private readonly storageRoot: URI;
+	private readonly previousEmptyWindowStorageRoot: URI | undefined;
 	// private readonly transferredSessionStorageRoot: URI;
 
 	private readonly storeQueue = new Sequencer();
@@ -44,15 +50,20 @@ export class ChatSessionStore extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
 
 		const workspace = this.workspaceContextService.getWorkspace();
 		const isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
-		const workspaceId = isEmptyWindow ?
-			'no-workspace' :
-			this.workspaceContextService.getWorkspace().id;
-		this.storageRoot = joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'chatSessions');
+		const workspaceId = this.workspaceContextService.getWorkspace().id;
+		this.storageRoot = isEmptyWindow ?
+			joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, 'emptyWindowChatSessions') :
+			joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'chatSessions');
+
+		this.previousEmptyWindowStorageRoot = isEmptyWindow ?
+			joinPath(this.environmentService.workspaceStorageHome, 'no-workspace', 'chatSessions') :
+			undefined;
 
 		// TODO tmpdir
 		// this.transferredSessionStorageRoot = joinPath(this.environmentService.workspaceStorageHome, 'transferredChatSessions');
@@ -81,6 +92,27 @@ export class ChatSessionStore extends Disposable {
 				try {
 					await Promise.all(sessions.map(session => this.writeSession(session)));
 					await this.trimEntries();
+					await this.flushIndex();
+				} catch (e) {
+					this.reportError('storeSessions', 'Error storing chat sessions', e);
+				}
+			});
+			await this.storeTask;
+		} finally {
+			this.storeTask = undefined;
+		}
+	}
+
+	async storeSessionsMetadataOnly(sessions: ChatModel[]): Promise<void> {
+		if (this.shuttingDown) {
+			// Don't start this task if we missed the chance to block shutdown
+			return;
+		}
+
+		try {
+			this.storeTask = this.storeQueue.queue(async () => {
+				try {
+					await Promise.all(sessions.map(session => this.writeSessionMetadataOnly(session)));
 					await this.flushIndex();
 				} catch (e) {
 					this.reportError('storeSessions', 'Error storing chat sessions', e);
@@ -128,9 +160,26 @@ export class ChatSessionStore extends Disposable {
 			await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
 
 			// Write succeeded, update index
-			index.entries[session.sessionId] = getSessionMetadata(session);
+			index.entries[session.sessionId] = await getSessionMetadata(session);
 		} catch (e) {
 			this.reportError('sessionWrite', 'Error writing chat session', e);
+		}
+	}
+
+	private async writeSessionMetadataOnly(session: ChatModel): Promise<void> {
+		// Only to be used for external sessions
+		if (LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
+			return;
+		}
+
+		try {
+			const index = this.internalGetIndex();
+
+			// TODO get this class on sessionResource
+			const externalSessionId = session.sessionResource.toString();
+			index.entries[externalSessionId] = await getSessionMetadata(session);
+		} catch (e) {
+			this.reportError('sessionMetadataWrite', 'Error writing chat session metadata', e);
 		}
 	}
 
@@ -153,6 +202,7 @@ export class ChatSessionStore extends Disposable {
 	private async trimEntries(): Promise<void> {
 		const index = this.internalGetIndex();
 		const entries = Object.entries(index.entries)
+			.filter(([_id, entry]) => !entry.isExternal)
 			.sort((a, b) => b[1].lastMessageDate - a[1].lastMessageDate)
 			.map(([id]) => id);
 
@@ -224,17 +274,19 @@ export class ChatSessionStore extends Disposable {
 
 		const fileOperationReason = error && toFileOperationResult(error);
 		type ChatSessionStoreErrorData = {
-			errorReason: string;
+			reason: string;
 			fileOperationReason: number;
+			// error: Error;
 		};
 		type ChatSessionStoreErrorClassification = {
 			owner: 'roblourens';
 			comment: 'Detect issues related to managing chat sessions';
-			errorReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
+			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
 			fileOperationReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'An error code from the file service' };
+			// error: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
 		};
 		this.telemetryService.publicLog2<ChatSessionStoreErrorData, ChatSessionStoreErrorClassification>('chatSessionStoreError', {
-			errorReason: reasonForTelemetry,
+			reason: reasonForTelemetry,
 			fileOperationReason: fileOperationReason ?? -1
 		});
 	}
@@ -307,13 +359,20 @@ export class ChatSessionStore extends Disposable {
 
 	public async readSession(sessionId: string): Promise<ISerializableChatData | undefined> {
 		return await this.storeQueue.queue(async () => {
-			let rawData: string;
+			let rawData: string | undefined;
 			const storageLocation = this.getStorageLocation(sessionId);
 			try {
 				rawData = (await this.fileService.readFile(storageLocation)).value.toString();
 			} catch (e) {
 				this.reportError('sessionReadFile', `Error reading chat session file ${sessionId}`, e);
-				return undefined;
+
+				if (toFileOperationResult(e) === FileOperationResult.FILE_NOT_FOUND && this.previousEmptyWindowStorageRoot) {
+					rawData = await this.readSessionFromPreviousLocation(sessionId);
+				}
+
+				if (!rawData) {
+					return undefined;
+				}
 			}
 
 			try {
@@ -341,6 +400,23 @@ export class ChatSessionStore extends Disposable {
 		});
 	}
 
+	private async readSessionFromPreviousLocation(sessionId: string): Promise<string | undefined> {
+		let rawData: string | undefined;
+
+		if (this.previousEmptyWindowStorageRoot) {
+			const storageLocation2 = joinPath(this.previousEmptyWindowStorageRoot, `${sessionId}.json`);
+			try {
+				rawData = (await this.fileService.readFile(storageLocation2)).value.toString();
+				this.logService.info(`ChatSessionStore: Read chat session ${sessionId} from previous location`);
+			} catch (e) {
+				this.reportError('sessionReadFile', `Error reading chat session file ${sessionId} from previous location`, e);
+				return undefined;
+			}
+		}
+
+		return rawData;
+	}
+
 	private getStorageLocation(chatSessionId: string): URI {
 		return joinPath(this.storageRoot, `${chatSessionId}.json`);
 	}
@@ -350,12 +426,13 @@ export class ChatSessionStore extends Disposable {
 	}
 }
 
-interface IChatSessionEntryMetadata {
+export interface IChatSessionEntryMetadata {
 	sessionId: string;
 	title: string;
 	lastMessageDate: number;
-	isImported?: boolean;
 	initialLocation?: ChatAgentLocation;
+	hasPendingEdits?: boolean;
+	stats?: IChatSessionStats;
 
 	/**
 	 * This only exists because the migrated data from the storage service had empty sessions persisted, and it's impossible to know which ones are
@@ -363,6 +440,11 @@ interface IChatSessionEntryMetadata {
 	 * filter the old ones out of history.
 	 */
 	isEmpty?: boolean;
+
+	/**
+	 * Whether this session was loaded from an external provider (eg background/cloud sessions).
+	 */
+	isExternal?: boolean;
 }
 
 function isChatSessionEntryMetadata(obj: unknown): obj is IChatSessionEntryMetadata {
@@ -407,26 +489,31 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 	return true;
 }
 
-function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSessionEntryMetadata {
-	const title = session instanceof ChatModel ?
-		(session.title || localize('newChat', "New Chat")) :
-		session.customTitle ?? ChatModel.getDefaultTitle(session.requests);
+async function getSessionMetadata(session: ChatModel | ISerializableChatData): Promise<IChatSessionEntryMetadata> {
+	const title = session.customTitle || (session instanceof ChatModel ? session.title : undefined);
+
+	let stats: IChatSessionStats | undefined;
+	if (session instanceof ChatModel) {
+		stats = await awaitStatsForSession(session);
+	}
+
 	return {
 		sessionId: session.sessionId,
-		title,
+		title: title || localize('newChat', "New Chat"),
 		lastMessageDate: session.lastMessageDate,
-		isImported: session.isImported,
 		initialLocation: session.initialLocation,
-		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0
+		hasPendingEdits: session instanceof ChatModel ? (session.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)) : false,
+		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0,
+		stats,
+		isExternal: session instanceof ChatModel && !LocalChatSessionUri.parseLocalSessionId(session.sessionResource)
 	};
 }
 
 export interface IChatTransfer {
 	toWorkspace: URI;
 	timestampInMilliseconds: number;
-	inputValue: string;
+	inputState: IChatModelInputState | undefined;
 	location: ChatAgentLocation;
-	mode: ChatMode;
 }
 
 export interface IChatTransfer2 extends IChatTransfer {

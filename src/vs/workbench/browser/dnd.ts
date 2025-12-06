@@ -470,7 +470,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 	private readDragData(type: ViewType): CompositeDragAndDropData | undefined {
 		if (this.transferData.hasData(type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype)) {
 			const data = this.transferData.getData(type === 'view' ? DraggedViewIdentifier.prototype : DraggedCompositeIdentifier.prototype);
-			if (data && data[0]) {
+			if (data?.[0]) {
 				return new CompositeDragAndDropData(type, data[0].id);
 			}
 		}

@@ -6,7 +6,7 @@
 import { deepStrictEqual, strictEqual } from 'assert';
 import 'mocha';
 import { basename } from 'path';
-import { asArray, getCompletionItemsFromSpecs } from '../terminalSuggestMain';
+import { asArray, getCompletionItemsFromSpecs, getCurrentCommandAndArgs } from '../terminalSuggestMain';
 import { getTokenType } from '../tokens';
 import { cdTestSuiteSpec as cdTestSuite } from './completions/cd.test';
 import { codeSpecOptionsAndSubcommands, codeTestSuite, codeTunnelTestSuite } from './completions/code.test';
@@ -91,16 +91,16 @@ suite('Terminal Suggest', () => {
 				}
 				test(`'${testSpec.input}' -> ${expectedString}`, async () => {
 					const commandLine = testSpec.input.split('|')[0];
-					const cursorPosition = testSpec.input.indexOf('|');
-					const prefix = commandLine.slice(0, cursorPosition).split(' ').at(-1) || '';
-					const filesRequested = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
-					const foldersRequested = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
-					const terminalContext = { commandLine, cursorPosition, allowFallbackCompletions: true };
+					const cursorIndex = testSpec.input.indexOf('|');
+					const currentCommandString = getCurrentCommandAndArgs(commandLine, cursorIndex, undefined);
+					const showFiles = testSpec.expectedResourceRequests?.type === 'files' || testSpec.expectedResourceRequests?.type === 'both';
+					const showFolders = testSpec.expectedResourceRequests?.type === 'folders' || testSpec.expectedResourceRequests?.type === 'both';
+					const terminalContext = { commandLine, cursorIndex };
 					const result = await getCompletionItemsFromSpecs(
 						completionSpecs,
 						terminalContext,
 						availableCommands.map(c => { return { label: c }; }),
-						prefix,
+						currentCommandString,
 						getTokenType(terminalContext, undefined),
 						testPaths.cwd,
 						{},
@@ -118,8 +118,8 @@ suite('Terminal Suggest', () => {
 						}).sort(),
 						(testSpec.expectedCompletions ?? []).sort()
 					);
-					strictEqual(result.filesRequested, filesRequested, 'Files requested different than expected, got: ' + result.filesRequested);
-					strictEqual(result.foldersRequested, foldersRequested, 'Folders requested different than expected, got: ' + result.foldersRequested);
+					strictEqual(result.showFiles, showFiles, 'Show files different than expected, got: ' + result.showFiles);
+					strictEqual(result.showFolders, showFolders, 'Show folders different than expected, got: ' + result.showFolders);
 					if (testSpec.expectedResourceRequests?.cwd) {
 						strictEqual(result.cwd?.fsPath, testSpec.expectedResourceRequests.cwd.fsPath, 'Non matching cwd');
 					}
@@ -148,4 +148,3 @@ class MockFigExecuteExternals implements IFigExecuteExternals {
 		}
 	}
 }
-

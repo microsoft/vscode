@@ -1,0 +1,367 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { insert } from '../../../base/common/arrays.js';
+import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../base/common/buffer.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Event } from '../../../base/common/event.js';
+import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
+import { URI } from '../../../base/common/uri.js';
+import { IModelService } from '../../../editor/common/services/model.js';
+import { ModelService } from '../../../editor/common/services/modelService.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { IFileDialogService, INativeOpenDialogOptions } from '../../../platform/dialogs/common/dialogs.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IExtensionManagementService } from '../../../platform/extensionManagement/common/extensionManagement.js';
+import { AbstractNativeExtensionTipsService } from '../../../platform/extensionManagement/common/extensionTipsService.js';
+import { IExtensionRecommendationNotificationService } from '../../../platform/extensionRecommendations/common/extensionRecommendations.js';
+import { IFileService, IFileSystemProvider, FileSystemProviderCapabilities, IFileReadStreamOptions, IFileWriteOptions, IFileOpenOptions, IFileDeleteOptions, IFileOverwriteOptions, IStat, FileType, IWatchOptions } from '../../../platform/files/common/files.js';
+import { FileService } from '../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { ISharedProcessService } from '../../../platform/ipc/electron-browser/services.js';
+import { NullLogService } from '../../../platform/log/common/log.js';
+import { INativeHostOptions, INativeHostService, IOSProperties, IOSStatistics } from '../../../platform/native/common/native.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
+import { AuthInfo, Credentials } from '../../../platform/request/common/request.js';
+import { IStorageService } from '../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
+import { IPartsSplash } from '../../../platform/theme/common/themeService.js';
+import { UriIdentityService } from '../../../platform/uriIdentity/common/uriIdentityService.js';
+import { FileUserDataProvider } from '../../../platform/userData/common/fileUserDataProvider.js';
+import { UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
+import { IColorScheme, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../../platform/window/common/window.js';
+import { IWorkspaceContextService } from '../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../services/editor/common/editorService.js';
+import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
+import { ILifecycleService } from '../../services/lifecycle/common/lifecycle.js';
+import { IPathService } from '../../services/path/common/pathService.js';
+import { ITextEditorService } from '../../services/textfile/common/textEditorService.js';
+import { ITextFileService } from '../../services/textfile/common/textfiles.js';
+import { NativeTextFileService } from '../../services/textfile/electron-browser/nativeTextFileService.js';
+import { IWorkingCopyIdentifier } from '../../services/workingCopy/common/workingCopy.js';
+import { IWorkingCopyBackupService } from '../../services/workingCopy/common/workingCopyBackup.js';
+import { IWorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
+import { NativeWorkingCopyBackupService } from '../../services/workingCopy/electron-browser/workingCopyBackupService.js';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestLifecycleService, TestTextFileService } from '../browser/workbenchTestServices.js';
+import { TestContextService, TestFileService } from '../common/workbenchTestServices.js';
+import { ReadableStreamEvents } from '../../../base/common/stream.js';
+
+export class TestSharedProcessService implements ISharedProcessService {
+
+	declare readonly _serviceBrand: undefined;
+
+	createRawConnection(): never { throw new Error('Not Implemented'); }
+	getChannel(channelName: string): any { return undefined; }
+	registerChannel(channelName: string, channel: any): void { }
+	notifyRestored(): void { }
+}
+
+export class TestNativeHostService implements INativeHostService {
+	declare readonly _serviceBrand: undefined;
+
+	readonly windowId = -1;
+
+	readonly onDidOpenMainWindow: Event<number> = Event.None;
+	readonly onDidMaximizeWindow: Event<number> = Event.None;
+	readonly onDidUnmaximizeWindow: Event<number> = Event.None;
+	readonly onDidFocusMainWindow: Event<number> = Event.None;
+	readonly onDidBlurMainWindow: Event<number> = Event.None;
+	readonly onDidFocusMainOrAuxiliaryWindow: Event<number> = Event.None;
+	readonly onDidBlurMainOrAuxiliaryWindow: Event<number> = Event.None;
+	readonly onDidResumeOS: Event<unknown> = Event.None;
+	onDidChangeColorScheme = Event.None;
+	onDidChangePassword = Event.None;
+	readonly onDidTriggerWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
+	onDidChangeWindowFullScreen = Event.None;
+	onDidChangeWindowAlwaysOnTop = Event.None;
+	onDidChangeDisplay = Event.None;
+
+	windowCount = Promise.resolve(1);
+	getWindowCount(): Promise<number> { return this.windowCount; }
+
+	async getWindows(): Promise<IOpenedMainWindow[]> { return []; }
+	async getActiveWindowId(): Promise<number | undefined> { return undefined; }
+	async getActiveWindowPosition(): Promise<IRectangle | undefined> { return undefined; }
+	async getNativeWindowHandle(windowId: number): Promise<VSBuffer | undefined> { return undefined; }
+
+	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
+	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
+	openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
+	async toggleFullScreen(): Promise<void> { }
+	async isMaximized(): Promise<boolean> { return true; }
+	async isFullScreen(): Promise<boolean> { return true; }
+	async maximizeWindow(): Promise<void> { }
+	async unmaximizeWindow(): Promise<void> { }
+	async minimizeWindow(): Promise<void> { }
+	async moveWindowTop(options?: INativeHostOptions): Promise<void> { }
+	async isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean> { return false; }
+	async toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void> { }
+	async setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void> { }
+	async getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
+	async positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void> { }
+	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
+	async updateWindowAccentColor(color: string): Promise<void> { }
+	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
+	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
+	async setBackgroundThrottling(throttling: boolean): Promise<void> { }
+	async focusWindow(options?: INativeHostOptions): Promise<void> { }
+	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
+	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
+	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
+	async pickFileFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
+	async pickFileAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
+	async pickFolderAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
+	async pickWorkspaceAndOpen(options: INativeOpenDialogOptions): Promise<void> { }
+	async showItemInFolder(path: string): Promise<void> { }
+	async setRepresentedFilename(path: string): Promise<void> { }
+	async isAdmin(): Promise<boolean> { return false; }
+	async writeElevated(source: URI, target: URI): Promise<void> { }
+	async isRunningUnderARM64Translation(): Promise<boolean> { return false; }
+	async getOSProperties(): Promise<IOSProperties> { return Object.create(null); }
+	async getOSStatistics(): Promise<IOSStatistics> { return Object.create(null); }
+	async getOSVirtualMachineHint(): Promise<number> { return 0; }
+	async getOSColorScheme(): Promise<IColorScheme> { return { dark: true, highContrast: false }; }
+	async hasWSLFeatureInstalled(): Promise<boolean> { return false; }
+	async getProcessId(): Promise<number> { throw new Error('Method not implemented.'); }
+	async killProcess(): Promise<void> { }
+	async setDocumentEdited(edited: boolean): Promise<void> { }
+	async openExternal(url: string, defaultApplication?: string): Promise<boolean> { return false; }
+	async updateTouchBar(): Promise<void> { }
+	async moveItemToTrash(): Promise<void> { }
+	async newWindowTab(): Promise<void> { }
+	async showPreviousWindowTab(): Promise<void> { }
+	async showNextWindowTab(): Promise<void> { }
+	async moveWindowTabToNewWindow(): Promise<void> { }
+	async mergeAllWindowTabs(): Promise<void> { }
+	async toggleWindowTabsBar(): Promise<void> { }
+	async installShellCommand(): Promise<void> { }
+	async uninstallShellCommand(): Promise<void> { }
+	async notifyReady(): Promise<void> { }
+	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined } | undefined): Promise<void> { }
+	async reload(): Promise<void> { }
+	async closeWindow(): Promise<void> { }
+	async quit(): Promise<void> { }
+	async exit(code: number): Promise<void> { }
+	async openDevTools(options?: Partial<Electron.OpenDevToolsOptions> & INativeHostOptions | undefined): Promise<void> { }
+	async toggleDevTools(): Promise<void> { }
+	async stopTracing(): Promise<void> { }
+	async openDevToolsWindow(url: string): Promise<void> { }
+	async openGPUInfoWindow(): Promise<void> { }
+	async openContentTracingWindow(): Promise<void> { }
+	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
+	async lookupKerberosAuthorization(url: string): Promise<string | undefined> { return undefined; }
+	async loadCertificates(): Promise<string[]> { return []; }
+	async isPortFree() { return Promise.resolve(true); }
+	async findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number> { return -1; }
+	async readClipboardText(type?: 'selection' | 'clipboard' | undefined): Promise<string> { return ''; }
+	async writeClipboardText(text: string, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
+	async readClipboardFindText(): Promise<string> { return ''; }
+	async writeClipboardFindText(text: string): Promise<void> { }
+	async writeClipboardBuffer(format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
+	async triggerPaste(options?: INativeHostOptions): Promise<void> { }
+	async readImage(): Promise<Uint8Array> { return Uint8Array.from([]); }
+	async readClipboardBuffer(format: string): Promise<VSBuffer> { return VSBuffer.wrap(Uint8Array.from([])); }
+	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
+	async windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined> { return undefined; }
+	async profileRenderer(): Promise<any> { throw new Error(); }
+	async getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined> { return undefined; }
+}
+
+export class TestExtensionTipsService extends AbstractNativeExtensionTipsService {
+
+	constructor(
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
+		@IStorageService storageService: IStorageService,
+		@INativeHostService nativeHostService: INativeHostService,
+		@IExtensionRecommendationNotificationService extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
+		@IFileService fileService: IFileService,
+		@IProductService productService: IProductService,
+	) {
+		super(environmentService.userHome, nativeHostService, telemetryService, extensionManagementService, storageService, extensionRecommendationNotificationService, fileService, productService);
+	}
+}
+
+export function workbenchInstantiationService(overrides?: {
+	environmentService?: (instantiationService: IInstantiationService) => IEnvironmentService;
+	fileService?: (instantiationService: IInstantiationService) => IFileService;
+	configurationService?: (instantiationService: IInstantiationService) => TestConfigurationService;
+	textFileService?: (instantiationService: IInstantiationService) => ITextFileService;
+	pathService?: (instantiationService: IInstantiationService) => IPathService;
+	editorService?: (instantiationService: IInstantiationService) => IEditorService;
+	contextKeyService?: (instantiationService: IInstantiationService) => IContextKeyService;
+	textEditorService?: (instantiationService: IInstantiationService) => ITextEditorService;
+}, disposables = new DisposableStore()): ITestInstantiationService {
+	const instantiationService = browserWorkbenchInstantiationService({
+		workingCopyBackupService: () => disposables.add(new TestNativeWorkingCopyBackupService()),
+		...overrides
+	}, disposables);
+
+	instantiationService.stub(INativeHostService, new TestNativeHostService());
+
+	return instantiationService;
+}
+
+export class TestServiceAccessor {
+	constructor(
+		@ILifecycleService public lifecycleService: TestLifecycleService,
+		@ITextFileService public textFileService: TestTextFileService,
+		@IFilesConfigurationService public filesConfigurationService: TestFilesConfigurationService,
+		@IWorkspaceContextService public contextService: TestContextService,
+		@IModelService public modelService: ModelService,
+		@IFileService public fileService: TestFileService,
+		@INativeHostService public nativeHostService: TestNativeHostService,
+		@IFileDialogService public fileDialogService: TestFileDialogService,
+		@IWorkingCopyBackupService public workingCopyBackupService: TestNativeWorkingCopyBackupService,
+		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
+		@IEditorService public editorService: IEditorService
+	) {
+	}
+}
+
+export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFileService {
+
+	private _testEncoding: TestEncodingOracle | undefined;
+	override get encoding(): TestEncodingOracle {
+		if (!this._testEncoding) {
+			this._testEncoding = this._register(this.instantiationService.createInstance(TestEncodingOracle));
+		}
+
+		return this._testEncoding;
+	}
+}
+
+export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupService implements IDisposable {
+
+	private backupResourceJoiners: Function[];
+	private discardBackupJoiners: Function[];
+	discardedBackups: IWorkingCopyIdentifier[];
+	discardedAllBackups: boolean;
+	private pendingBackupsArr: Promise<void>[];
+
+	constructor() {
+		const environmentService = TestEnvironmentService;
+		const logService = new NullLogService();
+		const fileService = new FileService(logService);
+		const lifecycleService = new TestLifecycleService();
+		// eslint-disable-next-line local/code-no-any-casts
+		super(environmentService as any, fileService, logService, lifecycleService);
+
+		const inMemoryFileSystemProvider = this._register(new InMemoryFileSystemProvider());
+		this._register(fileService.registerProvider(Schemas.inMemory, inMemoryFileSystemProvider));
+		const uriIdentityService = this._register(new UriIdentityService(fileService));
+		const userDataProfilesService = this._register(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		this._register(fileService.registerProvider(Schemas.vscodeUserData, this._register(new FileUserDataProvider(Schemas.file, inMemoryFileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService))));
+
+		this.backupResourceJoiners = [];
+		this.discardBackupJoiners = [];
+		this.discardedBackups = [];
+		this.pendingBackupsArr = [];
+		this.discardedAllBackups = false;
+
+		this._register(fileService);
+		this._register(lifecycleService);
+	}
+
+	testGetFileService(): IFileService {
+		return this.fileService;
+	}
+
+	async waitForAllBackups(): Promise<void> {
+		await Promise.all(this.pendingBackupsArr);
+	}
+
+	joinBackupResource(): Promise<void> {
+		return new Promise(resolve => this.backupResourceJoiners.push(resolve));
+	}
+
+	override async backup(identifier: IWorkingCopyIdentifier, content?: VSBufferReadableStream | VSBufferReadable, versionId?: number, meta?: any, token?: CancellationToken): Promise<void> {
+		const p = super.backup(identifier, content, versionId, meta, token);
+		const removeFromPendingBackups = insert(this.pendingBackupsArr, p.then(undefined, undefined));
+
+		try {
+			await p;
+		} finally {
+			removeFromPendingBackups();
+		}
+
+		while (this.backupResourceJoiners.length) {
+			this.backupResourceJoiners.pop()!();
+		}
+	}
+
+	joinDiscardBackup(): Promise<void> {
+		return new Promise(resolve => this.discardBackupJoiners.push(resolve));
+	}
+
+	override async discardBackup(identifier: IWorkingCopyIdentifier): Promise<void> {
+		await super.discardBackup(identifier);
+		this.discardedBackups.push(identifier);
+
+		while (this.discardBackupJoiners.length) {
+			this.discardBackupJoiners.pop()!();
+		}
+	}
+
+	override async discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
+		this.discardedAllBackups = true;
+
+		return super.discardBackups(filter);
+	}
+
+	async getBackupContents(identifier: IWorkingCopyIdentifier): Promise<string> {
+		const backupResource = this.toBackupResource(identifier);
+
+		const fileContents = await this.fileService.readFile(backupResource);
+
+		return fileContents.value.toString();
+	}
+}
+
+export class TestIPCFileSystemProvider implements IFileSystemProvider {
+
+	readonly capabilities = FileSystemProviderCapabilities.FileReadWrite | FileSystemProviderCapabilities.PathCaseSensitive;
+
+	readonly onDidChangeCapabilities = Event.None;
+	readonly onDidChangeFile = Event.None;
+
+	async stat(resource: URI): Promise<IStat> {
+		const { ipcRenderer } = require('electron');
+		const stats = await ipcRenderer.invoke('vscode:statFile', resource.fsPath);
+		return {
+			type: stats.isDirectory ? FileType.Directory : (stats.isFile ? FileType.File : FileType.Unknown),
+			ctime: stats.ctimeMs,
+			mtime: stats.mtimeMs,
+			size: stats.size,
+			permissions: stats.isReadonly ? 1 /* FilePermission.Readonly */ : undefined
+		};
+	}
+
+	async readFile(resource: URI): Promise<Uint8Array> {
+		const { ipcRenderer } = require('electron');
+		const result = await ipcRenderer.invoke('vscode:readFile', resource.fsPath);
+		return VSBuffer.wrap(result).buffer;
+	}
+
+	watch(resource: URI, opts: IWatchOptions): IDisposable { return { dispose: () => { } }; }
+	mkdir(resource: URI): Promise<void> { throw new Error('mkdir not implemented in test provider'); }
+	readdir(resource: URI): Promise<[string, FileType][]> { throw new Error('readdir not implemented in test provider'); }
+	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> { throw new Error('delete not implemented in test provider'); }
+	rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> { throw new Error('rename not implemented in test provider'); }
+	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> { throw new Error('writeFile not implemented in test provider'); }
+	readFileStream?(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> { throw new Error('readFileStream not implemented in test provider'); }
+	open?(resource: URI, opts: IFileOpenOptions): Promise<number> { throw new Error('open not implemented in test provider'); }
+	close?(fd: number): Promise<void> { throw new Error('close not implemented in test provider'); }
+	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { throw new Error('read not implemented in test provider'); }
+	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): Promise<number> { throw new Error('write not implemented in test provider'); }
+}

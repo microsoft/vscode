@@ -108,11 +108,22 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 	) {
 		super();
 
+		this._trace = SHOW_TRACE_FILTER_CONTEXT.bindTo(this.contextKeyService);
 		this._trace.set(options.trace);
+
+		this._debug = SHOW_DEBUG_FILTER_CONTEXT.bindTo(this.contextKeyService);
 		this._debug.set(options.debug);
+
+		this._info = SHOW_INFO_FILTER_CONTEXT.bindTo(this.contextKeyService);
 		this._info.set(options.info);
+
+		this._warning = SHOW_WARNING_FILTER_CONTEXT.bindTo(this.contextKeyService);
 		this._warning.set(options.warning);
+
+		this._error = SHOW_ERROR_FILTER_CONTEXT.bindTo(this.contextKeyService);
 		this._error.set(options.error);
+
+		this._categories = HIDE_CATEGORY_FILTER_CONTEXT.bindTo(this.contextKeyService);
 		this._categories.set(options.sources);
 
 		this.filterHistory = options.filterHistory;
@@ -131,7 +142,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _trace = SHOW_TRACE_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	private readonly _trace: IContextKey<boolean>;
 	get trace(): boolean {
 		return !!this._trace.get();
 	}
@@ -142,7 +153,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _debug = SHOW_DEBUG_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	private readonly _debug: IContextKey<boolean>;
 	get debug(): boolean {
 		return !!this._debug.get();
 	}
@@ -153,7 +164,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _info = SHOW_INFO_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	private readonly _info: IContextKey<boolean>;
 	get info(): boolean {
 		return !!this._info.get();
 	}
@@ -164,7 +175,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _warning = SHOW_WARNING_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	private readonly _warning: IContextKey<boolean>;
 	get warning(): boolean {
 		return !!this._warning.get();
 	}
@@ -175,7 +186,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _error = SHOW_ERROR_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	private readonly _error: IContextKey<boolean>;
 	get error(): boolean {
 		return !!this._error.get();
 	}
@@ -186,7 +197,7 @@ class OutputViewFilters extends Disposable implements IOutputViewFilters {
 		}
 	}
 
-	private readonly _categories = HIDE_CATEGORY_FILTER_CONTEXT.bindTo(this.contextKeyService);
+	private readonly _categories: IContextKey<string>;
 	get categories(): string {
 		return this._categories.get() || ',';
 	}
@@ -288,7 +299,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}));
 
 		this._register(this.loggerService.onDidChangeLogLevel(() => {
-			this.resetLogLevelFilters();
 			this.setLevelContext();
 			this.setLevelIsDefaultContext();
 		}));
@@ -403,7 +413,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		return id;
 	}
 
-	async saveOutputAs(...channels: IOutputChannelDescriptor[]): Promise<void> {
+	async saveOutputAs(outputPath?: URI, ...channels: IOutputChannelDescriptor[]): Promise<void> {
 		let channel: IOutputChannel | undefined;
 		if (channels.length > 1) {
 			const compoundChannelId = this.registerCompoundLogChannel(channels);
@@ -417,16 +427,19 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 
 		try {
-			const name = channels.length > 1 ? 'output' : channels[0].label;
-			const uri = await this.fileDialogService.showSaveDialog({
-				title: localize('saveLog.dialogTitle', "Save Output As"),
-				availableFileSystems: [Schemas.file],
-				defaultUri: joinPath(await this.fileDialogService.defaultFilePath(), `${name}.log`),
-				filters: [{
-					name,
-					extensions: ['log']
-				}]
-			});
+			let uri: URI | undefined = outputPath;
+			if (!uri) {
+				const name = channels.length > 1 ? 'output' : channels[0].label;
+				uri = await this.fileDialogService.showSaveDialog({
+					title: localize('saveLog.dialogTitle', "Save Output As"),
+					availableFileSystems: [Schemas.file],
+					defaultUri: joinPath(await this.fileDialogService.defaultFilePath(), `${name}.log`),
+					filters: [{
+						name,
+						extensions: ['log']
+					}]
+				});
+			}
 
 			if (!uri) {
 				return;
@@ -504,18 +517,6 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			this.outputFolderCreationPromise = this.fileService.createFolder(this.outputLocation).then(() => undefined);
 		}
 		return this.instantiationService.createInstance(OutputChannel, channelData, this.outputLocation, this.outputFolderCreationPromise);
-	}
-
-	private resetLogLevelFilters(): void {
-		const descriptor = this.activeChannel?.outputChannelDescriptor;
-		const channelLogLevel = descriptor ? this.getLogLevel(descriptor) : undefined;
-		if (channelLogLevel !== undefined) {
-			this.filters.error = channelLogLevel <= LogLevel.Error;
-			this.filters.warning = channelLogLevel <= LogLevel.Warning;
-			this.filters.info = channelLogLevel <= LogLevel.Info;
-			this.filters.debug = channelLogLevel <= LogLevel.Debug;
-			this.filters.trace = channelLogLevel <= LogLevel.Trace;
-		}
 	}
 
 	private setLevelContext(): void {

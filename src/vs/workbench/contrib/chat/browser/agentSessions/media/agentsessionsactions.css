@@ -1,0 +1,46 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-viewer .agent-session-item .agent-session-details-toolbar {
+
+	.actions-container .action-item .action-label {
+		background-color: var(--vscode-toolbar-hoverBackground);
+		padding: 0;
+	}
+
+	.agent-session-diff-container {
+		font-size: 12px;
+		font-weight: 500;
+		display: flex;
+		gap: 4px;
+		padding: 0 4px; /* to make space for hover effect */
+		font-variant-numeric: tabular-nums;
+	}
+
+	.agent-session-diff-files {
+		color: var(--vscode-descriptionForeground);
+	}
+
+	.agent-session-diff-added {
+		color: var(--vscode-chat-linesAddedForeground);
+	}
+
+	.agent-session-diff-removed {
+		color: var(--vscode-chat-linesRemovedForeground);
+	}
+}
+
+.agent-sessions-viewer .monaco-list-row.selected .agent-session-item .agent-session-details-toolbar {
+
+	.agent-session-diff-files,
+	.agent-session-diff-added,
+	.agent-session-diff-removed {
+		color: unset;
+	}
+
+	.actions-container .action-item .action-label {
+		background-color: unset;
+	}
+}

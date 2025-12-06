@@ -83,7 +83,7 @@ registerAction2(class RefreshAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		return refreshSearch(accessor);
 	}
 });
@@ -105,7 +105,7 @@ registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		return collapseDeepestExpandedLevel(accessor);
 	}
 });
@@ -127,7 +127,7 @@ registerAction2(class ExpandAllAction extends Action2 {
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		return expandAll(accessor);
 	}
 });
@@ -149,7 +149,7 @@ registerAction2(class ClearSearchResultsAction extends Action2 {
 			}]
 		});
 	}
-	run(accessor: ServicesAccessor, ...args: any[]) {
+	run(accessor: ServicesAccessor, ...args: unknown[]) {
 		return clearSearchResults(accessor);
 	}
 });
@@ -172,7 +172,7 @@ registerAction2(class ViewAsTreeAction extends Action2 {
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			await searchView.setTreeView(true);
@@ -197,7 +197,7 @@ registerAction2(class ViewAsListAction extends Action2 {
 			}]
 		});
 	}
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
 			await searchView.setTreeView(false);
@@ -221,15 +221,10 @@ registerAction2(class SearchWithAIAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]) {
+	async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (searchView) {
-			const viewer = searchView.getControl();
-			searchView.model.searchResult.aiTextSearchResult.hidden = false;
-			searchView.model.cancelAISearch(true);
-			searchView.model.clearAiSearchResults();
-			await searchView.queueRefreshTree();
-			await forcedExpandRecursively(viewer, searchView.model.searchResult.aiTextSearchResult);
+			searchView.requestAIResults();
 		}
 	}
 });
@@ -247,16 +242,7 @@ async function expandAll(accessor: ServicesAccessor) {
 	const searchView = getSearchView(viewsService);
 	if (searchView) {
 		const viewer = searchView.getControl();
-
-		if (searchView.shouldShowAIResults()) {
-			if (searchView.model.hasAIResults) {
-				await forcedExpandRecursively(viewer, undefined);
-			} else {
-				await forcedExpandRecursively(viewer, searchView.model.searchResult.plainTextSearchResult);
-			}
-		} else {
-			await forcedExpandRecursively(viewer, undefined);
-		}
+		await forcedExpandRecursively(viewer, undefined);
 	}
 }
 

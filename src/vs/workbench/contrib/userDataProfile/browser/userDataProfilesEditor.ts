@@ -41,7 +41,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverWidget, IManagedHover } from '../../../../base/browser/ui/hover/hover.js';
-import { ISelectOptionItem, SelectBox } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { ISelectOptionItem, SelectBox, SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { isString, isUndefined } from '../../../../base/common/types.js';
@@ -458,7 +458,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 		return { label, icon, dirty, description, actionBar, disposables, elementDisposables };
 	}
 
-	renderElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined) {
+	renderElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData) {
 		templateData.elementDisposables.clear();
 		templateData.label.textContent = element.name;
 		templateData.label.classList.toggle('new-profile', element instanceof NewProfileElement);
@@ -496,7 +496,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 
 	}
 
-	disposeElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined): void {
+	disposeElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -881,13 +881,15 @@ class AbstractProfileResourceTreeRenderer extends Disposable {
 				return localize('snippets', "Snippets");
 			case ProfileResourceType.Tasks:
 				return localize('tasks', "Tasks");
+			case ProfileResourceType.Mcp:
+				return localize('mcp', "MCP Servers");
 			case ProfileResourceType.Extensions:
 				return localize('extensions', "Extensions");
 		}
 		return '';
 	}
 
-	disposeElement(element: ITreeNode<ProfileContentTreeElement | ProfileTreeElement, void>, index: number, templateData: IProfileRendererTemplate, height: number | undefined): void {
+	disposeElement(element: ITreeNode<ProfileContentTreeElement | ProfileTreeElement, void>, index: number, templateData: IProfileRendererTemplate): void {
 		templateData.elementDisposables.clear();
 	}
 
@@ -901,7 +903,7 @@ abstract class ProfilePropertyRenderer extends AbstractProfileResourceTreeRender
 	abstract templateId: ProfileProperty;
 	abstract renderTemplate(parent: HTMLElement): IProfilePropertyRendererTemplate;
 
-	renderElement({ element }: ITreeNode<ProfileTreeElement, void>, index: number, templateData: IProfilePropertyRendererTemplate, height: number | undefined): void {
+	renderElement({ element }: ITreeNode<ProfileTreeElement, void>, index: number, templateData: IProfilePropertyRendererTemplate): void {
 		templateData.elementDisposables.clear();
 		templateData.element = element;
 	}
@@ -962,11 +964,11 @@ class ProfileNameRenderer extends ProfilePropertyRenderer {
 				}
 			}
 		));
-		nameInput.onDidChange(value => {
+		disposables.add(nameInput.onDidChange(value => {
 			if (profileElement && value) {
 				profileElement.root.name = value;
 			}
-		});
+		}));
 		const focusTracker = disposables.add(trackFocus(nameInput.inputElement));
 		disposables.add(focusTracker.onDidBlur(() => {
 			if (profileElement && !nameInput.value) {
@@ -1307,7 +1309,6 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 	}
 
 	private getCopyFromOptions(profileElement: NewProfileElement): (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] {
-		const separator = { text: '\u2500\u2500\u2500\u2500\u2500\u2500', isDisabled: true };
 		const copyFromOptions: (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] = [];
 
 		copyFromOptions.push({ text: localize('empty profile', "None") });
@@ -1318,12 +1319,12 @@ class CopyFromProfileRenderer extends ProfilePropertyRenderer {
 		}
 
 		if (this.templates.length) {
-			copyFromOptions.push({ ...separator, decoratorRight: localize('from templates', "Profile Templates") });
+			copyFromOptions.push({ ...SeparatorSelectOption, decoratorRight: localize('from templates', "Profile Templates") });
 			for (const template of this.templates) {
 				copyFromOptions.push({ text: template.name, id: template.url, source: URI.parse(template.url) });
 			}
 		}
-		copyFromOptions.push({ ...separator, decoratorRight: localize('from existing profiles', "Existing Profiles") });
+		copyFromOptions.push({ ...SeparatorSelectOption, decoratorRight: localize('from existing profiles', "Existing Profiles") });
 		for (const profile of this.userDataProfilesService.profiles) {
 			if (!profile.isTransient) {
 				copyFromOptions.push({ text: profile.name, id: profile.id, source: profile });
@@ -1500,7 +1501,7 @@ class ContentsProfileRenderer extends ProfilePropertyRenderer {
 				}));
 			},
 			disposables,
-			elementDisposables: new DisposableStore()
+			elementDisposables
 		};
 	}
 
@@ -1681,7 +1682,7 @@ class ProfileWorkspacesRenderer extends ProfilePropertyRenderer {
 				}));
 			},
 			disposables,
-			elementDisposables: new DisposableStore()
+			elementDisposables
 		};
 	}
 
@@ -1731,7 +1732,7 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 		return { label, radio, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
-	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: IExistingProfileResourceTemplateData, height: number | undefined): void {
+	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: IExistingProfileResourceTemplateData): void {
 		templateData.elementDisposables.clear();
 		const { element, root } = profileResourceTreeElement;
 		if (!(root instanceof UserDataProfileElement)) {
@@ -1816,7 +1817,7 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		return { label, radio, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
-	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: INewProfileResourceTemplateData, height: number | undefined): void {
+	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: INewProfileResourceTemplateData): void {
 		templateData.elementDisposables.clear();
 		const { element, root } = profileResourceTreeElement;
 		if (!(root instanceof NewProfileElement)) {
@@ -1924,7 +1925,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 		return { checkbox, resourceLabel, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
-	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: IProfileResourceChildTreeItemTemplateData, height: number | undefined): void {
+	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileContentTreeElement, void>, index: number, templateData: IProfileResourceChildTreeItemTemplateData): void {
 		templateData.elementDisposables.clear();
 		const { element } = profileResourceTreeElement;
 
@@ -1977,7 +1978,7 @@ class WorkspaceUriEmptyColumnRenderer implements ITableRenderer<WorkspaceTableEl
 		return {};
 	}
 
-	renderElement(item: WorkspaceTableElement, index: number, templateData: {}, height: number | undefined): void {
+	renderElement(item: WorkspaceTableElement, index: number, templateData: {}): void {
 	}
 
 	disposeTemplate(): void {
@@ -2020,7 +2021,7 @@ class WorkspaceUriHostColumnRenderer implements ITableRenderer<WorkspaceTableEle
 		};
 	}
 
-	renderElement(item: WorkspaceTableElement, index: number, templateData: IWorkspaceUriHostColumnTemplateData, height: number | undefined): void {
+	renderElement(item: WorkspaceTableElement, index: number, templateData: IWorkspaceUriHostColumnTemplateData): void {
 		templateData.renderDisposables.clear();
 		templateData.renderDisposables.add({ dispose: () => { clearNode(templateData.buttonBarContainer); } });
 
@@ -2075,7 +2076,7 @@ class WorkspaceUriPathColumnRenderer implements ITableRenderer<WorkspaceTableEle
 		};
 	}
 
-	renderElement(item: WorkspaceTableElement, index: number, templateData: IWorkspaceUriPathColumnTemplateData, height: number | undefined): void {
+	renderElement(item: WorkspaceTableElement, index: number, templateData: IWorkspaceUriPathColumnTemplateData): void {
 		templateData.renderDisposables.clear();
 		const stringValue = this.formatPath(item.workspace);
 		templateData.pathLabel.innerText = stringValue;
@@ -2113,15 +2114,22 @@ interface IActionsColumnTemplateData {
 	readonly disposables: DisposableStore;
 }
 
-class ChangeProfileAction extends Action {
+class ChangeProfileAction implements IAction {
+
+	readonly id = 'changeProfile';
+	readonly label = 'Change Profile';
+	readonly class = ThemeIcon.asClassName(editIcon);
+	readonly enabled = true;
+	readonly tooltip = localize('change profile', "Change Profile");
+	readonly checked = false;
 
 	constructor(
 		private readonly item: WorkspaceTableElement,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
-		super('changeProfile', '', ThemeIcon.asClassName(editIcon));
-		this.tooltip = localize('change profile', "Change Profile");
 	}
+
+	run(): void { }
 
 	getSwitchProfileActions(): IAction[] {
 		return this.userDataProfilesService.profiles
@@ -2177,7 +2185,7 @@ class WorkspaceUriActionsColumnRenderer implements ITableRenderer<WorkspaceTable
 		return { actionBar, disposables };
 	}
 
-	renderElement(item: WorkspaceTableElement, index: number, templateData: IActionsColumnTemplateData, height: number | undefined): void {
+	renderElement(item: WorkspaceTableElement, index: number, templateData: IActionsColumnTemplateData): void {
 		templateData.actionBar.clear();
 		const actions: IAction[] = [];
 		actions.push(this.createOpenAction(item));

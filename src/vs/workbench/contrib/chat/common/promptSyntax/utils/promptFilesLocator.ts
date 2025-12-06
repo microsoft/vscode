@@ -4,51 +4,108 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { match } from '../../../../../../base/common/glob.js';
-import { assert } from '../../../../../../base/common/assert.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
-import { PromptsConfig } from '../../../../../../platform/prompts/common/config.js';
-import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
+import { getPromptFileLocationsConfigKey, PromptsConfig } from '../config/config.js';
+import { basename, dirname, isEqualOrParent, joinPath } from '../../../../../../base/common/resources.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { isPromptFile, PROMPT_FILE_EXTENSION } from '../../../../../../platform/prompts/common/constants.js';
+import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, AGENTS_SOURCE_FOLDER, getPromptFileExtension, getPromptFileType, LEGACY_MODE_FILE_EXTENSION, getCleanPromptName, AGENT_FILE_EXTENSION } from '../config/promptFileLocations.js';
+import { PromptsType } from '../promptTypes.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { PromptsStorage } from '../service/promptsService.js';
+import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IPathService } from '../../../../../services/path/common/pathService.js';
 
 /**
  * Utility class to locate prompt files.
  */
 export class PromptFilesLocator {
+
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-	) { }
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ISearchService private readonly searchService: ISearchService,
+		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
+		@ILogService private readonly logService: ILogService,
+		@IPathService private readonly pathService: IPathService,
+	) {
+	}
 
 	/**
 	 * List all prompt files from the filesystem.
 	 *
 	 * @returns List of prompt files found in the workspace.
 	 */
-	public async listFiles(): Promise<readonly URI[]> {
-		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService);
-		const absoluteLocations = toAbsoluteLocations(configuredLocations, this.workspaceService);
-
-		return await this.listFilesIn(absoluteLocations);
+	public async listFiles(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly URI[]> {
+		if (storage === PromptsStorage.local) {
+			return await this.listFilesInLocal(type, token);
+		} else if (storage === PromptsStorage.user) {
+			return await this.listFilesInUserData(type, token);
+		}
+		throw new Error(`Unsupported prompt file storage: ${storage}`);
 	}
 
-	/**
-	 * Lists all prompt files in the provided folders.
-	 *
-	 * @throws if any of the provided folder paths is not an `absolute path`.
-	 *
-	 * @param absoluteLocations List of prompt file source folders to search for prompt files in. Must be absolute paths.
-	 * @returns List of prompt files found in the provided folders.
-	 */
-	public async listFilesIn(
-		folders: readonly URI[],
-	): Promise<readonly URI[]> {
-		return await this.findInstructionFiles(folders);
+	private async listFilesInUserData(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
+		const files = await this.resolveFilesAtLocation(this.userDataService.currentProfile.promptsHome, token);
+		return files.filter(file => getPromptFileType(file) === type);
+	}
+
+	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {
+		const disposables = new DisposableStore();
+		const eventEmitter = disposables.add(new Emitter<void>());
+
+		const userDataFolder = this.userDataService.currentProfile.promptsHome;
+
+		const key = getPromptFileLocationsConfigKey(type);
+		let parentFolders = this.getLocalParentFolders(type);
+
+		const externalFolderWatchers = disposables.add(new DisposableStore());
+		const updateExternalFolderWatchers = () => {
+			externalFolderWatchers.clear();
+			for (const folder of parentFolders) {
+				if (!this.workspaceService.getWorkspaceFolder(folder.parent)) {
+					// if the folder is not part of the workspace, we need to watch it
+					const recursive = folder.filePattern !== undefined;
+					externalFolderWatchers.add(this.fileService.watch(folder.parent, { recursive, excludes: [] }));
+				}
+			}
+		};
+		updateExternalFolderWatchers();
+		disposables.add(this.configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(key)) {
+				parentFolders = this.getLocalParentFolders(type);
+				updateExternalFolderWatchers();
+				eventEmitter.fire();
+			}
+		}));
+		disposables.add(this.fileService.onDidFilesChange(e => {
+			if (e.affects(userDataFolder)) {
+				eventEmitter.fire();
+				return;
+			}
+			if (parentFolders.some(folder => e.affects(folder.parent))) {
+				eventEmitter.fire();
+				return;
+			}
+		}));
+		disposables.add(this.fileService.watch(userDataFolder));
+
+		return { event: eventEmitter.event, dispose: () => disposables.dispose() };
+	}
+
+	public getAgentSourceFolder(): readonly URI[] {
+		return this.toAbsoluteLocations([AGENTS_SOURCE_FOLDER]);
 	}
 
 	/**
@@ -63,25 +120,23 @@ export class PromptFilesLocator {
 	 *
 	 * @returns List of possible unambiguous prompt file folders.
 	 */
-	public getConfigBasedSourceFolders(): readonly URI[] {
-		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService);
-		const absoluteLocations = toAbsoluteLocations(configuredLocations, this.workspaceService);
+	public getConfigBasedSourceFolders(type: PromptsType): readonly URI[] {
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		const absoluteLocations = this.toAbsoluteLocations(configuredLocations);
 
 		// locations in the settings can contain glob patterns so we need
 		// to process them to get "clean" paths; the goal here is to have
 		// a list of unambiguous folder paths where prompt files are stored
 		const result = new ResourceSet();
-		for (const absoluteLocation of absoluteLocations) {
-			let { path } = absoluteLocation;
+		for (let absoluteLocation of absoluteLocations) {
 			const baseName = basename(absoluteLocation);
 
 			// if a path ends with a well-known "any file" pattern, remove
 			// it so we can get the dirname path of that setting value
-			const filePatterns = ['*.md', `*${PROMPT_FILE_EXTENSION}`];
+			const filePatterns = ['*.md', `*${getPromptFileExtension(type)}`];
 			for (const filePattern of filePatterns) {
 				if (baseName === filePattern) {
-					path = URI.joinPath(absoluteLocation, '..').path;
-
+					absoluteLocation = dirname(absoluteLocation);
 					continue;
 				}
 			}
@@ -89,73 +144,273 @@ export class PromptFilesLocator {
 			// likewise, if the pattern ends with single `*` (any file name)
 			// remove it to get the dirname path of the setting value
 			if (baseName === '*') {
-				path = URI.joinPath(absoluteLocation, '..').path;
+				absoluteLocation = dirname(absoluteLocation);
 			}
 
 			// if after replacing the "file name" glob pattern, the path
 			// still contains a glob pattern, then ignore the path
-			if (isValidGlob(path) === true) {
+			if (isValidGlob(absoluteLocation.path) === true) {
 				continue;
 			}
 
-			result.add(URI.file(path));
+			result.add(absoluteLocation);
 		}
 
 		return [...result];
 	}
 
 	/**
-	 * Finds all existent prompt files in the provided source folders.
+	 * Finds all existent prompt files in the configured local source folders.
 	 *
-	 * @throws if any of the provided folder paths is not an `absolute path`.
-	 *
-	 * @param absoluteLocations List of prompt file source folders to search for prompt files in. Must be absolute paths.
-	 * @returns List of prompt files found in the provided source folders.
+	 * @returns List of prompt files found in the local source folders.
 	 */
-	private async findInstructionFiles(
-		absoluteLocations: readonly URI[],
-	): Promise<readonly URI[]> {
+	private async listFilesInLocal(type: PromptsType, token: CancellationToken): Promise<readonly URI[]> {
 		// find all prompt files in the provided locations, then match
 		// the found file paths against (possible) glob patterns
 		const paths = new ResourceSet();
-		for (const absoluteLocation of absoluteLocations) {
-			assert(
-				isAbsolute(absoluteLocation.path),
-				`Provided location must be an absolute path, got '${absoluteLocation.path}'.`,
-			);
 
-			// normalize the glob pattern to always end with "any prompt file" pattern
-			// unless the last part of the path is already a glob pattern itself; this is
-			// to handle the case when a user specifies a file glob pattern at the end, e.g.,
-			// "my-folder/*.md" or "my-folder/*" already include the prompt files
-			const location = (isValidGlob(basename(absoluteLocation)) || absoluteLocation.path.endsWith(PROMPT_FILE_EXTENSION))
-				? absoluteLocation
-				: extUri.joinPath(absoluteLocation, `*${PROMPT_FILE_EXTENSION}`);
-
-			// find all prompt files in entire file tree, starting from
-			// a first parent folder that does not contain a glob pattern
-			const promptFiles = await findAllPromptFiles(
-				firstNonGlobParent(location),
-				this.fileService,
-			);
-
-			// filter out found prompt files to only include those that match
-			// the original glob pattern specified in the settings (if any)
-			for (const file of promptFiles) {
-				if (match(location.path, file.path)) {
+		for (const { parent, filePattern } of this.getLocalParentFolders(type)) {
+			const files = (filePattern === undefined)
+				? await this.resolveFilesAtLocation(parent, token) // if the location does not contain a glob pattern, resolve the location directly
+				: await this.searchFilesInLocation(parent, filePattern, token);
+			for (const file of files) {
+				if (getPromptFileType(file) === type) {
 					paths.add(file);
 				}
+			}
+			if (token.isCancellationRequested) {
+				return [];
 			}
 		}
 
 		return [...paths];
 	}
+
+	private getLocalParentFolders(type: PromptsType): readonly { parent: URI; filePattern?: string }[] {
+		const configuredLocations = PromptsConfig.promptSourceFolders(this.configService, type);
+		if (type === PromptsType.agent) {
+			configuredLocations.push(AGENTS_SOURCE_FOLDER);
+		}
+		const absoluteLocations = this.toAbsoluteLocations(configuredLocations);
+		return absoluteLocations.map(firstNonGlobParentAndPattern);
+	}
+
+	/**
+	 * Converts locations defined in `settings` to absolute filesystem path URIs.
+	 * This conversion is needed because locations in settings can be relative,
+	 * hence we need to resolve them based on the current workspace folders.
+	 */
+	private toAbsoluteLocations(configuredLocations: readonly string[]): readonly URI[] {
+		const result = new ResourceSet();
+		const { folders } = this.workspaceService.getWorkspace();
+
+		for (const configuredLocation of configuredLocations) {
+			try {
+				if (isAbsolute(configuredLocation)) {
+					let uri = URI.file(configuredLocation);
+					const remoteAuthority = this.environmentService.remoteAuthority;
+					if (remoteAuthority) {
+						// if the location is absolute and we are in a remote environment,
+						// we need to convert it to a file URI with the remote authority
+						uri = uri.with({ scheme: Schemas.vscodeRemote, authority: remoteAuthority });
+					}
+					result.add(uri);
+				} else {
+					for (const workspaceFolder of folders) {
+						const absolutePath = joinPath(workspaceFolder.uri, configuredLocation);
+						result.add(absolutePath);
+					}
+				}
+			} catch (error) {
+				this.logService.error(`Failed to resolve prompt file location: ${configuredLocation}`, error);
+			}
+		}
+
+		return [...result];
+	}
+
+	/**
+	 * Uses the file service to resolve the provided location and return either the file at the location of files in the directory.
+	 */
+	private async resolveFilesAtLocation(location: URI, token: CancellationToken): Promise<URI[]> {
+		try {
+			const info = await this.fileService.resolve(location);
+			if (info.isFile) {
+				return [info.resource];
+			} else if (info.isDirectory && info.children) {
+				const result: URI[] = [];
+				for (const child of info.children) {
+					if (child.isFile) {
+						result.push(child.resource);
+					}
+				}
+				return result;
+			}
+		} catch (error) {
+		}
+		return [];
+	}
+
+	/**
+	 * Uses the search service to find all files at the provided location
+	 */
+	private async searchFilesInLocation(folder: URI, filePattern: string | undefined, token: CancellationToken): Promise<URI[]> {
+		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
+
+		const workspaceRoot = this.workspaceService.getWorkspaceFolder(folder);
+
+		const getExcludePattern = (folder: URI) => getExcludes(this.configService.getValue<ISearchConfiguration>({ resource: folder })) || {};
+		const searchOptions: IFileQuery = {
+			folderQueries: [{ folder, disregardIgnoreFiles }],
+			type: QueryType.File,
+			shouldGlobMatchFilePattern: true,
+			excludePattern: workspaceRoot ? getExcludePattern(workspaceRoot.uri) : undefined,
+			sortByScore: true,
+			filePattern
+		};
+
+		try {
+			const searchResult = await this.searchService.fileSearch(searchOptions, token);
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			return searchResult.results.map(r => r.resource);
+		} catch (e) {
+			if (!isCancellationError(e)) {
+				throw e;
+			}
+		}
+		return [];
+	}
+
+	public async findCopilotInstructionsMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
+		const result: URI[] = [];
+		const { folders } = this.workspaceService.getWorkspace();
+		for (const folder of folders) {
+			const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
+			if (await this.fileService.exists(file)) {
+				result.push(file);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Gets list of `AGENTS.md` files anywhere in the workspace.
+	 */
+	public async findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> {
+		const result = await Promise.all(this.workspaceService.getWorkspace().folders.map(folder => this.findAgentMDsInFolder(folder.uri, token)));
+		return result.flat(1);
+	}
+
+	private async findAgentMDsInFolder(folder: URI, token: CancellationToken): Promise<URI[]> {
+		const disregardIgnoreFiles = this.configService.getValue<boolean>('explorer.excludeGitIgnore');
+		const getExcludePattern = (folder: URI) => getExcludes(this.configService.getValue<ISearchConfiguration>({ resource: folder })) || {};
+		const searchOptions: IFileQuery = {
+			folderQueries: [{ folder, disregardIgnoreFiles }],
+			type: QueryType.File,
+			shouldGlobMatchFilePattern: true,
+			excludePattern: getExcludePattern(folder),
+			filePattern: '**/AGENTS.md',
+		};
+
+		try {
+			const searchResult = await this.searchService.fileSearch(searchOptions, token);
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			return searchResult.results.map(r => r.resource);
+		} catch (e) {
+			if (!isCancellationError(e)) {
+				throw e;
+			}
+		}
+		return [];
+
+	}
+
+	/**
+	 * Gets list of `AGENTS.md` files only at the root workspace folder(s).
+	 */
+	public async findAgentMDsInWorkspaceRoots(token: CancellationToken): Promise<URI[]> {
+		const result: URI[] = [];
+		const { folders } = this.workspaceService.getWorkspace();
+		const resolvedRoots = await this.fileService.resolveAll(folders.map(f => ({ resource: f.uri })));
+		for (const root of resolvedRoots) {
+			if (root.success && root.stat?.children) {
+				const agentMd = root.stat.children.find(c => c.isFile && c.name.toLowerCase() === 'agents.md');
+				if (agentMd) {
+					result.push(agentMd.resource);
+				}
+			}
+		}
+		return result;
+	}
+
+	public getAgentFileURIFromModeFile(oldURI: URI): URI | undefined {
+		if (oldURI.path.endsWith(LEGACY_MODE_FILE_EXTENSION)) {
+			let newLocation;
+			const workspaceFolder = this.workspaceService.getWorkspaceFolder(oldURI);
+			if (workspaceFolder) {
+				newLocation = joinPath(workspaceFolder.uri, AGENTS_SOURCE_FOLDER, getCleanPromptName(oldURI) + AGENT_FILE_EXTENSION);
+			} else if (isEqualOrParent(oldURI, this.userDataService.currentProfile.promptsHome)) {
+				newLocation = joinPath(this.userDataService.currentProfile.promptsHome, getCleanPromptName(oldURI) + AGENT_FILE_EXTENSION);
+			}
+			return newLocation;
+		}
+		return undefined;
+	}
+
+	private async findClaudeSkillsInFolder(uri: URI, token: CancellationToken): Promise<URI[]> {
+		const result = [];
+		try {
+			const stat = await this.fileService.resolve(joinPath(uri, '.claude/skills'));
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			if (stat.isDirectory && stat.children) {
+				for (const skillDir of stat.children) {
+					if (skillDir.isDirectory) {
+						const skillFile = joinPath(skillDir.resource, 'SKILL.md');
+						if (await this.fileService.exists(skillFile)) {
+							result.push(skillFile);
+						}
+					}
+				}
+			}
+		} catch (error) {
+			// no such folder, return empty list
+			return [];
+		}
+
+		return result;
+	}
+
+	/**
+	 * Searches for skills in `.claude/skills/` directories in the workspace.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	public async findClaudeSkillsInWorkspace(token: CancellationToken): Promise<URI[]> {
+		const workspace = this.workspaceService.getWorkspace();
+		const results = await Promise.all(workspace.folders.map(f => this.findClaudeSkillsInFolder(f.uri, token)));
+		return results.flat();
+	}
+
+	/**
+	 * Searches for skills in `.claude/skills/` directories  in the home folder.
+	 * Each skill is stored in its own subdirectory with a SKILL.md file.
+	 */
+	public async findClaudeSkillsInUserHome(token: CancellationToken): Promise<URI[]> {
+		const userHome = await this.pathService.userHome();
+		return this.findClaudeSkillsInFolder(userHome, token);
+	}
 }
+
 
 /**
  * Checks if the provided `pattern` could be a valid glob pattern.
  */
-export const isValidGlob = (pattern: string): boolean => {
+export function isValidGlob(pattern: string): boolean {
 	let squareBrackets = false;
 	let squareBracketsCount = 0;
 
@@ -220,147 +475,42 @@ export const isValidGlob = (pattern: string): boolean => {
 	}
 
 	return false;
-};
+}
 
 /**
  * Finds the first parent of the provided location that does not contain a `glob pattern`.
  *
- * @throws if the provided location is not an `absolute path`.
+ * Asumes that the location that is provided has a valid path (is abstract)
  *
  * ## Examples
  *
  * ```typescript
- * assert.strictEqual(
- *     firstNonGlobParent(URI.file('/home/user/{folder1,folder2}/file.md')).path,
- *     URI.file('/home/user').path,
+ * assert.strictDeepEqual(
+ *     firstNonGlobParentAndPattern(URI.file('/home/user/{folder1,folder2}/file.md')).path,
+ *     { parent: URI.file('/home/user'), filePattern: '{folder1,folder2}/file.md' },
  *     'Must find correct non-glob parent dirname.',
  * );
  * ```
  */
-export const firstNonGlobParent = (
-	location: URI,
-): URI => {
-	// sanity check of the provided location
-	assert(
-		isAbsolute(location.path),
-		`Provided location must be an absolute path, got '${location.path}'.`,
-	);
-
-	// note! if though the folder name can be `invalid glob` here, it is still OK to
-	//       use it as we don't really known if that is a glob pattern, or the folder
-	//       name contains characters that can also be used in a glob pattern
-	if (isValidGlob(location.path) === false) {
-		return location;
+function firstNonGlobParentAndPattern(location: URI): { parent: URI; filePattern?: string } {
+	const segments = location.path.split('/');
+	let i = 0;
+	while (i < segments.length && isValidGlob(segments[i]) === false) {
+		i++;
+	}
+	if (i === segments.length) {
+		// the path does not contain a glob pattern, so we can
+		// just find all prompt files in the provided location
+		return { parent: location };
+	}
+	const parent = location.with({ path: segments.slice(0, i).join('/') });
+	if (i === segments.length - 1 && segments[i] === '*' || segments[i] === ``) {
+		return { parent };
 	}
 
-	// if location is the root of the filesystem, we are done
-	const parent = dirname(location);
-	if (extUri.isEqual(parent, location)) {
-		return location;
-	}
-
-	// otherwise, try again starting with the parent folder
-	return firstNonGlobParent(parent);
-};
-
-/**
- * Finds all `prompt files` in the provided location and all of its subfolders.
- */
-const findAllPromptFiles = async (
-	location: URI,
-	fileService: IFileService,
-): Promise<readonly URI[]> => {
-	const result: URI[] = [];
-
-	try {
-		const info = await fileService.resolve(location);
-
-		if (info.isFile && isPromptFile(info.resource)) {
-			result.push(info.resource);
-
-			return result;
-		}
-
-		if (info.isDirectory && info.children) {
-			for (const child of info.children) {
-				if (child.isFile && isPromptFile(child.resource)) {
-					result.push(child.resource);
-
-					continue;
-				}
-
-				if (child.isDirectory) {
-					const promptFiles = await findAllPromptFiles(child.resource, fileService);
-					result.push(...promptFiles);
-
-					continue;
-				}
-			}
-
-			return result;
-		}
-	} catch (error) {
-		// noop
-	}
-
-	return result;
-};
-
-/**
- * Converts locations defined in `settings` to absolute filesystem path URIs.
- * This conversion is needed because locations in settings can be relative,
- * hence we need to resolve them based on the current workspace folders.
- */
-const toAbsoluteLocations = (
-	configuredLocations: readonly string[],
-	workspaceService: IWorkspaceContextService,
-): readonly URI[] => {
-	const result = new ResourceSet();
-	const { folders } = workspaceService.getWorkspace();
-
-	for (const configuredLocation of configuredLocations) {
-		if (isAbsolute(configuredLocation)) {
-			result.add(URI.file(configuredLocation));
-
-			continue;
-		}
-
-		for (const workspaceFolder of folders) {
-			const absolutePath = extUri.resolvePath(workspaceFolder.uri, configuredLocation);
-
-			// a sanity check on the expected outcome of the `resolvePath()` call
-			assert(
-				isAbsolute(absolutePath.path),
-				`Provided location must be an absolute path, got '${absolutePath.path}'.`,
-			);
-
-			if (result.has(absolutePath) === false) {
-				result.add(absolutePath);
-			}
-
-			// if not inside a multi-root workspace, we are done
-			if (folders.length <= 1) {
-				continue;
-			}
-
-			// if inside a multi-root workspace, consider the specified prompts source folder
-			// inside the workspace root, to allow users to use some (e.g., `.github/prompts`)
-			// folder as a top-level folder in the workspace
-			const workspaceRootUri = dirname(workspaceFolder.uri);
-			const workspaceFolderUri = extUri.resolvePath(workspaceRootUri, configuredLocation);
-			// if we already have this folder in the list, skip it
-			if (result.has(workspaceFolderUri) === true) {
-				continue;
-			}
-
-			// otherwise, if the prompt source folder is inside a top-level workspace folder,
-			// add it to the list of paths too; this helps to handle the case when a relative
-			// path must be resolved from `root` of the workspace
-			if (workspaceFolderUri.fsPath.startsWith(workspaceFolder.uri.fsPath)) {
-				result.add(workspaceFolderUri);
-			}
-		}
-	}
-
-	return [...result];
-};
+	// the path contains a glob pattern, so we search in last folder that does not contain a glob pattern
+	return {
+		parent,
+		filePattern: segments.slice(i).join('/')
+	};
+}

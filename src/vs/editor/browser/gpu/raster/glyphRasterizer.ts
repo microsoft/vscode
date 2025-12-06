@@ -8,8 +8,8 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { StringBuilder } from '../../../common/core/stringBuilder.js';
 import { FontStyle, TokenMetadata } from '../../../common/encodedTokenAttributes.js';
+import type { DecorationStyleCache } from '../css/decorationStyleCache.js';
 import { ensureNonNullable } from '../gpuUtils.js';
-import { ViewGpuContext } from '../viewGpuContext.js';
 import { type IBoundingBox, type IGlyphRasterizer, type IRasterizedGlyph } from './raster.js';
 
 let nextId = 0;
@@ -50,7 +50,8 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 	constructor(
 		readonly fontSize: number,
 		readonly fontFamily: string,
-		readonly devicePixelRatio: number
+		readonly devicePixelRatio: number,
+		private readonly _decorationStyleCache: DecorationStyleCache,
 	) {
 		super();
 
@@ -119,7 +120,7 @@ export class GlyphRasterizer extends Disposable implements IGlyphRasterizer {
 		const bgId = TokenMetadata.getBackground(tokenMetadata);
 		const bg = colorMap[bgId];
 
-		const decorationStyleSet = ViewGpuContext.decorationStyleCache.getStyleSet(decorationStyleSetId);
+		const decorationStyleSet = this._decorationStyleCache.getStyleSet(decorationStyleSetId);
 
 		// When SPAA is used, the background color must be present to get the right glyph
 		if (this._antiAliasing === 'subpixel') {

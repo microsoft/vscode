@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap2="http://schemas.microsoft.com/appx/manifest/uap/windows10/2"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+  xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  xmlns:desktop10="http://schemas.microsoft.com/appx/manifest/desktop/windows10/10"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  IgnorableNamespaces="uap uap2 uap3 rescap desktop desktop4 desktop5 desktop6 desktop10 uap10 com">
+  <Identity
+    Name="@@AppxPackageName@@"
+    Publisher="CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    Version="@@AppxPackageVersion@@"
+    ProcessorArchitecture="neutral" />
+  <Properties>
+    <DisplayName>@@AppxPackageDisplayName@@</DisplayName>
+    <PublisherDisplayName>Microsoft Corporation</PublisherDisplayName>
+    <Logo>resources\app\resources\win32\code_150x150.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+    <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>
+    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+  </Properties>
+  <Resources>
+    <Resource Language="en-us" />
+    <Resource Language="es-es" />
+    <Resource Language="de-de" />
+    <Resource Language="fr-fr" />
+    <Resource Language="hu-hu" />
+    <Resource Language="it-it" />
+    <Resource Language="ja-jp" />
+    <Resource Language="ko-kr" />
+    <Resource Language="pt-br" />
+    <Resource Language="ru-ru" />
+    <Resource Language="tr-tr" />
+    <Resource Language="zh-cn" />
+    <Resource Language="zh-tw" />
+  </Resources>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Capabilities>
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources"/>
+    <DeviceCapability Name="microphone"/>
+  </Capabilities>
+  <Applications>
+    <Application Id="@@ApplicationIdShort@@"
+      Executable="@@ApplicationExe@@"
+      uap10:TrustLevel="mediumIL"
+      uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements
+        AppListEntry="none"
+        DisplayName="@@AppxPackageDisplayName@@"
+        Description="@@AppxPackageDescription@@"
+        BackgroundColor="transparent"
+        Square150x150Logo="resources\app\resources\win32\code_150x150.png"
+        Square44x44Logo="resources\app\resources\win32\code_70x70.png">
+      </uap:VisualElements>
+      <Extensions>
+        <desktop4:Extension Category="windows.fileExplorerContextMenus">
+          <desktop4:FileExplorerContextMenus>
+            <desktop5:ItemType Type="Directory">
+              <desktop5:Verb Id="@@FileExplorerContextMenuID@@" Clsid="@@FileExplorerContextMenuCLSID@@" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type="Directory\Background">
+              <desktop5:Verb Id="@@FileExplorerContextMenuID@@" Clsid="@@FileExplorerContextMenuCLSID@@" />
+            </desktop5:ItemType>
+            <desktop5:ItemType Type="*">
+              <desktop5:Verb Id="@@FileExplorerContextMenuID@@" Clsid="@@FileExplorerContextMenuCLSID@@" />
+            </desktop5:ItemType>
+          </desktop4:FileExplorerContextMenus>
+        </desktop4:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:SurrogateServer DisplayName="@@AppxPackageDisplayName@@">
+              <com:Class Id="@@FileExplorerContextMenuCLSID@@" Path="@@FileExplorerContextMenuDLL@@" ThreadingModel="STA"/>
+            </com:SurrogateServer>
+          </com:ComServer>
+        </com:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+</Package>

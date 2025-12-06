@@ -32,6 +32,7 @@ import { IExtensionDescription } from '../../../platform/extensions/common/exten
 import { TelemetryTrustedValue } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { IExtHostTelemetry } from './extHostTelemetry.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { isCancellationError } from '../../../base/common/errors.js';
 
 interface CommandHandler {
 	callback: Function;
@@ -170,12 +171,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+	executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
 		this._logService.trace('ExtHostCommands#executeCommand', id);
 		return this._doExecuteCommand(id, args, true);
 	}
 
-	private async _doExecuteCommand<T>(id: string, args: any[], retry: boolean): Promise<T> {
+	private async _doExecuteCommand<T>(id: string, args: unknown[], retry: boolean): Promise<T> {
 
 		if (this._commands.has(id)) {
 			// - We stay inside the extension host and support
@@ -228,7 +229,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
-	private async _executeContributedCommand<T = unknown>(id: string, args: any[], annotateError: boolean): Promise<T> {
+	private async _executeContributedCommand<T = unknown>(id: string, args: unknown[], annotateError: boolean): Promise<T> {
 		const command = this._commands.get(id);
 		if (!command) {
 			throw new Error('Unknown command');
@@ -256,7 +257,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 					id = actual.command;
 				}
 			}
-			this._logService.error(err, id, command.extension?.identifier);
+			if (!isCancellationError(err)) {
+				this._logService.error(err, id, command.extension?.identifier);
+			}
 
 			if (!annotateError) {
 				throw err;
@@ -284,6 +287,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!command.extension) {
 			return;
 		}
+		if (id.startsWith('code.copilot.logStructured')) {
+			// This command is very active. See https://github.com/microsoft/vscode/issues/254153.
+			return;
+		}
 		type ExtensionActionTelemetry = {
 			extensionId: string;
 			id: TelemetryTrustedValue<string>;
@@ -303,7 +310,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown> {
+	$executeContributedCommand(id: string, ...args: unknown[]): Promise<unknown> {
 		this._logService.trace('ExtHostCommands#$executeContributedCommand', id);
 
 		const cmdHandler = this._commands.get(id);
@@ -445,7 +452,6 @@ export class ApiCommandArgument<V, O = V> {
 	static readonly Selection = new ApiCommandArgument<extHostTypes.Selection, ISelection>('selection', 'A selection in a text document', v => extHostTypes.Selection.isSelection(v), extHostTypeConverter.Selection.from);
 	static readonly Number = new ApiCommandArgument<number>('number', '', v => typeof v === 'number', v => v);
 	static readonly String = new ApiCommandArgument<string>('string', '', v => typeof v === 'string', v => v);
-	static readonly StringArray = ApiCommandArgument.Arr(ApiCommandArgument.String);
 
 	static Arr<T, K = T>(element: ApiCommandArgument<T, K>) {
 		return new ApiCommandArgument(

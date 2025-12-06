@@ -16,7 +16,7 @@ import { ColorThemeData } from '../common/colorThemeData.js';
 import { IColorTheme, Extensions as ThemingExtensions, IThemingRegistry } from '../../../../platform/theme/common/themeService.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { registerFileIconThemeSchemas } from '../common/fileIconThemeSchema.js';
-import { IDisposable, dispose, Disposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { FileIconThemeData, FileIconThemeLoader } from './fileIconThemeData.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../environment/browser/environmentService.js';
@@ -283,7 +283,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		}));
 	}
 
-	private installRegistryListeners(): Promise<any> {
+	private installRegistryListeners(): Promise<void> {
 
 		let prevColorId: string | undefined = undefined;
 
@@ -761,35 +761,39 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 class ThemeFileWatcher {
 
 	private watchedLocation: URI | undefined;
-	private watcherDisposable: IDisposable | undefined;
-	private fileChangeListener: IDisposable | undefined;
+	private readonly watcherDisposables = new DisposableStore();
 
-	constructor(private fileService: IFileService, private environmentService: IBrowserWorkbenchEnvironmentService, private onUpdate: () => void) {
-	}
+	constructor(
+		private readonly fileService: IFileService,
+		private readonly environmentService: IBrowserWorkbenchEnvironmentService,
+		private readonly onUpdate: () => void
+	) { }
 
 	update(theme: { location?: URI; watch?: boolean }) {
 		if (!resources.isEqual(theme.location, this.watchedLocation)) {
-			this.dispose();
+			this.watchedLocation = undefined;
+			this.watcherDisposables.clear();
+
 			if (theme.location && (theme.watch || this.environmentService.isExtensionDevelopment)) {
 				this.watchedLocation = theme.location;
-				this.watcherDisposable = this.fileService.watch(theme.location);
-				this.fileService.onDidFilesChange(e => {
+				this.watcherDisposables.add(this.fileService.watch(theme.location));
+				this.watcherDisposables.add(this.fileService.onDidFilesChange(e => {
 					if (this.watchedLocation && e.contains(this.watchedLocation, FileChangeType.UPDATED)) {
 						this.onUpdate();
 					}
-				});
+				}));
 			}
 		}
 	}
 
 	dispose() {
-		this.watcherDisposable = dispose(this.watcherDisposable);
-		this.fileChangeListener = dispose(this.fileChangeListener);
+		this.watcherDisposables.dispose();
 		this.watchedLocation = undefined;
 	}
 }
 
 function _applyRules(styleSheetContent: string, rulesClassName: string) {
+	// eslint-disable-next-line no-restricted-syntax
 	const themeStyles = mainWindow.document.head.getElementsByClassName(rulesClassName);
 	if (themeStyles.length === 0) {
 		const elStyle = createStyleSheet();

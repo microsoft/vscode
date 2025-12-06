@@ -9,10 +9,10 @@ import { RangeMapping as DiffRangeMapping } from '../../../../../editor/common/d
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { LineRange } from './lineRange.js';
+import { MergeEditorLineRange } from './lineRange.js';
 import { DetailedLineRangeMapping, RangeMapping } from './mapping.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
-import { LineRange as DiffLineRange } from '../../../../../editor/common/core/lineRange.js';
+import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 
 export interface IMergeDiffComputer {
 	computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult>;
@@ -23,14 +23,15 @@ export interface IMergeDiffComputerResult {
 }
 
 export class MergeDiffComputer implements IMergeDiffComputer {
-	private readonly mergeAlgorithm = observableConfigValue<'smart' | 'experimental' | 'legacy' | 'advanced'>(
-		'mergeEditor.diffAlgorithm', 'advanced', this.configurationService)
-		.map(v => v === 'smart' ? 'legacy' : v === 'experimental' ? 'advanced' : v);
+	private readonly mergeAlgorithm;
 
 	constructor(
 		@IEditorWorkerService private readonly editorWorkerService: IEditorWorkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
+		this.mergeAlgorithm = observableConfigValue<'smart' | 'experimental' | 'legacy' | 'advanced'>(
+			'mergeEditor.diffAlgorithm', 'advanced', this.configurationService)
+			.map(v => v === 'smart' ? 'legacy' : v === 'experimental' ? 'advanced' : v);
 	}
 
 	async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
@@ -75,6 +76,10 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 		}
 
 		assertFn(() => {
+			/*
+			// This does not hold (see https://github.com/microsoft/vscode-copilot/issues/10610)
+			// TODO@hediet the diff algorithm should just use compute a string edit that transforms the input to the output, nothing else
+
 			for (const c of changes) {
 				const inputRange = c.inputRange;
 				const outputRange = c.outputRange;
@@ -104,7 +109,7 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 						return false;
 					}
 				}
-			}
+			}*/
 
 			return changes.length === 0 || (changes[0].inputRange.startLineNumber === changes[0].outputRange.startLineNumber &&
 				checkAdjacentItems(changes,
@@ -121,8 +126,8 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 	}
 }
 
-export function toLineRange(range: DiffLineRange): LineRange {
-	return new LineRange(range.startLineNumber, range.length);
+export function toLineRange(range: LineRange): MergeEditorLineRange {
+	return MergeEditorLineRange.fromLength(range.startLineNumber, range.length);
 }
 
 export function toRangeMapping(mapping: DiffRangeMapping): RangeMapping {

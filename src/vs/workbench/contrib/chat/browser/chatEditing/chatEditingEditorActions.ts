@@ -2,26 +2,27 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { localize, localize2 } from '../../../../../nls.js';
-import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ctxHasEditorModification, ctxHasRequestInProgress, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
-import { IListService } from '../../../../../platform/list/browser/listService.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, IAction2Options, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { IListService } from '../../../../../platform/list/browser/listService.js';
+import { resolveCommandsContext } from '../../../../browser/parts/editor/editorCommandsContext.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
+import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, IChatEditingService, IChatEditingSession, IModifiedFileEntry, IModifiedFileEntryChangeHunk, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { ctxCursorInChangeRange, ctxHasEditorModification, ctxIsCurrentlyBeingModified, ctxIsGlobalEditingSession, ctxReviewModeEnabled } from './chatEditingEditorContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -33,7 +34,7 @@ abstract class ChatEditingEditorAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]) {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]) {
 
 		const instaService = accessor.get(IInstantiationService);
 		const chatEditingService = accessor.get(IChatEditingService);
@@ -58,7 +59,7 @@ abstract class ChatEditingEditorAction extends Action2 {
 		return instaService.invokeFunction(this.runChatEditingCommand.bind(this), session, entry, ctrl, ...args);
 	}
 
-	abstract runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> | void;
+	abstract runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> | void;
 }
 
 abstract class NavigateAction extends ChatEditingEditorAction {
@@ -72,7 +73,7 @@ abstract class NavigateAction extends ChatEditingEditorAction {
 				? localize2('next', 'Go to Next Chat Edit')
 				: localize2('prev', 'Go to Previous Chat Edit'),
 			icon: next ? Codicon.arrowDown : Codicon.arrowUp,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ctxHasRequestInProgress.negate()),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ctxHasEditorModification),
 			keybinding: {
 				primary: next
 					? KeyMod.Alt | KeyCode.F5
@@ -80,7 +81,7 @@ abstract class NavigateAction extends ChatEditingEditorAction {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: ContextKeyExpr.and(
 					ctxHasEditorModification,
-					EditorContextKeys.focus
+					ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED)
 				),
 			},
 			f1: true,
@@ -88,7 +89,7 @@ abstract class NavigateAction extends ChatEditingEditorAction {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'navigate',
 				order: !next ? 2 : 3,
-				when: ContextKeyExpr.and(ctxReviewModeEnabled, ctxHasRequestInProgress.negate())
+				when: ContextKeyExpr.and(ctxReviewModeEnabled, ctxHasEditorModification)
 			}
 		});
 	}
@@ -155,37 +156,37 @@ async function openNextOrPreviousChange(accessor: ServicesAccessor, session: ICh
 	return true;
 }
 
-abstract class AcceptDiscardAction extends ChatEditingEditorAction {
+abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 
-	constructor(id: string, readonly accept: boolean) {
+	constructor(id: string, private _keep: boolean) {
 		super({
 			id,
-			title: accept
+			title: _keep
 				? localize2('accept', 'Keep Chat Edits')
 				: localize2('discard', 'Undo Chat Edits'),
-			shortTitle: accept
+			shortTitle: _keep
 				? localize2('accept2', 'Keep')
 				: localize2('discard2', 'Undo'),
-			tooltip: accept
+			tooltip: _keep
 				? localize2('accept3', 'Keep Chat Edits in this File')
 				: localize2('discard3', 'Undo Chat Edits in this File'),
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxHasRequestInProgress.negate()),
-			icon: accept
+			precondition: ContextKeyExpr.and(ctxIsGlobalEditingSession, ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
+			icon: _keep
 				? Codicon.check
 				: Codicon.discard,
 			f1: true,
 			keybinding: {
-				when: EditorContextKeys.focus,
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: accept
-					? KeyMod.CtrlCmd | KeyCode.Enter
-					: KeyMod.CtrlCmd | KeyCode.Backspace
+				when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_EDITOR_FOCUSED),
+				weight: KeybindingWeight.WorkbenchContrib + 10, // win over new-window-action
+				primary: _keep
+					? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY
+					: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN,
 			},
 			menu: {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
-				order: accept ? 0 : 1,
-				when: ContextKeyExpr.and(!accept ? ctxReviewModeEnabled : undefined, ctxHasRequestInProgress.negate())
+				order: _keep ? 0 : 1,
+				when: !_keep ? ctxReviewModeEnabled : undefined
 			}
 		});
 	}
@@ -194,7 +195,7 @@ abstract class AcceptDiscardAction extends ChatEditingEditorAction {
 
 		const instaService = accessor.get(IInstantiationService);
 
-		if (this.accept) {
+		if (this._keep) {
 			session.accept(entry.modifiedURI);
 		} else {
 			session.reject(entry.modifiedURI);
@@ -204,7 +205,7 @@ abstract class AcceptDiscardAction extends ChatEditingEditorAction {
 	}
 }
 
-export class AcceptAction extends AcceptDiscardAction {
+export class AcceptAction extends KeepOrUndoAction {
 
 	static readonly ID = 'chatEditor.action.accept';
 
@@ -213,7 +214,7 @@ export class AcceptAction extends AcceptDiscardAction {
 	}
 }
 
-export class RejectAction extends AcceptDiscardAction {
+export class RejectAction extends KeepOrUndoAction {
 
 	static readonly ID = 'chatEditor.action.reject';
 
@@ -222,22 +223,24 @@ export class RejectAction extends AcceptDiscardAction {
 	}
 }
 
+const acceptHunkId = 'chatEditor.action.acceptHunk';
+const undoHunkId = 'chatEditor.action.undoHunk';
 abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 
 	constructor(private readonly _accept: boolean) {
 		super(
 			{
-				id: _accept ? 'chatEditor.action.acceptHunk' : 'chatEditor.action.undoHunk',
+				id: _accept ? acceptHunkId : undoHunkId,
 				title: _accept ? localize2('acceptHunk', 'Keep this Change') : localize2('undo', 'Undo this Change'),
-				precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxHasRequestInProgress.negate()),
-				icon: _accept ? Codicon.check : Codicon.discard,
+				shortTitle: _accept ? localize2('acceptHunkShort', 'Keep') : localize2('undoShort', 'Undo'),
+				precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
 				f1: true,
 				keybinding: {
-					when: EditorContextKeys.focus,
-					weight: KeybindingWeight.WorkbenchContrib,
+					when: ContextKeyExpr.and(ctxCursorInChangeRange, ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED)),
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: _accept
-						? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
-						: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace
+						? KeyMod.CtrlCmd | KeyCode.KeyY
+						: KeyMod.CtrlCmd | KeyCode.KeyN
 				},
 				menu: {
 					id: MenuId.ChatEditingEditorHunk,
@@ -247,12 +250,38 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 		);
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> | void {
+	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> {
+
+		const instaService = accessor.get(IInstantiationService);
+
 		if (this._accept) {
-			ctrl.acceptNearestChange(args[0]);
+			await ctrl.acceptNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
 		} else {
-			ctrl.rejectNearestChange(args[0]);
+			await ctrl.rejectNearestChange(args[0] as IModifiedFileEntryChangeHunk | undefined);
 		}
+
+		if (entry.changesCount.get() === 0) {
+			// no more changes, move to next file
+			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
+		}
+	}
+}
+
+export class AcceptHunkAction extends AcceptRejectHunkAction {
+
+	static readonly ID = acceptHunkId;
+
+	constructor() {
+		super(true);
+	}
+}
+
+export class RejectHunkAction extends AcceptRejectHunkAction {
+
+	static readonly ID = undoHunkId;
+
+	constructor() {
+		super(false);
 	}
 }
 
@@ -260,13 +289,13 @@ class ToggleDiffAction extends ChatEditingEditorAction {
 	constructor() {
 		super({
 			id: 'chatEditor.action.toggleDiff',
-			title: localize2('diff', 'Toggle Diff Editor'),
+			title: localize2('diff', 'Toggle Diff Editor for Chat Edits'),
 			category: CHAT_CATEGORY,
 			toggled: {
 				condition: ContextKeyExpr.or(EditorContextKeys.inDiffEditor, ActiveEditorContext.isEqualTo(TEXT_DIFF_EDITOR_ID))!,
 				icon: Codicon.goToFile,
 			},
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxHasRequestInProgress.negate()),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification),
 			icon: Codicon.diffSingle,
 			keybinding: {
 				when: EditorContextKeys.focus,
@@ -280,13 +309,13 @@ class ToggleDiffAction extends ChatEditingEditorAction {
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
 				order: 2,
-				when: ContextKeyExpr.and(ctxReviewModeEnabled, ctxHasRequestInProgress.negate())
+				when: ContextKeyExpr.and(ctxReviewModeEnabled)
 			}]
 		});
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> | void {
-		integration.toggleDiff(args[0]);
+	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> | void {
+		integration.toggleDiff(args[0] as IModifiedFileEntryChangeHunk | undefined);
 	}
 }
 
@@ -294,9 +323,9 @@ class ToggleAccessibleDiffViewAction extends ChatEditingEditorAction {
 	constructor() {
 		super({
 			id: 'chatEditor.action.showAccessibleDiffView',
-			title: localize2('accessibleDiff', 'Show Accessible Diff View'),
+			title: localize2('accessibleDiff', 'Show Accessible Diff View for Chat Edits'),
 			f1: true,
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxHasRequestInProgress.negate()),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
 			keybinding: {
 				when: EditorContextKeys.focus,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -316,18 +345,43 @@ export class ReviewChangesAction extends ChatEditingEditorAction {
 		super({
 			id: 'chatEditor.action.reviewChanges',
 			title: localize2('review', "Review"),
-			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxHasRequestInProgress.negate()),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
 			menu: [{
 				id: MenuId.ChatEditingEditorContent,
 				group: 'a_resolve',
 				order: 3,
-				when: ContextKeyExpr.and(ctxReviewModeEnabled.negate(), ctxHasRequestInProgress.negate()),
+				when: ContextKeyExpr.and(ctxReviewModeEnabled.negate(), ctxIsCurrentlyBeingModified.negate()),
 			}]
 		});
 	}
 
-	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: any[]): void {
+	override runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): void {
 		entry.enableReviewModeUntilSettled();
+	}
+}
+
+export class AcceptAllEditsAction extends ChatEditingEditorAction {
+
+	static readonly ID = 'chatEditor.action.acceptAllEdits';
+
+	constructor() {
+		super({
+			id: AcceptAllEditsAction.ID,
+			title: localize2('acceptAllEdits', 'Keep All Chat Edits'),
+			tooltip: localize2('acceptAllEditsTooltip', 'Keep All Chat Edits in this Session'),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxIsCurrentlyBeingModified.negate()),
+			icon: Codicon.checkAll,
+			f1: true,
+			keybinding: {
+				when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_EDITOR_FOCUSED),
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyY,
+			},
+		});
+	}
+
+	override async runChatEditingCommand(_accessor: ServicesAccessor, session: IChatEditingSession, _entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: unknown[]): Promise<void> {
+		await session.accept();
 	}
 }
 
@@ -368,11 +422,16 @@ abstract class MultiDiffAcceptDiscardAction extends Action2 {
 			return;
 		}
 
-		const session = chatEditingService.getEditingSession(editor.resource.authority);
-		if (this.accept) {
-			await session?.accept();
-		} else {
-			await session?.reject();
+		const { chatSessionResource } = parseChatMultiDiffUri(editor.resource);
+		const session = chatEditingService.getEditingSession(chatSessionResource);
+		if (session) {
+			if (this.accept) {
+				await session.accept();
+			} else {
+				await session.reject();
+			}
+
+			editorService.closeEditor({ editor, groupId: groupContext.group.id });
 		}
 	}
 }
@@ -384,8 +443,9 @@ export function registerChatEditorActions() {
 	registerAction2(ReviewChangesAction);
 	registerAction2(AcceptAction);
 	registerAction2(RejectAction);
-	registerAction2(class AcceptHunkAction extends AcceptRejectHunkAction { constructor() { super(true); } });
-	registerAction2(class AcceptHunkAction extends AcceptRejectHunkAction { constructor() { super(false); } });
+	registerAction2(AcceptAllEditsAction);
+	registerAction2(AcceptHunkAction);
+	registerAction2(RejectHunkAction);
 	registerAction2(ToggleDiffAction);
 	registerAction2(ToggleAccessibleDiffViewAction);
 
@@ -400,7 +460,7 @@ export function registerChatEditorActions() {
 		},
 		group: 'navigate',
 		order: -1,
-		when: ContextKeyExpr.and(ctxReviewModeEnabled, ctxHasRequestInProgress.negate()),
+		when: ContextKeyExpr.and(ctxReviewModeEnabled, ctxHasEditorModification),
 	});
 }
 

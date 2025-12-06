@@ -26,11 +26,7 @@ import { ContiguousMultilineTokens } from './tokens/contiguousMultilineTokens.js
 import { localize } from '../../nls.js';
 import { ExtensionIdentifier } from '../../platform/extensions/common/extensions.js';
 import { IMarkerData } from '../../platform/markers/common/markers.js';
-import { IModelTokensChangedEvent } from './textModelEvents.js';
-import { ITextModel } from './model.js';
-import { TokenUpdate } from './model/tokenStore.js';
-import { ITextModelTreeSitter } from './services/treeSitterParserService.js';
-import type * as Parser from '@vscode/tree-sitter-wasm';
+import { EditDeltaInfo } from './textModelEditSource.js';
 
 /**
  * @internal
@@ -99,24 +95,6 @@ export interface QueryCapture {
 	text?: string;
 	node: SyntaxNode;
 	encodedLanguageId: number;
-}
-
-/**
- * An intermediate interface for scaffolding the new tree sitter tokenization support. Not final.
- * @internal
- */
-export interface ITreeSitterTokenizationSupport {
-	/**
-	 * exposed for testing
-	 */
-	getTokensInRange(textModel: ITextModel, range: Range, rangeStartOffset: number, rangeEndOffset: number): TokenUpdate[] | undefined;
-	tokenizeEncoded(lineNumber: number, textModel: model.ITextModel): void;
-	captureAtPosition(lineNumber: number, column: number, textModel: model.ITextModel): QueryCapture[];
-	captureAtRangeTree(range: Range, tree: Parser.Tree, textModelTreeSitter: ITextModelTreeSitter): QueryCapture[];
-	onDidChangeTokens: Event<{ textModel: model.ITextModel; changes: IModelTokensChangedEvent }>;
-	onDidChangeBackgroundTokenization: Event<{ textModel: model.ITextModel }>;
-	tokenizeEncodedInstrumented(lineNumber: number, textModel: model.ITextModel): { result: Uint32Array; captureTime: number; metadataTime: number } | undefined;
-	guessTokensForLinesContent(lineNumber: number, textModel: model.ITextModel, lines: string[]): Uint32Array[] | undefined;
 }
 
 /**
@@ -385,6 +363,7 @@ export const enum CompletionItemKind {
 	TypeParameter,
 	User,
 	Issue,
+	Tool,
 	Snippet, // <- highest value (used for compare!)
 }
 
@@ -423,6 +402,7 @@ export namespace CompletionItemKinds {
 	byKind.set(CompletionItemKind.TypeParameter, Codicon.symbolTypeParameter);
 	byKind.set(CompletionItemKind.User, Codicon.account);
 	byKind.set(CompletionItemKind.Issue, Codicon.issues);
+	byKind.set(CompletionItemKind.Tool, Codicon.tools);
 
 	/**
 	 * @internal
@@ -468,6 +448,7 @@ export namespace CompletionItemKinds {
 			case CompletionItemKind.TypeParameter: return localize('suggestWidget.kind.typeParameter', 'Type Parameter');
 			case CompletionItemKind.User: return localize('suggestWidget.kind.user', 'User');
 			case CompletionItemKind.Issue: return localize('suggestWidget.kind.issue', 'Issue');
+			case CompletionItemKind.Tool: return localize('suggestWidget.kind.tool', 'Tool');
 			case CompletionItemKind.Snippet: return localize('suggestWidget.kind.snippet', 'Snippet');
 			default: return '';
 		}
@@ -476,7 +457,7 @@ export namespace CompletionItemKinds {
 	const data = new Map<string, CompletionItemKind>();
 	data.set('method', CompletionItemKind.Method);
 	data.set('function', CompletionItemKind.Function);
-	data.set('constructor', <any>CompletionItemKind.Constructor);
+	data.set('constructor', CompletionItemKind.Constructor);
 	data.set('field', CompletionItemKind.Field);
 	data.set('variable', CompletionItemKind.Variable);
 	data.set('class', CompletionItemKind.Class);
@@ -504,6 +485,7 @@ export namespace CompletionItemKinds {
 	data.set('typeParameter', CompletionItemKind.TypeParameter);
 	data.set('account', CompletionItemKind.User);
 	data.set('issue', CompletionItemKind.Issue);
+	data.set('tool', CompletionItemKind.Tool);
 
 	/**
 	 * @internal
@@ -772,10 +754,22 @@ export interface InlineCompletionContext {
 	 * @experimental
 	 * @internal
 	*/
-	readonly requestUuid?: string | undefined;
+	readonly requestUuid: string;
 
 	readonly includeInlineEdits: boolean;
 	readonly includeInlineCompletions: boolean;
+	readonly requestIssuedDateTime: number;
+	readonly earliestShownDateTime: number;
+}
+
+export interface IInlineCompletionModelInfo {
+	models: IInlineCompletionModel[];
+	currentModelId: string;
+}
+
+export interface IInlineCompletionModel {
+	name: string;
+	id: string;
 }
 
 export class SelectedSuggestionInfo {
@@ -804,30 +798,34 @@ export interface InlineCompletion {
 	 * The text can also be a snippet. In that case, a preview with default parameters is shown.
 	 * When accepting the suggestion, the full snippet is inserted.
 	*/
-	readonly insertText: string | { snippet: string };
+	readonly insertText: string | { snippet: string } | undefined;
 
 	/**
-	 * A text that is used to decide if this inline completion should be shown.
-	 * An inline completion is shown if the text to replace is a subword of the filter text.
-	 */
-	readonly filterText?: string;
+	 * The range to replace.
+	 * Must begin and end on the same line.
+	 * Refers to the current document or `uri` if provided.
+	*/
+	readonly range?: IRange;
 
 	/**
 	 * An optional array of additional text edits that are applied when
 	 * selecting this completion. Edits must not overlap with the main edit
 	 * nor with themselves.
+	 * Refers to the current document or `uri` if provided.
 	 */
 	readonly additionalTextEdits?: ISingleEditOperation[];
 
 	/**
-	 * The range to replace.
-	 * Must begin and end on the same line.
+	 * The file for which the edit applies to.
 	*/
-	readonly range?: IRange;
+	readonly uri?: UriComponents;
 
+	/**
+	 * A command that is run upon acceptance of this item.
+	*/
 	readonly command?: Command;
 
-	readonly action?: Command;
+	readonly gutterMenuLinkAction?: Command;
 
 	/**
 	 * Is called the first time an inline completion is shown.
@@ -844,9 +842,23 @@ export interface InlineCompletion {
 	readonly isInlineEdit?: boolean;
 	readonly showInlineEditMenu?: boolean;
 
+	/** Only show the inline suggestion when the cursor is in the showRange. */
 	readonly showRange?: IRange;
 
 	readonly warning?: InlineCompletionWarning;
+
+	readonly hint?: IInlineCompletionHint;
+
+	readonly supportsRename?: boolean;
+
+	/**
+	 * Used for telemetry.
+	 */
+	readonly correlationId?: string | undefined;
+
+	readonly jumpToPosition?: IPosition;
+
+	readonly doNotLog?: boolean;
 }
 
 export interface InlineCompletionWarning {
@@ -854,9 +866,19 @@ export interface InlineCompletionWarning {
 	icon?: IconPath;
 }
 
-/**
- * TODO: add `| URI | { light: URI; dark: URI }`.
-*/
+export enum InlineCompletionHintStyle {
+	Code = 1,
+	Label = 2
+}
+
+export interface IInlineCompletionHint {
+	/** Refers to the current document. */
+	range: IRange;
+	style: InlineCompletionHintStyle;
+	content: string;
+}
+
+// TODO: add `| URI | { light: URI; dark: URI }`.
 export type IconPath = ThemeIcon;
 
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
@@ -864,7 +886,7 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	/**
 	 * A list of commands associated with the inline completions of this list.
 	 */
-	readonly commands?: Command[];
+	readonly commands?: InlineCompletionCommand[];
 
 	readonly suppressSuggestions?: boolean | undefined;
 
@@ -874,22 +896,18 @@ export interface InlineCompletions<TItem extends InlineCompletion = InlineComple
 	readonly enableForwardStability?: boolean | undefined;
 }
 
+export type InlineCompletionCommand = { command: Command; icon?: ThemeIcon };
+
 export type InlineCompletionProviderGroupId = string;
 
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
 	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
 	/**
-	 * @experimental
-	 * @internal
-	*/
-	provideInlineEditsForRange?(model: model.ITextModel, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
-
-	/**
 	 * Will be called when an item is shown.
 	 * @param updatedInsertText Is useful to understand bracket completion.
 	*/
-	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string): void;
+	handleItemDidShow?(completions: T, item: T['items'][number], updatedInsertText: string, editDeltaInfo: EditDeltaInfo): void;
 
 	/**
 	 * Will be called when an item is partially accepted. TODO: also handle full acceptance here!
@@ -897,12 +915,23 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 */
 	handlePartialAccept?(completions: T, item: T['items'][number], acceptedCharacters: number, info: PartialAcceptInfo): void;
 
+	/**
+	 * @deprecated Use `handleEndOfLifetime` instead.
+	*/
 	handleRejection?(completions: T, item: T['items'][number]): void;
+
+	/**
+	 * Is called when an inline completion item is no longer being used.
+	 * Provides a reason of why it is not used anymore.
+	*/
+	handleEndOfLifetime?(completions: T, item: T['items'][number], reason: InlineCompletionEndOfLifeReason<T['items'][number]>, lifetimeSummary: LifetimeSummary): void;
 
 	/**
 	 * Will be called when a completions list is no longer in use and can be garbage-collected.
 	*/
-	freeInlineCompletions(completions: T): void;
+	disposeInlineCompletions(completions: T, reason: InlineCompletionsDisposeReason): void;
+
+	onDidChangeInlineCompletions?: Event<void>;
 
 	/**
 	 * Only used for {@link yieldsToGroupIds}.
@@ -910,18 +939,152 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 */
 	groupId?: InlineCompletionProviderGroupId;
 
+	/** @internal */
+	providerId?: ProviderId;
+
 	/**
 	 * Returns a list of preferred provider {@link groupId}s.
 	 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
 	 */
 	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 
+	excludesGroupIds?: InlineCompletionProviderGroupId[];
+
 	displayName?: string;
 
 	debounceDelayMs?: number;
 
+	modelInfo?: IInlineCompletionModelInfo;
+	onDidModelInfoChange?: Event<void>;
+	setModelId?(modelId: string): Promise<void>;
+
 	toString?(): string;
 }
+
+
+/** @internal */
+export class ProviderId {
+	public static fromExtensionId(extensionId: string | undefined): ProviderId {
+		return new ProviderId(extensionId, undefined, undefined);
+	}
+
+	constructor(
+		public readonly extensionId: string | undefined,
+		public readonly extensionVersion: string | undefined,
+		public readonly providerId: string | undefined
+	) {
+	}
+
+	toString(): string {
+		let result = '';
+		if (this.extensionId) {
+			result += this.extensionId;
+		}
+		if (this.extensionVersion) {
+			result += `@${this.extensionVersion}`;
+		}
+		if (this.providerId) {
+			result += `:${this.providerId}`;
+		}
+		if (result.length === 0) {
+			result = 'unknown';
+		}
+		return result;
+	}
+
+	toStringWithoutVersion(): string {
+		let result = '';
+		if (this.extensionId) {
+			result += this.extensionId;
+		}
+		if (this.providerId) {
+			result += `:${this.providerId}`;
+		}
+		return result;
+	}
+}
+
+/** @internal */
+export class VersionedExtensionId {
+	public static tryCreate(extensionId: string | undefined, version: string | undefined): VersionedExtensionId | undefined {
+		if (!extensionId || !version) {
+			return undefined;
+		}
+		return new VersionedExtensionId(extensionId, version);
+	}
+
+	constructor(
+		public readonly extensionId: string,
+		public readonly version: string,
+	) { }
+
+	toString(): string {
+		return `${this.extensionId}@${this.version}`;
+	}
+}
+
+export type InlineCompletionsDisposeReason = { kind: 'lostRace' | 'tokenCancellation' | 'other' | 'empty' | 'notTaken' };
+
+export enum InlineCompletionEndOfLifeReasonKind {
+	Accepted = 0,
+	Rejected = 1,
+	Ignored = 2,
+}
+
+export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion> = {
+	kind: InlineCompletionEndOfLifeReasonKind.Accepted; // User did an explicit action to accept
+} | {
+	kind: InlineCompletionEndOfLifeReasonKind.Rejected; // User did an explicit action to reject
+} | {
+	kind: InlineCompletionEndOfLifeReasonKind.Ignored;
+	supersededBy?: TInlineCompletion;
+	userTypingDisagreed: boolean;
+};
+
+export type LifetimeSummary = {
+	requestUuid: string;
+	correlationId: string | undefined;
+	partiallyAccepted: number;
+	partiallyAcceptedCountSinceOriginal: number;
+	partiallyAcceptedRatioSinceOriginal: number;
+	partiallyAcceptedCharactersSinceOriginal: number;
+	shown: boolean;
+	shownDuration: number;
+	shownDurationUncollapsed: number;
+	timeUntilShown: number | undefined;
+	timeUntilActuallyShown: number | undefined;
+	timeUntilProviderRequest: number;
+	timeUntilProviderResponse: number;
+	notShownReason: string | undefined;
+	editorType: string;
+	viewKind: string | undefined;
+	preceeded: boolean;
+	languageId: string;
+	requestReason: string;
+	performanceMarkers?: string;
+	cursorColumnDistance?: number;
+	cursorLineDistance?: number;
+	lineCountOriginal?: number;
+	lineCountModified?: number;
+	characterCountOriginal?: number;
+	characterCountModified?: number;
+	disjointReplacements?: number;
+	sameShapeReplacements?: boolean;
+	typingInterval: number;
+	typingIntervalCharacterCount: number;
+	selectedSuggestionInfo: boolean;
+	availableProviders: string;
+	skuPlan: string | undefined;
+	skuType: string | undefined;
+	renameCreated: boolean;
+	renameDuration: number | undefined;
+	renameTimedOut: boolean;
+	renameDroppedOtherEdits: number | undefined;
+	renameDroppedRenameEdits: number | undefined;
+	editKind: string | undefined;
+	longDistanceHintVisible?: boolean;
+	longDistanceHintDistance?: number;
+};
 
 export interface CodeAction {
 	title: string;
@@ -1306,8 +1469,8 @@ export interface LocationLink {
 /**
  * @internal
  */
-export function isLocationLink(thing: any): thing is LocationLink {
-	return thing
+export function isLocationLink(thing: unknown): thing is LocationLink {
+	return !!thing
 		&& URI.isUri((thing as LocationLink).uri)
 		&& Range.isIRange((thing as LocationLink).range)
 		&& (Range.isIRange((thing as LocationLink).originSelectionRange) || Range.isIRange((thing as LocationLink).targetSelectionRange));
@@ -1316,8 +1479,8 @@ export function isLocationLink(thing: any): thing is LocationLink {
 /**
  * @internal
  */
-export function isLocation(thing: any): thing is Location {
-	return thing
+export function isLocation(thing: unknown): thing is Location {
+	return !!thing
 		&& URI.isUri((thing as Location).uri)
 		&& Range.isIRange((thing as Location).range);
 }
@@ -1564,9 +1727,12 @@ export interface TextEdit {
 /** @internal */
 export abstract class TextEdit {
 	static asEditOperation(edit: TextEdit): ISingleEditOperation {
-		return EditOperation.replace(Range.lift(edit.range), edit.text);
+		const range = Range.lift(edit.range);
+		return range.isEmpty()
+			? EditOperation.insert(range.getStartPosition(), edit.text) // moves marker
+			: EditOperation.replace(range, edit.text);
 	}
-	static isTextEdit(thing: any): thing is TextEdit {
+	static isTextEdit(thing: unknown): thing is TextEdit {
 		const possibleTextEdit = thing as TextEdit;
 		return typeof possibleTextEdit.text === 'string' && Range.isIRange(possibleTextEdit.range);
 	}
@@ -1937,7 +2103,7 @@ export interface Command {
 	id: string;
 	title: string;
 	tooltip?: string;
-	arguments?: any[];
+	arguments?: unknown[];
 }
 
 /**
@@ -1948,7 +2114,7 @@ export namespace Command {
 	/**
 	 * @internal
 	 */
-	export function is(obj: any): obj is Command {
+	export function is(obj: unknown): obj is Command {
 		if (!obj || typeof obj !== 'object') {
 			return false;
 		}
@@ -2023,7 +2189,7 @@ export interface CommentWidget {
 	commentThread: CommentThread;
 	comment?: Comment;
 	input: string;
-	onDidChangeInput: Event<string>;
+	readonly onDidChangeInput: Event<string>;
 }
 
 /**
@@ -2053,19 +2219,19 @@ export interface CommentThread<T = IRange> {
 	label: string | undefined;
 	contextValue: string | undefined;
 	comments: ReadonlyArray<Comment> | undefined;
-	onDidChangeComments: Event<readonly Comment[] | undefined>;
+	readonly onDidChangeComments: Event<readonly Comment[] | undefined>;
 	collapsibleState?: CommentThreadCollapsibleState;
 	initialCollapsibleState?: CommentThreadCollapsibleState;
-	onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
+	readonly onDidChangeInitialCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
 	state?: CommentThreadState;
 	applicability?: CommentThreadApplicability;
-	canReply: boolean;
+	canReply: boolean | CommentAuthorInformation;
 	input?: CommentInput;
-	onDidChangeInput: Event<CommentInput | undefined>;
-	onDidChangeLabel: Event<string | undefined>;
-	onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
-	onDidChangeState: Event<CommentThreadState | undefined>;
-	onDidChangeCanReply: Event<boolean>;
+	readonly onDidChangeInput: Event<CommentInput | undefined>;
+	readonly onDidChangeLabel: Event<string | undefined>;
+	readonly onDidChangeCollapsibleState: Event<CommentThreadCollapsibleState | undefined>;
+	readonly onDidChangeState: Event<CommentThreadState | undefined>;
+	readonly onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
 	isTemplate: boolean;
 }
@@ -2148,6 +2314,7 @@ export interface Comment {
 	readonly commentReactions?: CommentReaction[];
 	readonly label?: string;
 	readonly mode?: CommentMode;
+	readonly state?: CommentState;
 	readonly timestamp?: string;
 }
 
@@ -2196,7 +2363,7 @@ export interface CodeLens {
 }
 
 export interface CodeLensList {
-	lenses: CodeLens[];
+	readonly lenses: readonly CodeLens[];
 	dispose?(): void;
 }
 
@@ -2264,13 +2431,14 @@ export interface SemanticTokensEdits {
 }
 
 export interface DocumentSemanticTokensProvider {
-	onDidChange?: Event<void>;
+	readonly onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentSemanticTokens(model: model.ITextModel, lastResultId: string | null, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
 	releaseDocumentSemanticTokens(resultId: string | undefined): void;
 }
 
 export interface DocumentRangeSemanticTokensProvider {
+	readonly onDidChange?: Event<void>;
 	getLegend(): SemanticTokensLegend;
 	provideDocumentRangeSemanticTokens(model: model.ITextModel, range: Range, token: CancellationToken): ProviderResult<SemanticTokens>;
 }
@@ -2327,7 +2495,7 @@ export interface ITokenizationRegistry<TSupport> {
 	 *  - a tokenization support is registered, unregistered or changed.
 	 *  - the color map is changed.
 	 */
-	onDidChange: Event<ITokenizationSupportChangedEvent>;
+	readonly onDidChange: Event<ITokenizationSupportChangedEvent>;
 
 	/**
 	 * Fire a change event for a language.
@@ -2380,11 +2548,6 @@ export const TokenizationRegistry: ITokenizationRegistry<ITokenizationSupport> =
 /**
  * @internal
  */
-export const TreeSitterTokenizationRegistry: ITokenizationRegistry<ITreeSitterTokenizationSupport> = new TokenizationRegistryImpl();
-
-/**
- * @internal
- */
 export enum ExternalUriOpenerPriority {
 	None = 0,
 	Option = 1,
@@ -2427,36 +2590,4 @@ export interface DocumentDropEditProvider {
 
 	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
 	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
-}
-
-export interface IInlineEdit {
-	text: string;
-	range: IRange;
-	showRange?: IRange;
-	accepted?: Command;
-	rejected?: Command;
-	shown?: Command;
-	commands?: Command[];
-	action?: Command;
-}
-
-export interface IInlineEditContext {
-	triggerKind: InlineEditTriggerKind;
-
-	/**
-	 * @experimental
-	 * @internal
-	 */
-	requestUuid?: string;
-}
-
-export enum InlineEditTriggerKind {
-	Invoke = 0,
-	Automatic = 1,
-}
-
-export interface InlineEditProvider<T extends IInlineEdit = IInlineEdit> {
-	displayName?: string;
-	provideInlineEdit(model: model.ITextModel, context: IInlineEditContext, token: CancellationToken): ProviderResult<T>;
-	freeInlineEdit(edit: T): void;
 }

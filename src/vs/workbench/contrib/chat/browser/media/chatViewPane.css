@@ -1,0 +1,123 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Overall styles */
+.chat-viewpane {
+
+	.chat-controls-container {
+		height: 100%;
+		min-height: 0;
+		min-width: 0;
+	}
+}
+
+/* Sessions control: either sidebar or compact */
+.chat-viewpane.has-sessions-control {
+
+	display: flex;
+
+	.chat-controls-container {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+	}
+
+	.agent-sessions-container {
+		display: flex;
+		flex-direction: column;
+
+		.agent-sessions-title-container {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			font-size: 11px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+			color: var(--vscode-descriptionForeground);
+			padding: 8px;
+
+			.agent-sessions-title {
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+			}
+		}
+
+		.agent-sessions-toolbar .action-item {
+			/* align with the title actions*/
+			margin-right: 4px;
+		}
+
+		.agent-sessions-link-container {
+			padding: 8px 0;
+			font-size: 12px;
+			text-align: center;
+		}
+
+		.agent-sessions-link-container a {
+			color: var(--vscode-descriptionForeground);
+		}
+
+		.agent-sessions-link-container a:hover,
+		.agent-sessions-link-container a:active {
+			text-decoration: none;
+			color: var(--vscode-textLink-foreground);
+		}
+	}
+
+	.interactive-session {
+
+		/* needed so that the chat welcome and chat input does not overflow and input grows over welcome */
+		width: 100%;
+		min-height: 0;
+		min-width: 0;
+	}
+}
+
+/* Sessions control: side by side */
+.chat-viewpane.has-sessions-control.sessions-control-orientation-sidebyside {
+
+	&.sessions-control-position-left {
+		flex-direction: row;
+
+		.agent-sessions-container {
+			border-right: 1px solid var(--vscode-sideBarSectionHeader-border);
+		}
+	}
+
+	&:not(.sessions-control-position-left) {
+		flex-direction: row-reverse;
+
+		.agent-sessions-container {
+			border-left: 1px solid var(--vscode-sideBarSectionHeader-border);
+		}
+	}
+}
+
+/* Sessions control: compact */
+.chat-viewpane.has-sessions-control:not(.sessions-control-orientation-sidebyside) {
+
+	flex-direction: column;
+
+	.agent-sessions-container {
+		border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+	}
+}
+
+/* Welcome disabled */
+.chat-viewpane:not(.chat-view-welcome-enabled) {
+
+	.interactive-session {
+
+		/* hide most welcome pieces (except suggested actions) when we show recent sessions to make some space */
+		.chat-welcome-view .chat-welcome-view-icon,
+		.chat-welcome-view .chat-welcome-view-title,
+		.chat-welcome-view .chat-welcome-view-message,
+		.chat-welcome-view .chat-welcome-view-disclaimer,
+		.chat-welcome-view .chat-welcome-view-tips {
+			visibility: hidden;
+		}
+	}
+}

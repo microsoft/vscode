@@ -15,7 +15,7 @@ import { DiffEditorEditors } from '../components/diffEditorEditors.js';
 import { DiffEditorViewModel } from '../diffEditorViewModel.js';
 import { appendRemoveOnDispose } from '../utils.js';
 import { EditorLayoutInfo, EditorOption } from '../../../../common/config/editorOptions.js';
-import { LineRange } from '../../../../common/core/lineRange.js';
+import { LineRange } from '../../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { OverviewRulerZone } from '../../../../common/viewModel/overviewZoneManager.js';
 import { defaultInsertColor, defaultRemoveColor, diffInserted, diffOverviewRulerInserted, diffOverviewRulerRemoved, diffRemoved } from '../../../../../platform/theme/common/colorRegistry.js';

@@ -47,7 +47,7 @@ export class ViewCursor {
 
 	private _cursorStyle: TextEditorCursorStyle;
 	private _lineCursorWidth: number;
-	private _lineHeight: number;
+	private _lineCursorHeight: number;
 	private _typicalHalfwidthCharacterWidth: number;
 
 	private _isVisible: boolean;
@@ -64,16 +64,16 @@ export class ViewCursor {
 		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._cursorStyle = options.get(EditorOption.effectiveCursorStyle);
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
+		this._lineCursorHeight = options.get(EditorOption.cursorHeight);
 
 		this._isVisible = true;
 
 		// Create the dom node
 		this._domNode = createFastDomNode(document.createElement('div'));
 		this._domNode.setClassName(`cursor ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-		this._domNode.setHeight(this._lineHeight);
+		this._domNode.setHeight(this._context.viewLayout.getLineHeightForLineNumber(1));
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
 		applyFontInfo(this._domNode, fontInfo);
@@ -131,9 +131,9 @@ export class ViewCursor {
 		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this._cursorStyle = options.get(EditorOption.effectiveCursorStyle);
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._typicalHalfwidthCharacterWidth = fontInfo.typicalHalfwidthCharacterWidth;
 		this._lineCursorWidth = Math.min(options.get(EditorOption.cursorWidth), this._typicalHalfwidthCharacterWidth);
+		this._lineCursorHeight = options.get(EditorOption.cursorHeight);
 		applyFontInfo(this._domNode, fontInfo);
 
 		return true;
@@ -164,6 +164,13 @@ export class ViewCursor {
 		let textContent = '';
 		let textContentClassName = '';
 		const [position, nextGrapheme] = this._getGraphemeAwarePosition();
+		const lineHeight = this._context.viewLayout.getLineHeightForLineNumber(position.lineNumber);
+		const lineCursorHeight = (
+			this._lineCursorHeight === 0
+				? lineHeight // 0 indicates that the cursor should take the full line height
+				: Math.min(lineHeight, this._lineCursorHeight)
+		);
+		const lineHeightAdjustment = (lineHeight - lineCursorHeight) / 2;
 
 		if (this._cursorStyle === TextEditorCursorStyle.Line || this._cursorStyle === TextEditorCursorStyle.LineThin) {
 			const visibleRange = ctx.visibleRangeForPosition(position);
@@ -192,8 +199,8 @@ export class ViewCursor {
 				left -= paddingLeft;
 			}
 
-			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-			return new ViewCursorRenderData(top, left, paddingLeft, width, this._lineHeight, textContent, textContentClassName);
+			const top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta + lineHeightAdjustment;
+			return new ViewCursorRenderData(top, left, paddingLeft, width, lineCursorHeight, textContent, textContentClassName);
 		}
 
 		const visibleRangeForCharacter = ctx.linesVisibleRangesForRange(new Range(position.lineNumber, position.column, position.lineNumber, position.column + nextGrapheme.length), false);
@@ -223,11 +230,11 @@ export class ViewCursor {
 		}
 
 		let top = ctx.getVerticalOffsetForLineNumber(position.lineNumber) - ctx.bigNumbersDelta;
-		let height = this._lineHeight;
+		let height = lineHeight;
 
 		// Underline might interfere with clicking
 		if (this._cursorStyle === TextEditorCursorStyle.Underline || this._cursorStyle === TextEditorCursorStyle.UnderlineThin) {
-			top += this._lineHeight - 2;
+			top += lineHeight - 2;
 			height = 2;
 		}
 

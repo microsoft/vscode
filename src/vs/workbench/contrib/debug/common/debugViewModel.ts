@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXPRESSION_SELECTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED, CONTEXT_SET_EXPRESSION_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugSession, IExpression, IExpressionContainer, IStackFrame, IThread, IViewModel } from './debug.js';
+import { CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED, CONTEXT_EXPRESSION_SELECTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_FOCUSED_SESSION_IS_NO_DEBUG, CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED, CONTEXT_SET_EXPRESSION_SUPPORTED, CONTEXT_SET_VARIABLE_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_THREADS_SUPPORTED, IDebugSession, IExpression, IExpressionContainer, IStackFrame, IThread, IViewModel } from './debug.js';
 import { isSessionAttach } from './debugUtils.js';
 
 export class ViewModel implements IViewModel {
@@ -39,6 +39,7 @@ export class ViewModel implements IViewModel {
 	private multiSessionDebug!: IContextKey<boolean>;
 	private terminateDebuggeeSupported!: IContextKey<boolean>;
 	private suspendDebuggeeSupported!: IContextKey<boolean>;
+	private terminateThreadsSupported!: IContextKey<boolean>;
 	private disassembleRequestSupported!: IContextKey<boolean>;
 	private focusedStackFrameHasInstructionPointerReference!: IContextKey<boolean>;
 
@@ -58,6 +59,7 @@ export class ViewModel implements IViewModel {
 			this.multiSessionDebug = CONTEXT_MULTI_SESSION_DEBUG.bindTo(contextKeyService);
 			this.terminateDebuggeeSupported = CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED.bindTo(contextKeyService);
 			this.suspendDebuggeeSupported = CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED.bindTo(contextKeyService);
+			this.terminateThreadsSupported = CONTEXT_TERMINATE_THREADS_SUPPORTED.bindTo(contextKeyService);
 			this.disassembleRequestSupported = CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED.bindTo(contextKeyService);
 			this.focusedStackFrameHasInstructionPointerReference = CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE.bindTo(contextKeyService);
 		});
@@ -100,6 +102,7 @@ export class ViewModel implements IViewModel {
 			this.setExpressionSupported.set(!!session?.capabilities.supportsSetExpression);
 			this.terminateDebuggeeSupported.set(!!session?.capabilities.supportTerminateDebuggee);
 			this.suspendDebuggeeSupported.set(!!session?.capabilities.supportSuspendDebuggee);
+			this.terminateThreadsSupported.set(!!session?.capabilities.supportsTerminateThreadsRequest);
 			this.disassembleRequestSupported.set(!!session?.capabilities.supportsDisassembleRequest);
 			this.focusedStackFrameHasInstructionPointerReference.set(!!stackFrame?.instructionPointerReference);
 			const attach = !!session && isSessionAttach(session);

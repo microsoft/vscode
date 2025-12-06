@@ -132,7 +132,7 @@ class ViewDescriptorsState extends Disposable {
 				if (state) {
 					if (state.visibleGlobal !== !storedState.isHidden) {
 						if (!storedState.isHidden) {
-							this.logger.value.info(`View visibility state changed: ${id} is now visible`, this.viewContainerName);
+							this.logger.value.trace(`View visibility state changed: ${id} is now visible`, this.viewContainerName);
 						}
 						changedStates.push({ id, visible: !storedState.isHidden });
 					}
@@ -441,7 +441,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		} else {
 			viewDescriptorItem.state.visibleGlobal = visible;
 			if (visible) {
-				this.logger.value.info(`Showing view ${viewDescriptorItem.viewDescriptor.id} in the container ${this.viewContainer.id}`);
+				this.logger.value.trace(`Showing view ${viewDescriptorItem.viewDescriptor.id} in the container ${this.viewContainer.id}`);
 			}
 		}
 
@@ -511,7 +511,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 					const isVisible = state.visibleGlobal;
 					state.visibleGlobal = isUndefinedOrNull(addedViewDescriptorState.visible) ? (isUndefinedOrNull(state.visibleGlobal) ? !viewDescriptor.hideByDefault : state.visibleGlobal) : addedViewDescriptorState.visible;
 					if (state.visibleGlobal && !isVisible) {
-						this.logger.value.info(`Added view ${viewDescriptor.id} in the container ${this.viewContainer.id} and showing it.`, `${isVisible}`, `${viewDescriptor.hideByDefault}`, `${addedViewDescriptorState.visible}`);
+						this.logger.value.trace(`Added view ${viewDescriptor.id} in the container ${this.viewContainer.id} and showing it.`, `${isVisible}`, `${viewDescriptor.hideByDefault}`, `${addedViewDescriptorState.visible}`);
 					}
 				}
 				state.collapsed = isUndefinedOrNull(addedViewDescriptorState.collapsed) ? (isUndefinedOrNull(state.collapsed) ? !!viewDescriptor.collapsed : state.collapsed) : addedViewDescriptorState.collapsed;
@@ -654,7 +654,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	}
 
 	private updateState(reason: string): void {
-		this.logger.value.info(reason);
+		this.logger.value.trace(reason);
 		this.viewDescriptorsState.updateState(this.allViewDescriptors);
 		this.updateContainerInfo();
 	}

@@ -24,7 +24,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling, createEditorOpenError, createTooLargeFileError, isEditorOpenError } from '../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorPaneSelectionChangeReason, EditorPaneSelectionCompareResult, EditorResourceAccessor, IEditorMemento, IEditorOpenContext, IEditorPane, IEditorPaneScrollPosition, IEditorPaneSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling, createEditorOpenError, createTooLargeFileError, isEditorOpenError } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SELECT_KERNEL_ID } from './controller/coreActions.js';
 import { INotebookEditorOptions, INotebookEditorPane, INotebookEditorViewState } from './notebookBrowser.js';
@@ -48,6 +48,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -657,4 +658,18 @@ class NotebookEditorSelection implements IEditorPaneSelection {
 	log(): string {
 		return this.cellUri.fragment;
 	}
+}
+
+export function isNotebookContainingCellEditor(editor: IEditorPane | undefined, codeEditor: ICodeEditor): boolean {
+	if (editor?.getId() === NotebookEditor.ID) {
+		const notebookWidget = editor.getControl() as NotebookEditorWidget;
+		if (notebookWidget) {
+			for (const [_, editor] of notebookWidget.codeEditors) {
+				if (editor === codeEditor) {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
 }

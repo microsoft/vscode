@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PersistentProtocol, ProtocolConstants, ISocket } from '../../base/parts/ipc/common/ipc.net.js';
+import { PersistentProtocol, ISocket, ProtocolConstants } from '../../base/parts/ipc/common/ipc.net.js';
 import { ILogService } from '../../platform/log/common/log.js';
 import { Emitter, Event } from '../../base/common/event.js';
 import { VSBuffer } from '../../base/common/buffer.js';
@@ -50,10 +50,12 @@ export class ManagementConnection {
 		private readonly _logService: ILogService,
 		private readonly _reconnectionToken: string,
 		remoteAddress: string,
-		protocol: PersistentProtocol
+		protocol: PersistentProtocol,
+		reconnectionGraceTime: number
 	) {
-		this._reconnectionGraceTime = ProtocolConstants.ReconnectionGraceTime;
-		this._reconnectionShortGraceTime = ProtocolConstants.ReconnectionShortGraceTime;
+		this._reconnectionGraceTime = reconnectionGraceTime;
+		const defaultShortGrace = ProtocolConstants.ReconnectionShortGraceTime;
+		this._reconnectionShortGraceTime = reconnectionGraceTime > 0 ? Math.min(defaultShortGrace, reconnectionGraceTime) : 0;
 		this._remoteAddress = remoteAddress;
 
 		this.protocol = protocol;

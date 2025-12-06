@@ -92,13 +92,24 @@ export function refreshShellIntegrationInfoStatus(instance: ITerminalInstance) {
 	);
 
 	const detailedAdditions: string[] = [];
+	if (instance.shellType) {
+		detailedAdditions.push(`Shell type: \`${instance.shellType}\``);
+	}
+	const cwd = instance.cwd;
+	if (cwd) {
+		detailedAdditions.push(`Current working directory: \`${cwd}\``);
+	}
 	const seenSequences = Array.from(instance.xterm.shellIntegration.seenSequences);
 	if (seenSequences.length > 0) {
 		detailedAdditions.push(`Seen sequences: ${seenSequences.map(e => `\`${e}\``).join(', ')}`);
 	}
+	const promptType = instance.capabilities.get(TerminalCapability.PromptTypeDetection)?.promptType;
+	if (promptType) {
+		detailedAdditions.push(`Prompt type: \`${promptType}\``);
+	}
 	const combinedString = instance.capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString();
 	if (combinedString !== undefined) {
-		detailedAdditions.push(`Prompt input: \`${combinedString}\``);
+		detailedAdditions.push(`Prompt input: \`\`\`${combinedString}\`\`\``);
 	}
 	const detailedAdditionsString = detailedAdditions.length > 0
 		? '\n\n' + detailedAdditions.map(e => `- ${e}`).join('\n')

@@ -75,7 +75,7 @@ function collect<T, C>(node: IResourceNode<T, C>, result: T[]): T[] {
 	return result;
 }
 
-export class ResourceTree<T extends NonNullable<any>, C> {
+export class ResourceTree<T extends NonNullable<unknown>, C> {
 
 	readonly root: Node<T, C>;
 
@@ -91,7 +91,7 @@ export class ResourceTree<T extends NonNullable<any>, C> {
 		return collect(node, []);
 	}
 
-	static isResourceNode<T, C>(obj: any): obj is IResourceNode<T, C> {
+	static isResourceNode<T, C>(obj: unknown): obj is IResourceNode<T, C> {
 		return obj instanceof Node;
 	}
 

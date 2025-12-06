@@ -10,7 +10,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { NotImplementedError, isCancellationError } from '../../../base/common/errors.js';
 import { IdGenerator } from '../../../base/common/idGenerator.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, Disposable as CoreDisposable } from '../../../base/common/lifecycle.js';
 import { equals, mixin } from '../../../base/common/objects.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
@@ -27,7 +27,7 @@ import { encodeSemanticTokensDto } from '../../../editor/common/services/semanti
 import { localize } from '../../../nls.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Cache } from './cache.js';
 import * as extHostProtocol from './extHost.protocol.js';
 import { IExtHostApiDeprecationService } from './extHostApiDeprecationService.js';
@@ -36,7 +36,9 @@ import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { ExtHostTelemetry, IExtHostTelemetry } from './extHostTelemetry.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { CodeAction, CodeActionKind, CompletionList, DataTransfer, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionTriggerKind, InlineEditTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from './extHostTypes.js';
+import { CodeAction, CodeActionKind, CompletionList, DataTransfer, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionsDisposeReasonKind, InlineCompletionTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from './extHostTypes.js';
+import { Emitter } from '../../../base/common/event.js';
+import { IInlineCompletionsUnificationState } from '../../services/inlineCompletions/common/inlineCompletionsUnification.js';
 
 // --- adapter
 
@@ -192,6 +194,7 @@ class CodeLensAdapter {
 
 function convertToLocationLinks(value: vscode.Location | vscode.Location[] | vscode.LocationLink[] | undefined | null): languages.LocationLink[] {
 	if (Array.isArray(value)) {
+		// eslint-disable-next-line local/code-no-any-casts
 		return (<any>value).map(typeConvert.DefinitionLink.from);
 	} else if (value) {
 		return [typeConvert.DefinitionLink.from(value)];
@@ -708,6 +711,7 @@ class DocumentFormattingAdapter {
 
 		const document = this._documents.getDocument(resource);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const value = await this._provider.provideDocumentFormattingEdits(document, <any>options, token);
 		if (Array.isArray(value)) {
 			return value.map(typeConvert.TextEdit.from);
@@ -728,6 +732,7 @@ class RangeFormattingAdapter {
 		const document = this._documents.getDocument(resource);
 		const ran = typeConvert.Range.to(range);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const value = await this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token);
 		if (Array.isArray(value)) {
 			return value.map(typeConvert.TextEdit.from);
@@ -740,6 +745,7 @@ class RangeFormattingAdapter {
 
 		const document = this._documents.getDocument(resource);
 		const _ranges = <Range[]>ranges.map(typeConvert.Range.to);
+		// eslint-disable-next-line local/code-no-any-casts
 		const value = await this._provider.provideDocumentRangesFormattingEdits(document, _ranges, <any>options, token);
 		if (Array.isArray(value)) {
 			return value.map(typeConvert.TextEdit.from);
@@ -762,6 +768,7 @@ class OnTypeFormattingAdapter {
 		const document = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
+		// eslint-disable-next-line local/code-no-any-casts
 		const value = await this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token);
 		if (Array.isArray(value)) {
 			return value.map(typeConvert.TextEdit.from);
@@ -1333,9 +1340,10 @@ class InlineCompletionAdapter {
 	private readonly _references = new ReferenceMap<{
 		dispose(): void;
 		items: readonly vscode.InlineCompletionItem[];
+		list: vscode.InlineCompletionList | undefined;
 	}>();
 
-	private readonly _isAdditionsProposedApiEnabled = isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions');
+	private readonly _isAdditionsProposedApiEnabled: boolean;
 
 	constructor(
 		private readonly _extension: IExtensionDescription,
@@ -1343,6 +1351,7 @@ class InlineCompletionAdapter {
 		private readonly _provider: vscode.InlineCompletionItemProvider,
 		private readonly _commands: CommandsConverter,
 	) {
+		this._isAdditionsProposedApiEnabled = isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions');
 	}
 
 	public get supportsHandleEvents(): boolean {
@@ -1350,13 +1359,36 @@ class InlineCompletionAdapter {
 			&& (typeof this._provider.handleDidShowCompletionItem === 'function'
 				|| typeof this._provider.handleDidPartiallyAcceptCompletionItem === 'function'
 				|| typeof this._provider.handleDidRejectCompletionItem === 'function'
+				|| typeof this._provider.handleEndOfLifetime === 'function'
 			);
+	}
+
+	public get supportsSetModelId(): boolean {
+		return isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions')
+			&& typeof this._provider.setCurrentModelId === 'function';
 	}
 
 	private readonly languageTriggerKindToVSCodeTriggerKind: Record<languages.InlineCompletionTriggerKind, InlineCompletionTriggerKind> = {
 		[languages.InlineCompletionTriggerKind.Automatic]: InlineCompletionTriggerKind.Automatic,
 		[languages.InlineCompletionTriggerKind.Explicit]: InlineCompletionTriggerKind.Invoke,
 	};
+
+	public get modelInfo(): extHostProtocol.IInlineCompletionModelInfoDto | undefined {
+		if (!this._isAdditionsProposedApiEnabled) {
+			return undefined;
+		}
+		return this._provider.modelInfo ? {
+			models: this._provider.modelInfo.models,
+			currentModelId: this._provider.modelInfo.currentModelId
+		} : undefined;
+	}
+
+	setCurrentModelId(modelId: string): void {
+		if (!this._isAdditionsProposedApiEnabled) {
+			return;
+		}
+		this._provider.setCurrentModelId?.(modelId);
+	}
 
 	async provideInlineCompletions(resource: URI, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
 		const doc = this._documents.getDocument(resource);
@@ -1372,6 +1404,8 @@ class InlineCompletionAdapter {
 					: undefined,
 			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
 			requestUuid: context.requestUuid,
+			requestIssuedDateTime: context.requestIssuedDateTime,
+			earliestShownDateTime: context.earliestShownDateTime,
 		}, token);
 
 		if (!result) {
@@ -1379,13 +1413,7 @@ class InlineCompletionAdapter {
 			return undefined;
 		}
 
-		if (token.isCancellationRequested) {
-			// cancelled -> return without further ado, esp no caching
-			// of results as they will leak
-			return undefined;
-		}
-
-		const normalizedResult = Array.isArray(result) ? result : result.items;
+		const { resultItems, list } = Array.isArray(result) ? { resultItems: result, list: undefined } : { resultItems: result.items, list: result };
 		const commands = this._isAdditionsProposedApiEnabled ? Array.isArray(result) ? [] : result.commands || [] : [];
 		const enableForwardStability = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.enableForwardStability : undefined;
 
@@ -1394,12 +1422,14 @@ class InlineCompletionAdapter {
 			dispose() {
 				disposableStore?.dispose();
 			},
-			items: normalizedResult
+			items: resultItems,
+			list,
 		});
 
-		return {
+		const items = {
 			pid,
-			items: normalizedResult.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
+			languageId: doc.languageId,
+			items: resultItems.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
 				let command: languages.Command | undefined = undefined;
 				if (item.command) {
 					if (!disposableStore) {
@@ -1418,120 +1448,66 @@ class InlineCompletionAdapter {
 
 				const insertText = item.insertText;
 				return ({
-					insertText: typeof insertText === 'string' ? insertText : { snippet: insertText.value },
-					filterText: item.filterText,
+					insertText: insertText === undefined ? undefined : (typeof insertText === 'string' ? insertText : { snippet: insertText.value }),
 					range: item.range ? typeConvert.Range.from(item.range) : undefined,
 					showRange: (this._isAdditionsProposedApiEnabled && item.showRange) ? typeConvert.Range.from(item.showRange) : undefined,
 					command,
-					action,
+					gutterMenuLinkAction: action,
 					idx: idx,
 					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
 					isInlineEdit: this._isAdditionsProposedApiEnabled ? item.isInlineEdit : false,
 					showInlineEditMenu: this._isAdditionsProposedApiEnabled ? item.showInlineEditMenu : false,
+					hint: (item.displayLocation && this._isAdditionsProposedApiEnabled) ? {
+						range: typeConvert.Range.from(item.displayLocation.range),
+						content: item.displayLocation.label,
+						style: item.displayLocation.kind ? typeConvert.InlineCompletionHintStyle.from(item.displayLocation.kind) : languages.InlineCompletionHintStyle.Code,
+					} : undefined,
 					warning: (item.warning && this._isAdditionsProposedApiEnabled) ? {
 						message: typeConvert.MarkdownString.from(item.warning.message),
 						icon: item.warning.icon ? typeConvert.IconPath.fromThemeIcon(item.warning.icon) : undefined,
 					} : undefined,
+					correlationId: this._isAdditionsProposedApiEnabled ? item.correlationId : undefined,
+					suggestionId: undefined,
+					uri: (this._isAdditionsProposedApiEnabled && item.uri) ? item.uri : undefined,
+					supportsRename: this._isAdditionsProposedApiEnabled ? item.supportsRename : false,
+					jumpToPosition: (this._isAdditionsProposedApiEnabled && item.jumpToPosition) ? typeConvert.Position.from(item.jumpToPosition) : undefined,
 				});
 			}),
 			commands: commands.map(c => {
 				if (!disposableStore) {
 					disposableStore = new DisposableStore();
 				}
-				return this._commands.toInternal(c, disposableStore);
+				return typeConvert.CompletionCommand.from(c, this._commands, disposableStore);
 			}),
 			suppressSuggestions: false,
 			enableForwardStability,
-		};
+		} satisfies extHostProtocol.IdentifiableInlineCompletions;
+		return items;
 	}
 
-	async provideInlineEditsForRange(resource: URI, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
-		if (!this._provider.provideInlineEditsForRange) {
-			return undefined;
-		}
-		checkProposedApiEnabled(this._extension, 'inlineCompletionsAdditions');
+	disposeCompletions(pid: number, reason: languages.InlineCompletionsDisposeReason) {
+		const completionList = this._references.get(pid);
+		if (this._provider.handleListEndOfLifetime && this._isAdditionsProposedApiEnabled && completionList?.list) {
+			function translateReason(reason: languages.InlineCompletionsDisposeReason): vscode.InlineCompletionsDisposeReason {
+				switch (reason.kind) {
+					case 'lostRace':
+						return { kind: InlineCompletionsDisposeReasonKind.LostRace };
+					case 'tokenCancellation':
+						return { kind: InlineCompletionsDisposeReasonKind.TokenCancellation };
+					case 'other':
+						return { kind: InlineCompletionsDisposeReasonKind.Other };
+					case 'empty':
+						return { kind: InlineCompletionsDisposeReasonKind.Empty };
+					case 'notTaken':
+						return { kind: InlineCompletionsDisposeReasonKind.NotTaken };
+					default:
+						return { kind: InlineCompletionsDisposeReasonKind.Other };
+				}
+			}
 
-		const doc = this._documents.getDocument(resource);
-		const r = typeConvert.Range.to(range);
-
-		const result = await this._provider.provideInlineEditsForRange(doc, r, {
-			selectedCompletionInfo:
-				context.selectedSuggestionInfo
-					? {
-						range: typeConvert.Range.to(context.selectedSuggestionInfo.range),
-						text: context.selectedSuggestionInfo.text
-					}
-					: undefined,
-			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
-			userPrompt: context.userPrompt,
-			requestUuid: context.requestUuid,
-		}, token);
-
-		if (!result) {
-			// undefined and null are valid results
-			return undefined;
+			this._provider.handleListEndOfLifetime(completionList.list, translateReason(reason));
 		}
 
-		if (token.isCancellationRequested) {
-			// cancelled -> return without further ado, esp no caching
-			// of results as they will leak
-			return undefined;
-		}
-
-		const normalizedResult = Array.isArray(result) ? result : result.items;
-		const commands = this._isAdditionsProposedApiEnabled ? Array.isArray(result) ? [] : result.commands || [] : [];
-		const enableForwardStability = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.enableForwardStability : undefined;
-
-		let disposableStore: DisposableStore | undefined = undefined;
-		const pid = this._references.createReferenceId({
-			dispose() {
-				disposableStore?.dispose();
-			},
-			items: normalizedResult
-		});
-
-		return {
-			pid,
-			items: normalizedResult.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
-				let command: languages.Command | undefined = undefined;
-				if (item.command) {
-					if (!disposableStore) {
-						disposableStore = new DisposableStore();
-					}
-					command = this._commands.toInternal(item.command, disposableStore);
-				}
-
-				let action: languages.Command | undefined = undefined;
-				if (item.action) {
-					if (!disposableStore) {
-						disposableStore = new DisposableStore();
-					}
-					action = this._commands.toInternal(item.action, disposableStore);
-				}
-
-				const insertText = item.insertText;
-				return ({
-					insertText: typeof insertText === 'string' ? insertText : { snippet: insertText.value },
-					filterText: item.filterText,
-					range: item.range ? typeConvert.Range.from(item.range) : undefined,
-					command,
-					action,
-					idx: idx,
-					completeBracketPairs: this._isAdditionsProposedApiEnabled ? item.completeBracketPairs : false,
-				});
-			}),
-			commands: commands.map(c => {
-				if (!disposableStore) {
-					disposableStore = new DisposableStore();
-				}
-				return this._commands.toInternal(c, disposableStore);
-			}),
-			suppressSuggestions: false,
-			enableForwardStability,
-		};
-	}
-
-	disposeCompletions(pid: number) {
 		const data = this._references.disposeReferenceId(pid);
 		data?.dispose();
 	}
@@ -1555,6 +1531,16 @@ class InlineCompletionAdapter {
 		}
 	}
 
+	handleEndOfLifetime(pid: number, idx: number, reason: languages.InlineCompletionEndOfLifeReason<{ pid: number; idx: number }>): void {
+		const completionItem = this._references.get(pid)?.items[idx];
+		if (completionItem) {
+			if (this._provider.handleEndOfLifetime && this._isAdditionsProposedApiEnabled) {
+				const r = typeConvert.InlineCompletionEndOfLifeReason.to(reason, ref => this._references.get(ref.pid)?.items[ref.idx]);
+				this._provider.handleEndOfLifetime(completionItem, r);
+			}
+		}
+	}
+
 	handleRejection(pid: number, idx: number): void {
 		const completionItem = this._references.get(pid)?.items[idx];
 		if (completionItem) {
@@ -1562,105 +1548,6 @@ class InlineCompletionAdapter {
 				this._provider.handleDidRejectCompletionItem(completionItem);
 			}
 		}
-	}
-}
-
-class InlineEditAdapter {
-	private readonly _references = new ReferenceMap<{
-		dispose(): void;
-		item: vscode.InlineEdit;
-	}>();
-
-	private languageTriggerKindToVSCodeTriggerKind: Record<languages.InlineEditTriggerKind, InlineEditTriggerKind> = {
-		[languages.InlineEditTriggerKind.Automatic]: InlineEditTriggerKind.Automatic,
-		[languages.InlineEditTriggerKind.Invoke]: InlineEditTriggerKind.Invoke,
-	};
-
-	async provideInlineEdits(uri: URI, context: languages.IInlineEditContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineEdit | undefined> {
-		const doc = this._documents.getDocument(uri);
-		const result = await this._provider.provideInlineEdit(doc, {
-			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
-			requestUuid: context.requestUuid,
-		}, token);
-
-		if (!result) {
-			// undefined and null are valid results
-			return undefined;
-		}
-
-		if (token.isCancellationRequested) {
-			// cancelled -> return without further ado, esp no caching
-			// of results as they will leak
-			return undefined;
-		}
-		let disposableStore: DisposableStore | undefined = undefined;
-		const pid = this._references.createReferenceId({
-			dispose() {
-				disposableStore?.dispose();
-			},
-			item: result
-		});
-
-		let acceptCommand: languages.Command | undefined = undefined;
-		if (result.accepted) {
-			if (!disposableStore) {
-				disposableStore = new DisposableStore();
-			}
-			acceptCommand = this._commands.toInternal(result.accepted, disposableStore);
-		}
-		let rejectCommand: languages.Command | undefined = undefined;
-		if (result.rejected) {
-			if (!disposableStore) {
-				disposableStore = new DisposableStore();
-			}
-			rejectCommand = this._commands.toInternal(result.rejected, disposableStore);
-		}
-
-		let shownCommand: languages.Command | undefined = undefined;
-		if (result.shown) {
-			if (!disposableStore) {
-				disposableStore = new DisposableStore();
-			}
-			shownCommand = this._commands.toInternal(result.shown, disposableStore);
-		}
-
-		let action: languages.Command | undefined = undefined;
-		if (result.action) {
-			if (!disposableStore) {
-				disposableStore = new DisposableStore();
-			}
-			action = this._commands.toInternal(result.action, disposableStore);
-		}
-
-		if (!disposableStore) {
-			disposableStore = new DisposableStore();
-		}
-		const langResult: extHostProtocol.IdentifiableInlineEdit = {
-			pid,
-			text: result.text,
-			range: typeConvert.Range.from(result.range),
-			showRange: typeConvert.Range.from(result.showRange),
-			accepted: acceptCommand,
-			rejected: rejectCommand,
-			shown: shownCommand,
-			action,
-			commands: result.commands?.map(c => this._commands.toInternal(c, disposableStore)),
-		};
-
-		return langResult;
-	}
-
-	disposeEdit(pid: number) {
-		const data = this._references.disposeReferenceId(pid);
-		data?.dispose();
-	}
-
-	constructor(
-		_extension: IExtensionDescription,
-		private readonly _documents: ExtHostDocuments,
-		private readonly _provider: vscode.InlineEditProvider,
-		private readonly _commands: CommandsConverter,
-	) {
 	}
 }
 
@@ -2235,7 +2122,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter
-	| DocumentDropEditAdapter | NewSymbolNamesAdapter | InlineEditAdapter;
+	| DocumentDropEditAdapter | NewSymbolNamesAdapter;
 
 class AdapterData {
 	constructor(
@@ -2244,12 +2131,20 @@ class AdapterData {
 	) { }
 }
 
-export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageFeaturesShape {
+export class ExtHostLanguageFeatures extends CoreDisposable implements extHostProtocol.ExtHostLanguageFeaturesShape {
 
 	private static _handlePool: number = 0;
 
 	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
 	private readonly _adapter = new Map<number, AdapterData>();
+
+	private _inlineCompletionsUnificationState: vscode.InlineCompletionsUnificationState;
+	public get inlineCompletionsUnificationState(): vscode.InlineCompletionsUnificationState {
+		return this._inlineCompletionsUnificationState;
+	}
+
+	private readonly _onDidChangeInlineCompletionsUnificationState = this._register(new Emitter<void>());
+	readonly onDidChangeInlineCompletionsUnificationState = this._onDidChangeInlineCompletionsUnificationState.event;
 
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
@@ -2261,9 +2156,15 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		private readonly _apiDeprecation: IExtHostApiDeprecationService,
 		private readonly _extensionTelemetry: IExtHostTelemetry
 	) {
+		super();
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
+		this._inlineCompletionsUnificationState = {
+			codeUnification: false,
+			modelUnification: false,
+			extensionUnification: false,
+			expAssignments: []
+		};
 	}
-
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector, extension: IExtensionDescription): Array<extHostProtocol.IDocumentFilterDto> {
 		return typeConvert.DocumentSelector.from(selector, this._uriTransformer, extension);
@@ -2671,8 +2572,16 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	registerDocumentRangeSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentRangeSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
 		const handle = this._addNewAdapter(new DocumentRangeSemanticTokensAdapter(this._documents, provider), extension);
-		this._proxy.$registerDocumentRangeSemanticTokensProvider(handle, this._transformDocumentSelector(selector, extension), legend);
-		return this._createDisposable(handle);
+		const eventHandle = (typeof provider.onDidChangeSemanticTokens === 'function' ? this._nextHandle() : undefined);
+		this._proxy.$registerDocumentRangeSemanticTokensProvider(handle, this._transformDocumentSelector(selector, extension), legend, eventHandle);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle) {
+			const subscription = provider.onDidChangeSemanticTokens!(_ => this._proxy.$emitDocumentRangeSemanticTokensEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+
+		return result;
 	}
 
 	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null> {
@@ -2706,24 +2615,40 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider, metadata: vscode.InlineCompletionItemProviderMetadata | undefined): vscode.Disposable {
 		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter);
 		const handle = this._addNewAdapter(adapter, extension);
+		let result = this._createDisposable(handle);
+
+		const supportsOnDidChange = isProposedApiEnabled(extension, 'inlineCompletionsAdditions') && typeof provider.onDidChange === 'function';
+		if (supportsOnDidChange) {
+			const subscription = provider.onDidChange!(_ => this._proxy.$emitInlineCompletionsChange(handle));
+			result = Disposable.from(result, subscription);
+		}
+
+		const supportsOnDidChangeModelInfo = isProposedApiEnabled(extension, 'inlineCompletionsAdditions') && typeof provider.onDidChangeModelInfo === 'function';
+		if (supportsOnDidChangeModelInfo) {
+			const subscription = provider.onDidChangeModelInfo!(_ => this._proxy.$emitInlineCompletionModelInfoChange(handle, adapter.modelInfo));
+			result = Disposable.from(result, subscription);
+		}
 		this._proxy.$registerInlineCompletionsSupport(
 			handle,
 			this._transformDocumentSelector(selector, extension),
 			adapter.supportsHandleEvents,
 			ExtensionIdentifier.toKey(extension.identifier.value),
+			extension.version,
+			metadata?.groupId ? ExtensionIdentifier.toKey(metadata.groupId) : undefined,
 			metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || [],
 			metadata?.displayName,
 			metadata?.debounceDelayMs,
+			metadata?.excludes?.map(extId => ExtensionIdentifier.toKey(extId)) || [],
+			supportsOnDidChange,
+			adapter.supportsSetModelId,
+			adapter.modelInfo,
+			supportsOnDidChangeModelInfo,
 		);
-		return this._createDisposable(handle);
+		return result;
 	}
 
 	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
-		return this._withAdapter(handle, InlineCompletionAdapter, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined, token);
-	}
-
-	$provideInlineEditsForRange(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
-		return this._withAdapter(handle, InlineCompletionAdapter, adapter => adapter.provideInlineEditsForRange(URI.revive(resource), range, context, token), undefined, token);
+		return this._withAdapter(handle, InlineCompletionAdapter, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined, undefined);
 	}
 
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number, updatedInsertText: string): void {
@@ -2738,31 +2663,31 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		}, undefined, undefined);
 	}
 
+	$handleInlineCompletionEndOfLifetime(handle: number, pid: number, idx: number, reason: languages.InlineCompletionEndOfLifeReason<{ pid: number; idx: number }>): void {
+		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
+			adapter.handleEndOfLifetime(pid, idx, reason);
+		}, undefined, undefined);
+	}
+
 	$handleInlineCompletionRejection(handle: number, pid: number, idx: number): void {
 		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
 			adapter.handleRejection(pid, idx);
 		}, undefined, undefined);
 	}
 
-	$freeInlineCompletionsList(handle: number, pid: number): void {
-		this._withAdapter(handle, InlineCompletionAdapter, async adapter => { adapter.disposeCompletions(pid); }, undefined, undefined);
+	$freeInlineCompletionsList(handle: number, pid: number, reason: languages.InlineCompletionsDisposeReason): void {
+		this._withAdapter(handle, InlineCompletionAdapter, async adapter => { adapter.disposeCompletions(pid, reason); }, undefined, undefined);
 	}
 
-	// --- inline edit
-
-	registerInlineEditProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineEditProvider): vscode.Disposable {
-		const adapter = new InlineEditAdapter(extension, this._documents, provider, this._commands.converter);
-		const handle = this._addNewAdapter(adapter, extension);
-		this._proxy.$registerInlineEditProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier, provider.displayName || extension.name);
-		return this._createDisposable(handle);
+	$acceptInlineCompletionsUnificationState(state: IInlineCompletionsUnificationState): void {
+		this._inlineCompletionsUnificationState = state;
+		this._onDidChangeInlineCompletionsUnificationState.fire();
 	}
 
-	$provideInlineEdit(handle: number, resource: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineEdit | undefined> {
-		return this._withAdapter(handle, InlineEditAdapter, adapter => adapter.provideInlineEdits(URI.revive(resource), context, token), undefined, token);
-	}
-
-	$freeInlineEdit(handle: number, pid: number): void {
-		this._withAdapter(handle, InlineEditAdapter, async adapter => { adapter.disposeEdit(pid); }, undefined, undefined);
+	$handleInlineCompletionSetCurrentModelId(handle: number, modelId: string): void {
+		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
+			adapter.setCurrentModelId(modelId);
+		}, undefined, undefined);
 	}
 
 	// --- parameter hints

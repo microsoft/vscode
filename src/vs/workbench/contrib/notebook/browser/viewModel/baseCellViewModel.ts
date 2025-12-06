@@ -117,7 +117,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	private readonly _textModelRefChangeDisposable = this._register(new MutableDisposable());
 
 	private readonly _cellDecorationsChanged = this._register(new Emitter<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>());
-	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
+	readonly onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
 
 	private _resolvedDecorations = new Map<string, {
 		id?: string;
@@ -656,11 +656,11 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	updateEditState(newState: CellEditState, source: string) {
-		this._editStateSource = source;
 		if (newState === this._editState) {
 			return;
 		}
 
+		this._editStateSource = source;
 		this._editState = newState;
 		this._onDidChangeState.fire({ editStateChanged: true });
 		if (this._editState === CellEditState.Preview) {

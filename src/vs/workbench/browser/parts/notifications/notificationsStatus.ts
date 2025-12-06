@@ -191,7 +191,7 @@ export class NotificationsStatus extends Disposable {
 
 		// Create new
 		let statusMessageEntry: IStatusbarEntryAccessor;
-		let showHandle: any = setTimeout(() => {
+		let showHandle: Timeout | undefined = setTimeout(() => {
 			statusMessageEntry = this.statusbarService.addEntry(
 				{
 					name: localize('status.message', "Status Message"),
@@ -202,11 +202,11 @@ export class NotificationsStatus extends Disposable {
 				StatusbarAlignment.LEFT,
 				Number.NEGATIVE_INFINITY /* last entry */
 			);
-			showHandle = null;
+			showHandle = undefined;
 		}, showAfter);
 
 		// Dispose function takes care of timeouts and actual entry
-		let hideHandle: any;
+		let hideHandle: Timeout | undefined;
 		const statusMessageDispose = {
 			dispose: () => {
 				if (showHandle) {

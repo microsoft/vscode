@@ -5,7 +5,7 @@
 
 import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, languages, HoverProvider, CancellationToken, Hover, TextDocument } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, getCommitShortHash, IDisposable } from './util';
+import { dispose, fromNow, getCommitShortHash, IDisposable, truncate } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation, Commit } from './git';
@@ -15,8 +15,7 @@ import { getWorkingTreeAndIndexDiffInformation, getWorkingTreeDiffInformation } 
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { AvatarQuery, AvatarQueryCommit } from './api/git';
 import { LRUCache } from './cache';
-
-const AVATAR_SIZE = 20;
+import { AVATAR_SIZE, getCommitHover, getHoverCommitHashCommands, processHoverRemoteCommands } from './hover';
 
 function lineRangesContainLine(changes: readonly TextEditorChange[], lineNumber: number): boolean {
 	return changes.some(c => c.modified.startLineNumber <= lineNumber && lineNumber < c.modified.endLineNumberExclusive);
@@ -186,14 +185,10 @@ export class GitBlameController {
 	}
 
 	formatBlameInformationMessage(documentUri: Uri, template: string, blameInformation: BlameInformation): string {
-		const subject = blameInformation.subject && blameInformation.subject.length > this._subjectMaxLength
-			? `${blameInformation.subject.substring(0, this._subjectMaxLength)}\u2026`
-			: blameInformation.subject;
-
 		const templateTokens = {
 			hash: blameInformation.hash,
 			hashShort: getCommitShortHash(documentUri, blameInformation.hash),
-			subject: emojify(subject ?? ''),
+			subject: emojify(truncate(blameInformation.subject ?? '', this._subjectMaxLength)),
 			authorName: blameInformation.authorName ?? '',
 			authorEmail: blameInformation.authorEmail ?? '',
 			authorDate: new Date(blameInformation.authorDate ?? new Date()).toLocaleString(),
@@ -201,7 +196,9 @@ export class GitBlameController {
 		} satisfies BlameInformationTemplateTokens;
 
 		return template.replace(/\$\{(.+?)\}/g, (_, token) => {
-			return token in templateTokens ? templateTokens[token as keyof BlameInformationTemplateTokens] : `\${${token}}`;
+			return templateTokens.hasOwnProperty(token)
+				? templateTokens[token as keyof BlameInformationTemplateTokens]
+				: `\${${token}}`;
 		});
 	}
 
@@ -246,78 +243,26 @@ export class GitBlameController {
 				this._model, repository, commitInformation?.message ?? blameInformation.subject ?? '');
 		}
 
-		const markdownString = new MarkdownString();
-		markdownString.isTrusted = true;
-		markdownString.supportThemeIcons = true;
-
-		// Author, date
 		const hash = commitInformation?.hash ?? blameInformation.hash;
 		const authorName = commitInformation?.authorName ?? blameInformation.authorName;
 		const authorEmail = commitInformation?.authorEmail ?? blameInformation.authorEmail;
 		const authorDate = commitInformation?.authorDate ?? blameInformation.authorDate;
-		const avatar = commitAvatar ? `![${authorName}](${commitAvatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})` : '$(account)';
-
-		if (authorName) {
-			if (authorEmail) {
-				const emailTitle = l10n.t('Email');
-				markdownString.appendMarkdown(`${avatar} [**${authorName}**](mailto:${authorEmail} "${emailTitle} ${authorName}")`);
-			} else {
-				markdownString.appendMarkdown(`${avatar} **${authorName}**`);
-			}
-
-			if (authorDate) {
-				const dateString = new Date(authorDate).toLocaleString(undefined, {
-					year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric'
-				});
-				markdownString.appendMarkdown(`, $(history) ${fromNow(authorDate, true, true)} (${dateString})`);
-			}
-
-			markdownString.appendMarkdown('\n\n');
-		}
-
-		// Subject | Message
-		markdownString.appendMarkdown(`${emojify(commitMessageWithLinks ?? commitInformation?.message ?? blameInformation.subject ?? '')}\n\n`);
-		markdownString.appendMarkdown(`---\n\n`);
-
-		// Short stats
-		if (commitInformation?.shortStat) {
-			markdownString.appendMarkdown(`<span>${commitInformation.shortStat.files === 1 ?
-				l10n.t('{0} file changed', commitInformation.shortStat.files) :
-				l10n.t('{0} files changed', commitInformation.shortStat.files)}</span>`);
-
-			if (commitInformation.shortStat.insertions) {
-				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverAdditionsForeground);">${commitInformation.shortStat.insertions === 1 ?
-					l10n.t('{0} insertion{1}', commitInformation.shortStat.insertions, '(+)') :
-					l10n.t('{0} insertions{1}', commitInformation.shortStat.insertions, '(+)')}</span>`);
-			}
-
-			if (commitInformation.shortStat.deletions) {
-				markdownString.appendMarkdown(`,&nbsp;<span style="color:var(--vscode-scmGraph-historyItemHoverDeletionsForeground);">${commitInformation.shortStat.deletions === 1 ?
-					l10n.t('{0} deletion{1}', commitInformation.shortStat.deletions, '(-)') :
-					l10n.t('{0} deletions{1}', commitInformation.shortStat.deletions, '(-)')}</span>`);
-			}
-
-			markdownString.appendMarkdown(`\n\n---\n\n`);
-		}
+		const message = commitMessageWithLinks ?? commitInformation?.message ?? blameInformation.subject ?? '';
 
 		// Commands
-		markdownString.appendMarkdown(`[\`$(git-commit) ${getCommitShortHash(documentUri, hash)} \`](command:git.viewCommit?${encodeURIComponent(JSON.stringify([documentUri, hash]))} "${l10n.t('Open Commit')}")`);
-		markdownString.appendMarkdown('&nbsp;');
-		markdownString.appendMarkdown(`[$(copy)](command:git.copyContentToClipboard?${encodeURIComponent(JSON.stringify(hash))} "${l10n.t('Copy Commit Hash')}")`);
+		const commands: Command[][] = [
+			getHoverCommitHashCommands(documentUri, hash),
+			processHoverRemoteCommands(remoteHoverCommands, hash)
+		];
 
-		// Remote hover commands
-		if (remoteHoverCommands.length > 0) {
-			markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
+		commands.push([{
+			title: `$(gear)`,
+			tooltip: l10n.t('Open Settings'),
+			command: 'workbench.action.openSettings',
+			arguments: ['git.blame']
+		}] satisfies Command[]);
 
-			const remoteCommandsMarkdown = remoteHoverCommands
-				.map(command => `[${command.title}](command:${command.command}?${encodeURIComponent(JSON.stringify([...command.arguments ?? [], hash]))} "${command.tooltip}")`);
-			markdownString.appendMarkdown(remoteCommandsMarkdown.join('&nbsp;'));
-		}
-
-		markdownString.appendMarkdown('&nbsp;&nbsp;|&nbsp;&nbsp;');
-		markdownString.appendMarkdown(`[$(gear)](command:workbench.action.openSettings?%5B%22git.blame%22%5D "${l10n.t('Open Settings')}")`);
-
-		return markdownString;
+		return getCommitHover(commitAvatar, authorName, authorEmail, authorDate, message, commitInformation?.shortStat, commands);
 	}
 
 	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
@@ -577,6 +522,7 @@ export class GitBlameController {
 }
 
 class GitBlameEditorDecoration implements HoverProvider {
+	private _template = '';
 	private _decoration: TextEditorDecorationType;
 
 	private _hoverDisposable: IDisposable | undefined;
@@ -636,6 +582,10 @@ class GitBlameEditorDecoration implements HoverProvider {
 			return;
 		}
 
+		// Cache the decoration template
+		const config = workspace.getConfiguration('git');
+		this._template = config.get<string>('blame.editorDecoration.template', '${subject}, ${authorName} (${authorDateAgo})');
+
 		this._registerHoverProvider();
 		this._onDidChangeBlameInformation();
 	}
@@ -666,12 +616,9 @@ class GitBlameEditorDecoration implements HoverProvider {
 		}
 
 		// Set decorations for the editor
-		const config = workspace.getConfiguration('git');
-		const template = config.get<string>('blame.editorDecoration.template', '${subject}, ${authorName} (${authorDateAgo})');
-
 		const decorations = blameInformation.map(blame => {
 			const contentText = typeof blame.blameInformation !== 'string'
-				? this._controller.formatBlameInformationMessage(textEditor.document.uri, template, blame.blameInformation)
+				? this._controller.formatBlameInformationMessage(textEditor.document.uri, this._template, blame.blameInformation)
 				: blame.blameInformation;
 
 			return this._createDecoration(blame.lineNumber, contentText);
@@ -711,6 +658,7 @@ class GitBlameEditorDecoration implements HoverProvider {
 }
 
 class GitBlameStatusBarItem {
+	private _template = '';
 	private _statusBarItem: StatusBarItem;
 	private _disposables: IDisposable[] = [];
 
@@ -721,13 +669,20 @@ class GitBlameStatusBarItem {
 
 		workspace.onDidChangeConfiguration(this._onDidChangeConfiguration, this, this._disposables);
 		this._controller.onDidChangeBlameInformation(() => this._onDidChangeBlameInformation(), this, this._disposables);
+
+		this._onDidChangeConfiguration();
 	}
 
-	private _onDidChangeConfiguration(e: ConfigurationChangeEvent): void {
-		if (!e.affectsConfiguration('git.commitShortHashLength') &&
+	private _onDidChangeConfiguration(e?: ConfigurationChangeEvent): void {
+		if (e &&
+			!e.affectsConfiguration('git.commitShortHashLength') &&
 			!e.affectsConfiguration('git.blame.statusBarItem.template')) {
 			return;
 		}
+
+		// Cache the decoration template
+		const config = workspace.getConfiguration('git');
+		this._template = config.get<string>('blame.statusBarItem.template', '${authorName} (${authorDateAgo})');
 
 		this._onDidChangeBlameInformation();
 	}
@@ -749,21 +704,21 @@ class GitBlameStatusBarItem {
 			this._statusBarItem.tooltip = l10n.t('Git Blame Information');
 			this._statusBarItem.command = undefined;
 		} else {
-			const config = workspace.getConfiguration('git');
-			const template = config.get<string>('blame.statusBarItem.template', '${authorName} (${authorDateAgo})');
-
 			this._statusBarItem.text = `$(git-commit) ${this._controller.formatBlameInformationMessage(
-				window.activeTextEditor.document.uri, template, blameInformation[0].blameInformation)}`;
+				window.activeTextEditor.document.uri, this._template, blameInformation[0].blameInformation)}`;
 
 			this._statusBarItem.tooltip2 = (cancellationToken: CancellationToken) => {
 				return this._provideTooltip(window.activeTextEditor!.document.uri,
 					blameInformation[0].blameInformation as BlameInformation, cancellationToken);
 			};
 
+			const uri = window.activeTextEditor.document.uri;
+			const hash = blameInformation[0].blameInformation.hash;
+
 			this._statusBarItem.command = {
 				title: l10n.t('Open Commit'),
 				command: 'git.viewCommit',
-				arguments: [window.activeTextEditor.document.uri, blameInformation[0].blameInformation.hash]
+				arguments: [uri, hash, uri]
 			} satisfies Command;
 		}
 

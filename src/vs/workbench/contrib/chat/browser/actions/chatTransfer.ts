@@ -14,6 +14,6 @@ export class ChatTransferContribution extends Disposable implements IWorkbenchCo
 		@IChatTransferService chatTransferService: IChatTransferService,
 	) {
 		super();
-		chatTransferService.checkAndSetWorkspaceTrust();
+		chatTransferService.checkAndSetTransferredWorkspaceTrust();
 	}
 }

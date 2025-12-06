@@ -13,7 +13,12 @@ let baseHoverDelegate: IHoverDelegate2 = {
 	setupDelayedHoverAtMouse: () => Disposable.None,
 	hideHover: () => undefined,
 	showAndFocusLastHover: () => undefined,
-	setupManagedHover: () => null!,
+	setupManagedHover: () => ({
+		dispose: () => undefined,
+		show: () => undefined,
+		hide: () => undefined,
+		update: () => undefined,
+	}),
 	showManagedHover: () => undefined
 };
 

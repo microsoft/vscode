@@ -1,0 +1,122 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agent-sessions-viewer {
+
+	flex: 1 1 auto;
+	height: 100%;
+	min-height: 0;
+
+	.monaco-list-row .force-no-twistie {
+		display: none !important;
+	}
+
+	.monaco-list-row.selected .agent-session-details-row {
+		color: unset;
+
+		.rendered-markdown {
+			a {
+				color: unset;
+			}
+		}
+	}
+
+	.monaco-list-row .agent-session-title-toolbar {
+		position: relative; /* for the absolute positioning of the toolbar below */
+		width: 22px;
+	}
+
+	.monaco-list-row .agent-session-title-toolbar .monaco-toolbar {
+		/* this is required because the overal height (including the padding needed for hover feedback) would push down the title otherwise */
+		position: absolute;
+		right: 0;
+		top: 0;
+		display: none;
+	}
+
+	.monaco-list-row:hover .agent-session-title-toolbar .monaco-toolbar,
+	.monaco-list-row.focused .agent-session-title-toolbar .monaco-toolbar {
+		display: block;
+	}
+
+	.agent-session-item {
+		display: flex;
+		flex-direction: row;
+		padding: 8px;
+
+		&.archived {
+			color: var(--vscode-descriptionForeground);
+		}
+
+		.agent-session-main-col,
+		.agent-session-title-row,
+		.agent-session-details-row {
+			flex: 1;
+			min-width: 0;
+		}
+
+		.agent-session-icon-col {
+			display: flex;
+			align-items: flex-start;
+
+			.agent-session-icon {
+				flex-shrink: 0;
+				font-size: 16px;
+			}
+		}
+
+		.agent-session-main-col {
+			padding-left: 8px;
+		}
+
+		.agent-session-title-row,
+		.agent-session-details-row {
+			display: flex;
+			align-items: center;
+			line-height: 16px;
+		}
+
+		.agent-session-title-row {
+			padding-bottom: 4px;
+		}
+
+		.agent-session-details-row {
+			font-size: 12px;
+			color: var(--vscode-descriptionForeground);
+
+			.rendered-markdown {
+				p {
+					display: flex;
+					align-items: center;
+					margin: 0;
+
+					> span.codicon {
+						margin-right: 2px;
+					}
+				}
+
+				a {
+					color: var(--vscode-descriptionForeground);
+				}
+			}
+		}
+
+		.agent-session-title,
+		.agent-session-description {
+			flex: 1; /* push other items to the end */
+			text-overflow: ellipsis;
+			overflow: hidden;
+		}
+
+		.agent-session-status {
+			padding-left: 8px;
+			font-variant-numeric: tabular-nums;
+
+			/* In case the changes toolbar to the left is greedy, we give up space */
+			overflow: hidden;
+			text-overflow: ellipsis;
+		}
+	}
+}

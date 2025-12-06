@@ -108,7 +108,7 @@
   "scripts": {
     "compile": "npm run build-notebook",
     "watch": "npm run build-notebook",
-    "build-notebook": "node ./esbuild"
+    "build-notebook": "node ./esbuild.mjs"
   },
   "devDependencies": {
     "@types/markdown-it": "^0.0.0",
@@ -119,6 +119,6 @@
     "url": "https://github.com/microsoft/vscode.git"
   },
   "dependencies": {
-    "@vscode/markdown-it-katex": "^1.1.1"
+    "@vscode/markdown-it-katex": "^1.1.2"
   }
 }

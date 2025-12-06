@@ -68,6 +68,30 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	unset VSCODE_ENV_APPEND
 fi
 
+# Register Python shell activate hooks
+# Prevent multiple activation with guard
+if [ -z "${VSCODE_PYTHON_AUTOACTIVATE_GUARD:-}" ]; then
+	export VSCODE_PYTHON_AUTOACTIVATE_GUARD=1
+	if [ -n "${VSCODE_PYTHON_ZSH_ACTIVATE:-}" ] && [ "$TERM_PROGRAM" = "vscode" ]; then
+		# Prevent crashing by negating exit code
+		if ! builtin eval "$VSCODE_PYTHON_ZSH_ACTIVATE"; then
+			__vsc_activation_status=$?
+			builtin printf '\x1b[0m\x1b[7m * \x1b[0;103m VS Code Python zsh activation failed with exit code %d \x1b[0m' "$__vsc_activation_status"
+		fi
+	fi
+fi
+
+# Report prompt type
+if [ -n "${P9K_SSH:-}" ] || [ -n "${P9K_TTY:-}" ]; then
+	builtin printf '\e]633;P;PromptType=p10k\a'
+	# Force shell integration on for p10k
+	# typeset -g POWERLEVEL9K_TERM_SHELL_INTEGRATION=true
+elif [ -n "${ZSH:-}" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )); then
+	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
+elif [ -n "${STARSHIP_SESSION_KEY:-}" ]; then
+	builtin printf '\e]633;P;PromptType=starship\a'
+fi
+
 # Shell integration was disabled by the shell, exit without warning assuming either the shell has
 # explicitly disabled shell integration as it's incompatible or it implements the protocol.
 if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
@@ -110,19 +134,13 @@ __vsc_current_command=""
 __vsc_nonce="$VSCODE_NONCE"
 unset VSCODE_NONCE
 
-__vscode_shell_env_reporting="$VSCODE_SHELL_ENV_REPORTING"
+__vscode_shell_env_reporting="${VSCODE_SHELL_ENV_REPORTING:-}"
 unset VSCODE_SHELL_ENV_REPORTING
 
-builtin printf "\e]633;P;ContinuationPrompt=%s\a" "$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')"
+envVarsToReport=()
+IFS=',' read -rA envVarsToReport <<< "$__vscode_shell_env_reporting"
 
-# Report prompt type
-if [ -n "$ZSH" ] && [ -n "$ZSH_VERSION" ] && (( ${+functions[omz]} )) ; then
-	builtin printf '\e]633;P;PromptType=oh-my-zsh\a'
-elif [ -n "$STARSHIP_SESSION_KEY" ]; then
-	builtin printf '\e]633;P;PromptType=starship\a'
-elif [ -n "$P9K_SSH" ] || [ -n "$P9K_TTY" ]; then
-	builtin printf '\e]633;P;PromptType=p10k\a'
-fi
+builtin printf "\e]633;P;ContinuationPrompt=%s\a" "$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')"
 
 # Report this shell supports rich command detection
 builtin printf '\e]633;P;HasRichCommandDetection=True\a'
@@ -150,23 +168,6 @@ __update_env_cache_aa() {
 	fi
 }
 
-__track_missing_env_vars_aa() {
-	if [ $__vsc_use_aa -eq 1 ]; then
-		typeset -A currentEnvMap
-		while IFS='=' read -r key value; do
-			currentEnvMap["$key"]="$value"
-		done < <(env)
-
-		for k in "${(@k)vsc_aa_env}"; do
-			# if currentEnvMap does not have the key, then it is missing
-			if ! [[ -v currentEnvMap[$k] ]]; then
-				builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${(Q)k}" "$(__vsc_escape_value "${vsc_aa_env[$k]}")" "$__vsc_nonce"
-				builtin unset "vsc_aa_env[$k]"
-			fi
-		done
-	fi
-}
-
 __update_env_cache() {
 	local key="$1"
 	local value="$2"
@@ -187,69 +188,49 @@ __update_env_cache() {
 		builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
 }
 
-__track_missing_env_vars() {
-	local currentEnvKeys=();
-
-	while IFS='=' read -r key value; do
-		currentEnvKeys+=("$key");
-	done < <(env);
-
-	# Compare __vsc_env_keys with user's currentEnvKeys
-	for ((i = 1; i <= ${#__vsc_env_keys[@]}; i++)); do
-		local found=0;
-		for envKey in "${currentEnvKeys[@]}"; do
-			if [[ "${__vsc_env_keys[$i]}" == "$envKey" ]]; then
-				found=1;
-				break;
-			fi;
-		done;
-		if [ "$found" = 0 ]; then
-			builtin printf '\e]633;EnvSingleDelete;%s;%s;%s\a' "${__vsc_env_keys[$i]}" "$(__vsc_escape_value "${__vsc_env_values[$i]}")" "$__vsc_nonce";
-			unset "__vsc_env_keys[$i]";
-			unset "__vsc_env_values[$i]";
-		fi;
-	done;
-
-	# Remove gaps from unset
-	__vsc_env_keys=("${(@)__vsc_env_keys}");
-	__vsc_env_values=("${(@)__vsc_env_values}");
-}
-
-
 __vsc_update_env() {
-	if [[ "$__vscode_shell_env_reporting" == "1" ]]; then
+	if [[ ${#envVarsToReport[@]} -gt 0 ]]; then
 		builtin printf '\e]633;EnvSingleStart;%s;%s;\a' 0 $__vsc_nonce
 		if [ $__vsc_use_aa -eq 1 ]; then
 			if [[ ${#vsc_aa_env[@]} -eq 0 ]]; then
 				# Associative array is empty, do not diff, just add
-				while IFS='=' read -r key value; do
-					vsc_aa_env["$key"]="$value"
-					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-				done < <(env)
+				for key in "${envVarsToReport[@]}"; do
+					if [[ -n "$key" && -n "${(P)key+_}" ]]; then
+						vsc_aa_env["$key"]="${(P)key}"
+						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "${(P)key}")" "$__vsc_nonce"
+					fi
+				done
 			else
 				# Diff approach for associative array
-				while IFS='=' read -r key value; do
-					__update_env_cache_aa "$key" "$value"
-				done < <(env)
-				__track_missing_env_vars_aa
-
+				for var in "${envVarsToReport[@]}"; do
+					if [[ -n "$var" && -n "${(P)var+_}" ]]; then
+						value="${(P)var}"
+						__update_env_cache_aa "$var" "$value"
+					fi
+				done
+				# Track missing env vars not needed for now, as we are only tracking pre-defined env var from terminalEnvironment.
 			fi
 		else
 			# Two arrays approach
 			if [[ ${#__vsc_env_keys[@]} -eq 0 ]] && [[ ${#__vsc_env_values[@]} -eq 0 ]]; then
 				# Non-associative arrays are both empty, do not diff, just add
-				while IFS='=' read -r key value; do
-					__vsc_env_keys+=("$key")
-					__vsc_env_values+=("$value")
-					builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
-				done < <(env)
+				for key in "${envVarsToReport[@]}"; do
+					if [[ -n "$key" && -n "${(P)key+_}" ]]; then
+						value="${(P)key}"
+						__vsc_env_keys+=("$key")
+						__vsc_env_values+=("$value")
+						builtin printf '\e]633;EnvSingleEntry;%s;%s;%s\a' "$key" "$(__vsc_escape_value "$value")" "$__vsc_nonce"
+					fi
+				done
 			else
 				# Diff approach for non-associative arrays
-				while IFS='=' read -r key value; do
-					__update_env_cache "$key" "$value"
-				done < <(env)
-				__track_missing_env_vars
-
+				for var in "${envVarsToReport[@]}"; do
+					if [[ -n "$var" && -n "${(P)var+_}" ]]; then
+						value="${(P)var}"
+						__update_env_cache "$var" "$value"
+					fi
+				done
+				# Track missing env vars not needed for now, as we are only tracking pre-defined env var from terminalEnvironment.
 			fi
 		fi
 

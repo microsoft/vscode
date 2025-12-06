@@ -24,8 +24,14 @@ export type ObsDebuggerApi = {
 			getDerivedInfo(instanceId: ObsInstanceId): IDerivedObservableDetailedInfo;
 			getAutorunInfo(instanceId: ObsInstanceId): IAutorunDetailedInfo;
 			getObservableValueInfo(instanceId: ObsInstanceId): IObservableValueInfo;
+
 			setValue(instanceId: ObsInstanceId, jsonValue: unknown): void;
 			getValue(instanceId: ObsInstanceId): unknown;
+
+			// For autorun and deriveds
+			rerun(instanceId: ObsInstanceId): void;
+
+			logValue(instanceId: ObsInstanceId): void;
 
 			getTransactionState(): ITransactionState | undefined;
 		}

@@ -14,7 +14,7 @@
   },
   "icon": "media/icon.png",
   "scripts": {
-    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-colorize-tests ./tsconfig.json",
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:vscode-colorize-tests ./tsconfig.json",
     "watch": "gulp watch-extension:vscode-colorize-tests",
     "compile": "gulp compile-extension:vscode-colorize-tests"
   },
@@ -22,7 +22,7 @@
     "jsonc-parser": "^3.2.0"
   },
   "devDependencies": {
-    "@types/node": "20.x"
+    "@types/node": "22.x"
   },
   "contributes": {
     "semanticTokenTypes": [

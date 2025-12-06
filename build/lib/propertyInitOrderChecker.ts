@@ -8,7 +8,7 @@ import * as ts from 'typescript';
 import * as path from 'path';
 import * as fs from 'fs';
 
-const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
+const TS_CONFIG_PATH = path.join(import.meta.dirname, '../../', 'src', 'tsconfig.json');
 
 //
 // #############################################################################################
@@ -22,103 +22,15 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 // #############################################################################################
 //
 
-const ignored = new Set([
-	'vs/platform/extensionManagement/common/extensionsScannerService.ts',
-	'vs/platform/configuration/common/configurations.ts',
-	'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/tokenizer.ts',
-	'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/bracketPairsTree.ts',
-	'vs/editor/common/model/textModelTokens.ts',
-	'vs/editor/common/model/tokenizationTextModelPart.ts',
-	'vs/editor/common/core/textEdit.ts',
-	'vs/workbench/api/common/extHostCommands.ts',
-	'vs/editor/browser/view/viewLayer.ts',
-	'vs/editor/browser/controller/editContext/textArea/textAreaEditContextInput.ts',
-	'vs/platform/accessibilitySignal/browser/accessibilitySignalService.ts',
-	'vs/editor/browser/widget/diffEditor/utils.ts',
-	'vs/editor/browser/observableCodeEditor.ts',
-	'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/diffEditorViewZones.ts',
-	'vs/editor/browser/widget/diffEditor/diffEditorOptions.ts',
-	'vs/editor/browser/widget/diffEditor/components/diffEditorEditors.ts',
-	'vs/editor/browser/widget/diffEditor/features/movedBlocksLinesFeature.ts',
-	'vs/editor/browser/widget/diffEditor/components/diffEditorSash.ts',
-	'vs/editor/browser/widget/diffEditor/utils/editorGutter.ts',
-	'vs/editor/browser/widget/diffEditor/features/gutterFeature.ts',
-	'vs/editor/browser/widget/diffEditor/features/revertButtonsFeature.ts',
-	'vs/editor/browser/widget/diffEditor/diffEditorWidget.ts',
-	'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsSource.ts',
-	'vs/editor/contrib/inlineCompletions/browser/model/suggestWidgetAdapter.ts',
-	'vs/editor/contrib/inlineCompletions/browser/model/inlineCompletionsModel.ts',
-	'vs/editor/contrib/inlineCompletions/browser/hintsWidget/inlineCompletionsHintsWidget.ts',
-	'vs/editor/contrib/inlayHints/browser/inlayHintsController.ts',
-	'vs/editor/contrib/inlineCompletions/browser/model/changeRecorder.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/ghostText/ghostTextView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditWithChanges.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/components/gutterIndicatorView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsWordReplacementView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsLineReplacementView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsSideBySideView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/originalEditorInlineDiffView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineCompletionsView.ts',
-	'vs/editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.ts',
-	'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsAccessibleView.ts',
-	'vs/editor/contrib/placeholderText/browser/placeholderTextContribution.ts',
-	'vs/editor/contrib/unicodeHighlighter/browser/unicodeHighlighter.ts',
-	'vs/workbench/contrib/chat/common/promptSyntax/parsers/basePromptParser.ts',
-	'vs/workbench/contrib/files/browser/views/openEditorsView.ts',
-	'vs/workbench/contrib/chat/browser/chatContentParts/chatAttachmentsContentPart.ts',
-	'vs/workbench/contrib/chat/browser/contrib/chatImplicitContext.ts',
-	'vs/workbench/contrib/chat/browser/chatInputPart.ts',
-	'vs/workbench/contrib/mergeEditor/browser/model/modifiedBaseRange.ts',
-	'vs/workbench/contrib/mergeEditor/browser/model/diffComputer.ts',
-	'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel.ts',
-	'vs/workbench/contrib/mergeEditor/browser/view/editorGutter.ts',
-	'vs/workbench/contrib/mergeEditor/browser/view/editors/codeEditorView.ts',
-	'vs/workbench/contrib/mergeEditor/browser/view/editors/inputCodeEditorView.ts',
-	'vs/workbench/contrib/mergeEditor/browser/view/viewModel.ts',
-	'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel.ts',
-	'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput.ts',
-	'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.ts',
-	'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.ts',
-	'vs/platform/terminal/common/capabilities/commandDetectionCapability.ts',
-	'vs/workbench/services/userDataProfile/browser/snippetsResource.ts',
-	'vs/platform/quickinput/browser/quickInputController.ts',
-	'vs/platform/userDataSync/common/abstractSynchronizer.ts',
-	'vs/workbench/services/authentication/browser/authenticationExtensionsService.ts',
-	'vs/workbench/services/textMate/browser/backgroundTokenization/textMateWorkerTokenizerController.ts',
-	'vs/workbench/services/textMate/browser/textMateTokenizationFeatureImpl.ts',
-	'vs/workbench/contrib/notebook/browser/services/notebookServiceImpl.ts',
-	'vs/workbench/contrib/notebook/browser/contrib/multicursor/notebookMulticursor.ts',
-	'vs/editor/browser/widget/multiDiffEditor/diffEditorItemTemplate.ts',
-	'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.ts',
-	'vs/workbench/contrib/notebook/browser/diff/notebookMultiDiffEditor.ts',
-	'vs/workbench/contrib/chat/common/promptSyntax/contentProviders/textModelContentsProvider.ts',
-	'vs/workbench/contrib/chat/common/promptSyntax/service/promptsService.ts',
-	'vs/workbench/contrib/search/common/cacheState.ts',
-	'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess.ts',
-	'vs/workbench/contrib/search/browser/anythingQuickAccess.ts',
-	'vs/platform/quickinput/browser/commandsQuickAccess.ts',
-	'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess.ts',
-	'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver.ts',
-	'vs/workbench/contrib/markers/browser/markersViewActions.ts',
-	'vs/workbench/contrib/mergeEditor/browser/view/viewZones.ts',
-	'vs/workbench/contrib/mergeEditor/browser/view/mergeEditor.ts',
-	'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService.ts',
-	'vs/workbench/contrib/output/browser/outputServices.ts',
-	'vs/workbench/contrib/terminalContrib/typeAhead/browser/terminalTypeAheadAddon.ts',
-	'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoLineQuickAccess.ts',
-	'vs/workbench/contrib/editSessions/browser/editSessionsStorageService.ts',
-	'vs/workbench/contrib/accessibilitySignals/browser/editorTextPropertySignalsContribution.ts',
-	'vs/workbench/contrib/inlineCompletions/browser/inlineCompletionLanguageStatusBarContribution.ts',
-	'vs/workbench/services/extensionManagement/common/webExtensionManagementService.ts',
-	'vs/workbench/contrib/welcomeDialog/browser/welcomeWidget.ts',
-	'vs/editor/standalone/browser/quickInput/standaloneQuickInputService.ts',
-	'vs/editor/contrib/inlineCompletions/browser/view/inlineEdits/inlineEditsViews/inlineEditsWordInsertView.ts',
-	'vs/platform/terminal/node/ptyService.ts',
-	'vs/workbench/api/common/extHostLanguageFeatures.ts',
-	'vs/workbench/api/common/extHostSearch.ts',
-]);
+const EntryKind = Object.freeze({
+	Span: 'Span',
+	Node: 'Node',
+	StringLiteral: 'StringLiteral',
+	SearchedLocalFoundProperty: 'SearchedLocalFoundProperty',
+	SearchedPropertyFoundLocal: 'SearchedPropertyFoundLocal'
+});
 
+type EntryKind = typeof EntryKind[keyof typeof EntryKind];
 
 const cancellationToken: ts.CancellationToken = {
 	isCancellationRequested: () => false,
@@ -149,12 +61,6 @@ for (const file of program.getSourceFiles()) {
 	if (!file || file.isDeclarationFile) {
 		continue;
 	}
-
-	const relativePath = path.relative(path.dirname(TS_CONFIG_PATH), file.fileName).replace(/\\/g, '/');
-	if (ignored.has(relativePath)) {
-		continue;
-	}
-
 	visit(file);
 }
 
@@ -344,12 +250,32 @@ function* findAllReferencesInClass(node: ts.Node): Generator<ts.Node> {
 
 // NOTE: The following uses TypeScript internals and are subject to change from version to version.
 
+interface TypeScriptInternals {
+	getTouchingPropertyName(sourceFile: ts.SourceFile, position: number): ts.Node;
+	FindAllReferences: {
+		FindReferencesUse: {
+			References: number;
+		};
+		Core: {
+			getReferencedSymbolsForNode(
+				position: number,
+				node: ts.Node,
+				program: ts.Program,
+				sourceFiles: readonly ts.SourceFile[],
+				cancellationToken: ts.CancellationToken,
+				options: { use: number }
+			): readonly SymbolAndEntries[] | undefined;
+		};
+	};
+}
+
 function findAllReferences(node: ts.Node): readonly SymbolAndEntries[] {
 	const sourceFile = node.getSourceFile();
 	const position = node.getStart();
-	const name: ts.Node = (ts as any).getTouchingPropertyName(sourceFile, position);
-	const options = { use: (ts as any).FindAllReferences.FindReferencesUse.References };
-	return (ts as any).FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
+	const tsInternal = ts as unknown as TypeScriptInternals;
+	const name: ts.Node = tsInternal.getTouchingPropertyName(sourceFile, position);
+	const options = { use: tsInternal.FindAllReferences.FindReferencesUse.References };
+	return tsInternal.FindAllReferences.Core.getReferencedSymbolsForNode(position, name, program, [sourceFile], cancellationToken, options) ?? [];
 }
 
 interface SymbolAndEntries {
@@ -357,32 +283,25 @@ interface SymbolAndEntries {
 	readonly references: readonly Entry[];
 }
 
-const enum DefinitionKind {
-	Symbol,
-	Label,
-	Keyword,
-	This,
-	String,
-	TripleSlashReference,
-}
+const DefinitionKind = Object.freeze({
+	Symbol: 0,
+	Label: 1,
+	Keyword: 2,
+	This: 3,
+	String: 4,
+	TripleSlashReference: 5,
+});
+type DefinitionKind = typeof DefinitionKind[keyof typeof DefinitionKind];
 
 type Definition =
-	| { readonly type: DefinitionKind.Symbol; readonly symbol: ts.Symbol }
-	| { readonly type: DefinitionKind.Label; readonly node: ts.Identifier }
-	| { readonly type: DefinitionKind.Keyword; readonly node: ts.Node }
-	| { readonly type: DefinitionKind.This; readonly node: ts.Node }
-	| { readonly type: DefinitionKind.String; readonly node: ts.StringLiteralLike }
-	| { readonly type: DefinitionKind.TripleSlashReference; readonly reference: ts.FileReference; readonly file: ts.SourceFile };
+	| { readonly type: DefinitionKind; readonly symbol: ts.Symbol }
+	| { readonly type: DefinitionKind; readonly node: ts.Identifier }
+	| { readonly type: DefinitionKind; readonly node: ts.Node }
+	| { readonly type: DefinitionKind; readonly node: ts.Node }
+	| { readonly type: DefinitionKind; readonly node: ts.StringLiteralLike }
+	| { readonly type: DefinitionKind; readonly reference: ts.FileReference; readonly file: ts.SourceFile };
 
-/** @internal */
-export const enum EntryKind {
-	Span,
-	Node,
-	StringLiteral,
-	SearchedLocalFoundProperty,
-	SearchedPropertyFoundLocal,
-}
-type NodeEntryKind = EntryKind.Node | EntryKind.StringLiteral | EntryKind.SearchedLocalFoundProperty | EntryKind.SearchedPropertyFoundLocal;
+type NodeEntryKind = typeof EntryKind.Node | typeof EntryKind.StringLiteral | typeof EntryKind.SearchedLocalFoundProperty | typeof EntryKind.SearchedPropertyFoundLocal;
 type Entry = NodeEntry | SpanEntry;
 interface ContextWithStartAndEndNode {
 	start: ts.Node;
@@ -395,7 +314,7 @@ interface NodeEntry {
 	readonly context?: ContextNode;
 }
 interface SpanEntry {
-	readonly kind: EntryKind.Span;
+	readonly kind: typeof EntryKind.Span;
 	readonly fileName: string;
 	readonly textSpan: ts.TextSpan;
 }

@@ -27,10 +27,12 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 		});
 		ensureNoDisposablesAreLeakedInTestSuite();
 		function createModifiedModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Modified:${id}` as any;
 
 		}
 		function createOriginalModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Original:${id}` as any;
 
 		}
@@ -58,6 +60,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 			];
 
 			const result = adjustCellDiffForKeepingAnInsertedCell(0,
+				// eslint-disable-next-line local/code-no-any-casts
 				cellsDiffInfo, {} as any,
 				applyEdits, createModifiedCellDiffInfo);
 
@@ -100,6 +103,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 			];
 
 			const result = adjustCellDiffForKeepingAnInsertedCell(0,
+				// eslint-disable-next-line local/code-no-any-casts
 				cellsDiffInfo, {} as any,
 				applyEdits, createModifiedCellDiffInfo);
 
@@ -154,6 +158,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 			];
 
 			const result = adjustCellDiffForKeepingAnInsertedCell(2,
+				// eslint-disable-next-line local/code-no-any-casts
 				cellsDiffInfo, {} as any,
 				applyEdits, createModifiedCellDiffInfo);
 
@@ -196,10 +201,12 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 		});
 		ensureNoDisposablesAreLeakedInTestSuite();
 		function createModifiedModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Modified:${id}` as any;
 
 		}
 		function createOriginalModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Original:${id}` as any;
 
 		}
@@ -405,10 +412,12 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 		});
 		ensureNoDisposablesAreLeakedInTestSuite();
 		function createModifiedModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Modified:${id}` as any;
 
 		}
 		function createOriginalModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Original:${id}` as any;
 
 		}
@@ -565,10 +574,12 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 		});
 		ensureNoDisposablesAreLeakedInTestSuite();
 		function createModifiedModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Modified:${id}` as any;
 
 		}
 		function createOriginalModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Original:${id}` as any;
 
 		}
@@ -605,6 +616,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 
 			const result = adjustCellDiffForRevertingADeletedCell(0,
 				cellsDiffInfo,
+				// eslint-disable-next-line local/code-no-any-casts
 				{} as any,
 				applyEdits,
 				createModifiedCellDiffInfo);
@@ -653,6 +665,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 
 			const result = adjustCellDiffForRevertingADeletedCell(1,
 				cellsDiffInfo,
+				// eslint-disable-next-line local/code-no-any-casts
 				{} as any,
 				applyEdits,
 				createModifiedCellDiffInfo);
@@ -710,6 +723,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 
 			const result = adjustCellDiffForRevertingADeletedCell(1,
 				cellsDiffInfo,
+				// eslint-disable-next-line local/code-no-any-casts
 				{} as any,
 				applyEdits,
 				createModifiedCellDiffInfo);
@@ -757,10 +771,12 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 		});
 		ensureNoDisposablesAreLeakedInTestSuite();
 		function createModifiedModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Modified:${id}` as any;
 
 		}
 		function createOriginalModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Original:${id}` as any;
 
 		}
@@ -771,6 +787,7 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 
 		function createICell(cellKind: CellKind, source: string): ICell {
 			const handle = hash(generateUuid());
+			// eslint-disable-next-line local/code-no-any-casts
 			return {
 				uri: URI.parse(`file:///path/${handle}`),
 				handle,
@@ -1512,10 +1529,12 @@ suite('ChatEditingModifiedNotebookEntry', function () {
 
 		ensureNoDisposablesAreLeakedInTestSuite();
 		function createModifiedModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Modified:${id}` as any;
 
 		}
 		function createOriginalModel(id: string): ObservablePromise<ITextModel> {
+			// eslint-disable-next-line local/code-no-any-casts
 			return `Original:${id}` as any;
 
 		}

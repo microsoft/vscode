@@ -9,11 +9,15 @@ import { Event } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { IPager } from '../../../base/common/paging.js';
 import { Platform } from '../../../base/common/platform.js';
+import { PolicyCategory } from '../../../base/common/policy.js';
 import { URI } from '../../../base/common/uri.js';
-import { localize2 } from '../../../nls.js';
+import { localize, localize2 } from '../../../nls.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
 import { FileOperationError, FileOperationResult, IFileService, IFileStat } from '../../files/common/files.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { Registry } from '../../registry/common/platform.js';
+import { IExtensionGalleryManifest } from './extensionGalleryManifest.js';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -186,8 +190,9 @@ export interface IGalleryExtensionAssets {
 	coreTranslations: [string, IGalleryExtensionAsset][];
 }
 
-export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
-	return thing
+export function isIExtensionIdentifier(obj: unknown): obj is IExtensionIdentifier {
+	const thing = obj as IExtensionIdentifier | undefined;
+	return !!thing
 		&& typeof thing === 'object'
 		&& typeof thing.id === 'string'
 		&& (!thing.uuid || typeof thing.uuid === 'string');
@@ -206,6 +211,7 @@ export interface IGalleryExtensionVersion {
 	version: string;
 	date: string;
 	isPreReleaseVersion: boolean;
+	targetPlatforms: TargetPlatform[];
 }
 
 export interface IGalleryExtension {
@@ -239,8 +245,8 @@ export interface IGalleryExtension {
 	detailsLink?: string;
 	ratingLink?: string;
 	supportLink?: string;
-	telemetryData?: any;
-	queryContext?: IStringDictionary<any>;
+	telemetryData?: IStringDictionary<unknown>;
+	queryContext?: IStringDictionary<unknown>;
 }
 
 export type InstallSource = 'gallery' | 'vsix' | 'resource';
@@ -345,11 +351,16 @@ export interface ISearchPrefferedResults {
 	readonly preferredResults?: string[];
 }
 
+export type MaliciousExtensionInfo = {
+	readonly extensionOrPublisher: IExtensionIdentifier | string;
+	readonly learnMoreLink?: string;
+};
+
 export interface IExtensionsControlManifest {
-	readonly malicious: ReadonlyArray<IExtensionIdentifier | string>;
+	readonly malicious: ReadonlyArray<MaliciousExtensionInfo>;
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
 	readonly search: ISearchPrefferedResults[];
-	readonly extensionsEnabledWithPreRelease?: string[];
+	readonly autoUpdate?: IStringDictionary<string>;
 }
 
 export const enum InstallOperation {
@@ -375,7 +386,6 @@ export interface IExtensionQueryOptions {
 	compatible?: boolean;
 	queryAllVersions?: boolean;
 	source?: string;
-	preferResourceApi?: boolean;
 }
 
 export interface IExtensionGalleryCapabilities {
@@ -401,6 +411,7 @@ export interface IExtensionGalleryService {
 	isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion?: IProductVersion): Promise<boolean>;
 	getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion?: IProductVersion): Promise<IGalleryExtension | null>;
 	getAllCompatibleVersions(extensionIdentifier: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
+	getAllVersions(extensionIdentifier: IExtensionIdentifier): Promise<IGalleryExtensionVersion[]>;
 	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;
 	downloadSignatureArchive(extension: IGalleryExtension, location: URI): Promise<void>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
@@ -425,7 +436,7 @@ export interface InstallExtensionResult {
 	readonly source?: URI | IGalleryExtension;
 	readonly local?: ILocalExtension;
 	readonly error?: Error;
-	readonly context?: IStringDictionary<any>;
+	readonly context?: IStringDictionary<unknown>;
 	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
 	readonly workspaceScoped?: boolean;
@@ -454,6 +465,8 @@ export interface DidUpdateExtensionMetadata {
 export const enum ExtensionGalleryErrorCode {
 	Timeout = 'Timeout',
 	Cancelled = 'Cancelled',
+	ClientError = 'ClientError',
+	ServerError = 'ServerError',
 	Failed = 'Failed',
 	DownloadFailedWriting = 'DownloadFailedWriting',
 	Offline = 'Offline',
@@ -566,7 +579,7 @@ export type InstallOptions = {
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */
-	context?: IStringDictionary<any>;
+	context?: IStringDictionary<unknown>;
 };
 
 export type UninstallOptions = {
@@ -589,6 +602,8 @@ export const IExtensionManagementService = createDecorator<IExtensionManagementS
 export interface IExtensionManagementService {
 	readonly _serviceBrand: undefined;
 
+	readonly preferPreReleases: boolean;
+
 	onInstallExtension: Event<InstallExtensionEvent>;
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<UninstallExtensionEvent>;
@@ -605,8 +620,8 @@ export interface IExtensionManagementService {
 	installExtensionsFromProfile(extensions: IExtensionIdentifier[], fromProfileLocation: URI, toProfileLocation: URI): Promise<ILocalExtension[]>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void>;
-	toggleAppliationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
-	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;
+	toggleApplicationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
+	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion, language?: string): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension>;
@@ -694,5 +709,94 @@ export async function computeSize(location: URI, fileService: IFileService): Pro
 
 export const ExtensionsLocalizedLabel = localize2('extensions', "Extensions");
 export const PreferencesLocalizedLabel = localize2('preferences', 'Preferences');
-export const UseUnpkgResourceApiConfigKey = 'extensions.gallery.useUnpkgResourceApi';
 export const AllowedExtensionsConfigKey = 'extensions.allowed';
+export const VerifyExtensionSignatureConfigKey = 'extensions.verifySignature';
+export const ExtensionRequestsTimeoutConfigKey = 'extensions.requestTimeout';
+
+Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+	.registerConfiguration({
+		id: 'extensions',
+		order: 30,
+		title: localize('extensionsConfigurationTitle', "Extensions"),
+		type: 'object',
+		properties: {
+			[AllowedExtensionsConfigKey]: {
+				// Note: Type is set only to object because to support policies generation during build time, where single type is expected.
+				type: 'object',
+				markdownDescription: localize('extensions.allowed', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. For more information on how to configure this setting, please visit the [Configure Allowed Extensions](https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions) section."),
+				default: '*',
+				defaultSnippets: [{
+					body: {},
+					description: localize('extensions.allowed.none', "No extensions are allowed."),
+				}, {
+					body: {
+						'*': true
+					},
+					description: localize('extensions.allowed.all', "All extensions are allowed."),
+				}],
+				scope: ConfigurationScope.APPLICATION,
+				policy: {
+					name: 'AllowedExtensions',
+					category: PolicyCategory.Extensions,
+					minimumVersion: '1.96',
+					localization: {
+						description: {
+							key: 'extensions.allowed.policy',
+							value: localize('extensions.allowed.policy', "Specify a list of extensions that are allowed to use. This helps maintain a secure and consistent development environment by restricting the use of unauthorized extensions. More information: https://code.visualstudio.com/docs/setup/enterprise#_configure-allowed-extensions"),
+						}
+					}
+				},
+				additionalProperties: false,
+				patternProperties: {
+					'([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+						anyOf: [
+							{
+								type: ['boolean', 'string'],
+								enum: [true, false, 'stable'],
+								description: localize('extensions.allow.description', "Allow or disallow the extension."),
+								enumDescriptions: [
+									localize('extensions.allowed.enable.desc', "Extension is allowed."),
+									localize('extensions.allowed.disable.desc', "Extension is not allowed."),
+									localize('extensions.allowed.disable.stable.desc', "Allow only stable versions of the extension."),
+								],
+							},
+							{
+								type: 'array',
+								items: {
+									type: 'string',
+								},
+								description: localize('extensions.allow.version.description', "Allow or disallow specific versions of the extension. To specifcy a platform specific version, use the format `platform@1.2.3`, e.g. `win32-x64@1.2.3`. Supported platforms are `win32-x64`, `win32-arm64`, `linux-x64`, `linux-arm64`, `linux-armhf`, `alpine-x64`, `alpine-arm64`, `darwin-x64`, `darwin-arm64`"),
+							},
+						]
+					},
+					'([a-z0-9A-Z][a-z0-9-A-Z]*)$': {
+						type: ['boolean', 'string'],
+						enum: [true, false, 'stable'],
+						description: localize('extension.publisher.allow.description', "Allow or disallow all extensions from the publisher."),
+						enumDescriptions: [
+							localize('extensions.publisher.allowed.enable.desc', "All extensions from the publisher are allowed."),
+							localize('extensions.publisher.allowed.disable.desc', "All extensions from the publisher are not allowed."),
+							localize('extensions.publisher.allowed.disable.stable.desc', "Allow only stable versions of the extensions from the publisher."),
+						],
+					},
+					'\\*': {
+						type: 'boolean',
+						enum: [true, false],
+						description: localize('extensions.allow.all.description', "Allow or disallow all extensions."),
+						enumDescriptions: [
+							localize('extensions.allow.all.enable', "Allow all extensions."),
+							localize('extensions.allow.all.disable', "Disallow all extensions.")
+						],
+					}
+				}
+			}
+		}
+	});
+
+export function shouldRequireRepositorySignatureFor(isPrivate: boolean, galleryManifest: IExtensionGalleryManifest | null): boolean {
+	if (isPrivate) {
+		return galleryManifest?.capabilities.signing?.allPrivateRepositorySigned === true;
+	}
+	return galleryManifest?.capabilities.signing?.allPublicRepositorySigned === true;
+}
+

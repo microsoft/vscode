@@ -10,7 +10,7 @@ import type { ReadableStream } from 'stream/web';
 import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import crypto from 'crypto';
-import { retry } from './retry';
+import { retry } from './retry.ts';
 import { CosmosClient } from '@azure/cosmos';
 import cp from 'child_process';
 import os from 'os';
@@ -20,7 +20,7 @@ import { BlobClient, BlobServiceClient, BlockBlobClient, ContainerClient, Contai
 import jws from 'jws';
 import { clearInterval, setInterval } from 'node:timers';
 
-function e(name: string): string {
+export function e(name: string): string {
 	const result = process.env[name];
 
 	if (typeof result !== 'string') {
@@ -73,15 +73,16 @@ interface ReleaseError {
 	errorMessages: string[];
 }
 
-const enum StatusCode {
-	Pass = 'pass',
-	Aborted = 'aborted',
-	Inprogress = 'inprogress',
-	FailCanRetry = 'failCanRetry',
-	FailDoNotRetry = 'failDoNotRetry',
-	PendingAnalysis = 'pendingAnalysis',
-	Cancelled = 'cancelled'
-}
+const StatusCode = Object.freeze({
+	Pass: 'pass',
+	Aborted: 'aborted',
+	Inprogress: 'inprogress',
+	FailCanRetry: 'failCanRetry',
+	FailDoNotRetry: 'failDoNotRetry',
+	PendingAnalysis: 'pendingAnalysis',
+	Cancelled: 'cancelled'
+});
+type StatusCode = typeof StatusCode[keyof typeof StatusCode];
 
 interface ReleaseResultMessage {
 	activities: ReleaseActivityInfo[];
@@ -315,7 +316,7 @@ function getCertificatesFromPFX(pfx: string): string[] {
 class ESRPReleaseService {
 
 	static async create(
-		log: (...args: any[]) => void,
+		log: (...args: unknown[]) => void,
 		tenantId: string,
 		clientId: string,
 		authCertificatePfx: string,
@@ -349,15 +350,31 @@ class ESRPReleaseService {
 
 	private static API_URL = 'https://api.esrp.microsoft.com/api/v3/releaseservices/clients/';
 
+	private readonly log: (...args: unknown[]) => void;
+	private readonly clientId: string;
+	private readonly accessToken: string;
+	private readonly requestSigningCertificates: string[];
+	private readonly requestSigningKey: string;
+	private readonly containerClient: ContainerClient;
+	private readonly stagingSasToken: string;
+
 	private constructor(
-		private readonly log: (...args: any[]) => void,
-		private readonly clientId: string,
-		private readonly accessToken: string,
-		private readonly requestSigningCertificates: string[],
-		private readonly requestSigningKey: string,
-		private readonly containerClient: ContainerClient,
-		private readonly stagingSasToken: string
-	) { }
+		log: (...args: unknown[]) => void,
+		clientId: string,
+		accessToken: string,
+		requestSigningCertificates: string[],
+		requestSigningKey: string,
+		containerClient: ContainerClient,
+		stagingSasToken: string
+	) {
+		this.log = log;
+		this.clientId = clientId;
+		this.accessToken = accessToken;
+		this.requestSigningCertificates = requestSigningCertificates;
+		this.requestSigningKey = requestSigningKey;
+		this.containerClient = containerClient;
+		this.stagingSasToken = stagingSasToken;
+	}
 
 	async createRelease(version: string, filePath: string, friendlyFileName: string) {
 		const correlationId = crypto.randomUUID();
@@ -480,11 +497,11 @@ class ESRPReleaseService {
 	private async getReleaseStatus(releaseId: string): Promise<ReleaseResultMessage> {
 		const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grs/${releaseId}`;
 
-		const res = await fetch(url, {
+		const res = await retry(() => fetch(url, {
 			headers: {
 				'Authorization': `Bearer ${this.accessToken}`
 			}
-		});
+		}));
 
 		if (!res.ok) {
 			const text = await res.text();
@@ -497,11 +514,11 @@ class ESRPReleaseService {
 	private async getReleaseDetails(releaseId: string): Promise<ReleaseDetailsMessage> {
 		const url = `${ESRPReleaseService.API_URL}${this.clientId}/workflows/release/operations/grd/${releaseId}`;
 
-		const res = await fetch(url, {
+		const res = await retry(() => fetch(url, {
 			headers: {
 				'Authorization': `Bearer ${this.accessToken}`
 			}
-		});
+		}));
 
 		if (!res.ok) {
 			const text = await res.text();
@@ -512,17 +529,21 @@ class ESRPReleaseService {
 	}
 
 	private async generateJwsToken(message: ReleaseRequestMessage): Promise<string> {
+		// Create header with properly typed properties, then override x5c with the non-standard string format
+		const header: jws.Header = {
+			alg: 'RS256',
+			crit: ['exp', 'x5t'],
+			// Release service uses ticks, not seconds :roll_eyes: (https://stackoverflow.com/a/7968483)
+			exp: ((Date.now() + (6 * 60 * 1000)) * 10000) + 621355968000000000,
+			// Release service uses hex format, not base64url :roll_eyes:
+			x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
+		};
+
+		// The Release service expects x5c as a '.' separated string, not the standard array format
+		(header as Record<string, unknown>)['x5c'] = this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.');
+
 		return jws.sign({
-			header: {
-				alg: 'RS256',
-				crit: ['exp', 'x5t'],
-				// Release service uses ticks, not seconds :roll_eyes: (https://stackoverflow.com/a/7968483)
-				exp: ((Date.now() + (6 * 60 * 1000)) * 10000) + 621355968000000000,
-				// Release service uses hex format, not base64url :roll_eyes:
-				x5t: getThumbprint(this.requestSigningCertificates[0], 'sha1').toString('hex'),
-				// Release service uses a '.' separated string, not an array of strings :roll_eyes:
-				x5c: this.requestSigningCertificates.map(c => getCertificateBuffer(c).toString('base64url')).join('.') as any,
-			},
+			header,
 			payload: message,
 			privateKey: this.requestSigningKey,
 		});
@@ -583,12 +604,12 @@ const azdoFetchOptions = {
 	}
 };
 
-async function requestAZDOAPI<T>(path: string): Promise<T> {
+export async function requestAZDOAPI<T>(path: string): Promise<T> {
 	const abortController = new AbortController();
 	const timeout = setTimeout(() => abortController.abort(), 2 * 60 * 1000);
 
 	try {
-		const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal });
+		const res = await retry(() => fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal }));
 
 		if (!res.ok) {
 			throw new Error(`Unexpected status code: ${res.status}`);
@@ -600,7 +621,7 @@ async function requestAZDOAPI<T>(path: string): Promise<T> {
 	}
 }
 
-interface Artifact {
+export interface Artifact {
 	readonly name: string;
 	readonly resource: {
 		readonly downloadUrl: string;
@@ -620,6 +641,7 @@ interface Timeline {
 		readonly name: string;
 		readonly type: string;
 		readonly state: string;
+		readonly result: string;
 	}[];
 }
 
@@ -843,7 +865,7 @@ async function processArtifact(
 	artifact: Artifact,
 	filePath: string
 ) {
-	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
+	const log = (...args: unknown[]) => console.log(`[${artifact.name}]`, ...args);
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
 	if (!match) {
@@ -959,11 +981,13 @@ async function main() {
 	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
+	let timeline: Timeline;
+	let artifacts: Artifact[];
 	let resultPromise = Promise.resolve<PromiseSettledResult<void>[]>([]);
 	const operations: { name: string; operation: Promise<void> }[] = [];
 
 	while (true) {
-		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
+		[timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
 		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
@@ -1002,7 +1026,7 @@ async function main() {
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {
-				const worker = new Worker(__filename, { workerData: { artifact, artifactFilePath } });
+				const worker = new Worker(import.meta.filename, { workerData: { artifact, artifactFilePath } });
 				worker.on('error', reject);
 				worker.on('exit', code => {
 					if (code === 0) {
@@ -1044,14 +1068,31 @@ async function main() {
 		}
 	}
 
+	// Fail the job if any of the artifacts failed to publish
 	if (results.some(r => r.status === 'rejected')) {
 		throw new Error('Some artifacts failed to publish');
+	}
+
+	// Also fail the job if any of the stages did not succeed
+	let shouldFail = false;
+
+	for (const stage of stages) {
+		const record = timeline.records.find(r => r.name === stage && r.type === 'Stage')!;
+
+		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
+			shouldFail = true;
+			console.error(`Stage ${stage} did not succeed: ${record.result}`);
+		}
+	}
+
+	if (shouldFail) {
+		throw new Error('Some stages did not succeed');
 	}
 
 	console.log(`All ${done.size} artifacts published!`);
 }
 
-if (require.main === module) {
+if (import.meta.main) {
 	main().then(() => {
 		process.exit(0);
 	}, err => {

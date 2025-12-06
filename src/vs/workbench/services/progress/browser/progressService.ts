@@ -47,7 +47,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		const { location } = options;
 
 		const task = async (progress: IProgress<IProgressStep>) => {
-			const activeLock = this.userActivityService.markActive({ whenHeldFor: 15_000 });
+			const activeLock = this.userActivityService.markActive({ extendOnly: true, whenHeldFor: 15_000 });
 			try {
 				return await originalTask(progress);
 			} finally {
@@ -120,7 +120,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		const promise = callback(task[1]);
 
-		let delayHandle: any = setTimeout(() => {
+		let delayHandle: Timeout | undefined = setTimeout(() => {
 			delayHandle = undefined;
 			this.windowProgressStack.unshift(task);
 			this.updateWindowProgress();
@@ -140,15 +140,15 @@ export class ProgressService extends Disposable implements IProgressService {
 		return promise.finally(() => clearTimeout(delayHandle));
 	}
 
-	private updateWindowProgress(idx: number = 0) {
+	private updateWindowProgress(idx = 0) {
 
 		// We still have progress to show
 		if (idx < this.windowProgressStack.length) {
 			const [options, progress] = this.windowProgressStack[idx];
 
 			const progressTitle = options.title;
-			const progressMessage = progress.value && progress.value.message;
-			const progressCommand = (<IProgressWindowOptions>options).command;
+			const progressMessage = progress.value?.message;
+			const progressCommand = options.command;
 			let text: string;
 			let title: string;
 			const source = options.source && typeof options.source !== 'string' ? options.source.label : options.source;
@@ -338,6 +338,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			// shows again.
 			let windowProgressDisposable: IDisposable | undefined = undefined;
 			const onVisibilityChange = (visible: boolean) => {
+
 				// Clear any previous running window progress
 				dispose(windowProgressDisposable);
 
@@ -370,7 +371,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		};
 
 		let notificationHandle: INotificationHandle | undefined;
-		let notificationTimeout: any | undefined;
+		let notificationTimeout: Timeout | undefined;
 		let titleAndMessage: string | undefined; // hoisted to make sure a delayed notification shows the most recent message
 
 		const updateNotification = (step?: IProgressStep): void => {
@@ -386,7 +387,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 				// create notification now or after a delay
 				if (typeof options.delay === 'number' && options.delay > 0) {
-					if (typeof notificationTimeout !== 'number') {
+					if (notificationTimeout === undefined) {
 						notificationTimeout = setTimeout(() => notificationHandle = createNotification(titleAndMessage!, options.priority, step?.increment), options.delay);
 					}
 				} else {
@@ -466,7 +467,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 	private showOnActivityBar<P extends Promise<R>, R = unknown>(viewletId: string, options: IProgressCompositeOptions, promise: P): void {
 		let activityProgress: IDisposable;
-		let delayHandle: any = setTimeout(() => {
+		let delayHandle: Timeout | undefined = setTimeout(() => {
 			delayHandle = undefined;
 			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => '') });
 			const startTimeVisible = Date.now();

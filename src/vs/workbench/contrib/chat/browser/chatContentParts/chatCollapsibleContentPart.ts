@@ -3,36 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $ } from '../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
-import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { Disposable, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
-import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
+import { ChatTreeItem } from '../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { $ } from './chatReferencesContentPart.js';
-import { EditorPool } from './chatMarkdownContentPart.js';
-import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeBlockPart.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
-import { IDisposableReference } from './chatCollections.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
+import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IMarkdownRenderer } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 
 
 export abstract class ChatCollapsibleContentPart extends Disposable implements IChatContentPart {
 
 	private _domNode?: HTMLElement;
+	private readonly _renderedTitleWithWidgets = this._register(new MutableDisposable<IRenderedMarkdown>());
 
 	protected readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	protected readonly hasFollowingContent: boolean;
 	protected _isExpanded = observableValue<boolean>(this, false);
+	protected _collapseButton: ButtonWithIcon | undefined;
 
 	constructor(
-		private readonly title: IMarkdownString | string,
+		private title: IMarkdownString | string,
 		protected readonly context: IChatContentPartRenderContext,
 	) {
 		super();
@@ -60,6 +62,7 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 			buttonSecondaryHoverBackground: undefined,
 			buttonSeparator: undefined
 		}));
+		this._collapseButton = collapseButton;
 		this._domNode = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 
@@ -109,76 +112,34 @@ export abstract class ChatCollapsibleContentPart extends Disposable implements I
 	protected setExpanded(value: boolean): void {
 		this._isExpanded.set(value, undefined);
 	}
-}
 
-
-export class ChatCollapsibleEditorContentPart extends ChatCollapsibleContentPart {
-
-	private readonly _editorReference: IDisposableReference<CodeBlockPart>;
-	private readonly _contentDomNode: HTMLElement;
-
-	private _currentWidth: number = 0;
-
-	readonly codeblocks: IChatCodeBlockInfo[] = [];
-
-	constructor(
-		title: IMarkdownString | string,
-		context: IChatContentPartRenderContext,
-		private readonly editorPool: EditorPool,
-		private readonly textModel: Promise<ITextModel>,
-		private readonly languageId: string,
-		private readonly options: ICodeBlockRenderOptions = {},
-		private readonly codeBlockInfo: IChatCodeBlockInfo,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-	) {
-		super(title, context);
-		this._contentDomNode = $('div.chat-collapsible-editor-content');
-		this._editorReference = this.editorPool.get();
-		this.codeblocks = [{
-			...codeBlockInfo,
-			focus: () => {
-				this._editorReference.object.focus();
-				codeBlockInfo.focus();
-			}
-		}];
+	protected setTitle(title: string): void {
+		this.title = title;
+		if (this._collapseButton) {
+			this._collapseButton.label = title;
+			this.updateAriaLabel(this._collapseButton.element, title, this.isExpanded());
+		}
 	}
 
-	override dispose(): void {
-		this._editorReference?.dispose();
-		super.dispose();
-	}
 
-	protected initContent(): HTMLElement {
-		const data: ICodeBlockData = {
-			languageId: this.languageId,
-			textModel: this.textModel,
-			codeBlockIndex: this.codeBlockInfo.codeBlockIndex,
-			codeBlockPartIndex: 0,
-			element: this.context.element,
-			parentContextKeyService: this.contextKeyService,
-			renderOptions: this.options
-		};
+	// Render collapsible dropdown title with widgets
+	protected setTitleWithWidgets(content: MarkdownString, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, chatContentMarkdownRenderer: IMarkdownRenderer): void {
+		if (this._store.isDisposed || !this._collapseButton) {
+			return;
+		}
 
-		this._editorReference.object.render(data, this._currentWidth || 300);
-		this._register(this._editorReference.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
-		this._contentDomNode.appendChild(this._editorReference.object.element);
+		const result = chatContentMarkdownRenderer.render(content);
+		result.element.classList.add('collapsible-title-content');
 
-		this._register(autorun(r => {
-			const value = this._isExpanded.read(r);
-			this._contentDomNode.style.display = value ? 'block' : 'none';
-		}));
+		renderFileWidgets(result.element, instantiationService, chatMarkdownAnchorService, this._store);
 
+		const labelElement = this._collapseButton.labelElement;
+		labelElement.textContent = '';
+		labelElement.appendChild(result.element);
 
-		return this._contentDomNode;
-	}
+		const textContent = result.element.textContent || '';
+		this.updateAriaLabel(this._collapseButton.element, textContent, this.isExpanded());
 
-	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		// For now, we consider content different unless it's exactly the same instance
-		return false;
-	}
-
-	layout(width: number): void {
-		this._currentWidth = width;
-		this._editorReference.object.layout(width);
+		this._renderedTitleWithWidgets.value = result;
 	}
 }
