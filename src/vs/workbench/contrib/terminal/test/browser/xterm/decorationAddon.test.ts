@@ -58,11 +58,12 @@ suite('DecorationAddon', () => {
 		xterm.loadAddon(decorationAddon);
 	});
 
+
 	suite('registerDecoration', () => {
 		test('should throw when command has no marker', async () => {
 			throws(() => decorationAddon.registerCommandDecoration({ command: 'cd src', timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand));
 		});
-		test('should return undefined when marker has been disposed of', async () => {
+		test('should return false when marker has been disposed of', async () => {
 			const marker = xterm.registerMarker(1);
 			marker.dispose();
 			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), false);
@@ -76,7 +77,7 @@ suite('DecorationAddon', () => {
 		});
 
 		test('should return true for decoration with mark properties', async () => {
-			const marker = xterm.registerMarker(2);
+			const marker = xterm.registerMarker(3);
 			strictEqual(decorationAddon.registerCommandDecoration(undefined, undefined, { marker }), true);
 			marker.dispose();
 			decorationAddon.clearDecorations();
