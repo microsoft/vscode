@@ -441,9 +441,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// Sessions control: stacked
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				newSessionsContainerVisible =
-					(!this._widget || this._widget?.isEmpty()) &&			// chat widget empty
-					!this.welcomeController?.isShowingWelcome.get() &&		// welcome not showing
-					this.sessionsCount > 0 || !this.sessionsViewerLimited;	// has sessions or is showing all sessions
+					(!this._widget || this._widget?.isEmpty()) &&				// chat widget empty
+					!this.welcomeController?.isShowingWelcome.get() &&			// welcome not showing
+					(this.sessionsCount > 0 || !this.sessionsViewerLimited);	// has sessions or is showing all sessions
 			}
 
 			// Sessions control: sidebar
