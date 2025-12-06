@@ -424,18 +424,21 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	async show(previousChanges?: boolean): Promise<void> {
 		this._assertNotDisposed();
-		if (this._editorPane) {
-			if (this._editorPane.isVisible()) {
-				return;
-			} else if (this._editorPane.input) {
-				await this._editorGroupsService.activeGroup.openEditor(this._editorPane.input, { pinned: true, activation: EditorActivation.ACTIVATE });
-				return;
-			}
-		}
 		const input = MultiDiffEditorInput.fromResourceMultiDiffEditorInput({
 			multiDiffSource: getMultiDiffSourceUri(this, previousChanges),
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
+
+		if (this._editorPane && (!this._editorPane.input || isEqual(this._editorPane.input.resource, input.resource))) {
+			if (this._editorPane.isVisible()) {
+				input.dispose();
+				return;
+			} else if (this._editorPane.input) {
+				await this._editorGroupsService.activeGroup.openEditor(this._editorPane.input, { pinned: true, activation: EditorActivation.ACTIVATE });
+				input.dispose();
+				return;
+			}
+		}
 
 		this._editorPaneDisposables.value = new DisposableStore();
 		const modelRef = this._chatService.getActiveSessionReference(this.chatSessionResource);
@@ -446,6 +449,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		this._editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
 		this._editorPaneDisposables.value.add(this._editorGroupsService.activeGroup.onDidCloseEditor(e => {
 			if (e.editor === input) {
+				this._editorPane = undefined;
 				this._editorPaneDisposables.clear();
 			}
 		}));
