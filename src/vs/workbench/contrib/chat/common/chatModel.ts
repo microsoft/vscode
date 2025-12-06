@@ -1294,6 +1294,9 @@ export interface IInputModel {
 
 	/** Clear input state (after sending or clearing) */
 	clearState(): void;
+
+	/** Serializes the state */
+	toJSON(): ISerializableChatModelInputState | undefined;
 }
 
 /**
@@ -1542,6 +1545,25 @@ class InputModel implements IInputModel {
 	clearState(): void {
 		this._state.set(undefined, undefined);
 	}
+
+	toJSON(): ISerializableChatModelInputState | undefined {
+		const value = this.state.get();
+		if (!value) {
+			return undefined;
+		}
+
+		return {
+			contrib: value.contrib,
+			attachments: value.attachments,
+			mode: value.mode,
+			selectedModel: value.selectedModel ? {
+				identifier: value.selectedModel.identifier,
+				metadata: value.selectedModel.metadata
+			} : undefined,
+			inputText: value.inputText,
+			selections: value.selections
+		};
+	}
 }
 
 export class ChatModel extends Disposable implements IChatModel {
@@ -1664,7 +1686,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		initialData: ISerializableChatData | IExportableChatData | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
+		initialModelProps: { initialLocation: ChatAgentLocation; canUseTools: boolean; inputState?: ISerializableChatModelInputState; resource?: URI; sessionId?: string; disableBackgroundKeepAlive?: boolean },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
@@ -1689,7 +1711,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._customTitle = isValidFullData ? initialData.customTitle : undefined;
 
 		// Initialize input model from serialized data (undefined for new chats)
-		const serializedInputState = isValidFullData && initialData.inputState ? initialData.inputState : undefined;
+		const serializedInputState = initialModelProps.inputState || (isValidFullData && initialData.inputState ? initialData.inputState : undefined);
 		this.inputModel = new InputModel(serializedInputState && {
 			attachments: serializedInputState.attachments,
 			mode: serializedInputState.mode,
@@ -2155,7 +2177,6 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	toJSON(): ISerializableChatData {
-		const inputState = this.inputModel.state.get();
 		return {
 			version: 3,
 			...this.toExport(),
@@ -2165,19 +2186,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			customTitle: this._customTitle,
 			hasPendingEdits: !!(this._editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)),
 			// Only include inputState if it has been set
-			...(inputState ? {
-				inputState: {
-					contrib: inputState.contrib,
-					attachments: inputState.attachments,
-					mode: inputState.mode,
-					selectedModel: inputState.selectedModel ? {
-						identifier: inputState.selectedModel.identifier,
-						metadata: inputState.selectedModel.metadata
-					} : undefined,
-					inputText: inputState.inputText,
-					selections: inputState.selections
-				}
-			} : {})
+			...this.inputModel.toJSON(),
 		};
 	}
 
