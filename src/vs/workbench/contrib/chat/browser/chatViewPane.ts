@@ -323,7 +323,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._register(Event.any(
 			this._widget.onDidChangeEmptyState,
 			Event.fromObservable(this.welcomeController.isShowingWelcome),
-			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewRecentSessionsEnabled))
+			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ChatConfiguration.ChatViewSessionsEnabled))
 		)(() => {
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				this.sessionsControl?.clearFocus(); // improve visual appearance when switching visibility by clearing focus
@@ -418,7 +418,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		let newSessionsContainerVisible: boolean;
-		if (!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewRecentSessionsEnabled)) {
+		if (!this.configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled)) {
 			newSessionsContainerVisible = false; // disabled in settings
 		} else {
 
