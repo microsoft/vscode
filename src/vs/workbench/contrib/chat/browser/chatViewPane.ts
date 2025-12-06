@@ -54,6 +54,7 @@ import { Link } from '../../../../platform/opener/browser/link.js';
 import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { ChatViewId } from './chat.js';
 import { disposableTimeout } from '../../../../base/common/async.js';
+import { AgentSessionsFilter } from './agentSessions/agentSessionsFilter.js';
 
 interface IChatViewPaneState extends Partial<IChatModelInputState> {
 	sessionId?: string;
@@ -355,25 +356,33 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			menuOptions: { shouldForwardArgs: true }
 		}));
 
-		// Sessions Control
-		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
-		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
-			allowOpenSessionsInPanel: true,
-			filter: {
-				limitResults: () => {
-					return that.sessionsViewerLimited ? ChatViewPane.SESSIONS_LIMIT : undefined;
-				},
-				exclude(session) {
-					if (that.sessionsViewerLimited && session.isArchived()) {
+		// Sessions Filter
+		const sessionsFilter = this._register(this.instantiationService.createInstance(AgentSessionsFilter, {
+			filterMenuId: MenuId.AgentSessionsViewerFilterSubMenu,
+			limitResults: () => {
+				return that.sessionsViewerLimited ? ChatViewPane.SESSIONS_LIMIT : undefined;
+			},
+			overrideExclude(session) {
+				if (that.sessionsViewerLimited) {
+					if (session.isArchived()) {
 						return true; // exclude archived sessions when limited
 					}
 
 					return false;
-				},
-				notifyResults(count: number) {
-					that.notifySessionsControlChanged(count);
 				}
+
+				return undefined; // leave up to the filter settings
+			},
+			notifyResults(count: number) {
+				that.notifySessionsControlChanged(count);
 			}
+		}));
+
+		// Sessions Control
+		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
+		this.sessionsControl = this._register(this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
+			allowOpenSessionsInPanel: true,
+			filter: sessionsFilter
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => this.sessionsControl?.setVisible(visible)));
 
@@ -429,12 +438,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			newSessionsContainerVisible = false; // disabled in settings
 		} else {
 
-			// Sessions control: stacked, compact
+			// Sessions control: stacked
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				newSessionsContainerVisible =
-					(!this._widget || this._widget?.isEmpty()) &&		// chat widget empty
-					!this.welcomeController?.isShowingWelcome.get() &&	// welcome not showing
-					this.sessionsCount > 0;								// has sessions
+					(!this._widget || this._widget?.isEmpty()) &&			// chat widget empty
+					!this.welcomeController?.isShowingWelcome.get() &&		// welcome not showing
+					this.sessionsCount > 0 || !this.sessionsViewerLimited;	// has sessions or is showing all sessions
 			}
 
 			// Sessions control: sidebar
@@ -643,7 +652,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			widthReduction = this.sessionsContainer.offsetWidth;
 		}
 
-		// Show compact (grows with the number of items displayed)
+		// Show stacked (grows with the number of items displayed)
 		else {
 			let sessionsHeight: number;
 			if (this.sessionsViewerLimited) {
@@ -657,7 +666,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.sessionsControl.layout(sessionsHeight, width);
 
 			heightReduction = this.sessionsContainer.offsetHeight;
-			widthReduction = 0; // compact on top of the chat widget
+			widthReduction = 0; // stacked on top of the chat widget
 		}
 
 		return { heightReduction, widthReduction };
