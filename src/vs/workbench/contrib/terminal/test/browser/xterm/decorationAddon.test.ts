@@ -64,16 +64,22 @@ suite('DecorationAddon', () => {
 		});
 		test('should return undefined when marker has been disposed of', async () => {
 			const marker = xterm.registerMarker(1);
-			marker?.dispose();
+			marker.dispose();
 			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), false);
+			decorationAddon.clearDecorations();
 		});
 		test('should return true for decoration when marker has not been disposed of', async () => {
 			const marker = xterm.registerMarker(2);
 			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), true);
+			marker.dispose();
+			decorationAddon.clearDecorations();
 		});
+
 		test('should return true for decoration with mark properties', async () => {
 			const marker = xterm.registerMarker(2);
 			strictEqual(decorationAddon.registerCommandDecoration(undefined, undefined, { marker }), true);
+			marker.dispose();
+			decorationAddon.clearDecorations();
 		});
 	});
 });
