@@ -23,25 +23,37 @@ const SLACK_SCOPES = [
     'channels:read',
     'groups:history',
     'groups:read',
-    'users:read'
+    'users:read',
+    'im:history',
+    'im:read'
 ].join(',');
 
 // Pending authentication state
 interface PendingAuth {
-    resolve: (access_token: string) => void;
+    resolve: (userInfo: IUserInfo) => void;
     reject: (error: Error) => void;
+}
+
+interface IUserInfo {
+    token: string;
+    userId: string;
 }
 
 interface ITokenFetchResponse {
     ok: boolean;
-    access_token: string;
+    authed_user: {
+        id: string;
+        access_token: string;
+    };
     error?: string;
 }
 
-interface IUserInfoFetchResponse {
+interface ISlackUserProfile {
     ok: boolean;
-    user_id: string;
-    user: string;
+    user: {
+        id: string;
+        name: string;
+    };
     error?: string;
 }
 
@@ -79,8 +91,8 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
         if (code) {
             try {
                 vscode.window.showInformationMessage('Completing Slack authentication...');
-                const token = await this._exchangeCodeForToken(code);
-                this._pendingAuth.resolve(token);
+                const userInfo = await this._exchangeCodeForTokenAndID(code);
+                this._pendingAuth.resolve(userInfo);
                 vscode.window.showInformationMessage('Successfully signed in to Slack!');
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : 'Token exchange failed';
@@ -102,17 +114,17 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
 
     async createSession(scopes: readonly string[]): Promise<vscode.AuthenticationSession> {
         try {
-            const token = await this._login();
-            if (!token) {
+            const userInfo = await this._login();
+            if (!userInfo) {
                 throw new Error('Slack login failed');
             }
-            const userInfo = await this._getUserInfo(token);
+            const userName = await this._getUserName(userInfo);
             const session: vscode.AuthenticationSession = {
                 id: crypto.randomUUID(),
-                accessToken: token,
+                accessToken: userInfo.token,
                 account: {
-                    id: userInfo.user_id,
-                    label: userInfo.user
+                    id: userInfo.userId,
+                    label: userName
                 },
                 scopes: scopes as string[]
             };
@@ -146,7 +158,7 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
         });
     }
 
-    private async _login(): Promise<string | undefined> {
+    private async _login(): Promise<IUserInfo | undefined> {
         return new Promise((resolve, reject) => {
             // Store the pending auth request
             this._pendingAuth = { resolve, reject };
@@ -154,7 +166,7 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
             // Open the Slack authorization URL in the browser
             // Slack will redirect to SLACK_REDIRECT_URI
             // which will then redirect to vscode://vs-code-codereview.vs-code-codereview/callback
-            const authUrl = `https://slack.com/oauth/v2/authorize?client_id=${SLACK_CLIENT_ID}&scope=${SLACK_SCOPES}&redirect_uri=${encodeURIComponent(SLACK_REDIRECT_URI)}`;
+            const authUrl = `https://slack.com/oauth/v2/authorize?client_id=${SLACK_CLIENT_ID}&user_scope=${SLACK_SCOPES}&redirect_uri=${encodeURIComponent(SLACK_REDIRECT_URI)}`;
             vscode.env.openExternal(vscode.Uri.parse(authUrl));
 
             // Timeout after 5 minutes
@@ -167,7 +179,7 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
         });
     }
 
-    private async _exchangeCodeForToken(code: string): Promise<string> {
+    private async _exchangeCodeForTokenAndID(code: string): Promise<IUserInfo> {
         const response = await fetch('https://slack.com/api/oauth.v2.access', {
             method: 'POST',
             headers: {
@@ -184,23 +196,23 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
         if (!data.ok) {
             throw new Error(data.error || 'Failed to exchange code for token');
         }
-        return data.access_token;
+        return {
+            token: data.authed_user.access_token,
+            userId: data.authed_user.id
+        };
     }
 
-    private async _getUserInfo(token: string): Promise<{ user_id: string; user: string }> {
-        const response = await fetch('https://slack.com/api/auth.test', {
+    private async _getUserName(userInfo: IUserInfo): Promise<string> {
+        const userResponse = await fetch(`https://slack.com/api/users.info?user=${userInfo.userId}`, {
             headers: {
-                'Authorization': `Bearer ${token}`
+                'Authorization': `Bearer ${userInfo.token}`
             }
         });
-        const data = await response.json() as IUserInfoFetchResponse;
-        if (!data.ok) {
-            throw new Error(data.error || 'Failed to get user info');
+        const userData = await userResponse.json() as ISlackUserProfile;
+        if (!userData.ok) {
+            return 'Slack Code Review Extension';
         }
-        return {
-            user_id: data.user_id,
-            user: data.user
-        };
+        return userData.user.name;
     }
 
     private async _loadSessionsOnStart(): Promise<void> {
