@@ -217,7 +217,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 		return Array.from(this.contentProviders.keys());
 	}
 
-	getSessionDescription(chatModel: IChatModel): string | undefined {
+	getInProgressSessionDescription(chatModel: IChatModel): string | undefined {
 		return undefined;
 	}
 
