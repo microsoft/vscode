@@ -17,7 +17,7 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
 import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, IAgentSessionsControl } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatModelReference, IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
@@ -162,24 +162,20 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 		const resource = this.action.getSession().resource;
 		const type = getChatSessionType(resource);
 		let session = this.chatService.getSession(resource);
+		let chatModelRef: IChatModelReference | undefined;
 		if (!session) {
-			const chatModelRef = type === AgentSessionProviders.Local ? await this.chatService.getOrRestoreSession(resource) : await this.chatService.loadSessionForResource(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			chatModelRef = type === AgentSessionProviders.Local ? await this.chatService.getOrRestoreSession(resource) : await this.chatService.loadSessionForResource(resource, ChatAgentLocation.Chat, CancellationToken.None);
 			session = chatModelRef?.object;
-			const disposable = session?.editingSession?.onDidEditorPaneClose(() => {
-				chatModelRef?.dispose();
-				disposable?.dispose();
-			});
-			if (disposable) {
-				this._register(disposable);
-			}
 		}
 		if (session) {
 			if (type === AgentSessionProviders.Local) {
 				await session?.editingSession?.show();
 			} else {
-				this.commandService.executeCommand(`agentSession.${type}.openChanges`, resource);
+				await this.commandService.executeCommand(`agentSession.${type}.openChanges`, resource);
 			}
 		}
+
+		chatModelRef?.dispose();
 	}
 }
 

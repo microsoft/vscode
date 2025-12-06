@@ -10,7 +10,7 @@ import { BugIndicatingError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { Disposable, DisposableStore, dispose } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, dispose, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { derived, IObservable, IReader, ITransaction, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -38,7 +38,7 @@ import { CellUri, ICellEditOperation } from '../../../notebook/common/notebookCo
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { chatEditingSessionIsReady, ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IEditSessionEntryDiff, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
-import { IChatProgress } from '../../common/chatService.js';
+import { IChatProgress, IChatService } from '../../common/chatService.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { IChatEditingCheckpointTimeline } from './chatEditingCheckpointTimeline.js';
 import { ChatEditingCheckpointTimelineImpl, IChatEditingTimelineFsDelegate } from './chatEditingCheckpointTimelineImpl.js';
@@ -157,6 +157,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	});
 
 	private _editorPane: MultiDiffEditor | undefined;
+	private readonly _editorPaneDisposables: MutableDisposable<DisposableStore>;
 
 	get state(): IObservable<ChatEditingSessionState> {
 		return this._state;
@@ -175,12 +176,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		return this._onDidDispose.event;
 	}
 
-	private readonly _onDidEditorPaneClose = new Emitter<void>();
-	get onDidEditorPaneClose() {
-		this._assertNotDisposed();
-		return this._onDidEditorPaneClose.event;
-	}
-
 	constructor(
 		readonly chatSessionResource: URI,
 		readonly isGlobalEditingSession: boolean,
@@ -197,8 +192,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IChatService private readonly _chatService: IChatService,
 	) {
 		super();
+		this._editorPaneDisposables = this._register(new MutableDisposable<DisposableStore>());
 		this._timeline = this._instantiationService.createInstance(
 			ChatEditingCheckpointTimelineImpl,
 			chatSessionResource,
@@ -440,15 +437,18 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			label: localize('multiDiffEditorInput.name', "Suggested Edits")
 		}, this._instantiationService);
 
+		this._editorPaneDisposables.value = new DisposableStore();
+		const modelRef = this._chatService.getActiveSessionReference(this.chatSessionResource);
+		if (modelRef) {
+			this._editorPaneDisposables.value.add(modelRef);
+		}
+
 		this._editorPane = await this._editorGroupsService.activeGroup.openEditor(input, { pinned: true, activation: EditorActivation.ACTIVATE }) as MultiDiffEditor | undefined;
-		const disposable = this._editorGroupsService.activeGroup.onDidCloseEditor(e => {
+		this._editorPaneDisposables.value.add(this._editorGroupsService.activeGroup.onDidCloseEditor(e => {
 			if (e.editor === input) {
-				this._editorPane = undefined;
-				this._onDidEditorPaneClose.fire();
-				disposable.dispose();
+				this._editorPaneDisposables.clear();
 			}
-		});
-		this._register(disposable);
+		}));
 	}
 
 	private _stopPromise: Promise<void> | undefined;
