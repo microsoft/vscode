@@ -20,7 +20,7 @@ interface IPullRequest {
     author?: string;
     additions?: number;
     deletions?: number;
-    changedFiles?: number
+    changedFiles?: number;
 }
 
 interface IFetchedPullRequestInfo {
@@ -33,8 +33,7 @@ interface IFetchedPullRequestInfo {
 
 export class SlackService {
 
-    private client: WebClient | undefined;
-    private session: vscode.AuthenticationSession | undefined;
+    private client: Promise<WebClient | undefined> | undefined;
 
     private userCache: Map<string, string> = new Map();
     private prCache: Map<string, IPullRequest> = new Map();
@@ -53,7 +52,7 @@ export class SlackService {
     }
 
     public async isAuthenticated(): Promise<boolean> {
-        return !!this.session;
+        return !!(await this.client);
     }
 
     public async signIn(): Promise<boolean> {
@@ -73,7 +72,8 @@ export class SlackService {
     }
 
     public async getMessages(): Promise<SlackMessage[]> {
-        if (!this.client) {
+        const client = await this.client;
+        if (!client) {
             return [];
         }
         const channelId = await this._getCodeReviewChannelId();
@@ -81,7 +81,7 @@ export class SlackService {
             return [];
         }
         try {
-            const result: ConversationsHistoryResponse = await this.client.conversations.history({
+            const result: ConversationsHistoryResponse = await client.conversations.history({
                 channel: channelId,
                 limit: 100
             });
@@ -143,8 +143,15 @@ export class SlackService {
 
     private async _updateSession(createIfNone: boolean = false, silent: boolean = true) {
         try {
-            this.session = await vscode.authentication.getSession(SLACK_AUTH_PROVIDER_ID, [], { createIfNone, silent });
-            this.client = this.session ? new WebClient(this.session.accessToken) : undefined;
+            this.client = new Promise((resolve) => {
+                vscode.authentication.getSession(SLACK_AUTH_PROVIDER_ID, [], { createIfNone, silent }).then(session => {
+                    if (session) {
+                        resolve(new WebClient(session.accessToken));
+                    } else {
+                        resolve(undefined);
+                    }
+                });
+            });
         } catch (error) {
             console.error('Failed to update Slack session:', error);
         }
@@ -177,13 +184,14 @@ export class SlackService {
     }
 
     private async _findCodeReviewChannel(): Promise<string | undefined> {
-        if (!this.client) {
+        const client = await this.client;
+        if (!client) {
             return undefined;
         }
         try {
             let cursor: string | undefined;
             do {
-                const result: ConversationsListResponse = await this.client.conversations.list({
+                const result: ConversationsListResponse = await client.conversations.list({
                     types: 'public_channel,private_channel',
                     limit: 200,
                     cursor: cursor
@@ -210,11 +218,12 @@ export class SlackService {
         if (this.userCache.has(userId)) {
             return this.userCache.get(userId)!;
         }
-        if (!this.client) {
+        const client = await this.client;
+        if (!client) {
             return userId;
         }
         try {
-            const result: UsersInfoResponse = await this.client.users.info({ user: userId });
+            const result: UsersInfoResponse = await client.users.info({ user: userId });
             const name = result.user?.real_name || result.user?.name || userId;
             this.userCache.set(userId, name);
             return name;
@@ -275,7 +284,7 @@ export class SlackService {
             owner: owner,
             repo: repo,
             number: parseInt(prNumber, 10)
-        };;
+        };
     }
 
     private _extractPullRequestUrl(text: string): string | undefined {

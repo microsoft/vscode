@@ -187,7 +187,7 @@ export class SlackAuthenticationProvider implements vscode.AuthenticationProvide
         return data.access_token;
     }
 
-    private async _getUserInfo(token: string): Promise<{ user_id: string; user: string; }> {
+    private async _getUserInfo(token: string): Promise<{ user_id: string; user: string }> {
         const response = await fetch('https://slack.com/api/auth.test', {
             headers: {
                 'Authorization': `Bearer ${token}`

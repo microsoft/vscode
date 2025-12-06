@@ -21,7 +21,7 @@ export interface SlackMessage {
         additions?: number;
         deletions?: number;
         changedFiles?: number;
-    }
+    };
 }
 
 export class SlackMessageItem extends vscode.TreeItem {
