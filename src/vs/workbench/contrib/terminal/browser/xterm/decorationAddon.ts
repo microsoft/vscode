@@ -114,12 +114,12 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		this._capabilityDisposables.deleteAndDispose(c);
 	}
 
-	registerMarkDecoration(mark: IMarkProperties): void {
+	registerMarkDecoration(mark: IMarkProperties): boolean {
 		if (!this._terminal || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
-			return undefined;
+			return false;
 		}
 		if (mark.hidden) {
-			return undefined;
+			return false;
 		}
 		return this.registerCommandDecoration(undefined, undefined, mark);
 	}
@@ -276,9 +276,9 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 		this._attachToCommandCapability();
 	}
 
-	registerCommandDecoration(command?: ITerminalCommand, beforeCommandExecution?: boolean, markProperties?: IMarkProperties): void {
+	registerCommandDecoration(command?: ITerminalCommand, beforeCommandExecution?: boolean, markProperties?: IMarkProperties): boolean {
 		if (!this._terminal || (beforeCommandExecution && !command) || (!this._showGutterDecorations && !this._showOverviewRulerDecorations)) {
-			return undefined;
+			return false;
 		}
 		const marker = command?.marker || markProperties?.marker;
 		if (!marker) {
@@ -293,7 +293,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 				: { color, position: command?.exitCode ? 'right' : 'left' }) : undefined
 		});
 		if (!decoration) {
-			return undefined;
+			return false;
 		}
 		const store = new DisposableStore();
 		store.add(decoration);
@@ -322,6 +322,7 @@ export class DecorationAddon extends Disposable implements ITerminalAddon, IDeco
 				this._updateClasses(element, command, command?.markProperties || markProperties);
 			}
 		}));
+		return true;
 	}
 
 	registerMenuItems(command: ITerminalCommand, items: IAction[]): IDisposable {

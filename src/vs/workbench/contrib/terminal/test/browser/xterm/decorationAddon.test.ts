@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IDecoration, IDecorationOptions, Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { notEqual, strictEqual, throws } from 'assert';
+import { strictEqual, throws } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -65,15 +65,15 @@ suite('DecorationAddon', () => {
 		test('should return undefined when marker has been disposed of', async () => {
 			const marker = xterm.registerMarker(1);
 			marker?.dispose();
-			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), undefined);
+			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), false);
 		});
-		test('should return decoration when marker has not been disposed of', async () => {
+		test('should return true for decoration when marker has not been disposed of', async () => {
 			const marker = xterm.registerMarker(2);
-			notEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), undefined);
+			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), true);
 		});
-		test('should return decoration with mark properties', async () => {
+		test('should return true for decoration with mark properties', async () => {
 			const marker = xterm.registerMarker(2);
-			notEqual(decorationAddon.registerCommandDecoration(undefined, undefined, { marker }), undefined);
+			strictEqual(decorationAddon.registerCommandDecoration(undefined, undefined, { marker }), true);
 		});
 	});
 });
