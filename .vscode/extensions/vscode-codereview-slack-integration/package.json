@@ -23,10 +23,6 @@
   "contributes": {
     "commands": [
       {
-        "command": "vs-code-codereview.helloWorld",
-        "title": "Hello World"
-      },
-      {
         "command": "vs-code-codereview.refreshMessages",
         "title": "Refresh Messages",
         "icon": "$(refresh)"
@@ -89,25 +85,13 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run package",
-    "compile": "npm run check-types && npm run lint && node esbuild.js",
-    "watch": "npm-run-all -p watch:*",
-    "watch:esbuild": "node esbuild.js --watch",
-    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
-    "package": "npm run check-types && npm run lint && node esbuild.js --production",
-    "compile-tests": "tsc -p . --outDir out",
-    "watch-tests": "tsc -p . -w --outDir out",
-    "pretest": "npm run compile-tests && npm run compile && npm run lint",
-    "check-types": "tsc --noEmit",
-    "test": "vscode-test"
+    "compile": "gulp compile-extension:vscode-codereview-slack-integration",
+    "watch": "gulp watch-extension:vscode-codereview-slack-integration",
+    "compile-local": "node esbuild.mjs"
   },
   "devDependencies": {
     "@types/node": "22.x",
-    "dotenv": "^17.2.3",
-    "esbuild": "^0.27.0",
-    "npm-run-all": "^4.1.5",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.46.3"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "@slack/web-api": "^7.13.0"

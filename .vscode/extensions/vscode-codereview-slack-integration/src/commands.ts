@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as vscode from 'vscode';
 import { SlackService } from './service';
 import { SlackMessageItem, SlackTreeDataProvider } from './treeDataProvider';
@@ -19,6 +24,7 @@ export class SlackCommandsRegistry extends vscode.Disposable {
 	}
 
 	override dispose() {
+		super.dispose();
 		this._disposables.forEach(d => d.dispose());
 	}
 }
