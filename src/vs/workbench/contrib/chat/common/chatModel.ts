@@ -1724,8 +1724,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					) {
 						const diffs = this._editingSession.getDiffsForFilesInRequest(request.id);
 						request.response?.updateContent(editEntriesToMultiDiffData(diffs), true);
-						this._onDidChange.fire({ kind: 'completedRequest', request });
 					}
+					this._onDidChange.fire({ kind: 'completedRequest', request });
 				}
 			}));
 		}));
