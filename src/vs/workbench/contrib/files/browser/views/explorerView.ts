@@ -517,6 +517,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		// Update resource context based on focused element
 		this._register(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
+		this._register(this.tree.onDidChangeSelection(e => this.updateAncestorHighlight(e.elements[0])));
+		this._register(this.tree.onDidFocus(() => this.rerenderAncestors()));
 		this.onFocusChanged([]);
 		// Open when selecting via keyboard
 		this._register(this.tree.onDidOpen(async e => {
@@ -692,6 +694,47 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		compressedNavigationControllers.forEach(controller => {
 			this.updateCompressedNavigationContextKeys(controller);
 		});
+	}
+
+	private updateAncestorHighlight(stat: ExplorerItem | undefined): void {
+		if (!stat) {
+			return;
+		}
+		// Collect old ancestors before updating
+		const oldAncestors: ExplorerItem[] = [];
+		const selection = this.tree.getSelection();
+		let oldParent = selection[0]?.parent;
+		while (oldParent) {
+			oldAncestors.push(oldParent);
+			oldParent = oldParent.parent;
+		}
+		// Update the ancestor URIs
+		this.renderer.setFocusedItem(stat);
+		// Re-render old ancestors (to remove highlight)
+		for (const ancestor of oldAncestors) {
+			if (this.tree.hasNode(ancestor)) {
+				this.tree.rerender(ancestor);
+			}
+		}
+		// Re-render new ancestors (to add highlight)
+		let parent = stat.parent;
+		while (parent) {
+			if (this.tree.hasNode(parent)) {
+				this.tree.rerender(parent);
+			}
+			parent = parent.parent;
+		}
+	}
+
+	private rerenderAncestors(): void {
+		const selection = this.tree.getSelection();
+		let parent = selection[0]?.parent;
+		while (parent) {
+			if (this.tree.hasNode(parent)) {
+				this.tree.rerender(parent);
+			}
+			parent = parent.parent;
+		}
 	}
 
 	// General methods
