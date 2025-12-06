@@ -18,7 +18,7 @@ import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
 import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, IAgentSessionsControl } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IChatService } from '../../common/chatService.js';
+import { IChatModelReference, IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
@@ -162,8 +162,8 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 CommandsRegistry.registerCommand(`agentSession.${AgentSessionProviders.Local}.openChanges`, async (accessor: ServicesAccessor, resource: URI) => {
 	const chatService = accessor.get(IChatService);
 
-	const session = chatService.getSession(resource);
-	session?.editingSession?.show();
+	const sessionRef = await chatService.getOrRestoreSession(resource);
+	sessionRef?.object.editingSession?.show();
 });
 
 //#endregion
