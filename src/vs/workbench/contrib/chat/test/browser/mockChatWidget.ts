@@ -50,4 +50,8 @@ export class MockChatWidgetService implements IChatWidgetService {
 	register(newWidget: IChatWidget): IDisposable {
 		return Disposable.None;
 	}
+
+	openSessionDiffEditor(sessionResource: URI): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 }
