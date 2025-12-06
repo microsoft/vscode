@@ -8,16 +8,14 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { getAgentChangesSummary, IAgentSession } from './agentSessionsModel.js';
 import { Action, IAction } from '../../../../../base/common/actions.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { EventHelper, h, hide, show } from '../../../../../base/browser/dom.js';
 import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { ViewAction } from '../../../../browser/parts/views/viewPane.js';
-import { AGENT_SESSIONS_VIEW_ID, AgentSessionProviders, IAgentSessionsControl } from './agentSessions.js';
+import { AGENT_SESSIONS_VIEW_ID, IAgentSessionsControl } from './agentSessions.js';
 import { AgentSessionsView } from './agentSessionsView.js';
-import { IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
@@ -26,7 +24,6 @@ import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../.
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { getChatSessionType } from '../../common/chatUri.js';
 
 //#region Session Title Actions
 
@@ -100,8 +97,7 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 	constructor(
 		action: IAction,
 		options: IActionViewItemOptions,
-		@ICommandService private readonly commandService: ICommandService,
-		@IChatService private readonly chatService: IChatService
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
 	) {
 		super(null, action, options);
 	}
@@ -158,15 +154,7 @@ export class AgentSessionDiffActionViewItem extends ActionViewItem {
 	}
 	async openChanges(): Promise<void> {
 		const resource = this.action.getSession().resource;
-		const type = getChatSessionType(resource);
-		if (type !== AgentSessionProviders.Local) {
-			await this.commandService.executeCommand(`agentSession.${type}.openChanges`, resource);
-			return;
-		}
-		const chatModelRef = await this.chatService.getOrRestoreSession(resource);
-		await chatModelRef?.object.editingSession?.show();
-
-		chatModelRef?.dispose();
+		await this.chatWidgetService.openSessionDiffEditor(resource);
 	}
 }
 

@@ -61,6 +61,8 @@ export interface IChatWidgetService {
 	openSession(sessionResource: URI, target?: PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 	openSession(sessionResource: URI, target?: typeof ChatViewPaneTarget | PreferredGroup, options?: IChatEditorOptions): Promise<IChatWidget | undefined>;
 
+	openSessionDiffEditor(sessionResource: URI): Promise<void>;
+
 	getWidgetBySessionResource(sessionResource: URI): IChatWidget | undefined;
 
 	getWidgetsByLocations(location: ChatAgentLocation): ReadonlyArray<IChatWidget>;

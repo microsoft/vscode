@@ -9,11 +9,15 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { ACTIVE_GROUP, IEditorService, type PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
 import { IEditorGroup, IEditorGroupsService, isEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { IChatService } from '../common/chatService.js';
+import { getChatSessionType } from '../common/chatUri.js';
 import { ChatAgentLocation } from '../common/constants.js';
+import { AgentSessionProviders } from './agentSessions/agentSessions.js';
 import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuickChatService, isIChatViewViewContext } from './chat.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput } from './chatEditorInput.js';
@@ -35,6 +39,8 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		@IQuickChatService private readonly quickChatService: IQuickChatService,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IChatService private readonly chatService: IChatService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 	}
@@ -124,6 +130,18 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 			}
 		}, target);
 		return pane instanceof ChatEditor ? pane.widget : undefined;
+	}
+
+	async openSessionDiffEditor(sessionResource: URI): Promise<void> {
+		const type = getChatSessionType(sessionResource);
+		if (type !== AgentSessionProviders.Local) {
+			await this.commandService.executeCommand(`agentSession.${type}.openChanges`, sessionResource);
+			return;
+		}
+		const chatModelRef = await this.chatService.getOrRestoreSession(sessionResource);
+		await chatModelRef?.object.editingSession?.show();
+
+		chatModelRef?.dispose();
 	}
 
 	private async revealSessionIfAlreadyOpen(sessionResource: URI, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
