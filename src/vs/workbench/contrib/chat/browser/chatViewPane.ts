@@ -379,6 +379,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				that.notifySessionsControlCountChanged(count);
 			}
 		}));
+		this._register(Event.runAndSubscribe(sessionsFilter.onDidChange, () => {
+			sessionsToolbarContainer.classList.toggle('filtered', !sessionsFilter.isDefault());
+		}));
 
 		// Sessions Control
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));

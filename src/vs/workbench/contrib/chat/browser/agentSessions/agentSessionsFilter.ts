@@ -5,6 +5,7 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { registerAction2, Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -231,6 +232,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 				that.storageService.store(that.STORAGE_KEY, JSON.stringify(that.excludes), StorageScope.PROFILE, StorageTarget.USER);
 			}
 		}));
+	}
+
+	isDefault(): boolean {
+		return equals(this.excludes, DEFAULT_EXCLUDES);
 	}
 
 	exclude(session: IAgentSession): boolean {
