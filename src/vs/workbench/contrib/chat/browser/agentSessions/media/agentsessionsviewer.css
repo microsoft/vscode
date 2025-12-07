@@ -67,6 +67,18 @@
 			.agent-session-icon {
 				flex-shrink: 0;
 				font-size: 16px;
+
+				&.codicon.codicon-session-in-progress {
+					color: var(--vscode-textLink-foreground);
+				}
+
+				&.codicon.codicon-error {
+					color: var(--vscode-errorForeground);
+				}
+
+				&.codicon.codicon-circle-filled {
+					color: var(--vscode-textLink-foreground);
+				}
 			}
 		}
 

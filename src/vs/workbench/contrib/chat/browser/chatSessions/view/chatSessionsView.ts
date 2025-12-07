@@ -121,7 +121,7 @@ export class ChatSessionsViewContrib extends Disposable implements IWorkbenchCon
 			const providersWithDisplayNames = otherProviders.map(provider => {
 				const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
 				if (!extContribution) {
-					this.logService.warn(`No extension contribution found for chat session type: ${provider.chatSessionType}`);
+					this.logService.trace(`No extension contribution found for chat session type: ${provider.chatSessionType}`);
 					return null;
 				}
 				return {
