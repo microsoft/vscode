@@ -89,7 +89,7 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	group: 'navigation',
 	order: 3,
 	icon: Codicon.filter,
-	when: ChatContextKeys.agentSessionsViewerExpanded
+	when: ChatContextKeys.agentSessionsViewerLimited.negate()
 } satisfies ISubmenuItem);
 
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
