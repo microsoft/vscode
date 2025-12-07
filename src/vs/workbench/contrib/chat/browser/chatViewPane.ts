@@ -43,7 +43,6 @@ import { IChatModelReference, IChatService } from '../common/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../common/chatSessionsService.js';
 import { LocalChatSessionUri, getChatSessionType } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
-import { showCloseActiveChatNotification } from './actions/chatCloseNotification.js';
 import { AgentSessionsControl } from './agentSessions/agentSessionsControl.js';
 import { AgentSessionsListDelegate } from './agentSessions/agentSessionsViewer.js';
 import { ChatWidget } from './chatWidget.js';
@@ -245,12 +244,6 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	private async showModel(modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
-
-		// Check if we're disposing a model with an active request
-		if (this.modelRef.value?.object.requestInProgress.get()) {
-			const closingSessionResource = this.modelRef.value.object.sessionResource;
-			this.instantiationService.invokeFunction(showCloseActiveChatNotification, closingSessionResource);
-		}
 
 		this.modelRef.value = undefined;
 
