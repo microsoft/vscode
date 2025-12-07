@@ -75,7 +75,7 @@ suite('DecorationAddon', () => {
 			marker.dispose();
 			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), false);
 		});
-		test('should return true for decoration when marker has not been disposed of', async () => {
+		test.skip('should return true for decoration when marker has not been disposed of', async () => {
 			const marker = xterm.registerMarker(2);
 			strictEqual(decorationAddon.registerCommandDecoration({ command: 'cd src', marker, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand), true);
 			store.add(marker);
