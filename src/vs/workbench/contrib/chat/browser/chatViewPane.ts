@@ -657,13 +657,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Ensure visibility is in sync before we layout
 		this.updateSessionsControlVisibility();
 
+		const availableSessionsHeight = height - this.sessionsTitleContainer.offsetHeight - this.sessionsLinkContainer.offsetHeight;
+
 		// Show as sidebar
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-			const sessionsHeight = height - this.sessionsTitleContainer.offsetHeight - this.sessionsLinkContainer.offsetHeight;
-
-			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
+			this.sessionsControlContainer.style.height = `${availableSessionsHeight}px`;
 			this.sessionsControlContainer.style.width = `${ChatViewPane.SESSIONS_SIDEBAR_WIDTH}px`;
-			this.sessionsControl.layout(sessionsHeight, ChatViewPane.SESSIONS_SIDEBAR_WIDTH);
+			this.sessionsControl.layout(availableSessionsHeight, ChatViewPane.SESSIONS_SIDEBAR_WIDTH);
 
 			heightReduction = 0; // side by side to chat widget
 			widthReduction = this.sessionsContainer.offsetWidth;
@@ -675,8 +675,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			if (this.sessionsViewerLimited) {
 				sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
 			} else {
-				sessionsHeight = (ChatViewPane.SESSIONS_LIMIT + 2 /* TODO@bpasero revisit this hardcoded expansion */) * AgentSessionsListDelegate.ITEM_HEIGHT;
+				sessionsHeight = (ChatViewPane.SESSIONS_LIMIT + 2 /* expand a bit to indicate more items */) * AgentSessionsListDelegate.ITEM_HEIGHT;
 			}
+
+			sessionsHeight = Math.min(availableSessionsHeight, sessionsHeight);
 
 			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = ``;
