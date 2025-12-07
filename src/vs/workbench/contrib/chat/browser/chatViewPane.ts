@@ -659,12 +659,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Show as sidebar
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.SideBySide) {
-			let sessionsHeight: number;
-			if (this.sessionsViewerLimited) {
-				sessionsHeight = this.sessionsCount * AgentSessionsListDelegate.ITEM_HEIGHT;
-			} else {
-				sessionsHeight = height - this.sessionsTitleContainer.offsetHeight - this.sessionsLinkContainer.offsetHeight;
-			}
+			const sessionsHeight = height - this.sessionsTitleContainer.offsetHeight - this.sessionsLinkContainer.offsetHeight;
 
 			this.sessionsControlContainer.style.height = `${sessionsHeight}px`;
 			this.sessionsControlContainer.style.width = `${ChatViewPane.SESSIONS_SIDEBAR_WIDTH}px`;
