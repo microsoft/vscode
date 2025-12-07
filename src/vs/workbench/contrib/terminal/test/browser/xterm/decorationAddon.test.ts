@@ -64,9 +64,6 @@ suite('DecorationAddon', () => {
 
 
 	suite('registerDecoration', () => {
-
-
-
 		test('should throw when command has no marker', async () => {
 			throws(() => decorationAddon.registerCommandDecoration({ command: 'cd src', timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand));
 		});
