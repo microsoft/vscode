@@ -47,7 +47,7 @@
 	.agent-session-item {
 		display: flex;
 		flex-direction: row;
-		padding: 8px;
+		padding: 8px 12px 8px 8px;
 
 		&.archived {
 			color: var(--vscode-descriptionForeground);
