@@ -94,6 +94,11 @@
 			border-left: 1px solid var(--vscode-sideBarSectionHeader-border);
 		}
 	}
+
+	.agent-sessions-link-container {
+		/* hide link to show more when side by side */
+		display: none;
+	}
 }
 
 /* Sessions control: compact */
