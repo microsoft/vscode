@@ -20,7 +20,7 @@ import { AgentSessionsView } from './agentSessionsView.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
+import { IMarshalledChatSessionContext, isMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
@@ -28,47 +28,78 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../commo
 import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+
+abstract class BaseAgentSessionAction extends Action2 {
+
+	run(accessor: ServicesAccessor, context: IAgentSession | IMarshalledChatSessionContext): void {
+		const agentSessionsService = accessor.get(IAgentSessionsService);
+
+		let session: IAgentSession | undefined;
+		if (isMarshalledChatSessionContext(context)) {
+			session = agentSessionsService.getSession(context.session.resource);
+		} else {
+			session = context;
+		}
+
+		if (session) {
+			this.runWithSession(session);
+		}
+	}
+
+	abstract runWithSession(session: IAgentSession): void;
+}
 
 //#region Session Title Actions
 
-export class ArchiveAgentSessionAction extends Action2 {
+export class ArchiveAgentSessionAction extends BaseAgentSessionAction {
 
 	constructor() {
 		super({
 			id: 'agentSession.archive',
 			title: localize2('archive', "Archive"),
 			icon: Codicon.archive,
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
 				order: 1,
 				when: ChatContextKeys.isArchivedAgentSession.negate(),
-			}
+			}, {
+				id: MenuId.AgentSessionsContext,
+				group: 'edit',
+				order: 2,
+				when: ChatContextKeys.isArchivedAgentSession.negate()
+			}]
 		});
 	}
 
-	run(accessor: ServicesAccessor, session: IAgentSession): void {
+	runWithSession(session: IAgentSession): void {
 		session.setArchived(true);
 	}
 }
 
-export class UnarchiveAgentSessionAction extends Action2 {
+export class UnarchiveAgentSessionAction extends BaseAgentSessionAction {
 
 	constructor() {
 		super({
 			id: 'agentSession.unarchive',
 			title: localize2('unarchive', "Unarchive"),
 			icon: Codicon.unarchive,
-			menu: {
+			menu: [{
 				id: MenuId.AgentSessionItemToolbar,
 				group: 'navigation',
 				order: 1,
 				when: ChatContextKeys.isArchivedAgentSession,
-			}
+			}, {
+				id: MenuId.AgentSessionsContext,
+				group: 'edit',
+				order: 2,
+				when: ChatContextKeys.isArchivedAgentSession,
+			}]
 		});
 	}
 
-	run(accessor: ServicesAccessor, session: IAgentSession): void {
+	runWithSession(session: IAgentSession): void {
 		session.setArchived(false);
 	}
 }
@@ -274,7 +305,7 @@ export class OpenAgentSessionInNewWindowAction extends BaseOpenAgentSessionActio
 	}
 }
 
-export class MarkAgentSessionUnreadAction extends Action2 {
+export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 
 	constructor() {
 		super({
@@ -284,23 +315,20 @@ export class MarkAgentSessionUnreadAction extends Action2 {
 				id: MenuId.AgentSessionsContext,
 				group: 'edit',
 				order: 1,
-				when: ChatContextKeys.isReadAgentSession,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isReadAgentSession,
+					ChatContextKeys.isArchivedAgentSession.negate() // no read state for archived sessions
+				),
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): void {
-		const agentSessionsService = accessor.get(IAgentSessionsService);
-
-		if (!context) {
-			return;
-		}
-
-		agentSessionsService.getSession(context.session.resource)?.setRead(false);
+	runWithSession(session: IAgentSession): void {
+		session.setRead(false);
 	}
 }
 
-export class MarkAgentSessionReadAction extends Action2 {
+export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 
 	constructor() {
 		super({
@@ -310,19 +338,16 @@ export class MarkAgentSessionReadAction extends Action2 {
 				id: MenuId.AgentSessionsContext,
 				group: 'edit',
 				order: 1,
-				when: ChatContextKeys.isReadAgentSession.negate(),
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isReadAgentSession.negate(),
+					ChatContextKeys.isArchivedAgentSession.negate() // no read state for archived sessions
+				),
 			}
 		});
 	}
 
-	run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): void {
-		const agentSessionsService = accessor.get(IAgentSessionsService);
-
-		if (!context) {
-			return;
-		}
-
-		agentSessionsService.getSession(context.session.resource)?.setRead(true);
+	runWithSession(session: IAgentSession): void {
+		session.setRead(true);
 	}
 }
 

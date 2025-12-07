@@ -28,13 +28,16 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 interface IAgentSessionsViewExcludes {
 	readonly providers: readonly string[];
 	readonly states: readonly ChatSessionStatus[];
+
 	readonly archived: boolean;
+	readonly read: boolean;
 }
 
 const DEFAULT_EXCLUDES: IAgentSessionsViewExcludes = Object.freeze({
 	providers: [] as const,
 	states: [] as const,
 	archived: true as const,
+	read: false as const,
 });
 
 export class AgentSessionsFilter extends Disposable implements Required<IAgentSessionsFilter> {
@@ -95,6 +98,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			providers: [...DEFAULT_EXCLUDES.providers],
 			states: [...DEFAULT_EXCLUDES.states],
 			archived: DEFAULT_EXCLUDES.archived,
+			read: DEFAULT_EXCLUDES.read,
 		};
 	}
 
@@ -110,6 +114,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this.registerProviderActions(this.actionDisposables);
 		this.registerStateActions(this.actionDisposables);
 		this.registerArchivedActions(this.actionDisposables);
+		this.registerReadActions(this.actionDisposables);
 		this.registerResetAction(this.actionDisposables);
 	}
 
@@ -200,7 +205,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 					title: localize('agentSessions.filter.archived', 'Archived'),
 					menu: {
 						id: that.options.filterMenuId,
-						group: '2_states',
+						group: '3_props',
 						order: 1000,
 					},
 					toggled: that.excludes.archived ? ContextKeyExpr.false() : ContextKeyExpr.true(),
@@ -208,6 +213,27 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			}
 			run(): void {
 				that.storeExcludes({ ...that.excludes, archived: !that.excludes.archived });
+			}
+		}));
+	}
+
+	private registerReadActions(disposables: DisposableStore): void {
+		const that = this;
+		disposables.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `agentSessions.filter.toggleExcludeRead.${that.options.filterMenuId.id.toLowerCase()}`,
+					title: localize('agentSessions.filter.read', 'Read'),
+					menu: {
+						id: that.options.filterMenuId,
+						group: '3_props',
+						order: 0,
+					},
+					toggled: that.excludes.read ? ContextKeyExpr.false() : ContextKeyExpr.true(),
+				});
+			}
+			run(): void {
+				that.storeExcludes({ ...that.excludes, read: !that.excludes.read });
 			}
 		}));
 	}
@@ -245,6 +271,10 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}
 
 		if (this.excludes.archived && session.isArchived()) {
+			return true;
+		}
+
+		if (this.excludes.read && (session.isArchived() || session.isRead())) {
 			return true;
 		}
 
