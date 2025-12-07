@@ -32,6 +32,7 @@ import { IAgentSessionsService } from './agentSessionsService.js';
 //#region Session Title Actions
 
 export class ArchiveAgentSessionAction extends Action2 {
+
 	constructor() {
 		super({
 			id: 'agentSession.archive',
@@ -45,12 +46,14 @@ export class ArchiveAgentSessionAction extends Action2 {
 			}
 		});
 	}
+
 	run(accessor: ServicesAccessor, session: IAgentSession): void {
 		session.setArchived(true);
 	}
 }
 
 export class UnarchiveAgentSessionAction extends Action2 {
+
 	constructor() {
 		super({
 			id: 'agentSession.unarchive',
@@ -64,6 +67,7 @@ export class UnarchiveAgentSessionAction extends Action2 {
 			}
 		});
 	}
+
 	run(accessor: ServicesAccessor, session: IAgentSession): void {
 		session.setArchived(false);
 	}
@@ -276,18 +280,20 @@ export class OpenAgentSessionInNewWindowAction extends BaseOpenAgentSessionActio
 }
 
 export class MarkAgentSessionUnreadAction extends Action2 {
+
 	constructor() {
 		super({
 			id: 'agentSession.markUnread',
 			title: localize2('markUnread', "Mark as Unread"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				group: 'modify',
+				group: 'edit',
 				order: 1,
 				when: ChatContextKeys.isReadAgentSession,
 			}
 		});
 	}
+
 	run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): void {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 
@@ -300,18 +306,20 @@ export class MarkAgentSessionUnreadAction extends Action2 {
 }
 
 export class MarkAgentSessionReadAction extends Action2 {
+
 	constructor() {
 		super({
 			id: 'agentSession.markRead',
 			title: localize2('markRead', "Mark as Read"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
-				group: 'modify',
+				group: 'edit',
 				order: 1,
 				when: ChatContextKeys.isReadAgentSession.negate(),
 			}
 		});
 	}
+
 	run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): void {
 		const agentSessionsService = accessor.get(IAgentSessionsService);
 
@@ -328,6 +336,7 @@ export class MarkAgentSessionReadAction extends Action2 {
 //#region View Actions
 
 export class RefreshAgentSessionsViewAction extends ViewAction<AgentSessionsView> {
+
 	constructor() {
 		super({
 			id: 'agentSessionsView.refresh',
@@ -341,12 +350,14 @@ export class RefreshAgentSessionsViewAction extends ViewAction<AgentSessionsView
 			viewId: AGENT_SESSIONS_VIEW_ID
 		});
 	}
+
 	runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
 		view.refresh();
 	}
 }
 
 export class FindAgentSessionAction extends ViewAction<AgentSessionsView> {
+
 	constructor() {
 		super({
 			id: 'agentSessionsView.find',
@@ -360,6 +371,7 @@ export class FindAgentSessionAction extends ViewAction<AgentSessionsView> {
 			viewId: AGENT_SESSIONS_VIEW_ID
 		});
 	}
+
 	runInView(accessor: ServicesAccessor, view: AgentSessionsView): void {
 		view.openFind();
 	}

@@ -23,13 +23,12 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { Separator } from '../../../../../base/common/actions.js';
 import { IChatService } from '../../common/chatService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../chat.js';
 import { TreeFindMode } from '../../../../../base/browser/ui/tree/abstractTree.js';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IMarshalledChatSessionContext } from '../actions/chatSessionActions.js';
-import { distinct } from '../../../../../base/common/arrays.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IListStyles } from '../../../../../base/browser/ui/list/listWidget.js';
@@ -231,7 +230,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const marshalledSession: IMarshalledChatSessionContext = { session, $mid: MarshalledId.ChatSessionContext };
 		this.contextMenuService.showContextMenu({
-			getActions: () => distinct(getFlatActionBarActions(menu.getActions({ arg: marshalledSession, shouldForwardArgs: true })), action => action.id),
+			getActions: () => Separator.join(...menu.getActions({ arg: marshalledSession, shouldForwardArgs: true }).map(([, actions]) => actions)),
 			getAnchor: () => anchor,
 			getActionsContext: () => marshalledSession,
 		});
