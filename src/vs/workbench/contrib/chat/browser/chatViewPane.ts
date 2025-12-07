@@ -406,7 +406,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 	}
 
-	private notifySessionsControlLimitedChanged(fromEvent: boolean): void {
+	private notifySessionsControlLimitedChanged(triggerLayout: boolean): void {
 		this.sessionsViewerLimitedContext.set(this.sessionsViewerLimited);
 
 		if (this.sessionsTitle) {
@@ -422,7 +422,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		this.sessionsControl?.update();
 
-		if (fromEvent && this.lastDimensions) {
+		if (triggerLayout && this.lastDimensions) {
 			this.layoutBody(this.lastDimensions.height, this.lastDimensions.width);
 		}
 	}
@@ -650,7 +650,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const oldSessionsViewerLimited = this.sessionsViewerLimited;
 			this.sessionsViewerLimited = this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked;
 			if (oldSessionsViewerLimited !== this.sessionsViewerLimited) {
-				this.notifySessionsControlLimitedChanged(false);
+				this.notifySessionsControlLimitedChanged(false /* already in layout */);
 			}
 		}
 
