@@ -7,6 +7,7 @@
 		"sourceMap": false,
 		"allowJs": true,
 		"resolveJsonModule": true,
+		"target": "es2020",
 		"isolatedModules": false,
 		"outDir": "../out/vs",
 		"types": [

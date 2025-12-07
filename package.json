@@ -69,7 +69,9 @@
     "extensions-ci": "node ./node_modules/gulp/bin/gulp.js extensions-ci",
     "extensions-ci-pr": "node ./node_modules/gulp/bin/gulp.js extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
-    "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)"
+    "test-multicursor": "mocha -r ts-node/register 'src/vs/editor/contrib/multicursor/test/browser/multicursor.test.ts'",
+    "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)",
+    "test-mock": "mocha -r ts-node/register 'src/vs/editor/contrib/multicursor/test/browser/multicursor.mock.test.ts'"
   },
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
@@ -211,9 +213,10 @@
     "source-map-support": "^0.3.2",
     "style-loader": "^3.3.2",
     "ts-loader": "^9.5.1",
+    "ts-node": "^10.9.2",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^6.0.0-dev.20251110",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.45.0",
     "util": "^0.12.4",
     "webpack": "^5.94.0",
