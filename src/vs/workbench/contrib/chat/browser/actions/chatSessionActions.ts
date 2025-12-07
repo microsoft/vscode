@@ -30,6 +30,15 @@ export interface IMarshalledChatSessionContext {
 	readonly session: IChatSessionItem;
 }
 
+export function isMarshalledChatSessionContext(thing: unknown): thing is IMarshalledChatSessionContext {
+	if (typeof thing === 'object' && thing !== null) {
+		const candidate = thing as IMarshalledChatSessionContext;
+		return candidate.$mid === MarshalledId.ChatSessionContext && typeof candidate.session === 'object' && candidate.session !== null;
+	}
+
+	return false;
+}
+
 export class RenameChatSessionAction extends Action2 {
 	static readonly id = 'workbench.action.chat.renameSession';
 
