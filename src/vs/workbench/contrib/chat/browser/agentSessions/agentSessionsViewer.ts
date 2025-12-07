@@ -157,6 +157,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 		// Title Actions - Update context keys
 		ChatContextKeys.isArchivedAgentSession.bindTo(template.contextKeyService).set(session.element.isArchived());
+		ChatContextKeys.isReadAgentSession.bindTo(template.contextKeyService).set(session.element.isRead());
 		template.titleToolbar.context = session.element;
 
 		// Details Actions
@@ -201,7 +202,11 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			return Codicon.error;
 		}
 
-		return Codicon.pass;
+		if (!session.isRead() && !session.isArchived()) {
+			return Codicon.circleFilled;
+		}
+
+		return Codicon.blank;
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
