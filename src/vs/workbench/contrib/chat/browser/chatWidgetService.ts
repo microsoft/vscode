@@ -130,7 +130,7 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		// Already open in chat view?
 		const chatView = this.viewsService.getViewWithId<ChatViewPane>(ChatViewId);
 		if (chatView?.widget.viewModel?.sessionResource && isEqual(chatView.widget.viewModel.sessionResource, sessionResource)) {
-			const view = await this.viewsService.openView(ChatViewId, true);
+			const view = await this.viewsService.openView(ChatViewId, !options?.preserveFocus);
 			if (!options?.preserveFocus) {
 				view?.focus();
 			}

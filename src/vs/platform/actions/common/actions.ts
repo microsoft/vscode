@@ -283,7 +283,7 @@ export class MenuId {
 	static readonly MultiDiffEditorFileToolbar = new MenuId('MultiDiffEditorFileToolbar');
 	static readonly DiffEditorHunkToolbar = new MenuId('DiffEditorHunkToolbar');
 	static readonly DiffEditorSelectionToolbar = new MenuId('DiffEditorSelectionToolbar');
-	static readonly AgentSessionsFilterSubMenu = new MenuId('AgentSessionsFilterSubMenu');
+	static readonly AgentSessionsViewerFilterSubMenu = new MenuId('AgentSessionsViewerFilterSubMenu');
 	static readonly AgentSessionsInstallMenu = new MenuId('AgentSessionsInstallMenu');
 	static readonly AgentSessionsContext = new MenuId('AgentSessionsContext');
 	static readonly AgentSessionsCreateSubMenu = new MenuId('AgentSessionsCreateSubMenu');
@@ -295,6 +295,7 @@ export class MenuId {
 	 * @deprecated TODO@bpasero remove
 	*/
 	static readonly AgentSessionsViewTitle = new MenuId('AgentSessionsViewTitle');
+	static readonly AgentSessionsFilterSubMenu = new MenuId('AgentSessionsFilterSubMenu');
 
 	/**
 	 * Create or reuse a `MenuId` with the given identifier
