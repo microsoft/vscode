@@ -84,6 +84,15 @@ MenuRegistry.appendMenuItem(MenuId.AgentSessionsViewTitle, {
 } satisfies ISubmenuItem);
 
 MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
+	submenu: MenuId.AgentSessionsViewerFilterSubMenu,
+	title: localize2('filterAgentSessions', "Filter Agent Sessions"),
+	group: 'navigation',
+	order: 3,
+	icon: Codicon.filter,
+	when: ChatContextKeys.agentSessionsViewerExpanded
+} satisfies ISubmenuItem);
+
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsToolbar, {
 	command: {
 		id: ShowAgentSessionsSidebar.ID,
 		title: ShowAgentSessionsSidebar.TITLE,

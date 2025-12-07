@@ -12,9 +12,16 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ChatSessionStatus, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from './agentSessions.js';
 import { IAgentSession } from './agentSessionsModel.js';
+import { IAgentSessionsFilter } from './agentSessionsViewer.js';
 
-export interface IAgentSessionsFilterOptions {
+export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilter> {
+
 	readonly filterMenuId: MenuId;
+
+	readonly limitResults?: () => number | undefined;
+	notifyResults?(count: number): void;
+
+	overrideExclude?(session: IAgentSession): boolean | undefined;
 }
 
 interface IAgentSessionsViewExcludes {
@@ -29,16 +36,18 @@ const DEFAULT_EXCLUDES: IAgentSessionsViewExcludes = Object.freeze({
 	archived: true as const,
 });
 
-export class AgentSessionsFilter extends Disposable {
+export class AgentSessionsFilter extends Disposable implements Required<IAgentSessionsFilter> {
 
 	private readonly STORAGE_KEY: string;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
+	readonly limitResults = () => this.options.limitResults?.();
+
 	private excludes = DEFAULT_EXCLUDES;
 
-	private actionDisposables = this._register(new DisposableStore());
+	private readonly actionDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly options: IAgentSessionsFilterOptions,
@@ -225,6 +234,11 @@ export class AgentSessionsFilter extends Disposable {
 	}
 
 	exclude(session: IAgentSession): boolean {
+		const overrideExclude = this.options?.overrideExclude?.(session);
+		if (typeof overrideExclude === 'boolean') {
+			return overrideExclude;
+		}
+
 		if (this.excludes.archived && session.isArchived()) {
 			return true;
 		}
@@ -238,5 +252,9 @@ export class AgentSessionsFilter extends Disposable {
 		}
 
 		return false;
+	}
+
+	notifyResults(count: number): void {
+		this.options.notifyResults?.(count);
 	}
 }
