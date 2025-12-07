@@ -105,6 +105,7 @@ declare module 'vscode' {
 		isComplete?: boolean;
 		toolSpecificData?: ChatTerminalToolInvocationData;
 		fromSubAgent?: boolean;
+		presentation?: 'hidden' | 'hiddenAfterComplete' | undefined;
 
 		constructor(toolName: string, toolCallId: string, isError?: boolean);
 	}
