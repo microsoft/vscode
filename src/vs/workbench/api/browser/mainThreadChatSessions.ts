@@ -403,6 +403,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		}
 
 		const originalEditor = this._editorService.editors.find(editor => editor.resource?.toString() === originalResource.toString());
+		const originalModel = this._chatService.getSession(originalResource);
 		const contribution = this._chatSessionsService.getAllChatSessionContributions().find(c => c.type === chatSessionType);
 
 		// Find the group containing the original editor
@@ -424,8 +425,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 				CancellationToken.None,
 			);
 
-			newSession.initialEditingSession = originalEditor instanceof ChatEditorInput
-				? originalEditor.transferOutEditingSession()
+			newSession.transferredState = originalEditor instanceof ChatEditorInput
+				? { editingSession: originalEditor.transferOutEditingSession(), inputState: originalModel?.inputModel.toJSON() }
 				: undefined;
 
 			this._editorService.replaceEditors([{
@@ -445,7 +446,10 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			// In that case we need to transfer editing session using the original model.
 			const originalModel = this._chatService.getSession(originalResource);
 			if (originalModel) {
-				newSession.initialEditingSession = originalModel.editingSession;
+				newSession.transferredState = {
+					editingSession: originalModel.editingSession,
+					inputState: originalModel.inputModel.toJSON()
+				};
 			}
 			await this._chatWidgetService.openSession(modifiedResource, ChatViewPaneTarget, { preserveFocus: true });
 		}
