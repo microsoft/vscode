@@ -326,7 +326,7 @@ export class RefreshAgentSessionsViewerAction extends Action2 {
 				id: MenuId.AgentSessionsToolbar,
 				group: 'navigation',
 				order: 1,
-				when: ChatContextKeys.agentSessionsViewerExpanded
+				when: ChatContextKeys.agentSessionsViewerLimited.negate()
 			},
 		});
 	}
@@ -347,7 +347,7 @@ export class FindAgentSessionInViewerAction extends Action2 {
 				id: MenuId.AgentSessionsToolbar,
 				group: 'navigation',
 				order: 2,
-				when: ChatContextKeys.agentSessionsViewerExpanded
+				when: ChatContextKeys.agentSessionsViewerLimited.negate()
 			}
 		});
 	}
