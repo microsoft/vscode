@@ -45,16 +45,19 @@
 			}
 		}
 
-		.agent-sessions-toolbar .action-item {
-			/* align with the title actions*/
-			margin-right: 4px;
-		}
+		.agent-sessions-toolbar {
 
-		.agent-sessions-toolbar.filtered .action-label.codicon.codicon-filter {
-			/* indicate when sessions filter is enabled */
-			border-color: var(--vscode-inputOption-activeBorder);
-			color: var(--vscode-inputOption-activeForeground);
-			background-color: var(--vscode-inputOption-activeBackground);
+			.action-item {
+				/* align with the title actions*/
+				margin-right: 4px;
+			}
+
+			&.filtered .action-label.codicon.codicon-filter {
+				/* indicate when sessions filter is enabled */
+				border-color: var(--vscode-inputOption-activeBorder);
+				color: var(--vscode-inputOption-activeForeground);
+				background-color: var(--vscode-inputOption-activeBackground);
+			}
 		}
 
 		.agent-sessions-link-container {
