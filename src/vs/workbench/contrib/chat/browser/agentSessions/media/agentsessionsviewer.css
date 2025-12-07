@@ -75,6 +75,10 @@
 				&.codicon.codicon-error {
 					color: var(--vscode-errorForeground);
 				}
+
+				&.codicon.codicon-circle-filled {
+					color: var(--vscode-textLink-foreground);
+				}
 			}
 		}
 

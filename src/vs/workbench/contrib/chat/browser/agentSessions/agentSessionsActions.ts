@@ -27,6 +27,7 @@ import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../.
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { getPartByLocation } from '../../../../services/views/browser/viewsService.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { IAgentSessionsService } from './agentSessionsService.js';
 
 //#region Session Title Actions
 
@@ -271,6 +272,54 @@ export class OpenAgentSessionInNewWindowAction extends BaseOpenAgentSessionActio
 		return {
 			auxiliary: { compact: true, bounds: { width: 800, height: 640 } }
 		};
+	}
+}
+
+export class MarkAgentSessionUnreadAction extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSession.markUnread',
+			title: localize2('markUnread', "Mark as Unread"),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				group: 'modify',
+				order: 1,
+				when: ChatContextKeys.isReadAgentSession,
+			}
+		});
+	}
+	run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): void {
+		const agentSessionsService = accessor.get(IAgentSessionsService);
+
+		if (!context) {
+			return;
+		}
+
+		agentSessionsService.getSession(context.session.resource)?.setRead(false);
+	}
+}
+
+export class MarkAgentSessionReadAction extends Action2 {
+	constructor() {
+		super({
+			id: 'agentSession.markRead',
+			title: localize2('markRead', "Mark as Read"),
+			menu: {
+				id: MenuId.AgentSessionsContext,
+				group: 'modify',
+				order: 1,
+				when: ChatContextKeys.isReadAgentSession.negate(),
+			}
+		});
+	}
+	run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): void {
+		const agentSessionsService = accessor.get(IAgentSessionsService);
+
+		if (!context) {
+			return;
+		}
+
+		agentSessionsService.getSession(context.session.resource)?.setRead(true);
 	}
 }
 
