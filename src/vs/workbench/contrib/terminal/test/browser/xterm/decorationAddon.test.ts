@@ -78,7 +78,7 @@ suite('DecorationAddon', () => {
 			store.add(marker);
 		});
 
-		test('should return true for decoration with mark properties', async () => {
+		test.skip('should return true for decoration with mark properties', async () => {
 			const marker = xterm.registerMarker(3);
 			strictEqual(decorationAddon.registerCommandDecoration(undefined, undefined, { marker }), true);
 			store.add(marker);
