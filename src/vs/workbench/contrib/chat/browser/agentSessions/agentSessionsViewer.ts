@@ -145,6 +145,9 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.detailsToolbar.clear();
 		template.description.textContent = '';
 
+		// Archived
+		template.element.classList.toggle('archived', session.element.isArchived());
+
 		// Icon
 		template.icon.className = `agent-session-icon ${ThemeIcon.asClassName(this.getIcon(session.element))}`;
 
@@ -157,10 +160,12 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 		template.titleToolbar.context = session.element;
 
 		// Details Actions
-		const { statistics: diff } = session.element;
-		if (session.element.status !== ChatSessionStatus.InProgress && diff && (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
-			const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
-			template.detailsToolbar.push([diffAction], { icon: false, label: true });
+		const { changes: diff } = session.element;
+		if (session.element.status !== ChatSessionStatus.InProgress && diff) {
+			if (diff instanceof Array ? diff.length > 0 : (diff.files > 0 || diff.insertions > 0 || diff.deletions > 0)) {
+				const diffAction = template.elementDisposable.add(new AgentSessionShowDiffAction(session.element));
+				template.detailsToolbar.push([diffAction], { icon: false, label: true });
+			}
 		}
 
 		// Description otherwise
@@ -177,7 +182,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 
 	private getIcon(session: IAgentSession): ThemeIcon {
 		if (session.status === ChatSessionStatus.InProgress) {
-			return ThemeIcon.modify(Codicon.loading, 'spin');
+			return Codicon.sessionInProgress;
 		}
 
 		if (session.status === ChatSessionStatus.Failed) {
@@ -188,23 +193,23 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {
+		const description = session.element.description;
+		if (description) {
 
-		// Support description as string
-		if (typeof session.element.description === 'string') {
-			template.description.textContent = session.element.description;
-		}
-
-		// or as markdown
-		else if (session.element.description) {
-			template.elementDisposable.add(this.markdownRendererService.render(session.element.description, {
-				sanitizerConfig: {
-					replaceWithPlaintext: true,
-					allowedTags: {
-						override: allowedChatMarkdownHtmlTags,
+			// Support description as string
+			if (typeof description === 'string') {
+				template.description.textContent = description;
+			} else {
+				template.elementDisposable.add(this.markdownRendererService.render(description, {
+					sanitizerConfig: {
+						replaceWithPlaintext: true,
+						allowedTags: {
+							override: allowedChatMarkdownHtmlTags,
+						},
+						allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
 					},
-					allowedLinkSchemes: { augment: [this.productService.urlProtocol] }
-				},
-			}, template.description));
+				}, template.description));
+			}
 		}
 
 		// Fallback to state label
