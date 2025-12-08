@@ -561,8 +561,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			const home = this._getHomeDir(useWindowsStylePath, capabilities);
 			if (home) {
 				// Use the scheme and authority from cwd to handle remote scenarios correctly
-				const homeUri = cwd.with({ path: home });
-				homeResource = URI.joinPath(homeUri, lastWordFolder.slice(1).replaceAll('\\ ', ' '));
+				homeResource = cwd.with({ path: home });
 			}
 			if (!homeResource) {
 				// Use less strong wording here as it's not as strong of a concept on Windows
