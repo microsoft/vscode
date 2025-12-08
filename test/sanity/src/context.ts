@@ -357,6 +357,10 @@ export class TestContext {
 		this.log(`Copied ${appPath} successfully`);
 
 		const entryPoint = '/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code';
+		if (!fs.existsSync(entryPoint)) {
+			this.error(`Desktop entry point does not exist: ${entryPoint}`);
+		}
+
 		this.log(`Installed VS Code executable at: ${entryPoint}`);
 		return entryPoint;
 	}
