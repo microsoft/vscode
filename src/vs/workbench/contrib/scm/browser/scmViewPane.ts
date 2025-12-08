@@ -1239,13 +1239,17 @@ abstract class RepositorySelectionModeAction extends Action2 {
 			menu: [
 				{
 					id: Menus.Repositories,
-					when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.has('scm.providerCount'),
+						ContextKeyExpr.greater('scm.providerCount', 1)),
 					group: '2_selectionMode',
 					order
 				},
 				{
 					id: MenuId.SCMSourceControlTitle,
-					when: ContextKeyExpr.greater(ContextKeys.RepositoryCount.key, 1),
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.has('scm.providerCount'),
+						ContextKeyExpr.greater('scm.providerCount', 1)),
 					group: '2_selectionMode',
 					order
 				},
