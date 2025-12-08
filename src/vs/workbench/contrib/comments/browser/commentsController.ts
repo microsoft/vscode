@@ -19,6 +19,7 @@ import { ModelDecorationOptions, TextModel } from '../../../../editor/common/mod
 import * as languages from '../../../../editor/common/languages.js';
 import * as nls from '../../../../nls.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { CommentGlyphWidget } from './commentGlyphWidget.js';
@@ -479,10 +480,11 @@ export class CommentController implements IEditorContribution {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IViewsService private readonly viewsService: IViewsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
@@ -493,9 +495,9 @@ export class CommentController implements IEditorContribution {
 		this._pendingNewCommentCache = {};
 		this._pendingEditsCache = {};
 		this._computePromise = null;
-		this._activeCursorHasCommentingRange = CommentContextKeys.activeCursorHasCommentingRange.bindTo(contextKeyService);
-		this._activeCursorHasComment = CommentContextKeys.activeCursorHasComment.bindTo(contextKeyService);
-		this._activeEditorHasCommentingRange = CommentContextKeys.activeEditorHasCommentingRange.bindTo(contextKeyService);
+		this._activeCursorHasCommentingRange = CommentContextKeys.activeCursorHasCommentingRange.bindTo(this.contextKeyService);
+		this._activeCursorHasComment = CommentContextKeys.activeCursorHasComment.bindTo(this.contextKeyService);
+		this._activeEditorHasCommentingRange = CommentContextKeys.activeEditorHasCommentingRange.bindTo(this.contextKeyService);
 
 		if (editor instanceof EmbeddedCodeEditorWidget) {
 			return;
@@ -1078,7 +1080,41 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private onEditorMouseDown(e: IEditorMouseEvent): void {
-		this.mouseDownInfo = (e.target.element?.className.indexOf('comment-range-glyph') ?? -1) >= 0 ? parseMouseDownInfoFromEvent(e) : null;
+		const isCommentGlyph = (e.target.element?.className.indexOf('comment-range-glyph') ?? -1) >= 0;
+		
+		// Handle right-click on comment glyph
+		if (isCommentGlyph && e.event.rightButton) {
+			e.event.preventDefault();
+			e.event.stopPropagation();
+			this.showCommentGlyphContextMenu(e);
+			return;
+		}
+		
+		// Handle left-click for normal comment operations
+		this.mouseDownInfo = isCommentGlyph ? parseMouseDownInfoFromEvent(e) : null;
+	}
+
+	private showCommentGlyphContextMenu(e: IEditorMouseEvent): void {
+		if (!this.editor) {
+			return;
+		}
+
+		const actions = this.menuService.getMenuActions(MenuId.CommentGlyphContext, this.contextKeyService, { shouldForwardArgs: true });
+		const menuActions = actions.map(([, items]) => items).flat();
+
+		if (menuActions.length === 0) {
+			return;
+		}
+
+		const useShadowDOM = this.editor.getOption(EditorOption.useShadowDOM);
+		this.contextMenuService.showContextMenu({
+			domForShadowRoot: useShadowDOM ? this.editor.getDomNode() : undefined,
+			getAnchor: () => ({ x: e.event.posx, y: e.event.posy }),
+			getActions: () => menuActions,
+			onHide: () => {
+				this.editor?.focus();
+			}
+		});
 	}
 
 	private onEditorMouseUp(e: IEditorMouseEvent): void {

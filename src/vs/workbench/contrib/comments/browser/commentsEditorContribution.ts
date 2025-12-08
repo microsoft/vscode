@@ -235,6 +235,11 @@ registerAction2(class extends Action2 {
 			menu: [{
 				id: MenuId.CommandPalette,
 				when: CommentContextKeys.WorkspaceHasCommenting
+			}, {
+				id: MenuId.CommentGlyphContext,
+				when: CommentContextKeys.WorkspaceHasCommenting,
+				group: 'inline',
+				order: 3
 			}]
 		});
 	}
@@ -354,6 +359,11 @@ registerAction2(class extends Action2 {
 			menu: [{
 				id: MenuId.CommandPalette,
 				when: CommentContextKeys.WorkspaceHasCommenting
+			}, {
+				id: MenuId.CommentGlyphContext,
+				when: CommentContextKeys.WorkspaceHasCommenting,
+				group: 'inline',
+				order: 1
 			}]
 		});
 	}
@@ -378,6 +388,11 @@ registerAction2(class extends Action2 {
 			menu: [{
 				id: MenuId.CommandPalette,
 				when: CommentContextKeys.WorkspaceHasCommenting
+			}, {
+				id: MenuId.CommentGlyphContext,
+				when: CommentContextKeys.WorkspaceHasCommenting,
+				group: 'inline',
+				order: 2
 			}]
 		});
 	}
