@@ -250,7 +250,6 @@
 }
 
 .customview-tree .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .actions,
-.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .actions,
 .customview-tree .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .actions {
 	display: block;
 }

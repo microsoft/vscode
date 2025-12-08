@@ -93,7 +93,6 @@
 }
 
 .ports-view .monaco-list .monaco-list-row:hover .ports-view-actionbar-cell .actions,
-.ports-view .monaco-list .monaco-list-row.selected .ports-view-actionbar-cell .actions,
 .ports-view .monaco-list .monaco-list-row.focused .ports-view-actionbar-cell .actions {
 	display: block;
 }
