@@ -1765,6 +1765,7 @@ export async function handleModeSwitch(
 export interface IClearEditingSessionConfirmationOptions {
 	titleOverride?: string;
 	messageOverride?: string;
+	isArchiveAction?: boolean;
 }
 
 
