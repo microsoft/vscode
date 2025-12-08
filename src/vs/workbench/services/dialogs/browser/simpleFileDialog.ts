@@ -370,12 +370,17 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 				isAcceptHandled = true;
 				isResolving++;
 				
-				// When switching from remote to local, adjust availableFileSystems
-				if ((this.scheme !== Schemas.file) && this.options.availableFileSystems && (this.options.availableFileSystems.length > 1)) {
-					this.options.availableFileSystems = this.options.availableFileSystems.slice(1);
-				}
-				// When on local filesystem, force the native dialog to be used
-				else if (this.scheme === Schemas.file) {
+				// Handle switching between simple and native dialogs
+				const isRemoteWithLocalAvailable = (this.scheme !== Schemas.file) 
+					&& this.options.availableFileSystems 
+					&& (this.options.availableFileSystems.length > 1);
+				const isLocalFileSystem = (this.scheme === Schemas.file);
+				
+				if (isRemoteWithLocalAvailable) {
+					// When switching from remote to local, adjust availableFileSystems
+					this.options.availableFileSystems = this.options.availableFileSystems!.slice(1);
+				} else if (isLocalFileSystem) {
+					// When on local filesystem, force the native dialog to be used
 					this.options.forceNative = true;
 				}
 				
