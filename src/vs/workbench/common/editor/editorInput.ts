@@ -358,6 +358,9 @@ export abstract class EditorInput extends AbstractEditorInput {
 		super.dispose();
 	}
 
+	/**
+	 * Returns whether this editor input can be reopened after being closed.
+	 */
 	canReopen(): boolean {
 		return true;
 	}
