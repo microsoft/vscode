@@ -379,8 +379,8 @@
         "commandLineMatcher": "npm",
         "outputMatcher": {
           "anchor": "bottom",
-          "length": 15,
-          "lineMatcher": "vulnerabilities?([\\s\\S]*)",
+          "length": 20,
+          "lineMatcher": "vulnerabilities?([\\s\\S]{0,1000})",
           "offset": 0
         }
       }

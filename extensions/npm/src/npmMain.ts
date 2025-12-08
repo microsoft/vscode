@@ -112,15 +112,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			const seenCommands = new Set<string>();
 
 			// Extract npm audit commands from the output
-			// Matches patterns like "npm audit fix", "npm audit fix --force", "npm audit"
-			const npmCommandRegex = /npm\s+audit(?:\s+fix)?(?:\s+--force)?/g;
-			let match: RegExpExecArray | null;
-
-			while ((match = npmCommandRegex.exec(matchedText)) !== null) {
-				const command = match[0].replace(/`/g, ''); // Remove backticks if present
-				if (!seenCommands.has(command)) {
-					seenCommands.add(command);
-					fixes.push({ terminalCommand: command });
+			// Matches patterns like "npm audit", "npm audit fix", "npm audit fix --force", etc.
+			// Ensures we only capture the command on a single line
+			const lines = matchedText.split('\n');
+			for (const line of lines) {
+				const match = line.match(/npm\s+audit(?:\s+[\w-]+)*/);
+				if (match) {
+					const command = match[0].replace(/`/g, '').trim(); // Remove backticks and trim
+					if (command && !seenCommands.has(command)) {
+						seenCommands.add(command);
+						fixes.push({ terminalCommand: command });
+					}
 				}
 			}
 
