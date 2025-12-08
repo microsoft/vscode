@@ -697,6 +697,10 @@ export class ChatService extends Disposable implements IChatService {
 			}
 		}
 
+		if (providedSession.isCompleteObs?.get()) {
+			lastRequest?.response?.complete();
+		}
+
 		if (providedSession.progressObs && lastRequest && providedSession.interruptActiveResponseCallback) {
 			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
 			this._pendingRequests.set(model.sessionResource, initialCancellationRequest);
