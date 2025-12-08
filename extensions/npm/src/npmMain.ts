@@ -116,7 +116,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 			// Ensures we only capture the command on a single line
 			const lines = matchedText.split('\n');
 			for (const line of lines) {
-				const match = line.match(/npm\s+audit(?:\s+[\w-]+)*/);
+				const match = line.match(/npm\s+audit(?:\s+[^\s]+)*/);
 				if (match) {
 					const command = match[0].replace(/`/g, '').trim(); // Remove backticks and trim
 					if (command && !seenCommands.has(command)) {

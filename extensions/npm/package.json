@@ -380,7 +380,7 @@
         "outputMatcher": {
           "anchor": "bottom",
           "length": 20,
-          "lineMatcher": "vulnerabilities?([\\s\\S]{0,1000})",
+          "lineMatcher": "vulnerabilities([\\s\\S]{0,1000})",
           "offset": 0
         }
       }
