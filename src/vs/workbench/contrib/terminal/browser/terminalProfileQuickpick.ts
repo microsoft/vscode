@@ -64,14 +64,16 @@ export class TerminalProfileQuickpick {
 				} else {
 					// Add the profile to settings if necessary
 					if (hasKey(result.profile, { profileName: true })) {
-						const profilesConfig = await this._configurationService.getValue(profilesKey);
+						// Get the appropriate configuration based on target
+						const profilesInspect = this._configurationService.inspect(profilesKey);
+						let profilesConfig: any;
+						if (target === ConfigurationTarget.WORKSPACE) {
+							profilesConfig = profilesInspect.workspaceValue || {};
+						} else {
+							profilesConfig = profilesInspect.userValue || {};
+						}
+						
 						if (typeof profilesConfig === 'object') {
-							const newProfile: ITerminalProfileObject = {
-								path: result.profile.path
-							};
-							if (result.profile.args) {
-								newProfile.args = result.profile.args;
-							}
 							(profilesConfig as { [key: string]: ITerminalProfileObject })[result.profile.profileName] = this._createNewProfileConfig(result.profile);
 							await this._configurationService.updateValue(profilesKey, profilesConfig, target);
 						}
