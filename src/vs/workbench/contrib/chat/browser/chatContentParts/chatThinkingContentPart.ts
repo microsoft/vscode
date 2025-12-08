@@ -24,7 +24,6 @@ import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { ChatMessageRole, ILanguageModelsService } from '../../common/languageModels.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import './media/chatThinkingContent.css';
-import { codeblockHasClosingBackticks } from './chatMarkdownContentPart.js';
 
 
 function extractTextFromPart(content: IChatThinkingPart): string {
@@ -191,12 +190,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			fillInIncompleteTokens: true,
 			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 			codeBlockRendererSync: (_languageId, text, raw) => {
-				const isCodeBlockComplete = this.streamingCompleted || !raw || codeblockHasClosingBackticks(raw);
 				const codeElement = $('code');
 				codeElement.textContent = text;
-				if (!isCodeBlockComplete) {
-					codeElement.classList.add('streaming-code-block');
-				}
 				return codeElement;
 			}
 		}, target));
