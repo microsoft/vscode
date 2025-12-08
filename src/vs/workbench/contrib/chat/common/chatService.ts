@@ -30,6 +30,7 @@ import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { ChatAgentLocation } from './constants.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from './languageModelToolsService.js';
+import { IChatSessionIndex } from './chatSessionStore.js';
 
 export interface IChatRequest {
 	message: string;
@@ -1063,6 +1064,14 @@ export interface IChatService {
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
+
+	// Saved chat sessions (cross-workspace)
+	saveChatSessionAsCrossWorkspace(sessionResource: string, customTitle?: string, customNotes?: string): Promise<string>;
+	getSavedChatSessions(): Promise<IChatSessionIndex>;
+	hasSavedChatSessions(): boolean;
+	readSavedChatSession(sessionId: string): Promise<ISerializableChatData | undefined>;
+	deleteSavedChatSession(sessionId: string): Promise<void>;
+	updateSavedChatSessionTitle(sessionId: string, title: string): Promise<void>;
 
 	readonly edits2Enabled: boolean;
 

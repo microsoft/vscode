@@ -39,7 +39,7 @@ import { ChatRequestParser } from './chatRequestParser.js';
 import { ChatMcpServersStarting, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionContext, IChatSessionStartOptions, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
-import { ChatSessionStore, IChatSessionEntryMetadata, IChatTransfer2 } from './chatSessionStore.js';
+import { ChatSessionStore, IChatSessionEntryMetadata, IChatTransfer2, IChatSessionIndex } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
 import { LocalChatSessionUri } from './chatUri.js';
@@ -1345,5 +1345,35 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Invalid local chat session resource: ${sessionResource}`);
 		}
 		return localSessionId;
+	}
+
+	// Saved chat sessions (cross-workspace)
+	async saveChatSessionAsCrossWorkspace(sessionResourceOrId: string, customTitle?: string, customNotes?: string): Promise<string> {
+		// If it's a session ID, get the model directly
+		const model = this._sessionModels.get(URI.parse(sessionResourceOrId)) || Iterable.find(this._sessionModels.values(), m => m.sessionId === sessionResourceOrId);
+		if (!model) {
+			throw new Error(`Failed to save session. Unknown session ID: ${sessionResourceOrId}`);
+		}
+		return await this._chatSessionStore.saveChatSessionAsCrossWorkspace(model, customTitle, customNotes);
+	}
+
+	async getSavedChatSessions(): Promise<IChatSessionIndex> {
+		return await this._chatSessionStore.getSavedSessions();
+	}
+
+	hasSavedChatSessions(): boolean {
+		return this._chatSessionStore.hasSavedSessions();
+	}
+
+	async readSavedChatSession(sessionId: string): Promise<ISerializableChatData | undefined> {
+		return await this._chatSessionStore.readSavedSession(sessionId);
+	}
+
+	async deleteSavedChatSession(sessionId: string): Promise<void> {
+		await this._chatSessionStore.deleteSavedSession(sessionId);
+	}
+
+	async updateSavedChatSessionTitle(sessionId: string, title: string): Promise<void> {
+		await this._chatSessionStore.updateSavedSessionTitle(sessionId, title);
 	}
 }

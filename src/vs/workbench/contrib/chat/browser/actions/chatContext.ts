@@ -23,6 +23,7 @@ import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../chatContextPickService.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
+import { IChatService } from '../../common/chatService.js';
 import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState, toToolSetVariableEntry, toToolVariableEntry } from '../../common/chatVariableEntries.js';
 import { ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget } from '../chat.js';
@@ -58,6 +59,7 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(RelatedFilesContextPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
+		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SavedChatSessionsContextPickerPick)));
 	}
 }
 
@@ -347,5 +349,61 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
 		const blob = await this._hostService.getScreenshot();
 		return blob && convertBufferToScreenshotVariable(blob);
+	}
+}
+
+class SavedChatSessionsContextPickerPick implements IChatContextPickerItem {
+
+	readonly type = 'pickerPick';
+	readonly label: string = localize('chatContext.savedSessions', 'Saved Chat Sessions');
+	readonly icon: ThemeIcon = Codicon.history;
+	readonly ordinal = 400;
+
+	constructor(
+		@IChatService private readonly _chatService: IChatService,
+	) { }
+
+	isEnabled(widget: IChatWidget): boolean {
+		return this._chatService.hasSavedChatSessions();
+	}
+
+	asPicker(widget: IChatWidget): IChatContextPicker {
+		const picks = (async () => {
+			const savedSessions = await this._chatService.getSavedChatSessions();
+			const entries = Object.entries(savedSessions);
+
+			if (entries.length === 0) {
+				return [];
+			}
+
+			return entries.map(([sessionId, metadata]) => {
+				const label = metadata.title;
+				const description = metadata.notes || new Date(metadata.savedDate ?? 0).toLocaleString();
+				const detail = localize('savedSession.detail', "Last updated: {0}",
+					new Date(metadata.lastMessageDate).toLocaleString()
+				);
+
+				return {
+					label,
+					description,
+					detail,
+					asAttachment: async (): Promise<IChatRequestVariableEntry> => {
+						const sessionData = await this._chatService.readSavedChatSession(sessionId);
+						return {
+							kind: 'generic',
+							id: sessionId,
+							value: JSON.stringify(sessionData),
+							name: metadata.title,
+							omittedState: OmittedState.NotOmitted
+						};
+					}
+				} satisfies IChatContextPickerPickItem;
+			});
+		})();
+
+		return {
+			placeholder: localize('savedSessions.placeholder', 'Select a saved chat session to add as context'),
+			picks,
+		};
 	}
 }

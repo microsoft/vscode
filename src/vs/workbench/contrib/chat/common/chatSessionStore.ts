@@ -11,6 +11,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { revive } from '../../../../base/common/marshalling.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../platform/files/common/files.js';
@@ -28,13 +29,16 @@ import { LocalChatSessionUri } from './chatUri.js';
 import { ChatAgentLocation } from './constants.js';
 
 const maxPersistedSessions = 25;
+const maxSavedSessions = 100;
 
 const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
+const SavedChatIndexStorageKey = 'chat.ChatSessionStore.savedIndex';
 // const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';
 
 export class ChatSessionStore extends Disposable {
 	private readonly storageRoot: URI;
 	private readonly previousEmptyWindowStorageRoot: URI | undefined;
+	private readonly savedSessionsRoot: URI;
 	// private readonly transferredSessionStorageRoot: URI;
 
 	private readonly storeQueue = new Sequencer();
@@ -64,6 +68,8 @@ export class ChatSessionStore extends Disposable {
 		this.previousEmptyWindowStorageRoot = isEmptyWindow ?
 			joinPath(this.environmentService.workspaceStorageHome, 'no-workspace', 'chatSessions') :
 			undefined;
+
+		this.savedSessionsRoot = joinPath(this.userDataProfilesService.defaultProfile.globalStorageHome, 'savedChatSessions');
 
 		// TODO tmpdir
 		// this.transferredSessionStorageRoot = joinPath(this.environmentService.workspaceStorageHome, 'transferredChatSessions');
@@ -424,6 +430,193 @@ export class ChatSessionStore extends Disposable {
 	public getChatStorageFolder(): URI {
 		return this.storageRoot;
 	}
+
+	// ===== Saved Sessions (Cross-Workspace) =====
+
+	/**
+	 * Save a chat session as a cross-workspace artifact
+	 */
+	public async saveChatSessionAsCrossWorkspace(session: ChatModel, customTitle?: string, customNotes?: string): Promise<string> {
+		return await this.storeQueue.queue(async () => {
+			const savedSessionId = `saved-${generateUuid()}`;
+			const sessionData = session.toJSON();
+
+			try {
+				const storageLocation = this.getSavedSessionStorageLocation(savedSessionId);
+				const content = JSON.stringify(sessionData, undefined, 2);
+				await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
+
+				// Update saved sessions index
+				const index = this.internalGetSavedSessionsIndex();
+				const metadata = await getSessionMetadata(session);
+				index.entries[savedSessionId] = {
+					...metadata,
+					sessionId: savedSessionId,
+					title: customTitle || metadata.title,
+					isSaved: true,
+					savedDate: Date.now(),
+					originalSessionId: session.sessionId,
+					notes: customNotes,
+				};
+
+				await this.flushSavedSessionsIndex();
+				await this.trimSavedSessions();
+
+				this.logService.info(`ChatSessionStore: Saved chat session ${savedSessionId} as cross-workspace artifact`);
+				return savedSessionId;
+			} catch (e) {
+				this.reportError('saveChatSession', 'Error saving chat session as cross-workspace artifact', e);
+				throw e;
+			}
+		});
+	}
+
+	/**
+	 * Get all saved cross-workspace sessions
+	 */
+	public async getSavedSessions(): Promise<IChatSessionIndex> {
+		return await this.storeQueue.queue(async () => {
+			return this.internalGetSavedSessionsIndex().entries;
+		});
+	}
+
+	/**
+	 * Check if there are any saved sessions
+	 */
+	public hasSavedSessions(): boolean {
+		return Object.keys(this.internalGetSavedSessionsIndex().entries).length > 0;
+	}
+
+	/**
+	 * Read a saved session
+	 */
+	public async readSavedSession(sessionId: string): Promise<ISerializableChatData | undefined> {
+		return await this.storeQueue.queue(async () => {
+			const storageLocation = this.getSavedSessionStorageLocation(sessionId);
+			try {
+				const rawData = (await this.fileService.readFile(storageLocation)).value.toString();
+				const session: ISerializableChatDataIn = revive(JSON.parse(rawData));
+
+				// Revive serialized markdown strings in response data
+				for (const request of session.requests) {
+					if (Array.isArray(request.response)) {
+						request.response = request.response.map((response) => {
+							if (typeof response === 'string') {
+								return new MarkdownString(response);
+							}
+							return response;
+						});
+					} else if (typeof request.response === 'string') {
+						request.response = [new MarkdownString(request.response)];
+					}
+				}
+
+				return normalizeSerializableChatData(session);
+			} catch (e) {
+				this.reportError('readSavedSession', `Error reading saved chat session ${sessionId}`, e);
+				return undefined;
+			}
+		});
+	}
+
+	/**
+	 * Delete a saved session
+	 */
+	public async deleteSavedSession(sessionId: string): Promise<void> {
+		await this.storeQueue.queue(async () => {
+			const index = this.internalGetSavedSessionsIndex();
+			if (!index.entries[sessionId]) {
+				return;
+			}
+
+			const storageLocation = this.getSavedSessionStorageLocation(sessionId);
+			try {
+				await this.fileService.del(storageLocation);
+			} catch (e) {
+				if (toFileOperationResult(e) !== FileOperationResult.FILE_NOT_FOUND) {
+					this.reportError('deleteSavedSession', 'Error deleting saved chat session', e);
+				}
+			} finally {
+				delete index.entries[sessionId];
+				await this.flushSavedSessionsIndex();
+			}
+		});
+	}
+
+	/**
+	 * Update saved session title
+	 */
+	public async updateSavedSessionTitle(sessionId: string, title: string): Promise<void> {
+		await this.storeQueue.queue(async () => {
+			const index = this.internalGetSavedSessionsIndex();
+			if (index.entries[sessionId]) {
+				index.entries[sessionId].title = title;
+				await this.flushSavedSessionsIndex();
+			}
+		});
+	}
+
+	private getSavedSessionStorageLocation(sessionId: string): URI {
+		return joinPath(this.savedSessionsRoot, `${sessionId}.json`);
+	}
+
+	private savedSessionsIndexCache: IChatSessionIndexData | undefined;
+	private internalGetSavedSessionsIndex(): IChatSessionIndexData {
+		if (this.savedSessionsIndexCache) {
+			return this.savedSessionsIndexCache;
+		}
+
+		const data = this.storageService.get(SavedChatIndexStorageKey, StorageScope.PROFILE, undefined);
+		if (!data) {
+			this.savedSessionsIndexCache = { version: 1, entries: {} };
+			return this.savedSessionsIndexCache;
+		}
+
+		try {
+			const index = JSON.parse(data) as unknown;
+			if (isChatSessionIndex(index)) {
+				this.savedSessionsIndexCache = index;
+			} else {
+				this.reportError('invalidSavedIndexFormat', `Invalid saved index format: ${data}`);
+				this.savedSessionsIndexCache = { version: 1, entries: {} };
+			}
+			return this.savedSessionsIndexCache;
+		} catch (e) {
+			this.reportError('invalidSavedIndexJSON', `Saved index corrupt: ${data}`, e);
+			this.savedSessionsIndexCache = { version: 1, entries: {} };
+			return this.savedSessionsIndexCache;
+		}
+	}
+
+	private async flushSavedSessionsIndex(): Promise<void> {
+		const index = this.internalGetSavedSessionsIndex();
+		try {
+			this.storageService.store(SavedChatIndexStorageKey, index, StorageScope.PROFILE, StorageTarget.MACHINE);
+		} catch (e) {
+			this.reportError('savedIndexWrite', 'Error writing saved sessions index', e);
+		}
+	}
+
+	private async trimSavedSessions(): Promise<void> {
+		const index = this.internalGetSavedSessionsIndex();
+		const entries = Object.entries(index.entries)
+			.sort((a, b) => (b[1].savedDate ?? 0) - (a[1].savedDate ?? 0))
+			.map(([id]) => id);
+
+		if (entries.length > maxSavedSessions) {
+			const entriesToDelete = entries.slice(maxSavedSessions);
+			for (const entry of entriesToDelete) {
+				const storageLocation = this.getSavedSessionStorageLocation(entry);
+				try {
+					await this.fileService.del(storageLocation);
+				} catch (e) {
+					// Ignore errors
+				}
+				delete index.entries[entry];
+			}
+			this.logService.trace(`ChatSessionStore: Trimmed ${entriesToDelete.length} old saved chat sessions`);
+		}
+	}
 }
 
 export interface IChatSessionEntryMetadata {
@@ -445,6 +638,26 @@ export interface IChatSessionEntryMetadata {
 	 * Whether this session was loaded from an external provider (eg background/cloud sessions).
 	 */
 	isExternal?: boolean;
+
+	/**
+	 * Whether this is a saved cross-workspace session
+	 */
+	isSaved?: boolean;
+
+	/**
+	 * Timestamp when this session was saved (for saved sessions only)
+	 */
+	savedDate?: number;
+
+	/**
+	 * Original session ID before saving (for saved sessions only)
+	 */
+	originalSessionId?: string;
+
+	/**
+	 * User notes/description for saved session
+	 */
+	notes?: string;
 }
 
 function isChatSessionEntryMetadata(obj: unknown): obj is IChatSessionEntryMetadata {
