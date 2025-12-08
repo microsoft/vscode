@@ -457,6 +457,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		if (chatViewWidget && isIChatViewViewContext(chatViewWidget.viewContext)) {
 			await this._chatWidgetService.openSession(modifiedResource, ChatViewPaneTarget, { preserveFocus: true });
 		} else {
+			// Loading the session to ensure the session is created and editing session is transferred.
 			const ref = await this._chatService.loadSessionForResource(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
 			ref?.dispose();
 		}
