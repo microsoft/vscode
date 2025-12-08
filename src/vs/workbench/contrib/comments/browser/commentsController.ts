@@ -1083,7 +1083,7 @@ export class CommentController implements IEditorContribution {
 		const isCommentGlyph = (e.target.element?.className.indexOf('comment-range-glyph') ?? -1) >= 0;
 		
 		// Handle right-click on comment glyph
-		if (isCommentGlyph && e.event.rightButton) {
+		if (isCommentGlyph && e.event?.rightButton) {
 			e.event.preventDefault();
 			e.event.stopPropagation();
 			this.showCommentGlyphContextMenu(e);
@@ -1100,7 +1100,7 @@ export class CommentController implements IEditorContribution {
 		}
 
 		const actions = this.menuService.getMenuActions(MenuId.CommentGlyphContext, this.contextKeyService, { shouldForwardArgs: true });
-		const menuActions = actions.map(([, items]) => items).flat();
+		const menuActions = actions.flatMap(([, items]) => items);
 
 		if (menuActions.length === 0) {
 			return;
