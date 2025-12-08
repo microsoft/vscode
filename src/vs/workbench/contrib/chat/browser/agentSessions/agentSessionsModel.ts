@@ -372,6 +372,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 
 	//#region States
 
+	// In order to reduce the amount of unread sessions a user will
+	// see after updating to 1.107, we specify a fixed date that a
+	// session needs to be created after to be considered unread unless
+	// the user has explicitly marked it as read.
+	// TODO@bpasero remove this logic eventually
+	private static readonly READ_STATE_INITIAL_DATE = Date.UTC(2025, 11 /* December */, 8);
+
 	private readonly sessionStates: ResourceMap<IAgentSessionState>;
 
 	private isArchived(session: IInternalAgentSessionData): boolean {
@@ -392,7 +399,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	private isRead(session: IInternalAgentSessionData): boolean {
 		const readDate = this.sessionStates.get(session.resource)?.read;
 
-		return (readDate ?? 0) >= (session.timing.endTime ?? session.timing.startTime);
+		return (readDate ?? AgentSessionsModel.READ_STATE_INITIAL_DATE) >= (session.timing.endTime ?? session.timing.startTime);
 	}
 
 	private setRead(session: IInternalAgentSessionData, read: boolean): void {
