@@ -1954,13 +1954,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const wasHidden = !this.isVisible(Parts.PANEL_PART);
 		const isPanelMaximized = this.isPanelMaximized();
 
-		// If maximized and in process of hiding, unmaximize FIRST before
-		// changing visibility to prevent conflict with setEditorHidden
-		// which would force panel visible again (fixes #281772)
-		if (hidden && isPanelMaximized) {
-			this.toggleMaximizedPanel();
-		}
-
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_HIDDEN, hidden);
 
 		const panelOpensMaximized = this.panelOpensMaximized();
@@ -1970,6 +1963,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.mainContainer.classList.add(LayoutClasses.PANEL_HIDDEN);
 		} else {
 			this.mainContainer.classList.remove(LayoutClasses.PANEL_HIDDEN);
+		}
+
+		// If maximized and in process of hiding, unmaximize FIRST before
+		// changing visibility to prevent conflict with setEditorHidden
+		// which would force panel visible again (fixes #281772)
+		if (hidden && isPanelMaximized) {
+			this.toggleMaximizedPanel();
 		}
 
 		// Propagate layout changes to grid
