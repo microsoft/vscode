@@ -176,9 +176,13 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 	}
 
 	private registerListeners(): void {
+
+		// Sessions changes
 		this._register(this.chatSessionsService.onDidChangeItemsProviders(({ chatSessionType: provider }) => this.resolve(provider)));
 		this._register(this.chatSessionsService.onDidChangeAvailability(() => this.resolve(undefined)));
 		this._register(this.chatSessionsService.onDidChangeSessionItems(provider => this.resolve(provider)));
+
+		// State
 		this._register(this.storageService.onWillSaveState(() => {
 			this.cache.saveCachedSessions(Array.from(this._sessions.values()));
 			this.cache.saveSessionStates(this.sessionStates);
@@ -301,6 +305,22 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					? { files: changes.files, insertions: changes.insertions, deletions: changes.deletions }
 					: changes;
 
+				// Times: it is important to always provide a start and end time to track
+				// unread/read state for example.
+				// If somehow the provider does not provide any, fallback to last known
+				let startTime = session.timing.startTime;
+				let endTime = session.timing.endTime;
+				if (!startTime || !endTime) {
+					const existing = this._sessions.get(session.resource);
+					if (!startTime && existing?.timing.startTime) {
+						startTime = existing.timing.startTime;
+					}
+
+					if (!endTime && existing?.timing.endTime) {
+						endTime = existing.timing.endTime;
+					}
+				}
+
 				sessions.set(session.resource, this.toAgentSession({
 					providerType: provider.chatSessionType,
 					providerLabel,
@@ -311,12 +331,7 @@ export class AgentSessionsModel extends Disposable implements IAgentSessionsMode
 					tooltip: session.tooltip,
 					status,
 					archived: session.archived,
-					timing: {
-						startTime: session.timing.startTime,
-						endTime: session.timing.endTime,
-						inProgressTime,
-						finishedOrFailedTime
-					},
+					timing: { startTime, endTime, inProgressTime, finishedOrFailedTime },
 					changes: normalizedChanges,
 				}));
 			}
