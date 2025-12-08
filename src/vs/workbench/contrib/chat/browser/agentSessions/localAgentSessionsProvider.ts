@@ -130,7 +130,7 @@ export class LocalAgentsSessionsProvider extends Disposable implements IChatSess
 			}
 
 			const lastResponse = model.getRequests().at(-1)?.response;
-			description = this.chatSessionsService.getSessionDescription(model);
+			description = this.chatSessionsService.getInProgressSessionDescription(model);
 
 			startTime = model.timestamp;
 			if (lastResponse) {
