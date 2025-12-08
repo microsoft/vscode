@@ -12,6 +12,7 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { LEGACY_AGENT_SESSIONS_VIEW_ID } from '../../common/constants.js';
 import { ChatViewId } from '../chat.js';
+import { foreground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 
 export const AGENT_SESSIONS_VIEW_CONTAINER_ID = 'workbench.viewContainer.agentSessions';
 export const AGENT_SESSIONS_VIEW_ID = 'workbench.view.agentSessions';
@@ -72,3 +73,7 @@ export interface IAgentSessionsControl {
 	refresh(): void;
 	openFind(): void;
 }
+
+export const agentSessionReadIndicatorForeground = registerColor('agentSessionReadIndicator.foreground',
+	{ dark: transparent(foreground, 0.15), light: transparent(foreground, 0.15), hcDark: null, hcLight: null },
+	localize('agentSessionReadIndicatorForeground', "Foreground color for the read indicator in an agent session."));

@@ -206,7 +206,7 @@ export class AgentSessionRenderer implements ICompressibleTreeRenderer<IAgentSes
 			return Codicon.circleFilled;
 		}
 
-		return Codicon.blank;
+		return Codicon.circleSmallFilled;
 	}
 
 	private renderDescription(session: ITreeNode<IAgentSession, FuzzyScore>, template: IAgentSessionItemTemplate): void {

@@ -80,6 +80,10 @@
 				&.codicon.codicon-circle-filled {
 					color: var(--vscode-textLink-foreground);
 				}
+
+				&.codicon.codicon-circle-small-filled {
+					color: var(--vscode-agentSessionReadIndicator-foreground);
+				}
 			}
 		}
 
