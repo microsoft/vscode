@@ -7,9 +7,11 @@
 
 	.chat-view-title-container {
 		display: none;
-		padding: 4px 8px 8px 16px;
-		border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+		/* try to align with the sessions view title */
+		padding: 8px 12px 8px 16px;
+		border-bottom: 1px solid var(--vscode-panel-border);
 		align-items: center;
+		cursor: pointer;
 
 		.chat-view-title-label {
 			text-transform: uppercase;
@@ -18,6 +20,12 @@
 			overflow: hidden;
 			white-space: nowrap;
 			text-overflow: ellipsis;
+			min-width: 0;
+		}
+
+		.chat-view-title-icon {
+			margin-left: auto;
+			color: var(--vscode-descriptionForeground);
 		}
 	}
 

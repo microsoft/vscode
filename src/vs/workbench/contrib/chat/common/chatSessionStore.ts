@@ -24,6 +24,7 @@ import { awaitStatsForSession } from './chat.js';
 import { ModifiedFileEntryState } from './chatEditingService.js';
 import { ChatModel, IChatModelInputState, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData } from './chatModel.js';
 import { IChatSessionStats } from './chatService.js';
+import { LocalChatSessionUri } from './chatUri.js';
 import { ChatAgentLocation } from './constants.js';
 
 const maxPersistedSessions = 25;
@@ -102,6 +103,27 @@ export class ChatSessionStore extends Disposable {
 		}
 	}
 
+	async storeSessionsMetadataOnly(sessions: ChatModel[]): Promise<void> {
+		if (this.shuttingDown) {
+			// Don't start this task if we missed the chance to block shutdown
+			return;
+		}
+
+		try {
+			this.storeTask = this.storeQueue.queue(async () => {
+				try {
+					await Promise.all(sessions.map(session => this.writeSessionMetadataOnly(session)));
+					await this.flushIndex();
+				} catch (e) {
+					this.reportError('storeSessions', 'Error storing chat sessions', e);
+				}
+			});
+			await this.storeTask;
+		} finally {
+			this.storeTask = undefined;
+		}
+	}
+
 	// async storeTransferSession(transferData: IChatTransfer, session: ISerializableChatData): Promise<void> {
 	// 	try {
 	// 		const content = JSON.stringify(session, undefined, 2);
@@ -144,6 +166,23 @@ export class ChatSessionStore extends Disposable {
 		}
 	}
 
+	private async writeSessionMetadataOnly(session: ChatModel): Promise<void> {
+		// Only to be used for external sessions
+		if (LocalChatSessionUri.parseLocalSessionId(session.sessionResource)) {
+			return;
+		}
+
+		try {
+			const index = this.internalGetIndex();
+
+			// TODO get this class on sessionResource
+			const externalSessionId = session.sessionResource.toString();
+			index.entries[externalSessionId] = await getSessionMetadata(session);
+		} catch (e) {
+			this.reportError('sessionMetadataWrite', 'Error writing chat session metadata', e);
+		}
+	}
+
 	private async flushIndex(): Promise<void> {
 		const index = this.internalGetIndex();
 		try {
@@ -163,6 +202,7 @@ export class ChatSessionStore extends Disposable {
 	private async trimEntries(): Promise<void> {
 		const index = this.internalGetIndex();
 		const entries = Object.entries(index.entries)
+			.filter(([_id, entry]) => !entry.isExternal)
 			.sort((a, b) => b[1].lastMessageDate - a[1].lastMessageDate)
 			.map(([id]) => id);
 
@@ -400,6 +440,11 @@ export interface IChatSessionEntryMetadata {
 	 * filter the old ones out of history.
 	 */
 	isEmpty?: boolean;
+
+	/**
+	 * Whether this session was loaded from an external provider (eg background/cloud sessions).
+	 */
+	isExternal?: boolean;
 }
 
 function isChatSessionEntryMetadata(obj: unknown): obj is IChatSessionEntryMetadata {
@@ -459,7 +504,8 @@ async function getSessionMetadata(session: ChatModel | ISerializableChatData): P
 		initialLocation: session.initialLocation,
 		hasPendingEdits: session instanceof ChatModel ? (session.editingSession?.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified)) : false,
 		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0,
-		stats
+		stats,
+		isExternal: session instanceof ChatModel && !LocalChatSessionUri.parseLocalSessionId(session.sessionResource)
 	};
 }
 

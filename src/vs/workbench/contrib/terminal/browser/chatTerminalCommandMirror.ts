@@ -8,6 +8,7 @@ import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import type { ITerminalCommand } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalService, type IDetachedTerminalInstance } from './terminal.js';
 import { DetachedProcessInfo } from './detachedTerminal.js';
+import { TerminalCapabilityStore } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { XtermTerminal } from './xterm/xtermTerminal.js';
 import { TERMINAL_BACKGROUND_COLOR } from '../common/terminalColorRegistry.js';
 import { PANEL_BACKGROUND } from '../../../common/theme.js';
@@ -132,12 +133,15 @@ export class DetachedTerminalCommandMirror extends Disposable implements IDetach
 	}
 
 	private async _createTerminal(): Promise<IDetachedTerminalInstance> {
+		const processInfo = this._register(new DetachedProcessInfo({ initialCwd: '' }));
+		const capabilities = this._register(new TerminalCapabilityStore());
 		const detached = await this._terminalService.createDetachedTerminal({
 			cols: this._xtermTerminal.raw!.cols,
 			rows: 10,
 			readonly: true,
-			processInfo: new DetachedProcessInfo({ initialCwd: '' }),
+			processInfo,
 			disableOverviewRuler: true,
+			capabilities,
 			colorProvider: {
 				getBackgroundColor: theme => {
 					const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);

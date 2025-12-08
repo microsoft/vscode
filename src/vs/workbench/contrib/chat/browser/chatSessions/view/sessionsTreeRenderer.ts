@@ -279,10 +279,23 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			}
 
 			DOM.clearNode(templateData.statisticsLabel);
+
+			let insertions = 0;
+			let deletions = 0;
+			if (session.changes instanceof Array) {
+				for (const change of session.changes) {
+					insertions += change.insertions;
+					deletions += change.deletions;
+				}
+			} else if (session.changes) {
+				insertions = session.changes.insertions;
+				deletions = session.changes.deletions;
+			}
+
 			const insertionNode = append(templateData.statisticsLabel, $('span.insertions'));
-			insertionNode.textContent = session.statistics ? `+${session.statistics.insertions}` : '';
+			insertionNode.textContent = session.changes ? `+${insertions}` : '';
 			const deletionNode = append(templateData.statisticsLabel, $('span.deletions'));
-			deletionNode.textContent = session.statistics ? `-${session.statistics.deletions}` : '';
+			deletionNode.textContent = session.changes ? `-${deletions}` : '';
 		} else {
 			templateData.container.classList.toggle('multiline', false);
 		}
@@ -365,7 +378,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 		// Create menu for this session item
 		const menu = templateData.elementDisposable.add(
-			this.menuService.createMenu(MenuId.ChatSessionsMenu, contextKeyService)
+			this.menuService.createMenu(MenuId.AgentSessionsContext, contextKeyService)
 		);
 
 		// Setup action bar with contributed actions

@@ -29,9 +29,9 @@ import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffS
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { IChatMultiDiffData, IChatMultiDiffInnerData } from '../../common/chatService.js';
+import { getChatSessionType } from '../../common/chatUri.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
 import { IChatContentPart } from './chatContentParts.js';
 
 const $ = dom.$;
@@ -57,12 +57,12 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 
 	constructor(
 		private readonly content: IChatMultiDiffData,
-		_element: ChatTreeItem,
+		private readonly _element: ChatTreeItem,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -143,19 +143,17 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		}));
 		const setupActionBar = () => {
 			actionBar.clear();
-
+			const type = getChatSessionType(this._element.sessionResource);
 			let marshalledUri: unknown | undefined = undefined;
 			let contextKeyService: IContextKeyService = this.contextKeyService;
-			if (this.editorService.activeEditor instanceof ChatEditorInput) {
-				contextKeyService = this.contextKeyService.createOverlay([
-					[ChatContextKeys.sessionType.key, this.editorService.activeEditor.getSessionType()]
-				]);
 
-				marshalledUri = {
-					...this.editorService.activeEditor.resource,
-					$mid: MarshalledId.Uri
-				};
-			}
+			contextKeyService = this.contextKeyService.createOverlay([
+				[ChatContextKeys.agentSessionType.key, type]
+			]);
+			marshalledUri = {
+				...this._element.sessionResource,
+				$mid: MarshalledId.Uri
+			};
 
 			const actions = this.menuService.getMenuActions(
 				MenuId.ChatMultiDiffContext,

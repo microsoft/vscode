@@ -513,7 +513,7 @@ export function registerChatActions() {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.and(
 							ContextKeyExpr.equals('view', ChatViewId),
-							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, false)
+							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, false)
 						),
 						group: 'navigation',
 						order: 2
@@ -522,7 +522,7 @@ export function registerChatActions() {
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.and(
 							ContextKeyExpr.equals('view', ChatViewId),
-							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, true)
+							ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
 						),
 						group: '2_history',
 						order: 1
@@ -746,7 +746,7 @@ export function registerChatActions() {
 							for (const { chatSessionType, items } of providerNSessions) {
 								for (const session of items) {
 									const ckey = contextKeyService.createKey('chatSessionType', chatSessionType);
-									const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
+									const actions = menuService.getMenuActions(MenuId.AgentSessionsContext, contextKeyService);
 									const { primary } = getContextMenuActions(actions, 'inline');
 									ckey.reset();
 
@@ -1831,12 +1831,12 @@ registerAction2(class EditToolApproval extends Action2 {
 	}
 });
 
-registerAction2(class ToggleChatViewRecentSessionsAction extends Action2 {
+registerAction2(class ToggleChatViewSessionsAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.toggleChatViewRecentSessions',
-			title: localize2('chat.toggleChatViewRecentSessions.label', "Show Recent Sessions"),
-			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewRecentSessionsEnabled}`, true),
+			id: 'workbench.action.chat.toggleChatViewSessions',
+			title: localize2('chat.toggleChatViewSessions.label', "Show Sessions"),
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
 			menu: {
 				id: MenuId.ChatWelcomeContext,
 				group: '1_modify',
@@ -1849,8 +1849,8 @@ registerAction2(class ToggleChatViewRecentSessionsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
-		const chatViewRecentSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewRecentSessionsEnabled);
-		await configurationService.updateValue(ChatConfiguration.ChatViewRecentSessionsEnabled, !chatViewRecentSessionsEnabled);
+		const chatViewSessionsEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, !chatViewSessionsEnabled);
 	}
 });
 
@@ -1874,5 +1874,31 @@ registerAction2(class ToggleChatViewTitleAction extends Action2 {
 
 		const chatViewTitleEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewTitleEnabled);
 		await configurationService.updateValue(ChatConfiguration.ChatViewTitleEnabled, !chatViewTitleEnabled);
+	}
+});
+
+
+registerAction2(class ToggleChatViewWelcomeAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.toggleChatViewWelcome',
+			title: localize2('chat.toggleChatViewWelcome.label', "Show Welcome"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewWelcomeEnabled}`, true),
+			menu: {
+				id: MenuId.ChatWelcomeContext,
+				group: '1_modify',
+				order: 3,
+				when: ChatContextKeys.inChatEditor.negate()
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const chatViewWelcomeEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatViewWelcomeEnabled);
+		await configurationService.updateValue(ChatConfiguration.ChatViewWelcomeEnabled, !chatViewWelcomeEnabled);
 	}
 });

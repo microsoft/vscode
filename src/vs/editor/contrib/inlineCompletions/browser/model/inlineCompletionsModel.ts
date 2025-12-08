@@ -7,7 +7,7 @@ import { mapFindFirst } from '../../../../../base/common/arraysFind.js';
 import { itemsEquals } from '../../../../../base/common/equals.js';
 import { BugIndicatingError, onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IObservable, IObservableWithChange, IReader, ITransaction, autorun, constObservable, derived, derivedHandleChanges, derivedOpts, mapObservableArrayCached, observableFromEvent, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from '../../../../../base/common/observable.js';
 import { firstNonWhitespaceIndex } from '../../../../../base/common/strings.js';
 import { isDefined } from '../../../../../base/common/types.js';
@@ -143,7 +143,7 @@ export class InlineCompletionsModel extends Disposable {
 		const snippetController = SnippetController2.get(this._editor);
 		this._isInSnippetMode = snippetController?.isInSnippetObservable ?? constObservable(false);
 
-		defaultAccountService.getDefaultAccount().then(account => this.sku.set(skuFromAccount(account), undefined));
+		defaultAccountService.getDefaultAccount().then(createDisposableCb(account => this.sku.set(skuFromAccount(account), undefined), this._store));
 		this._register(defaultAccountService.onDidChangeDefaultAccount(account => this.sku.set(skuFromAccount(account), undefined)));
 
 		this._typing = this._register(new TypingInterval(this.textModel));
@@ -919,12 +919,14 @@ export class InlineCompletionsModel extends Disposable {
 		completion.addRef();
 
 		try {
+			let followUpTrigger = false;
 			editor.pushUndoStop();
 			if (isNextEditUri) {
 				// Do nothing
 			} else if (completion.action?.kind === 'edit') {
 				const action = completion.action;
-				if (action.alternativeAction && alternativeAction) {
+				if (alternativeAction && action.alternativeAction) {
+					followUpTrigger = true;
 					const altCommand = action.alternativeAction.command;
 					await this._commandService
 						.executeCommand(altCommand.id, ...(altCommand.arguments || []))
@@ -977,6 +979,11 @@ export class InlineCompletionsModel extends Disposable {
 				await this._commandService
 					.executeCommand(completion.command.id, ...(completion.command.arguments || []))
 					.then(undefined, onUnexpectedExternalError);
+			}
+
+			// TODO: how can we make alternative actions to retrigger?
+			if (followUpTrigger) {
+				this.trigger(undefined);
 			}
 
 			completion.reportEndOfLife({ kind: InlineCompletionEndOfLifeReasonKind.Accepted });
@@ -1272,4 +1279,26 @@ function skuFromAccount(account: IDefaultAccount | null): InlineSuggestSku | und
 		return { type: account.access_type_sku, plan: account.copilot_plan };
 	}
 	return undefined;
+}
+
+class DisposableCallback<T> {
+	private _cb: ((e: T) => void) | undefined;
+
+	constructor(cb: (e: T) => void) {
+		this._cb = cb;
+	}
+
+	dispose(): void {
+		this._cb = undefined;
+	}
+
+	readonly handler = (val: T) => {
+		return this._cb?.(val);
+	};
+}
+
+function createDisposableCb<T>(cb: (e: T) => void, store: DisposableStore): (e: T) => void {
+	const dcb = new DisposableCallback(cb);
+	store.add(dcb);
+	return dcb.handler;
 }

@@ -30,6 +30,15 @@ export interface IMarshalledChatSessionContext {
 	readonly session: IChatSessionItem;
 }
 
+export function isMarshalledChatSessionContext(thing: unknown): thing is IMarshalledChatSessionContext {
+	if (typeof thing === 'object' && thing !== null) {
+		const candidate = thing as IMarshalledChatSessionContext;
+		return candidate.$mid === MarshalledId.ChatSessionContext && typeof candidate.session === 'object' && candidate.session !== null;
+	}
+
+	return false;
+}
+
 export class RenameChatSessionAction extends Action2 {
 	static readonly id = 'workbench.action.chat.renameSession';
 
@@ -246,7 +255,7 @@ export class ToggleAgentSessionsViewLocationAction extends Action2 {
 }
 
 // Register the menu item - show for all local chat sessions (including history items)
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 	command: {
 		id: RenameChatSessionAction.id,
 		title: localize('renameSession', "Rename"),
@@ -255,13 +264,13 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	group: 'inline',
 	order: 1,
 	when: ContextKeyExpr.and(
-		ChatContextKeys.sessionType.isEqualTo(localChatSessionType),
-		ChatContextKeys.isCombinedSessionViewer.negate()
+		ChatContextKeys.agentSessionType.isEqualTo(localChatSessionType),
+		ChatContextKeys.isCombinedAgentSessionsViewer.negate()
 	)
 });
 
 // Register delete menu item - only show for non-active sessions (history items)
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 	command: {
 		id: DeleteChatSessionAction.id,
 		title: localize('deleteSession', "Delete"),
@@ -270,19 +279,19 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	group: 'inline',
 	order: 2,
 	when: ContextKeyExpr.and(
-		ChatContextKeys.isArchivedItem.isEqualTo(true),
-		ChatContextKeys.isActiveSession.isEqualTo(false)
+		ChatContextKeys.isArchivedAgentSession.isEqualTo(true),
+		ChatContextKeys.isActiveAgentSession.isEqualTo(false)
 	)
 });
 
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+MenuRegistry.appendMenuItem(MenuId.AgentSessionsContext, {
 	command: {
 		id: OpenChatSessionInSidebarAction.id,
 		title: localize('openSessionInSidebar', "Open in Sidebar")
 	},
 	group: 'navigation',
 	order: 3,
-	when: ChatContextKeys.isCombinedSessionViewer.negate()
+	when: ChatContextKeys.isCombinedAgentSessionsViewer.negate()
 });
 
 // Register the toggle command for the ViewTitle menu
