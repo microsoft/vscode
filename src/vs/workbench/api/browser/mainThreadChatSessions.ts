@@ -24,6 +24,7 @@ import { IChatAgentRequest } from '../../contrib/chat/common/chatAgents.js';
 import { IChatContentInlineReference, IChatProgress, IChatService } from '../../contrib/chat/common/chatService.js';
 import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemProvider, IChatSessionProviderOptionItem, IChatSessionsService } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
+import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../services/editor/common/editorService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
@@ -439,8 +440,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			return;
 		}
 
-		const chatViewWidget = this._chatWidgetService.getWidgetBySessionResource(originalResource);
-		if (chatViewWidget && isIChatViewViewContext(chatViewWidget.viewContext)) {
+		{
 			const newSession = await this._chatSessionsService.getOrCreateChatSession(modifiedResource, CancellationToken.None);
 			// If chat editor is in the side panel, then those are not listed as editors.
 			// In that case we need to transfer editing session using the original model.
@@ -451,7 +451,14 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 					inputState: originalModel.inputModel.toJSON()
 				};
 			}
+		}
+
+		const chatViewWidget = this._chatWidgetService.getWidgetBySessionResource(originalResource);
+		if (chatViewWidget && isIChatViewViewContext(chatViewWidget.viewContext)) {
 			await this._chatWidgetService.openSession(modifiedResource, ChatViewPaneTarget, { preserveFocus: true });
+		} else {
+			const ref = await this._chatService.loadSessionForResource(modifiedResource, ChatAgentLocation.Chat, CancellationToken.None);
+			ref?.dispose();
 		}
 	}
 
