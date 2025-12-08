@@ -1039,6 +1039,30 @@ suite('ConfigurationResolverExpression', () => {
 		});
 	});
 
+	test('pathListSeparator variable', async () => {
+		if (platform.isWindows) {
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${pathListSeparator}'), ';');
+		} else {
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${pathListSeparator}'), ':');
+		}
+	});
+
+	test('pathListSeparator alias (:)', async () => {
+		if (platform.isWindows) {
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${:}'), ';');
+		} else {
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '${:}'), ':');
+		}
+	});
+
+	test('pathListSeparator in PATH-like string', async () => {
+		if (platform.isWindows) {
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '/usr/bin${pathListSeparator}/usr/local/bin'), '/usr/bin;/usr/local/bin');
+		} else {
+			assert.strictEqual(await configurationResolverService!.resolveAsync(workspace, '/usr/bin${pathListSeparator}/usr/local/bin'), '/usr/bin:/usr/local/bin');
+		}
+	});
+
 	test('out-of-order key resolution (#248550)', () => {
 		const expr = ConfigurationResolverExpression.parse({
 			'${input:key}': '${input:value}',
